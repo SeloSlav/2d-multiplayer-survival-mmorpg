@@ -11,7 +11,8 @@ import {
   ItemDefinition as SpacetimeDBItemDefinition,
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
-  PlayerPin as SpacetimeDBPlayerPin
+  PlayerPin as SpacetimeDBPlayerPin,
+  Corn as SpacetimeDBCorn
 } from '../generated';
 
 // --- Core Hooks ---
@@ -25,6 +26,7 @@ import { useGameLoop } from '../hooks/useGameLoop';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
+import { usePlayerActions } from '../contexts/PlayerActionsContext';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/worldRenderingUtils';
@@ -50,7 +52,7 @@ import {
     PLAYER_BOX_INTERACTION_DISTANCE_SQUARED
 } from '../config/gameConfig';
 import {
-    isPlayer, isWoodenStorageBox, isTree, isStone, isCampfire, isMushroom, isDroppedItem // Import type guards
+    isPlayer, isWoodenStorageBox, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isCorn
 } from '../utils/typeGuards';
 
 // --- Prop Interface ---
@@ -60,6 +62,7 @@ interface GameCanvasProps {
   stones: Map<string, SpacetimeDBStone>;
   campfires: Map<string, SpacetimeDBCampfire>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
+  corns: Map<string, SpacetimeDBCorn>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   playerPins: Map<string, SpacetimeDBPlayerPin>;
@@ -95,6 +98,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   stones,
   campfires,
   mushrooms,
+  corns,
   droppedItems,
   woodenStorageBoxes,
   playerPins,
@@ -109,8 +113,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   placementError,
   onSetInteractingWith,
   updatePlayerPosition,
-  callJumpReducer,
-  callSetSprintingReducer,
+  callJumpReducer: jump,
+  callSetSprintingReducer: setSprinting,
   isMinimapOpen,
   setIsMinimapOpen,
   isChatting,
@@ -137,18 +141,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({ worldState, campfires, cameraOffsetX, cameraOffsetY, canvasSize });
   const {
     closestInteractableMushroomId,
+    closestInteractableCornId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
-  } = useInteractionFinder({ localPlayer, mushrooms, campfires, droppedItems, woodenStorageBoxes });
+  } = useInteractionFinder({ localPlayer, mushrooms, corns, campfires, droppedItems, woodenStorageBoxes });
   const animationFrame = useAnimationCycle(150, 4);
   const { interactionProgress, processInputsAndActions } = useInputHandler({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, placementInfo, placementActions, worldMousePos,
-      closestInteractableMushroomId, closestInteractableCampfireId, closestInteractableDroppedItemId,
+      closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId,
       closestInteractableBoxId, isClosestInteractableBoxEmpty, isMinimapOpen, setIsMinimapOpen,
-      onSetInteractingWith, updatePlayerPosition, callJumpReducer, callSetSprintingReducer
+      onSetInteractingWith, isChatting
   });
 
   // --- UI State ---
@@ -250,6 +255,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         y = entity.posY;
         width = 32;
         height = 32;
+    } else if (isCorn(entity)) {
+        x = entity.posX;
+        y = entity.posY;
+        width = 32;
+        height = 48; // Corn is a bit taller than mushrooms
     } else if (isDroppedItem(entity)) {
         x = entity.posX;
         y = entity.posY;
@@ -279,9 +289,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const viewBounds = useMemo(() => getViewportBounds(), [getViewportBounds]);
 
   const visibleMushrooms = useMemo(() => 
-    Array.from(mushrooms.values()).filter(e => (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)),
+    Array.from(mushrooms.values())
+      .filter(e => (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds))
+      .map(mushroom => ({...mushroom, __entityType: 'mushroom' as const})),
     [mushrooms, isEntityInView, viewBounds]
   );
+  
+  const visibleCorns = useMemo(() => 
+    Array.from(corns.values())
+      .filter(e => (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds))
+      .map(corn => ({...corn, __entityType: 'corn' as const})),
+    [corns, isEntityInView, viewBounds]
+  );
+  
   const visibleDroppedItems = useMemo(() => 
     Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds)),
     [droppedItems, isEntityInView, viewBounds]
@@ -289,10 +309,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const visibleCampfires = useMemo(() => 
     Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds)),
     [campfires, isEntityInView, viewBounds]
-  );
-  const visiblePlayers = useMemo(() => 
-    Array.from(players.values()).filter(e => isEntityInView(e, viewBounds)),
-    [players, isEntityInView, viewBounds]
   );
   const visibleTrees = useMemo(() => 
     Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds)),
@@ -306,9 +322,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds)),
     [woodenStorageBoxes, isEntityInView, viewBounds]
   );
+  const visiblePlayers = useMemo(() => 
+    Array.from(players.values()).filter(p => !p.isDead && isEntityInView(p, viewBounds)),
+    [players, isEntityInView, viewBounds]
+  );
 
   // Filtered Maps (dependent on filtered arrays)
   const visibleMushroomsMap = useMemo(() => new Map(visibleMushrooms.map(m => [m.id.toString(), m])), [visibleMushrooms]);
+  const visibleCornsMap = useMemo(() => new Map(visibleCorns.map(c => [c.id.toString(), c])), [visibleCorns]);
   const visibleCampfiresMap = useMemo(() => new Map(visibleCampfires.map(c => [c.id.toString(), c])), [visibleCampfires]);
   const visibleDroppedItemsMap = useMemo(() => new Map(visibleDroppedItems.map(i => [i.id.toString(), i])), [visibleDroppedItems]);
   const visibleBoxesMap = useMemo(() => new Map(visibleWoodenStorageBoxes.map(b => [b.id.toString(), b])), [visibleWoodenStorageBoxes]);
@@ -316,9 +337,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Memoized list for ground items
   const groundItems = useMemo(() => [
     ...visibleMushrooms,
+    ...visibleCorns,
     ...visibleDroppedItems,
     ...visibleCampfires
-  ], [visibleMushrooms, visibleDroppedItems, visibleCampfires]);
+  ], [visibleMushrooms, visibleCorns, visibleDroppedItems, visibleCampfires]);
+  
 
   // Memoized and sorted list for Y-sorted entities
   const ySortedEntities = useMemo(() => {
@@ -369,7 +392,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Pass filtered lists to rendering functions
-    renderGroundEntities({ ctx, groundItems, itemDefinitions, itemImagesRef, nowMs: now_ms });
+    renderGroundEntities({ ctx, groundItems: groundItems as any, itemDefinitions, itemImagesRef, nowMs: now_ms });
     renderYSortedEntities({
         ctx, ySortedEntities, heroImageRef, lastPositionsRef, activeEquipments,
         itemDefinitions, itemImagesRef, worldMouseX: currentWorldMouseX, worldMouseY: currentWorldMouseY,
@@ -379,11 +402,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     renderInteractionLabels({
         ctx,
         mushrooms: visibleMushroomsMap,
+        corns: visibleCornsMap,
         campfires: visibleCampfiresMap,
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
         itemDefinitions,
-        closestInteractableMushroomId, closestInteractableCampfireId,
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId,
         closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
     });
     renderPlacementPreview({
@@ -462,14 +486,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [
       // Dependencies
       getViewportBounds, isEntityInView,
-      groundItems, ySortedEntities, visibleMushroomsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
+      groundItems, ySortedEntities, visibleMushroomsMap, visibleCornsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
       visibleCampfires, visibleWoodenStorageBoxes, // Added for indicators and lights
       players, itemDefinitions, trees, stones, 
       worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset, // Add viewCenterOffset dependency
       itemImagesRef, heroImageRef, grassImageRef, cameraOffsetX, cameraOffsetY,
       canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
       animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
-      closestInteractableMushroomId, closestInteractableCampfireId,
+      closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId,
       closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
       isMinimapOpen, isMouseOverMinimap, minimapZoom // Added zoom state dependency

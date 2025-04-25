@@ -16,28 +16,27 @@ pub(crate) const BOX_COLLISION_Y_OFFSET: f32 = 10.0; // Similar to campfire
 pub(crate) const PLAYER_BOX_COLLISION_DISTANCE_SQUARED: f32 = (super::PLAYER_RADIUS + BOX_COLLISION_RADIUS) * (super::PLAYER_RADIUS + BOX_COLLISION_RADIUS);
 const BOX_INTERACTION_DISTANCE_SQUARED: f32 = 64.0 * 64.0; // Similar to campfire interaction
 pub const NUM_BOX_SLOTS: usize = 18;
-// Add new constant for box-to-box collision
 pub(crate) const BOX_BOX_COLLISION_DISTANCE_SQUARED: f32 = (BOX_COLLISION_RADIUS * 2.0) * (BOX_COLLISION_RADIUS * 2.0);
 
-// Import InventoryItem and ItemDefinition tables/traits AND STRUCTS for item finding/checking
-use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait, ItemDefinition, item_definition as ItemDefinitionTableTrait};
-// Import Table Traits needed within the reducer
+// --- Import Table Traits and Concrete Types ---
+// Import necessary table traits and concrete types for working with players,
+// items, inventory management, and environment calculations
 use crate::player as PlayerTableTrait;
-// ADDED: Import the WoodenStorageBox table trait itself - REMOVED as it's defined here and accessed via ctx.db
-use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
-// Import inventory management helpers
-use crate::inventory_management; // still needed for generic handlers but helper fns removed
-// Import add_item_to_player_inventory from items module
-use crate::items::add_item_to_player_inventory;
-// Import Player struct correctly
 use crate::Player;
-// Import the ItemContainer trait
-use crate::inventory_management::ItemContainer;
-// Import the ContainerItemClearer trait
-use crate::inventory_management::ContainerItemClearer;
-// Import chunk calculation helper
-use crate::environment::calculate_chunk_index; // Assuming helper is here or in utils
+use crate::items::{
+    InventoryItem, ItemDefinition,
+    inventory_item as InventoryItemTableTrait, 
+    item_definition as ItemDefinitionTableTrait,
+    add_item_to_player_inventory
+};
+use crate::inventory_management::{self, ItemContainer, ContainerItemClearer};
+use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
+use crate::environment::calculate_chunk_index;
 
+/// --- Wooden Storage Box Data Structure ---
+/// Represents a storage box in the game world with position, owner, and
+/// inventory slots (using individual fields instead of arrays).
+/// Provides 18 slots for storing items that players can access when nearby.
 #[spacetimedb::table(name = wooden_storage_box, public)]
 #[derive(Clone)]
 pub struct WoodenStorageBox {
@@ -94,7 +93,10 @@ pub struct WoodenStorageBox {
  *                           REDUCERS (Generic Handlers)                        *
  ******************************************************************************/
 
+/// --- Move Item to Storage Box ---
 /// Moves an item from the player's inventory/hotbar INTO a specified slot in the storage box.
+/// Uses the generic handler from inventory_management.rs to perform the move operation.
+/// The handler validates the item, checks slot availability, and handles stacking logic.
 #[spacetimedb::reducer]
 pub fn move_item_to_box(
     ctx: &ReducerContext, 
@@ -125,7 +127,10 @@ pub fn move_item_to_box(
     Ok(())
 }
 
+/// --- Move Item from Storage Box ---
 /// Moves an item FROM a storage box slot INTO the player's inventory/hotbar.
+/// Uses the generic handler from inventory_management.rs to perform the move operation.
+/// The handler validates the item, checks slot availability, and handles stacking logic.
 #[spacetimedb::reducer]
 pub fn move_item_from_box(
     ctx: &ReducerContext, 
@@ -189,7 +194,10 @@ pub fn move_item_within_box(
     Ok(())
 }
 
-/// Splits a stack from player inventory/hotbar into a box slot.
+/// --- Split Stack Into Box ---
+/// Splits a stack from player inventory/hotbar into a specific box slot.
+/// Validates the box interaction and source item, then uses the generic container handler
+/// to split the stack and move the specified quantity to the box.
 #[spacetimedb::reducer]
 pub fn split_stack_into_box(
     ctx: &ReducerContext,
@@ -224,7 +232,10 @@ pub fn split_stack_into_box(
     Ok(())
 }
 
+/// --- Split Stack From Box ---
 /// Splits a stack from a box slot into the player's inventory/hotbar.
+/// Validates the box interaction, then uses the generic container handler
+/// to split the stack and move the specified quantity to the player's inventory.
 #[spacetimedb::reducer]
 pub fn split_stack_from_box(
     ctx: &ReducerContext,
@@ -257,7 +268,10 @@ pub fn split_stack_from_box(
     Ok(())
 }
 
+/// --- Split Stack Within Box ---
 /// Splits a stack FROM one box slot TO another within the same box.
+/// Validates the box interaction, then uses the generic container handler
+/// to split the stack and move the specified quantity to the target slot.
 #[spacetimedb::reducer]
 pub fn split_stack_within_box(
     ctx: &ReducerContext,
@@ -289,7 +303,10 @@ pub fn split_stack_within_box(
     Ok(())
 }
 
+/// --- Quick Move From Box ---
 /// Quickly moves an item FROM a box slot TO the player inventory.
+/// Validates the box interaction, then uses the generic container handler
+/// to move the item to the player's inventory.
 #[spacetimedb::reducer]
 pub fn quick_move_from_box(
     ctx: &ReducerContext, 
@@ -347,7 +364,10 @@ pub fn quick_move_to_box(
  *                         REDUCERS (Box-Specific Logic)                      *
  ******************************************************************************/
 
-/// Places a wooden storage box item from the player inventory into the world.
+/// --- Place Wooden Storage Box ---
+/// Places a wooden storage box from the player's inventory into the world at specified coordinates.
+/// Validates item ownership, type, and placement distance before consuming the item and creating
+/// the storage box entity. Uses the generic container system for item management.
 #[spacetimedb::reducer]
 pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, world_y: f32) -> Result<(), String> {
     let sender_id = ctx.sender;
@@ -480,7 +500,9 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
     Ok(())
 }
 
+/// --- Interact with Storage Box ---
 /// Allows a player to interact with a storage box if they are close enough.
+/// Uses the helper function for validation before proceeding.
 #[spacetimedb::reducer]
 pub fn interact_with_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<(), String> {
     validate_box_interaction(ctx, box_id)?; // Use helper for validation
@@ -488,6 +510,7 @@ pub fn interact_with_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<()
     Ok(())
 }
 
+/// --- Pickup Storage Box ---
 /// Allows a player to pick up an *empty* storage box, returning it to their inventory.
 #[spacetimedb::reducer]
 pub fn pickup_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<(), String> {
@@ -532,13 +555,17 @@ pub fn pickup_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<(), Strin
  *                            TRAIT IMPLEMENTATIONS                           *
  ******************************************************************************/
 
-// --- Trait Implementations ---
-
+/// --- ItemContainer Implementation for WoodenStorageBox ---
+/// Implements the ItemContainer trait for the WoodenStorageBox struct.
+/// Provides methods to get the number of slots and access individual slots.
 impl ItemContainer for WoodenStorageBox {
     fn num_slots(&self) -> usize {
         NUM_BOX_SLOTS
     }
 
+    /// --- Get Slot Instance ID ---
+    /// Returns the instance ID for a given slot index.
+    /// Returns None if the slot index is out of bounds.
     fn get_slot_instance_id(&self, slot_index: u8) -> Option<u64> {
         if slot_index >= NUM_BOX_SLOTS as u8 { return None; }
         match slot_index {
@@ -564,6 +591,9 @@ impl ItemContainer for WoodenStorageBox {
         }
     }
 
+    /// --- Get Slot Definition ID ---
+    /// Returns the definition ID for a given slot index.
+    /// Returns None if the slot index is out of bounds.
     fn get_slot_def_id(&self, slot_index: u8) -> Option<u64> {
         if slot_index >= NUM_BOX_SLOTS as u8 { return None; }
         match slot_index {
@@ -589,6 +619,9 @@ impl ItemContainer for WoodenStorageBox {
         }
     }
 
+    /// --- Set Slot ---
+    /// Sets the item instance ID and definition ID for a given slot index. 
+    /// Returns None if the slot index is out of bounds.
     fn set_slot(&mut self, slot_index: u8, instance_id: Option<u64>, def_id: Option<u64>) {
         if slot_index >= NUM_BOX_SLOTS as u8 { return; }
         match slot_index {
@@ -615,7 +648,9 @@ impl ItemContainer for WoodenStorageBox {
     }
 }
 
-/// Helper struct to implement the ContainerItemClearer trait for WoodenStorageBox
+/// --- Helper struct to implement the ContainerItemClearer trait for WoodenStorageBox ---
+/// Implements the ContainerItemClearer trait for the WoodenStorageBox struct.
+/// Provides a method to clear an item from all boxes.
 pub struct WoodenStorageBoxClearer;
 
 impl ContainerItemClearer for WoodenStorageBoxClearer {
@@ -659,8 +694,7 @@ impl ContainerItemClearer for WoodenStorageBoxClearer {
  *                             HELPER FUNCTIONS                               *
  ******************************************************************************/
 
-// --- Helper Function (Validation) --- 
-
+/// --- Validate Box Interaction ---
 /// Validates if a player can interact with a specific box (checks existence and distance).
 /// Returns Ok((Player struct instance, WoodenStorageBox struct instance)) on success, or Err(String) on failure.
 /// Does NOT check ownership.

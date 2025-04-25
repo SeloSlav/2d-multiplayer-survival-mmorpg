@@ -3,18 +3,21 @@ import {
     Campfire as SpacetimeDBCampfire,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
-    ItemDefinition as SpacetimeDBItemDefinition
+    ItemDefinition as SpacetimeDBItemDefinition,
+    Corn as SpacetimeDBCorn
 } from '../generated';
 import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../config/gameConfig';
 
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     mushrooms: Map<string, SpacetimeDBMushroom>;
+    corns: Map<string, SpacetimeDBCorn>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>; // Needed for dropped item names
     closestInteractableMushroomId: bigint | null;
+    closestInteractableCornId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -33,11 +36,13 @@ const LABEL_TEXT_ALIGN = "center";
 export function renderInteractionLabels({
     ctx,
     mushrooms,
+    corns,
     campfires,
     droppedItems,
     woodenStorageBoxes,
     itemDefinitions,
     closestInteractableMushroomId,
+    closestInteractableCornId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -58,6 +63,18 @@ export function renderInteractionLabels({
             const text = "Press E to Collect";
             const textX = mushroom.posX;
             const textY = mushroom.posY - 60; // Offset above mushroom
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Corn Label
+    if (closestInteractableCornId !== null) {
+        const corn = corns.get(closestInteractableCornId.toString());
+        if (corn) {
+            const text = "Press E to Harvest";
+            const textX = corn.posX;
+            const textY = corn.posY - 70; // Slightly higher offset for corn
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

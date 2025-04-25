@@ -4,7 +4,7 @@
  * Purpose: Manages the player's crafting queue and handles crafting completion.
  */
 
-use spacetimedb::{Identity, ReducerContext, Table, Timestamp};
+use spacetimedb::{Identity, ReducerContext, Table, Timestamp, TimeDuration};
 use log;
 use std::{collections::HashMap, time::Duration};
 
@@ -116,7 +116,7 @@ pub fn start_crafting(ctx: &ReducerContext, recipe_id: u64) -> Result<(), String
         }
     }
     let crafting_duration = Duration::from_secs(recipe.crafting_time_secs as u64);
-    let finish_time = last_finish_time + crafting_duration.into();
+    let finish_time = last_finish_time + spacetimedb::TimeDuration::from(crafting_duration);
 
     // 5. Add to Queue
     let queue_item = CraftingQueueItem {

@@ -11,7 +11,7 @@ pub(crate) const TREE_COLLISION_Y_OFFSET: f32 = 20.0;
 pub(crate) const PLAYER_TREE_COLLISION_DISTANCE_SQUARED: f32 = (PLAYER_RADIUS + TREE_TRUNK_RADIUS) * (PLAYER_RADIUS + TREE_TRUNK_RADIUS);
 
 // Tree Spawning Parameters
-pub(crate) const TREE_DENSITY_PERCENT: f32 = 0.01;
+pub(crate) const TREE_DENSITY_PERCENT: f32 = 0.02; // Doubled to 2% of map tiles
 pub(crate) const TREE_SPAWN_NOISE_FREQUENCY: f64 = 8.0;
 pub(crate) const TREE_SPAWN_NOISE_THRESHOLD: f64 = 0.7;
 pub(crate) const TREE_SPAWN_WORLD_MARGIN_TILES: u32 = 3;

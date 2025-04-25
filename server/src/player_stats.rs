@@ -181,9 +181,10 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let mut calculated_respawn_at = player.respawn_at; // Keep existing value by default
         if player.health > 0.0 && new_health <= 0.0 {
             player_died = true;
-            calculated_respawn_at = ctx.timestamp + Duration::from_secs(5).into(); // Set respawn time
-            log::warn!("Player {} ({:?}) has died due to stat drain! Will be respawnable at {:?}",
-                     player.username, player_id, calculated_respawn_at);
+            // Set respawn time relative to now
+            // Explicitly convert std::time::Duration to spacetimedb::TimeDuration
+            calculated_respawn_at = ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(5)); // Set respawn time
+            log::info!("Player {:?} died. Respawn at: {:?}", player_id, calculated_respawn_at);
 
             // Unequip item on death
             // Call unequip using the context and the specific player's identity

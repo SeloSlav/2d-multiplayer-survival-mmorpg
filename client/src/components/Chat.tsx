@@ -65,21 +65,6 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
       
     // Skip if we're focused on some other input that isn't our chat
     const isChatInputFocused = activeElement === chatInputRef.current;
-    
-    // If chat is open or chat input is focused, don't allow game controls
-    // This will be handled by the ChatInput component's event handlers
-    if (isChatting || isChatInputFocused) {
-      // Let the chat input handle its own events
-      if (!isChatInputFocused) {
-        // Only handle Escape here if we're not focused on the input
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          handleCloseChat();
-        }
-      }
-      return;
-    }
-    
     if (isInputFocused && !isChatInputFocused) return;
 
     if (event.key === 'Enter') {
@@ -90,11 +75,11 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
         setIsChatting(true);
       }
       // If chatting, the Enter key is handled by ChatInput component
-    }
+      }
     
     // Close chat with Escape if it's open
     if (event.key === 'Escape' && isChatting) {
-      event.preventDefault();
+         event.preventDefault();
       handleCloseChat();
     }
   }, [isChatting, setIsChatting, handleCloseChat]);

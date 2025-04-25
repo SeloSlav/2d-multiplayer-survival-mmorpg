@@ -171,6 +171,18 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_equippable: false,
             equipment_slot: None,
         },
+        ItemDefinition {
+            id: 0,
+            name: "Corn".to_string(),
+            description: "A nutritious food source that can be eaten or used in cooking.".to_string(),
+            category: ItemCategory::Consumable,
+            icon_asset_name: "corn.png".to_string(),
+            damage: None,
+            is_stackable: true,
+            stack_size: 50,
+            is_equippable: false,
+            equipment_slot: None,
+        },
     ];
     initial_items
 }

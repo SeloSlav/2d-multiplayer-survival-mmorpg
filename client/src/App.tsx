@@ -16,8 +16,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import LoginScreen from './components/LoginScreen';
 import GameScreen from './components/GameScreen';
 
+// Context Providers
+import { GameContextsProvider } from './contexts/GameContexts';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+
 // Hooks
-import { useSpacetimeConnection } from './hooks/useSpacetimeConnection';
+import { useGameConnection } from './contexts/GameConnectionContext';
+import { usePlayerActions } from './contexts/PlayerActionsContext';
 import { useSpacetimeTables } from './hooks/useSpacetimeTables';
 import { usePlacementManager } from './hooks/usePlacementManager';
 import { useDragDropManager } from './hooks/useDragDropManager';
@@ -34,18 +39,27 @@ const VIEWPORT_BUFFER = 1200; // Increased buffer (was 600) to create larger "ch
 const VIEWPORT_UPDATE_THRESHOLD_SQ = (VIEWPORT_WIDTH / 2) ** 2; // Increased threshold (was WIDTH/4), so updates happen less frequently
 const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) to reduce update frequency
 
-function App() {
+function AppContent() {
+    // --- Auth Hook ---
+    const { user, authToken, isAuthenticated, isLoading: authLoading } = useAuth();
+    
     // --- Core Hooks --- 
     const {
         connection,
-        isLoading: hookIsLoading, // Renamed to avoid clash with app-level loading/registering
+        dbIdentity, // Get the derived SpacetimeDB identity
+        isConnected: spacetimeConnected, // Rename for clarity
+        isLoading: spacetimeLoading, // Rename for clarity
         error: connectionError,
         registerPlayer,
+    } = useGameConnection();
+
+    // --- Player Actions ---
+    const {
         updatePlayerPosition,
-        callSetSprintingReducer,
-        callJumpReducer,
-        callUpdateViewportReducer, // Get the new reducer function
-    } = useSpacetimeConnection();
+        setSprinting,
+        jump,
+        updateViewport,
+    } = usePlayerActions();
 
     const [placementState, placementActions] = usePlacementManager(connection);
     const { placementInfo, placementError } = placementState; // Destructure state
@@ -56,12 +70,11 @@ function App() {
     const { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop } = useDragDropManager({ connection, interactingWith });
 
     // --- App-Level State --- 
-    const [appIsConnected, setAppIsConnected] = useState<boolean>(false); // Tracks if player is registered & game ready
     const [username, setUsername] = useState<string>('');
-    const [isRegistering, setIsRegistering] = useState<boolean>(false); // Tracks registration attempt
-    const [uiError, setUiError] = useState<string | null>(null); // For general UI errors not handled by hooks
+    const [isRegistering, setIsRegistering] = useState<boolean>(false); // Still track registration attempt
+    const [uiError, setUiError] = useState<string | null>(null);
     const [isMinimapOpen, setIsMinimapOpen] = useState<boolean>(false);
-    const [isChatting, setIsChatting] = useState<boolean>(false); // <<< Add isChatting state
+    const [isChatting, setIsChatting] = useState<boolean>(false);
 
     // --- Viewport State & Refs ---
     const [currentViewport, setCurrentViewport] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null);
@@ -70,7 +83,7 @@ function App() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, stones, campfires, mushrooms, itemDefinitions, 
+      players, trees, stones, campfires, mushrooms, corns, itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
       messages,
@@ -97,7 +110,7 @@ function App() {
     const debouncedUpdateViewport = useDebouncedCallback(
         (vp: { minX: number, minY: number, maxX: number, maxY: number }) => {
             // console.log(`[App] Calling debounced server viewport update: ${JSON.stringify(vp)}`);
-            callUpdateViewportReducer(vp.minX, vp.minY, vp.maxX, vp.maxY);
+            updateViewport(vp.minX, vp.minY, vp.maxX, vp.maxY);
             lastSentViewportCenterRef.current = { x: (vp.minX + vp.maxX) / 2, y: (vp.minY + vp.maxY) / 2 };
         },
         VIEWPORT_UPDATE_DEBOUNCE_MS
@@ -138,51 +151,39 @@ function App() {
     // Depend on the players map (specifically the local player's position), connection identity, and app connected status.
     }, [players, connection?.identity, debouncedUpdateViewport]); // Removed currentViewport dependency to avoid loops
 
-    // --- Effect to Sync App Connection State with Table Hook Registration State ---
+    // --- Use authenticated user data when available ---
     useEffect(() => {
-        // console.log(`[App Sync Revert] Running. localPlayerRegistered: ${localPlayerRegistered}, appIsConnected: ${appIsConnected}, isRegistering: ${isRegistering}, hookIsLoading: ${hookIsLoading}`);
-
-        // Reverted Logic: Check registration status first
-        if (localPlayerRegistered) {
-            // If registered and not connected, connect.
-            if (!appIsConnected) {
-                // console.log("[App Sync Revert] Player registered, setting appIsConnected = true");
-                setAppIsConnected(true);
+        if (isAuthenticated && user) {
+            const displayName = user.user_metadata?.username || 
+                                 user.user_metadata?.full_name || 
+                                 user.email?.split('@')[0] || 
+                                 '';
+            // Only set username if it hasn't been set or player isn't registered yet
+            // Prevents overwriting user input if they log in, change username, then refresh
+            if (displayName && (!username || !localPlayerRegistered)) {
+                setUsername(displayName);
             }
-            // If registered and currently in the registering process, mark registering as done.
-            if (isRegistering) {
-                // console.log("[App Sync Revert] Player registered, setting isRegistering = false");
-                setIsRegistering(false);
-            }
-        } else {
-            // Player is not registered according to the tables hook.
-            // If we *were* connected, this means a disconnect or server cleanup.
-            // We should transition back to the login screen.
-            // *** However, this is where the original bug was - a dead player might also cause `localPlayerRegistered` to become false. ***
-            // For now, let's comment out the disconnection logic here and rely on the GameScreen to handle the 'dead' state.
-            // A more robust solution would involve checking the actual connection status from useSpacetimeConnection.
-            /*
-            if (appIsConnected) { // Only change if previously connected
-                console.log("[App Sync Revert] Local player unregistered, setting app disconnected. (COMMENTED OUT)");
-                // setAppIsConnected(false);
-                // if (isRegistering) setIsRegistering(false);
-                // setCurrentViewport(null);
-                // lastSentViewportCenterRef.current = null;
-            }
-            */
         }
-
-    // Keep dependencies minimal: only trigger when registration status changes or registering state changes.
-    // hookIsLoading might not be necessary if the core connection logic handles its own loading state internally.
-    // Let's remove hookIsLoading for now to simplify.
-    }, [localPlayerRegistered, isRegistering]); // Removed appIsConnected and hookIsLoading
+    }, [isAuthenticated, user, username, localPlayerRegistered]);
 
     // --- Action Handlers --- 
     const handleAttemptRegisterPlayer = useCallback(() => {
         setUiError(null);
+        // Ensure we are authenticated and connected before registering
+        if (!isAuthenticated || !spacetimeConnected) {
+            console.error("Cannot register player: Not authenticated or not connected to SpacetimeDB.");
+            setUiError("Connection error, cannot register.");
+            return;
+        }
+        if (!username.trim()) {
+             setUiError("Username cannot be empty.");
+             return;
+        }
+        
         setIsRegistering(true);
-        registerPlayer(username);
-    }, [registerPlayer, username]);
+        // Call the simplified registerPlayer (token is handled by connection)
+        registerPlayer(username); 
+    }, [registerPlayer, username, isAuthenticated, spacetimeConnected]);
 
     // --- Global Window Effects --- 
     useEffect(() => {
@@ -228,8 +229,21 @@ function App() {
         };
     }, [isChatting]); // <<< Add isChatting dependency
 
-    // --- Error Display Logic --- 
-    // Combine potential errors from different sources for a single display point
+    // --- Effect to manage registration state based on table hook --- 
+    useEffect(() => {
+         if (localPlayerRegistered && isRegistering) {
+             // console.log("[AppContent] Player registered, setting isRegistering = false");
+             setIsRegistering(false);
+         }
+         // Maybe add logic here if registration fails?
+         // Currently, errors are shown via connectionError or uiError
+    }, [localPlayerRegistered, isRegistering]);
+
+    // --- Determine overall loading state ---
+    // Loading if either Auth is loading OR SpacetimeDB connection is loading
+    const overallIsLoading = authLoading || (isAuthenticated && spacetimeLoading);
+
+    // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
 
     // --- Render Logic --- 
@@ -238,27 +252,51 @@ function App() {
             {/* Display combined errors */} 
             {displayError && <div className="error-message">{displayError}</div>}
 
-            {/* Conditional Rendering: Login vs Game */} 
-            {!appIsConnected ? (
-                // --- Render Login Screen Component --- 
-                <LoginScreen
+            {/* Show loading screen */} 
+            {overallIsLoading && (
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    height: '100vh',
+                    color: 'white',
+                    fontFamily: '"Press Start 2P", cursive'
+                }}>
+                    {authLoading ? 'Authenticating...' : 'Connecting to SpacetimeDB...'}
+                </div>
+            )}
+
+            {/* Conditional Rendering: Login vs Game (only if not loading) */} 
+            {!overallIsLoading && !isAuthenticated && (
+                 <LoginScreen
+                    username={username} // Still needed for signup form
+                    setUsername={setUsername}
+                    handleLogin={() => {}} // handleLogin is now internal to LoginScreen auth submit
+                    isLoading={authLoading} // Pass auth loading state
+                    error={connectionError || uiError} // Show combined errors potentially
+                />
+            )}
+
+            {/* If authenticated but not yet registered/connected to game */}
+            {!overallIsLoading && isAuthenticated && !localPlayerRegistered && (
+                 <LoginScreen // Re-use login screen to input username for registration
                     username={username}
                     setUsername={setUsername}
-                    handleLogin={handleAttemptRegisterPlayer} // Pass the registration handler
-                    isLoading={hookIsLoading || isRegistering} // Combine loading states
-                    error={connectionError} // Pass only connection errors here
+                    handleLogin={handleAttemptRegisterPlayer} // Use the registration handler
+                    isLoading={isRegistering || spacetimeLoading} // Loading during registration or final connection
+                    error={connectionError || uiError}
                 />
-            ) : (
-                // --- Render Game Screen Component --- 
-                // Only render GameScreen if viewport is calculated (REMOVING THIS CONDITION)
-                // currentViewport && (
-                  <GameScreen 
-                      // Pass all necessary state and actions down as props
+            )}
+            
+            {/* If authenticated AND registered/game ready */}
+            {!overallIsLoading && isAuthenticated && localPlayerRegistered && (
+                 <GameScreen 
                       players={players}
                       trees={trees}
                       stones={stones}
                       campfires={campfires}
                       mushrooms={mushrooms}
+                      corns={corns}
                       droppedItems={droppedItems}
                       woodenStorageBoxes={woodenStorageBoxes}
                       inventoryItems={inventoryItems}
@@ -267,8 +305,8 @@ function App() {
                       activeEquipments={activeEquipments}
                       recipes={recipes}
                       craftingQueueItems={craftingQueueItems}
-                      localPlayerId={connection?.identity?.toHexString() ?? undefined}
-                      playerIdentity={connection?.identity || null}
+                      localPlayerId={dbIdentity?.toHexString() ?? undefined} // Use derived SpacetimeDB ID
+                      playerIdentity={dbIdentity} // Pass derived SpacetimeDB Identity
                       connection={connection}
                       placementInfo={placementInfo}
                       placementActions={placementActions}
@@ -277,22 +315,32 @@ function App() {
                       cancelPlacement={cancelPlacement}
                       interactingWith={interactingWith}
                       handleSetInteractingWith={handleSetInteractingWith}
-                      playerPins={playerPins} // Pass playerPins down
+                      playerPins={playerPins}
                       draggedItemInfo={draggedItemInfo}
                       onItemDragStart={handleItemDragStart}
                       onItemDrop={handleItemDrop}
                       updatePlayerPosition={updatePlayerPosition}
-                      callJumpReducer={callJumpReducer}
-                      callSetSprintingReducer={callSetSprintingReducer}
+                      callJumpReducer={jump}
+                      callSetSprintingReducer={setSprinting}
                       isMinimapOpen={isMinimapOpen}
                       setIsMinimapOpen={setIsMinimapOpen}
-                      isChatting={isChatting} // Pass isChatting state
-                      setIsChatting={setIsChatting} // Pass isChatting setter
-                      messages={messages} // Pass messages map
+                      isChatting={isChatting}
+                      setIsChatting={setIsChatting}
+                      messages={messages}
                   />
-                // )
             )}
         </div>
+    );
+}
+
+// Wrap the app with our context providers
+function App() {
+    return (
+        <AuthProvider>
+            <GameContextsProvider>
+                <AppContent />
+            </GameContextsProvider>
+        </AuthProvider>
     );
 }
 

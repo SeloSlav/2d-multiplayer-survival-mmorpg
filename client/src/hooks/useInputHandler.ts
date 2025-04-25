@@ -3,6 +3,7 @@ import * as SpacetimeDB from '../generated';
 import { DbConnection } from '../generated';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import React from 'react';
+import { usePlayerActions } from '../contexts/PlayerActionsContext';
 
 // --- Constants (Copied from GameCanvas) ---
 const HOLD_INTERACTION_DURATION_MS = 250;
@@ -20,19 +21,19 @@ interface UseInputHandlerProps {
     worldMousePos: { x: number | null; y: number | null }; // Pass world mouse position
     // Closest interactables (passed in for now)
     closestInteractableMushroomId: bigint | null;
+    closestInteractableCornId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
     // Callbacks for actions
     onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
-    updatePlayerPosition: (moveX: number, moveY: number) => void;
-    callJumpReducer: () => void;
-    callSetSprintingReducer: (isSprinting: boolean) => void;
+    // Note: movement functions are now provided by usePlayerActions hook
     // Note: attemptSwing logic will be internal to the hook
     // Add minimap state and setter
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    isChatting: boolean;
 }
 
 // --- Hook Return Value Interface ---
@@ -60,17 +61,19 @@ export const useInputHandler = ({
     placementActions,
     worldMousePos,
     closestInteractableMushroomId,
+    closestInteractableCornId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
     onSetInteractingWith,
-    updatePlayerPosition,
-    callJumpReducer,
-    callSetSprintingReducer,
     isMinimapOpen,
     setIsMinimapOpen,
+    isChatting,
 }: UseInputHandlerProps): InputHandlerState => {
+    // Get player actions from the context instead of props
+    const { updatePlayerPosition, jump, setSprinting } = usePlayerActions();
+
     // --- Internal State and Refs ---
     const keysPressed = useRef<Set<string>>(new Set());
     const isSprintingRef = useRef<boolean>(false);
@@ -87,17 +90,18 @@ export const useInputHandler = ({
     const localPlayerRef = useRef(localPlayer);
     const activeEquipmentsRef = useRef(activeEquipments);
     const closestIdsRef = useRef({
-        mushroom: closestInteractableMushroomId,
-        campfire: closestInteractableCampfireId,
-        droppedItem: closestInteractableDroppedItemId,
-        box: closestInteractableBoxId,
-        boxEmpty: isClosestInteractableBoxEmpty,
+        mushroom: null as bigint | null,
+        corn: null as bigint | null,
+        campfire: null as number | null,
+        droppedItem: null as bigint | null,
+        box: null as number | null,
+        boxEmpty: false
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
 
-    // --- Derive input disabled state --- 
-    const isInputEffectivelyDisabled = localPlayer?.isDead ?? false;
+    // --- Derive input disabled state based ONLY on player death --- 
+    const isPlayerDead = localPlayer?.isDead ?? false;
 
     // --- Effect to reset sprint state if player dies --- 
     useEffect(() => {
@@ -105,7 +109,7 @@ export const useInputHandler = ({
             // console.log("[InputHandler] Player died while sprinting, forcing sprint off.");
             isSprintingRef.current = false;
             // Call reducer to ensure server state is consistent
-            callSetSprintingReducer(false);
+            setSprinting(false);
         }
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
@@ -114,7 +118,7 @@ export const useInputHandler = ({
              eKeyHoldTimerRef.current = null;
              setInteractionProgress(null);
         }
-    }, [localPlayer?.isDead, callSetSprintingReducer]); // Depend on death state and the reducer callback
+    }, [localPlayer?.isDead, setSprinting]); // Depend on death state and the reducer callback
 
     // Update refs when props change
     useEffect(() => { placementActionsRef.current = placementActions; }, [placementActions]);
@@ -124,19 +128,22 @@ export const useInputHandler = ({
     useEffect(() => {
         closestIdsRef.current = {
             mushroom: closestInteractableMushroomId,
+            corn: closestInteractableCornId,
             campfire: closestInteractableCampfireId,
             droppedItem: closestInteractableDroppedItemId,
             box: closestInteractableBoxId,
             boxEmpty: isClosestInteractableBoxEmpty,
         };
-    }, [closestInteractableMushroomId, closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty]);
+    }, [closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
 
     // --- Swing Logic --- 
     const attemptSwing = useCallback(() => {
         const currentConnection = connectionRef.current;
-        if (!currentConnection?.reducers || !localPlayerId || isInputEffectivelyDisabled) return; // Check derived disabled state
+        // Check focus IN ADDITION to player death
+        const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+        if (!currentConnection?.reducers || !localPlayerId || isPlayerDead || chatInputIsFocused) return; 
 
         const currentEquipments = activeEquipmentsRef.current;
         const localEquipment = currentEquipments?.get(localPlayerId);
@@ -163,13 +170,14 @@ export const useInputHandler = ({
         } catch (err) { // Use unknown type for error
             console.error("[AttemptSwing] Error calling useEquippedItem reducer:", err);
         }
-    }, [localPlayerId, isInputEffectivelyDisabled]); // Add derived state dependency
+    }, [localPlayerId, isPlayerDead]); // Remove isInputEffectivelyDisabled dependency
 
     // --- Input Handling useEffect (Listeners only) ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            // Use the derived disabled state here
-            if (!event || isInputEffectivelyDisabled) return; 
+            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+            // Block if player is dead or chat is focused
+            if (!event || isPlayerDead || chatInputIsFocused) return; 
             const key = event.key.toLowerCase();
 
             // Placement cancellation (checked before general input disabled)
@@ -177,13 +185,11 @@ export const useInputHandler = ({
                 placementActionsRef.current?.cancelPlacement();
                 return;
             }
-            // Check disabled state again for other inputs
-            if (isInputEffectivelyDisabled) return;
 
             // Sprinting start
             if (key === 'shift' && !isSprintingRef.current && !event.repeat) {
                 isSprintingRef.current = true;
-                callSetSprintingReducer(true);
+                setSprinting(true);
                 return; // Don't add shift to keysPressed
             }
 
@@ -197,7 +203,7 @@ export const useInputHandler = ({
             // Jump
             if (key === ' ' && !event.repeat) {
                 if (localPlayerRef.current) { // Check player exists via ref
-                    callJumpReducer();
+                    jump();
                 }
             }
 
@@ -207,9 +213,9 @@ export const useInputHandler = ({
                 if (!currentConnection?.reducers) return; // Need connection for interactions
 
                 const closest = closestIdsRef.current; // Use ref value
-                const { mushroom, campfire, droppedItem, box, boxEmpty } = closest;
+                const { mushroom, corn, campfire, droppedItem, box, boxEmpty } = closest;
 
-                // Priority: DroppedItem > Empty Box > Mushroom > Open Box > Campfire
+                // Priority: DroppedItem > Empty Box > Mushroom > Corn > Open Box > Campfire
                 if (droppedItem !== null) {
                     try {
                         currentConnection.reducers.pickupDroppedItem(droppedItem);
@@ -260,6 +266,13 @@ export const useInputHandler = ({
                         console.error("Error calling interactWithMushroom reducer:", err);
                     }
                     return;
+                } else if (corn !== null) {
+                    try {
+                        currentConnection.reducers.interactWithCorn(corn);
+                    } catch (err) {
+                        console.error("Error calling interactWithCorn reducer:", err);
+                    }
+                    return;
                 } else if (campfire !== null) {
                     // console.log(`[InputHandler KeyDown E] Starting hold check for Campfire ID: ${campfire}`);
                     isEHeldDownRef.current = true;
@@ -295,15 +308,16 @@ export const useInputHandler = ({
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            // Use derived disabled state here
-            if (!event || isInputEffectivelyDisabled) return; 
+            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+            // Block if player is dead or chat is focused
+            if (!event || isPlayerDead || chatInputIsFocused) return; 
             const key = event.key.toLowerCase();
             // Sprinting end
             if (key === 'shift') {
                 if (isSprintingRef.current) {
                     isSprintingRef.current = false;
                     // No need to check isInputDisabled here, if we got this far, input is enabled
-                    callSetSprintingReducer(false); 
+                    setSprinting(false); 
                 }
             }
             keysPressed.current.delete(key);
@@ -349,13 +363,15 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            // Use derived disabled state here
-            if (isInputEffectivelyDisabled || event.button !== 0 || placementInfo) return; 
+            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+            // Block if player is dead, chat focused, button isn't left, or placing
+            if (isPlayerDead || chatInputIsFocused || event.button !== 0 || placementInfo) return; 
             isMouseDownRef.current = true;
             attemptSwing(); // Call internal swing logic
         };
 
         const handleMouseUp = (event: MouseEvent) => {
+            // No need to check focus here, just handle the button state
             if (event.button === 0) {
                 isMouseDownRef.current = false;
             }
@@ -363,8 +379,9 @@ export const useInputHandler = ({
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
-            // Use derived disabled state here
-            if (isInputEffectivelyDisabled || event.button !== 0) return; 
+            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+            // Block if player is dead, chat focused, or button isn't left
+            if (isPlayerDead || chatInputIsFocused || event.button !== 0) return; 
             const currentWorldMouse = worldMousePosRefInternal.current;
             if (placementInfo && currentWorldMouse.x !== null && currentWorldMouse.y !== null) {
                  placementActionsRef.current?.attemptPlacement(currentWorldMouse.x, currentWorldMouse.y);
@@ -396,14 +413,12 @@ export const useInputHandler = ({
         const handleBlur = () => {
             if (isSprintingRef.current) {
                 isSprintingRef.current = false;
-                // Use derived disabled state here
-                if (!isInputEffectivelyDisabled) { 
-                    callSetSprintingReducer(false);
-                }
+                // Call reducer regardless of focus state if window loses focus
+                setSprinting(false); 
             }
-            keysPressed.current.clear();
-            isMouseDownRef.current = false; // Ensure mouse down state is cleared on blur
-            isEHeldDownRef.current = false; // Ensure E hold state is cleared
+            // keysPressed.current.clear(); // Keep this commented out
+            isMouseDownRef.current = false;
+            isEHeldDownRef.current = false;
             if(eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
             eKeyHoldTimerRef.current = null;
             setInteractionProgress(null);
@@ -447,14 +462,13 @@ export const useInputHandler = ({
                 clearTimeout(eKeyHoldTimerRef.current);
             }
         };
-    // Update dependencies: Replace isInputDisabled with localPlayer?.isDead
-    // Add localPlayer?.isDead as dependency
-    }, [canvasRef, localPlayer?.isDead, placementInfo, callSetSprintingReducer, callJumpReducer, attemptSwing, setIsMinimapOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen]);
 
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
-        // Use the derived disabled state here
-        if (isInputEffectivelyDisabled) return; 
+        const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+        // Block if player is dead or chat is focused
+        if (isPlayerDead || chatInputIsFocused) return; 
 
         // --- Movement --- 
         let dx = 0;
@@ -477,22 +491,19 @@ export const useInputHandler = ({
             normY = dy / magnitude;
         }
 
-        // Call updatePlayerPosition (passed as prop)
+        // Call updatePlayerPosition (from context)
         updatePlayerPosition(normX, normY);
 
         // Handle continuous swing check
         if (isMouseDownRef.current && !placementInfo) { // Only swing if not placing
             attemptSwing(); // Call internal attemptSwing function
         }
-    // Include dependencies that are read inside this function
-    // Update dependencies: Replace isInputDisabled with localPlayer?.isDead
     }, [
-        isInputEffectivelyDisabled, updatePlayerPosition, attemptSwing, placementInfo,
+        isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCampfireId, 
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, 
         closestInteractableDroppedItemId, closestInteractableBoxId, 
-        isClosestInteractableBoxEmpty, onSetInteractingWith, 
-        callSetSprintingReducer, callJumpReducer 
+        isClosestInteractableBoxEmpty, onSetInteractingWith
     ]);
 
     // --- Return State & Actions ---

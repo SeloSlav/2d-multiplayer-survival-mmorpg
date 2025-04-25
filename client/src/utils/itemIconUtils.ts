@@ -18,6 +18,7 @@ import clothBootsIcon from '../assets/items/cloth_boots.png';
 import burlapSackIcon from '../assets/items/burlap_sack.png';
 import burlapBackpackIcon from '../assets/items/burlap_backpack.png';
 import mushroomIcon from '../assets/items/mushroom.png';
+import cornIcon from '../assets/items/corn.png';
 import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
 
 // We don't import the missing ones (hood, boots, etc.)
@@ -39,6 +40,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'burlap_sack.png': burlapSackIcon,
   'burlap_backpack.png': burlapBackpackIcon,
   'mushroom.png': mushroomIcon,
+  'corn.png': cornIcon,
   'wooden_storage_box.png': woodenStorageBoxIcon,
   // Add mappings for existing icons only
 };

@@ -22,11 +22,13 @@ use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TILE_SIZE_PX, WORLD_WIDTH_TILES, WO
 use crate::tree;
 use crate::stone;
 use crate::mushroom;
+use crate::corn;
 
 // Import table traits needed for ctx.db access
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::mushroom::mushroom as MushroomTableTrait;
+use crate::corn::corn as CornTableTrait;
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -65,16 +67,17 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let trees = ctx.db.tree();
     let stones = ctx.db.stone();
     let mushrooms = ctx.db.mushroom();
+    let corns = ctx.db.corn();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -88,10 +91,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_stone_attempts = target_stone_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
     let target_mushroom_count = (total_tiles as f32 * crate::mushroom::MUSHROOM_DENSITY_PERCENT) as u32;
     let max_mushroom_attempts = target_mushroom_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
+    let target_corn_count = (total_tiles as f32 * crate::corn::CORN_DENSITY_PERCENT) as u32;
+    let max_corn_attempts = target_corn_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
 
     log::info!("Target Trees: {}, Max Attempts: {}", target_tree_count, max_tree_attempts);
     log::info!("Target Stones: {}, Max Attempts: {}", target_stone_count, max_stone_attempts);
     log::info!("Target Mushrooms: {}, Max Attempts: {}", target_mushroom_count, max_mushroom_attempts);
+    log::info!("Target Corns: {}, Max Attempts: {}", target_corn_count, max_corn_attempts);
 
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
@@ -102,6 +108,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_tree_positions = Vec::<(f32, f32)>::new();
     let mut spawned_stone_positions = Vec::<(f32, f32)>::new();
     let mut spawned_mushroom_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_corn_positions = Vec::<(f32, f32)>::new();
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -109,6 +116,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut stone_attempts = 0;
     let mut spawned_mushroom_count = 0;
     let mut mushroom_attempts = 0;
+    let mut spawned_corn_count = 0;
+    let mut corn_attempts = 0;
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -239,6 +248,48 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_mushroom_count, target_mushroom_count, mushroom_attempts
     );
 
+    // --- Seed Corn --- Use helper function ---
+    log::info!("Seeding Corn...");
+    let corn_noise_threshold = 0.70; // Specific threshold for corn
+    while spawned_corn_count < target_corn_count && corn_attempts < max_corn_attempts {
+        corn_attempts += 1;
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_corn_positions,
+            &spawned_tree_positions,
+            &spawned_stone_positions,
+            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+            &fbm,
+            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
+            corn_noise_threshold,
+            crate::corn::MIN_CORN_DISTANCE_SQ,
+            crate::corn::MIN_CORN_TREE_DISTANCE_SQ,
+            crate::corn::MIN_CORN_STONE_DISTANCE_SQ,
+            |pos_x, pos_y| {
+                // Calculate chunk index for the corn
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                crate::corn::Corn {
+                    id: 0,
+                    pos_x,
+                    pos_y,
+                    chunk_index: chunk_idx, // Set the chunk index
+                    respawn_at: None,
+                }
+            },
+            corns,
+        ) {
+            Ok(true) => spawned_corn_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} corn plants (target: {}, attempts: {}).",
+        spawned_corn_count, target_corn_count, corn_attempts
+    );
+
     log::info!("Environment seeding complete.");
     Ok(())
 }
@@ -286,6 +337,18 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |_m: &crate::mushroom::Mushroom| true, // Filter: Always check mushrooms if respawn_at is set (handled internally by macro)
         |m: &mut crate::mushroom::Mushroom| {
             m.respawn_at = None;
+        }
+    );
+
+    // Respawn Corn
+    check_and_respawn_resource!(
+        ctx,
+        corn,
+        crate::corn::Corn,
+        "Corn",
+        |_c: &crate::corn::Corn| true, // Filter: Always check corn if respawn_at is set (handled internally by macro)
+        |c: &mut crate::corn::Corn| {
+            c.respawn_at = None;
         }
     );
 

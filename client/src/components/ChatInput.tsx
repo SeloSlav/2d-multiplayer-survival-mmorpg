@@ -55,9 +55,6 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    // Stop propagation to prevent game controls from activating
-    event.stopPropagation();
-    
     if (event.key === 'Enter') {
       event.preventDefault();
       handleSendIfValid();
@@ -67,16 +64,6 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
         ref.current.blur();
       }
     }
-  };
-  
-  // Handle keyup to prevent game controls from activating on key release
-  const handleKeyUp = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    event.stopPropagation();
-  };
-  
-  // Handle keypress to catch any other key events
-  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    event.stopPropagation();
   };
 
   // Handle the blur event which will be triggered by both clicking outside 
@@ -106,8 +93,6 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
       value={inputValue}
       onChange={(e) => onInputChange(e.target.value)}
       onKeyDown={handleKeyDown}
-      onKeyUp={handleKeyUp}
-      onKeyPress={handleKeyPress}
       onBlur={handleBlur}
       placeholder="Press Enter to chat..."
       maxLength={100}

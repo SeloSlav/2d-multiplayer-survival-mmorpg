@@ -14,8 +14,9 @@ This guide outlines the steps required to add new consumable resources (like Cor
 3.  **Integrate:** Update server logic (seeding, respawning, collision, harvesting) to include the new resource/node.
 4.  **Client Rendering:** Add assets and update client code to display the new resource/node.
 5.  **Client Interaction:** Update client code to call the appropriate server reducers on interaction/use.
-6.  **Bindings:** Regenerate TypeScript bindings after server schema changes (`spacetime generate ...`).
-7.  **Testing:** Test spawning, interaction/harvesting, respawning, and collision thoroughly.
+6.  **Client Preloading:** Ensure resource images are properly preloaded to avoid rendering issues.
+7.  **Bindings:** Regenerate TypeScript bindings after server schema changes (`spacetime generate ...`).
+8.  **Testing:** Test spawning, interaction/harvesting, respawning, and collision thoroughly.
 
 ---
 
@@ -31,22 +32,21 @@ This resource type is picked up directly by the player, disappears, and respawns
     *   Create a new file: `src/corn.rs`.
 3.  **Define Entity Struct (`src/corn.rs`):**
     *   Define the `Corn` struct with `#[spacetimedb::table(name = corn, public)]`.
-    *   Include fields: `#[primary_key] #[auto_inc] id: u64`, `pos_x: f32`, `pos_y: f32`, `respawn_at: Option<Timestamp>`.
+    *   Include fields: `#[primary_key] #[auto_inc] id: u64`, `pos_x: f32`, `pos_y: f32`, `chunk_index: u32`, `respawn_at: Option<Timestamp>`.
 4.  **Add Constants (`src/corn.rs`):**
     *   Define constants like `CORN_DENSITY_PERCENT`, `MIN_CORN_DISTANCE_SQ`, `MIN_CORN_TREE_DISTANCE_SQ`, `MIN_CORN_STONE_DISTANCE_SQ`, etc. Adjust values based on desired rarity and placement relative to other objects.
-    *   Define interaction constants like `PLAYER_CORN_INTERACTION_DISTANCE_SQUARED`.
+    *   Define interaction constants like `PLAYER_CORN_INTERACTION_DISTANCE_SQUARED` or reuse common ones from `collectible_resources`.
 5.  **Implement Interaction Reducer (`src/corn.rs`):**
     *   Create a reducer `interact_with_corn(ctx: &ReducerContext, corn_id: u64)`.
     *   Mirror the logic in `mushroom.rs::interact_with_mushroom`:
         *   Find the player and the specific corn instance.
-        *   Check distance using `PLAYER_CORN_INTERACTION_DISTANCE_SQUARED`.
+        *   Check distance using `PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED`.
         *   Find the "Corn" `ItemDefinition` ID.
-        *   Call `crate::items::add_item_to_player_inventory` to give the item.
-        *   Calculate the `respawn_time` using `RESOURCE_RESPAWN_DURATION_SECS` (or a corn-specific one if needed).
-        *   Update the corn instance, setting its `respawn_at` field. Log the pickup.
+        *   Use the `collect_resource_and_schedule_respawn` helper from `collectible_resources`.
+        *   Calculate the `respawn_time` and update the corn instance. Log the pickup.
 6.  **Register Module (`src/lib.rs`):**
     *   Add `mod corn;` to the module declarations.
-    *   Add `use crate::corn::corn as CornTableTrait;` to the table trait imports if needed elsewhere, although direct access might be limited to environment/utils.
+    *   Add `use crate::corn::corn as CornTableTrait;` to the table trait imports if needed elsewhere.
 7.  **Update Seeding (`src/environment.rs`):**
     *   In `seed_environment`, add a new loop similar to the mushroom loop:
         *   Calculate `target_corn_count` and `max_corn_attempts`.
@@ -69,18 +69,131 @@ This resource type is picked up directly by the player, disappears, and respawns
             }
         );
         ```
+9.  **Add Consumable Effects (`src/consumables.rs`):**
+    *   Define constants for the resource's healing effects:
+        ```rust
+        const CORN_HEALTH_GAIN: f32 = 15.0;
+        const CORN_HUNGER_GAIN: f32 = 25.0;
+        const CORN_THIRST_GAIN: f32 = 10.0;
+        ```
+    *   Update the `consume_item` reducer to handle the new resource:
+        ```rust
+        match item_def.name.as_str() {
+            "Mushroom" => {
+                // Existing mushroom logic
+            },
+            "Corn" => {
+                player.health = (player.health + CORN_HEALTH_GAIN).min(MAX_STAT_VALUE);
+                player.hunger = (player.hunger + CORN_HUNGER_GAIN).min(MAX_STAT_VALUE);
+                player.thirst = (player.thirst + CORN_THIRST_GAIN).min(MAX_STAT_VALUE);
+                stat_changed = true;
+            },
+            _ => {
+                // Default case
+            }
+        }
+        ```
 
 ### Client (`client/`)
 
-1.  **Add Asset:** Place the `corn.png` (or similar) image in `public/assets/`.
-2.  **Update Icons (`src/utils/itemIconUtils.ts`):** Add an entry for `"corn"` in the `itemIcons` mapping.
-3.  **Update Rendering (`src/components/GameScene.tsx`):**
-    *   Add `corn: Corn[]` to the `useSpacetimeDb` state.
-    *   Include `"corn"` in the `TABLE_NAMES` array for the subscription.
-    *   In the rendering loop (`entities.map(...)`), add a case to render `Corn` entities similar to how Mushrooms are rendered, filtering out those with `respawn_at` set.
-4.  **Update Interaction (`src/components/GameScene.tsx`):**
-    *   In the `handleCanvasClick` function (or similar interaction logic), modify the check to find the closest *visible* corn instance.
-    *   If a corn is clicked within range, call the `interactWithCorn` reducer.
+1.  **Add Asset:** Place the resource image (e.g., `corn_stalk.png`) in `src/assets/doodads/`.
+2.  **Create Rendering Utils:**
+    *   Create a new file: `src/utils/cornRenderingUtils.ts` to handle corn-specific rendering:
+        ```typescript
+        import { Corn } from '../generated';
+        import cornImage from '../assets/doodads/corn_stalk.png';
+        import { drawShadow } from './shadowUtils';
+
+        export const cornImageSources = { Default: cornImage };
+        const imageCache: { [key: string]: HTMLImageElement } = {};
+
+        export function preloadCornImages() {
+          Object.values(cornImageSources).forEach((src) => {
+            if (!imageCache[src]) {
+              const img = new Image();
+              img.src = src;
+              imageCache[src] = img;
+            }
+          });
+        }
+
+        export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: number) {
+          // Corn-specific rendering logic
+        }
+        ```
+3.  **Add Image Preloading:**
+    *   Import the preload function in `src/hooks/useAssetLoader.ts`:
+        ```typescript
+        import { preloadCornImages } from '../utils/cornRenderingUtils';
+        ```
+    *   Call the preload function with other entity preloads:
+        ```typescript
+        // --- Preload Entity Sprites ---
+        try {
+            preloadTreeImages();
+            // Other preloads...
+            preloadCornImages();
+        } catch (error) {
+            console.error("Error during entity preloading:", error);
+        }
+        ```
+4. **Update Type Guards (`src/utils/typeGuards.ts`):**
+    *   Add or update the `isCorn` function:
+        ```typescript
+        export function isCorn(entity: any): entity is SpacetimeDBCorn {
+            // Check for entity type marker
+            if (entity && entity.__entityType === 'corn') {
+                return true;
+            }
+            
+            return entity && 
+                   typeof entity.posX === 'number' && 
+                   typeof entity.posY === 'number' && 
+                   typeof entity.id !== 'undefined' &&
+                   // Other checks as needed
+                   entity.__entityType !== 'mushroom';
+        }
+        ```
+5. **Update Rendering Integration:**
+    *   Import the rendering function in `src/utils/renderingUtils.ts`:
+        ```typescript
+        import { renderCorn } from './cornRenderingUtils';
+        ```
+    *   Update `renderGroundEntities` to handle corn:
+        ```typescript
+        export const renderGroundEntities = ({
+            ctx, groundItems, itemDefinitions, itemImagesRef, nowMs
+        }) => {
+            groundItems.forEach(entity => {
+                // Special case for explicitly marked entities
+                if (entity.__entityType === 'corn') {
+                    renderCorn(ctx, entity as SpacetimeDBCorn, nowMs);
+                    return;
+                }
+                
+                // Regular rendering logic
+                if (isDroppedItem(entity)) {
+                    // ...
+                } else if (isCorn(entity)) {
+                    renderCorn(ctx, entity, nowMs);
+                } else if (isMushroom(entity)) {
+                    // ...
+                }
+            });
+        };
+        ```
+6. **Mark Entity Types in GameCanvas:**
+    *   Update the visible entity filtering to add type markers:
+        ```typescript
+        const visibleCorns = useMemo(() => 
+            Array.from(corns.values())
+              .filter(e => !e.respawnAt && isEntityInView(e, viewBounds))
+              .map(corn => ({...corn, __entityType: 'corn' as const})),
+            [corns, isEntityInView, viewBounds]
+        );
+        ```
+7. **Update Icons:**
+    *   Add an entry for the resource icon in `src/utils/itemIconUtils.ts`.
 
 ---
 
@@ -147,4 +260,25 @@ This resource type has health, is harvested with tools, yields resources over ti
 ---
 
 Remember to run `spacetime publish ...` and `spacetime generate --lang typescript ...` after making server-side schema or reducer changes.
+
+## Troubleshooting
+
+1. **Type Errors with Entity Type Markers:**
+   * If you see errors like `Type 'string' is not assignable to type '"mushroom" | "corn" | ...'`, use `as const` when setting the `__entityType` property:
+   ```typescript
+   .map(corn => ({...corn, __entityType: 'corn' as const}))
+   ```
+
+2. **Image Loading Issues:**
+   * Check browser console for warnings like `Image not preloaded`. Ensure the preload function is imported and called in `useAssetLoader.ts`.
+   * Verify the image path in the import statement matches the actual file location.
+
+3. **Rendering Issues:**
+   * Ensure type guards correctly differentiate between similar entities (especially important for corn vs. mushrooms).
+   * Add special case handling in `renderGroundEntities` to prioritize rendering based on `__entityType`.
+
+4. **Consumable Effects Not Applied:**
+   * Check `consumables.rs` for proper string matching in the item name comparison.
+   * Use `match item_def.name.as_str()` instead of direct equality checks.
+   * Verify constants are defined and effects are being applied correctly.
 

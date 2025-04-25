@@ -11,6 +11,7 @@ import { preloadStoneImage } from '../utils/stoneRenderingUtils';
 import { preloadCampfireImage } from '../utils/campfireRenderingUtils';
 import { preloadMushroomImages } from '../utils/mushroomRenderingUtils';
 import { preloadWoodenStorageBoxImage } from '../utils/woodenStorageBoxRenderingUtils';
+import { preloadCornImages } from '../utils/cornRenderingUtils';
 
 // Define the hook's return type for clarity
 interface AssetLoaderResult {
@@ -99,6 +100,7 @@ export function useAssetLoader(): AssetLoaderResult {
         preloadCampfireImage(); // For the actual campfire animation/states
         preloadMushroomImages();
         preloadWoodenStorageBoxImage();
+        preloadCornImages();
         // console.log('Entity preloading initiated by hook.');
     } catch (error) {
         console.error("Error during entity preloading:", error);

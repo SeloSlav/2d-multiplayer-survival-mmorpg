@@ -12,11 +12,7 @@ interface SpacetimeConnectionState {
     isConnected: boolean;
     isLoading: boolean;
     error: string | null;
-    registerPlayer: (username: string) => void;
-    updatePlayerPosition: (moveX: number, moveY: number) => void;
-    callSetSprintingReducer: (isSprinting: boolean) => void;
-    callJumpReducer: () => void;
-    callUpdateViewportReducer: (minX: number, minY: number, maxX: number, maxY: number) => void;
+    registerPlayer: (username: string, authToken?: string) => void;
 }
 
 export const useSpacetimeConnection = (): SpacetimeConnectionState => {
@@ -91,72 +87,26 @@ export const useSpacetimeConnection = (): SpacetimeConnectionState => {
     // For simplicity now, we'll let App.tsx manage the final `isConnected` state based on player registration.
     // This hook provides the base `connection` object.
 
-    // --- Reducer Call Wrappers ---
-    const registerPlayer = useCallback((username: string) => {
+    // --- Player Registration --- (Only game-specific action we keep here)
+    const registerPlayer = useCallback((username: string, authToken?: string) => {
         if (connection && username.trim()) {
             setIsLoading(true); // Set loading during registration attempt
             setError(null);
             // console.log(`[useSpacetimeConnection] Calling registerPlayer reducer with username: ${username}`);
             try {
+                // Note: For now we're ignoring the authToken since the server reducer doesn't support it yet
+                // When the server is updated, we'll need to pass the token to the reducer
+                // If authToken is provided, we'll need to call a different reducer or modify the existing one
                 connection.reducers.registerPlayer(username);
                 // setIsLoading will be set to false in App.tsx when the player entity appears OR if register fails
-                // setIsLoading(false); // Remove this - App.tsx will manage registration loading state
             } catch (err: any) {
                 console.error('[useSpacetimeConnection] Failed to register player:', err);
                 setError(`Failed to register player: ${err.message || err}. Please try again.`);
                 // If registration fails immediately, stop loading
-                // Let App.tsx handle resetting its own isRegistering state
             }
         } else {
             console.warn("[useSpacetimeConnection] Cannot register player: No connection or empty username.");
             setError("Cannot register: Not connected or username is empty.");
-        }
-    }, [connection]);
-
-    // --- Update Player Position --- (Modified Signature)
-    const updatePlayerPosition = useCallback((moveX: number, moveY: number) => {
-        if (!connection?.reducers) {
-            console.warn("Connection not ready for updatePlayerPosition");
-            return;
-        }
-        try {
-            connection.reducers.updatePlayerPosition(moveX, moveY);
-        } catch (err) {
-            console.error("Error calling updatePlayerPosition reducer:", err);
-            // Consider setting an error state
-        }
-    }, [connection]);
-
-    const callSetSprintingReducer = useCallback((isSprinting: boolean) => {
-        if (connection?.reducers) {
-            try {
-                connection.reducers.setSprinting(isSprinting);
-            } catch (err: any) {
-                console.error('[useSpacetimeConnection] Failed to call setSprinting reducer:', err);
-                // setError(`Sprint toggle failed: ${err.message || err}`);
-            }
-        }
-    }, [connection]);
-
-    const callJumpReducer = useCallback(() => {
-        if (connection?.reducers) {
-            try {
-                connection.reducers.jump();
-            } catch (err: any) {
-                console.error('[useSpacetimeConnection] Failed to call jump reducer:', err);
-                // setError(`Jump failed: ${err.message || err}`);
-            }
-        }
-    }, [connection]);
-
-    const callUpdateViewportReducer = useCallback((minX: number, minY: number, maxX: number, maxY: number) => {
-        if (connection?.reducers) {
-            try {
-                connection.reducers.updateViewport(minX, minY, maxX, maxY);
-            } catch (err: any) {
-                console.error('[useSpacetimeConnection] Failed to call updateViewport reducer:', err);
-                // setError(`Viewport update failed: ${err.message || err}`);
-            }
         }
     }, [connection]);
 
@@ -166,9 +116,5 @@ export const useSpacetimeConnection = (): SpacetimeConnectionState => {
         isLoading,
         error,
         registerPlayer,
-        updatePlayerPosition,
-        callSetSprintingReducer,
-        callJumpReducer,
-        callUpdateViewportReducer,
     };
 }; 

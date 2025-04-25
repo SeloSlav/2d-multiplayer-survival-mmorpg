@@ -1,28 +1,49 @@
+/******************************************************************************
+ *                                                                            *
+ * Defines the mushroom resource system including spawning, collection,       *
+ * and respawning mechanics. Mushrooms are unique consumable resources that   *
+ * can be picked up directly, without requiring tools, and provide food       *
+ * items for the player. This module implements the generic collectible       *
+ * resource system for mushroom-specific functionality.                       *
+ *                                                                            *
+ ******************************************************************************/
+
+// SpacetimeDB imports
 use spacetimedb::{Table, ReducerContext, Identity, Timestamp};
-// Add imports for required table traits
-use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
-use crate::player as PlayerTableTrait; // Assuming player table is defined in lib.rs
 use log;
 
-// Import the respawn duration constant
-use crate::active_equipment::RESOURCE_RESPAWN_DURATION_SECS;
-use std::time::Duration;
+// Module imports
+use crate::collectible_resources::{
+    BASE_RESOURCE_RADIUS, PLAYER_RESOURCE_INTERACTION_DISTANCE,
+    PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED,
+    validate_player_resource_interaction,
+    collect_resource_and_schedule_respawn,
+    RespawnableResource
+};
 
-// --- Mushroom Constants ---
-const MUSHROOM_RADIUS: f32 = 16.0; // Visual/interaction radius
-const PLAYER_MUSHROOM_INTERACTION_DISTANCE: f32 = 64.0; // Max distance player can be to interact
-const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED: f32 = PLAYER_MUSHROOM_INTERACTION_DISTANCE * PLAYER_MUSHROOM_INTERACTION_DISTANCE;
+// Table trait imports for database access
+use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
+use crate::player as PlayerTableTrait;
 
-// Constants for spawning (will be used in environment.rs)
-pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.005; // Target 0.5% of map tiles
-pub(crate) const MIN_MUSHROOM_DISTANCE_PX: f32 = 60.0; // Min distance between mushrooms
+// --- Mushroom Specifics ---
+
+/// Visual/interaction radius of mushroom objects
+const MUSHROOM_RADIUS: f32 = BASE_RESOURCE_RADIUS;
+
+// --- Spawning Constants ---
+/// Target percentage of map tiles containing mushrooms
+pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.0025; // Reduced to 0.25% of map tiles
+/// Minimum distance between mushrooms to prevent clustering
+pub(crate) const MIN_MUSHROOM_DISTANCE_PX: f32 = 60.0;
 pub(crate) const MIN_MUSHROOM_DISTANCE_SQ: f32 = MIN_MUSHROOM_DISTANCE_PX * MIN_MUSHROOM_DISTANCE_PX;
-pub(crate) const MIN_MUSHROOM_TREE_DISTANCE_PX: f32 = 80.0; // Min distance from trees
+/// Minimum distance from trees for better distribution
+pub(crate) const MIN_MUSHROOM_TREE_DISTANCE_PX: f32 = 80.0;
 pub(crate) const MIN_MUSHROOM_TREE_DISTANCE_SQ: f32 = MIN_MUSHROOM_TREE_DISTANCE_PX * MIN_MUSHROOM_TREE_DISTANCE_PX;
-pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_PX: f32 = 80.0; // Min distance from stones
+/// Minimum distance from stones for better distribution
+pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_PX: f32 = 80.0;
 pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_SQ: f32 = MIN_MUSHROOM_STONE_DISTANCE_PX * MIN_MUSHROOM_STONE_DISTANCE_PX;
 
-// --- Mushroom Table Definition ---
+/// Represents a mushroom resource in the game world
 #[spacetimedb::table(name = mushroom, public)]
 #[derive(Clone)]
 pub struct Mushroom {
@@ -36,46 +57,63 @@ pub struct Mushroom {
     pub respawn_at: Option<Timestamp>,
 }
 
-// --- Interaction Reducer ---
+// Implement RespawnableResource trait for Mushroom
+impl RespawnableResource for Mushroom {
+    fn id(&self) -> u64 {
+        self.id
+    }
+    
+    fn pos_x(&self) -> f32 {
+        self.pos_x
+    }
+    
+    fn pos_y(&self) -> f32 {
+        self.pos_y
+    }
+    
+    fn respawn_at(&self) -> Option<Timestamp> {
+        self.respawn_at
+    }
+    
+    fn set_respawn_at(&mut self, time: Option<Timestamp>) {
+        self.respawn_at = time;
+    }
+}
 
+/// Handles player interactions with mushrooms, adding items to inventory
+///
+/// When a player interacts with a mushroom, this reducer checks distance,
+/// adds the mushroom item to their inventory, and schedules respawn.
 #[spacetimedb::reducer]
 pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<(), String> {
     let sender_id = ctx.sender;
-    let players = ctx.db.player();
     let mushrooms = ctx.db.mushroom();
-    let item_defs = ctx.db.item_definition();
 
-    // 1. Find Player
-    let player = players.identity().find(sender_id)
-        .ok_or_else(|| "Player not found".to_string())?;
-
-    // 2. Find Mushroom
+    // Find the mushroom
     let mushroom = mushrooms.id().find(mushroom_id)
         .ok_or_else(|| format!("Mushroom {} not found", mushroom_id))?;
+    
+    // Validate player can interact with this mushroom (distance check)
+    let _player = validate_player_resource_interaction(ctx, sender_id, mushroom.pos_x, mushroom.pos_y)?;
 
-    // 3. Check Distance
-    let dx = player.position_x - mushroom.pos_x;
-    let dy = player.position_y - mushroom.pos_y;
-    let dist_sq = dx * dx + dy * dy;
-
-    if dist_sq > PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED {
-        return Err("Too far away to interact with the mushroom".to_string());
-    }
-
-    // 4. Find Mushroom Item Definition
-    let mushroom_def = item_defs.iter()
-        .find(|def| def.name == "Mushroom")
-        .ok_or_else(|| "Mushroom item definition not found".to_string())?;
-
-    // 5. Add Mushroom to Inventory (using helper from items module)
-    crate::items::add_item_to_player_inventory(ctx, sender_id, mushroom_def.id, 1)?;
-
-    // 6. Schedule Respawn instead of Deleting
-    let respawn_time = ctx.timestamp + Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS).into();
-    let mut mushroom_to_update = mushroom; // Clone the found mushroom to modify
-    mushroom_to_update.respawn_at = Some(respawn_time);
-    mushrooms.id().update(mushroom_to_update); // Update with respawn time
-    log::info!("Player {:?} picked up mushroom {}. Scheduling respawn.", sender_id, mushroom_id);
-
-    Ok(())
+    // Use the generic collect_resource function
+    collect_resource_and_schedule_respawn(
+        ctx,
+        sender_id,
+        "Mushroom",
+        mushroom_id,
+        mushroom.pos_x,
+        mushroom.pos_y,
+        1, // Quantity to give
+        |respawn_time| -> Result<(), String> {
+            // This closure handles the mushroom-specific update logic
+            if let Some(mut mushroom_to_update) = ctx.db.mushroom().id().find(mushroom_id) {
+                mushroom_to_update.respawn_at = Some(respawn_time);
+                ctx.db.mushroom().id().update(mushroom_to_update);
+                Ok(())
+            } else {
+                Err("Failed to update mushroom respawn time".to_string())
+            }
+        }
+    )
 } 

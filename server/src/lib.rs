@@ -34,6 +34,9 @@ mod player_stats; // ADD: Player stat scheduling logic
 mod global_tick; // ADD: Global tick scheduling logic
 mod chat; // ADD: Chat module for message handling
 mod player_pin; // ADD: Player pin module for minimap
+pub mod combat; // Add the new combat module
+mod collectible_resources; // Add the new collectible resources system
+mod corn; // Add the new corn resource module
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -42,6 +45,7 @@ pub use chat::Message;
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
+use crate::corn::corn as CornTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
@@ -224,31 +228,38 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
     }
 }
 
-// Register a new player
+// Register a new player (Now handles existing authenticated players)
 #[spacetimedb::reducer]
 pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), String> {
-    log::info!("register_player called by {:?} with username: {}", ctx.sender, username);
     let sender_id = ctx.sender;
     let players = ctx.db.player();
-    let trees = ctx.db.tree();
-    let stones = ctx.db.stone();
-    let campfires = ctx.db.campfire(); // Get campfire table
-    let wooden_storage_boxes = ctx.db.wooden_storage_box(); // <<< ADDED: Get box table
+    log::info!("Attempting registration/login for identity: {:?}, username: {}", sender_id, username);
 
-    // Check if username is already taken by *any* player
-    let username_taken = players.iter().any(|p| p.username == username);
-    if username_taken {
-        log::warn!("Username '{}' already taken. Registration failed for {:?}.", username, sender_id);
+    // --- Check if player already exists for this authenticated identity ---
+    if let Some(existing_player) = players.identity().find(&sender_id) {
+        log::info!("Player already registered for identity {:?}. Username: {}", sender_id, existing_player.username);
+        // If player exists, just confirm success. Their existing data (position etc.) will be used.
+        return Ok(()); 
+    }
+
+    // --- Player does not exist, proceed with registration ---
+    log::info!("New player registration for identity: {:?}. Finding spawn...", sender_id);
+
+    // Check if desired username is taken by *another* player
+    // Note: We check this *after* checking if the current identity is already registered
+    let username_taken_by_other = players.iter().any(|p| p.username == username && p.identity != sender_id);
+    if username_taken_by_other {
+        log::warn!("Username '{}' already taken by another player. Registration failed for {:?}.", username, sender_id);
         return Err(format!("Username '{}' is already taken.", username));
     }
 
-    // Check if this identity is already registered (shouldn't happen if disconnect works, but good safety check)
-    if players.identity().find(&sender_id).is_some() {
-        log::warn!("Identity {:?} already registered. Registration failed.", sender_id);
-        return Err("Player identity already registered".to_string());
-    }
+    // Get tables needed for spawn check only if registering new player
+    let trees = ctx.db.tree();
+    let stones = ctx.db.stone();
+    let campfires = ctx.db.campfire();
+    let wooden_storage_boxes = ctx.db.wooden_storage_box();
 
-    // --- Find a valid spawn position ---
+    // --- Find a valid spawn position (Keep existing logic) ---
     let initial_x = 640.0;
     let initial_y = 480.0;
     let mut spawn_x = initial_x;
@@ -256,122 +267,84 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     let max_attempts = 10;
     let offset_step = PLAYER_RADIUS * 2.5;
     let mut attempt = 0;
-
     loop {
         let mut collision = false;
-
-        // 1. Check Player-Player Collision
+        // (Existing collision check logic...)
         for other_player in players.iter() {
-             // Don't collide with dead players during spawn
-            if other_player.is_dead { continue; }
-            let dx = spawn_x - other_player.position_x;
-            let dy = spawn_y - other_player.position_y;
-            if (dx * dx + dy * dy) < PLAYER_RADIUS * PLAYER_RADIUS {
-                collision = true;
-                break;
-            }
-        }
-
-        // 2. Check Player-Tree Collision (if no player collision)
-        if !collision {
-            for tree in trees.iter() {
-                 // Don't collide with felled trees
-                if tree.health == 0 { continue; }
-                let dx = spawn_x - tree.pos_x;
-                let dy = spawn_y - (tree.pos_y - crate::tree::TREE_COLLISION_Y_OFFSET); // Already qualified
-                let dist_sq = dx * dx + dy * dy;
-                if dist_sq < crate::tree::PLAYER_TREE_COLLISION_DISTANCE_SQUARED { // Already qualified
-                    collision = true;
-                    break;
-                }
-            }
-        }
-
-        // 2.5 Check Player-Stone Collision (if no player/tree collision)
-        if !collision {
-            for stone in stones.iter() {
-                // Don't collide with depleted stones
-                if stone.health == 0 { continue; }
-                let dx = spawn_x - stone.pos_x;
-                let dy = spawn_y - (stone.pos_y - crate::stone::STONE_COLLISION_Y_OFFSET); // Already qualified
-                let dist_sq = dx * dx + dy * dy;
-                if dist_sq < crate::stone::PLAYER_STONE_COLLISION_DISTANCE_SQUARED { // Already qualified
-                    collision = true;
-                    break;
-                }
-            }
-        }
-
-        // 2.7 Check Player-Campfire Collision (Allow spawning on campfires)
-        // if !collision {
-        //     for fire in campfires.iter() {
-        //         let dx = spawn_x - fire.pos_x;
-        //         let dy = spawn_y - (fire.pos_y - CAMPFIRE_COLLISION_Y_OFFSET);
-        //         let dist_sq = dx * dx + dy * dy;
-        //         // Use specific player-campfire collision check distance
-        //         if dist_sq < PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED {
-        //             collision = true;
-        //             break;
-        //         }
-        //     }
-        // }
-
-        // 2.8 Check Player-WoodenStorageBox Collision <<< ADDED Check
-        if !collision {
-            for box_instance in wooden_storage_boxes.iter() {
-                // Use constants from wooden_storage_box module
-                let dx = spawn_x - box_instance.pos_x;
-                let dy = spawn_y - (box_instance.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
-                let dist_sq = dx * dx + dy * dy;
-                // Use specific player-box collision check distance
-                if dist_sq < crate::wooden_storage_box::PLAYER_BOX_COLLISION_DISTANCE_SQUARED {
-                    collision = true;
-                    break;
-                }
-            }
-        }
-
-        // 3. Decide if position is valid or max attempts reached
-        if !collision || attempt >= max_attempts {
-            if attempt >= max_attempts && collision {
-                 log::warn!("Could not find clear spawn point for {}, spawning at default (may collide).", username);
-                 spawn_x = initial_x;
-                 spawn_y = initial_y;
-            }
-            break;
-        }
-
-        // Simple offset pattern: move right, down, left, up, then spiral out slightly?
-        // This is basic, could be improved (random, spiral search)
-        match attempt % 4 {
-            0 => spawn_x += offset_step,
-            1 => spawn_y += offset_step,
-            2 => spawn_x -= offset_step * 2.0,
-            3 => spawn_y -= offset_step * 2.0,
-            _ => {},
-        }
-        // Reset to center if offset gets too wild after a few attempts (basic safeguard)
-        if attempt == 5 {
-             spawn_x = initial_x;
-             spawn_y = initial_y;
-             spawn_x += offset_step * 1.5;
-             spawn_y += offset_step * 1.5;
-        }
-        attempt += 1;
-    }
+             if other_player.is_dead { continue; }
+             let dx = spawn_x - other_player.position_x;
+             let dy = spawn_y - other_player.position_y;
+             if (dx * dx + dy * dy) < PLAYER_RADIUS * PLAYER_RADIUS {
+                 collision = true; break;
+             }
+         }
+         if !collision {
+             for tree in trees.iter() {
+                 if tree.health == 0 { continue; }
+                 let dx = spawn_x - tree.pos_x;
+                 let dy = spawn_y - (tree.pos_y - crate::tree::TREE_COLLISION_Y_OFFSET);
+                 if (dx * dx + dy * dy) < crate::tree::PLAYER_TREE_COLLISION_DISTANCE_SQUARED {
+                     collision = true; break;
+                 }
+             }
+         }
+         if !collision {
+             for stone in stones.iter() {
+                 if stone.health == 0 { continue; }
+                 let dx = spawn_x - stone.pos_x;
+                 let dy = spawn_y - (stone.pos_y - crate::stone::STONE_COLLISION_Y_OFFSET);
+                 if (dx * dx + dy * dy) < crate::stone::PLAYER_STONE_COLLISION_DISTANCE_SQUARED {
+                     collision = true; break;
+                 }
+             }
+         }
+         if !collision {
+             for box_instance in wooden_storage_boxes.iter() {
+                 let dx = spawn_x - box_instance.pos_x;
+                 let dy = spawn_y - (box_instance.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
+                 if (dx * dx + dy * dy) < crate::wooden_storage_box::PLAYER_BOX_COLLISION_DISTANCE_SQUARED {
+                     collision = true; break;
+                 }
+             }
+         }
+         // Decide if position is valid or max attempts reached
+         if !collision || attempt >= max_attempts {
+             if attempt >= max_attempts && collision {
+                  log::warn!("Could not find clear spawn point for {}, spawning at default (may collide).", username);
+                  spawn_x = initial_x;
+                  spawn_y = initial_y;
+             }
+             break;
+         }
+         match attempt % 4 {
+             0 => spawn_x += offset_step,
+             1 => spawn_y += offset_step,
+             2 => spawn_x -= offset_step * 2.0,
+             3 => spawn_y -= offset_step * 2.0,
+             _ => {},
+         }
+         if attempt == 5 {
+              spawn_x = initial_x;
+              spawn_y = initial_y;
+              spawn_x += offset_step * 1.5;
+              spawn_y += offset_step * 1.5;
+         }
+         attempt += 1;
+     }
     // --- End spawn position logic ---
 
+    // --- Create and Insert New Player ---
     let color = random_color(&username);
 
     let player = Player {
-        identity: sender_id,
+        identity: sender_id, // Use the authenticated identity
         username: username.clone(),
-        position_x: spawn_x,
-        position_y: spawn_y,
+        position_x: spawn_x, // Use calculated spawn position
+        position_y: spawn_y, // Use calculated spawn position
         color,
         direction: "down".to_string(),
-        last_update: ctx.timestamp, // Set initial timestamp
-        last_stat_update: ctx.timestamp, // Initialize stat timestamp
+        last_update: ctx.timestamp,
+        last_stat_update: ctx.timestamp,
         jump_start_time_ms: 0,
         health: 100.0,
         stamina: 100.0,
@@ -380,7 +353,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         warmth: 100.0,
         is_sprinting: false,
         is_dead: false,
-        respawn_at: ctx.timestamp, // Set initial respawn time (not dead yet)
+        respawn_at: ctx.timestamp,
         last_hit_time: None,
     };
 
@@ -388,24 +361,19 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     match players.try_insert(player) {
         Ok(_) => {
             log::info!("Player registered: {}. Granting starting items...", username);
-
-            // --- Grant Starting Items ---
-            // Call the dedicated function from the starting_items module
+            // --- Grant Starting Items (Keep existing logic) ---
             match crate::starting_items::grant_starting_items(ctx, sender_id, &username) {
-                Ok(_) => { /* Items granted (or individual errors logged) */ },
+                Ok(_) => { /* Logged inside function */ },
                 Err(e) => {
-                    // This function currently always returns Ok, but handle error just in case
                     log::error!("Unexpected error during grant_starting_items for player {}: {}", username, e);
-                    // Potentially return the error from register_player if item grant failure is critical
-                    // return Err(format!("Failed to grant starting items: {}", e));
                 }
             }
             // --- End Grant Starting Items ---
-
             Ok(())
         },
         Err(e) => {
-            Err(format!("Failed to register player: {}", e))
+            log::error!("Failed to insert new player {} ({:?}): {}", username, sender_id, e);
+            Err(format!("Failed to register player: Database error."))
         }
     }
 }
@@ -505,7 +473,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     // --- 5b. Initialize Campfire with Fuel and Burning ---
     let current_time = ctx.timestamp;
     // Use constant from campfire module
-    let first_consumption_time = current_time + Duration::from_secs(crate::campfire::FUEL_CONSUME_INTERVAL_SECS).into();
+    let first_consumption_time = current_time + spacetimedb::TimeDuration::from(Duration::from_secs(crate::campfire::FUEL_CONSUME_INTERVAL_SECS));
 
     // --- ADD: Calculate chunk index ---
     let chunk_idx = calculate_chunk_index(world_x, world_y);

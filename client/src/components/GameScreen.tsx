@@ -26,6 +26,7 @@ import {
     Stone as SpacetimeDBStone,
     Campfire as SpacetimeDBCampfire,
     Mushroom as SpacetimeDBMushroom,
+    Corn as SpacetimeDBCorn,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     InventoryItem as SpacetimeDBInventoryItem,
@@ -54,6 +55,7 @@ interface GameScreenProps {
     stones: Map<string, SpacetimeDBStone>;
     campfires: Map<string, SpacetimeDBCampfire>;
     mushrooms: Map<string, SpacetimeDBMushroom>;
+    corns: Map<string, SpacetimeDBCorn>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerPins: Map<string, PlayerPin>;
@@ -86,7 +88,7 @@ interface GameScreenProps {
     onItemDragStart: (info: DraggedItemInfo) => void;
     onItemDrop: (targetSlotInfo: any | null) => void; // Use appropriate type if known
 
-    // Reducer Actions (from useSpacetimeConnection)
+    // Reducer Actions (from usePlayerActions)
     updatePlayerPosition: (moveX: number, moveY: number) => void;
     callJumpReducer: () => void;
     callSetSprintingReducer: (isSprinting: boolean) => void;
@@ -99,14 +101,14 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, mushrooms, droppedItems, woodenStorageBoxes, playerPins,
+        players, trees, stones, campfires, mushrooms, corns, droppedItems, woodenStorageBoxes, playerPins,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         localPlayerId, playerIdentity, connection,
         placementInfo, placementActions, placementError, startPlacement, cancelPlacement,
         interactingWith, handleSetInteractingWith,
         draggedItemInfo, onItemDragStart, onItemDrop,
-        updatePlayerPosition, callJumpReducer, callSetSprintingReducer,
+        updatePlayerPosition, callJumpReducer: jump, callSetSprintingReducer: setSprinting,
         isMinimapOpen,
         setIsMinimapOpen,
         isChatting,
@@ -127,6 +129,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 stones={stones}
                 campfires={campfires}
                 mushrooms={mushrooms}
+                corns={corns}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
                 playerPins={playerPins}
@@ -141,8 +144,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 placementError={placementError}
                 onSetInteractingWith={handleSetInteractingWith}
                 updatePlayerPosition={updatePlayerPosition}
-                callJumpReducer={callJumpReducer}
-                callSetSprintingReducer={callSetSprintingReducer}
+                callJumpReducer={jump}
+                callSetSprintingReducer={setSprinting}
                 isMinimapOpen={isMinimapOpen}
                 setIsMinimapOpen={setIsMinimapOpen}
                 isChatting={isChatting}

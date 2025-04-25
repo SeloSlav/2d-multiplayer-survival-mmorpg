@@ -64,6 +64,8 @@ import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
+import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
+export { InteractWithCorn };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
 import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
@@ -162,6 +164,8 @@ import { CampfireFuelCheckScheduleTableHandle } from "./campfire_fuel_check_sche
 export { CampfireFuelCheckScheduleTableHandle };
 import { ClientViewportTableHandle } from "./client_viewport_table.ts";
 export { ClientViewportTableHandle };
+import { CornTableHandle } from "./corn_table.ts";
+export { CornTableHandle };
 import { CraftingFinishScheduleTableHandle } from "./crafting_finish_schedule_table.ts";
 export { CraftingFinishScheduleTableHandle };
 import { CraftingQueueItemTableHandle } from "./crafting_queue_item_table.ts";
@@ -206,6 +210,8 @@ import { CampfireFuelCheckSchedule } from "./campfire_fuel_check_schedule_type.t
 export { CampfireFuelCheckSchedule };
 import { ClientViewport } from "./client_viewport_type.ts";
 export { ClientViewport };
+import { Corn } from "./corn_type.ts";
+export { Corn };
 import { CraftingFinishSchedule } from "./crafting_finish_schedule_type.ts";
 export { CraftingFinishSchedule };
 import { CraftingQueueItem } from "./crafting_queue_item_type.ts";
@@ -272,6 +278,11 @@ const REMOTE_MODULE = {
       tableName: "client_viewport",
       rowType: ClientViewport.getTypeScriptAlgebraicType(),
       primaryKey: "clientIdentity",
+    },
+    corn: {
+      tableName: "corn",
+      rowType: Corn.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     crafting_finish_schedule: {
       tableName: "crafting_finish_schedule",
@@ -423,6 +434,10 @@ const REMOTE_MODULE = {
     interact_with_campfire: {
       reducerName: "interact_with_campfire",
       argsType: InteractWithCampfire.getTypeScriptAlgebraicType(),
+    },
+    interact_with_corn: {
+      reducerName: "interact_with_corn",
+      argsType: InteractWithCorn.getTypeScriptAlgebraicType(),
     },
     interact_with_mushroom: {
       reducerName: "interact_with_mushroom",
@@ -643,6 +658,7 @@ export type Reducer = never
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
+| { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
@@ -926,6 +942,22 @@ export class RemoteReducers {
 
   removeOnInteractWithCampfire(callback: (ctx: ReducerEventContext, campfireId: number) => void) {
     this.connection.offReducer("interact_with_campfire", callback);
+  }
+
+  interactWithCorn(cornId: bigint) {
+    const __args = { cornId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithCorn.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_corn", __argsBuffer, this.setCallReducerFlags.interactWithCornFlags);
+  }
+
+  onInteractWithCorn(callback: (ctx: ReducerEventContext, cornId: bigint) => void) {
+    this.connection.onReducer("interact_with_corn", callback);
+  }
+
+  removeOnInteractWithCorn(callback: (ctx: ReducerEventContext, cornId: bigint) => void) {
+    this.connection.offReducer("interact_with_corn", callback);
   }
 
   interactWithMushroom(mushroomId: bigint) {
@@ -1677,6 +1709,11 @@ export class SetReducerFlags {
     this.interactWithCampfireFlags = flags;
   }
 
+  interactWithCornFlags: CallReducerFlags = 'FullUpdate';
+  interactWithCorn(flags: CallReducerFlags) {
+    this.interactWithCornFlags = flags;
+  }
+
   interactWithMushroomFlags: CallReducerFlags = 'FullUpdate';
   interactWithMushroom(flags: CallReducerFlags) {
     this.interactWithMushroomFlags = flags;
@@ -1916,6 +1953,10 @@ export class RemoteTables {
 
   get clientViewport(): ClientViewportTableHandle {
     return new ClientViewportTableHandle(this.connection.clientCache.getOrCreateTable<ClientViewport>(REMOTE_MODULE.tables.client_viewport));
+  }
+
+  get corn(): CornTableHandle {
+    return new CornTableHandle(this.connection.clientCache.getOrCreateTable<Corn>(REMOTE_MODULE.tables.corn));
   }
 
   get craftingFinishSchedule(): CraftingFinishScheduleTableHandle {

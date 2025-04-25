@@ -12,6 +12,11 @@ use crate::items::ItemCategory; // Import the enum itself
 const MUSHROOM_HEALTH_GAIN: f32 = 5.0;
 const MUSHROOM_HUNGER_GAIN: f32 = 10.0;
 const MUSHROOM_THIRST_GAIN: f32 = 5.0;
+const CORN_HEALTH_GAIN: f32 = 15.0;     // 3x the health benefit of mushrooms
+const CORN_HUNGER_GAIN: f32 = 25.0;     // More hunger satisfaction than mushrooms
+const CORN_THIRST_GAIN: f32 = 10.0;     // More thirst quenching than mushrooms
+
+// --- Max Stat Value ---
 const MAX_STAT_VALUE: f32 = 100.0; // Max value for health, hunger, thirst
 
 #[spacetimedb::reducer]
@@ -45,20 +50,36 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let mut player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found to apply consumable effects.".to_string())?;
 
-    // 6. Apply Effects (Specific to Mushroom for now)
-    // TODO: Refactor this to use data from ItemDefinition if more consumables are added
+    // 6. Apply Effects (Based on item type)
     let mut stat_changed = false;
-    if item_def.name == "Mushroom" {
-        let old_health = player.health;
-        let old_hunger = player.hunger;
-        let old_thirst = player.thirst;
-
-        player.health = (player.health + MUSHROOM_HEALTH_GAIN).min(MAX_STAT_VALUE);
-        player.hunger = (player.hunger + MUSHROOM_HUNGER_GAIN).min(MAX_STAT_VALUE);
-        player.thirst = (player.thirst + MUSHROOM_THIRST_GAIN).min(MAX_STAT_VALUE);
-        
-        stat_changed = true; // Assume stats changed if it's a mushroom
-
+    
+    // Get initial stats for logging
+    let old_health = player.health;
+    let old_hunger = player.hunger;
+    let old_thirst = player.thirst;
+    
+    // Apply effects based on item name
+    match item_def.name.as_str() {
+        "Mushroom" => {
+            player.health = (player.health + MUSHROOM_HEALTH_GAIN).min(MAX_STAT_VALUE);
+            player.hunger = (player.hunger + MUSHROOM_HUNGER_GAIN).min(MAX_STAT_VALUE);
+            player.thirst = (player.thirst + MUSHROOM_THIRST_GAIN).min(MAX_STAT_VALUE);
+            stat_changed = true;
+        },
+        "Corn" => {
+            player.health = (player.health + CORN_HEALTH_GAIN).min(MAX_STAT_VALUE);
+            player.hunger = (player.hunger + CORN_HUNGER_GAIN).min(MAX_STAT_VALUE);
+            player.thirst = (player.thirst + CORN_THIRST_GAIN).min(MAX_STAT_VALUE);
+            stat_changed = true;
+        },
+        _ => {
+            log::warn!("[ConsumeItem] Consumed item '{}' has no defined effect.", item_def.name);
+            // Return Ok even if no effect, item is still consumed
+        }
+    }
+    
+    // Log stat changes if any occurred
+    if stat_changed {
         log::info!(
             "[ConsumeItem] Player {:?} consumed {}. Stats: H {:.1}->{:.1}, Hu {:.1}->{:.1}, T {:.1}->{:.1}",
             sender_id, item_def.name, 
@@ -66,10 +87,6 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
             old_hunger, player.hunger, 
             old_thirst, player.thirst
         );
-
-    } else {
-        log::warn!("[ConsumeItem] Consumed item '{}' has no defined effect.", item_def.name);
-        // Return Ok even if no effect, item is still consumed
     }
 
     // 7. Decrease quantity or delete item stack

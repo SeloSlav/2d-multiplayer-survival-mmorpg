@@ -21,7 +21,7 @@ The backend is organized into these logical components:
 
 - **Schema Definitions**: Tables defined in `server/lib.rs` with `#[spacetimedb::table]` attributes
 - **Game Logic**: Reducer functions (`#[spacetimedb::reducer]`) implementing core gameplay mechanics
-- **Module Organization**: Functionality separated into domain-specific files (e.g., `player_logic.rs`, `terrain_logic.rs`)
+- **Module Organization**: Functionality separated into domain-specific files (e.g., `environment.rs`, `inventory_management.rs`)
 
 ### Key Server Patterns
 

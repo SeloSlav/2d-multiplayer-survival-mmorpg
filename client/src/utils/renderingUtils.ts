@@ -8,10 +8,11 @@ import {
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
+    Corn as SpacetimeDBCorn,
 } from '../generated';
 import * as SpacetimeDB from '../generated';
 import {
-    isPlayer, isTree, isStone, isCampfire, isMushroom, isWoodenStorageBox, isDroppedItem
+    isPlayer, isTree, isStone, isCampfire, isMushroom, isWoodenStorageBox, isDroppedItem, isCorn
 } from './typeGuards';
 // Import individual rendering functions
 import { renderMushroom } from './mushroomRenderingUtils';
@@ -21,6 +22,7 @@ import { renderTree } from './treeRenderingUtils';
 import { renderStone } from './stoneRenderingUtils';
 import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils'; // Needed for player rendering logic
+import { renderCorn } from './cornRenderingUtils';
 // Import specific constants from gameConfig
 import {
     MOVEMENT_POSITION_THRESHOLD,
@@ -217,7 +219,9 @@ export const renderPlayer = (
 // --- NEW: Rendering Loop Functions ---
 
 // Type alias for ground items for clarity
-type GroundEntity = SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire;
+type GroundEntity = (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBCorn) & {
+    __entityType?: 'corn' | 'mushroom' | 'droppedItem' | 'campfire';
+};
 
 interface RenderGroundEntitiesProps {
     ctx: CanvasRenderingContext2D;
@@ -229,7 +233,7 @@ interface RenderGroundEntitiesProps {
 
 /**
  * Renders entities that lie flat on the ground and don't require Y-sorting
- * against taller entities (Mushrooms, Dropped Items, Campfires).
+ * against taller entities (Mushrooms, Dropped Items, Campfires, Corn).
  */
 export const renderGroundEntities = ({
     ctx,
@@ -239,14 +243,33 @@ export const renderGroundEntities = ({
     nowMs,
 }: RenderGroundEntitiesProps) => {
     groundItems.forEach(entity => {
+        // SPECIAL CASE: Always render entities explicitly marked as corn 
+        // with the corn renderer, regardless of other checks
+        if (entity.__entityType === 'corn') {
+            // console.log('Rendering EXPLICITLY MARKED corn entity:', entity);
+            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs);
+            return; // Skip other checks
+        }
+        
         // Check for DroppedItem FIRST
         if (isDroppedItem(entity)) {
             const itemDef = itemDefinitions.get(entity.itemDefId.toString());
             renderDroppedItem({ ctx, item: entity, itemDef, itemImagesRef });
-        // Check for Mushroom SECOND
+        // Check for Corn SECOND (moved before mushroom check)
+        } else if (isCorn(entity)) {
+            // console.log('Rendering CORN entity:', entity);
+            renderCorn(ctx, entity, nowMs);
+        // Check for Mushroom THIRD (moved after corn check)
         } else if (isMushroom(entity)) {
+            // Debug: Log if this entity might actually be corn
+            if (Object.entries(entity as Record<string, any>).some(([key, value]) => 
+                key.toLowerCase().includes('corn') || 
+                (typeof value === 'string' && value.toLowerCase().includes('corn'))
+            )) {
+                console.warn('WARNING: Possible CORN entity being rendered as MUSHROOM:', entity);
+            }
             renderMushroom(ctx, entity, nowMs);
-        // Check for Campfire THIRD
+        // Check for Campfire FOURTH
         } else if (isCampfire(entity)) {
             renderCampfire(ctx, entity.posX, entity.posY, entity.isBurning);
         }
@@ -332,14 +355,6 @@ export const renderYSortedEntities = ({
            // 2. Mouse became null and player was previously hovered
            if ((worldMouseX !== null && worldMouseY !== null && currentlyHovered !== isPersistentlyHovered) || 
                (worldMouseX === null && worldMouseY === null && isPersistentlyHovered)) {
-             
-             // Extremely rare logging (1 in 1000 chance) to avoid console spam
-             if (Math.random() < 0.001) {
-               console.log(
-                 `[Hover] Player "${entity.username}": ` +
-                 `hover=${currentlyHovered ? "ON" : "OFF"}, tracked=${isPersistentlyHovered ? "ON" : "OFF"}`
-               );
-             }
              
              // When mouse is null, always set hovered to false
              const newHoverState = (worldMouseX === null || worldMouseY === null) ? false : currentlyHovered;

@@ -7,11 +7,10 @@
  *                                                                            *
  ******************************************************************************/
 
-use spacetimedb::{Identity, Timestamp, ReducerContext, Table};
+use spacetimedb::{Identity, Timestamp, ReducerContext, Table, log, SpacetimeType, TimeDuration};
 use spacetimedb::spacetimedb_lib::ScheduleAt;
 use std::cmp::min;
 use std::time::Duration;
-use log;
 
 // Import table traits and concrete types
 use crate::player as PlayerTableTrait;
@@ -122,7 +121,7 @@ pub fn add_fuel_to_campfire(ctx: &ReducerContext, campfire_id: u32, target_slot_
         // Ensure next fuel consumption is scheduled if not already
         if campfire_copy.next_fuel_consume_at.is_none() {
             // Schedule next fuel consumption in 30 seconds
-            let next_consume_time = ctx.timestamp + Duration::from_secs(30).into();
+            let next_consume_time = ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(30));
             let mut updated_campfire = campfire_copy.clone();
             updated_campfire.next_fuel_consume_at = Some(next_consume_time);
             ctx.db.campfire().id().update(updated_campfire);
@@ -239,7 +238,7 @@ pub fn split_stack_into_campfire(
     // If campfire is burning, ensure fuel consumption schedule exists
     if campfire_copy.is_burning && campfire_copy.next_fuel_consume_at.is_none() {
         // Schedule next fuel consumption
-        let next_consume_time = ctx.timestamp + Duration::from_secs(30).into();
+        let next_consume_time = ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(30));
         let mut updated_campfire = campfire_copy.clone();
         updated_campfire.next_fuel_consume_at = Some(next_consume_time);
         ctx.db.campfire().id().update(updated_campfire);
@@ -331,7 +330,7 @@ pub fn quick_move_to_campfire(
     // If campfire is burning, ensure fuel consumption schedule exists
     if campfire_copy.is_burning && campfire_copy.next_fuel_consume_at.is_none() {
         // Schedule next fuel consumption
-        let next_consume_time = ctx.timestamp + Duration::from_secs(30).into();
+        let next_consume_time = ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(30));
         let mut updated_campfire = campfire_copy.clone();
         updated_campfire.next_fuel_consume_at = Some(next_consume_time);
         ctx.db.campfire().id().update(updated_campfire);
@@ -593,7 +592,7 @@ pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result
 
         // Checks passed, light the fire!
         campfire.is_burning = true;
-        campfire.next_fuel_consume_at = Some(ctx.timestamp + Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS).into());
+        campfire.next_fuel_consume_at = Some(ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS)));
         let next_check_time_for_log = campfire.next_fuel_consume_at;
         campfires.id().update(campfire);
         log::info!("Campfire {} lit by player {:?}. Next fuel check at {:?}.", campfire_id, sender_id, next_check_time_for_log);
@@ -707,7 +706,7 @@ pub fn check_campfire_fuel_consumption(ctx: &ReducerContext, _schedule: Campfire
                                 let still_has_fuel = check_if_campfire_has_fuel(ctx, &campfire);
                                 log::debug!("Campfire {}: check_if_campfire_has_fuel result: {}", campfire_id, still_has_fuel);
                                 if still_has_fuel {
-                                    let new_consume_time = now + Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS).into();
+                                    let new_consume_time = now + spacetimedb::TimeDuration::from(Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS));
                                     campfire.next_fuel_consume_at = Some(new_consume_time);
                                     log::info!("Campfire {}: Rescheduled fuel check to {:?}", campfire_id, new_consume_time);
                                     campfire_changed = true;
@@ -731,7 +730,7 @@ pub fn check_campfire_fuel_consumption(ctx: &ReducerContext, _schedule: Campfire
                      let still_has_fuel = check_if_campfire_has_fuel(ctx, &campfire);
                       log::debug!("Campfire {}: Burning but no consume time set. Has fuel? {}", campfire_id, still_has_fuel);
                      if still_has_fuel {
-                         campfire.next_fuel_consume_at = Some(now + Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS).into());
+                         campfire.next_fuel_consume_at = Some(now + spacetimedb::TimeDuration::from(Duration::from_secs(FUEL_CONSUME_INTERVAL_SECS)));
                          campfire_changed = true;
                          log::info!("Campfire {}: Scheduling initial fuel consumption check to {:?}.", campfire_id, campfire.next_fuel_consume_at);
                      } else {
@@ -767,11 +766,17 @@ pub fn check_campfire_fuel_consumption(ctx: &ReducerContext, _schedule: Campfire
  *                            TRAIT IMPLEMENTATIONS                           *
  ******************************************************************************/
 
+/// --- ItemContainer Implementation for Campfire ---
+/// Implements the ItemContainer trait for the Campfire struct.
+/// Provides methods to get the number of slots and access individual slots.
 impl ItemContainer for Campfire {
     fn num_slots(&self) -> usize {
         NUM_FUEL_SLOTS
     }
 
+    /// --- Get Slot Instance ID ---
+    /// Returns the instance ID for a given slot index.
+    /// Returns None if the slot index is out of bounds.
     fn get_slot_instance_id(&self, slot_index: u8) -> Option<u64> {
         if slot_index >= NUM_FUEL_SLOTS as u8 { return None; }
         match slot_index {
@@ -784,6 +789,9 @@ impl ItemContainer for Campfire {
         }
     }
 
+    /// --- Get Slot Definition ID ---
+    /// Returns the definition ID for a given slot index.
+    /// Returns None if the slot index is out of bounds.
     fn get_slot_def_id(&self, slot_index: u8) -> Option<u64> {
         if slot_index >= NUM_FUEL_SLOTS as u8 { return None; }
         match slot_index {
@@ -796,6 +804,9 @@ impl ItemContainer for Campfire {
         }
     }
 
+    /// --- Set Slot ---
+    /// Sets the item instance ID and definition ID for a given slot index. 
+    /// Returns None if the slot index is out of bounds.
     fn set_slot(&mut self, slot_index: u8, instance_id: Option<u64>, def_id: Option<u64>) {
         if slot_index >= NUM_FUEL_SLOTS as u8 { return; }
         match slot_index {
@@ -809,10 +820,14 @@ impl ItemContainer for Campfire {
     }
 }
 
-/// Helper struct to implement the ContainerItemClearer trait for Campfire
+/// --- Helper struct to implement the ContainerItemClearer trait for Campfire ---
+/// Implements the ContainerItemClearer trait for the Campfire struct.
+/// Provides a method to clear an item from all campfires.
 pub struct CampfireClearer;
 
-// --- Helper to clear a specific item instance from any campfire fuel slot ---
+/// --- Clear Item From Campfire Fuel Slots ---
+/// Removes a specific item instance from any campfire fuel slot it might be in.
+/// Used when items are deleted or moved to ensure consistency across containers.
 pub(crate) fn clear_item_from_campfire_fuel_slots(ctx: &ReducerContext, item_instance_id_to_clear: u64) -> bool {
     let mut campfires = ctx.db.campfire();
     let mut found_and_cleared = false;
