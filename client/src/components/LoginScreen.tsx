@@ -277,37 +277,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             )}
                         </>
                     ) : (
-                        /* If authenticated, only show username field */
-                        <input
-                            ref={usernameInputRef}
-                            type="text"
-                            placeholder="Enter Username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            disabled={isLoading}
-                            style={{ 
-                                padding: '10px',
-                                marginBottom: '15px',
-                                border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: '#333',
-                                color: 'white',
-                                fontFamily: UI_FONT_FAMILY,
-                                fontSize: '14px',
-                                display: 'block',
-                                width: 'calc(100% - 22px)',
-                                textAlign: 'center',
-                            }}
-                        />
+                        /* If authenticated, no input needed, just the button below */
+                        null // Render nothing here, the Join Game button handles the action
                     )}
                     
-                    <button
+                    {/* Main Action Button - Moved outside the conditional */}
+                    <button 
                         type="submit"
-                        disabled={
-                            authLoading || 
-                            isLoading || 
-                            (isAuthenticated && !username.trim())
-                        }
+                        disabled={authLoading || isLoading}
                         style={{ 
                             padding: '10px 20px',
                             border: `1px solid ${UI_BORDER_COLOR}`,
@@ -315,9 +292,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             color: (authLoading || isLoading) ? '#aaa' : 'white',
                             fontFamily: UI_FONT_FAMILY,
                             fontSize: '14px',
-                            cursor: (authLoading || isLoading || (isAuthenticated && !username.trim())) 
+                            cursor: (authLoading || isLoading) 
                                 ? 'not-allowed' 
-                                : 'pointer',
+                                : 'pointer', 
                             boxShadow: UI_SHADOW,
                             width: '100%',
                             marginBottom: '15px',
