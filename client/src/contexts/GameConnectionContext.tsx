@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Identity as SpacetimeDBIdentity } from '@clockworklabs/spacetimedb-sdk';
 import { DbConnection } from '../generated';
-import { useAuth } from './AuthContext'; // Import useAuth
+import { useAuth } from './AuthContext';
 
 // SpacetimeDB connection parameters (Should move to a config later)
 const SPACETIME_DB_ADDRESS = 'ws://localhost:3000';
@@ -11,10 +11,10 @@ const SPACETIME_DB_NAME = 'vibe-survival-game';
 interface ConnectionContextState {
     connection: DbConnection | null;
     dbIdentity: SpacetimeDBIdentity | null; // Store the SpacetimeDB Identity
-    isConnected: boolean;
-    isLoading: boolean;
-    error: string | null;
-    registerPlayer: (username: string) => void; // Simplified back - token handled at connect
+    isConnected: boolean; // Is the connection to SpacetimeDB established?
+    isLoading: boolean;   // Is the connection attempt in progress?
+    error: string | null; // Stores connection-related errors
+    registerPlayer: (username: string) => void;
 }
 
 // Create the context with a default value
@@ -22,7 +22,7 @@ const GameConnectionContext = createContext<ConnectionContextState>({
     connection: null,
     dbIdentity: null,
     isConnected: false,
-    isLoading: false,
+    isLoading: false, // Start not loading
     error: null,
     registerPlayer: () => { console.warn("GameConnectionContext not initialized for registerPlayer"); },
 });
@@ -34,38 +34,40 @@ interface GameConnectionProviderProps {
 
 // Provider component
 export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ children }) => {
-    const { authToken, isAuthenticated, isLoading: authIsLoading } = useAuth();
+    // Get Spacetime token and auth state from AuthContext
+    const { spacetimeToken, isAuthenticated, isLoading: authIsLoading, authError: authContextError } = useAuth();
     const [connection, setConnection] = useState<DbConnection | null>(null);
     const [dbIdentity, setDbIdentity] = useState<SpacetimeDBIdentity | null>(null);
-    const [isConnected, setIsConnected] = useState<boolean>(false);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+    const [isConnected, setIsConnected] = useState<boolean>(false); // Tracks SpacetimeDB connection status
+    const [isConnecting, setIsConnecting] = useState<boolean>(false); // Specific state for connection attempt
+    const [connectionError, setConnectionError] = useState<string | null>(null); // Specific connection error
     const connectionInstanceRef = useRef<DbConnection | null>(null); // Ref to hold the instance
 
-    // Connection logic - Adjusted to be less sensitive to token refreshes
+    // Connection logic - Triggered by spacetimeToken changes
     useEffect(() => {
         // --- Condition to attempt connection ---
-        const shouldConnect = !authIsLoading && isAuthenticated && authToken && !connectionInstanceRef.current;
+        // Connect if: user is authenticated, we have a spacetimeToken, auth isn't loading, and we aren't already connected/connecting
+        const shouldConnect = isAuthenticated && spacetimeToken && !authIsLoading && !connectionInstanceRef.current && !isConnecting;
 
         if (shouldConnect) {
-            console.log("[GameConnectionProvider] Conditions met for initial connection attempt.");
-            setIsLoading(true);
-            setError(null);
+            console.log("[GameConnectionProvider] Conditions met for SpacetimeDB connection attempt.");
+            setIsConnecting(true);
+            setConnectionError(null);
             let newConnectionInstance: DbConnection | null = null;
 
             try {
                 newConnectionInstance = DbConnection.builder()
                     .withUri(SPACETIME_DB_ADDRESS)
                     .withModuleName(SPACETIME_DB_NAME)
-                    .withToken(authToken) // Use the token for the initial connection
+                    .withToken(spacetimeToken) // *** Use the SpacetimeDB token from AuthContext ***
                     .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
                         console.log('[GameConnectionProvider] SpacetimeDB Connected. Identity:', identity.toHexString());
                         connectionInstanceRef.current = conn; // Store instance in ref
                         setConnection(conn);
                         setDbIdentity(identity);
                         setIsConnected(true);
-                        setError(null);
-                        setIsLoading(false);
+                        setConnectionError(null);
+                        setIsConnecting(false);
                     })
                     .onDisconnect((context: any, err?: Error) => {
                         console.log('[GameConnectionProvider] SpacetimeDB Disconnected.', err?.message);
@@ -73,8 +75,11 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                         setConnection(null);
                         setDbIdentity(null);
                         setIsConnected(false);
-                        setIsLoading(false);
-                        setError(`SpacetimeDB Disconnected${err ? ': ' + err.message : ''}.`);
+                        setIsConnecting(false);
+                        // Don't set error on graceful disconnect, only if there's an error object
+                        if (err) {
+                            setConnectionError(`SpacetimeDB Disconnected: ${err.message || 'Unknown reason'}`);
+                        }
                     })
                     .onConnectError((context: any, err: Error) => {
                         console.error('[GameConnectionProvider] SpacetimeDB Connection Error:', err);
@@ -82,67 +87,69 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                         setConnection(null);
                         setDbIdentity(null);
                         setIsConnected(false);
-                        setIsLoading(false);
-                        setError(`SpacetimeDB Connection failed: ${err.message || err}`);
+                        setIsConnecting(false);
+                        setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
                     })
                     .build();
-            } catch (err: any) {
+            } catch (err: any) { // Catch errors during .build() itself
                 console.error('[GameConnectionProvider] Failed to build SpacetimeDB connection:', err);
-                setError(`SpacetimeDB Build failed: ${err.message || err}`);
-                setIsLoading(false);
+                setConnectionError(`SpacetimeDB Build failed: ${err.message || err}`);
+                setIsConnecting(false);
             }
-        } else if (!isAuthenticated && connectionInstanceRef.current) {
+        } else if ((!isAuthenticated || !spacetimeToken) && connectionInstanceRef.current) {
             // --- Condition to disconnect ---
-            console.log("[GameConnectionProvider] User not authenticated, disconnecting existing connection.");
+            // Disconnect if: user is no longer authenticated OR spacetime token is lost, AND we have an active connection
+            console.log("[GameConnectionProvider] Not authenticated or no Spacetime token, disconnecting existing connection.");
             connectionInstanceRef.current.disconnect();
             connectionInstanceRef.current = null;
             setConnection(null);
             setDbIdentity(null);
             setIsConnected(false);
-            setError(null); // Clear connection error on explicit disconnect
-            setIsLoading(false);
+            setConnectionError(null); // Clear connection error on explicit disconnect
+            setIsConnecting(false);
         }
 
-        // Cleanup function: Only disconnects if the component unmounts
-        // We rely on the onDisconnect callback to clear state if connection drops
+        // Cleanup: If the component unmounts while a connection exists, disconnect.
         return () => {
-             // No explicit disconnect here on dependency change, only on unmount if needed.
-             // If the connection reference exists when the provider unmounts, disconnect it.
-             // This might be redundant if onDisconnect handles it, but can be a safeguard.
-             // if (connectionInstanceRef.current) {
-             //    console.log("[GameConnectionProvider] Unmounting, disconnecting.");
-             //    connectionInstanceRef.current.disconnect();
-             // }
+             if (connectionInstanceRef.current) {
+                console.log("[GameConnectionProvider] Unmounting, disconnecting.");
+                connectionInstanceRef.current.disconnect();
+                connectionInstanceRef.current = null; // Ensure ref is cleared on unmount
+             }
         };
-        // Depend only on auth state readiness and token existence for *triggering* connection logic
-    }, [authToken, isAuthenticated, authIsLoading]);
+    // Depend on spacetimeToken presence, authentication status, and auth loading state
+    }, [spacetimeToken, isAuthenticated, authIsLoading, isConnecting]);
 
-    // Player registration function (remains the same)
+    // Player registration function (no changes needed here)
     const registerPlayer = useCallback((username: string) => {
-        // Use the state variable `connection` here, which is set by the effect
-        const currentConnection = connection; 
+        const currentConnection = connectionInstanceRef.current; // Use ref for potentially faster access
         if (currentConnection && isConnected && username.trim()) {
-            setError(null);
+            setConnectionError(null);
             try {
+                console.log(`[GameConnectionProvider] Calling registerPlayer reducer with username: ${username}`);
                 currentConnection.reducers.registerPlayer(username);
             } catch (err: any) {
-                console.error('[GameConnectionProvider] Failed to register player:', err);
-                setError(`Failed to call registerPlayer: ${err.message || err}. Please try again.`);
+                console.error('[GameConnectionProvider] Failed to call registerPlayer reducer:', err);
+                setConnectionError(`Failed to call registerPlayer: ${err.message || err}.`);
             }
         } else {
             let reason = !currentConnection ? "No connection" : !isConnected ? "Not connected" : "Empty username";
             console.warn(`[GameConnectionProvider] Cannot register player: ${reason}.`);
-            setError(`Cannot register: ${reason}.`);
+            setConnectionError(`Cannot register: ${reason}.`);
         }
-    }, [connection, isConnected]); // Depend on state `connection` and `isConnected`
+    }, [isConnected]); // Depend only on isConnected state
+
+    // Combine loading states and errors for the context value
+    const combinedIsLoading = authIsLoading || isConnecting;
+    const combinedError = authContextError || connectionError;
 
     // Create the context value
     const contextValue: ConnectionContextState = {
-        connection,
+        connection: connectionInstanceRef.current, // Provide the connection from the ref
         dbIdentity,
         isConnected,
-        isLoading,
-        error,
+        isLoading: combinedIsLoading, // Reflect overall loading (auth + connection attempt)
+        error: combinedError, // Reflect overall error (auth OR connection)
         registerPlayer,
     };
 

@@ -15,6 +15,7 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 
 *   [🗺️ Roadmap](#️-roadmap)
 *   [🛠️ Tech Stack](#️-tech-stack)
+*   [🔐 Authentication Setup](#-authentication-setup)
 *   [📜 Cursor Rules & Code Maintainability](#-cursor-rules--code-maintainability)
 *   [⚙️ Client Configuration](#️-client-configuration)
 *   [🌍 World Configuration](#-world-configuration-tile-size--map-dimensions)
@@ -73,6 +74,116 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 | Multiplayer | SpacetimeDB                |
 | Backend     | Rust (WebAssembly)         |
 | Development | Node.js 22+                |
+
+## 🔐 Authentication Setup
+
+This project implements user authentication using Supabase, bridged to SpacetimeDB via a custom authentication microservice.
+
+**Approach:**
+
+1.  **Client:** Handles user login/signup with Supabase (using email/password, OAuth, etc.), obtaining a Supabase `access_token` (JWT).
+2.  **Client:** Sends the Supabase `access_token` to the custom `auth-server`'s `/verify` endpoint.
+3.  **Auth Server (`auth-server/`):** A separate Rust/Axum server that:
+    *   Receives the Supabase token.
+    *   Verifies the token's signature and claims using the **Supabase JWT Secret** (HS256 verification). *Note: We initially tried verifying using Supabase's public keys (RS256/JWKS), but encountered persistent 404 errors when fetching the keys/OIDC config. Using the shared secret is a reliable workaround.* 
+    *   If valid, mints a new, short-lived JWT signed with a **different** shared secret (`SPACETIME_SECRET`) using HS256.
+4.  **Client:** Receives the newly minted SpacetimeDB-compatible token from the `auth-server`.
+5.  **Client:** Connects to the main SpacetimeDB game server (`server/`) using this new token.
+6.  **SpacetimeDB Server (`server/`):** Verifies the token using the same `SPACETIME_SECRET` (provided via environment variable/startup flag) and grants the connection access based on the identity in the token.
+
+This bridge is necessary because SpacetimeDB (when using shared secret authentication) expects HS256 tokens, while Supabase primarily issues RS256 tokens, and fetching Supabase's public keys proved unreliable in this setup.
+
+### Running Authentication Locally
+
+To get authentication working during local development, follow these steps:
+
+1.  **Supabase Project:** Ensure you have a Supabase project set up. Enable the authentication providers you need (e.g., Email/Password, Google) in your Supabase dashboard.
+
+2.  **Configure Auth Server (`auth-server/.env`):**
+    *   Navigate to the `auth-server` directory.
+    *   Create a file named `.env`.
+    *   Add the following environment variables, replacing placeholders with your actual Supabase credentials:
+        ```env
+        # REQUIRED: Your Supabase project URL (without trailing slash)
+        # Found in: Supabase Dashboard -> Project Settings -> API -> Project URL
+        SUPABASE_PROJECT_URL=https://your-project-ref.supabase.co
+
+        # REQUIRED: Your Supabase Anon Key (public)
+        # Found in: Supabase Dashboard -> Project Settings -> API -> Project API keys -> anon public
+        SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+        # REQUIRED: Your Supabase JWT Secret
+        # Found in: Supabase Dashboard -> Project Settings -> API -> JWT Settings -> Secret
+        # Treat this like a password! Used to verify incoming Supabase tokens.
+        SUPABASE_JWT_SECRET=your_supabase_jwt_secret_here
+
+        # REQUIRED: A strong secret key used to sign the tokens SENT TO SpacetimeDB.
+        # Must match the secret used by the main SpacetimeDB server.
+        # Generate a strong, random string for this.
+        SPACETIME_SECRET=generate_a_different_strong_secret_here
+
+        # OPTIONAL: How long the SpacetimeDB token should be valid (in minutes)
+        # Defaults to 240 (4 hours) if not set
+        # TOKEN_TTL_MINUTES=240
+
+        # OPTIONAL: The IP address and port to bind the auth server to
+        # Defaults to 0.0.0.0:4000 if not set
+        # BIND_ADDR=127.0.0.1:4000
+        ```
+
+3.  **Run Auth Server:**
+    *   Open a terminal in the `auth-server/` directory.
+    *   Run `cargo run`.
+    *   Keep this terminal running. You should see `Auth-server listening on http://0.0.0.0:4000`. Logs for token verification will appear here.
+
+4.  **Configure & Run Main SpacetimeDB Server (`server/`):**
+    *   The main SpacetimeDB server needs to know the `SPACETIME_SECRET` (the one you generated for the `.env` file above) to verify tokens from the `auth-server`.
+    *   **Set Environment Variable:** Set the `SPACETIME_IDENTITY_SIGNING_SECRET` environment variable to match the `SPACETIME_SECRET` from the `auth-server/.env` file.
+        *   **Windows (PowerShell - Persistent User Variable):**
+            ```powershell
+            # Run PowerShell (as admin if needed)
+            [Environment]::SetEnvironmentVariable("SPACETIME_IDENTITY_SIGNING_SECRET", "your_spacetime_secret_here", "User")
+            # Close and reopen terminal
+            ```
+        *   **Linux/macOS (Bash/Zsh - Add to ~/.bashrc, ~/.zshrc, etc.):**
+            ```bash
+            echo 'export SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"' >> ~/.bashrc # Or ~/.zshrc
+            source ~/.bashrc # Or source ~/.zshrc, or restart terminal
+            ```
+        *   **(Temporary - Set for current session only):**
+            ```powershell
+            # PowerShell
+            $env:SPACETIME_IDENTITY_SIGNING_SECRET = "your_spacetime_secret_here"
+            ```
+            ```bash
+            # Bash/Zsh
+            export SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"
+            ```
+    *   **Run SpacetimeDB:** Open a *new* terminal (if you set the variable persistently) or use the *same* terminal (if set temporarily) and run:
+        ```bash
+        spacetime start
+        ```
+        *(If using Docker, pass it as `-e SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"` instead)*.
+    *   Keep this terminal running.
+
+5.  **Client Configuration:** No changes are needed in the client code. The `AuthContext.tsx` is already configured to contact the auth server at `http://localhost:4000/verify`.
+
+6.  **Run Client:**
+    *   Open a terminal in the project **root** directory.
+    *   Run `npm run dev`.
+
+Now, when you sign in via the client's login screen, the full authentication flow should execute.
+
+### Production Deployment
+
+*   **Auth Server:** Deploy the `auth-server` binary to a hosting provider (e.g., Fly.io, Render, Cloud Run). Configure the required environment variables securely within the hosting provider's settings. Ensure it's served over HTTPS.
+*   **Client:** Update the `fetch` URL in `client/src/contexts/AuthContext.tsx` to point to your *deployed* auth server's `/verify` endpoint (using HTTPS).
+*   **SpacetimeDB:** Configure your SpacetimeDB Maincloud/Enterprise instance with the *same* `SPACETIME_SECRET` used by your deployed auth server (via instance settings or cluster configuration).
+
+### Limitations & Future Improvements
+
+*   **HS256 Verification:** Using the Supabase JWT Secret is functional but less standard than RS256 public key verification. Ideally, the issues preventing JWKS fetching would be resolved, or SpacetimeDB would gain direct OIDC/RS256 support.
+*   **No Refresh Token Handling:** This setup relies on the Supabase client library to manage token refreshes. The `AuthContext` fetches a new SpacetimeDB token whenever the Supabase token changes. A server-side refresh flow isn't implemented.
 
 ## 📜 Cursor Rules & Code Maintainability
 

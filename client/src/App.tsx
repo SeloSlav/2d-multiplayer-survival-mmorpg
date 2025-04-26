@@ -41,7 +41,7 @@ const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) 
 
 function AppContent() {
     // --- Auth Hook ---
-    const { user, authToken, isAuthenticated, isLoading: authLoading } = useAuth();
+    const { user, supabaseToken, spacetimeToken, isAuthenticated, isLoading: authLoading, authError } = useAuth();
     
     // --- Core Hooks --- 
     const {
