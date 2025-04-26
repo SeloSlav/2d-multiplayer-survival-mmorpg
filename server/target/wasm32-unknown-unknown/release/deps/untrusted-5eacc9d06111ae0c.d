@@ -1,0 +1,10 @@
+C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\server\target\wasm32-unknown-unknown\release\deps\libuntrusted-5eacc9d06111ae0c.rmeta: C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\lib.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\input.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\no_panic.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\reader.rs
+
+C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\server\target\wasm32-unknown-unknown\release\deps\libuntrusted-5eacc9d06111ae0c.rlib: C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\lib.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\input.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\no_panic.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\reader.rs
+
+C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\server\target\wasm32-unknown-unknown\release\deps\untrusted-5eacc9d06111ae0c.d: C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\lib.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\input.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\no_panic.rs C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\reader.rs
+
+C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\lib.rs:
+C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\input.rs:
+C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\no_panic.rs:
+C:\Users\Asus\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\untrusted-0.9.0\src\reader.rs:
