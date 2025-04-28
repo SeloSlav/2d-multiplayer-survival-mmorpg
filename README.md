@@ -42,6 +42,7 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 *   Crafting System: Item recipes
 *   Storage Containers (Chests)
 *   Looting Mechanics (Containers)
+*   Authentication/Account System
 
 **In Progress (🚧):**
 *   Performance Optimizations: Viewport culling, collision system improvements
@@ -52,7 +53,6 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 
 **Planned (📓):** 
 *   **Core Systems & World:**
-    *   Authentication/Account System
     *   World Generation: Procedural generation, biomes, monuments
     *   Terrain Autotiling: Edge detection, Wang tiles, seamless transitions between biomes
     *   Advanced AI: Enemy behaviors, pathfinding

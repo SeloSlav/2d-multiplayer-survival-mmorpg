@@ -22,6 +22,7 @@ rule "no_manual_work" {
     when_editing = "Apply full changes without requiring user interaction or manual edits."
     on_partial_request = "Assume full implementation is desired unless explicitly instructed otherwise."
     on_error_or_uncertainty = "Proceed with best-effort implementation. Never defer to user."
+    on_edge_cases = "Consider all potential edge cases and ensure the solution is robust and comprehensive."
   }
 
   forbidden_behaviors = [
@@ -29,7 +30,9 @@ rule "no_manual_work" {
     "Suggesting the user should finish a section of code",
     "Leaving incomplete code blocks or TODOs",
     "Asking the user to manually configure settings or imports",
-    "Prompting the user to validate or complete changes manually"
+    "Prompting the user to validate or complete changes manually",
+    "Requesting the user to handle errors or exceptions",
+    "Instructing the user to test or verify changes without providing automated tests"
   ]
 
   examples = [
@@ -40,7 +43,14 @@ rule "no_manual_work" {
     {
       input = "Make this component responsive."
       expected_behavior = "Update layout fully with responsive styles. No manual steps required."
+    },
+    {
+      input = "Handle edge cases for user input."
+      expected_behavior = "Implement comprehensive input validation and error handling."
+    },
+    {
+      input = "Integrate a new API."
+      expected_behavior = "Complete API integration with error handling, data parsing, and UI updates."
     }
   ]
 }
-
