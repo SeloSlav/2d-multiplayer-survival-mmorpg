@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useSpacetimeConnection } from './useSpacetimeConnection';
+import { useGameConnection } from '../contexts/GameConnectionContext';
 
 // Define the return type for this hook
 interface PlayerActions {
@@ -18,7 +18,7 @@ interface PlayerActions {
  */
 export const usePlayerActions = (): PlayerActions => {
     // Get the SpacetimeDB connection from the connection hook
-    const { connection } = useSpacetimeConnection();
+    const { connection } = useGameConnection();
     
     // --- Player Movement Actions ---
     const updatePlayerPosition = useCallback((moveX: number, moveY: number) => {
