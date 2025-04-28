@@ -1,0 +1,31 @@
+{
+  "name": "auth-server-openauth",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx watch index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "@openauthjs/openauth": "^0.4.3",
+    "bcrypt": "^5.1.1",
+    "hono": "^4.7.8",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.1.0",
+    "valibot": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^22.15.3",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

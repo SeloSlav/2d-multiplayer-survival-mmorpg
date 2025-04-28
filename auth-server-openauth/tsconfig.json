@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",          // Target modern JavaScript features
+    "module": "NodeNext",          // Align with moduleResolution
+    "moduleResolution": "NodeNext", // Use modern Node.js module resolution
+    "esModuleInterop": true,     // Allows default imports from CJS modules (good practice)
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,              // Enable all strict type-checking options
+    "skipLibCheck": true,        // Skip type checking of declaration files
+    "outDir": "./dist",           // Optional: Specify output directory if compiling
+    "rootDir": ".",              // Specify root directory
+    "resolveJsonModule": true, // Allow importing JSON files
+    // Add type roots if necessary, e.g., if using bcrypt types
+    "typeRoots": ["./node_modules/@types", "./types"] 
+  },
+  "include": ["./**/*.ts"], // Include all TypeScript files in the project
+  "exclude": ["node_modules", "dist"] // Exclude node_modules and output directory
+} 
