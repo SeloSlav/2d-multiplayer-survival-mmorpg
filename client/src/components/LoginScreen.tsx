@@ -22,7 +22,6 @@ const UI_BORDER_COLOR = '#a0a0c0';
 const UI_SHADOW = '2px 2px 0px rgba(0,0,0,0.5)';
 const UI_FONT_FAMILY = '"Press Start 2P", cursive';
 const UI_BUTTON_COLOR = '#777';
-const UI_BUTTON_HOVER_COLOR = '#8a8a9a'; 
 const UI_BUTTON_DISABLED_COLOR = '#555';
 
 interface LoginScreenProps {

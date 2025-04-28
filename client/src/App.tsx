@@ -41,7 +41,7 @@ const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) 
 
 function AppContent() {
     // --- Auth Hook ---
-    const { user, supabaseToken, spacetimeToken, isAuthenticated, isLoading: authLoading, authError } = useAuth();
+    const { userProfile, isAuthenticated, isLoading: authLoading } = useAuth();
     
     // --- Core Hooks --- 
     const {
@@ -153,18 +153,16 @@ function AppContent() {
 
     // --- Use authenticated user data when available ---
     useEffect(() => {
-        if (isAuthenticated && user) {
-            const displayName = user.user_metadata?.username || 
-                                 user.user_metadata?.full_name || 
-                                 user.email?.split('@')[0] || 
-                                 '';
+        if (isAuthenticated && userProfile) {
+            // Use userId as a fallback if other fields aren't available on UserProfile
+            const displayName = userProfile.userId || ''; 
             // Only set username if it hasn't been set or player isn't registered yet
             // Prevents overwriting user input if they log in, change username, then refresh
             if (displayName && (!username || !localPlayerRegistered)) {
                 setUsername(displayName);
             }
         }
-    }, [isAuthenticated, user, username, localPlayerRegistered]);
+    }, [isAuthenticated, userProfile, username, localPlayerRegistered]);
 
     // --- Action Handlers --- 
     const handleAttemptRegisterPlayer = useCallback(() => {
@@ -272,9 +270,7 @@ function AppContent() {
                     username={username} // Still needed for signup form
                     setUsername={setUsername}
                     handleLogin={() => {}} // handleLogin is now internal to LoginScreen auth submit
-                    isLoading={authLoading} // Pass auth loading state
-                    error={connectionError || uiError} // Show combined errors potentially
-                />
+                 />
             )}
 
             {/* If authenticated but not yet registered/connected to game */}
@@ -283,9 +279,7 @@ function AppContent() {
                     username={username}
                     setUsername={setUsername}
                     handleLogin={handleAttemptRegisterPlayer} // Use the registration handler
-                    isLoading={isRegistering || spacetimeLoading} // Loading during registration or final connection
-                    error={connectionError || uiError}
-                />
+                 />
             )}
             
             {/* If authenticated AND registered/game ready */}

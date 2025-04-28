@@ -235,9 +235,9 @@ async function success(ctx: any, value: any): Promise<Response> {
   const app  = new Hono();
 
   // --- CORS Middleware --- 
-  // Allow requests from your client origin
+  // Allow requests from your client origins
   app.use('*', cors({ 
-      origin: 'http://localhost:3008', // Allow your React app
+      origin: ['http://localhost:3008', 'http://localhost:3009'], // Allow both client ports
       allowMethods: ['GET', 'POST', 'OPTIONS'], // Allow needed methods
       allowHeaders: ['Content-Type', 'Authorization'], // Allow needed headers (adjust if necessary)
       credentials: true, // Allow cookies/credentials if needed later

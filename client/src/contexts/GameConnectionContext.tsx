@@ -46,63 +46,66 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
 
     // Connection logic - Triggered ONLY by spacetimeToken changes
     useEffect(() => {
-        // Guard still uses ref initially to prevent double-connect attempt on fast re-renders
-        if (!spacetimeToken || connectionInstanceRef.current) {
-          console.log("GameConnectionProvider: Skipping connection (no token or ref exists).");
-          return; 
+        // --- Revised Guard Conditions ---
+        if (!spacetimeToken) {
+            console.log("GameConnectionProvider: Skipping connection (no token exists).");
+            return;
+        }
+        
+        // Use state variables to check if we are already connected or in the process
+        if (isConnecting || isConnected) { 
+            // console.log("GameConnectionProvider: Skipping connection attempt (already connecting or connected)."); // Optional: Log if needed
+            return;
         }
 
         // --- Condition to attempt connection ---
-        const shouldConnect = spacetimeToken && !isConnecting;
+        // Now we only proceed if we have a token AND are not connecting/connected
+        console.log("[GameConnectionProvider] Spacetime token available. Attempting SpacetimeDB connection.");
+        setIsConnecting(true); // Start loading *this* connection
+        setConnectionError(null);
+        let newConnectionInstance: DbConnection | null = null;
 
-        if (shouldConnect) {
-            console.log("[GameConnectionProvider] Spacetime token available. Attempting SpacetimeDB connection.");
-            setIsConnecting(true); // Start loading *this* connection
-            setConnectionError(null);
-            let newConnectionInstance: DbConnection | null = null;
-
-            try {
-                newConnectionInstance = DbConnection.builder()
-                    .withUri(SPACETIME_DB_ADDRESS)
-                    .withModuleName(SPACETIME_DB_NAME)
-                    .withToken(spacetimeToken) // *** USE THE SPACETIMEDB TOKEN FROM AUTHCONTEXT ***
-                    .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
-                        console.log('[GameConnectionProvider] SpacetimeDB Connected. Identity:', identity.toHexString());
-                        connectionInstanceRef.current = conn; // Store instance in ref
-                        setConnection(conn);
-                        setDbIdentity(identity);
-                        setIsConnected(true);
-                        setConnectionError(null);
-                        setIsConnecting(false); // Stop loading *this* connection
-                    })
-                    .onDisconnect((context: any, err?: Error) => {
-                        console.log('[GameConnectionProvider] SpacetimeDB Disconnected.', err?.message);
-                        connectionInstanceRef.current = null; // Clear ref on disconnect
-                        setConnection(null);
-                        setDbIdentity(null);
-                        setIsConnected(false);
-                        setIsConnecting(false);
-                        if (err) {
-                            setConnectionError(`SpacetimeDB Disconnected: ${err.message || 'Unknown reason'}`);
-                        } else {
-                            setConnectionError(null); // Clear error on graceful disconnect
-                        }
-                    })
-                    .onConnectError((context: any, err: Error) => {
-                        console.error('[GameConnectionProvider] SpacetimeDB Connection Error:', err);
-                        connectionInstanceRef.current = null; // Clear ref on error
-                        setConnection(null);
-                        setDbIdentity(null);
-                        setIsConnected(false);
-                        setIsConnecting(false); // Stop loading *this* connection
-                        setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
-                    })
-                    .build();
-            } catch (err: any) { // Catch errors during .build() itself
-                console.error('[GameConnectionProvider] Failed to build SpacetimeDB connection:', err);
-                setConnectionError(`SpacetimeDB Build failed: ${err.message || err}`);
-                setIsConnecting(false); // Stop loading *this* connection
-            }
+        try {
+            newConnectionInstance = DbConnection.builder()
+                .withUri(SPACETIME_DB_ADDRESS)
+                .withModuleName(SPACETIME_DB_NAME)
+                .withToken(spacetimeToken) // *** USE THE SPACETIMEDB TOKEN FROM AUTHCONTEXT ***
+                .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
+                    console.log('[GameConnectionProvider] SpacetimeDB Connected. Identity:', identity.toHexString());
+                    connectionInstanceRef.current = conn; // Store instance in ref
+                    setConnection(conn);
+                    setDbIdentity(identity);
+                    setIsConnected(true);
+                    setConnectionError(null);
+                    setIsConnecting(false); // Stop loading *this* connection
+                })
+                .onDisconnect((context: any, err?: Error) => {
+                    console.log('[GameConnectionProvider] SpacetimeDB Disconnected.', err?.message);
+                    connectionInstanceRef.current = null; // Clear ref on disconnect
+                    setConnection(null);
+                    setDbIdentity(null);
+                    setIsConnected(false);
+                    setIsConnecting(false);
+                    if (err) {
+                        setConnectionError(`SpacetimeDB Disconnected: ${err.message || 'Unknown reason'}`);
+                    } else {
+                        setConnectionError(null); // Clear error on graceful disconnect
+                    }
+                })
+                .onConnectError((context: any, err: Error) => {
+                    console.error('[GameConnectionProvider] SpacetimeDB Connection Error:', err);
+                    connectionInstanceRef.current = null; // Clear ref on error
+                    setConnection(null);
+                    setDbIdentity(null);
+                    setIsConnected(false);
+                    setIsConnecting(false); // Stop loading *this* connection
+                    setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
+                })
+                .build();
+        } catch (err: any) { // Catch errors during .build() itself
+            console.error('[GameConnectionProvider] Failed to build SpacetimeDB connection:', err);
+            setConnectionError(`SpacetimeDB Build failed: ${err.message || err}`);
+            setIsConnecting(false); // Stop loading *this* connection
         }
 
         // --- Condition to disconnect (Using STATE variable) ---
@@ -122,8 +125,8 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                 // Note: onDisconnect callback should handle clearing state
              }
         };
-    // Add `connection` state to dependency array
-    }, [spacetimeToken, isConnecting, connection]);
+    // Add `isConnected` to dependency array as we now check it in the guards
+    }, [spacetimeToken, isConnecting, connection, isConnected]);
 
     // Player registration function (can safely use state variable)
     const registerPlayer = useCallback((username: string) => {

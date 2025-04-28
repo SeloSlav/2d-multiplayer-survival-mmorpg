@@ -152,7 +152,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, placementInfo, placementActions, worldMousePos,
       closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId,
-      closestInteractableBoxId, isClosestInteractableBoxEmpty, isMinimapOpen, setIsMinimapOpen,
+      closestInteractableBoxId, isClosestInteractableBoxEmpty, 
+      woodenStorageBoxes,
+      isMinimapOpen, setIsMinimapOpen,
       onSetInteractingWith, isChatting
   });
 

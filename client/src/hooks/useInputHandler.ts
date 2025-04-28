@@ -26,6 +26,7 @@ interface UseInputHandlerProps {
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
+    woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>; // <<< ADDED
     // Callbacks for actions
     onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
     // Note: movement functions are now provided by usePlayerActions hook
@@ -66,6 +67,7 @@ export const useInputHandler = ({
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
+    woodenStorageBoxes, // <<< ADDED
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -81,7 +83,7 @@ export const useInputHandler = ({
     const isMouseDownRef = useRef<boolean>(false);
     const lastClientSwingAttemptRef = useRef<number>(0);
     const eKeyDownTimestampRef = useRef<number>(0);
-    const eKeyHoldTimerRef = useRef<number | null>(null); // Use number for browser timeout ID
+    const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
     const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
 
     // Refs for dependencies to avoid re-running effect too often
@@ -99,6 +101,7 @@ export const useInputHandler = ({
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
+    const woodenStorageBoxesRef = useRef(woodenStorageBoxes); // <<< ADDED Ref
 
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
@@ -137,6 +140,7 @@ export const useInputHandler = ({
     }, [closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
+    useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
 
     // --- Swing Logic --- 
     const attemptSwing = useCallback(() => {
@@ -209,6 +213,10 @@ export const useInputHandler = ({
 
             // Interaction key ('e')
             if (key === 'e' && !event.repeat && !isEHeldDownRef.current) {
+                // *** NEW LOGGING HERE ***
+                console.log(`[InputHandler KeyDown E - Ref Check] woodenStorageBoxesRef.current exists: ${!!woodenStorageBoxesRef.current}, Map size: ${woodenStorageBoxesRef.current?.size ?? 'N/A'}`);
+                // *** END NEW LOGGING ***
+
                 const currentConnection = connectionRef.current;
                 if (!currentConnection?.reducers) return; // Need connection for interactions
 
@@ -235,23 +243,55 @@ export const useInputHandler = ({
                     eKeyHoldTimerRef.current = setTimeout(() => {
                         if (isEHeldDownRef.current) {
                             const stillClosest = closestIdsRef.current; // Re-check closest box via ref
-                            if (stillClosest.box === box && stillClosest.boxEmpty) {
-                                // console.log(`[InputHandler Hold Timer] Executing pickup for EMPTY Box ID: ${box}`);
+                    
+                            // --- ADD CLIENT LOGGING ---
+                            let clientBoxContents = "Box data not found client-side";
+                            const clientBoxesMap = woodenStorageBoxesRef.current; // Access via ref
+                            if (clientBoxesMap && box !== null) { // Check box is not null here
+                                const boxData = clientBoxesMap.get(box.toString()); // 'box' is the ID captured when 'E' was pressed
+                                if (boxData) {
+                                    const slots: (string | null)[] = [];
+                                    // Loop based on known slot count (e.g., 18)
+                                    for (let i = 0; i < 18; i++) { 
+                                        const slotKey = `slotInstanceId${i}` as keyof SpacetimeDB.WoodenStorageBox;
+                                        // Safely access the property and convert ID to string or use 'None'
+                                        const instanceId = boxData[slotKey];
+                                        slots.push(instanceId ? instanceId.toString() : 'None'); 
+                                    }
+                                    clientBoxContents = `[${slots.join(', ')}]`;
+                                } else {
+                                    clientBoxContents = `Box ID ${box} not found in client map.`;
+                                }
+                            } else if (!clientBoxesMap) {
+                                clientBoxContents = "Client boxes map is null/undefined.";
+                            } else {
+                                clientBoxContents = "Target box ID was null."; // Should not happen if we entered this block
+                            }
+                            // Log both the flag from useInteractionFinder and the actual contents
+                            console.log(`[InputHandler Hold Timer - Client Check] Target Box ID: ${box}, Current Closest Box ID: ${stillClosest.box}, isClosestEmptyFlag: ${stillClosest.boxEmpty}, Client Actual Contents: ${clientBoxContents}`);
+                            // --- END CLIENT LOGGING ---
+                    
+                            // The original condition check remains the same
+                            if (stillClosest.box === box && stillClosest.boxEmpty) { 
+                                console.log(`[InputHandler Hold Timer] Conditions met. Attempting pickup...`);
                                 try {
-                                    connectionRef.current?.reducers.pickupStorageBox(box);
-                                    isEHeldDownRef.current = false;
+                                    connectionRef.current?.reducers.pickupStorageBox(box); // 'box' is not null here
+                                    // Reset state after successful pickup
+                                    isEHeldDownRef.current = false; 
                                     setInteractionProgress(null);
                                     if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
                                     eKeyHoldTimerRef.current = null;
                                 } catch (err) {
                                     console.error("[InputHandler Hold Timer] Error calling pickupStorageBox reducer:", err);
+                                    // Reset state even on error
                                     isEHeldDownRef.current = false;
                                     setInteractionProgress(null);
                                     if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
                                     eKeyHoldTimerRef.current = null;
                                 }
                             } else {
-                                // console.log(`[InputHandler Hold Timer] Hold expired, but box ${box} is not empty or no longer closest. No pickup.`);
+                                console.log(`[InputHandler Hold Timer] Conditions NOT met. No pickup.`);
+                                // Reset state
                                 setInteractionProgress(null);
                                 if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
                                 eKeyHoldTimerRef.current = null;
@@ -342,18 +382,22 @@ export const useInputHandler = ({
 
                         // Prioritize Box if it was the target. Remove check for emptiness here.
                         if (closestBeforeClear.box !== null) {
-                             // console.log(`[KeyUp E - Box] Short press detected for Box ID: ${closestBeforeClear.box}. Opening UI.`);
+                             // console.log(`[InputHandler KeyUp E - Short Press] Attempting interaction with Box ID: ${closestBeforeClear.box}`);
                              try {
                                 currentConnection.reducers.interactWithStorageBox(closestBeforeClear.box);
+                                // console.log(`[InputHandler KeyUp E - Short Press] Called interactWithStorageBox for Box ID: ${closestBeforeClear.box}`);
                                 onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: closestBeforeClear.box });
-                             } catch (err) { console.error("[KeyUp E - Box] Error interacting:", err); }
+                             } catch (err) { 
+                                console.error("[InputHandler KeyUp E - Short Press] Error calling interactWithStorageBox:", err);
+                             }
                         } else if (closestBeforeClear.campfire !== null) {
-                             // console.log(`[KeyUp E - Campfire] Short press detected for Campfire ID: ${closestBeforeClear.campfire}. Opening UI.`);
+                             // console.log(`[InputHandler KeyUp E - Short Press] Attempting interaction with Campfire ID: ${closestBeforeClear.campfire}`);
                             try {
                                 currentConnection.reducers.interactWithCampfire(closestBeforeClear.campfire);
+                                // console.log(`[InputHandler KeyUp E - Short Press] Called interactWithCampfire for Campfire ID: ${closestBeforeClear.campfire}`);
                                 onSetInteractingWithRef.current({ type: 'campfire', id: closestBeforeClear.campfire });
                             } catch (err) {
-                                console.error("[KeyUp E - Campfire] Error interacting:", err);
+                                console.error("[InputHandler KeyUp E - Short Press] Error calling interactWithCampfire:", err);
                             }
                         }
                     }
