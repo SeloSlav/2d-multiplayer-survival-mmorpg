@@ -214,7 +214,7 @@ export const useInputHandler = ({
             // Interaction key ('e')
             if (key === 'e' && !event.repeat && !isEHeldDownRef.current) {
                 // *** NEW LOGGING HERE ***
-                console.log(`[InputHandler KeyDown E - Ref Check] woodenStorageBoxesRef.current exists: ${!!woodenStorageBoxesRef.current}, Map size: ${woodenStorageBoxesRef.current?.size ?? 'N/A'}`);
+                // console.log(`[InputHandler KeyDown E - Ref Check] woodenStorageBoxesRef.current exists: ${!!woodenStorageBoxesRef.current}, Map size: ${woodenStorageBoxesRef.current?.size ?? 'N/A'}`);
                 // *** END NEW LOGGING ***
 
                 const currentConnection = connectionRef.current;
@@ -268,12 +268,12 @@ export const useInputHandler = ({
                                 clientBoxContents = "Target box ID was null."; // Should not happen if we entered this block
                             }
                             // Log both the flag from useInteractionFinder and the actual contents
-                            console.log(`[InputHandler Hold Timer - Client Check] Target Box ID: ${box}, Current Closest Box ID: ${stillClosest.box}, isClosestEmptyFlag: ${stillClosest.boxEmpty}, Client Actual Contents: ${clientBoxContents}`);
+                            // console.log(`[InputHandler Hold Timer - Client Check] Target Box ID: ${box}, Current Closest Box ID: ${stillClosest.box}, isClosestEmptyFlag: ${stillClosest.boxEmpty}, Client Actual Contents: ${clientBoxContents}`);
                             // --- END CLIENT LOGGING ---
                     
                             // The original condition check remains the same
                             if (stillClosest.box === box && stillClosest.boxEmpty) { 
-                                console.log(`[InputHandler Hold Timer] Conditions met. Attempting pickup...`);
+                                // console.log(`[InputHandler Hold Timer] Conditions met. Attempting pickup...`);
                                 try {
                                     connectionRef.current?.reducers.pickupStorageBox(box); // 'box' is not null here
                                     // Reset state after successful pickup
@@ -290,7 +290,7 @@ export const useInputHandler = ({
                                     eKeyHoldTimerRef.current = null;
                                 }
                             } else {
-                                console.log(`[InputHandler Hold Timer] Conditions NOT met. No pickup.`);
+                                // console.log(`[InputHandler Hold Timer] Conditions NOT met. No pickup.`);
                                 // Reset state
                                 setInteractionProgress(null);
                                 if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);

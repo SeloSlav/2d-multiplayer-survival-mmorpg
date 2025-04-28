@@ -46,42 +46,50 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
 
     // Connection logic - Triggered ONLY by spacetimeToken changes
     useEffect(() => {
-        // --- Revised Guard Conditions ---
+        // --- Log Effect Trigger --- 
+        console.log(`[GameConn LOG] useEffect triggered. Token exists: ${!!spacetimeToken}. isConnecting: ${isConnecting}. isConnected: ${isConnected}.`);
+
+        // --- Revised Guard Conditions --- 
         if (!spacetimeToken) {
-            console.log("GameConnectionProvider: Skipping connection (no token exists).");
+            console.log("[GameConn LOG] Skipping connection: No token.");
+            // --- Add disconnect logic if needed when token disappears --- 
+            if (connectionInstanceRef.current) {
+                console.log("[GameConn LOG] Token lost, disconnecting existing connection (ref)...");
+                connectionInstanceRef.current.disconnect();
+                // State will be cleared by onDisconnect callback
+            }
             return;
         }
         
-        // Use state variables to check if we are already connected or in the process
         if (isConnecting || isConnected) { 
-            // console.log("GameConnectionProvider: Skipping connection attempt (already connecting or connected)."); // Optional: Log if needed
+            console.log("[GameConn LOG] Skipping connection: Already connecting or connected.");
             return;
         }
 
-        // --- Condition to attempt connection ---
-        // Now we only proceed if we have a token AND are not connecting/connected
-        console.log("[GameConnectionProvider] Spacetime token available. Attempting SpacetimeDB connection.");
-        setIsConnecting(true); // Start loading *this* connection
+        // --- Condition to attempt connection --- 
+        console.log("[GameConn LOG] Attempting SpacetimeDB connection..."); // <-- LOG
+        setIsConnecting(true); 
         setConnectionError(null);
         let newConnectionInstance: DbConnection | null = null;
 
         try {
+            console.log("[GameConn LOG] Calling DbConnection.builder().build()..."); // <-- LOG
             newConnectionInstance = DbConnection.builder()
                 .withUri(SPACETIME_DB_ADDRESS)
                 .withModuleName(SPACETIME_DB_NAME)
-                .withToken(spacetimeToken) // *** USE THE SPACETIMEDB TOKEN FROM AUTHCONTEXT ***
+                .withToken(spacetimeToken) 
                 .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
-                    console.log('[GameConnectionProvider] SpacetimeDB Connected. Identity:', identity.toHexString());
-                    connectionInstanceRef.current = conn; // Store instance in ref
+                    console.log('[GameConn LOG] onConnect: SpacetimeDB Connected. Identity:', identity.toHexString()); // <-- LOG
+                    connectionInstanceRef.current = conn; 
                     setConnection(conn);
                     setDbIdentity(identity);
                     setIsConnected(true);
                     setConnectionError(null);
-                    setIsConnecting(false); // Stop loading *this* connection
+                    setIsConnecting(false); 
                 })
                 .onDisconnect((context: any, err?: Error) => {
-                    console.log('[GameConnectionProvider] SpacetimeDB Disconnected.', err?.message);
-                    connectionInstanceRef.current = null; // Clear ref on disconnect
+                    console.log('[GameConn LOG] onDisconnect: SpacetimeDB Disconnected.', err ? `Reason: ${err.message}` : 'Graceful disconnect.'); // <-- LOG
+                    connectionInstanceRef.current = null; 
                     setConnection(null);
                     setDbIdentity(null);
                     setIsConnected(false);
@@ -89,44 +97,36 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     if (err) {
                         setConnectionError(`SpacetimeDB Disconnected: ${err.message || 'Unknown reason'}`);
                     } else {
-                        setConnectionError(null); // Clear error on graceful disconnect
+                        setConnectionError(null); 
                     }
                 })
                 .onConnectError((context: any, err: Error) => {
-                    console.error('[GameConnectionProvider] SpacetimeDB Connection Error:', err);
-                    connectionInstanceRef.current = null; // Clear ref on error
+                    console.error('[GameConn LOG] onConnectError: SpacetimeDB Connection Error:', err); // <-- LOG
+                    connectionInstanceRef.current = null; 
                     setConnection(null);
                     setDbIdentity(null);
                     setIsConnected(false);
-                    setIsConnecting(false); // Stop loading *this* connection
+                    setIsConnecting(false); 
                     setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
                 })
                 .build();
-        } catch (err: any) { // Catch errors during .build() itself
-            console.error('[GameConnectionProvider] Failed to build SpacetimeDB connection:', err);
+        } catch (err: any) { 
+            console.error('[GameConn LOG] Failed to build SpacetimeDB connection:', err); // <-- LOG
             setConnectionError(`SpacetimeDB Build failed: ${err.message || err}`);
-            setIsConnecting(false); // Stop loading *this* connection
+            setIsConnecting(false); 
         }
 
-        // --- Condition to disconnect (Using STATE variable) ---
-        // Disconnect if: spacetime token is lost AND we have an active connection (use state)
-        if (!spacetimeToken && connection) { // Check state variable
-            console.log("[GameConnectionProvider] Spacetime token lost, disconnecting existing connection.");
-            connection.disconnect(); // Call disconnect on the state variable
-            // Note: onDisconnect callback should handle clearing state (setConnection(null))
-        }
-
-        // Cleanup (Using STATE variable)
+        // Cleanup (Using REF variable for disconnect call)
         return () => {
-            // Use connection state variable for cleanup check
-             if (connection) { 
-                console.log("[GameConnectionProvider] Unmounting, disconnecting.");
-                connection.disconnect();
-                // Note: onDisconnect callback should handle clearing state
+            console.log("[GameConn LOG] useEffect cleanup running..."); // <-- LOG
+            if (connectionInstanceRef.current) { 
+                console.log("[GameConn LOG] Cleanup: Calling disconnect on connection instance (ref)."); // <-- LOG
+                connectionInstanceRef.current.disconnect();
+                // State clearing is handled by onDisconnect callback
              }
         };
-    // Add `isConnected` to dependency array as we now check it in the guards
-    }, [spacetimeToken, isConnecting, connection, isConnected]);
+    // Reverted dependency array to simpler version, only depends on the token
+    }, [spacetimeToken]); 
 
     // Player registration function (can safely use state variable)
     const registerPlayer = useCallback((username: string) => {
@@ -148,7 +148,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
 
     // Context value (provide state variable)
     const contextValue: ConnectionContextState = {
-        connection, // Provide state variable
+        connection,
         dbIdentity,
         isConnected,
         isLoading: isConnecting, 

@@ -82,13 +82,20 @@ export const drawNameTag = (
   player: SpacetimeDBPlayer,
   spriteTopY: number, // dy from drawPlayer calculation
   spriteX: number, // Added new parameter for shaken X position
+  isOnline: boolean, // <<< CHANGED: Pass explicit online status
   showLabel: boolean = true // Add parameter to control visibility
 ) => {
   if (!showLabel) return; // Skip rendering if not showing label
   
+  // --- MODIFIED: Use passed isOnline flag ---
+  const usernameText = isOnline
+    ? player.username
+    : `${player.username} (offline)`;
+  // --- END MODIFICATION ---
+
   ctx.font = '12px Arial';
   ctx.textAlign = 'center';
-  const textWidth = ctx.measureText(player.username).width;
+  const textWidth = ctx.measureText(usernameText).width; // Use modified text
   const tagPadding = 4;
   const tagHeight = 16;
   const tagWidth = textWidth + tagPadding * 2;
@@ -101,7 +108,7 @@ export const drawNameTag = (
   ctx.fill();
 
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(player.username, spriteX, tagY + tagHeight / 2 + 4);
+  ctx.fillText(usernameText, spriteX, tagY + tagHeight / 2 + 4); // Use modified text
 };
 
 // Renders a complete player (sprite, shadow, and conditional name tag)
@@ -109,6 +116,7 @@ export const renderPlayer = (
   ctx: CanvasRenderingContext2D,
   player: SpacetimeDBPlayer,
   heroImg: CanvasImageSource,
+  isOnline: boolean, // <<< ADDED: Explicit online status
   isMoving: boolean,
   isHovered: boolean,
   currentAnimationFrame: number,
@@ -118,10 +126,12 @@ export const renderPlayer = (
 ) => {
   const { sx, sy } = getSpriteCoordinates(player, isMoving, currentAnimationFrame);
   
-  // --- Calculate Shake Offset (Only if alive) ---
+  // --- Calculate Shake Offset (Only if alive and online) ---
   let shakeX = 0;
   let shakeY = 0;
-  if (!player.isDead && player.lastHitTime) { // Check !player.isDead
+  // --- MODIFIED: Check passed isOnline flag ---
+  if (!player.isDead && isOnline && player.lastHitTime) {
+  // --- END MODIFICATION ---
     const lastHitMs = Number(player.lastHitTime.microsSinceUnixEpoch / 1000n);
     const elapsedSinceHit = nowMs - lastHitMs;
     if (elapsedSinceHit >= 0 && elapsedSinceHit < PLAYER_SHAKE_DURATION_MS) {
@@ -137,8 +147,10 @@ export const renderPlayer = (
   const spriteBaseY = player.positionY - drawHeight / 2 + shakeY; // Includes shake if applicable
   const spriteDrawY = spriteBaseY - jumpOffsetY;
 
-  // --- Draw Shadow (Only if alive) --- 
-  if (!player.isDead) { // Check !player.isDead
+  // --- Draw Shadow (Only if alive and online) ---
+  // --- MODIFIED: Check passed isOnline flag ---
+  if (!player.isDead && isOnline) {
+  // --- END MODIFICATION ---
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 
@@ -165,14 +177,16 @@ export const renderPlayer = (
   }
   // --- End Draw Shadow ---
 
-  // --- Draw Sprite --- 
+  // --- Draw Sprite ---
   ctx.save();
   try {
     // Calculate center point for rotation (based on shaken position if alive)
     const centerX = spriteBaseX + drawWidth / 2;
     const centerY = spriteDrawY + drawHeight / 2;
 
-    if (player.isDead) {
+    // --- MODIFIED: Rotate if dead OR offline ---
+    if (player.isDead || !isOnline) { // <<< Use passed isOnline flag
+    // --- END MODIFICATION ---
       // Determine rotation angle based on direction
       let rotationAngleRad = 0;
       switch (player.direction) {
@@ -206,13 +220,14 @@ export const renderPlayer = (
   // --- End Draw Sprite ---
 
   // Draw name tag if player is alive and either currently hovered or in the tracked hover state
+  // NOTE: This condition remains !isDead. Offline (but alive) players will show the tag.
   if (!player.isDead) {
-    // Show label based on the passed shouldShowLabel parameter
     const showingDueToCurrentHover = isHovered;
     const showingDueToPersistentState = shouldShowLabel;
     const willShowLabel = showingDueToCurrentHover || showingDueToPersistentState;
     
-    drawNameTag(ctx, player, spriteDrawY, spriteBaseX + drawWidth / 2, willShowLabel);
+    // Pass the isOnline flag to drawNameTag
+    drawNameTag(ctx, player, spriteDrawY, spriteBaseX + drawWidth / 2, isOnline, willShowLabel); // <<< Pass isOnline
   }
 };
 
@@ -284,6 +299,7 @@ interface RenderYSortedEntitiesProps {
     ySortedEntities: YSortableEntity[];
     heroImageRef: React.RefObject<HTMLImageElement | null>;
     lastPositionsRef: React.MutableRefObject<Map<string, { x: number; y: number; }>>;
+    activeConnections: Map<string, SpacetimeDB.ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDB.ActiveEquipment>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     itemImagesRef: React.MutableRefObject<Map<string, HTMLImageElement>>;
@@ -305,6 +321,7 @@ export const renderYSortedEntities = ({
     ySortedEntities,
     heroImageRef,
     lastPositionsRef,
+    activeConnections,
     activeEquipments,
     itemDefinitions,
     itemImagesRef,
@@ -312,9 +329,11 @@ export const renderYSortedEntities = ({
     worldMouseY,
     animationFrame,
     nowMs,
-    hoveredPlayerIds = new Set(), // Default to empty set
-    onPlayerHover = () => {}, // Default to no-op function
+    hoveredPlayerIds = new Set(),
+    onPlayerHover = () => {},
 }: RenderYSortedEntitiesProps) => {
+    console.log('[renderYSortedEntities LOG] Received activeConnections map:', activeConnections);
+
     ySortedEntities.forEach(entity => {
         if (isPlayer(entity)) {
            // --- Player Rendering Logic (copied from GameCanvas, using passed refs/state) ---
@@ -362,6 +381,9 @@ export const renderYSortedEntities = ({
            }
            
            const heroImg = heroImageRef.current;
+           const isOnline = activeConnections ? activeConnections.has(playerId) : false;
+
+           console.log(`[renderYSortedEntities LOG] Player ${playerId} - isOnline calculated as: ${isOnline}`);
 
            // --- Get Equipment Data ---
            const equipment = activeEquipments.get(playerId);
@@ -383,18 +405,22 @@ export const renderYSortedEntities = ({
               // Draw Player
               if (heroImg) {
                 renderPlayer(
-                  ctx, entity, heroImg, isPlayerMoving, currentlyHovered, 
-                  animationFrame, nowMs, jumpOffset, 
-                  isPersistentlyHovered // Pass tracked hover state
+                  ctx, entity, heroImg,
+                  isOnline, // Pass potentially defaulted online status
+                  isPlayerMoving, currentlyHovered,
+                  animationFrame, nowMs, jumpOffset,
+                  isPersistentlyHovered
                 );
               }
            } else { // direction === 'right' or 'down'
               // Draw Player FIRST
               if (heroImg) {
                 renderPlayer(
-                  ctx, entity, heroImg, isPlayerMoving, currentlyHovered, 
-                  animationFrame, nowMs, jumpOffset, 
-                  isPersistentlyHovered // Pass tracked hover state
+                  ctx, entity, heroImg,
+                  isOnline, // Pass potentially defaulted online status
+                  isPlayerMoving, currentlyHovered,
+                  animationFrame, nowMs, jumpOffset,
+                  isPersistentlyHovered
                 );
               }
               // Draw Item IN FRONT of Player

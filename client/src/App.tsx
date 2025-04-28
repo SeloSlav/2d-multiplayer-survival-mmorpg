@@ -88,6 +88,7 @@ function AppContent() {
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
       messages,
       playerPins, // Destructure playerPins
+      activeConnections, // <<< Destructure here
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -297,6 +298,7 @@ function AppContent() {
                       itemDefinitions={itemDefinitions}
                       worldState={worldState}
                       activeEquipments={activeEquipments}
+                      activeConnections={activeConnections}
                       recipes={recipes}
                       craftingQueueItems={craftingQueueItems}
                       localPlayerId={dbIdentity?.toHexString() ?? undefined} // Use derived SpacetimeDB ID

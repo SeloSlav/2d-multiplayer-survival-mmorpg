@@ -156,6 +156,8 @@ import { UseEquippedItem } from "./use_equipped_item_reducer.ts";
 export { UseEquippedItem };
 
 // Import and reexport all table handle types
+import { ActiveConnectionTableHandle } from "./active_connection_table.ts";
+export { ActiveConnectionTableHandle };
 import { ActiveEquipmentTableHandle } from "./active_equipment_table.ts";
 export { ActiveEquipmentTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
@@ -202,6 +204,8 @@ import { WorldStateTableHandle } from "./world_state_table.ts";
 export { WorldStateTableHandle };
 
 // Import and reexport all types
+import { ActiveConnection } from "./active_connection_type.ts";
+export { ActiveConnection };
 import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
 import { Campfire } from "./campfire_type.ts";
@@ -259,6 +263,11 @@ export { WorldState };
 
 const REMOTE_MODULE = {
   tables: {
+    active_connection: {
+      tableName: "active_connection",
+      rowType: ActiveConnection.getTypeScriptAlgebraicType(),
+      primaryKey: "identity",
+    },
     active_equipment: {
       tableName: "active_equipment",
       rowType: ActiveEquipment.getTypeScriptAlgebraicType(),
@@ -1938,6 +1947,10 @@ export class SetReducerFlags {
 
 export class RemoteTables {
   constructor(private connection: DbConnectionImpl) {}
+
+  get activeConnection(): ActiveConnectionTableHandle {
+    return new ActiveConnectionTableHandle(this.connection.clientCache.getOrCreateTable<ActiveConnection>(REMOTE_MODULE.tables.active_connection));
+  }
 
   get activeEquipment(): ActiveEquipmentTableHandle {
     return new ActiveEquipmentTableHandle(this.connection.clientCache.getOrCreateTable<ActiveEquipment>(REMOTE_MODULE.tables.active_equipment));

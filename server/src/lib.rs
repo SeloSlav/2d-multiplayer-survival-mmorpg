@@ -1,4 +1,4 @@
-use spacetimedb::{Identity, Timestamp, ReducerContext, Table};
+use spacetimedb::{Identity, Timestamp, ReducerContext, Table, ConnectionId};
 use log;
 use std::time::Duration;
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
@@ -125,6 +125,18 @@ pub struct Player {
     pub is_dead: bool,
     pub respawn_at: Timestamp,
     pub last_hit_time: Option<Timestamp>,
+    pub is_online: bool, // <<< ADDED
+}
+
+// --- NEW: Define ActiveConnection Table --- 
+#[spacetimedb::table(name = active_connection, public)]
+#[derive(Clone, Debug)]
+pub struct ActiveConnection {
+    #[primary_key]
+    identity: Identity,
+    // Store the ID of the current WebSocket connection for this identity
+    connection_id: ConnectionId,
+    timestamp: Timestamp, // Add timestamp field
 }
 
 // --- NEW: Define ClientViewport Table ---
@@ -172,6 +184,40 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     crate::crafting::seed_recipes(ctx)?; // Seed the crafting recipes
     // No seeder needed for Campfire yet, table will be empty initially
 
+    // --- Track Active Connection --- 
+    let client_identity = ctx.sender;
+    let connection_id = ctx.connection_id.ok_or_else(|| {
+        log::error!("[Connect] Missing ConnectionId in client_connected context for {:?}", client_identity);
+        "Internal error: Missing connection ID on connect".to_string()
+    })?;
+
+    log::info!("[Connect] Tracking active connection for identity {:?} with connection ID {:?}", 
+        client_identity, connection_id);
+
+    let active_connections = ctx.db.active_connection();
+    let new_active_conn = ActiveConnection {
+        identity: client_identity,
+        connection_id,
+        timestamp: ctx.timestamp, // Add timestamp
+    };
+
+    // Insert or update the active connection record
+    if active_connections.identity().find(&client_identity).is_some() {
+        active_connections.identity().update(new_active_conn);
+        log::info!("[Connect] Updated existing active connection record for {:?}.", client_identity);
+    } else {
+        match active_connections.try_insert(new_active_conn) {
+            Ok(_) => {
+                log::info!("[Connect] Inserted new active connection record for {:?}.", client_identity);
+            }
+            Err(e) => {
+                log::error!("[Connect] Failed to insert active connection for {:?}: {}", client_identity, e);
+                return Err(format!("Failed to track connection: {}", e));
+            }
+        }
+    }
+    // --- End Track Active Connection ---
+
     // Note: Initial scheduling for player stats happens in register_player
     // Note: Initial scheduling for global ticks happens in init_module
     Ok(())
@@ -180,57 +226,58 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
 // When a client disconnects, we need to clean up
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
-    log::info!("identity_disconnected triggered for identity: {:?}", ctx.sender);
     let sender_id = ctx.sender;
-    let players = ctx.db.player();
-
-    if let Some(player) = players.identity().find(&sender_id) {
-        let username = player.username.clone();
-        // 1. --- REMOVED: Player entity deletion ---
-        // players.identity().delete(sender_id);
-        log::info!("Player {} ({:?}) disconnected. Player entity is PERSISTED.", username, sender_id);
-
-        // --- We SHOULD still clean up transient/session data ---
-
-        // 2. --- REMOVED: Inventory item deletion (Should persist with player) ---
-        // let inventory = ctx.db.inventory_item();
-        // let mut items_to_delete = Vec::new();
-        // for item in inventory.iter().filter(|i| i.player_identity == sender_id) {
-        //     // Only delete if actually in inventory/hotbar
-        //     if item.inventory_slot.is_some() || item.hotbar_slot.is_some() {
-        //         items_to_delete.push(item.instance_id);
-        //     }
-        // }
-        // let delete_count = items_to_delete.len();
-        // for item_instance_id in items_to_delete {
-        //     inventory.instance_id().delete(item_instance_id);
-        // }
-        // log::info!("Deleted {} inventory items for player {:?}", delete_count, sender_id);
-
-        // 3. --- REMOVED: Active equipment deletion (Should persist with player) ---
-        // let equipment_table = ctx.db.active_equipment();
-        // if equipment_table.player_identity().find(&sender_id).is_some() {
-        //     equipment_table.player_identity().delete(sender_id);
-        //     log::info!("Deleted active equipment for player {:?}", sender_id);
-        // }
-
-        // 4. --- REMOVED: Crafting queue clearing (Should persist with player?) ---
-        // Let's keep the crafting queue for now, player might want it paused
-        // crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
-
-
-        // --- KEEP: Delete ClientViewport entry ---
-        // This is specific to the client's current view session
-        let viewports = ctx.db.client_viewport();
-        if viewports.client_identity().find(&sender_id).is_some() {
-            viewports.client_identity().delete(sender_id);
-            log::info!("Deleted client viewport for disconnected player {:?}", sender_id);
+    let disconnecting_connection_id = match ctx.connection_id {
+        Some(id) => id,
+        None => {
+            // Log if possible, but return regardless
+            // log::error!("[Disconnect] Missing ConnectionId for {:?}. Cannot clean up.", sender_id);
+            return;
         }
-        // --- End Viewport Cleanup ---
+    };
 
-    } else {
-        log::warn!("Disconnected identity {:?} did not have a registered player entity. No cleanup needed.", sender_id);
-    }
+    // Log if possible
+    // log::info!("[Disconnect] Handling disconnect for identity: {:?}, connection_id: {:?}", sender_id, disconnecting_connection_id);
+
+    let active_connections = ctx.db.active_connection();
+    let players = ctx.db.player(); // <<< Need players table handle
+
+    // --- Check 1: Does the active connection record match the disconnecting one? ---
+    if let Some(initial_active_conn) = active_connections.identity().find(&sender_id) {
+
+        if initial_active_conn.connection_id == disconnecting_connection_id {
+            // --- Check 2: Double-Check ActiveConnection BEFORE cleanup ---
+            if let Some(current_active_conn) = active_connections.identity().find(&sender_id) {
+                if current_active_conn.connection_id == disconnecting_connection_id {
+                    // --- Both Checks Passed: This connection ID is definitively the one registered ---
+                    // Log if possible
+                    // log::info!("[Disconnect] Double check passed for {:?}. Removing active connection record {:?}.",
+                    //          sender_id, disconnecting_connection_id);
+
+                    // --- Perform ActiveConnection Cleanup FIRST ---
+                    active_connections.identity().delete(&sender_id);
+                    // log::info!("[Disconnect] Removed active connection record for {:?}.", sender_id);
+
+
+                    // --- NOW, Update Player Status (Option A) ---
+                    if let Some(mut p) = players.identity().find(&sender_id) {
+                        if p.is_online { // Only update if currently marked online
+                            p.is_online = false;
+                            p.last_update = ctx.timestamp; // Keep timestamp invariant correct
+                            players.identity().update(p);
+                            // Log if possible
+                            // log::info!("[Disconnect] Marked player {:?} as offline.", sender_id);
+                        }
+                    } else {
+                         // Log if possible - player missing despite active connection?
+                         // log::warn!("[Disconnect] Active connection found and deleted for {:?}, but player record not found to mark offline.", sender_id);
+                    }
+                    // --- End Player Status Update ---
+
+                } // else: Active connection changed between reads. Do nothing.
+            } // else: Active connection disappeared between reads. Do nothing.
+        } // else: Initial check failed (active connection ID doesn't match). Do nothing.
+    } // else: No active connection record found. Do nothing.
 }
 
 // Register a new player (Now handles existing authenticated players)
@@ -241,10 +288,44 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     log::info!("Attempting registration/login for identity: {:?}, username: {}", sender_id, username);
 
     // --- Check if player already exists for this authenticated identity ---
-    if let Some(existing_player) = players.identity().find(&sender_id) {
-        log::info!("Player already registered for identity {:?}. Username: {}", sender_id, existing_player.username);
-        // If player exists, just confirm success. Their existing data (position etc.) will be used.
-        return Ok(()); 
+    if let Some(mut existing_player) = players.identity().find(&sender_id) { 
+        log::info!("[RegisterPlayer] Found existing player {} ({:?}).",
+                 existing_player.username, sender_id);
+        
+        // --- MODIFIED: Only update timestamp on reconnect ---
+        let update_timestamp = ctx.timestamp; // Capture timestamp for consistency
+        existing_player.last_update = update_timestamp; // Always update player timestamp
+
+        players.identity().update(existing_player.clone()); // Perform the player update
+
+        // --- ALSO Update ActiveConnection record --- 
+        let connection_id = ctx.connection_id.ok_or_else(|| {
+            log::error!("[RegisterPlayer] Missing ConnectionId in context for existing player {:?}", sender_id);
+            "Internal error: Missing connection ID on reconnect".to_string()
+        })?;
+        
+        let active_connections = ctx.db.active_connection();
+        let updated_active_conn = ActiveConnection {
+            identity: sender_id,
+            connection_id,
+            timestamp: update_timestamp, // Use the SAME timestamp as player update
+        };
+
+        if active_connections.identity().find(&sender_id).is_some() {
+            active_connections.identity().update(updated_active_conn);
+            log::info!("[RegisterPlayer] Updated active connection record for {:?} with timestamp {:?}.", sender_id, update_timestamp);
+        } else {
+            match active_connections.try_insert(updated_active_conn) {
+                Ok(_) => {
+                    log::info!("[RegisterPlayer] Inserted missing active connection record for {:?} with timestamp {:?}.", sender_id, update_timestamp);
+                }
+                Err(e) => {
+                    log::error!("[RegisterPlayer] Failed to insert missing active connection for {:?}: {}", sender_id, e);
+                }
+            }
+        }
+
+        return Ok(());
     }
 
     // --- Player does not exist, proceed with registration ---
@@ -360,12 +441,36 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         is_dead: false,
         respawn_at: ctx.timestamp,
         last_hit_time: None,
+        is_online: true, // <<< Keep this for BRAND NEW players
     };
 
     // Insert the new player
     match players.try_insert(player) {
-        Ok(_) => {
+        Ok(inserted_player) => {
             log::info!("Player registered: {}. Granting starting items...", username);
+
+            // --- ADD ActiveConnection record for NEW player ---
+             let connection_id = ctx.connection_id.ok_or_else(|| {
+                 log::error!("[RegisterPlayer] Missing ConnectionId in context for NEW player {:?}", sender_id);
+                 "Internal error: Missing connection ID on initial registration".to_string()
+             })?;
+             let active_connections = ctx.db.active_connection();
+             let new_active_conn = ActiveConnection {
+                 identity: sender_id,
+                 connection_id,
+                 timestamp: ctx.timestamp,
+             };
+             match active_connections.try_insert(new_active_conn) {
+                 Ok(_) => {
+                     log::info!("[RegisterPlayer] Inserted active connection record for new player {:?}.", sender_id);
+                 }
+                 Err(e) => {
+                     // Log error but don't fail registration
+                     log::error!("[RegisterPlayer] Failed to insert active connection for new player {:?}: {}", sender_id, e);
+                 }
+             }
+            // --- END ADD ActiveConnection ---
+
             // --- Grant Starting Items (Keep existing logic) ---
             match crate::starting_items::grant_starting_items(ctx, sender_id, &username) {
                 Ok(_) => { /* Logged inside function */ },

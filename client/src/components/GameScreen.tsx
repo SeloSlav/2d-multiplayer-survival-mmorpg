@@ -37,7 +37,8 @@ import {
     CraftingQueueItem as SpacetimeDBCraftingQueueItem,
     DbConnection,
     Message as SpacetimeDBMessage,
-    PlayerPin
+    PlayerPin,
+    ActiveConnection
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -66,6 +67,7 @@ interface GameScreenProps {
     recipes: Map<string, SpacetimeDBRecipe>;
     craftingQueueItems: Map<string, SpacetimeDBCraftingQueueItem>;
     messages: Map<string, SpacetimeDBMessage>;
+    activeConnections: Map<string, ActiveConnection> | undefined;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -104,6 +106,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         players, trees, stones, campfires, mushrooms, corns, droppedItems, woodenStorageBoxes, playerPins,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
+        activeConnections,
         localPlayerId, playerIdentity, connection,
         placementInfo, placementActions, placementError, startPlacement, cancelPlacement,
         interactingWith, handleSetInteractingWith,
@@ -137,6 +140,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}
                 activeEquipments={activeEquipments}
+                activeConnections={activeConnections}
                 localPlayerId={localPlayerId}
                 connection={connection}
                 placementInfo={placementInfo}

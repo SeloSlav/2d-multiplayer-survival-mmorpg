@@ -12,6 +12,7 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   PlayerPin as SpacetimeDBPlayerPin,
+  ActiveConnection,
   Corn as SpacetimeDBCorn
 } from '../generated';
 
@@ -69,6 +70,7 @@ interface GameCanvasProps {
   inventoryItems: Map<string, SpacetimeDBInventoryItem>;
   itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
   worldState: SpacetimeDBWorldState | null;
+  activeConnections: Map<string, ActiveConnection> | undefined;
   localPlayerId?: string;
   connection: any | null;
   activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
@@ -108,6 +110,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   localPlayerId,
   connection,
   activeEquipments,
+  activeConnections,
   placementInfo,
   placementActions,
   placementError,
@@ -396,7 +399,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Pass filtered lists to rendering functions
     renderGroundEntities({ ctx, groundItems: groundItems as any, itemDefinitions, itemImagesRef, nowMs: now_ms });
     renderYSortedEntities({
-        ctx, ySortedEntities, heroImageRef, lastPositionsRef, activeEquipments,
+        ctx, ySortedEntities, heroImageRef, lastPositionsRef,
+        activeConnections,
+        activeEquipments,
         itemDefinitions, itemImagesRef, worldMouseX: currentWorldMouseX, worldMouseY: currentWorldMouseY,
         animationFrame, nowMs: now_ms, hoveredPlayerIds, onPlayerHover: handlePlayerHover
     });
@@ -498,7 +503,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId,
       closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
-      isMinimapOpen, isMouseOverMinimap, minimapZoom // Added zoom state dependency
+      isMinimapOpen, isMouseOverMinimap, minimapZoom, // Added zoom state dependency
+      activeConnections
   ]);
 
   const gameLoopCallback = useCallback(() => {

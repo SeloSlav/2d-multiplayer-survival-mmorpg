@@ -21,6 +21,7 @@ export interface SpacetimeTableStates {
     craftingQueueItems: Map<string, SpacetimeDB.CraftingQueueItem>;
     messages: Map<string, SpacetimeDB.Message>;
     playerPins: Map<string, SpacetimeDB.PlayerPin>;
+    activeConnections: Map<string, SpacetimeDB.ActiveConnection>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
 }
 
@@ -57,6 +58,7 @@ export const useSpacetimeTables = ({
     const [messages, setMessages] = useState<Map<string, SpacetimeDB.Message>>(new Map());
     const [localPlayerRegistered, setLocalPlayerRegistered] = useState<boolean>(false);
     const [playerPins, setPlayerPins] = useState<Map<string, SpacetimeDB.PlayerPin>>(new Map());
+    const [activeConnections, setActiveConnections] = useState<Map<string, SpacetimeDB.ActiveConnection>>(new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -100,7 +102,7 @@ export const useSpacetimeTables = ({
                  // console.log('[useSpacetimeTables] handlePlayerInsert CALLED for:', player.username, player.identity.toHexString()); // Use identity
                  // Use identity.toHexString() as the key
                  setPlayers(prev => new Map(prev).set(player.identity.toHexString(), player)); 
-                 if (connection.identity) {
+                 if (connection && connection.identity) {
                     const isLocalPlayer = player.identity.isEqual(connection.identity);
                     // console.log(`[useSpacetimeTables] Comparing identities: Player=${player.identity.toHexString()}, Connection=${connection.identity.toHexString()}, Match=${isLocalPlayer}`);
                     if (isLocalPlayer && !localPlayerRegistered) {
@@ -108,23 +110,24 @@ export const useSpacetimeTables = ({
                          setLocalPlayerRegistered(true);
                      }
                  } else {
-                    // console.warn('[useSpacetimeTables] handlePlayerInsert: connection.identity is null during check?');
+                    // console.warn('[useSpacetimeTables] handlePlayerInsert: connection or connection.identity is null during check?');
                  }
              };
-            // ... (Other callbacks remain the same) ...
             const handlePlayerUpdate = (ctx: any, oldPlayer: SpacetimeDB.Player, newPlayer: SpacetimeDB.Player) => {
                 const EPSILON = 0.01;
                 const posChanged = Math.abs(oldPlayer.positionX - newPlayer.positionX) > EPSILON || Math.abs(oldPlayer.positionY - newPlayer.positionY) > EPSILON;
                 const statsChanged = Math.round(oldPlayer.health) !== Math.round(newPlayer.health) || Math.round(oldPlayer.stamina) !== Math.round(newPlayer.stamina) || Math.round(oldPlayer.hunger) !== Math.round(newPlayer.hunger) || Math.round(oldPlayer.thirst) !== Math.round(newPlayer.thirst) || Math.round(oldPlayer.warmth) !== Math.round(newPlayer.warmth);
                 const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead;
-                if (posChanged || statsChanged || stateChanged) {
+                const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
+
+                if (posChanged || statsChanged || stateChanged || onlineStatusChanged) {
                     setPlayers(prev => new Map(prev).set(newPlayer.identity.toHexString(), newPlayer));
                 }
             };
             const handlePlayerDelete = (ctx: any, deletedPlayer: SpacetimeDB.Player) => {
                 // console.log('[useSpacetimeTables] Player Deleted:', deletedPlayer.username, deletedPlayer.identity.toHexString());
                 setPlayers(prev => { const newMap = new Map(prev); newMap.delete(deletedPlayer.identity.toHexString()); return newMap; });
-                if (connection.identity && deletedPlayer.identity.isEqual(connection.identity)) {
+                if (connection && connection.identity && deletedPlayer.identity.isEqual(connection.identity)) {
                     if (localPlayerRegistered) {
                        console.warn('[useSpacetimeTables] Local player deleted from server.');
                        setLocalPlayerRegistered(false);
@@ -222,6 +225,23 @@ export const useSpacetimeTables = ({
             const handlePlayerPinInsert = (ctx: any, pin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => new Map(prev).set(pin.playerId.toHexString(), pin));
             const handlePlayerPinUpdate = (ctx: any, oldPin: SpacetimeDB.PlayerPin, newPin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => new Map(prev).set(newPin.playerId.toHexString(), newPin));
             const handlePlayerPinDelete = (ctx: any, pin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => { const newMap = new Map(prev); newMap.delete(pin.playerId.toHexString()); return newMap; });
+            const handleActiveConnectionInsert = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
+                console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
+                setActiveConnections(prev => {
+                    const newMap = new Map(prev).set(conn.identity.toHexString(), conn);
+                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER INSERT:`, newMap);
+                    return newMap;
+                });
+            };
+            const handleActiveConnectionDelete = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
+                 console.log(`[useSpacetimeTables LOG] ActiveConnection DELETE: ${conn.identity.toHexString()}`);
+                setActiveConnections(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(conn.identity.toHexString());
+                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER DELETE:`, newMap);
+                    return newMap;
+                });
+            };
              // --- End Callback Definitions ---
 
             // --- Register Callbacks ---
@@ -241,6 +261,8 @@ export const useSpacetimeTables = ({
             connection.db.craftingQueueItem.onInsert(handleCraftingQueueInsert); connection.db.craftingQueueItem.onUpdate(handleCraftingQueueUpdate); connection.db.craftingQueueItem.onDelete(handleCraftingQueueDelete);
             connection.db.message.onInsert(handleMessageInsert); connection.db.message.onUpdate(handleMessageUpdate); connection.db.message.onDelete(handleMessageDelete);
             connection.db.playerPin.onInsert(handlePlayerPinInsert); connection.db.playerPin.onUpdate(handlePlayerPinUpdate); connection.db.playerPin.onDelete(handlePlayerPinDelete);
+            connection.db.activeConnection.onInsert(handleActiveConnectionInsert);
+            connection.db.activeConnection.onDelete(handleActiveConnectionDelete);
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -275,6 +297,9 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial PLAYER_PIN subscription error:", err))
                     .subscribe('SELECT * FROM player_pin'),
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial ACTIVE_CONNECTION subscription error:", err))
+                    .subscribe('SELECT * FROM active_connection'),
             ];
             nonSpatialHandlesRef.current = currentInitialSubs; 
         }
@@ -398,6 +423,7 @@ export const useSpacetimeTables = ({
                  setDroppedItems(new Map()); setWoodenStorageBoxes(new Map()); setCraftingQueueItems(new Map());
                  setMessages(new Map());
                  setPlayerPins(new Map());
+                 setActiveConnections(new Map());
              }
              // No need to unsubscribe spatial here, handled above or at start of effect
         };
@@ -423,5 +449,6 @@ export const useSpacetimeTables = ({
         messages,
         localPlayerRegistered,
         playerPins,
+        activeConnections,
     };
 }; 
