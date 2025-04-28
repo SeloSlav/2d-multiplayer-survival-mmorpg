@@ -77,113 +77,99 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 
 ## 🔐 Authentication Setup
 
-This project implements user authentication using Supabase, bridged to SpacetimeDB via a custom authentication microservice.
+This project implements user authentication using a custom Node.js authentication server built with OpenAuthJS and Hono, bridged to SpacetimeDB via standard OpenID Connect (OIDC) JWTs.
 
 **Approach:**
 
-1.  **Client:** Handles user login/signup with Supabase (using email/password, OAuth, etc.), obtaining a Supabase `access_token` (JWT).
-2.  **Client:** Sends the Supabase `access_token` to the custom `auth-server`'s `/verify` endpoint.
-3.  **Auth Server (`auth-server/`):** A separate Rust/Axum server that:
-    *   Receives the Supabase token.
-    *   Verifies the token's signature and claims using the **Supabase JWT Secret** (HS256 verification). *Note: We initially tried verifying using Supabase's public keys (RS256/JWKS), but encountered persistent 404 errors when fetching the keys/OIDC config. Using the shared secret is a reliable workaround.* 
-    *   If valid, mints a new, short-lived JWT signed with a **different** shared secret (`SPACETIME_SECRET`) using HS256.
-4.  **Client:** Receives the newly minted SpacetimeDB-compatible token from the `auth-server`.
-5.  **Client:** Connects to the main SpacetimeDB game server (`server/`) using this new token.
-6.  **SpacetimeDB Server (`server/`):** Verifies the token using the same `SPACETIME_SECRET` (provided via environment variable/startup flag) and grants the connection access based on the identity in the token.
+1.  **Client:** Initiates an OIDC Authorization Code Flow with PKCE, manually constructing the `/authorize` URL for the custom auth server and specifying `acr_values=pwd` to request the password flow.
+2.  **Auth Server (`auth-server-openauth/`):** A Node.js/Hono server that:
+    *   Intercepts the `/authorize` request.
+    *   If `acr_values=pwd`, redirects the user to custom HTML login/registration forms, forwarding OIDC parameters (`client_id`, `redirect_uri`, `state`, `code_challenge`, etc.).
+    *   Handles POST submissions from these forms, verifying user credentials against a local user store (`data/users.json`).
+    *   On successful login/registration, generates a one-time authorization `code` and stores it along with the user ID and PKCE challenge.
+    *   Redirects the user back to the client's specified `redirect_uri` with the `code` and `state`.
+3.  **Client:** Receives the redirect at its `/callback` URI, extracts the `code`.
+4.  **Client:** Makes a `fetch` POST request to the auth server's custom `/token` endpoint, sending the `code`, PKCE `code_verifier`, `client_id`, and `redirect_uri`.
+5.  **Auth Server (`/token`):**
+    *   Receives the code exchange request.
+    *   Looks up the code, retrieves the associated user ID and PKCE challenge.
+    *   Verifies the `code_verifier` against the stored `code_challenge`.
+    *   If valid, mints a new JWT `id_token` and `access_token`, signed using a **private RSA key** (RS256 algorithm).
+    *   Returns the tokens to the client.
+6.  **Client:** Receives the tokens, stores the `id_token` (used as the `spacetimeToken`).
+7.  **Client:** Connects to the main SpacetimeDB game server (`server/`) using the `id_token`.
+8.  **SpacetimeDB Server (`server/`):**
+    *   Configured with the `issuer` URL of the auth server.
+    *   Fetches the OIDC discovery document (`/.well-known/openid-configuration`) and then the public keys (`/.well-known/jwks.json`) from the auth server.
+    *   Verifies the `id_token`'s signature using the fetched public key and validates the `iss` (issuer) and `aud` (audience) claims.
+    *   Grants the connection access based on the identity (`sub` claim) in the validated token.
 
-This bridge is necessary because SpacetimeDB (when using shared secret authentication) expects HS256 tokens, while Supabase primarily issues RS256 tokens, and fetching Supabase's public keys proved unreliable in this setup.
+This approach uses standard OIDC practices with asymmetric key signing (RS256), allowing SpacetimeDB to securely verify tokens without needing a shared secret.
 
 ### Running Authentication Locally
 
 To get authentication working during local development, follow these steps:
 
-1.  **Supabase Project:** Ensure you have a Supabase project set up. Enable the authentication providers you need (e.g., Email/Password, Google) in your Supabase dashboard.
-
-2.  **Configure Auth Server (`auth-server/.env`):**
-    *   Navigate to the `auth-server` directory.
-    *   Create a file named `.env`.
-    *   Add the following environment variables, replacing placeholders with your actual Supabase credentials:
-        ```env
-        # REQUIRED: Your Supabase project URL (without trailing slash)
-        # Found in: Supabase Dashboard -> Project Settings -> API -> Project URL
-        SUPABASE_PROJECT_URL=https://your-project-ref.supabase.co
-
-        # REQUIRED: Your Supabase Anon Key (public)
-        # Found in: Supabase Dashboard -> Project Settings -> API -> Project API keys -> anon public
-        SUPABASE_ANON_KEY=your_supabase_anon_key_here
-
-        # REQUIRED: Your Supabase JWT Secret
-        # Found in: Supabase Dashboard -> Project Settings -> API -> JWT Settings -> Secret
-        # Treat this like a password! Used to verify incoming Supabase tokens.
-        SUPABASE_JWT_SECRET=your_supabase_jwt_secret_here
-
-        # REQUIRED: A strong secret key used to sign the tokens SENT TO SpacetimeDB.
-        # Must match the secret used by the main SpacetimeDB server.
-        # Generate a strong, random string for this.
-        SPACETIME_SECRET=generate_a_different_strong_secret_here
-
-        # OPTIONAL: How long the SpacetimeDB token should be valid (in minutes)
-        # Defaults to 240 (4 hours) if not set
-        # TOKEN_TTL_MINUTES=240
-
-        # OPTIONAL: The IP address and port to bind the auth server to
-        # Defaults to 0.0.0.0:4000 if not set
-        # BIND_ADDR=127.0.0.1:4000
+1.  **Generate RSA Keys:** You need an RSA key pair for signing and verifying tokens. Use OpenSSL:
+    *   Open a terminal in the **project root** directory.
+    *   Run the following commands:
+        ```bash
+        # Create a directory for keys if it doesn't exist
+        mkdir keys
+        # Generate a 2048-bit RSA private key
+        openssl genpkey -algorithm RSA -out keys/private.pem -pkeyopt rsa_keygen_bits:2048
+        # Extract the public key from the private key
+        openssl rsa -pubout -in keys/private.pem -out keys/public.pem
         ```
+    *   This creates `keys/private.pem` (keep secret, used by auth server) and `keys/public.pem` (used for verification).
+    *   **Important:** The `.gitignore` file is configured to prevent these keys from being committed to Git.
+
+2.  **Configure Auth Server (`auth-server-openauth/`):**
+    *   No `.env` file is strictly required for basic local operation, as defaults are set in `index.ts`.
+    *   The server automatically loads `keys/private.pem` and `keys/public.pem` for signing tokens and serving the JWKS endpoint.
+    *   It manages user data in `data/users.json` (which will be created automatically if it doesn't exist). The `.gitignore` also prevents this file from being committed.
 
 3.  **Run Auth Server:**
-    *   Open a terminal in the `auth-server/` directory.
-    *   Run `cargo run`.
-    *   Keep this terminal running. You should see `Auth-server listening on http://0.0.0.0:4000`. Logs for token verification will appear here.
+    *   Open a terminal in the `auth-server-openauth/` directory.
+    *   Run `npm install` if you haven't already.
+    *   Run `npm start`.
+    *   Keep this terminal running. You should see `🚀 Auth server → http://localhost:4001`. Logs for authentication steps will appear here.
 
-4.  **Configure & Run Main SpacetimeDB Server (`server/`):**
-    *   The main SpacetimeDB server needs to know the `SPACETIME_SECRET` (the one you generated for the `.env` file above) to verify tokens from the `auth-server`.
-    *   **Set Environment Variable:** Set the `SPACETIME_IDENTITY_SIGNING_SECRET` environment variable to match the `SPACETIME_SECRET` from the `auth-server/.env` file.
-        *   **Windows (PowerShell - Persistent User Variable):**
-            ```powershell
-            # Run PowerShell (as admin if needed)
-            [Environment]::SetEnvironmentVariable("SPACETIME_IDENTITY_SIGNING_SECRET", "your_spacetime_secret_here", "User")
-            # Close and reopen terminal
-            ```
-        *   **Linux/macOS (Bash/Zsh - Add to ~/.bashrc, ~/.zshrc, etc.):**
-            ```bash
-            echo 'export SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"' >> ~/.bashrc # Or ~/.zshrc
-            source ~/.bashrc # Or source ~/.zshrc, or restart terminal
-            ```
-        *   **(Temporary - Set for current session only):**
-            ```powershell
-            # PowerShell
-            $env:SPACETIME_IDENTITY_SIGNING_SECRET = "your_spacetime_secret_here"
-            ```
-            ```bash
-            # Bash/Zsh
-            export SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"
-            ```
-    *   **Run SpacetimeDB:** Open a *new* terminal (if you set the variable persistently) or use the *same* terminal (if set temporarily) and run:
-        ```bash
-        spacetime start
+4.  **Configure SpacetimeDB Server (`server/data/config.toml`):**
+    *   Ensure the `server/data/config.toml` file has the following `[auth]` configuration to trust your auth server:
+        ```toml
+        [auth]
+        [[identity_provider]]
+        type     = "oidc"
+        issuer   = "http://localhost:4001"       # URL of our OpenAuth server
+        jwks_uri = "http://localhost:4001/.well-known/jwks.json" # Explicitly point to the JWKS endpoint
+        audience = "vibe-survival-game-client" # Must match 'aud' claim in tokens
         ```
-        *(If using Docker, pass it as `-e SPACETIME_IDENTITY_SIGNING_SECRET="your_spacetime_secret_here"` instead)*.
+
+5.  **Run Main SpacetimeDB Server (`server/`):**
+    *   Open a **separate terminal**.
+    *   Run `spacetime start`.
     *   Keep this terminal running.
 
-5.  **Client Configuration:** No changes are needed in the client code. The `AuthContext.tsx` is already configured to contact the auth server at `http://localhost:4000/verify`.
+6.  **Client Configuration:** No changes are needed in the client code. `AuthContext.tsx` is configured to use the auth server at `http://localhost:4001`.
 
-6.  **Run Client:**
+7.  **Run Client:**
     *   Open a terminal in the project **root** directory.
     *   Run `npm run dev`.
 
-Now, when you sign in via the client's login screen, the full authentication flow should execute.
+Now, when you sign in via the client's login screen, the full authentication flow using your custom OpenAuthJS server and RS256 keys should execute.
 
 ### Production Deployment
 
-*   **Auth Server:** Deploy the `auth-server` binary to a hosting provider (e.g., Fly.io, Render, Cloud Run). Configure the required environment variables securely within the hosting provider's settings. Ensure it's served over HTTPS.
-*   **Client:** Update the `fetch` URL in `client/src/contexts/AuthContext.tsx` to point to your *deployed* auth server's `/verify` endpoint (using HTTPS).
-*   **SpacetimeDB:** Configure your SpacetimeDB Maincloud/Enterprise instance with the *same* `SPACETIME_SECRET` used by your deployed auth server (via instance settings or cluster configuration).
+*   **Auth Server:** Deploy the `auth-server-openauth` Node.js application to a hosting provider. Ensure the `keys/private.pem` and `keys/public.pem` files are securely deployed alongside the application (or manage keys via environment variables/secrets management if your host supports it). Ensure it's served over HTTPS.
+*   **Client:** Update `AUTH_SERVER_URL` in `client/src/contexts/AuthContext.tsx` to point to your *deployed* auth server URL (using HTTPS).
+*   **SpacetimeDB:** Configure your SpacetimeDB Maincloud/Enterprise instance with the *production* `issuer` and `jwks_uri` of your deployed auth server, and the correct `audience`.
 
 ### Limitations & Future Improvements
 
-*   **HS256 Verification:** Using the Supabase JWT Secret is functional but less standard than RS256 public key verification. Ideally, the issues preventing JWKS fetching would be resolved, or SpacetimeDB would gain direct OIDC/RS256 support.
-*   **No Refresh Token Handling:** This setup relies on the Supabase client library to manage token refreshes. The `AuthContext` fetches a new SpacetimeDB token whenever the Supabase token changes. A server-side refresh flow isn't implemented.
+*   **Basic Forms:** The login/register forms served by the auth server are very basic HTML. They could be enhanced or replaced with a proper frontend framework if desired.
+*   **Error Handling:** Error handling in the manual auth routes could be more user-friendly.
+*   **No Refresh Token Handling:** This setup doesn't implement refresh tokens. If the `id_token` expires, the user would need to log in again.
 
 ## 📜 Cursor Rules & Code Maintainability
 
