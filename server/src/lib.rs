@@ -184,44 +184,49 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
     let sender_id = ctx.sender;
     let players = ctx.db.player();
 
-    if let Some(player) = players.identity().find(sender_id) {
+    if let Some(player) = players.identity().find(&sender_id) {
         let username = player.username.clone();
-        // 1. Delete the Player entity
-        players.identity().delete(sender_id);
-        log::info!("Deleted Player entity for disconnected player: {} ({:?})", username, sender_id);
+        // 1. --- REMOVED: Player entity deletion ---
+        // players.identity().delete(sender_id);
+        log::info!("Player {} ({:?}) disconnected. Player entity is PERSISTED.", username, sender_id);
 
-        // 2. Delete player's inventory items (ONLY those in main inventory or hotbar)
-        let inventory = ctx.db.inventory_item();
-        let mut items_to_delete = Vec::new();
-        for item in inventory.iter().filter(|i| i.player_identity == sender_id) {
-            // Only delete if actually in inventory/hotbar
-            if item.inventory_slot.is_some() || item.hotbar_slot.is_some() {
-                items_to_delete.push(item.instance_id);
-            }
-        }
-        let delete_count = items_to_delete.len();
-        for item_instance_id in items_to_delete {
-            inventory.instance_id().delete(item_instance_id);
-        }
-        log::info!("Deleted {} inventory items for player {:?}", delete_count, sender_id);
+        // --- We SHOULD still clean up transient/session data ---
 
-        // 3. Delete player's active equipment entry
-        let equipment_table = ctx.db.active_equipment();
-        if equipment_table.player_identity().find(&sender_id).is_some() {
-            equipment_table.player_identity().delete(sender_id);
-            log::info!("Deleted active equipment for player {:?}", sender_id);
-        }
+        // 2. --- REMOVED: Inventory item deletion (Should persist with player) ---
+        // let inventory = ctx.db.inventory_item();
+        // let mut items_to_delete = Vec::new();
+        // for item in inventory.iter().filter(|i| i.player_identity == sender_id) {
+        //     // Only delete if actually in inventory/hotbar
+        //     if item.inventory_slot.is_some() || item.hotbar_slot.is_some() {
+        //         items_to_delete.push(item.instance_id);
+        //     }
+        // }
+        // let delete_count = items_to_delete.len();
+        // for item_instance_id in items_to_delete {
+        //     inventory.instance_id().delete(item_instance_id);
+        // }
+        // log::info!("Deleted {} inventory items for player {:?}", delete_count, sender_id);
 
-        // 4. Clear player's crafting queue and refund resources
-        crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
+        // 3. --- REMOVED: Active equipment deletion (Should persist with player) ---
+        // let equipment_table = ctx.db.active_equipment();
+        // if equipment_table.player_identity().find(&sender_id).is_some() {
+        //     equipment_table.player_identity().delete(sender_id);
+        //     log::info!("Deleted active equipment for player {:?}", sender_id);
+        // }
 
-        // --- NEW: Delete ClientViewport entry ---
+        // 4. --- REMOVED: Crafting queue clearing (Should persist with player?) ---
+        // Let's keep the crafting queue for now, player might want it paused
+        // crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
+
+
+        // --- KEEP: Delete ClientViewport entry ---
+        // This is specific to the client's current view session
         let viewports = ctx.db.client_viewport();
         if viewports.client_identity().find(&sender_id).is_some() {
             viewports.client_identity().delete(sender_id);
-            log::info!("Deleted client viewport for player {:?}", sender_id);
+            log::info!("Deleted client viewport for disconnected player {:?}", sender_id);
         }
-        // --- End NEW ---
+        // --- End Viewport Cleanup ---
 
     } else {
         log::warn!("Disconnected identity {:?} did not have a registered player entity. No cleanup needed.", sender_id);
@@ -310,7 +315,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
          // Decide if position is valid or max attempts reached
          if !collision || attempt >= max_attempts {
              if attempt >= max_attempts && collision {
-                  log::warn!("Could not find clear spawn point for {}, spawning at default (may collide).", username);
+                  log::warn!("Could not find clear spawn point for {} ({:?}), spawning at default (may collide).", username, sender_id);
                   spawn_x = initial_x;
                   spawn_y = initial_y;
              }

@@ -26,6 +26,9 @@ Cargo.lock
 .env.test.local
 .env.production.local
 
+# SpacetimeDB server configuration (may contain secrets or placeholders)
+server.config.yml
+
 # Debug logs
 npm-debug.log*
 yarn-debug.log*
@@ -66,3 +69,19 @@ Thumbs.db
 
 # Miscellaneous
 *.local
+
+# Ignore sensitive keys
+/keys/
+/keys/*.pem
+
+# Ignore runtime user data
+/data/
+
+# Node.js / Dependency stuff
+/node_modules/
+
+# Build output (if any)
+/dist/
+
+# Log files (if any)
+*.log

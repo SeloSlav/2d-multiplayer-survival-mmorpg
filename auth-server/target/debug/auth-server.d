@@ -1,1 +1,0 @@
-C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\auth-server\target\debug\auth-server.exe: C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\auth-server\src\jwt.rs C:\Users\Asus\OneDrive\Documents\WebProjects\vibe-coding-starter-pack-2d-survival\auth-server\src\main.rs

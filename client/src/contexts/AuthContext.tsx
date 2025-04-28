@@ -1,161 +1,334 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { supabase, getCurrentUser, getSession, getAuthToken } from '../services/supabase';
-import { User, Session } from '@supabase/supabase-js';
+// Import OpenAuth client helpers
+import { createClient /*, OAuthClient */ } from '@openauthjs/openauth/client'; 
+import { parseJwt } from '../utils/jwt'; // We'll create this helper
+// Removed Node.js specific imports
+// import { Buffer } from 'buffer'; 
+// import crypto from 'crypto'; 
+
+// --- Configuration ---
+const AUTH_SERVER_URL = 'http://localhost:4001'; // URL of your OpenAuth server
+const OIDC_CLIENT_ID = 'vibe-survival-game-client'; // An identifier for this React app
+const REDIRECT_URI = window.location.origin + '/callback'; // Where OpenAuth redirects back after login
+const LOCAL_STORAGE_KEYS = {
+    ID_TOKEN: 'oidc_id_token',
+    ACCESS_TOKEN: 'oidc_access_token',
+    REFRESH_TOKEN: 'oidc_refresh_token',
+    PKCE_VERIFIER: 'pkce_verifier',
+};
+
+interface UserProfile {
+    userId: string; // Extracted from id_token subject
+    // Add other relevant fields if available in the token (e.g., email, username)
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  supabaseToken: string | null;
-  spacetimeToken: string | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  authError: string | null;
-  refreshUser: () => Promise<void>;
+  userProfile: UserProfile | null;      // Simplified user info from token
+  spacetimeToken: string | null;      // This will be the id_token
+  isLoading: boolean;                 // Is an auth operation in progress?
+  isAuthenticated: boolean;           // Based on presence of spacetimeToken
+  authError: string | null;           // Store auth-related errors
+  loginRedirect: () => Promise<void>; // Function to start login flow
+  logout: () => Promise<void>;        // Function to logout
+  handleRedirectCallback: () => Promise<void>; // Function to process callback
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  supabaseToken: null,
+  userProfile: null,
   spacetimeToken: null,
-  isLoading: true,
+  isLoading: true, // Start loading until initial check is done
   isAuthenticated: false,
   authError: null,
-  refreshUser: async () => {}
+  loginRedirect: async () => { console.warn("AuthContext not initialized"); },
+  logout: async () => { console.warn("AuthContext not initialized"); },
+  handleRedirectCallback: async () => { console.warn("AuthContext not initialized"); },
 });
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Helper function for Base64URL encoding in browser
+function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+    });
+    // Standard Base64 encoding
+    const base64 = window.btoa(binary);
+    // Convert Base64 to Base64URL
+    return base64
+        .replace(/\+/g, '-') // Replace + with -
+        .replace(/\//g, '_') // Replace / with _
+        .replace(/=/g, '');   // Remove padding =
+}
+
+// Helper function for PKCE using Web Crypto API
+async function generatePkceChallenge(verifier: string): Promise<{ code_verifier: string; code_challenge: string; code_challenge_method: string }> {
+    const code_verifier = verifier;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    // Use Web Crypto API for SHA-256
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    // Encode the ArrayBuffer result to Base64URL
+    const code_challenge = arrayBufferToBase64Url(digest);
+    return {
+        code_verifier,
+        code_challenge,
+        code_challenge_method: 'S256'
+    };
+}
+
+function generateRandomString(length: number): string {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    let result = '';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [supabaseToken, setSupabaseToken] = useState<string | null>(null);
-  const [spacetimeToken, setSpacetimeToken] = useState<string | null>(null);
-  const [isSupabaseLoading, setIsSupabaseLoading] = useState<boolean>(true);
-  const [isFetchingSpacetimeToken, setIsFetchingSpacetimeToken] = useState<boolean>(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [spacetimeToken, setSpacetimeToken] = useState<string | null>(null); // The id_token
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const fetchSpacetimeToken = useCallback(async (supabaseAccessToken: string | null) => {
-    if (!supabaseAccessToken) {
-        setSpacetimeToken(null);
-        setAuthError(null);
+  // Initialize OpenAuth client
+  const [oidcClient] = useState(() => createClient({
+      issuer: AUTH_SERVER_URL,
+      clientID: OIDC_CLIENT_ID,
+  }));
+
+  // --- Core Auth Functions ---
+
+  const loginRedirect = useCallback(async () => {
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+        console.log("[AuthContext] Initiating login redirect manually for password flow...");
+        
+        // 1. Generate PKCE Verifier and Challenge
+        const verifier = generateRandomString(128); // Generate a random verifier
+        const pkce = await generatePkceChallenge(verifier);
+        localStorage.setItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER, pkce.code_verifier);
+
+        // 2. Generate State
+        const state = generateRandomString(32); // Generate random state
+        // Optional: Store state locally if needed for validation on callback
+
+        // 3. Construct Authorization URL
+        const authUrl = new URL('/authorize', AUTH_SERVER_URL);
+        authUrl.searchParams.set('client_id', OIDC_CLIENT_ID);
+        authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('state', state);
+        authUrl.searchParams.set('code_challenge', pkce.code_challenge);
+        authUrl.searchParams.set('code_challenge_method', pkce.code_challenge_method);
+        authUrl.searchParams.set('acr_values', 'pwd'); // Add acr_values
+
+        console.log("[AuthContext] Redirecting to manually constructed URL:", authUrl.toString());
+        window.location.assign(authUrl.toString()); // Redirect user
+
+    } catch (error: any) {
+        console.error("[AuthContext] Error initiating manual login redirect:", error);
+        setAuthError(error.message || "Failed to start login process");
+        setIsLoading(false);
+    }
+  }, []); // Removed oidcClient dependency as we're not using its authorize method directly
+
+  const handleRedirectCallback = useCallback(async () => {
+    setIsLoading(true);
+    setAuthError(null);
+    console.log("[AuthContext] Handling redirect callback...");
+
+    const queryParams = new URLSearchParams(window.location.search);
+    const code = queryParams.get("code");
+    const state = queryParams.get("state"); 
+
+    window.history.replaceState({}, document.title, window.location.pathname); 
+
+    if (!code) {
+        console.warn("[AuthContext] No authorization code found in callback URL.");
+        // Check for error parameters (e.g., error=access_denied)
+        const error = queryParams.get("error");
+        const errorDesc = queryParams.get("error_description");
+        if (error) {
+             setAuthError(`Authentication failed: ${error} ${errorDesc ? `(${errorDesc})` : ''}`);
+        } else {
+            // Might be initial load without callback, check existing token
+            const existingToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
+            if (existingToken) {
+                 console.log("[AuthContext] No code in URL, but found existing token.");
+                 setSpacetimeToken(existingToken);
+                 // TODO: Parse existing token to set userProfile
+                 const profile = parseToken(existingToken);
+                 setUserProfile(profile);
+            } else {
+                console.log("[AuthContext] No code and no existing token.");
+            }
+        }
+        setIsLoading(false);
         return;
     }
 
-    setIsFetchingSpacetimeToken(true);
-    setAuthError(null);
-    setSpacetimeToken(null);
+    const verifier = localStorage.getItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER);
+    // Now we strictly need the verifier again
+    if (!verifier) {
+        console.error("[AuthContext] PKCE verifier missing from storage.");
+        setAuthError("Authentication context lost. Please try logging in again.");
+        setIsLoading(false);
+        return;
+    }
+    localStorage.removeItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER); // Clean up verifier
 
     try {
-        console.log("[AuthContext] Fetching SpacetimeDB token...");
-        const response = await fetch('http://localhost:4000/verify', {
+        console.log("[AuthContext] Exchanging code for tokens via manual fetch...");
+        
+        // Construct form data payload for the token endpoint
+        const tokenRequestBody = new URLSearchParams();
+        tokenRequestBody.append('grant_type', 'authorization_code');
+        tokenRequestBody.append('code', code!); // Code is guaranteed to exist here
+        tokenRequestBody.append('redirect_uri', REDIRECT_URI);
+        tokenRequestBody.append('client_id', OIDC_CLIENT_ID);
+        tokenRequestBody.append('code_verifier', verifier); // Verifier is guaranteed to exist here
+
+        // Make the POST request to the token endpoint
+        const tokenResponse = await fetch(`${AUTH_SERVER_URL}/token`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: JSON.stringify({ token: supabaseAccessToken }),
+            body: tokenRequestBody.toString(),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Auth server error (${response.status}): ${errorText || 'Failed to verify token'}`);
+        const tokens = await tokenResponse.json();
+
+        if (!tokenResponse.ok) {
+            console.error("[AuthContext] Token exchange failed:", tokens);
+            const errorDescription = tokens.error_description || tokens.error || `HTTP status ${tokenResponse.status}`;
+            throw new Error(`Token exchange failed: ${errorDescription}`);
+        }
+        
+        // Extract tokens directly from the JSON response
+        const id_token = tokens.id_token as string | undefined;
+        const access_token = tokens.access_token as string | undefined;
+        const refresh_token = tokens.refresh_token as string | undefined;
+        
+        console.log("[AuthContext] Tokens received via manual fetch (id_token present?):", !!id_token);
+
+        if (!id_token) {
+             throw new Error("id_token missing from token response");
         }
 
-        const data = await response.json();
-        if (data.spacetime_token) {
-            setSpacetimeToken(data.spacetime_token);
-            console.log("[AuthContext] Fetched SpacetimeDB token successfully.");
-        } else {
-             throw new Error("Spacetime token missing in auth server response");
-        }
+        // Store tokens
+        localStorage.setItem(LOCAL_STORAGE_KEYS.ID_TOKEN, id_token);
+        if (access_token) localStorage.setItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN, access_token);
+        if (refresh_token) localStorage.setItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN, refresh_token);
+
+        // Set state
+        setSpacetimeToken(id_token);
+        const profile = parseToken(id_token);
+        setUserProfile(profile);
+        setAuthError(null);
+
+        // Redirect to the main application page
+        console.log("[AuthContext] Callback handled successfully, redirecting to '/'...");
+        window.location.replace('/');
+
     } catch (error: any) {
-        console.error("[AuthContext] Error fetching SpacetimeDB token:", error);
-        setAuthError(error.message || "Failed to get SpacetimeDB token");
+        console.error("[AuthContext] Error handling redirect callback:", error);
+        setAuthError(error.message || "Failed to process login callback");
+        // Clear potentially partial tokens
+        clearTokens();
         setSpacetimeToken(null);
+        setUserProfile(null);
     } finally {
-        setIsFetchingSpacetimeToken(false);
+        setIsLoading(false);
     }
   }, []);
 
-  const refreshUser = useCallback(async () => {
-    let currentSupabaseToken: string | null = null;
-    try {
-      setIsSupabaseLoading(true);
-      setAuthError(null);
-      const currentUser = await getCurrentUser();
-      const currentSession = await getSession();
-      currentSupabaseToken = currentSession?.access_token || null;
+  const logout = useCallback(async () => {
+    console.log("[AuthContext] Logging out...");
+    setIsLoading(true);
+    clearTokens();
+    setSpacetimeToken(null);
+    setUserProfile(null);
+    setAuthError(null);
 
-      setUser(currentUser || null);
-      setSession(currentSession || null);
-      setSupabaseToken(currentSupabaseToken);
+    // Optional: Redirect to OpenAuth end session endpoint if available/needed
+    // This might require constructing a URL with id_token_hint and post_logout_redirect_uri
+    // const endSessionUrl = `${AUTH_SERVER_URL}/protocol/openid-connect/logout?client_id=${OIDC_CLIENT_ID}&post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+    // window.location.assign(endSessionUrl); 
+    
+    // For simplicity now, just clear client-side state
+    setIsLoading(false); 
+    // Force reload or redirect to home to clear application state if needed
+    window.location.assign(window.location.origin); 
 
-      await fetchSpacetimeToken(currentSupabaseToken);
+  }, []);
 
-    } catch (error) {
-      console.error('Error refreshing user:', error);
-      setAuthError("Failed to refresh Supabase session");
-      setUser(null);
-      setSession(null);
-      setSupabaseToken(null);
-      setSpacetimeToken(null);
-    } finally {
-      setIsSupabaseLoading(false);
-    }
-  }, [fetchSpacetimeToken]);
+  // --- Helper Functions ---
+  const clearTokens = () => {
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.ACCESS_TOKEN);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER); // Just in case
+  };
 
+  const parseToken = (token: string): UserProfile | null => {
+       try {
+            const decoded = parseJwt(token);
+            // Extract subject properties based on our 'subjects.ts' definition
+            const userId = decoded.sub || decoded.userId; // Adjust based on actual token structure
+            if (!userId) {
+                 console.error("Could not find userId (sub or userId) in token payload:", decoded);
+                 return null;
+            }
+            return { userId: userId /*, Add other fields */ };
+       } catch (error) {
+            console.error("Error parsing token:", error);
+            setAuthError("Failed to parse user information from token.");
+            return null;
+       }
+  };
+
+  // --- Effect for Initial Load / Handling Redirect ---
   useEffect(() => {
-    let mounted = true;
-
-    async function initialLoad() {
-      if (!mounted) return;
-      await refreshUser();
-    }
-
-    initialLoad();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        console.log("[AuthContext] Auth event:", event);
-        const newSupabaseToken = session?.access_token || null;
-        setUser(session?.user || null);
-        setSession(session);
-        setSupabaseToken(newSupabaseToken);
-        setAuthError(null);
-
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-           await fetchSpacetimeToken(newSupabaseToken);
-        } else if (event === 'SIGNED_OUT') {
-           setSpacetimeToken(null);
-           setAuthError(null);
-        }
-        setIsSupabaseLoading(false);
+    // Check if the current URL is the redirect callback URL
+    if (window.location.pathname === new URL(REDIRECT_URI).pathname) {
+      handleRedirectCallback();
+    } else {
+      // Otherwise, check for existing stored token on initial load
+      const existingToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
+      if (existingToken) {
+        console.log("[AuthContext] Found existing token on initial load.");
+        setSpacetimeToken(existingToken);
+        const profile = parseToken(existingToken);
+        setUserProfile(profile);
+        // TODO: Optionally validate token expiry here
+      } else {
+         console.log("[AuthContext] No existing token found on initial load.");
       }
-    );
+      setIsLoading(false); // Finished initial non-callback load
+    }
+  }, [handleRedirectCallback]); // Only run on mount and when callback handler changes
 
-    return () => {
-      mounted = false;
-      authListener?.subscription.unsubscribe();
-    };
-  }, [refreshUser, fetchSpacetimeToken]);
-
-  const combinedIsLoading = isSupabaseLoading || isFetchingSpacetimeToken;
+  const isAuthenticated = !!spacetimeToken;
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        session,
-        supabaseToken,
+        userProfile,
         spacetimeToken,
-        isLoading: combinedIsLoading,
-        isAuthenticated: !!user && !!spacetimeToken,
+        isLoading,
+        isAuthenticated,
         authError,
-        refreshUser
+        loginRedirect,
+        logout,
+        handleRedirectCallback // Expose if needed by specific components, though usually handled internally
       }}
     >
       {children}

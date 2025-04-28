@@ -20,6 +20,9 @@ import jwt from 'jsonwebtoken';
 import { Buffer } from 'buffer'; // Needed for PKCE base64
 import crypto from 'crypto'; // Needed for PKCE hash
 import { cors } from 'hono/cors';
+import fsSync from 'fs'; // Use synchronous read for simplicity at startup
+// Import jose for JWKS
+import * as jose from 'jose';
 
 /* -------------------------------------------------------------------------- */
 /* Config                                                                     */
@@ -30,8 +33,30 @@ const PORT        = Number(process.env.PORT) || 4001;
 const ISSUER_URL  = process.env.ISSUER_URL  || `http://localhost:${PORT}`;
 const USERS_PATH  = process.env.USERS_FILE  || path.resolve(__dirname, '../data/users.json');
 const SALT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || 12;
-const JWT_SECRET  = process.env.JWT_SECRET || 'dev-secret';
+// const JWT_SECRET  = process.env.JWT_SECRET || 'dev-secret'; // No longer used
 const CLIENT_ID   = 'vibe-survival-game-client';
+
+// Load the private key for signing JWTs
+let privateKey: string;
+let jwksPublicKey: jose.KeyLike; // Store public key in jose format
+let jwksPublicJWK: jose.JWK;     // Store public key as plain JWK object
+const keyId = 'auth-server-signing-key'; // An identifier for our key
+
+try {
+    privateKey = fsSync.readFileSync(path.resolve(__dirname, '../keys/private.pem'), 'utf8');
+    const publicKeyPem = fsSync.readFileSync(path.resolve(__dirname, '../keys/public.pem'), 'utf8');
+    // Import public key for JWKS endpoint using jose
+    jwksPublicKey = await jose.importSPKI(publicKeyPem, 'RS256');
+    // Export to JWK format for the response body
+    jwksPublicJWK = await jose.exportJWK(jwksPublicKey);
+    console.log('[JWKS] Public key loaded and converted to JWK successfully.');
+} catch (error) {
+    console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    console.error("!!! FAILED TO LOAD KEYS (private.pem / public.pem)      !!!");
+    console.error("!!! Please generate keys using OpenSSL (see README/docs) !!!");
+    console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", error);
+    process.exit(1);
+}
 
 /* -------------------------------------------------------------------------- */
 /* Stores                                                                     */
@@ -116,7 +141,7 @@ async function _handlePasswordChangeSimple(userId: string, newPassword?: string)
 }
 
 // Placeholder sendCode function
-async function handlePasswordSendCode(email: string, code: string): Promise<void> {
+async function handlePasswordSendCode(email: string, code: string): Promise<void> { 
   console.info(`[SendCodeHandler] Code for ${email}: ${code} (Manual Flow)`);
 }
 
@@ -176,7 +201,7 @@ const password = PasswordProvider({
   register: handlePasswordRegister,
   login: handlePasswordLogin,
   change: handlePasswordChange,
-  sendCode: handlePasswordSendCode,
+      sendCode: handlePasswordSendCode,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -217,6 +242,40 @@ async function success(ctx: any, value: any): Promise<Response> {
       allowHeaders: ['Content-Type', 'Authorization'], // Allow needed headers (adjust if necessary)
       credentials: true, // Allow cookies/credentials if needed later
   }));
+
+  // --- OIDC Discovery Endpoint --- 
+  app.get('/.well-known/openid-configuration', (c) => {
+      console.log('[OIDC Discovery] Serving configuration');
+      return c.json({
+          issuer: ISSUER_URL,
+          authorization_endpoint: `${ISSUER_URL}/authorize`, // Where client initiates flow
+          token_endpoint: `${ISSUER_URL}/token`,           // Where client exchanges code
+          jwks_uri: `${ISSUER_URL}/.well-known/jwks.json`, // Location of public keys
+          response_types_supported: ["code"],            // We support the Authorization Code flow
+          subject_types_supported: ["public"],
+          id_token_signing_alg_values_supported: ["RS256"], // We sign ID tokens with RS256
+          // Optional fields you might add later:
+          // scopes_supported: ["openid", "profile", "email"],
+          // claims_supported: ["sub", "iss", "aud", "exp", "iat" /*, "email" */],
+          // userinfo_endpoint: `${ISSUER_URL}/userinfo`, // If you implement a userinfo endpoint
+          // end_session_endpoint: `${ISSUER_URL}/logout` // If you implement logout endpoint
+      });
+  });
+
+  // --- JWKS Endpoint --- 
+  app.get('/.well-known/jwks.json', (c) => {
+      console.log('[JWKS] Serving JWKS endpoint');
+      return c.json({ 
+          keys: [
+              {
+                  ...jwksPublicJWK, // Spread the basic JWK (n, e, kty)
+                  kid: keyId,       // Key ID
+                  use: 'sig',       // Usage: signature verification
+                  alg: 'RS256'      // Algorithm
+              }
+          ]
+      });
+  });
 
   // --- Custom Authorize Interceptor --- 
   app.get('/authorize', async (c, next) => {
@@ -475,7 +534,7 @@ async function success(ctx: any, value: any): Promise<Response> {
   });
   // --- End Manual Password Routes --- 
 
-  // Token endpoint - Updated for PKCE
+  // Token endpoint - Updated for PKCE & RS256 signing
   app.post('/token', async c => {
     const form = await c.req.formData();
     const grantType = form.get('grant_type');
@@ -527,14 +586,30 @@ async function success(ctx: any, value: any): Promise<Response> {
     const userId = codeData.userId;
     authCodes.delete(code); // Consume the code
 
-    const accessToken = jwt.sign({ sub: userId }, JWT_SECRET, { issuer: ISSUER_URL, audience: clientIdForm, expiresIn: '1h' });
-    const idToken     = jwt.sign({ iss: ISSUER_URL, aud: clientIdForm, sub: userId, iat: Math.floor(Date.now()/1000) }, JWT_SECRET, { expiresIn: '1h' });
+    const signOptions: jwt.SignOptions = {
+        algorithm: 'RS256', 
+        expiresIn: '1h',
+        keyid: keyId 
+    };
+
+    const idTokenPayload = { 
+        iss: ISSUER_URL, 
+        aud: clientIdForm, 
+        sub: userId, 
+        iat: Math.floor(Date.now()/1000) 
+    };
+
+    // Sign accessToken (payload is just { sub }, options provide aud, iss etc)
+    const accessToken = jwt.sign({ sub: userId }, privateKey, signOptions);
+    // Sign idToken (payload contains aud, iss etc, options provide alg, kid, exp)
+    const idToken     = jwt.sign(idTokenPayload, privateKey, signOptions);
+    
     return c.json({ access_token: accessToken, id_token: idToken, token_type: 'Bearer', expires_in: 3600 });
   });
 
   // Mount the OpenAuth issuer routes AFTER your manual routes AND the interceptor
   // Note: Mounting on '/' might still cause conflicts if the issuer internally registers /authorize.
-  app.route('/', auth); 
+  app.route('/', auth);
   app.get('/health', c => c.text('OK'));
 
   console.log(`🚀 Auth server → ${ISSUER_URL}`);

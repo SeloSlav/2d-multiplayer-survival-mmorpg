@@ -1,6 +1,6 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 Imagine John Carmack is watching you, expecting production-grade code ready to ship on the spot. No excuses. Just clean, working code.

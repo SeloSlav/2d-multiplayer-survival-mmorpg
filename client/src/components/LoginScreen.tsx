@@ -4,16 +4,17 @@
  * Displays the initial welcome/login screen.
  * Handles:
  *  - Displaying game title and logo.
- *  - Input fields for authentication (email, password, username).
- *  - Authentication with Supabase (email/password or OAuth).
+ *  - Triggering OpenAuth OIDC login flow.
+ *  - Input field for username (for game join, not authentication).
  *  - Displaying loading states and errors.
- *  - Toggle between sign in and registration modes.
+ *  - Handling logout.
  */
 
 import React, { useRef, useEffect, useState } from 'react';
 import githubLogo from '../../public/github.png'; // Adjust path as needed
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '../services/supabase';
+// Remove Supabase imports
+// import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '../services/supabase'; 
 
 // Style Constants (Consider moving to a shared file)
 const UI_BG_COLOR = 'rgba(40, 40, 60, 0.85)';
@@ -27,127 +28,71 @@ const UI_BUTTON_DISABLED_COLOR = '#555';
 interface LoginScreenProps {
     username: string;
     setUsername: (value: string) => void;
-    handleLogin: () => void;
-    isLoading: boolean;
-    error: string | null;
+    handleLogin: () => void; // Renamed from handleRegister, now used for joining game after auth
+    // isLoading and error props likely removed as AuthContext handles them
+    // isLoading: boolean; 
+    // error: string | null;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
     username,
     setUsername,
-    handleLogin,
-    isLoading,
-    error,
+    handleLogin, // This prop is now for joining the game *after* authentication
 }) => {
-    const { user, isAuthenticated } = useAuth();
-    const [isSignUp, setIsSignUp] = useState<boolean>(false);
-    const [email, setEmail] = useState<string>('');
-    const [password, setPassword] = useState<string>('');
-    const [confirmPassword, setConfirmPassword] = useState<string>('');
-    const [authError, setAuthError] = useState<string | null>(null);
-    const [authLoading, setAuthLoading] = useState<boolean>(false);
-
-    const emailInputRef = useRef<HTMLInputElement>(null);
+    // Get OpenAuth state and functions
+    const { 
+        userProfile, // Contains { userId } after successful login 
+        isAuthenticated, 
+        isLoading: authIsLoading, // Renamed to avoid conflict
+        authError, 
+        loginRedirect, 
+        logout 
+    } = useAuth();
+    
+    // Local state for UI feedback, potentially remove if not needed
+    const [localError, setLocalError] = useState<string | null>(null);
+    
+    // Ref for username input focus
     const usernameInputRef = useRef<HTMLInputElement>(null);
 
-    // Autofocus on initial render
+    // Autofocus username field if authenticated
     useEffect(() => {
         if (isAuthenticated) {
-            // If user is already authenticated, focus username field
             usernameInputRef.current?.focus();
-        } else {
-            // Otherwise focus email field
-            emailInputRef.current?.focus();
-        }
-    }, [isAuthenticated, isSignUp]);
+        } 
+        // No email field to focus anymore
+    }, [isAuthenticated]);
 
+    // Simplified validation: only need username if authenticated and ready to join
     const validateForm = (): boolean => {
-        if (isAuthenticated) {
-            // If authenticated, only username matters for joining the game
-            if (!username.trim()) {
-                setAuthError('Username is required to join'); // More specific error
-                return false;
-            }
-        } else {
-            // If NOT authenticated, validate email/password/signup fields
-            if (!email.trim()) {
-                setAuthError('Email is required');
-                return false;
-            }
-            if (!password.trim()) {
-                setAuthError('Password is required');
-                return false;
-            }
-            if (isSignUp) {
-                if (password !== confirmPassword) {
-                    setAuthError('Passwords do not match');
-                    return false;
-                }
-                if (!username.trim()) {
-                    setAuthError('Username is required for sign up'); // More specific error
-                    return false;
-                }
-            }
+        if (isAuthenticated && !username.trim()) {
+            setLocalError('Username is required to join the game');
+            return false;
         }
-        // If all checks pass for the current state
-        setAuthError(null); // Clear error if validation passes
+        setLocalError(null); 
         return true;
     };
 
-    const handleAuthSubmit = async (e: React.FormEvent) => {
+    // Handle button click: Either trigger OpenAuth login or join game
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (!validateForm()) return;
-        
-        setAuthLoading(true);
-        setAuthError(null);
-        
-        try {
-            if (isAuthenticated) {
-                // If already authenticated, just proceed with game login
-                handleLogin();
-            } else if (isSignUp) {
-                // Register new user
-                const { error } = await signUpWithEmail(email, password, username);
-                if (error) throw error;
-                // After signup, handleLogin will be called when auth state changes
-            } else {
-                // Sign in existing user
-                const { error } = await signInWithEmail(email, password);
-                if (error) throw error;
-                // After signin, handleLogin will be called when auth state changes
+
+        if (!isAuthenticated) {
+            // If not authenticated, start the OpenAuth login flow
+            // Errors during loginRedirect are handled within AuthContext
+            await loginRedirect(); 
+        } else {
+            // If authenticated, validate username and call handleLogin prop to join game
+            if (validateForm()) {
+                 handleLogin();
             }
-        } catch (err: any) {
-            setAuthError(err.message || 'Authentication failed');
-        } finally {
-            setAuthLoading(false);
         }
     };
 
-    const handleGoogleSignIn = async () => {
-        setAuthLoading(true);
-        setAuthError(null);
-        
-        try {
-            await signInWithGoogle();
-            // Auth state will be handled by the auth listener
-        } catch (err: any) {
-            setAuthError(err.message || 'Google sign-in failed');
-            setAuthLoading(false);
-        }
-    };
-
+    // Handle Enter key press
     const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter' && !isLoading && !authLoading) {
-            if (isAuthenticated) {
-                // If already authenticated, just enter game
-                if (username.trim()) {
-                    handleLogin();
-                }
-            } else {
-                // Otherwise submit the auth form
-                handleAuthSubmit(event as unknown as React.FormEvent);
-            }
+        if (event.key === 'Enter' && !authIsLoading) {
+            handleSubmit(event as unknown as React.FormEvent);
         }
     };
 
@@ -181,186 +126,57 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 />
                 <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>2D Survival Multiplayer</h2>
                 
-                {/* AUTH FORM */}
-                <form onSubmit={handleAuthSubmit} style={{ marginBottom: '20px' }}>
-                    {!isAuthenticated ? (
-                        /* Show auth fields if not authenticated */
-                        <>
-                            <input
-                                ref={emailInputRef}
-                                type="email"
-                                placeholder="Email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                disabled={authLoading || isLoading}
-                                style={{ 
-                                    padding: '10px',
-                                    marginBottom: '15px',
-                                    border: `1px solid ${UI_BORDER_COLOR}`,
-                                    backgroundColor: '#333',
-                                    color: 'white',
-                                    fontFamily: UI_FONT_FAMILY,
-                                    fontSize: '14px',
-                                    display: 'block',
-                                    width: 'calc(100% - 22px)',
-                                    textAlign: 'center',
-                                }}
-                            />
-                            
-                            <input
-                                type="password"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                disabled={authLoading || isLoading}
-                                style={{ 
-                                    padding: '10px',
-                                    marginBottom: '15px',
-                                    border: `1px solid ${UI_BORDER_COLOR}`,
-                                    backgroundColor: '#333',
-                                    color: 'white',
-                                    fontFamily: UI_FONT_FAMILY,
-                                    fontSize: '14px',
-                                    display: 'block',
-                                    width: 'calc(100% - 22px)',
-                                    textAlign: 'center',
-                                }}
-                            />
-                            
-                            {isSignUp && (
-                                <>
-                                    <input
-                                        type="password"
-                                        placeholder="Confirm Password"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        disabled={authLoading || isLoading}
-                                        style={{ 
-                                            padding: '10px',
-                                            marginBottom: '15px',
-                                            border: `1px solid ${UI_BORDER_COLOR}`,
-                                            backgroundColor: '#333',
-                                            color: 'white',
-                                            fontFamily: UI_FONT_FAMILY,
-                                            fontSize: '14px',
-                                            display: 'block',
-                                            width: 'calc(100% - 22px)',
-                                            textAlign: 'center',
-                                        }}
-                                    />
-                                    
-                                    <input
-                                        ref={usernameInputRef}
-                                        type="text"
-                                        placeholder="Choose Username"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        disabled={authLoading || isLoading}
-                                        style={{ 
-                                            padding: '10px',
-                                            marginBottom: '15px',
-                                            border: `1px solid ${UI_BORDER_COLOR}`,
-                                            backgroundColor: '#333',
-                                            color: 'white',
-                                            fontFamily: UI_FONT_FAMILY,
-                                            fontSize: '14px',
-                                            display: 'block',
-                                            width: 'calc(100% - 22px)',
-                                            textAlign: 'center',
-                                        }}
-                                    />
-                                </>
-                            )}
-                        </>
-                    ) : (
-                        /* If authenticated, no input needed, just the button below */
-                        null // Render nothing here, the Join Game button handles the action
-                    )}
-                    
-                    {/* Main Action Button - Moved outside the conditional */}
+                {/* Display username input only when authenticated */}
+                {isAuthenticated && (
+                     <input
+                        ref={usernameInputRef}
+                        type="text"
+                        placeholder="Enter Username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        disabled={authIsLoading}
+                        style={{ 
+                            padding: '10px',
+                            marginBottom: '15px',
+                            border: `1px solid ${UI_BORDER_COLOR}`,
+                            backgroundColor: '#333',
+                            color: 'white',
+                            fontFamily: UI_FONT_FAMILY,
+                            fontSize: '14px',
+                            display: 'block',
+                            width: 'calc(100% - 22px)',
+                            textAlign: 'center',
+                        }}
+                    />
+                )}
+
+                {/* Combined Login/Join Button */}
+                <form onSubmit={handleSubmit}> 
                     <button 
                         type="submit"
-                        disabled={authLoading || isLoading}
+                        disabled={authIsLoading}
                         style={{ 
                             padding: '10px 20px',
                             border: `1px solid ${UI_BORDER_COLOR}`,
-                            backgroundColor: (authLoading || isLoading) ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
-                            color: (authLoading || isLoading) ? '#aaa' : 'white',
+                            backgroundColor: authIsLoading ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
+                            color: authIsLoading ? '#aaa' : 'white',
                             fontFamily: UI_FONT_FAMILY,
                             fontSize: '14px',
-                            cursor: (authLoading || isLoading) 
-                                ? 'not-allowed' 
-                                : 'pointer', 
+                            cursor: authIsLoading ? 'not-allowed' : 'pointer', 
                             boxShadow: UI_SHADOW,
                             width: '100%',
                             marginBottom: '15px',
                         }}
                     >
-                        {authLoading ? 'Authenticating...' : (
-                            isAuthenticated 
-                                ? (isLoading ? 'Connecting...' : 'Join Game')
-                                : (isSignUp ? 'Sign Up' : 'Sign In')
+                        {authIsLoading ? 'Loading...' : (
+                            isAuthenticated ? 'Join Game' : 'Sign In / Sign Up'
                         )}
                     </button>
                 </form>
                 
-                {!isAuthenticated && (
-                    <>
-                        {/* Google Sign In Button */}
-                        <button
-                            onClick={handleGoogleSignIn}
-                            disabled={authLoading || isLoading}
-                            style={{ 
-                                padding: '10px 20px',
-                                border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: (authLoading || isLoading) ? UI_BUTTON_DISABLED_COLOR : '#4285F4',
-                                color: 'white',
-                                fontFamily: UI_FONT_FAMILY,
-                                fontSize: '14px',
-                                cursor: (authLoading || isLoading) ? 'not-allowed' : 'pointer',
-                                boxShadow: UI_SHADOW,
-                                width: '100%',
-                                marginBottom: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <span style={{ marginRight: '10px' }}>G</span>
-                            {isSignUp ? 'Sign Up with Google' : 'Sign In with Google'}
-                        </button>
-                        
-                        {/* Toggle between sign in and sign up */}
-                        <button
-                            onClick={() => {
-                                setIsSignUp(!isSignUp);
-                                setAuthError(null);
-                            }}
-                            type="button"
-                            style={{ 
-                                background: 'none',
-                                border: 'none',
-                                color: '#a0a0c0',
-                                cursor: 'pointer',
-                                fontFamily: UI_FONT_FAMILY,
-                                fontSize: '12px',
-                                textDecoration: 'underline',
-                                marginBottom: '15px',
-                            }}
-                        >
-                            {isSignUp 
-                                ? 'Already have an account? Sign In' 
-                                : 'Need an account? Sign Up'}
-                        </button>
-                    </>
-                )}
-                
-                {/* Error Messages */}
-                {(authError || error) && (
+                {/* Error Messages from AuthContext or local validation */}
+                {(localError || authError) && (
                     <p style={{ 
                         color: 'red', 
                         marginTop: '15px',
@@ -369,12 +185,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         backgroundColor: 'rgba(255,0,0,0.1)',
                         borderRadius: '4px',
                     }}>
-                        {authError || error}
+                        {localError || authError} 
                     </p>
                 )}
                 
-                {/* Display logged in user info if authenticated */}
-                {isAuthenticated && user && (
+                {/* Display logged in user info and logout button if authenticated */}
+                {isAuthenticated && userProfile && (
                     <div style={{ 
                         marginTop: '20px', 
                         fontSize: '12px',
@@ -382,21 +198,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         padding: '10px',
                         borderRadius: '4px',
                     }}>
-                        Logged in as: {user.email}
+                        {/* Displaying userId for confirmation, adjust as needed */}
+                        Logged in (User ID: {userProfile.userId})
                         <br />
                         <button
-                            onClick={async () => {
-                                try {
-                                    await signOut();
-                                    setUsername('');
-                                    setEmail('');
-                                    setPassword('');
-                                    setConfirmPassword('');
-                                } catch (err) {
-                                    console.error('Error signing out:', err);
-                                    setAuthError('Failed to sign out');
-                                }
-                            }}
+                            onClick={logout} // Call logout from useAuth
+                            disabled={authIsLoading} // Disable during auth operations
                             style={{ 
                                 marginTop: '10px',
                                 padding: '5px 10px',
@@ -404,7 +211,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 background: '#444',
                                 color: 'white',
                                 border: 'none',
-                                cursor: 'pointer',
+                                cursor: authIsLoading ? 'not-allowed' : 'pointer',
                                 fontFamily: UI_FONT_FAMILY,
                             }}
                         >

@@ -1,0 +1,19 @@
+[logs]
+directives = [
+    "spacetimedb=debug",
+    "spacetimedb_client_api=debug",
+    "spacetimedb_lib=debug",
+    "spacetimedb_standalone=debug",
+    "spacetimedb_commitlog=info",
+    "spacetimedb_durability=info",
+    "axum::rejection=trace",
+]
+
+[auth]
+[[identity_provider]]
+type     = "oidc"
+issuer   = "http://localhost:4001" # URL of our OpenAuth server
+# SpacetimeDB will fetch keys from /.well-known/jwks.json at the issuer URL
+# algorithm = "RS256" # Typically inferred from JWKS, uncomment if needed
+jwks_uri = "http://localhost:4001/.well-known/jwks.json" # Explicitly point to the JWKS endpoint
+audience = "vibe-survival-game-client" # Explicitly set the expected audience
