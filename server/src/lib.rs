@@ -221,6 +221,20 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     }
     // --- End Track Active Connection ---
 
+    // --- Set Player Online Status ---
+    let mut players = ctx.db.player(); // Get mutable player table
+    if let Some(mut player) = players.identity().find(&client_identity) {
+        if !player.is_online {
+            player.is_online = true;
+            players.identity().update(player);
+            log::info!("[Connect] Set player {:?} to online.", client_identity);
+        }
+    } else {
+        // Player might not be registered yet, which is fine. is_online will be set during registration.
+        log::debug!("[Connect] Player {:?} not found in Player table yet (likely needs registration).", client_identity);
+    }
+    // --- End Set Player Online Status ---
+
     // Note: Initial scheduling for player stats happens in register_player
     // Note: Initial scheduling for global ticks happens in init_module
     Ok(())
@@ -247,40 +261,41 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
 
     // --- Check 1: Does the active connection record match the disconnecting one? ---
     if let Some(initial_active_conn) = active_connections.identity().find(&sender_id) {
-
         if initial_active_conn.connection_id == disconnecting_connection_id {
-            // --- Check 2: Double-Check ActiveConnection BEFORE cleanup ---
-            if let Some(current_active_conn) = active_connections.identity().find(&sender_id) {
-                if current_active_conn.connection_id == disconnecting_connection_id {
-                    // --- Both Checks Passed: This connection ID is definitively the one registered ---
-                    // Log if possible
-                    // log::info!("[Disconnect] Double check passed for {:?}. Removing active connection record {:?}.",
-                    //          sender_id, disconnecting_connection_id);
+            // --- Clean Up Connection --- 
+            // Log if possible
+            // log::info!("[Disconnect] Removing active connection record for identity: {:?}, connection_id: {:?}", 
+            //               sender_id, disconnecting_connection_id);
+            active_connections.identity().delete(&sender_id);
+            // --- END Clean Up Connection --- 
 
-                    // --- Perform ActiveConnection Cleanup FIRST ---
-                    active_connections.identity().delete(&sender_id);
-                    // log::info!("[Disconnect] Removed active connection record for {:?}.", sender_id);
+            // --- Set Player Offline Status --- 
+            if let Some(mut player) = players.identity().find(&sender_id) {
+                 if player.is_online { // Only update if they were marked online
+                    player.is_online = false;
+                    players.identity().update(player);
+                    log::info!("[Disconnect] Set player {:?} to offline.", sender_id);
+                 }
+            } else {
+                 log::warn!("[Disconnect] Player {:?} not found in Player table during disconnect cleanup.", sender_id);
+            }
+            // --- END Set Player Offline Status --- 
 
-
-                    // --- NOW, Update Player Status (Option A) ---
-                    if let Some(mut p) = players.identity().find(&sender_id) {
-                        if p.is_online { // Only update if currently marked online
-                            p.is_online = false;
-                            p.last_update = ctx.timestamp; // Keep timestamp invariant correct
-                            players.identity().update(p);
-                            // Log if possible
-                            // log::info!("[Disconnect] Marked player {:?} as offline.", sender_id);
-                        }
-                    } else {
-                         // Log if possible - player missing despite active connection?
-                         // log::warn!("[Disconnect] Active connection found and deleted for {:?}, but player record not found to mark offline.", sender_id);
-                    }
-                    // --- End Player Status Update ---
-
-                } // else: Active connection changed between reads. Do nothing.
-            } // else: Active connection disappeared between reads. Do nothing.
-        } // else: Initial check failed (active connection ID doesn't match). Do nothing.
-    } // else: No active connection record found. Do nothing.
+        } else {
+            // The connection ID doesn't match the current active one. 
+            // This means the player reconnected quickly before the old disconnect processed fully.
+            // In this case, DO NOTHING. The new connection is already active, 
+            // and we don't want to mark them offline or mess with their new state.
+            // Log if possible
+            // log::info!("[Disconnect] Stale disconnect for {:?}. New connection ({:?}) already active. Ignoring disconnect for ID {:?}.", 
+            //              sender_id, initial_active_conn.connection_id, disconnecting_connection_id);
+        }
+    } else {
+        // No active connection found for this identity, maybe they disconnected before fully registering?
+        // Or maybe the disconnect arrived *very* late after a new connection replaced the record.
+        // Log if possible
+        // log::info!("[Disconnect] No active connection record found for identity {:?}. Possibly already cleaned up or never registered.", sender_id);
+    }
 }
 
 // Register a new player (Now handles existing authenticated players)
