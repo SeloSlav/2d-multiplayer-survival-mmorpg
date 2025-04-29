@@ -178,9 +178,9 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {/* Campfire UI */} 
             {isCampfireInteraction && (
                 <>
-                    <h3 className={styles.sectionTitle} style={{ marginTop: '20px' }}>CAMPFIRE</h3>
+                    <h3 className={styles.sectionTitle}>CAMPFIRE</h3>
                     {currentCampfire ? (
-                        <>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '5px' }}>
                                 {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
                                     const itemInSlot = fuelItems[index];
@@ -215,7 +215,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             >
                                 {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                             </button>
-                        </>
+                        </div>
                     ) : (
                         <div>Error: Campfire data missing.</div>
                     )}
@@ -225,7 +225,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {/* Box UI */} 
             {isBoxInteraction && (
                 <>
-                    <h3 className={styles.sectionTitle} style={{ marginTop: '20px' }}>WOODEN BOX</h3>
+                    <h3 className={styles.sectionTitle}>WOODEN STORAGE BOX</h3>
                     {currentStorageBox ? (
                         <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${BOX_COLS}, ${styles.slotSize || '60px'})` }}>
                             {Array.from({ length: NUM_BOX_SLOTS }).map((_, index) => {
@@ -262,11 +262,11 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {/* --- Corpse UI --- */}
             {isCorpseInteraction && (
                 <>
-                    <h3 className={styles.sectionTitle} style={{ marginTop: '20px' }}>
+                    <h3 className={styles.sectionTitle}>
                         {currentCorpse ? `${currentCorpse.originalPlayerUsername}'s Backpack` : 'PLAYER CORPSE'}
                     </h3>
                     {currentCorpse ? (
-                        <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${CORPSE_COLS}, ${styles.slotSize || '60px'})` }}>
+                        <div className={styles.inventoryGrid}>
                             {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
                                 const itemInSlot = corpseItems[index];
                                 // Ensure corpseIdBigInt is defined before creating slot info

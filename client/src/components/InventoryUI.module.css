@@ -1,25 +1,26 @@
 .inventoryPanel {
   position: fixed;
-  top: 50%; /* Center vertically */
+  top: 45%; /* Center vertically */
   left: 50%; /* Center horizontally */
   transform: translate(-50%, -50%); /* Centering trick */
   width: 90vw; /* Wider to accommodate panes */
   max-width: 1425px; /* Max width */
-  height: 90vh; /* <<< INCREASE height from 75vh */
-  max-height: 950px; /* <<< INCREASE max-height from 800px */
+  height: 80vh;
+  max-height: 850px; /* Corrected value */
   /* Style consistency with PlayerUI */
-  background-color: rgba(40, 40, 60, 0.9); /* Match PlayerUI background */
-  border: 1px solid #a0a0c0; /* Match PlayerUI border */
-  box-shadow: 3px 3px 0px rgba(0,0,0,0.5); /* Match PlayerUI shadow */
-  border-radius: 6px; /* Slightly less rounded */
+  background-color: rgba(40, 40, 60, 0.9);
+  border: 1px solid #a0a0c0;
+  box-shadow: 3px 3px 0px rgba(0,0,0,0.5);
+  border-radius: 6px;
   padding: 20px;
-  padding-top: 45px; /* More space for close button */
+  padding-top: 45px;
   z-index: 100;
   display: flex;
-  gap: 15px; /* Further reduced gap */
+  gap: 15px;
   color: #eee;
   font-family: 'Press Start 2P', cursive;
   box-sizing: border-box;
+  align-items: flex-start;
 }
 
 .closeButton {
@@ -67,6 +68,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-grow: 1; /* <<< CHANGED: Use flex-grow instead of height */
+  min-height: 0; /* <<< ADDED: Help with flex overflow */
 }
 
 /* Remove Player Name Style */
@@ -242,6 +245,33 @@
     background-color: #c55;
 }
 
+/* <<< ADDED: Styles for Campfire Button >>> */
+.interactionButton {
+    padding: 8px 15px;
+    margin-top: 15px; /* Add space above the button */
+    font-family: inherit; /* Use panel font */
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid #888;
+    background-color: #5a5; /* Similar to craft button */
+    color: white;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+}
+
+.interactionButton:hover:not(:disabled) {
+    background-color: #6b6; /* Similar hover */
+}
+
+.interactionButton:disabled {
+    background-color: #666;
+    border-color: #555;
+    color: #aaa;
+    cursor: not-allowed;
+}
+/* <<< END ADDED >>> */
+
 .emptyQueueText {
     text-align: center;
     color: #888;
@@ -400,4 +430,12 @@
   border-color: #555;
   color: #aaa;
   cursor: not-allowed;
+}
+
+/* <<< ADDED: Ensure title in right pane has no top margin >>> */
+/* <<< MODIFIED: Also add padding-top: 0 >>> */
+.rightPane .sectionTitle {
+    margin-top: 0;
+    margin-block-start: 0; /* Override browser default */
+    padding-top: 0; /* <<< ADDED: Ensure no top padding */
 } 

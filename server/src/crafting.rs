@@ -49,6 +49,9 @@ pub fn get_initial_recipes_data() -> Vec<(String, u32, Vec<(String, u32)>, u32)>
   
         // Wooden Storage Box (Cost: 100 Wood, Time: 15s)
         ("Wooden Storage Box".to_string(), 1, vec![("Wood".to_string(), 100)], 15),
+
+        // Sleeping Bag (Cost: 50 Wood, Time: 15s) - Placeholder cost
+        ("Sleeping Bag".to_string(), 1, vec![("Wood".to_string(), 100)], 15),
     ]
 }
 

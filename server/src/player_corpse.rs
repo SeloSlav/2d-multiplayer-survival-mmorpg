@@ -24,6 +24,8 @@ use crate::Player; // Import Player struct directly
 use crate::items::inventory_item as InventoryItemTableTrait; // Import trait
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // Self trait
 use crate::player;
+use crate::player_inventory::{move_item_to_inventory, move_item_to_hotbar};
+use crate::items::add_item_to_player_inventory;
 
 /// --- Player Corpse Data Structure ---
 /// Represents a lootable backpack dropped when a player dies.
@@ -304,7 +306,7 @@ fn validate_corpse_interaction(
     Ok((player, corpse))
 }
 
-/// --- Move Item from Corpse --- 
+/// --- Move Item FROM Corpse --- 
 /// Moves an item FROM a corpse slot INTO the player's inventory/hotbar.
 #[spacetimedb::reducer]
 pub fn move_item_from_corpse(
@@ -441,6 +443,90 @@ pub fn split_stack_within_corpse(
         source_slot_index,
         target_slot_index,
         quantity_to_split
+    )?;
+
+    // --- Commit Corpse Update ---
+    corpses.id().update(corpse);
+    Ok(())
+}
+
+// --- Move Item TO Corpse ---
+/// Moves an item from the player's inventory/hotbar INTO a specified slot in the corpse.
+#[spacetimedb::reducer]
+pub fn move_item_to_corpse(
+    ctx: &ReducerContext,
+    corpse_id: u32,
+    target_slot_index: u8,
+    item_instance_id: u64,
+) -> Result<(), String> {
+    let mut corpses = ctx.db.player_corpse();
+
+    // --- Basic Validations ---
+    let (_player, mut corpse) = validate_corpse_interaction(ctx, corpse_id)?;
+
+    // --- Call GENERIC Handler ---
+    inventory_management::handle_move_to_container_slot(
+        ctx,
+        &mut corpse,
+        target_slot_index,
+        item_instance_id,
+    )?;
+
+    // --- Commit Corpse Update ---
+    corpses.id().update(corpse);
+    Ok(())
+}
+
+// --- Split Stack INTO Corpse ---
+/// Splits a stack from player inventory/hotbar into a specific corpse slot.
+#[spacetimedb::reducer]
+pub fn split_stack_into_corpse(
+    ctx: &ReducerContext,
+    corpse_id: u32,
+    target_slot_index: u8,
+    source_item_instance_id: u64,
+    quantity_to_split: u32,
+) -> Result<(), String> {
+    let mut corpses = ctx.db.player_corpse();
+    let inventory_items = ctx.db.inventory_item(); // Need this to find source_item
+
+    // --- Validations ---
+    let (_player, mut corpse) = validate_corpse_interaction(ctx, corpse_id)?;
+    let mut source_item = inventory_items.instance_id().find(source_item_instance_id)
+        .ok_or("Source item not found")?;
+
+    // --- Call GENERIC Handler ---
+    inventory_management::handle_split_into_container(
+        ctx,
+        &mut corpse,
+        target_slot_index,
+        &mut source_item,
+        quantity_to_split,
+    )?;
+
+    // --- Commit Corpse Update ---
+    corpses.id().update(corpse);
+    Ok(())
+}
+
+// --- Quick Move TO Corpse ---
+/// Quickly moves an item from player inventory/hotbar TO the first available/mergeable slot in the corpse.
+#[spacetimedb::reducer]
+pub fn quick_move_to_corpse(
+    ctx: &ReducerContext,
+    corpse_id: u32,
+    item_instance_id: u64,
+) -> Result<(), String> {
+    let mut corpses = ctx.db.player_corpse();
+
+    // --- Validations ---
+    let (_player, mut corpse) = validate_corpse_interaction(ctx, corpse_id)?;
+
+    // --- Call Handler ---
+    inventory_management::handle_quick_move_to_container(
+        ctx,
+        &mut corpse,
+        item_instance_id,
     )?;
 
     // --- Commit Corpse Update ---

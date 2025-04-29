@@ -90,7 +90,7 @@ export const useDragDropManager = ({
                     let targetSlotIndexNum: number | null = null;
                     let targetContainerIdNum: number | null = null;
 
-                    if (targetSlotType === 'inventory' || targetSlotType === 'hotbar') {
+                    if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         if (isNaN(targetSlotIndexNum)) { setDropError("Invalid target slot index."); return; }
                         // console.log(`[useDragDropManager Drop Split] Calling splitStack (Inv/Hotbar -> Inv/Hotbar)`);
@@ -115,10 +115,65 @@ export const useDragDropManager = ({
                         }
                         // console.log(`[useDragDropManager Drop Split] Calling split_stack_into_box`);
                         connection.reducers.splitStackIntoBox(targetContainerIdNum, targetSlotIndexNum, sourceInstanceId, quantityToSplit);
+                    } else if (sourceSlotType as string === 'player_corpse') {
+                        // <<< ADDED: Split From Corpse Logic >>>
+                        const sourceCorpseIdBigInt = sourceInfo.sourceSlot.parentId ? BigInt(sourceInfo.sourceSlot.parentId) : null;
+                        const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+
+                        if (sourceCorpseIdBigInt === null || isNaN(sourceIndexNum)) {
+                            console.error("[useDragDropManager Drop] Missing CorpseID or SourceIndex for split FROM corpse");
+                            setDropError("Could not determine source corpse slot for split.");
+                            return;
+                        }
+                        const sourceCorpseId = Number(sourceCorpseIdBigInt); // Convert for reducer
+
+                        let targetSlotIndexNum: number | null = null;
+                        if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
+                            targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                            if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum)) {
+                                console.error("[useDragDropManager Drop] Invalid target index for split from corpse.");
+                                setDropError("Invalid target slot for split.");
+                                return;
+                            }
+                            console.log(`[useDragDropManager Drop Split] Calling splitStackFromCorpse`);
+                            connection.reducers.splitStackFromCorpse(
+                                sourceCorpseId,
+                                sourceIndexNum,
+                                quantityToSplit,
+                                targetSlotType,
+                                targetSlotIndexNum
+                            );
+                        } else if (targetSlotType === 'player_corpse') {
+                            targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                            const targetCorpseIdBigInt = targetSlot.parentId ? BigInt(targetSlot.parentId) : null;
+
+                            if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetCorpseIdBigInt === null) {
+                                console.error("[useDragDropManager Drop] Invalid target index or missing CorpseID for intra-corpse split.");
+                                setDropError("Invalid target slot for corpse split.");
+                                return;
+                            }
+                            const targetCorpseId = Number(targetCorpseIdBigInt);
+
+                            if (sourceCorpseId !== targetCorpseId) {
+                                console.warn("[useDragDropManager Drop] Cannot split between different corpses yet.");
+                                setDropError("Cannot split between different corpses.");
+                                return;
+                            }
+
+                            console.log(`[useDragDropManager Drop Split] Calling splitStackWithinCorpse`);
+                            connection.reducers.splitStackWithinCorpse(
+                                sourceCorpseId,
+                                sourceIndexNum,
+                                targetSlotIndexNum,
+                                quantityToSplit
+                            );
+                        } else {
+                            console.warn(`[useDragDropManager Drop] Split ignored: Cannot split from ${sourceSlotType} to ${targetSlotType}`);
+                            setDropError("Cannot split item to that location.");
+                        }
                     } else {
-                        // console.warn(`[useDragDropManager Drop] Split ignored: Cannot split from ${sourceSlotType} to ${targetSlotType}`);
-                        setDropError("Cannot split item to that location.");
-                        return;
+                        console.warn(`[useDragDropManager Drop] Split ignored: Cannot split from source type ${sourceSlotType}`);
+                        setDropError("Cannot split from this item source.");
                     }
                 } else if (sourceSlotType === 'campfire_fuel') {
                     const sourceCampfireId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
@@ -129,7 +184,7 @@ export const useDragDropManager = ({
                         return;
                     }
                     let targetSlotIndexNum: number | null = null;
-                    if (targetSlotType === 'inventory' || targetSlotType === 'hotbar') {
+                    if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum)) {
                             console.error("[useDragDropManager Drop] Invalid target index number for split from campfire.");
@@ -205,7 +260,7 @@ export const useDragDropManager = ({
                         return;
                     }
                     let targetSlotIndexNum: number | null = null;
-                    if (targetSlotType === 'inventory' || targetSlotType === 'hotbar') {
+                    if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum)) {
                             console.error("[useDragDropManager Drop] Invalid target index for split from box.");
@@ -233,7 +288,7 @@ export const useDragDropManager = ({
                     setDropError("Cannot split from this item source.");
                 }
                 return; // Split attempt handled
-            }
+            } 
 
             // --- Standard Item Move (Full Stack) ---
             if (targetSlot.type === 'inventory') {
@@ -251,8 +306,13 @@ export const useDragDropManager = ({
                     if (sourceBoxId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing BoxID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling move_item_from_box (to inventory)`);
                     connection.reducers.moveItemFromBox(sourceBoxId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'player_corpse') {
+                    const sourceCorpseId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceCorpseId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CorpseID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    connection.reducers.moveItemFromCorpse(sourceCorpseId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
-                    // console.log(`[useDragDropManager Drop] Calling moveItemToInventory`);
+                    // Default move to inventory (from inv/hotbar/equip)
                     connection.reducers.moveItemToInventory(itemInstanceId, targetIndexNum);
                 }
             } else if (targetSlot.type === 'hotbar') {
@@ -270,8 +330,13 @@ export const useDragDropManager = ({
                     if (sourceBoxId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing BoxID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling move_item_from_box (to hotbar)`);
                     connection.reducers.moveItemFromBox(sourceBoxId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'player_corpse') {
+                    const sourceCorpseId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceCorpseId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CorpseID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    connection.reducers.moveItemFromCorpse(sourceCorpseId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
-                    // console.log(`[useDragDropManager Drop] Calling moveItemToHotbar`);
+                    // Default move to hotbar (from inv/hotbar/equip)
                     connection.reducers.moveItemToHotbar(itemInstanceId, targetIndexNum);
                 }
             } else if (targetSlot.type === 'equipment' && typeof targetSlot.index === 'string') {
@@ -323,6 +388,37 @@ export const useDragDropManager = ({
                 } else {
                     console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to wooden_storage_box`);
                     setDropError("Cannot move item from this location to a box.");
+                }
+            } else if (targetSlot.type === 'player_corpse') {
+                const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                if (isNaN(targetIndexNum)) { console.error("Invalid corpse slot index", targetSlot.index); setDropError("Invalid slot."); return; }
+                const corpseIdBigInt = targetSlot.parentId ? BigInt(targetSlot.parentId) : (interactingWith?.type === 'player_corpse' ? BigInt(interactingWith.id) : null);
+                if (corpseIdBigInt === null) {
+                    console.error("[useDragDropManager Drop] Corpse ID could not be determined for target.");
+                    setDropError("Cannot move item: Corpse context lost.");
+                    return;
+                }
+                const corpseIdU32 = Number(corpseIdBigInt); // Convert for reducer
+                const source_type = sourceInfo.sourceSlot.type.trim();
+
+                if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
+                    // Revert back to the logically correct reducer name
+                    // despite the persistent linter error.
+                    console.log(`[useDragDropManager Drop] Calling moveItemToCorpse (linter error expected)`);
+                    connection.reducers.moveItemToCorpse(corpseIdU32, targetIndexNum, itemInstanceId);
+                } else if (source_type === 'player_corpse') {
+                    // <<< Move Within Corpse >>>
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source corpse index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    const sourceCorpseIdBigInt = sourceInfo.sourceSlot.parentId ? BigInt(sourceInfo.sourceSlot.parentId) : null;
+                    if (sourceCorpseIdBigInt !== corpseIdBigInt) {
+                        setDropError("Cannot move items between different corpses yet.");
+                        return;
+                    }
+                    connection.reducers.moveItemWithinCorpse(corpseIdU32, sourceIndexNum, targetIndexNum);
+                } else {
+                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to player_corpse`);
+                    setDropError("Cannot move item from this location to a corpse.");
                 }
             } else {
                 console.warn("[useDragDropManager Drop] Unhandled drop target type or index:", targetSlot);

@@ -84,6 +84,8 @@ import { MoveItemFromCorpse } from "./move_item_from_corpse_reducer.ts";
 export { MoveItemFromCorpse };
 import { MoveItemToBox } from "./move_item_to_box_reducer.ts";
 export { MoveItemToBox };
+import { MoveItemToCorpse } from "./move_item_to_corpse_reducer.ts";
+export { MoveItemToCorpse };
 import { MoveItemToHotbar } from "./move_item_to_hotbar_reducer.ts";
 export { MoveItemToHotbar };
 import { MoveItemToInventory } from "./move_item_to_inventory_reducer.ts";
@@ -118,6 +120,8 @@ import { QuickMoveToBox } from "./quick_move_to_box_reducer.ts";
 export { QuickMoveToBox };
 import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
 export { QuickMoveToCampfire };
+import { QuickMoveToCorpse } from "./quick_move_to_corpse_reducer.ts";
+export { QuickMoveToCorpse };
 import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
 import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
@@ -152,6 +156,8 @@ import { SplitStackIntoBox } from "./split_stack_into_box_reducer.ts";
 export { SplitStackIntoBox };
 import { SplitStackIntoCampfire } from "./split_stack_into_campfire_reducer.ts";
 export { SplitStackIntoCampfire };
+import { SplitStackIntoCorpse } from "./split_stack_into_corpse_reducer.ts";
+export { SplitStackIntoCorpse };
 import { SplitStackWithinBox } from "./split_stack_within_box_reducer.ts";
 export { SplitStackWithinBox };
 import { SplitStackWithinCampfire } from "./split_stack_within_campfire_reducer.ts";
@@ -529,6 +535,10 @@ const REMOTE_MODULE = {
       reducerName: "move_item_to_box",
       argsType: MoveItemToBox.getTypeScriptAlgebraicType(),
     },
+    move_item_to_corpse: {
+      reducerName: "move_item_to_corpse",
+      argsType: MoveItemToCorpse.getTypeScriptAlgebraicType(),
+    },
     move_item_to_hotbar: {
       reducerName: "move_item_to_hotbar",
       argsType: MoveItemToHotbar.getTypeScriptAlgebraicType(),
@@ -597,6 +607,10 @@ const REMOTE_MODULE = {
       reducerName: "quick_move_to_campfire",
       argsType: QuickMoveToCampfire.getTypeScriptAlgebraicType(),
     },
+    quick_move_to_corpse: {
+      reducerName: "quick_move_to_corpse",
+      argsType: QuickMoveToCorpse.getTypeScriptAlgebraicType(),
+    },
     register_player: {
       reducerName: "register_player",
       argsType: RegisterPlayer.getTypeScriptAlgebraicType(),
@@ -664,6 +678,10 @@ const REMOTE_MODULE = {
     split_stack_into_campfire: {
       reducerName: "split_stack_into_campfire",
       argsType: SplitStackIntoCampfire.getTypeScriptAlgebraicType(),
+    },
+    split_stack_into_corpse: {
+      reducerName: "split_stack_into_corpse",
+      argsType: SplitStackIntoCorpse.getTypeScriptAlgebraicType(),
     },
     split_stack_within_box: {
       reducerName: "split_stack_within_box",
@@ -758,6 +776,7 @@ export type Reducer = never
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
 | { name: "MoveItemToBox", args: MoveItemToBox }
+| { name: "MoveItemToCorpse", args: MoveItemToCorpse }
 | { name: "MoveItemToHotbar", args: MoveItemToHotbar }
 | { name: "MoveItemToInventory", args: MoveItemToInventory }
 | { name: "MoveItemWithinBox", args: MoveItemWithinBox }
@@ -775,6 +794,7 @@ export type Reducer = never
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
+| { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
 | { name: "RespawnRandomly", args: RespawnRandomly }
@@ -792,6 +812,7 @@ export type Reducer = never
 | { name: "SplitStackFromCorpse", args: SplitStackFromCorpse }
 | { name: "SplitStackIntoBox", args: SplitStackIntoBox }
 | { name: "SplitStackIntoCampfire", args: SplitStackIntoCampfire }
+| { name: "SplitStackIntoCorpse", args: SplitStackIntoCorpse }
 | { name: "SplitStackWithinBox", args: SplitStackWithinBox }
 | { name: "SplitStackWithinCampfire", args: SplitStackWithinCampfire }
 | { name: "SplitStackWithinCorpse", args: SplitStackWithinCorpse }
@@ -1199,6 +1220,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_to_box", callback);
   }
 
+  moveItemToCorpse(corpseId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { corpseId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToCorpse.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_corpse", __argsBuffer, this.setCallReducerFlags.moveItemToCorpseFlags);
+  }
+
+  onMoveItemToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("move_item_to_corpse", callback);
+  }
+
+  removeOnMoveItemToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("move_item_to_corpse", callback);
+  }
+
   moveItemToHotbar(itemInstanceId: bigint, targetHotbarSlot: number) {
     const __args = { itemInstanceId, targetHotbarSlot };
     let __writer = new BinaryWriter(1024);
@@ -1471,6 +1508,22 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_to_campfire", callback);
   }
 
+  quickMoveToCorpse(corpseId: number, itemInstanceId: bigint) {
+    const __args = { corpseId, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveToCorpse.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_to_corpse", __argsBuffer, this.setCallReducerFlags.quickMoveToCorpseFlags);
+  }
+
+  onQuickMoveToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("quick_move_to_corpse", callback);
+  }
+
+  removeOnQuickMoveToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("quick_move_to_corpse", callback);
+  }
+
   registerPlayer(username: string) {
     const __args = { username };
     let __writer = new BinaryWriter(1024);
@@ -1721,6 +1774,22 @@ export class RemoteReducers {
 
   removeOnSplitStackIntoCampfire(callback: (ctx: ReducerEventContext, sourceItemInstanceId: bigint, quantityToSplit: number, targetCampfireId: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("split_stack_into_campfire", callback);
+  }
+
+  splitStackIntoCorpse(corpseId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) {
+    const __args = { corpseId, targetSlotIndex, sourceItemInstanceId, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitStackIntoCorpse.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_into_corpse", __argsBuffer, this.setCallReducerFlags.splitStackIntoCorpseFlags);
+  }
+
+  onSplitStackIntoCorpse(callback: (ctx: ReducerEventContext, corpseId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_stack_into_corpse", callback);
+  }
+
+  removeOnSplitStackIntoCorpse(callback: (ctx: ReducerEventContext, corpseId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_stack_into_corpse", callback);
   }
 
   splitStackWithinBox(boxId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) {
@@ -2002,6 +2071,11 @@ export class SetReducerFlags {
     this.moveItemToBoxFlags = flags;
   }
 
+  moveItemToCorpseFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToCorpse(flags: CallReducerFlags) {
+    this.moveItemToCorpseFlags = flags;
+  }
+
   moveItemToHotbarFlags: CallReducerFlags = 'FullUpdate';
   moveItemToHotbar(flags: CallReducerFlags) {
     this.moveItemToHotbarFlags = flags;
@@ -2087,6 +2161,11 @@ export class SetReducerFlags {
     this.quickMoveToCampfireFlags = flags;
   }
 
+  quickMoveToCorpseFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveToCorpse(flags: CallReducerFlags) {
+    this.quickMoveToCorpseFlags = flags;
+  }
+
   registerPlayerFlags: CallReducerFlags = 'FullUpdate';
   registerPlayer(flags: CallReducerFlags) {
     this.registerPlayerFlags = flags;
@@ -2170,6 +2249,11 @@ export class SetReducerFlags {
   splitStackIntoCampfireFlags: CallReducerFlags = 'FullUpdate';
   splitStackIntoCampfire(flags: CallReducerFlags) {
     this.splitStackIntoCampfireFlags = flags;
+  }
+
+  splitStackIntoCorpseFlags: CallReducerFlags = 'FullUpdate';
+  splitStackIntoCorpse(flags: CallReducerFlags) {
+    this.splitStackIntoCorpseFlags = flags;
   }
 
   splitStackWithinBoxFlags: CallReducerFlags = 'FullUpdate';
