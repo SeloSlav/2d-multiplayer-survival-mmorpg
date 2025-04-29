@@ -1,5 +1,6 @@
 import { Player as SpacetimeDBPlayer } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
+import { drawShadow } from './shadowUtils';
 
 // --- Constants --- 
 const IDLE_FRAME_INDEX = 1; // Second frame is idle
@@ -124,31 +125,43 @@ export const renderPlayer = (
   const spriteBaseY = player.positionY - drawHeight / 2 + shakeY; // Includes shake if applicable
   const spriteDrawY = spriteBaseY - jumpOffsetY;
 
+  // Define shadow base offset here to be used by both online/offline
+  const shadowBaseYOffset = drawHeight * 0.4; 
+
+  // --- Draw Offline Shadow --- 
+  if (!isOnline) {
+      // Use base shadow parameters consistent with online shadow
+      const shadowBaseRadiusX = drawWidth * 0.3;
+      const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
+      drawShadow(
+          ctx,
+          player.positionX, // Center shadow below player's core position
+          player.positionY + drawHeight * 0.1, // Adjusted Base Y (moved up)
+          shadowBaseRadiusX, // Consistent base radius X
+          shadowBaseRadiusY  // Consistent base radius Y
+      );
+  }
+  // --- End Shadow ---
+
   // --- Draw Shadow (Only if alive and online) ---
-  // --- MODIFIED: Check passed isOnline flag ---
   if (!player.isDead && isOnline) {
-  // --- END MODIFICATION ---
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 
       const shadowYOffsetFromJump = jumpOffsetY * (shadowMaxJumpOffset / playerRadius); 
-      const shadowBaseYOffset = drawHeight * 0.4; 
+      // const shadowBaseYOffset = drawHeight * 0.4; // Already defined above
       const jumpProgress = Math.min(1, jumpOffsetY / playerRadius); 
       const shadowScale = 1.0 - jumpProgress * 0.4; 
-      const shadowOpacity = 0.5 - jumpProgress * 0.3; 
+      // const shadowOpacity = 0.5 - jumpProgress * 0.3; // drawShadow handles opacity
 
-      ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, shadowOpacity)})`;
-      ctx.beginPath();
-      ctx.ellipse(
-        player.positionX, 
-        player.positionY + shadowBaseYOffset + shadowYOffsetFromJump, 
-        shadowBaseRadiusX * shadowScale, 
-        shadowBaseRadiusY * shadowScale, 
-        0, 
-        0, 
-        Math.PI * 2 
+      // Use the imported drawShadow function
+      drawShadow(
+        ctx, 
+        player.positionX, // Center X
+        player.positionY + shadowBaseYOffset + shadowYOffsetFromJump, // Adjusted Base Y
+        shadowBaseRadiusX * shadowScale, // Scaled Radius X
+        shadowBaseRadiusY * shadowScale  // Scaled Radius Y
       );
-      ctx.fill();
   }
   // --- End Draw Shadow ---
 
