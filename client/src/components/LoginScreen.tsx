@@ -5,7 +5,8 @@
  * Handles:
  *  - Displaying game title and logo.
  *  - Triggering OpenAuth OIDC login flow.
- *  - Input field for username (for game join, not authentication).
+ *  - Input field for username (for NEW players).
+ *  - Displaying existing username for returning players.
  *  - Displaying loading states and errors.
  *  - Handling logout.
  */
@@ -13,6 +14,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import githubLogo from '../../public/github.png'; // Adjust path as needed
 import { useAuth } from '../contexts/AuthContext';
+// Import the Player type from generated bindings
+import { Player } from '../generated'; // Adjusted path
 // Remove Supabase imports
 // import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '../services/supabase'; 
 
@@ -25,72 +28,74 @@ const UI_BUTTON_COLOR = '#777';
 const UI_BUTTON_DISABLED_COLOR = '#555';
 
 interface LoginScreenProps {
-    username: string;
-    setUsername: (value: string) => void;
-    handleLogin: () => void; // Renamed from handleRegister, now used for joining game after auth
-    // isLoading and error props likely removed as AuthContext handles them
-    // isLoading: boolean; 
-    // error: string | null;
+    // Removed username/setUsername props
+    handleJoinGame: (usernameToRegister: string | null) => void; // Accepts null for existing players
+    loggedInPlayer: Player | null; // Player data from SpacetimeDB if exists
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
-    username,
-    setUsername,
-    handleLogin, // This prop is now for joining the game *after* authentication
+    handleJoinGame, 
+    loggedInPlayer,
 }) => {
     // Get OpenAuth state and functions
     const { 
         userProfile, // Contains { userId } after successful login 
         isAuthenticated, 
-        isLoading: authIsLoading, // Renamed to avoid conflict
+        isLoading: authIsLoading, 
         authError, 
         loginRedirect, 
         logout 
     } = useAuth();
     
-    // Local state for UI feedback, potentially remove if not needed
+    // Local state for the username input field (only used for new players)
+    const [inputUsername, setInputUsername] = useState<string>('');
     const [localError, setLocalError] = useState<string | null>(null);
     
     // Ref for username input focus
     const usernameInputRef = useRef<HTMLInputElement>(null);
 
-    // Autofocus username field if authenticated
+    // Autofocus username field if authenticated AND it's a new player
     useEffect(() => {
-        if (isAuthenticated) {
+        if (isAuthenticated && !loggedInPlayer) {
             usernameInputRef.current?.focus();
         } 
-        // No email field to focus anymore
-    }, [isAuthenticated]);
+    }, [isAuthenticated, loggedInPlayer]);
 
-    // Simplified validation: only need username if authenticated and ready to join
-    const validateForm = (): boolean => {
-        if (isAuthenticated && !username.trim()) {
+    // Validation: only needed for new players entering a username
+    const validateNewUsername = (): boolean => {
+        if (!inputUsername.trim()) {
             setLocalError('Username is required to join the game');
             return false;
         }
+        // Add other validation rules if needed (length, characters, etc.)
         setLocalError(null); 
         return true;
     };
 
-    // Handle button click: Either trigger OpenAuth login or join game
+    // Handle button click: Trigger OpenAuth login or join game
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!isAuthenticated) {
             // If not authenticated, start the OpenAuth login flow
-            // Errors during loginRedirect are handled within AuthContext
             await loginRedirect(); 
         } else {
-            // If authenticated, validate username and call handleLogin prop to join game
-            if (validateForm()) {
-                 handleLogin();
+            // If authenticated, check if it's a new or existing player
+            if (loggedInPlayer) {
+                // Existing player: Join directly, pass null for username
+                 handleJoinGame(null); 
+            } else {
+                // New player: Validate the entered username and join
+                if (validateNewUsername()) {
+                    handleJoinGame(inputUsername);
+                }
             }
         }
     };
 
-    // Handle Enter key press
+    // Handle Enter key press in the input field (only applicable for new players)
     const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter' && !authIsLoading) {
+        if (event.key === 'Enter' && !authIsLoading && isAuthenticated && !loggedInPlayer) {
             handleSubmit(event as unknown as React.FormEvent);
         }
     };
@@ -125,29 +130,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 />
                 <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>2D Survival Multiplayer</h2>
                 
-                {/* Display username input only when authenticated */}
+                {/* Display based on authentication and player existence */}
                 {isAuthenticated && (
-                     <input
-                        ref={usernameInputRef}
-                        type="text"
-                        placeholder="Enter Username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        disabled={authIsLoading}
-                        style={{ 
-                            padding: '10px',
-                            marginBottom: '15px',
-                            border: `1px solid ${UI_BORDER_COLOR}`,
-                            backgroundColor: '#333',
-                            color: 'white',
-                            fontFamily: UI_FONT_FAMILY,
-                            fontSize: '14px',
-                            display: 'block',
-                            width: 'calc(100% - 22px)',
-                            textAlign: 'center',
-                        }}
-                    />
+                    loggedInPlayer ? (
+                        // Existing Player: Show welcome message
+                        <p style={{
+                             marginBottom: '20px',
+                             fontSize: '14px' 
+                        }}>
+                            Welcome back, {loggedInPlayer.username}!
+                        </p>
+                    ) : (
+                        // New Player: Show username input
+                        <input
+                            ref={usernameInputRef}
+                            type="text"
+                            placeholder="Choose Your Username"
+                            value={inputUsername}
+                            onChange={(e) => setInputUsername(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            disabled={authIsLoading}
+                            style={{ 
+                                padding: '10px',
+                                marginBottom: '15px',
+                                border: `1px solid ${UI_BORDER_COLOR}`,
+                                backgroundColor: '#333',
+                                color: 'white',
+                                fontFamily: UI_FONT_FAMILY,
+                                fontSize: '14px',
+                                display: 'block',
+                                width: 'calc(100% - 22px)',
+                                textAlign: 'center',
+                            }}
+                        />
+                    )
                 )}
 
                 {/* Combined Login/Join Button */}
@@ -174,7 +190,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     </button>
                 </form>
                 
-                {/* Error Messages from AuthContext or local validation */}
+                {/* Error Messages */}
                 {(localError || authError) && (
                     <p style={{ 
                         color: 'red', 
@@ -188,23 +204,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     </p>
                 )}
                 
-                {/* Display logged in user info and logout button if authenticated */}
-                {isAuthenticated && userProfile && (
-                    <div style={{ 
-                        marginTop: '20px', 
-                        fontSize: '12px',
-                        backgroundColor: 'rgba(0,255,0,0.1)',
-                        padding: '10px',
-                        borderRadius: '4px',
-                    }}>
-                        {/* Displaying userId for confirmation, adjust as needed */}
-                        Logged in (User ID: {userProfile.userId})
-                        <br />
+                {/* Logout Section (Only if authenticated) */}
+                {isAuthenticated && (
+                    <div style={{ marginTop: '20px' }}>
+                         {userProfile && (
+                            <span style={{ fontSize: '10px', color: '#ccc', display: 'block', marginBottom: '8px' }}>
+                                (ID: {userProfile.userId})
+                            </span>
+                         )}
                         <button
-                            onClick={logout} // Call logout from useAuth
-                            disabled={authIsLoading} // Disable during auth operations
+                            onClick={logout} 
+                            disabled={authIsLoading} 
                             style={{ 
-                                marginTop: '10px',
                                 padding: '5px 10px',
                                 fontSize: '10px',
                                 background: '#444',

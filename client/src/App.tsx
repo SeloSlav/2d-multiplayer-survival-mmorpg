@@ -41,7 +41,12 @@ const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) 
 
 function AppContent() {
     // --- Auth Hook ---
-    const { userProfile, isAuthenticated, isLoading: authLoading } = useAuth();
+    const { 
+        userProfile, 
+        isAuthenticated, 
+        isLoading: authLoading, 
+        loginRedirect
+    } = useAuth();
     
     // --- Core Hooks --- 
     const {
@@ -70,7 +75,6 @@ function AppContent() {
     const { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop } = useDragDropManager({ connection, interactingWith });
 
     // --- App-Level State --- 
-    const [username, setUsername] = useState<string>('');
     const [isRegistering, setIsRegistering] = useState<boolean>(false); // Still track registration attempt
     const [uiError, setUiError] = useState<string | null>(null);
     const [isMinimapOpen, setIsMinimapOpen] = useState<boolean>(false);
@@ -152,21 +156,8 @@ function AppContent() {
     // Depend on the players map (specifically the local player's position), connection identity, and app connected status.
     }, [players, connection?.identity, debouncedUpdateViewport]); // Removed currentViewport dependency to avoid loops
 
-    // --- Use authenticated user data when available ---
-    useEffect(() => {
-        if (isAuthenticated && userProfile) {
-            // Use userId as a fallback if other fields aren't available on UserProfile
-            const displayName = userProfile.userId || ''; 
-            // Only set username if it hasn't been set or player isn't registered yet
-            // Prevents overwriting user input if they log in, change username, then refresh
-            if (displayName && (!username || !localPlayerRegistered)) {
-                setUsername(displayName);
-            }
-        }
-    }, [isAuthenticated, userProfile, username, localPlayerRegistered]);
-
     // --- Action Handlers --- 
-    const handleAttemptRegisterPlayer = useCallback(() => {
+    const handleAttemptRegisterPlayer = useCallback((usernameToRegister: string | null) => {
         setUiError(null);
         // Ensure we are authenticated and connected before registering
         if (!isAuthenticated || !spacetimeConnected) {
@@ -174,15 +165,16 @@ function AppContent() {
             setUiError("Connection error, cannot register.");
             return;
         }
-        if (!username.trim()) {
+        // Validate the username passed from the LoginScreen
+        if (!usernameToRegister || !usernameToRegister.trim()) { 
              setUiError("Username cannot be empty.");
              return;
         }
         
         setIsRegistering(true);
-        // Call the simplified registerPlayer (token is handled by connection)
-        registerPlayer(username); 
-    }, [registerPlayer, username, isAuthenticated, spacetimeConnected]);
+        // Call the SpacetimeDB registerPlayer reducer with the provided username
+        registerPlayer(usernameToRegister); 
+    }, [registerPlayer, isAuthenticated, spacetimeConnected]);
 
     // --- Global Window Effects --- 
     useEffect(() => {
@@ -245,6 +237,9 @@ function AppContent() {
     // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
 
+    // --- Find the logged-in player data from the tables --- 
+    const loggedInPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) ?? null : null;
+
     // --- Render Logic --- 
     return (
         <div className="App" style={{ backgroundColor: '#111' }}>
@@ -268,23 +263,21 @@ function AppContent() {
             {/* Conditional Rendering: Login vs Game (only if not loading) */} 
             {!overallIsLoading && !isAuthenticated && (
                  <LoginScreen
-                    username={username} // Still needed for signup form
-                    setUsername={setUsername}
-                    handleLogin={() => {}} // handleLogin is now internal to LoginScreen auth submit
+                    handleJoinGame={loginRedirect} // Correctly pass loginRedirect
+                    loggedInPlayer={null} 
                  />
             )}
 
             {/* If authenticated but not yet registered/connected to game */}
             {!overallIsLoading && isAuthenticated && !localPlayerRegistered && (
-                 <LoginScreen // Re-use login screen to input username for registration
-                    username={username}
-                    setUsername={setUsername}
-                    handleLogin={handleAttemptRegisterPlayer} // Use the registration handler
+                 <LoginScreen 
+                    handleJoinGame={handleAttemptRegisterPlayer} // Pass the updated handler
+                    loggedInPlayer={null} 
                  />
             )}
             
             {/* If authenticated AND registered/game ready */}
-            {!overallIsLoading && isAuthenticated && localPlayerRegistered && (
+            {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
                  <GameScreen 
                       players={players}
                       trees={trees}

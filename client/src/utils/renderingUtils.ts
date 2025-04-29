@@ -332,7 +332,7 @@ export const renderYSortedEntities = ({
     hoveredPlayerIds = new Set(),
     onPlayerHover = () => {},
 }: RenderYSortedEntitiesProps) => {
-    console.log('[renderYSortedEntities LOG] Received activeConnections map:', activeConnections);
+    // console.log('[renderYSortedEntities LOG] Received activeConnections map:', activeConnections);
 
     ySortedEntities.forEach(entity => {
         if (isPlayer(entity)) {
@@ -383,7 +383,7 @@ export const renderYSortedEntities = ({
            const heroImg = heroImageRef.current;
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
-           console.log(`[renderYSortedEntities LOG] Player ${playerId} - isOnline calculated as: ${isOnline}`);
+           // console.log(`[renderYSortedEntities LOG] Player ${playerId} - isOnline calculated as: ${isOnline}`);
 
            // --- Get Equipment Data ---
            const equipment = activeEquipments.get(playerId);

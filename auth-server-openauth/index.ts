@@ -601,9 +601,9 @@ async function success(ctx: any, value: any): Promise<Response> {
         algorithm: 'RS256',
         expiresIn: '4h', // Set expiration to 4 hours
         keyid: keyId,    // Include key ID
-        audience: clientIdForm, // Redundant but ensures aud claim is set
-        issuer: ISSUER_URL,     // Redundant but ensures iss claim is set
-        subject: userId        // Redundant but ensures sub claim is set
+        // audience: clientIdForm, // REMOVED: Already in payload
+        // issuer: ISSUER_URL,     // REMOVED: Already in payload
+        // subject: userId        // REMOVED: Already in payload
     };
 
     // Sign the ID token
