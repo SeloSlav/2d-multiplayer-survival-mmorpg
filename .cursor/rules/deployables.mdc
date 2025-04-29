@@ -11,7 +11,7 @@ This guide outlines the general steps to add a new deployable item (like campfir
 
 *   **File:** [`server/src/items_database.rs`](mdc:server/src/items_database.rs)
 *   **Action:** Add a new `ItemDefinition` struct entry for your `[Item Name]`.
-    *   Set `category: ItemCategory::Placeable`.
+        *   Set `category: ItemCategory::Placeable`.
     *   Set `icon_asset_name: "[item_name].png"`.
     *   Configure `is_stackable` (usually `false` for placeables), `stack_size` (usually `1`), `is_equippable: false`.
     *   *(Optional)* Define a crafting recipe later if needed.

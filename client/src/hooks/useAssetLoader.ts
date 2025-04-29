@@ -5,14 +5,6 @@ import heroSpriteSheet from '../assets/hero.png';
 import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 
-// Import preload functions from utils
-import { preloadTreeImages } from '../utils/treeRenderingUtils';
-import { preloadStoneImage } from '../utils/stoneRenderingUtils';
-import { preloadCampfireImage } from '../utils/campfireRenderingUtils';
-import { preloadMushroomImages } from '../utils/mushroomRenderingUtils';
-import { preloadWoodenStorageBoxImage } from '../utils/woodenStorageBoxRenderingUtils';
-import { preloadCornImages } from '../utils/cornRenderingUtils';
-
 // Define the hook's return type for clarity
 interface AssetLoaderResult {
   heroImageRef: React.RefObject<HTMLImageElement | null>;
@@ -95,12 +87,7 @@ export function useAssetLoader(): AssetLoaderResult {
     // --- Preload Entity Sprites (Fire-and-forget) ---
     // These don't block the main isLoadingAssets state
     try {
-        preloadTreeImages();
-        preloadStoneImage();
-        preloadCampfireImage(); // For the actual campfire animation/states
-        preloadMushroomImages();
-        preloadWoodenStorageBoxImage();
-        preloadCornImages();
+    
         // console.log('Entity preloading initiated by hook.');
     } catch (error) {
         console.error("Error during entity preloading:", error);

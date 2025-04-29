@@ -1,4 +1,4 @@
-import { gameConfig } from '../config/gameConfig';
+import { gameConfig } from '../../config/gameConfig';
 
 /**
  * Renders the tiled world background onto the canvas, optimized to draw only visible tiles.
@@ -13,7 +13,7 @@ export function renderWorldBackground(
     ctx: CanvasRenderingContext2D,
     grassImageRef: React.RefObject<HTMLImageElement | null>,
     cameraOffsetX: number,
-    cameraOffsetY: number,
+    cameraOffsetY: number,  
     canvasWidth: number,
     canvasHeight: number
 ): void {

@@ -108,7 +108,7 @@ pub fn is_respawn_position_clear(ctx: &ReducerContext, target_x: f32, target_y: 
 /// Attempts one resource spawn at a random valid tile.
 /// Handles noise check, distance checks, and insertion.
 /// Returns Ok(true) if successful, Ok(false) if conditions not met (e.g., tile occupied, too close), Err on DB error.
-pub fn attempt_single_spawn<T, F, N, R>(
+pub fn attempt_single_spawn<T, F, N, R, A>(
     rng: &mut R, // Generic RNG type
     occupied_tiles: &mut HashSet<(u32, u32)>,
     spawned_positions: &mut Vec<(f32, f32)>, // Keep mutable for adding
@@ -125,11 +125,12 @@ pub fn attempt_single_spawn<T, F, N, R>(
     min_dist_sq_tree: f32,
     min_dist_sq_stone: f32,
     create_entity: F,
+    extra_arg: A, // Add generic argument for extra data needed by create_entity
     table: &impl Table<Row = T>, // Use `impl Trait` for the table
 ) -> Result<bool, String> // Return standard String error
 where
     T: Clone + SpacetimeType + 'static, 
-    F: FnOnce(f32, f32) -> T,
+    F: FnOnce(f32, f32, A) -> T, // Closure now accepts extra_arg
     N: NoiseFn<f64, 2>, // Correct NoiseFn signature
     R: Rng + ?Sized, // Make RNG generic
 {
@@ -174,7 +175,7 @@ where
     }
 
     // Create and insert
-    let entity = create_entity(pos_x, pos_y);
+    let entity = create_entity(pos_x, pos_y, extra_arg); // Pass extra_arg to closure
     match table.try_insert(entity) {
         Ok(_) => {
             // If insertion succeeded, update tracking collections

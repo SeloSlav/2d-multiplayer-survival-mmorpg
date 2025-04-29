@@ -76,8 +76,8 @@ export const CAMPFIRE_WIDTH_PREVIEW = 64;
 export const CAMPFIRE_HEIGHT_PREVIEW = 64;
 // Constants still referenced by GameCanvas or its utils (re-exported for clarity)
 // Note: Ideally, these might live ONLY in their respective util files if not needed globally
-export { CAMPFIRE_HEIGHT } from '../utils/campfireRenderingUtils'; // Example: Keep export for now
-export { BOX_HEIGHT } from '../utils/woodenStorageBoxRenderingUtils'; // Example: Keep export for now
+export { CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils'; // Example: Keep export for now
+export { BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils'; // Example: Keep export for now
 
 // --- Sleeping Bag Dimensions ---
 export const SLEEPING_BAG_WIDTH = 64; // Define desired width

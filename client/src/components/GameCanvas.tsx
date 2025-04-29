@@ -28,17 +28,23 @@ import { useGameLoop } from '../hooks/useGameLoop';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
-import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
 
 // --- Rendering Utilities ---
-import { renderWorldBackground } from '../utils/worldRenderingUtils';
-import { renderGroundEntities, renderYSortedEntities } from '../utils/renderingUtils';
-import { renderInteractionLabels } from '../utils/labelRenderingUtils';
-import { renderPlacementPreview } from '../utils/placementRenderingUtils';
+import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
+import { renderYSortedEntities } from '../utils/renderers/renderingUtils.ts';
+import { renderInteractionLabels } from '../utils/renderers/labelRenderingUtils.ts';
+import { renderPlacementPreview } from '../utils/renderers/placementRenderingUtils.ts';
 import { drawInteractionIndicator } from '../utils/interactionIndicator';
 import { drawMinimapOntoCanvas } from './Minimap';
-import { preloadSleepingBagImage } from '../utils/sleepingBagRenderingUtils';
+import { renderPlayer } from '../utils/renderers/playerRenderingUtils';
+import { renderTree } from '../utils/renderers/treeRenderingUtils';
+import { renderStone } from '../utils/renderers/stoneRenderingUtils';
+import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
+import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
+import { renderCorn } from '../utils/renderers/cornRenderingUtils';
+import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
+import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -55,10 +61,6 @@ import {
     CAMPFIRE_LIGHT_OUTER_COLOR,
     PLAYER_BOX_INTERACTION_DISTANCE_SQUARED
 } from '../config/gameConfig';
-import {
-    isPlayer, isWoodenStorageBox, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isCorn,
-    isSleepingBag
-} from '../utils/typeGuards';
 
 // --- Prop Interface ---
 interface GameCanvasProps {
@@ -173,12 +175,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleTrees,
     visibleStones,
     visibleWoodenStorageBoxes,
+    visibleSleepingBags,
+    visibleMushrooms,
+    visibleCorns,
+    visibleDroppedItems,
+    visibleCampfires,
     visibleMushroomsMap,
     visibleCampfiresMap,
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
-    groundItems,
     ySortedEntities
   } = useEntityFiltering(
     players,
@@ -251,7 +257,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemImagesRef.current.set(itemDef.iconAssetName, img);
       }
     });
-    preloadSleepingBagImage(itemImagesRef);
   }, [itemDefinitions, itemImagesRef]);
 
   const renderGame = useCallback(() => {
@@ -286,8 +291,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
          }
     }
 
-    // Pass filtered lists to rendering functions
-    renderGroundEntities({ ctx, groundItems: groundItems as any, itemDefinitions, itemImagesRef, nowMs: now_ms });
+    // --- Render Ground Items Individually --- 
+    // Render Campfires
+    visibleCampfires.forEach(campfire => {
+        renderCampfire(ctx, campfire, now_ms);
+    });
+    // Render Dropped Items
+    visibleDroppedItems.forEach(item => {
+        const itemDef = itemDefinitions.get(item.itemDefId.toString());
+        // Use the new signature: ctx, item, itemDef, nowMs
+        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); 
+    });
+    // Render Mushrooms
+    visibleMushrooms.forEach(mushroom => {
+        renderMushroom(ctx, mushroom, now_ms);
+    });
+    // Render Corn
+    visibleCorns.forEach(corn => {
+        renderCorn(ctx, corn, now_ms);
+    });
+    // Render Sleeping Bags
+    visibleSleepingBags.forEach(sleepingBag => {
+        renderSleepingBag({ ctx, sleepingBag, nowMs: now_ms });
+    });
+    // --- End Ground Items --- 
+
+    // --- Render Y-Sorted Entities --- (Keep this logic)
     renderYSortedEntities({
         ctx, ySortedEntities, heroImageRef, lastPositionsRef,
         activeConnections,
@@ -295,6 +324,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemDefinitions, itemImagesRef, worldMouseX: currentWorldMouseX, worldMouseY: currentWorldMouseY,
         animationFrame, nowMs: now_ms, hoveredPlayerIds, onPlayerHover: handlePlayerHover
     });
+    // --- End Y-Sorted Entities ---
 
     renderInteractionLabels({
         ctx,
@@ -382,7 +412,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [
       // Dependencies
-      groundItems, ySortedEntities, visibleMushroomsMap, visibleCornsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
+      visibleMushrooms, visibleCorns, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
+      ySortedEntities, visibleMushroomsMap, visibleCornsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
       players, itemDefinitions, trees, stones, 
       worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
       itemImagesRef, heroImageRef, grassImageRef, cameraOffsetX, cameraOffsetY,

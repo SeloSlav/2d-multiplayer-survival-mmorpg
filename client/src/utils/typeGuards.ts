@@ -36,11 +36,6 @@ export function isCampfire(entity: any): entity is SpacetimeDBCampfire {
 
 // Type guard for Mushroom
 export function isMushroom(entity: any): entity is SpacetimeDBMushroom {
-    // Check for the explicit entity type marker first
-    if (entity && entity.__entityType === 'mushroom') {
-        return true;
-    }
-    
     const result = entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
@@ -50,21 +45,14 @@ export function isMushroom(entity: any): entity is SpacetimeDBMushroom {
            typeof entity.treeType === 'undefined' &&
            typeof entity.health === 'undefined' && 
            typeof entity.placedBy === 'undefined' &&
-           typeof entity.itemDefId === 'undefined' &&
-           // Don't match entities explicitly marked as corn
-           entity.__entityType !== 'corn';
+           typeof entity.itemDefId === 'undefined'
+           ;
 
     return result;
 }
 
 // Type guard for Corn
 export function isCorn(entity: any): entity is SpacetimeDBCorn {
-    // Check for the explicit entity type marker first
-    if (entity && entity.__entityType === 'corn') {
-        return true;
-    }
-    
-    // Only perform other checks if no explicit type marker is present
     const result = entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
@@ -74,15 +62,8 @@ export function isCorn(entity: any): entity is SpacetimeDBCorn {
            typeof entity.treeType === 'undefined' &&
            typeof entity.health === 'undefined' && 
            typeof entity.placedBy === 'undefined' &&
-           typeof entity.itemDefId === 'undefined' &&
-           // We can't rely on constructor name, so this is our fallback
-           // but it will rarely be triggered now due to __entityType check
-           entity.__entityType !== 'mushroom';
-    
-    // Always log corn entities to see if they're being found at all
-    if (result) {
-        console.log('Entity identified as Corn:', entity);
-    }
+           typeof entity.itemDefId === 'undefined'
+           ;
     
     return result;
 }

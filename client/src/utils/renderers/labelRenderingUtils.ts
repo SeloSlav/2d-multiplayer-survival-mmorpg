@@ -5,8 +5,8 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
     Corn as SpacetimeDBCorn
-} from '../generated';
-import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../config/gameConfig';
+} from '../../generated';
+import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../../config/gameConfig';
 
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;

@@ -1,0 +1,1 @@
+Result<bool, std::string::String>

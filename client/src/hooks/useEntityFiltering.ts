@@ -217,19 +217,17 @@ export function useEntityFiltering(
 
   // Group entities for rendering
   const groundItems = useMemo(() => [
-    ...visibleMushrooms,
-    ...visibleCorns,
     ...visibleDroppedItems,
     ...visibleCampfires,
     ...visibleSleepingBags
-  ], [visibleMushrooms, visibleCorns, visibleDroppedItems, visibleCampfires, visibleSleepingBags]);
+  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags]);
 
   // Y-sorted entities with sorting
   const ySortedEntities = useMemo(() => {
     const entities = [
       ...visiblePlayers,
       ...visibleTrees,
-      ...visibleStones,
+      ...visibleStones.filter(stone => stone.health > 0),
       ...visibleWoodenStorageBoxes
     ];
     entities.sort((a, b) => {

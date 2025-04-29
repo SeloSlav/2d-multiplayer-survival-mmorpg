@@ -1,5 +1,5 @@
-import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition } from '../generated';
-import { gameConfig } from '../config/gameConfig';
+import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition } from '../../generated';
+import { gameConfig } from '../../config/gameConfig';
 
 // --- Constants (copied from GameCanvas for now, consider moving to config) ---
 const SWING_DURATION_MS = 150;

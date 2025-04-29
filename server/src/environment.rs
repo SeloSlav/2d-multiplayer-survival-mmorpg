@@ -136,7 +136,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::tree::MIN_TREE_DISTANCE_SQ,
             0.0,
             0.0,
-            |pos_x, pos_y| {
+            |pos_x, pos_y, _extra: ()| {
                 // Calculate chunk index for the tree
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -151,6 +151,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     respawn_at: None,
                 }
             },
+            (),
             trees,
         ) {
             Ok(true) => spawned_tree_count += 1,
@@ -180,7 +181,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::stone::MIN_STONE_DISTANCE_SQ,
             crate::stone::MIN_STONE_TREE_DISTANCE_SQ,
             0.0,
-            |pos_x, pos_y| {
+            |pos_x, pos_y, _extra: ()| {
                 // Calculate chunk index for the stone
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -194,6 +195,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     respawn_at: None,
                 }
             },
+            (),
             stones,
         ) {
             Ok(true) => spawned_stone_count += 1,
@@ -224,7 +226,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::mushroom::MIN_MUSHROOM_DISTANCE_SQ,
             crate::mushroom::MIN_MUSHROOM_TREE_DISTANCE_SQ,
             crate::mushroom::MIN_MUSHROOM_STONE_DISTANCE_SQ,
-            |pos_x, pos_y| {
+            |pos_x, pos_y, _extra: ()| {
                 // Calculate chunk index for the mushroom
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -236,6 +238,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     respawn_at: None,
                 }
             },
+            (),
             mushrooms,
         ) {
             Ok(true) => spawned_mushroom_count += 1,
@@ -266,7 +269,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::corn::MIN_CORN_DISTANCE_SQ,
             crate::corn::MIN_CORN_TREE_DISTANCE_SQ,
             crate::corn::MIN_CORN_STONE_DISTANCE_SQ,
-            |pos_x, pos_y| {
+            |pos_x, pos_y, _extra: ()| {
                 // Calculate chunk index for the corn
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -278,6 +281,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     respawn_at: None,
                 }
             },
+            (),
             corns,
         ) {
             Ok(true) => spawned_corn_count += 1,

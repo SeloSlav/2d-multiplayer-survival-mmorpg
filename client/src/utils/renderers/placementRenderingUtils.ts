@@ -1,10 +1,10 @@
-import { PlacementItemInfo } from '../hooks/usePlacementManager';
+import { PlacementItemInfo } from '../../hooks/usePlacementManager';
 import { 
     CAMPFIRE_WIDTH_PREVIEW, 
     CAMPFIRE_HEIGHT_PREVIEW,
     SLEEPING_BAG_WIDTH, // Import Sleeping Bag dimensions
     SLEEPING_BAG_HEIGHT, // Import Sleeping Bag dimensions
-} from '../config/gameConfig';
+} from '../../config/gameConfig';
 
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 // Import OpenAuth client helpers
 import { createClient /*, OAuthClient */ } from '@openauthjs/openauth/client'; 
-import { parseJwt } from '../utils/jwt'; // We'll create this helper
+import { parseJwt } from '../utils/auth/jwt'; // Corrected import path
 // Removed Node.js specific imports
 // import { Buffer } from 'buffer'; 
 // import crypto from 'crypto'; 
