@@ -97,7 +97,7 @@ function AppContent() {
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
-        viewport: currentViewport // Make sure viewport is passed correctly
+        viewport: currentViewport, // Make sure viewport is passed correctly
     });
 
     // --- Refs for Cross-Hook/Component Communication --- 

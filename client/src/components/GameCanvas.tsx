@@ -474,7 +474,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       connection, 
       cancelPlacement: placementActions.cancelPlacement,
       viewport: worldViewport, // Pass calculated viewport (can be null)
-      localPlayerIsDead,
   });
 
   return (
