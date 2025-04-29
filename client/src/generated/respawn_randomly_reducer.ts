@@ -31,12 +31,12 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type RequestRespawn = {};
+export type RespawnRandomly = {};
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace RequestRespawn {
+export namespace RespawnRandomly {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -46,12 +46,12 @@ export namespace RequestRespawn {
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: RequestRespawn): void {
-    RequestRespawn.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: RespawnRandomly): void {
+    RespawnRandomly.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): RequestRespawn {
-    return RequestRespawn.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): RespawnRandomly {
+    return RespawnRandomly.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

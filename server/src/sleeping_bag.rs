@@ -17,16 +17,21 @@ pub(crate) const SLEEPING_BAG_SLEEPING_BAG_COLLISION_DISTANCE_SQUARED: f32 = (SL
 const PLACEMENT_RANGE_SQ: f32 = 96.0 * 96.0; // Standard placement range
 
 // --- Import Dependencies ---
-use crate::player as PlayerTableTrait;
-use crate::Player;
+use crate::environment::calculate_chunk_index;
+use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // Import self trait
+use crate::Player; // Import Player struct directly from crate root
+use crate::player as PlayerTableTrait; // Import the trait for ctx.db.player()
 use crate::items::{
     InventoryItem, ItemDefinition,
     inventory_item as InventoryItemTableTrait, 
     item_definition as ItemDefinitionTableTrait,
     add_item_to_player_inventory // For pickup
 };
-use crate::environment::calculate_chunk_index;
-use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // Import self trait
+// Remove Filter imports as they are gated behind unstable feature
+// use spacetimedb::{client_visibility_filter, Filter}; 
+// Add imports needed for inventory/item logic
+use crate::active_equipment; 
+use crate::crafting_queue;
 
 /// --- Sleeping Bag Data Structure ---
 /// Represents a placed sleeping bag in the world.
@@ -45,6 +50,12 @@ pub struct SleepingBag {
     pub placed_at: Timestamp, // When it was placed
     // Add future fields here (e.g., is_occupied, owner_identity for respawn)
 }
+
+/// --- Row-Level Security Filter ---
+/// Clients can only subscribe to sleeping bags they placed themselves.
+// Temporarily disable the filter due to potential host stack overflow
+// #[client_visibility_filter]
+// const ONLY_OWNED_SLEEPING_BAGS: Filter = Filter::Sql("SELECT * FROM sleeping_bag WHERE placed_by = :sender");
 
 /******************************************************************************
  *                                REDUCERS                                    *
@@ -128,6 +139,110 @@ pub fn place_sleeping_bag(ctx: &ReducerContext, item_instance_id: u64, world_x: 
     log::info!(
         "[PlaceSleepingBag] Successfully placed Sleeping Bag at ({:.1}, {:.1}) by {:?}",
         world_x, world_y, sender_id
+    );
+
+    Ok(())
+}
+
+/// --- Respawn at Sleeping Bag ---
+/// Allows a dead player to respawn at a sleeping bag they placed.
+#[spacetimedb::reducer]
+pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+    let sleeping_bags = ctx.db.sleeping_bag();
+    // Add table handles needed for item logic
+    let inventory = ctx.db.inventory_item();
+    let item_defs = ctx.db.item_definition();
+
+    log::info!(
+        "[RespawnAtSleepingBag] Player {:?} attempting respawn at bag {}",
+        sender_id, bag_id
+    );
+
+    // 1. Find Player and check if dead
+    let mut player = players.identity().find(sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    if !player.is_dead {
+        return Err("Player is not dead.".to_string());
+    }
+
+    // 2. Find Sleeping Bag
+    let sleeping_bag = sleeping_bags.id().find(bag_id)
+        .ok_or_else(|| format!("Sleeping Bag {} not found", bag_id))?;
+
+    // 3. Verify Ownership
+    if sleeping_bag.placed_by != sender_id {
+        return Err("Cannot respawn at a sleeping bag you didn't place.".to_string());
+    }
+
+    log::info!(
+        "Respawning player {} ({:?}) at sleeping bag {}. Clearing inventory and crafting queue...", 
+        player.username, sender_id, bag_id
+    );
+
+    // --- Clear Player Inventory (Copied from respawn_randomly) ---
+    let mut items_to_delete = Vec::new();
+    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
+        items_to_delete.push(item.instance_id);
+    }
+    let delete_count = items_to_delete.len();
+    for item_instance_id in items_to_delete {
+        inventory.instance_id().delete(item_instance_id);
+    }
+    log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
+
+    // --- Clear Crafting Queue & Refund (Copied from respawn_randomly) ---
+    crafting_queue::clear_player_crafting_queue(ctx, sender_id);
+
+    // --- Grant Starting Rock (Copied from respawn_randomly) ---
+    log::info!("Granting starting Rock to respawned player: {}", player.username);
+    if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
+        match inventory.try_insert(crate::items::InventoryItem {
+            instance_id: 0, // Auto-incremented
+            player_identity: sender_id,
+            item_def_id: rock_def.id,
+            quantity: 1,
+            hotbar_slot: Some(0), // Put rock in first slot
+            inventory_slot: None,
+        }) {
+            Ok(_) => log::info!("Granted 1 Rock (slot 0) to player {}", player.username),
+            Err(e) => log::error!("Failed to grant starting Rock to player {}: {}", player.username, e),
+        }
+    } else {
+        log::error!("Could not find item definition for starting Rock!");
+    }
+
+    // 4. Respawn Player at Bag Location (Reset stats)
+    player.is_dead = false;
+    player.health = crate::player_stats::PLAYER_MAX_HEALTH; // Use fully qualified path
+    player.position_x = sleeping_bag.pos_x;
+    player.position_y = sleeping_bag.pos_y;
+    player.death_timestamp = None; // Clear death timestamp
+    // Reset other stats like in respawn_randomly
+    player.hunger = 100.0;
+    player.thirst = 100.0;
+    player.warmth = 100.0;
+    player.stamina = 100.0;
+    player.jump_start_time_ms = 0;
+    player.is_sprinting = false;
+    player.last_hit_time = None;
+    // Update timestamps
+    player.last_update = ctx.timestamp;
+    player.last_stat_update = ctx.timestamp;
+
+    players.identity().update(player);
+
+    // Ensure item is unequipped on respawn (Copied from respawn_randomly)
+    match active_equipment::unequip_item(ctx, sender_id) {
+        Ok(_) => log::info!("Ensured item is unequipped for respawned player {:?}", sender_id),
+        Err(e) => log::error!("Failed to unequip item for respawned player {:?}: {}", sender_id, e),
+    }
+
+    log::info!(
+        "[RespawnAtSleepingBag] Player {:?} respawned successfully at bag {} ({:.1}, {:.1})",
+        sender_id, bag_id, sleeping_bag.pos_x, sleeping_bag.pos_y
     );
 
     Ok(())

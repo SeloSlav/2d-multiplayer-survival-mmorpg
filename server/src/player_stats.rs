@@ -179,18 +179,15 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
         }
 
-        let new_health = (player.health + (health_change_per_sec * elapsed_seconds))
-                         .max(0.0).min(100.0);
+        let health_change = health_change_per_sec * elapsed_seconds;
+        let mut final_health = player.health + health_change;
+        final_health = final_health.min(PLAYER_MAX_HEALTH); // Clamp health to max
 
-        // --- Death Check ---
-        let mut player_died = false;
-        let mut calculated_respawn_at = player.respawn_at; // Keep existing value by default
-        if player.health > 0.0 && new_health <= 0.0 {
-            player_died = true;
-            // Set respawn time relative to now
-            // Explicitly convert std::time::Duration to spacetimedb::TimeDuration
-            calculated_respawn_at = ctx.timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(5)); // Set respawn time
-            log::info!("Player {:?} died. Respawn at: {:?}", player_id, calculated_respawn_at);
+        // --- Handle Death ---
+        if final_health <= 0.0 && !player.is_dead {
+            log::info!("Player {} ({:?}) died from stats decay (Health: {}).", player.username, player_id, final_health);
+            player.is_dead = true;
+            player.death_timestamp = Some(ctx.timestamp); // Set death timestamp
 
             // Unequip item on death
             // Call unequip using the context and the specific player's identity
@@ -202,22 +199,22 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
 
         // --- Update Player Table ---
         // Only update if something actually changed
-        let stats_changed = (player.health - new_health).abs() > 0.01 ||
+        let stats_changed = (player.health - final_health).abs() > 0.01 ||
                             (player.hunger - new_hunger).abs() > 0.01 ||
                             (player.thirst - new_thirst).abs() > 0.01 ||
                             (player.warmth - new_warmth).abs() > 0.01 ||
                             (player.stamina - new_stamina).abs() > 0.01 ||
                             (player.is_sprinting != new_sprinting_state) || // Check if sprint state changed
-                            player_died; // Also update if other stats changed OR if player died
+                            player.is_dead; // Also update if other stats changed OR if player died
 
         if stats_changed {
-            player.health = new_health;
+            player.health = final_health;
             player.hunger = new_hunger;
             player.thirst = new_thirst;
             player.warmth = new_warmth;
             player.stamina = new_stamina;
-            player.is_dead = player_died;
-            player.respawn_at = calculated_respawn_at;
+            player.is_dead = player.is_dead;
+            player.death_timestamp = player.death_timestamp;
             player.is_sprinting = new_sprinting_state; // Update sprint state if changed
             // Note: We don't update position, direction here
 
@@ -237,4 +234,6 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
 
     // No rescheduling needed here, the table's ScheduleAt::Interval handles it
     Ok(())
-} 
+}
+
+pub const PLAYER_MAX_HEALTH: f32 = 100.0; // Define MAX_HEALTH here 

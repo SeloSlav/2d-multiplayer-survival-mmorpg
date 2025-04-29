@@ -112,8 +112,10 @@ import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
 export { QuickMoveToCampfire };
 import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
-import { RequestRespawn } from "./request_respawn_reducer.ts";
-export { RequestRespawn };
+import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
+export { RespawnAtSleepingBag };
+import { RespawnRandomly } from "./respawn_randomly_reducer.ts";
+export { RespawnRandomly };
 import { SeedEnvironment } from "./seed_environment_reducer.ts";
 export { SeedEnvironment };
 import { SeedItems } from "./seed_items_reducer.ts";
@@ -553,9 +555,13 @@ const REMOTE_MODULE = {
       reducerName: "register_player",
       argsType: RegisterPlayer.getTypeScriptAlgebraicType(),
     },
-    request_respawn: {
-      reducerName: "request_respawn",
-      argsType: RequestRespawn.getTypeScriptAlgebraicType(),
+    respawn_at_sleeping_bag: {
+      reducerName: "respawn_at_sleeping_bag",
+      argsType: RespawnAtSleepingBag.getTypeScriptAlgebraicType(),
+    },
+    respawn_randomly: {
+      reducerName: "respawn_randomly",
+      argsType: RespawnRandomly.getTypeScriptAlgebraicType(),
     },
     seed_environment: {
       reducerName: "seed_environment",
@@ -712,7 +718,8 @@ export type Reducer = never
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "RegisterPlayer", args: RegisterPlayer }
-| { name: "RequestRespawn", args: RequestRespawn }
+| { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
+| { name: "RespawnRandomly", args: RespawnRandomly }
 | { name: "SeedEnvironment", args: SeedEnvironment }
 | { name: "SeedItems", args: SeedItems }
 | { name: "SeedRecipes", args: SeedRecipes }
@@ -1356,16 +1363,32 @@ export class RemoteReducers {
     this.connection.offReducer("register_player", callback);
   }
 
-  requestRespawn() {
-    this.connection.callReducer("request_respawn", new Uint8Array(0), this.setCallReducerFlags.requestRespawnFlags);
+  respawnAtSleepingBag(bagId: number) {
+    const __args = { bagId };
+    let __writer = new BinaryWriter(1024);
+    RespawnAtSleepingBag.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("respawn_at_sleeping_bag", __argsBuffer, this.setCallReducerFlags.respawnAtSleepingBagFlags);
   }
 
-  onRequestRespawn(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.onReducer("request_respawn", callback);
+  onRespawnAtSleepingBag(callback: (ctx: ReducerEventContext, bagId: number) => void) {
+    this.connection.onReducer("respawn_at_sleeping_bag", callback);
   }
 
-  removeOnRequestRespawn(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.offReducer("request_respawn", callback);
+  removeOnRespawnAtSleepingBag(callback: (ctx: ReducerEventContext, bagId: number) => void) {
+    this.connection.offReducer("respawn_at_sleeping_bag", callback);
+  }
+
+  respawnRandomly() {
+    this.connection.callReducer("respawn_randomly", new Uint8Array(0), this.setCallReducerFlags.respawnRandomlyFlags);
+  }
+
+  onRespawnRandomly(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("respawn_randomly", callback);
+  }
+
+  removeOnRespawnRandomly(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("respawn_randomly", callback);
   }
 
   seedEnvironment() {
@@ -1893,9 +1916,14 @@ export class SetReducerFlags {
     this.registerPlayerFlags = flags;
   }
 
-  requestRespawnFlags: CallReducerFlags = 'FullUpdate';
-  requestRespawn(flags: CallReducerFlags) {
-    this.requestRespawnFlags = flags;
+  respawnAtSleepingBagFlags: CallReducerFlags = 'FullUpdate';
+  respawnAtSleepingBag(flags: CallReducerFlags) {
+    this.respawnAtSleepingBagFlags = flags;
+  }
+
+  respawnRandomlyFlags: CallReducerFlags = 'FullUpdate';
+  respawnRandomly(flags: CallReducerFlags) {
+    this.respawnRandomlyFlags = flags;
   }
 
   seedEnvironmentFlags: CallReducerFlags = 'FullUpdate';

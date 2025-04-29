@@ -1,6 +1,7 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, ConnectionId};
 use log;
 use std::time::Duration;
+use rand::Rng; // Add rand for random respawn location
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
 
 // Declare the module
@@ -125,7 +126,7 @@ pub struct Player {
     pub warmth: f32,
     pub is_sprinting: bool,
     pub is_dead: bool,
-    pub respawn_at: Timestamp,
+    pub death_timestamp: Option<Timestamp>,
     pub last_hit_time: Option<Timestamp>,
     pub is_online: bool, // <<< ADDED
 }
@@ -441,7 +442,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         warmth: 100.0,
         is_sprinting: false,
         is_dead: false,
-        respawn_at: ctx.timestamp,
+        death_timestamp: None,
         last_hit_time: None,
         is_online: true, // <<< Keep this for BRAND NEW players
     };
@@ -1127,9 +1128,9 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
    }
 }
 
-// --- Client-Requested Respawn Reducer ---
+// --- Client-Requested Random Respawn Reducer ---
 #[spacetimedb::reducer]
-pub fn request_respawn(ctx: &ReducerContext) -> Result<(), String> {
+pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed function
     let sender_id = ctx.sender;
     let players = ctx.db.player();
     let item_defs = ctx.db.item_definition();
@@ -1145,15 +1146,7 @@ pub fn request_respawn(ctx: &ReducerContext) -> Result<(), String> {
         return Err("You are not dead.".to_string());
     }
 
-    // Check if the respawn timer is up (uses respawn_at set by player_stats reducer)
-    if ctx.timestamp < player.respawn_at {
-        log::warn!("Player {:?} requested respawn too early.", sender_id);
-        let remaining_micros = player.respawn_at.to_micros_since_unix_epoch().saturating_sub(ctx.timestamp.to_micros_since_unix_epoch());
-        let remaining_secs = (remaining_micros as f64 / 1_000_000.0).ceil() as u64;
-        return Err(format!("Respawn available in {} seconds.", remaining_secs));
-    }
-
-    log::info!("Respawning player {} ({:?}). Clearing inventory and crafting queue...", player.username, sender_id);
+    log::info!("Respawning player {} ({:?}) randomly. Clearing inventory and crafting queue...", player.username, sender_id);
 
     // --- Clear Player Inventory ---
     let mut items_to_delete = Vec::new();
@@ -1199,12 +1192,34 @@ pub fn request_respawn(ctx: &ReducerContext) -> Result<(), String> {
     player.jump_start_time_ms = 0;
     player.is_sprinting = false;
     player.is_dead = false; // Mark as alive again
+    player.death_timestamp = None; // Clear death timestamp
     player.last_hit_time = None;
 
-    // --- Reset Position (Consider finding a safe spawn instead of fixed coords) ---
-    // TODO: Implement safe spawn finding logic here, similar to register_player
-    let spawn_x = 640.0; // Simple initial spawn point for now
-    let spawn_y = 480.0;
+    // --- Reset Position to Random Location ---
+    let mut rng = ctx.rng(); // Use the rng() method
+    let spawn_padding = TILE_SIZE_PX as f32 * 2.0; // Padding from world edges
+    let mut spawn_x;
+    let mut spawn_y;
+    let mut attempts = 0;
+    const MAX_SPAWN_ATTEMPTS: u32 = 10; // Prevent infinite loop
+
+    loop {
+        spawn_x = rng.gen_range(spawn_padding..(WORLD_WIDTH_PX - spawn_padding));
+        spawn_y = rng.gen_range(spawn_padding..(WORLD_HEIGHT_PX - spawn_padding));
+        
+        // Basic collision check (simplified - TODO: Add proper safe spawn logic like in register_player)
+        let is_safe = true; // Placeholder - replace with actual check
+
+        if is_safe || attempts >= MAX_SPAWN_ATTEMPTS {
+            break;
+        }
+        attempts += 1;
+    }
+
+    if attempts >= MAX_SPAWN_ATTEMPTS {
+        log::warn!("Could not find a guaranteed safe random spawn point for player {:?} after {} attempts. Spawning anyway.", sender_id, MAX_SPAWN_ATTEMPTS);
+    }
+
     player.position_x = spawn_x;
     player.position_y = spawn_y;
     player.direction = "down".to_string();
@@ -1215,7 +1230,7 @@ pub fn request_respawn(ctx: &ReducerContext) -> Result<(), String> {
 
     // --- Apply Player Changes ---
     players.identity().update(player);
-    log::info!("Player {:?} respawned at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
+    log::info!("Player {:?} respawned randomly at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
 
     // Ensure item is unequipped on respawn
     match active_equipment::unequip_item(ctx, sender_id) {

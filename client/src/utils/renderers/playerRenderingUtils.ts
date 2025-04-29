@@ -95,6 +95,12 @@ export const renderPlayer = (
   jumpOffsetY: number = 0,
   shouldShowLabel: boolean = false // New parameter to control label visibility
 ) => {
+  // --- Hide player if dead ---
+  if (player.isDead) {
+    // console.log(`Skipping render for dead player: ${player.username}`);
+    return; // Don't render anything if dead
+  }
+
   const { sx, sy } = getSpriteCoordinates(player, isMoving, currentAnimationFrame);
   
   // --- Calculate Shake Offset (Only if alive and online) ---

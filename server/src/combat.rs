@@ -30,6 +30,8 @@ use crate::stone::stone as StoneTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
+use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
+use crate::dropped_item;
 
 // --- Game Balance Constants ---
 /// Multiplier for damage when attacking other players
@@ -380,22 +382,62 @@ pub fn damage_player(
         .ok_or_else(|| "Target player disappeared".to_string())?;
     
     let old_health = target_player.health;
-    target_player.health = (target_player.health - damage).max(0.0);
+    let new_health = (target_player.health - damage).max(0.0);
+    target_player.health = new_health;
     target_player.last_hit_time = Some(timestamp);
     
     log::info!("Player {:?} hit Player {:?} with {} for {:.1} damage. Health: {:.1} -> {:.1}",
-           attacker_id, target_id, item_name, damage, old_health, target_player.health);
+           attacker_id, target_id, item_name, damage, old_health, new_health);
     
-    // Handle death
-    if target_player.health <= 0.0 && !target_player.is_dead {
+    // --- Handle Death ---
+    if new_health <= 0.0 && !target_player.is_dead {
+        log::info!("Player {} ({:?}) died from combat (Attacker: {:?}, Health: {:.1}).",
+                 target_player.username, target_id, attacker_id, new_health);
         target_player.is_dead = true;
-        let now_micros = timestamp.to_micros_since_unix_epoch();
-        let respawn_micros = now_micros.saturating_add((RESPAWN_TIME_MS * 1000) as i64);
-        target_player.respawn_at = Timestamp::from_micros_since_unix_epoch(respawn_micros);
-        log::info!("Player {:?} killed Player {:?}. Respawn at {:?}", 
-               attacker_id, target_id, target_player.respawn_at);
+        target_player.death_timestamp = Some(timestamp);
+
+        // --- Drop Equipped Item --- 
+        let active_equip_table = ctx.db.active_equipment();
+        if let Some(active_equip) = active_equip_table.player_identity().find(&target_id) {
+            // Check the CORRECT field for the main equipped item
+            if let Some(equipped_item_instance_id) = active_equip.equipped_item_instance_id {
+                log::debug!("Player {:?} died with item instance {} equipped. Attempting to drop.", 
+                         target_id, equipped_item_instance_id);
+                
+                let inventory_table = ctx.db.inventory_item();
+                if let Some(equipped_item) = inventory_table.instance_id().find(equipped_item_instance_id) {
+                    let item_def_to_drop = equipped_item.item_def_id;
+                    let drop_pos_x = target_player.position_x;
+                    let drop_pos_y = target_player.position_y;
+                    
+                    log::info!("Dropping item def {} at ({:.1}, {:.1}) for dead player {:?}", 
+                             item_def_to_drop, drop_pos_x, drop_pos_y, target_id);
+                                 
+                    match dropped_item::create_dropped_item_entity(ctx, item_def_to_drop, 1, drop_pos_x, drop_pos_y) {
+                        Ok(_) => log::info!("Successfully created dropped item entity for player {:?}'s weapon.", target_id),
+                        Err(e) => log::error!("Failed to create dropped item entity for player {:?}: {}", target_id, e),
+                    }
+                } else {
+                    log::warn!("Player {:?} died, active equipment referenced item instance {}, but that item was not found in inventory table!", 
+                             target_id, equipped_item_instance_id);
+                }
+            } else {
+                 log::debug!("Player {:?} died with nothing equipped.", target_id);
+            }
+        } // No else needed if active_equipment entry doesn't exist
+        // --- End Drop Equipped Item ---
+
+        // Unequip item (this will delete the active equipment record AND the inventory item)
+        // This needs to happen *after* we potentially create the dropped item
+        match crate::active_equipment::unequip_item(ctx, target_id) {
+            Ok(_) => log::info!("Unequipped item for dying player {:?} (combat death).", target_id),
+            Err(e) => log::error!("Failed to unequip item for dying player {:?} (combat death): {}", target_id, e),
+        }
+
+        // Mark player as dead *before* potential state update below
+        target_player.is_dead = true;
     }
-    
+
     // Update the player
     ctx.db.player().identity().update(target_player);
     

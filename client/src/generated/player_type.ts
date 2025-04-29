@@ -47,7 +47,7 @@ export type Player = {
   warmth: number,
   isSprinting: boolean,
   isDead: boolean,
-  respawnAt: Timestamp,
+  deathTimestamp: Timestamp | undefined,
   lastHitTime: Timestamp | undefined,
   isOnline: boolean,
 };
@@ -78,7 +78,7 @@ export namespace Player {
       new ProductTypeElement("warmth", AlgebraicType.createF32Type()),
       new ProductTypeElement("isSprinting", AlgebraicType.createBoolType()),
       new ProductTypeElement("isDead", AlgebraicType.createBoolType()),
-      new ProductTypeElement("respawnAt", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("deathTimestamp", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("isOnline", AlgebraicType.createBoolType()),
     ]);

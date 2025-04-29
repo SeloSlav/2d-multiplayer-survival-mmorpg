@@ -317,15 +317,21 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial ACTIVE_CONNECTION subscription error:", err))
                     .subscribe('SELECT * FROM active_connection'),
+                 // ADD Non-Spatial SleepingBag subscription
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial SLEEPING_BAG subscription error:", err))
+                    .subscribe('SELECT * FROM sleeping_bag'),
             ];
-            nonSpatialHandlesRef.current = currentInitialSubs; 
+            nonSpatialHandlesRef.current = currentInitialSubs;
         }
 
         // --- START RESTORED SPATIAL SUBSCRIPTION LOGIC ---
         if (connection && viewport) {
+            // console.log("[DEBUG] Spatial Sub Effect Triggered. Viewport:", JSON.stringify(viewport)); // Log viewport
             // Get new viewport chunk indices
             const newChunkIndicesSet = new Set(getChunkIndicesForViewport(viewport));
             const currentChunkIndicesSet = new Set(currentChunksRef.current);
+            // console.log("[DEBUG] Current Chunks:", currentChunksRef.current, "New Chunks Set:", newChunkIndicesSet); // Log chunks
 
             if (newChunkIndicesSet.size === 0) {
                 // console.log("[useSpacetimeTables] No chunk indices in viewport range. Skipping spatial subscriptions.");
@@ -347,6 +353,7 @@ export const useSpacetimeTables = ({
 
                 // Only proceed if there are actual changes
                 if (addedChunks.length > 0 || removedChunks.length > 0) {
+                    // console.log(`[DEBUG] Spatial Update Needed! Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`); // Log diff
                     console.log(`[Sub Update] Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`);
 
                     // --- Unsubscribe from Removed Chunks ---
@@ -385,9 +392,9 @@ export const useSpacetimeTables = ({
                             // DroppedItem
                             const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
-                            // SleepingBag
-                            const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
+                            // SleepingBag - REMOVED spatial subscription
+                            // const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
+                            // newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
 
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
@@ -406,6 +413,7 @@ export const useSpacetimeTables = ({
             
         } else if (connection && !viewport) {
             // If viewport becomes null while connected, clean up ALL spatial subs
+            // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL. Cleaning up spatial subs."); // Log cleanup trigger
             if (spatialSubHandlesMapRef.current.size > 0) {
                 console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions.");
                 spatialSubHandlesMapRef.current.forEach((handles) => {
@@ -449,7 +457,14 @@ export const useSpacetimeTables = ({
              // No need to unsubscribe spatial here, handled above or at start of effect
         };
 
-    }, [connection, viewport]); // Re-run when connection or viewport changes
+    // Depend on individual viewport coordinates, providing defaults for null
+    }, [
+        connection, 
+        viewport?.minX ?? 0, 
+        viewport?.minY ?? 0, 
+        viewport?.maxX ?? 0, 
+        viewport?.maxY ?? 0
+    ]); 
 
     // --- Return Hook State ---
     return {

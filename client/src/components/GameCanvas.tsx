@@ -37,9 +37,6 @@ import { renderInteractionLabels } from '../utils/renderers/labelRenderingUtils.
 import { renderPlacementPreview } from '../utils/renderers/placementRenderingUtils.ts';
 import { drawInteractionIndicator } from '../utils/interactionIndicator';
 import { drawMinimapOntoCanvas } from './Minimap';
-import { renderPlayer } from '../utils/renderers/playerRenderingUtils';
-import { renderTree } from '../utils/renderers/treeRenderingUtils';
-import { renderStone } from '../utils/renderers/stoneRenderingUtils';
 import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
 import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
 import { renderCorn } from '../utils/renderers/cornRenderingUtils';
@@ -217,12 +214,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   });
 
   // --- Derived State ---
-  const respawnTimestampMs = useMemo(() => {
-    if (localPlayer?.isDead && localPlayer.respawnAt) {
-      return Number(localPlayer.respawnAt.microsSinceUnixEpoch / 1000n);
-    }
-    return 0;
-  }, [localPlayer?.isDead, localPlayer?.respawnAt]);
+  // Removed respawnTimestampMs calculation as respawn_at is removed
+  // const respawnTimestampMs = useMemo(() => {
+  //   if (localPlayer?.isDead && localPlayer.respawnAt) {
+  //     return Number(localPlayer.respawnAt.microsSinceUnixEpoch / 1000n);
+  //   }
+  //   return 0;
+  // }, [localPlayer?.isDead, localPlayer?.respawnAt]);
 
   // --- Handle respawn ---
   const handleRespawnRequest = useCallback(() => {
@@ -238,7 +236,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [connection]);
 
   // --- Should show death screen ---
-  const shouldShowDeathScreen = !!(localPlayer?.isDead && respawnTimestampMs > 0 && connection);
+  // Show death screen only based on isDead flag now
+  const shouldShowDeathScreen = !!(localPlayer?.isDead && connection);
   
   // Set cursor style based on placement
   const cursorStyle = placementInfo ? 'cell' : 'crosshair';
@@ -395,11 +394,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Re-added Minimap drawing call
     if (isMinimapOpen) {
+        // Ensure props are valid Maps before passing
+        const validPlayers = players instanceof Map ? players : new Map();
+        const validTrees = trees instanceof Map ? trees : new Map();
+        const validStones = stones instanceof Map ? stones : new Map();
+        const validSleepingBags = sleepingBags instanceof Map ? sleepingBags : new Map();
+
         drawMinimapOntoCanvas({ 
             ctx: ctx!, // Use non-null assertion if context is guaranteed here
-            players, 
-            trees, 
-            stones, 
+            players: validPlayers, 
+            trees: validTrees, 
+            stones: validStones, 
+            sleepingBags: validSleepingBags, // Pass validated map
             localPlayer, // Pass localPlayer directly
             localPlayerId,
             viewCenterOffset, // Pass pan offset
@@ -407,7 +413,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             canvasWidth: currentCanvasWidth, 
             canvasHeight: currentCanvasHeight, 
             isMouseOverMinimap, // Pass hover state
-            zoomLevel: minimapZoom // Pass zoom level
+            zoomLevel: minimapZoom, // Pass zoom level
+            sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png') // Pass image for regular map too
         });
     }
   }, [
@@ -432,12 +439,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [processInputsAndActions, renderGame]);
   useGameLoop(gameLoopCallback);
 
+  // Convert sleepingBags map key from string to number for DeathScreen
+  const sleepingBagsById = useMemo(() => {
+    const mapById = new Map<number, SpacetimeDBSleepingBag>();
+    if (sleepingBags instanceof Map) {
+        sleepingBags.forEach(bag => {
+            mapById.set(bag.id, bag);
+        });
+    }
+    return mapById;
+  }, [sleepingBags]);
+
   return (
     <>
       {shouldShowDeathScreen && (
         <DeathScreen
-          respawnAt={respawnTimestampMs}
-          onRespawn={handleRespawnRequest}
+          // Remove respawnAt prop, add others later
+          // respawnAt={respawnTimestampMs}
+          // onRespawn={handleRespawnRequest} // We'll wire new callbacks later
+          // Dummy props for now, replace in next step
+          onRespawnRandomly={() => { console.log("Respawn Randomly Clicked"); connection?.reducers?.respawnRandomly(); }}
+          onRespawnAtBag={(bagId) => { console.log("Respawn At Bag Clicked:", bagId); connection?.reducers?.respawnAtSleepingBag(bagId); }}
+          localPlayerIdentity={localPlayerId}
+          sleepingBags={sleepingBagsById} // Pass converted map
+          // Pass other required props for minimap rendering within death screen
+          players={players}
+          trees={trees}
+          stones={stones}
+          playerPin={localPlayerPin}
+          sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
         />
       )}
 

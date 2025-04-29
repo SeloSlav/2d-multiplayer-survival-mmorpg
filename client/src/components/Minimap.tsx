@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag } from '../generated';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -20,7 +20,13 @@ const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
 // Add colors for trees and rocks
 const TREE_DOT_COLOR = '#008000'; // Green
 const ROCK_DOT_COLOR = '#808080'; // Grey
+const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 const ENTITY_DOT_SIZE = 2; // Slightly smaller dot size for world objects
+const OWNED_BAG_DOT_SIZE = 24; // Make owned bags larger
+const REGULAR_BAG_ICON_SIZE = 24; // Increased size considerably
+const REGULAR_BAG_BORDER_WIDTH = 2;
+const REGULAR_BAG_BORDER_COLOR = '#FFFFFF'; // White border for regular bags
+const REGULAR_BAG_BG_COLOR = 'rgba(0, 0, 0, 0.3)'; // Slightly transparent black bg
 // Unused constants removed
 const MINIMAP_WORLD_BG_COLOR = 'rgba(52, 88, 52, 0.2)';
 const OUT_OF_BOUNDS_COLOR = 'rgba(20, 35, 20, 0.2)'; // Darker shade for outside world bounds
@@ -42,14 +48,20 @@ interface MinimapProps {
   players: Map<string, SpacetimeDBPlayer>; // Map of player identities to player data
   trees: Map<string, Tree>; // Map of tree identities/keys to tree data
   stones: Map<string, SpacetimeDBStone>; // Add stones prop
+  sleepingBags: Map<number, SleepingBag>; // Map of sleeping bag IDs to data
   localPlayer?: SpacetimeDBPlayer; // Pass the full local player object
-  localPlayerId?: string; // Still potentially useful for some checks
+  localPlayerId?: string; // Revert to string only, Identity type is not exported
   playerPin: PlayerPin | null; // Local player's pin data
   canvasWidth: number; // Width of the main game canvas
   canvasHeight: number; // Height of the main game canvas
   isMouseOverMinimap: boolean; // To change background on hover
   zoomLevel: number; // Current zoom level
   viewCenterOffset: { x: number; y: number }; // Panning offset from hook
+  // --- New props for Death Screen ---
+  isDeathScreen?: boolean; // Optional flag for death screen mode
+  ownedSleepingBagIds?: Set<number>; // Set of owned sleeping bag IDs
+  onSelectSleepingBag?: (bagId: number) => void; // Callback for clicking an owned bag (logic outside)
+  sleepingBagImage?: HTMLImageElement | null; // Image asset for icons
 }
 
 /**
@@ -60,6 +72,7 @@ export function drawMinimapOntoCanvas({
   players,
   trees,
   stones,
+  sleepingBags,
   localPlayer, // Destructure localPlayer
   localPlayerId,
   playerPin, // Destructure playerPin
@@ -68,6 +81,11 @@ export function drawMinimapOntoCanvas({
   isMouseOverMinimap,
   zoomLevel, // Destructure zoomLevel
   viewCenterOffset, // Destructure pan offset
+  // Destructure new props with defaults
+  isDeathScreen = false,
+  ownedSleepingBagIds = new Set(),
+  onSelectSleepingBag, // Callback is optional, only needed if interactive
+  sleepingBagImage = null, // Default to null
 }: MinimapProps) {
   const minimapWidth = MINIMAP_WIDTH;
   const minimapHeight = MINIMAP_HEIGHT;
@@ -262,6 +280,111 @@ export function drawMinimapOntoCanvas({
       }
   });
 
+  // --- Draw Sleeping Bags ---
+  // Filter bags belonging to the local player before drawing
+  sleepingBags.forEach(bag => {
+    const isOwnedByLocalPlayer = localPlayerId && bag.placedBy.toHexString() === localPlayerId;
+
+    // Skip drawing entirely if it's the death screen and the bag isn't owned.
+    if (isDeathScreen && !isOwnedByLocalPlayer) {
+        return;
+    }
+    // Also skip drawing non-owned bags on the regular minimap (existing logic)
+    if (!isDeathScreen && !isOwnedByLocalPlayer) {
+        return; 
+    }
+
+    const screenCoords = worldToMinimap(bag.posX, bag.posY);
+    if (screenCoords) {
+      const isOwned = ownedSleepingBagIds.has(bag.id);
+      if (isDeathScreen && isOwned) {
+        // Draw owned bags on death screen - USE SAME LOGIC as regular bags but potentially different size
+        const iconRadius = OWNED_BAG_DOT_SIZE / 2; // Use owned size
+        const iconDiameter = OWNED_BAG_DOT_SIZE;
+        const cx = screenCoords.x;
+        const cy = screenCoords.y;
+
+        ctx.save(); // Save before clipping
+
+        // 2. Clip to circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+        ctx.clip();
+
+        // 3. Draw image centered in the circle
+        if (sleepingBagImage && sleepingBagImage.complete && sleepingBagImage.naturalHeight !== 0) {
+            ctx.drawImage(
+                sleepingBagImage,
+                cx - iconRadius, // Adjust x to center
+                cy - iconRadius, // Adjust y to center
+                iconDiameter,    // Draw at icon size
+                iconDiameter
+            );
+        } 
+        // No else needed here, background circle shows something if image fails
+        
+        ctx.restore(); // Restore context after drawing image (removes clip)
+
+        // 4. Draw border around the circle (Ensure it's the white one)
+        ctx.strokeStyle = REGULAR_BAG_BORDER_COLOR; 
+        ctx.lineWidth = REGULAR_BAG_BORDER_WIDTH;
+        ctx.beginPath();
+        ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+      } else if (!isDeathScreen && isOwnedByLocalPlayer) { // Refined condition for regular map
+        // Draw normal OWNED sleeping bags using the image if available
+        if (sleepingBagImage && sleepingBagImage.complete && sleepingBagImage.naturalHeight !== 0) {
+            const iconRadius = REGULAR_BAG_ICON_SIZE / 2;
+            const iconDiameter = REGULAR_BAG_ICON_SIZE;
+            const cx = screenCoords.x;
+            const cy = screenCoords.y;
+
+            ctx.save(); // Save before clipping
+            
+            // 1. Draw background circle (optional)
+            ctx.fillStyle = REGULAR_BAG_BG_COLOR;
+            ctx.beginPath();
+            ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Clip to circle
+            ctx.beginPath();
+            ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+            ctx.clip();
+
+            // 3. Draw image centered in the circle
+            ctx.drawImage(
+                sleepingBagImage,
+                cx - iconRadius, // Adjust x to center
+                cy - iconRadius, // Adjust y to center
+                iconDiameter,    // Draw at icon size
+                iconDiameter
+            );
+            
+            ctx.restore(); // Restore context after drawing image (removes clip)
+
+            // 4. Draw border around the circle
+            ctx.strokeStyle = REGULAR_BAG_BORDER_COLOR;
+            ctx.lineWidth = REGULAR_BAG_BORDER_WIDTH;
+            ctx.beginPath();
+            ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+        } else {
+            // Fallback to dot if image not loaded
+            ctx.fillStyle = SLEEPING_BAG_DOT_COLOR;
+            ctx.fillRect(
+              screenCoords.x - ENTITY_DOT_SIZE / 2,
+              screenCoords.y - ENTITY_DOT_SIZE / 2,
+              ENTITY_DOT_SIZE,
+              ENTITY_DOT_SIZE
+            );
+        }
+      }
+    }
+  });
+
   // --- Draw Local Player --- 
   // The local player should ideally always be drawn (usually near the center when zoomed)
   if (localPlayer) {
@@ -321,6 +444,61 @@ export function drawMinimapOntoCanvas({
 export const MINIMAP_DIMENSIONS = {
   width: MINIMAP_WIDTH,
   height: MINIMAP_HEIGHT,
+};
+
+// Add worldToMinimap export if needed by DeathScreen click handling
+// Export helper function to convert world coords to minimap screen coords
+export const worldToMinimapCoords = (
+  worldX: number, worldY: number,
+  minimapX: number, minimapY: number, minimapWidth: number, minimapHeight: number,
+  drawOffsetX: number, drawOffsetY: number, currentScale: number
+): { x: number; y: number } | null => {
+  const screenX = drawOffsetX + worldX * currentScale;
+  const screenY = drawOffsetY + worldY * currentScale;
+  // Basic check if within minimap bounds (can be more precise)
+  if (screenX >= minimapX && screenX <= minimapX + minimapWidth &&
+      screenY >= minimapY && screenY <= minimapY + minimapHeight) {
+    return { x: screenX, y: screenY };
+  } else {
+    return null; // Off the minimap at current zoom/pan
+  }
+};
+
+// Export calculation logic for draw offsets and scale if needed
+export const calculateMinimapViewport = (
+  minimapWidth: number, minimapHeight: number,
+  worldPixelWidth: number, worldPixelHeight: number,
+  zoomLevel: number,
+  localPlayer: SpacetimeDBPlayer | undefined, // Use undefined for clarity
+  viewCenterOffset: { x: number; y: number }
+) => {
+    const baseScaleX = minimapWidth / worldPixelWidth;
+    const baseScaleY = minimapHeight / worldPixelHeight;
+    const baseUniformScale = Math.min(baseScaleX, baseScaleY);
+    const currentScale = baseUniformScale * zoomLevel;
+
+    let viewCenterXWorld: number;
+    let viewCenterYWorld: number;
+
+    if (zoomLevel <= 1 || !localPlayer) {
+      viewCenterXWorld = worldPixelWidth / 2;
+      viewCenterYWorld = worldPixelHeight / 2;
+    } else {
+      viewCenterXWorld = localPlayer.positionX + viewCenterOffset.x;
+      viewCenterYWorld = localPlayer.positionY + viewCenterOffset.y;
+    }
+
+    const viewWidthWorld = minimapWidth / currentScale;
+    const viewHeightWorld = minimapHeight / currentScale;
+    const viewMinXWorld = viewCenterXWorld - viewWidthWorld / 2;
+    const viewMinYWorld = viewCenterYWorld - viewHeightWorld / 2;
+
+    // Calculate draw offsets based on minimap's top-left screen position (assumed 0,0 for calculation)
+    // Actual screen position (minimapX, minimapY) needs to be added separately when drawing.
+    const drawOffsetX = -viewMinXWorld * currentScale;
+    const drawOffsetY = -viewMinYWorld * currentScale;
+
+    return { currentScale, drawOffsetX, drawOffsetY, viewMinXWorld, viewMinYWorld };
 };
 
 export default drawMinimapOntoCanvas;
