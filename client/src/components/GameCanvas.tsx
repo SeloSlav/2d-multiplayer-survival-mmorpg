@@ -29,6 +29,7 @@ import { useInputHandler } from '../hooks/useInputHandler';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
+import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -242,6 +243,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Set cursor style based on placement
   const cursorStyle = placementInfo ? 'cell' : 'crosshair';
 
+  // Derived state for player dead status
+  const localPlayerIsDead = useMemo(() => localPlayer?.isDead ?? false, [localPlayer]);
+
   // --- Effects ---
   useEffect(() => {
     itemDefinitions.forEach(itemDef => {
@@ -449,6 +453,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     return mapById;
   }, [sleepingBags]);
+
+  // Calculate the viewport bounds needed by useSpacetimeTables
+  const worldViewport = useMemo(() => {
+    // Return null if canvas size is zero to avoid issues
+    if (canvasSize.width === 0 || canvasSize.height === 0) {
+      return null;
+    }
+    return {
+      minX: -cameraOffsetX,
+      minY: -cameraOffsetY,
+      maxX: -cameraOffsetX + canvasSize.width,
+      maxY: -cameraOffsetY + canvasSize.height,
+    };
+  }, [cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height]);
+
+  // Call useSpacetimeTables (replacing the previous faulty call)
+  // Ignore return values for now using placeholder {}
+  useSpacetimeTables({ 
+      connection, 
+      cancelPlacement: placementActions.cancelPlacement,
+      viewport: worldViewport, // Pass calculated viewport (can be null)
+      localPlayerIsDead,
+  });
 
   return (
     <>

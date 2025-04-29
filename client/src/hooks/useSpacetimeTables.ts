@@ -31,6 +31,7 @@ interface UseSpacetimeTablesProps {
     connection: DbConnection | null;
     cancelPlacement: () => void; // Function to cancel placement mode
     viewport: { minX: number; minY: number; maxX: number; maxY: number } | null; // New viewport prop
+    localPlayerIsDead: boolean; // <<< ADDED
 }
 
 // Helper type for subscription handles (adjust if SDK provides a specific type)
@@ -40,6 +41,7 @@ export const useSpacetimeTables = ({
     connection,
     cancelPlacement,
     viewport, // Get viewport from props
+    localPlayerIsDead, // <<< ADDED
 }: UseSpacetimeTablesProps): SpacetimeTableStates => {
     // --- State Management for Tables ---
     const [players, setPlayers] = useState<Map<string, SpacetimeDB.Player>>(new Map());
@@ -326,7 +328,7 @@ export const useSpacetimeTables = ({
         }
 
         // --- START RESTORED SPATIAL SUBSCRIPTION LOGIC ---
-        if (connection && viewport) {
+        if (connection && !localPlayerIsDead && viewport) {
             // console.log("[DEBUG] Spatial Sub Effect Triggered. Viewport:", JSON.stringify(viewport)); // Log viewport
             // Get new viewport chunk indices
             const newChunkIndicesSet = new Set(getChunkIndicesForViewport(viewport));
@@ -411,11 +413,11 @@ export const useSpacetimeTables = ({
                 }
             }
             
-        } else if (connection && !viewport) {
-            // If viewport becomes null while connected, clean up ALL spatial subs
-            // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL. Cleaning up spatial subs."); // Log cleanup trigger
+        } else if (connection && (localPlayerIsDead || !viewport)) {
+            // If viewport becomes null OR player is dead while connected, clean up ALL spatial subs
+            // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL or Player is Dead. Cleaning up spatial subs."); // Log cleanup trigger
             if (spatialSubHandlesMapRef.current.size > 0) {
-                console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions.");
+                console.log("[useSpacetimeTables] Viewport removed or Player died. Cleaning up all spatial subscriptions."); // Updated log
                 spatialSubHandlesMapRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
                 });
@@ -454,17 +456,22 @@ export const useSpacetimeTables = ({
                  setActiveConnections(new Map());
                  setSleepingBags(new Map());
              }
-             // No need to unsubscribe spatial here, handled above or at start of effect
+             // ADD: Reset spatial entity state if player just died (but connection remains)
+             if (!isConnectionLost && localPlayerIsDead) {
+                console.log("[useSpacetimeTables] Cleanup: Player died, resetting spatial entity state maps.");
+                setTrees(new Map());
+                setStones(new Map());
+                setCampfires(new Map());
+                setMushrooms(new Map());
+                setCorns(new Map());
+                setDroppedItems(new Map());
+                setWoodenStorageBoxes(new Map());
+                // We keep non-spatial things like players, inventory, worldstate etc.
+             }
         };
 
-    // Depend on individual viewport coordinates, providing defaults for null
-    }, [
-        connection, 
-        viewport?.minX ?? 0, 
-        viewport?.minY ?? 0, 
-        viewport?.maxX ?? 0, 
-        viewport?.maxY ?? 0
-    ]); 
+    // Revert dependency back to viewport object, add localPlayerIsDead
+    }, [connection, viewport, localPlayerIsDead]); 
 
     // --- Return Hook State ---
     return {
