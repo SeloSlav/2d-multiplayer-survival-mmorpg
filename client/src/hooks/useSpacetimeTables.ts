@@ -23,6 +23,7 @@ export interface SpacetimeTableStates {
     playerPins: Map<string, SpacetimeDB.PlayerPin>;
     activeConnections: Map<string, SpacetimeDB.ActiveConnection>;
     sleepingBags: Map<string, SpacetimeDB.SleepingBag>;
+    playerCorpses: Map<string, SpacetimeDB.PlayerCorpse>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
 }
 
@@ -42,25 +43,26 @@ export const useSpacetimeTables = ({
     viewport, // Get viewport from props
 }: UseSpacetimeTablesProps): SpacetimeTableStates => {
     // --- State Management for Tables ---
-    const [players, setPlayers] = useState<Map<string, SpacetimeDB.Player>>(new Map());
-    const [trees, setTrees] = useState<Map<string, SpacetimeDB.Tree>>(new Map());
-    const [stones, setStones] = useState<Map<string, SpacetimeDB.Stone>>(new Map());
-    const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(new Map());
-    const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(new Map());
-    const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(new Map());
-    const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(new Map());
-    const [inventoryItems, setInventoryItems] = useState<Map<string, SpacetimeDB.InventoryItem>>(new Map());
+    const [players, setPlayers] = useState<Map<string, SpacetimeDB.Player>>(() => new Map());
+    const [trees, setTrees] = useState<Map<string, SpacetimeDB.Tree>>(() => new Map());
+    const [stones, setStones] = useState<Map<string, SpacetimeDB.Stone>>(() => new Map());
+    const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
+    const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(() => new Map());
+    const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(() => new Map());
+    const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(() => new Map());
+    const [inventoryItems, setInventoryItems] = useState<Map<string, SpacetimeDB.InventoryItem>>(() => new Map());
     const [worldState, setWorldState] = useState<SpacetimeDB.WorldState | null>(null);
-    const [activeEquipments, setActiveEquipments] = useState<Map<string, SpacetimeDB.ActiveEquipment>>(new Map());
-    const [droppedItems, setDroppedItems] = useState<Map<string, SpacetimeDB.DroppedItem>>(new Map());
-    const [woodenStorageBoxes, setWoodenStorageBoxes] = useState<Map<string, SpacetimeDB.WoodenStorageBox>>(new Map());
-    const [recipes, setRecipes] = useState<Map<string, SpacetimeDB.Recipe>>(new Map());
-    const [craftingQueueItems, setCraftingQueueItems] = useState<Map<string, SpacetimeDB.CraftingQueueItem>>(new Map());
-    const [messages, setMessages] = useState<Map<string, SpacetimeDB.Message>>(new Map());
+    const [activeEquipments, setActiveEquipments] = useState<Map<string, SpacetimeDB.ActiveEquipment>>(() => new Map());
+    const [droppedItems, setDroppedItems] = useState<Map<string, SpacetimeDB.DroppedItem>>(() => new Map());
+    const [woodenStorageBoxes, setWoodenStorageBoxes] = useState<Map<string, SpacetimeDB.WoodenStorageBox>>(() => new Map());
+    const [recipes, setRecipes] = useState<Map<string, SpacetimeDB.Recipe>>(() => new Map());
+    const [craftingQueueItems, setCraftingQueueItems] = useState<Map<string, SpacetimeDB.CraftingQueueItem>>(() => new Map());
+    const [messages, setMessages] = useState<Map<string, SpacetimeDB.Message>>(() => new Map());
     const [localPlayerRegistered, setLocalPlayerRegistered] = useState<boolean>(false);
-    const [playerPins, setPlayerPins] = useState<Map<string, SpacetimeDB.PlayerPin>>(new Map());
-    const [activeConnections, setActiveConnections] = useState<Map<string, SpacetimeDB.ActiveConnection>>(new Map());
-    const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(new Map());
+    const [playerPins, setPlayerPins] = useState<Map<string, SpacetimeDB.PlayerPin>>(() => new Map());
+    const [activeConnections, setActiveConnections] = useState<Map<string, SpacetimeDB.ActiveConnection>>(() => new Map());
+    const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(() => new Map());
+    const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -253,6 +255,15 @@ export const useSpacetimeTables = ({
             const handleSleepingBagDelete = (ctx: any, bag: SpacetimeDB.SleepingBag) => {
                 setSleepingBags(prev => { const newMap = new Map(prev); newMap.delete(bag.id.toString()); return newMap; });
             };
+            const handlePlayerCorpseInsert = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
+                setPlayerCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
+            };
+            const handlePlayerCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.PlayerCorpse, newCorpse: SpacetimeDB.PlayerCorpse) => {
+                setPlayerCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
+            };
+            const handlePlayerCorpseDelete = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
+                setPlayerCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
+            };
              // --- End Callback Definitions ---
 
             // --- Register Callbacks ---
@@ -277,6 +288,9 @@ export const useSpacetimeTables = ({
             connection.db.sleepingBag.onInsert(handleSleepingBagInsert);
             connection.db.sleepingBag.onUpdate(handleSleepingBagUpdate);
             connection.db.sleepingBag.onDelete(handleSleepingBagDelete);
+            connection.db.playerCorpse.onInsert(handlePlayerCorpseInsert);
+            connection.db.playerCorpse.onUpdate(handlePlayerCorpseUpdate);
+            connection.db.playerCorpse.onDelete(handlePlayerCorpseDelete);
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -318,6 +332,9 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial SLEEPING_BAG subscription error:", err))
                     .subscribe('SELECT * FROM sleeping_bag'),
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial PLAYER_CORPSE subscription error:", err))
+                    .subscribe('SELECT * FROM player_corpse'),
             ];
             nonSpatialHandlesRef.current = currentInitialSubs;
         }
@@ -450,6 +467,7 @@ export const useSpacetimeTables = ({
                  setPlayerPins(new Map());
                  setActiveConnections(new Map());
                  setSleepingBags(new Map());
+                 setPlayerCorpses(new Map());
              }
         };
 
@@ -476,5 +494,6 @@ export const useSpacetimeTables = ({
         playerPins,
         activeConnections,
         sleepingBags,
+        playerCorpses,
     };
 }; 

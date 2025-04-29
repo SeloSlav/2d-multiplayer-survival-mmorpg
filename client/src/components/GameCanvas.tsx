@@ -14,7 +14,8 @@ import {
   PlayerPin as SpacetimeDBPlayerPin,
   ActiveConnection,
   Corn as SpacetimeDBCorn,
-  SleepingBag as SpacetimeDBSleepingBag
+  SleepingBag as SpacetimeDBSleepingBag,
+  PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
 
 // --- Core Hooks ---
@@ -43,6 +44,7 @@ import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
 import { renderCorn } from '../utils/renderers/cornRenderingUtils';
 import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
+import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -71,6 +73,7 @@ interface GameCanvasProps {
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
+  playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
   playerPins: Map<string, SpacetimeDBPlayerPin>;
   inventoryItems: Map<string, SpacetimeDBInventoryItem>;
   itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -109,6 +112,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   droppedItems,
   woodenStorageBoxes,
   sleepingBags,
+  playerCorpses,
   playerPins,
   inventoryItems,
   itemDefinitions,
@@ -183,6 +187,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visiblePlayerCorpses,
     ySortedEntities
   } = useEntityFiltering(
     players,
@@ -194,6 +199,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     droppedItems,
     woodenStorageBoxes,
     sleepingBags,
+    playerCorpses,
     cameraOffsetX,
     cameraOffsetY,
     canvasSize.width,
@@ -321,11 +327,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- Render Y-Sorted Entities --- (Keep this logic)
     renderYSortedEntities({
-        ctx, ySortedEntities, heroImageRef, lastPositionsRef,
+        ctx,
+        ySortedEntities,
+        heroImageRef,
+        lastPositionsRef,
         activeConnections,
         activeEquipments,
-        itemDefinitions, itemImagesRef, worldMouseX: currentWorldMouseX, worldMouseY: currentWorldMouseY,
-        animationFrame, nowMs: now_ms, hoveredPlayerIds, onPlayerHover: handlePlayerHover
+        itemDefinitions,
+        itemImagesRef,
+        worldMouseX: currentWorldMouseX,
+        worldMouseY: currentWorldMouseY,
+        animationFrame,
+        nowMs: now_ms,
+        hoveredPlayerIds,
+        onPlayerHover: handlePlayerHover,
+        renderPlayerCorpse: (props) => renderPlayerCorpse(props)
     });
     // --- End Y-Sorted Entities ---
 
@@ -434,7 +450,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
       isMinimapOpen, isMouseOverMinimap, minimapZoom,
-      activeConnections
+      activeConnections,
+      visiblePlayerCorpses
   ]);
 
   const gameLoopCallback = useCallback(() => {

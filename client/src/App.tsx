@@ -94,9 +94,10 @@ function AppContent() {
       playerPins, // Destructure playerPins
       activeConnections, // <<< Destructure here
       sleepingBags, // ADD destructuring
+      playerCorpses // <<< ADD playerCorpses destructuring
     } = useSpacetimeTables({ 
         connection, 
-        cancelPlacement, 
+        cancelPlacement, // <<< REVERTED: Pass the action directly
         viewport: currentViewport, // Make sure viewport is passed correctly
     });
 
@@ -289,6 +290,7 @@ function AppContent() {
                       droppedItems={droppedItems}
                       woodenStorageBoxes={woodenStorageBoxes}
                       sleepingBags={sleepingBags}
+                      playerCorpses={playerCorpses}
                       inventoryItems={inventoryItems}
                       itemDefinitions={itemDefinitions}
                       worldState={worldState}

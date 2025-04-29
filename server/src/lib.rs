@@ -39,6 +39,7 @@ pub mod combat; // Add the new combat module
 mod collectible_resources; // Add the new collectible resources system
 mod corn; // Add the new corn resource module
 mod sleeping_bag; // ADD Sleeping Bag module
+mod player_corpse; // <<< ADDED: Declare Player Corpse module
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -1161,25 +1162,25 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
         return Err("You are not dead.".to_string());
     }
 
-    log::info!("Respawning player {} ({:?}) randomly. Clearing inventory and crafting queue...", player.username, sender_id);
+    log::info!("Respawning player {} ({:?}) randomly. Items should be in corpse.", player.username, sender_id);
 
-    // --- Clear Player Inventory ---
-    let mut items_to_delete = Vec::new();
-    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
-        items_to_delete.push(item.instance_id);
-    }
-    let delete_count = items_to_delete.len();
-    for item_instance_id in items_to_delete {
-        inventory.instance_id().delete(item_instance_id);
-    }
-    log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
+    // --- Clear Player Inventory --- // REMOVED: Items are now in the corpse
+    // let mut items_to_delete = Vec::new();
+    // for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
+    //     items_to_delete.push(item.instance_id);
+    // }
+    // let delete_count = items_to_delete.len();
+    // for item_instance_id in items_to_delete {
+    //     inventory.instance_id().delete(item_instance_id);
+    // }
+    // log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
     // --- End Clear Inventory ---
 
-    // --- Clear Crafting Queue & Refund ---
+    // --- Clear Crafting Queue & Refund --- // Keep this
     crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
     // --- END Clear Crafting Queue ---
 
-    // --- Grant Starting Rock ---
+    // --- Grant Starting Rock --- // Keep this
     log::info!("Granting starting Rock to respawned player: {}", player.username);
     if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
         match inventory.try_insert(crate::items::InventoryItem { // Qualify struct path

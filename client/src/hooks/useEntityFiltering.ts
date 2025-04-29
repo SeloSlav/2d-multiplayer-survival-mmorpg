@@ -9,7 +9,8 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   SleepingBag as SpacetimeDBSleepingBag,
-  Corn as SpacetimeDBCorn
+  Corn as SpacetimeDBCorn,
+  PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
 import {
   isPlayer, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isWoodenStorageBox,
@@ -39,9 +40,21 @@ interface EntityFilteringResult {
   visibleDroppedItemsMap: Map<string, SpacetimeDBDroppedItem>;
   visibleBoxesMap: Map<string, SpacetimeDBWoodenStorageBox>;
   visibleCornsMap: Map<string, SpacetimeDBCorn>;
+  visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
   groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn)[];
-  ySortedEntities: (SpacetimeDBPlayer | SpacetimeDBTree | SpacetimeDBStone | SpacetimeDBWoodenStorageBox)[];
+  ySortedEntities: YSortedEntityType[];
 }
+
+// Configuration (Consider moving to a config file if shared)
+const ENTITY_RENDER_PADDING = 100; // Extra space around the viewport to render entities
+
+// Define a unified entity type for sorting
+export type YSortedEntityType =
+  | { type: 'player'; entity: SpacetimeDBPlayer }
+  | { type: 'tree'; entity: SpacetimeDBTree }
+  | { type: 'stone'; entity: SpacetimeDBStone }
+  | { type: 'wooden_storage_box'; entity: SpacetimeDBWoodenStorageBox }
+  | { type: 'player_corpse'; entity: SpacetimeDBPlayerCorpse }
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -53,6 +66,7 @@ export function useEntityFiltering(
   droppedItems: Map<string, SpacetimeDBDroppedItem>,
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>,
   sleepingBags: Map<string, SpacetimeDBSleepingBag>,
+  playerCorpses: Map<string, SpacetimeDBPlayerCorpse>,
   cameraOffsetX: number,
   cameraOffsetY: number,
   canvasWidth: number,
@@ -140,53 +154,77 @@ export function useEntityFiltering(
 
   // Filter entities by visibility
   const visibleMushrooms = useMemo(() => 
-    Array.from(mushrooms.values()).filter(e => 
+    // Check source map
+    mushrooms ? Array.from(mushrooms.values()).filter(e => 
       (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
-    ),
+    ) : [],
     [mushrooms, isEntityInView, viewBounds]
   );
 
   const visibleCorns = useMemo(() => 
-    Array.from(corns.values()).filter(e => 
+    // Check source map
+    corns ? Array.from(corns.values()).filter(e => 
       (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
-    ),
+    ) : [],
     [corns, isEntityInView, viewBounds]
   );
 
   const visibleDroppedItems = useMemo(() => 
-    Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds)),
+    // Check source map
+    droppedItems ? Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds))
+    : [],
     [droppedItems, isEntityInView, viewBounds]
   );
 
   const visibleCampfires = useMemo(() => 
-    Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds)),
+    // Check source map
+    campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds))
+    : [],
     [campfires, isEntityInView, viewBounds]
   );
 
   const visiblePlayers = useMemo(() => 
-    Array.from(players.values()).filter(e => isEntityInView(e, viewBounds)),
+    // Check source map
+    players ? Array.from(players.values()).filter(e => isEntityInView(e, viewBounds))
+    : [],
     [players, isEntityInView, viewBounds]
   );
 
   const visibleTrees = useMemo(() => 
-    Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds)),
+    // Check source map
+    trees ? Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds))
+    : [],
     [trees, isEntityInView, viewBounds]
   );
 
   const visibleStones = useMemo(() => 
-    Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds)),
+    // Check source map
+    stones ? Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds))
+    : [],
     [stones, isEntityInView, viewBounds]
   );
 
   const visibleWoodenStorageBoxes = useMemo(() => 
-    Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds)),
+    // Check source map
+    woodenStorageBoxes ? Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds))
+    : [],
     [woodenStorageBoxes, isEntityInView, viewBounds]
   );
   
   const visibleSleepingBags = useMemo(() => 
-    Array.from(sleepingBags.values())
+    // Check source map
+    sleepingBags ? Array.from(sleepingBags.values())
       .filter(e => isEntityInView(e, viewBounds))
+      : []
     ,[sleepingBags, isEntityInView, viewBounds]
+  );
+
+  const visiblePlayerCorpses = useMemo(() => 
+    // Add check: If playerCorpses is undefined or null, return empty array
+    playerCorpses ? Array.from(playerCorpses.values())
+      .filter(e => isEntityInView(e, viewBounds))
+      : []
+    ,[playerCorpses, isEntityInView, viewBounds]
   );
 
   // Create maps from filtered arrays for easier lookup
@@ -219,24 +257,34 @@ export function useEntityFiltering(
   const groundItems = useMemo(() => [
     ...visibleDroppedItems,
     ...visibleCampfires,
-    ...visibleSleepingBags
-  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags]);
+    ...visibleSleepingBags,
+    ...visibleCorns
+  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns]);
 
-  // Y-sorted entities with sorting
+  // Y-sorted entities with sorting and correct type structure
   const ySortedEntities = useMemo(() => {
-    const entities = [
-      ...visiblePlayers,
-      ...visibleTrees,
-      ...visibleStones.filter(stone => stone.health > 0),
-      ...visibleWoodenStorageBoxes
+    const mappedEntities: YSortedEntityType[] = [
+      // Map each entity type to the { type, entity } structure
+      ...visiblePlayers.map(p => ({ type: 'player' as const, entity: p })),
+      ...visibleTrees.map(t => ({ type: 'tree' as const, entity: t })),
+      ...visibleStones.filter(stone => stone.health > 0).map(s => ({ type: 'stone' as const, entity: s })),
+      ...visibleWoodenStorageBoxes.map(b => ({ type: 'wooden_storage_box' as const, entity: b })),
+      ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c }))
     ];
-    entities.sort((a, b) => {
-      const yA = isPlayer(a) ? a.positionY : a.posY;
-      const yB = isPlayer(b) ? b.positionY : b.posY;
+
+    // Filter out any potential null/undefined entries AFTER mapping (just in case)
+    const validEntities = mappedEntities.filter(e => e && e.entity);
+
+    // Sort the mapped entities
+    validEntities.sort((a, b) => {
+      // Access Y position from the entity within the mapped object
+      const yA = isPlayer(a.entity) ? a.entity.positionY : a.entity.posY;
+      const yB = isPlayer(b.entity) ? b.entity.positionY : b.entity.posY;
       return yA - yB;
     });
-    return entities;
-  }, [visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes]);
+
+    return validEntities;
+  }, [visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, visiblePlayerCorpses]);
 
   return {
     visibleMushrooms,
@@ -248,6 +296,7 @@ export function useEntityFiltering(
     visibleStones,
     visibleWoodenStorageBoxes,
     visibleSleepingBags,
+    visiblePlayerCorpses,
     visibleMushroomsMap,
     visibleCampfiresMap,
     visibleDroppedItemsMap,

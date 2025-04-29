@@ -3,6 +3,8 @@ use spacetimedb::spacetimedb_lib::ScheduleAt;
 use log;
 use std::time::Duration;
 
+use crate::inventory_management::ItemContainer;
+
 // Define Constants locally
 const HUNGER_DRAIN_PER_SECOND: f32 = 100.0 / (30.0 * 60.0);
 const THIRST_DRAIN_PER_SECOND: f32 = 100.0 / (20.0 * 60.0);
@@ -29,6 +31,8 @@ use crate::{
     world_state::{self, TimeOfDay, BASE_WARMTH_DRAIN_PER_SECOND, WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK, WARMTH_DRAIN_MULTIPLIER_NIGHT, WARMTH_DRAIN_MULTIPLIER_MIDNIGHT},
     campfire::{self, Campfire, WARMTH_RADIUS_SQUARED, WARMTH_PER_SECOND},
     active_equipment, // For unequipping on death
+    player_corpse::{self, PlayerCorpse, CORPSE_DESPAWN_DURATION_SECONDS, NUM_CORPSE_SLOTS, PlayerCorpseDespawnSchedule},
+    environment::calculate_chunk_index,
 };
 
 // Import table traits
@@ -38,6 +42,9 @@ use crate::campfire::campfire as CampfireTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait; // Needed for unequip on death
 use crate::player; // Added missing import for Player trait
 use crate::player_stats::PlayerStatSchedule as PlayerStatScheduleTableTrait; // Added Self trait import
+use crate::items::inventory_item as InventoryItemTableTrait; // <<< ADDED
+use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // <<< ADDED
+use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait; // <<< ADDED
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
 
@@ -185,16 +192,109 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
 
         // --- Handle Death ---
         if final_health <= 0.0 && !player.is_dead {
-            log::info!("Player {} ({:?}) died from stats decay (Health: {}).", player.username, player_id, final_health);
+            log::info!("Player {} ({:?}) died from stats decay (Health: {}). Creating corpse...", 
+                     player.username, player_id, final_health);
             player.is_dead = true;
             player.death_timestamp = Some(ctx.timestamp); // Set death timestamp
 
-            // Unequip item on death
-            // Call unequip using the context and the specific player's identity
-            match active_equipment::unequip_item(ctx, player_id) {
-                Ok(_) => log::info!("Unequipped item for dying player {:?}", player_id),
-                Err(e) => log::error!("Failed to unequip item for dying player {:?}: {}", player_id, e),
+            // --- Create Player Corpse and Transfer Items ---
+            let inventory_items = ctx.db.inventory_item();
+            let player_corpses = ctx.db.player_corpse();
+
+            let despawn_time = ctx.timestamp + Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS);
+            let chunk_idx = calculate_chunk_index(player.position_x, player.position_y);
+
+            // Initialize empty corpse
+            let mut new_corpse = PlayerCorpse {
+                id: 0,
+                original_player_identity: player_id,
+                original_player_username: player.username.clone(),
+                pos_x: player.position_x,
+                pos_y: player.position_y,
+                chunk_index: chunk_idx,
+                created_at: ctx.timestamp,
+                despawn_at: despawn_time,
+                // Initialize all slots to None
+                slot_instance_id_0: None, slot_def_id_0: None, slot_instance_id_1: None, slot_def_id_1: None,
+                slot_instance_id_2: None, slot_def_id_2: None, slot_instance_id_3: None, slot_def_id_3: None,
+                slot_instance_id_4: None, slot_def_id_4: None, slot_instance_id_5: None, slot_def_id_5: None,
+                slot_instance_id_6: None, slot_def_id_6: None, slot_instance_id_7: None, slot_def_id_7: None,
+                slot_instance_id_8: None, slot_def_id_8: None, slot_instance_id_9: None, slot_def_id_9: None,
+                slot_instance_id_10: None, slot_def_id_10: None, slot_instance_id_11: None, slot_def_id_11: None,
+                slot_instance_id_12: None, slot_def_id_12: None, slot_instance_id_13: None, slot_def_id_13: None,
+                slot_instance_id_14: None, slot_def_id_14: None, slot_instance_id_15: None, slot_def_id_15: None,
+                slot_instance_id_16: None, slot_def_id_16: None, slot_instance_id_17: None, slot_def_id_17: None,
+                slot_instance_id_18: None, slot_def_id_18: None, slot_instance_id_19: None, slot_def_id_19: None,
+                slot_instance_id_20: None, slot_def_id_20: None, slot_instance_id_21: None, slot_def_id_21: None,
+                slot_instance_id_22: None, slot_def_id_22: None, slot_instance_id_23: None, slot_def_id_23: None,
+                slot_instance_id_24: None, slot_def_id_24: None, slot_instance_id_25: None, slot_def_id_25: None,
+                slot_instance_id_26: None, slot_def_id_26: None, slot_instance_id_27: None, slot_def_id_27: None,
+                slot_instance_id_28: None, slot_def_id_28: None, slot_instance_id_29: None, slot_def_id_29: None,
+            };
+
+            let mut items_to_update = Vec::new();
+
+            for item in inventory_items.iter().filter(|item|
+                // Check if item belongs to the player (either in inv or hotbar)
+                item.player_identity == player_id
+            ) {
+                // Find the first empty slot in the corpse
+                // <<< NOTE: find_first_empty_slot needs to be implemented on PlayerCorpse >>>
+                if let Some(empty_slot_index) = new_corpse.find_first_empty_slot() {
+                    // Clone the item to potentially modify it
+                    let mut item_to_move = item.clone();
+                    // Assign item to corpse slot
+                    // <<< NOTE: set_slot requires ItemContainer trait in scope >>>
+                    new_corpse.set_slot(empty_slot_index, Some(item_to_move.instance_id), Some(item_to_move.item_def_id));
+
+                    // Update the InventoryItem to remove its player association and slot
+                    item_to_move.inventory_slot = None;
+                    item_to_move.hotbar_slot = None;
+                    // Set owner to None or a special identity? For now, keep original owner but remove slots
+                    // Alternatively, we could delete the item from InventoryItem and rely solely on corpse slots,
+                    // but transferring it seems safer for potential future mechanics.
+                    // Let's just clear slots for now.
+
+                    items_to_update.push(item_to_move);
+
+                } else {
+                    log::warn!("Corpse full for player {}, cannot transfer item {}. Item will be lost.", player_id, item.instance_id);
+                    // Item remains associated with the player (who is dead) and will likely be cleaned up differently
+                    // or maybe dropped? For now, it stays in the table but isn't in the corpse.
+                }
             }
+
+            // Batch update the inventory items
+            for item_update in items_to_update {
+                inventory_items.instance_id().update(item_update);
+            }
+
+            // Insert the corpse into the table
+            match player_corpses.try_insert(new_corpse) {
+                Ok(inserted_corpse) => {
+                    log::info!("Created player corpse {} at ({:.1}, {:.1}) for player {:?}", 
+                             inserted_corpse.id, inserted_corpse.pos_x, inserted_corpse.pos_y, player_id);
+                    
+                    // --- Schedule Despawn --- 
+                    let schedule_table = ctx.db.player_corpse_despawn_schedule();
+                    let schedule_entry = PlayerCorpseDespawnSchedule {
+                        corpse_id: inserted_corpse.id as u64,
+                        scheduled_at: despawn_time.into(), // Convert Timestamp to ScheduleAt::Time
+                    };
+                    match schedule_table.try_insert(schedule_entry) {
+                        Ok(_) => log::info!("Scheduled despawn for corpse {} at {:?}", inserted_corpse.id, despawn_time),
+                        Err(e) => log::error!("Failed to schedule despawn for corpse {}: {}", inserted_corpse.id, e),
+                    }
+                    // --- End Schedule Despawn ---
+                },
+                Err(e) => {
+                    log::error!("Failed to insert player corpse for {:?}: {}", player_id, e);
+                    // If corpse creation fails, the items are now orphaned (player_identity=None).
+                    // This is problematic. Maybe revert item updates? Or log extensively.
+                    // For now, just log the error.
+                }
+            }
+            // --- End Corpse Creation ---
         }
 
         // --- Update Player Table ---

@@ -8,6 +8,7 @@ import {
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   Corn as SpacetimeDBCorn,
   SleepingBag as SpacetimeDBSleepingBag,
+  PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated'; // Import necessary types
 
 // Type guard for Player
@@ -95,4 +96,23 @@ export function isSleepingBag(entity: any): entity is SpacetimeDBSleepingBag {
          typeof entity.placedBy !== 'undefined' && // Has placedBy
          typeof entity.isBurning === 'undefined' && // Not a campfire
          typeof entity.slot_instance_id_0 === 'undefined'; // Not a storage box (check first slot)
+}
+
+// Type guard for PlayerCorpse
+export function isPlayerCorpse(entity: any): entity is SpacetimeDBPlayerCorpse {
+    // Check for properties specific to PlayerCorpse that differentiate it
+    // from other types with posX and posY.
+    return entity && 
+           typeof entity.posX === 'number' &&
+           typeof entity.posY === 'number' &&
+           typeof entity.originalPlayerIdentity !== 'undefined' && // Key differentiator
+           typeof entity.originalPlayerUsername === 'string' && // Another key differentiator
+           // Ensure it doesn't match other types
+           typeof entity.identity === 'undefined' && // Not a player
+           typeof entity.treeType === 'undefined' && // Not a tree
+           typeof entity.health === 'undefined' && // Not a stone (stones have health)
+           typeof entity.placedBy === 'undefined' && // Not placeable like campfire/box/bag
+           typeof entity.itemDefId === 'undefined' && // Not a dropped item
+           typeof entity.isBurning === 'undefined' && // Not a campfire
+           typeof entity.respawnAt === 'undefined'; // Not a mushroom/corn
 } 
