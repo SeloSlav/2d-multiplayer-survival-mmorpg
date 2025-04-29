@@ -210,7 +210,11 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             <button
                                 onClick={handleToggleBurn}
                                 disabled={isToggleButtonDisabled}
-                                className={styles.interactionButton}
+                                className={`${styles.interactionButton} ${
+                                    currentCampfire.isBurning
+                                        ? styles.extinguishButton
+                                        : styles.lightFireButton
+                                }`}
                                 title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Wood > 0" : ""}
                             >
                                 {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
