@@ -22,6 +22,7 @@ export interface SpacetimeTableStates {
     messages: Map<string, SpacetimeDB.Message>;
     playerPins: Map<string, SpacetimeDB.PlayerPin>;
     activeConnections: Map<string, SpacetimeDB.ActiveConnection>;
+    sleepingBags: Map<string, SpacetimeDB.SleepingBag>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
 }
 
@@ -59,6 +60,7 @@ export const useSpacetimeTables = ({
     const [localPlayerRegistered, setLocalPlayerRegistered] = useState<boolean>(false);
     const [playerPins, setPlayerPins] = useState<Map<string, SpacetimeDB.PlayerPin>>(new Map());
     const [activeConnections, setActiveConnections] = useState<Map<string, SpacetimeDB.ActiveConnection>>(new Map());
+    const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -242,6 +244,18 @@ export const useSpacetimeTables = ({
                     return newMap;
                 });
             };
+            const handleSleepingBagInsert = (ctx: any, bag: SpacetimeDB.SleepingBag) => {
+                setSleepingBags(prev => new Map(prev).set(bag.id.toString(), bag));
+                if (connection.identity && bag.placedBy.isEqual(connection.identity)) {
+                   cancelPlacementRef.current();
+                }
+            };
+            const handleSleepingBagUpdate = (ctx: any, oldBag: SpacetimeDB.SleepingBag, newBag: SpacetimeDB.SleepingBag) => {
+                setSleepingBags(prev => new Map(prev).set(newBag.id.toString(), newBag));
+            };
+            const handleSleepingBagDelete = (ctx: any, bag: SpacetimeDB.SleepingBag) => {
+                setSleepingBags(prev => { const newMap = new Map(prev); newMap.delete(bag.id.toString()); return newMap; });
+            };
              // --- End Callback Definitions ---
 
             // --- Register Callbacks ---
@@ -263,6 +277,9 @@ export const useSpacetimeTables = ({
             connection.db.playerPin.onInsert(handlePlayerPinInsert); connection.db.playerPin.onUpdate(handlePlayerPinUpdate); connection.db.playerPin.onDelete(handlePlayerPinDelete);
             connection.db.activeConnection.onInsert(handleActiveConnectionInsert);
             connection.db.activeConnection.onDelete(handleActiveConnectionDelete);
+            connection.db.sleepingBag.onInsert(handleSleepingBagInsert);
+            connection.db.sleepingBag.onUpdate(handleSleepingBagUpdate);
+            connection.db.sleepingBag.onDelete(handleSleepingBagDelete);
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -368,6 +385,9 @@ export const useSpacetimeTables = ({
                             // DroppedItem
                             const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
+                            // SleepingBag
+                            const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
 
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
@@ -424,6 +444,7 @@ export const useSpacetimeTables = ({
                  setMessages(new Map());
                  setPlayerPins(new Map());
                  setActiveConnections(new Map());
+                 setSleepingBags(new Map());
              }
              // No need to unsubscribe spatial here, handled above or at start of effect
         };
@@ -450,5 +471,6 @@ export const useSpacetimeTables = ({
         localPlayerRegistered,
         playerPins,
         activeConnections,
+        sleepingBags,
     };
 }; 

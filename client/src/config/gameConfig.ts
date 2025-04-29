@@ -79,6 +79,9 @@ export const CAMPFIRE_HEIGHT_PREVIEW = 64;
 export { CAMPFIRE_HEIGHT } from '../utils/campfireRenderingUtils'; // Example: Keep export for now
 export { BOX_HEIGHT } from '../utils/woodenStorageBoxRenderingUtils'; // Example: Keep export for now
 
+// --- Sleeping Bag Dimensions ---
+export const SLEEPING_BAG_WIDTH = 64; // Define desired width
+export const SLEEPING_BAG_HEIGHT = 64; // Define desired height
 
 // --- Interaction Constants ---
 export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Matches server constant (64px)

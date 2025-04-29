@@ -171,6 +171,19 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_equippable: false,
             equipment_slot: None,
         },
+        // --- NEW Item: Sleeping Bag ---
+        ItemDefinition {
+            id: 0, // Auto-incremented
+            name: "Sleeping Bag".to_string(),
+            description: "A rolled-up bag for sleeping outdoors.".to_string(),
+            category: ItemCategory::Placeable,
+            icon_asset_name: "sleeping_bag.png".to_string(),
+            damage: None,
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: false,
+            equipment_slot: None,
+        },
         ItemDefinition {
             id: 0,
             name: "Corn".to_string(),

@@ -25,7 +25,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
        
         ("Wooden Storage Box", 1, Some(3u8), None), 
         ("Camp Fire", 1, Some(4u8), None),
-        // ("Camp Fire", 1, Some(5u8), None),
+        ("Sleeping Bag", 1, Some(5u8), None),
         
         // Starting materials in Inventory (Slots 0-23 typically)
         // ("Wood", 600, None, Some(12u16)), 

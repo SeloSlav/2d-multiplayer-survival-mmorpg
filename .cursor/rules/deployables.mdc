@@ -3,116 +3,138 @@ description: Guide for adding new deployable items (e.g., structures, placeables
 globs: 
 alwaysApply: false
 ---
-
 # Guide: Adding New Deployable Items
 
-This guide outlines the steps required to add new items that players can place in the game world, such as structures, crafting stations, or containers. Refer to the implementation of `Campfire` (@/server/src/campfire.rs, @/client/src/utils/campfireRenderingUtils.ts) and `WoodenStorageBox` (@/server/src/wooden_storage_box.rs, @/client/src/utils/woodenStorageBoxRenderingUtils.ts) as examples.
+This guide outlines the general steps to add a new deployable item (like campfires, storage boxes, or sleeping bags) to the game. Replace bracketed placeholders (e.g., `[Item Name]`, `[item_name]`) with your specific item's details.
 
-Also consult the main architecture guide @/guide.mdc for core patterns.
+## 1. Server: Define the Item
 
-## Overview
+*   **File:** [`server/src/items_database.rs`](mdc:server/src/items_database.rs)
+*   **Action:** Add a new `ItemDefinition` struct entry for your `[Item Name]`.
+    *   Set `category: ItemCategory::Placeable`.
+    *   Set `icon_asset_name: "[item_name].png"`.
+    *   Configure `is_stackable` (usually `false` for placeables), `stack_size` (usually `1`), `is_equippable: false`.
+    *   *(Optional)* Define a crafting recipe later if needed.
 
-Adding a deployable involves server-side logic (defining the item, the placed entity, and the placement action) and client-side integration (handling placement mode, rendering the entity).
+## 2. Server: Create the Entity Logic
 
-## Server-Side Implementation (`server/src/`)
+*   **New File:** `server/src/[item_name].rs`
+*   **Action:**
+    *   Define the `[ItemName]` struct (e.g., `SleepingBag`) with `#[spacetimedb::table(name = [item_name], public)]`.
+    *   **Required Fields:** `id: u32` (PK, auto_inc), `pos_x: f32`, `pos_y: f32`, `chunk_index: u32`, `placed_by: Identity`, `placed_at: Timestamp`. Add other fields as needed for the item's function.
+    *   Add collision/interaction constants (copy/adapt from [`server/src/wooden_storage_box.rs`](mdc:server/src/wooden_storage_box.rs) or [`server/src/campfire.rs`](mdc:server/src/campfire.rs)).
+    *   Implement `place_[item_name]` reducer:
+        *   Find your item's definition ID.
+        *   Validate the item instance (ownership, type).
+        *   Validate placement distance/collision.
+        *   Consume the item from player inventory/hotbar (using helpers from [`server/src/items.rs`](mdc:server/src/items.rs) or [`server/src/inventory_management.rs`](mdc:server/src/inventory_management.rs)).
+        *   Calculate `chunk_index` using `calculate_chunk_index` from [`server/src/environment.rs`](mdc:server/src/environment.rs).
+        *   Insert the new `[ItemName]` entity.
+    *   Implement `interact_with_[item_name]` reducer (at least basic distance check if interaction is needed).
+    *   Implement `pickup_[item_name]` reducer (if applicable):
+        *   Validate interaction.
+        *   Check if pickup conditions met (e.g., empty).
+        *   Add item back to player inventory using `add_item_to_player_inventory` from [`server/src/items.rs`](mdc:server/src/items.rs).
+        *   Delete the entity if item added successfully.
+    *   Implement `validate_[item_name]_interaction` helper (if needed).
+*   **File:** [`server/src/lib.rs`](mdc:server/src/lib.rs)
+*   **Action:**
+    *   Add `mod [item_name];`
+    *   Add `pub use crate::[item_name]::[ItemName];` near the end of the file.
+    *   Add `use crate::[item_name]::[item_name] as [ItemName]TableTrait;` to the table trait imports near the top.
 
-1.  **Define Placed Entity Table:**
-    *   Create a new Rust file (e.g., `new_deployable.rs`).
-    *   Define a struct representing the placed entity (e.g., `NewDeployable`).
-    *   Annotate the struct with `#[spacetimedb::table(name = new_deployable, public)]`.
-        *   Use snake_case for the `name`.
-        *   Include `public` if clients need to see it directly.
-    *   Add `#[derive(Clone)]`.
-    *   Define fields: `#[primary_key] #[auto_inc] pub id: u32`, `pub pos_x: f32`, `pub pos_y: f32`, `pub placed_by: Identity`, and any other state.
-    *   **Collision (Optional):** If the item should have collision:
-        *   Define `pub(crate)` constants within the module (e.g., `DEPLOYABLE_COLLISION_RADIUS`, `DEPLOYABLE_COLLISION_Y_OFFSET`, `PLAYER_DEPLOYABLE_COLLISION_DISTANCE_SQUARED`). See `wooden_storage_box.rs` for examples.
+## 3. Server: Update Starting Items (Optional)
 
-2.  **Implement Placement Reducer:**
-    *   In the same file (`new_deployable.rs`), create a reducer function (e.g., `place_new_deployable`).
-    *   Annotate with `#[spacetimedb::reducer]`, taking `ctx: &ReducerContext`, `world_x: f32`, `world_y: f32`.
-    *   **Logic:**
-        *   Get the sender `Identity` (`ctx.sender`).
-        *   Get necessary table handles (`ctx.db.item_definition()`, `ctx.db.inventory_item()`, `ctx.db.new_deployable()`, etc.).
-        *   Find the `ItemDefinition` for the deployable item by name.
-        *   Find an instance of the item in the player's inventory/hotbar.
-        *   Validate placement distance (check against `player` position).
-        *   **Collision (Optional):** Validate placement position against other entities (players, trees, stones, campfires, *other deployables*). See `lib.rs::register_player` and `lib.rs::place_campfire` for collision check examples.
-        *   Consume the `InventoryItem` (delete it).
-        *   Insert the new entity into the `new_deployable` table.
+*   **File:** [`server/src/starting_items.rs`](mdc:server/src/starting_items.rs)
+*   **Action:** If players should start with this item, add an entry for `"[Item Name]"` to the `starting_inv_items` array.
 
-3.  **Define Deployable Item:**
-    *   In `@/server/src/items.rs`, within the `seed_items` function's `initial_items` vector:
-        *   Add an `ItemDefinition` entry for the deployable item.
-        *   Set `category: ItemCategory::Placeable`.
-        *   Define `icon_asset_name` (e.g., `"new_deployable.png"`) - this MUST match the client asset.
-        *   Set `is_stackable: false`, `stack_size: 1`.
-        *   Set `is_equippable: false`.
+## 4. Client: Map the Icon
 
-4.  **Grant Starting Item (Optional):**
-    *   In `@/server/src/starting_items.rs`, within the `grant_starting_items` function:
-        *   If players should start with this item, add an entry to the `starting_inv_items` array:
-            *   `("New Deployable Name", 1, Some(slot_index_u8), None)` for hotbar (slot 0-5).
-            *   `("New Deployable Name", 1, None, Some(slot_index_u16))` for inventory.
+*   **File:** [`client/src/utils/itemIconUtils.ts`](mdc:client/src/utils/itemIconUtils.ts)
+*   **Action:**
+    *   Import the icon: `import [itemName]Icon from '../assets/items/[item_name].png';`
+    *   Add the mapping to `itemIcons`: `'[item_name].png': [itemName]Icon`.
 
-5.  **Add Module to `lib.rs`:**
-    *   Declare the new module: `mod new_deployable;`
-    *   Import the table trait if needed elsewhere: `use crate::new_deployable::new_deployable as NewDeployableTableTrait;`
-    *   **Collision (If Added):**
-        *   Add the table handle `let new_deployables = ctx.db.new_deployable();` in `register_player` and `update_player_position`.
-        *   Add collision check loops in `register_player` spawn logic and `update_player_position` movement logic (both sliding check and iterative resolution). Reference the loops for trees/stones/boxes.
+## 5. Client: Create Rendering & Type Logic
 
-## Client-Side Implementation (`client/src/`)
+*   **File:** [`client/src/config/gameConfig.ts`](mdc:client/src/config/gameConfig.ts)
+*   **Action:** Define constants for the item's dimensions (e.g., `[ITEM_NAME]_WIDTH`, `[ITEM_NAME]_HEIGHT`).
+*   **File:** [`client/src/utils/typeGuards.ts`](mdc:client/src/utils/typeGuards.ts)
+*   **Action:**
+    *   Import `[ItemName] as SpacetimeDB[ItemName]` from `../generated`.
+    *   Add `is[ItemName](mdc:entity: any): entity is SpacetimeDB[ItemName]` type guard.
+*   **New File:** `client/src/utils/[itemName]RenderingUtils.ts`
+*   **Action:**
+    *   Implement `render[ItemName](mdc:...)` to draw the item (using dimensions from `gameConfig`).
+    *   Implement `preload[ItemName]Image(...)` if needed.
 
-1.  **Create Icon Asset:**
-    *   Place the deployable item's icon (e.g., `new_deployable.png`) in `@/client/src/assets/items/`.
-    *   Place the deployable entity's world sprite (e.g., `new_deployable_sprite.png`) in `@/client/src/assets/doodads/`.
+## 6. Client: Integrate Rendering & Placement
 
-2.  **Map Item Icon:**
-    *   In `@/client/src/utils/itemIconUtils.ts`:
-        *   Import the icon asset: `import newDeployableIcon from '../assets/items/new_deployable.png';`
-        *   Add an entry to `iconMap`: `'new_deployable.png': newDeployableIcon,`
+*   **File:** [`client/src/utils/renderingUtils.ts`](mdc:client/src/utils/renderingUtils.ts)
+*   **Action:**
+    *   Import `render[ItemName]` and `is[ItemName]`.
+    *   Add `SpacetimeDB[ItemName]` to the `Entity` type union.
+    *   In `renderGroundEntities` or `renderYSortedEntities` (depending on item type), add check `if (is[ItemName](mdc:entity))` and call `render[ItemName]`. *Crucial for drawing!* 
+*   **File:** [`client/src/utils/placementRenderingUtils.ts`](mdc:client/src/utils/placementRenderingUtils.ts)
+*   **Action:** Update `renderPlacementPreview`:
+    *   Import dimensions from `gameConfig`.
+    *   Add an `else if` check for `placementInfo.iconAssetName === '[item_name].png'` to set the correct `drawWidth` and `drawHeight`. *Crucial for placement preview size!* 
+*   **File:** [`client/src/hooks/usePlacementManager.ts`](mdc:client/src/hooks/usePlacementManager.ts)
+*   **Action:** In the `attemptPlacement` function's `switch` statement, add a `case '[Item Name]':` that calls the correct server reducer (`connection.reducers.place_[item_name](mdc:...)`). *Crucial for initiating placement!* 
 
-3.  **Create Rendering Utility:**
-    *   Create `@/client/src/utils/newDeployableRenderingUtils.ts`.
-    *   Implement `preloadNewDeployableImage()` and `renderNewDeployable()` functions, referencing `campfireRenderingUtils.ts` or `woodenStorageBoxRenderingUtils.ts`.
-        *   Import the doodad sprite.
-        *   Define width/height constants.
-        *   Include `drawShadow()` from `@/client/src/utils/shadowUtils.ts`.
+## 7. Client: Integrate State Management & Filtering
 
-4.  **Handle Placement Activation:**
-    *   In `@/client/src/components/Hotbar.tsx`:
-        *   The existing check for `categoryTag === 'Placeable'` in `handleKeyDown` and `handleSlotClick` should automatically trigger `startPlacement` for your new item.
-    *   In `@/client/src/hooks/usePlacementManager.ts`:
-        *   Add a `case "New Deployable Name":` to the `switch` statement in `attemptPlacement`.
-        *   Call the corresponding placement reducer: `connection.reducers.placeNewDeployable(worldX, worldY);`.
+*   **File:** [`client/src/hooks/useSpacetimeTables.ts`](mdc:client/src/hooks/useSpacetimeTables.ts)
+*   **Action:**
+    *   Import `[ItemName] as SpacetimeDB[ItemName]`.
+    *   Add state map: `const [[itemName]s, set[ItemName]s] = useState<Map<string, SpacetimeDB[ItemName]>>(new Map());`
+    *   Define and Register SpacetimeDB callbacks (`handle[ItemName]Insert`, etc.) to update the state map. **Ensure the `Insert` callback calls `cancelPlacementRef.current()` on success.**
+    *   Add the `[ItemName]` table to the spatial subscription queries within the main `useEffect`.
+    *   Add `set[ItemName]s(new Map())` to the cleanup function.
+    *   Return `[itemName]s` from the hook.
+*   **File:** [`client/src/hooks/useEntityFiltering.ts`](mdc:client/src/hooks/useEntityFiltering.ts) (or similar logic if not refactored)
+*   **Action:**
+    *   Add `[itemName]s: Map<string, SpacetimeDB[ItemName]>` as an input parameter.
+    *   Import `SpacetimeDB[ItemName]` and `is[ItemName]`.
+    *   Add a case for `is[ItemName]` to `isEntityInView`.
+    *   Add a `useMemo` hook to calculate `visible[ItemName]s` based on the input map and `isEntityInView`.
+    *   Include `visible[ItemName]s` in the appropriate rendering group (`groundItems` or `ySortedEntities`).
+    *   Add `visible[ItemName]s` to the hook's return type and object. *Crucial for making the entity data available for rendering!* 
+*   **File:** [`client/src/App.tsx`](mdc:client/src/App.tsx)
+*   **Action:**
+    *   Destructure `[itemName]s` from `useSpacetimeTables`.
+    *   Pass `[itemName]s` prop to `GameScreen`.
+*   **File:** [`client/src/components/GameScreen.tsx`](mdc:client/src/components/GameScreen.tsx)
+*   **Action:**
+    *   Add `[itemName]s` to `GameScreenProps`.
+    *   Pass `[itemName]s` prop to `GameCanvas`.
+*   **File:** [`client/src/components/GameCanvas.tsx`](mdc:client/src/components/GameCanvas.tsx)
+*   **Action:**
+    *   Add `[itemName]s` to `GameCanvasProps`.
+    *   **If using `useEntityFiltering` hook:** Pass `[itemName]s` to the hook call. Ensure the hook's results (`groundItems`, `ySortedEntities`) are used in `renderGame` and have correct dependencies.
+    *   **If NOT using the hook:** Implement the filtering logic directly: add `visible[ItemName]s` calculation using `useMemo`, include it in `groundItems` or `ySortedEntities`, and ensure all relevant `useMemo`/`useCallback` dependency arrays include `[itemName]s`. *Crucial for triggering re-renders!* 
 
-5.  **Integrate Rendering:**
-    *   In `@/client/src/components/GameCanvas.tsx`:
-        *   Import the type: `import { NewDeployable as SpacetimeDBNewDeployable } from '../generated';`
-        *   Import the rendering utils: `import { renderNewDeployable, preloadNewDeployableImage } from '../utils/newDeployableRenderingUtils.ts';`
-        *   Add the prop: `newDeployables: Map<string, SpacetimeDBNewDeployable>;` to `GameCanvasProps`.
-        *   Call `preloadNewDeployableImage()` in the initial `useEffect` hook.
-        *   Define a type guard `isNewDeployable(entity: any): entity is SpacetimeDBNewDeployable`.
-        *   Determine render layer:
-            *   **Ground Item (No Collision/Y-Sort):** Add type to `groundItems` array, add `forEach` loop to push data, add `else if (isNewDeployable(entity))` block in the `groundItems.forEach` loop to call `renderNewDeployable`.
-            *   **Y-Sorted Item (With Collision):** Add type to `ySortableEntities` array, add `forEach` loop to push data, update the sort function to handle `isNewDeployable` and use `.posY`, add `else if (isNewDeployable(entity))` block in the `ySortableEntities.forEach` loop to call `renderNewDeployable`.
-        *   Add `newDeployables` to the dependency array of the `renderGame` `useCallback`.
+## 8. Client: Interaction Logic (If Applicable)
 
-6.  **Manage State & Subscription:**
-    *   In `@/client/src/App.tsx`:
-        *   Add state: `const [newDeployables, setNewDeployables] = useState<Map<string, SpacetimeDBNewDeployable>>(new Map());`
-        *   Import the type: `import { NewDeployable as SpacetimeDBNewDeployable } from './generated';`
-        *   Add subscription variable `let newDeployableSubscription: any = null;`
-        *   Add callbacks (`handleNewDeployableInsert`, `Update`, `Delete`) similar to other tables.
-            *   Crucially, in `handleNewDeployableInsert`, check if the `placedBy` matches the local player and if `placementInfoRef.current?.itemName` matches the new item name. If so, call `cancelPlacementActionRef.current();`.
-        *   Register the callbacks `connection.db.newDeployable.onInsert(...)`, etc.
-        *   Add the subscription: `.subscribe('SELECT * FROM new_deployable');`
-        *   Add cleanup for listeners and subscription.
-        *   Pass the state down: `newDeployables={newDeployables}` to `GameCanvas`.
+*   **File:** [`client/src/utils/labelRenderingUtils.ts`](mdc:client/src/utils/labelRenderingUtils.ts)
+*   **Action:**
+    *   Add `[itemName]s: Map<string, SpacetimeDB[ItemName]>` and `closestInteractable[ItemName]Id` to params.
+    *   Add logic to find the closest entity and draw the appropriate interaction label (e.g., "Pickup [E]", "Use [E]").
+*   **File:** [`client/src/hooks/useInteractionFinder.ts`](mdc:client/src/hooks/useInteractionFinder.ts)
+*   **Action:**
+    *   Add `[itemName]s` map to props.
+    *   Add state for `closestInteractable[ItemName]Id`.
+    *   Update effect to find the closest interactable `[ItemName]` based on distance and conditions.
+    *   Return the ID.
+*   **File:** [`client/src/hooks/useInputHandler.ts`](mdc:client/src/hooks/useInputHandler.ts)
+*   **Action:**
+    *   Add `closestInteractable[ItemName]Id` to props/dependencies.
+    *   Add logic in `handleInteraction` (or similar handler for key presses like 'E') to call the correct interaction reducer (e.g., `pickup_[item_name]`, `interact_with_[item_name]`) when near the item.
 
-## Example AI Prompt
+## 9. Final Checks
 
-"Please add a new deployable item called 'Large Wooden Box'.
-
-1.  **Server:** Create `large_wooden_box.rs`, define the `LargeWoodenBox` table struct (like `WoodenStorageBox` but maybe different dimensions later) with collision constants (Radius 24, Y-Offset 12). Implement the `place_large_wooden_box` reducer. Add the 'Large Wooden Box' `ItemDefinition` in `items.rs` (icon: `large_wooden_box.png`). Modify `lib.rs` to add the module and collision checks.
-2.  **Client:** Add `large_wooden_box.png` to `assets/items` and `large_wooden_box_sprite.png` to `assets/doodads`. Update `itemIconUtils.ts`. Create `largeWoodenBoxRenderingUtils.ts` (render size 80x80). Update `usePlacementManager.ts` to call the new reducer. Update `GameCanvas.tsx` to import, preload, define type guard, render as a Y-Sorted item, and accept the prop. Update `App.tsx` to manage state and subscribe to the `large_wooden_box` table, passing the prop to `GameCanvas`."
+*   Run `spacetime publish` on the server.
+*   Run `spacetime generate` on the client.
+*   Test placement, rendering, and interaction thoroughly.
+*   Check browser console for errors.
+*   Verify dependencies in all relevant `useMemo` and `useCallback` hooks.

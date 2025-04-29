@@ -71,6 +71,11 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeWoodenStorageBox(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx will have a handleWoodenStorageBoxInsert similar to campfire
           break;
+        case 'Sleeping Bag':
+          // console.log(`[PlacementManager] Calling placeSleepingBag reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeSleepingBag(placementInfo.instanceId, worldX, worldY);
+          // Assume App.tsx needs a handleSleepingBagInsert callback to cancel placement on success
+          break;
         // case 'Storage Box':
         //   console.log(`[PlacementManager] Calling placeStorageBox reducer.`);
         //   connection.reducers.placeStorageBox(worldX, worldY);

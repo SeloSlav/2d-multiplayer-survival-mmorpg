@@ -7,6 +7,7 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   Corn as SpacetimeDBCorn,
+  SleepingBag as SpacetimeDBSleepingBag,
 } from '../generated'; // Import necessary types
 
 // Type guard for Player
@@ -103,4 +104,14 @@ export function isDroppedItem(entity: any): entity is SpacetimeDBDroppedItem {
            typeof entity.treeType === 'undefined' &&
            typeof entity.health === 'undefined' &&
            typeof entity.placedBy === 'undefined';
+}
+
+// Type guard for SleepingBag
+export function isSleepingBag(entity: any): entity is SpacetimeDBSleepingBag {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.placedBy !== 'undefined' && // Has placedBy
+         typeof entity.isBurning === 'undefined' && // Not a campfire
+         typeof entity.slot_instance_id_0 === 'undefined'; // Not a storage box (check first slot)
 } 

@@ -9,10 +9,12 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
     Corn as SpacetimeDBCorn,
+    SleepingBag as SpacetimeDBSleepingBag,
 } from '../generated';
 import * as SpacetimeDB from '../generated';
 import {
-    isPlayer, isTree, isStone, isCampfire, isMushroom, isWoodenStorageBox, isDroppedItem, isCorn
+    isPlayer, isTree, isStone, isCampfire, isMushroom, isWoodenStorageBox, isDroppedItem, isCorn,
+    isSleepingBag,
 } from './typeGuards';
 // Import individual rendering functions
 import { renderMushroom } from './mushroomRenderingUtils';
@@ -23,6 +25,7 @@ import { renderStone } from './stoneRenderingUtils';
 import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils'; // Needed for player rendering logic
 import { renderCorn } from './cornRenderingUtils';
+import { renderSleepingBag } from './sleepingBagRenderingUtils';
 // Import specific constants from gameConfig
 import {
     MOVEMENT_POSITION_THRESHOLD,
@@ -234,8 +237,8 @@ export const renderPlayer = (
 // --- NEW: Rendering Loop Functions ---
 
 // Type alias for ground items for clarity
-type GroundEntity = (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBCorn) & {
-    __entityType?: 'corn' | 'mushroom' | 'droppedItem' | 'campfire';
+type GroundEntity = (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBCorn | SpacetimeDBSleepingBag) & {
+    __entityType?: 'corn' | 'mushroom' | 'droppedItem' | 'campfire' | 'sleepingBag';
 };
 
 interface RenderGroundEntitiesProps {
@@ -287,6 +290,8 @@ export const renderGroundEntities = ({
         // Check for Campfire FOURTH
         } else if (isCampfire(entity)) {
             renderCampfire(ctx, entity.posX, entity.posY, entity.isBurning);
+        } else if (isSleepingBag(entity)) {
+            renderSleepingBag({ ctx, sleepingBag: entity, itemImagesRef, nowMs });
         }
     });
 };

@@ -1,5 +1,10 @@
 import { PlacementItemInfo } from '../hooks/usePlacementManager';
-import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from '../config/gameConfig';
+import { 
+    CAMPFIRE_WIDTH_PREVIEW, 
+    CAMPFIRE_HEIGHT_PREVIEW,
+    SLEEPING_BAG_WIDTH, // Import Sleeping Bag dimensions
+    SLEEPING_BAG_HEIGHT, // Import Sleeping Bag dimensions
+} from '../config/gameConfig';
 
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
@@ -29,10 +34,18 @@ export function renderPlacementPreview({
 
     const previewImg = itemImagesRef.current?.get(placementInfo.iconAssetName);
 
-    // TODO: Determine width/height based on placementInfo.type or item definition?
-    // For now, using campfire preview dimensions as a placeholder.
-    const drawWidth = CAMPFIRE_WIDTH_PREVIEW; 
-    const drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
+    // Determine width/height based on placement item
+    let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire
+    let drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
+
+    if (placementInfo.iconAssetName === 'wooden_storage_box.png') {
+        // Assuming box preview uses same dimensions as campfire for now
+        drawWidth = CAMPFIRE_WIDTH_PREVIEW; 
+        drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
+    } else if (placementInfo.iconAssetName === 'sleeping_bag.png') {
+        drawWidth = SLEEPING_BAG_WIDTH; 
+        drawHeight = SLEEPING_BAG_HEIGHT;
+    }
 
     ctx.save();
 

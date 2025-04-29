@@ -38,7 +38,8 @@ import {
     DbConnection,
     Message as SpacetimeDBMessage,
     PlayerPin,
-    ActiveConnection
+    ActiveConnection,
+    SleepingBag as SpacetimeDBSleepingBag
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -59,6 +60,7 @@ interface GameScreenProps {
     corns: Map<string, SpacetimeDBCorn>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
+    sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     playerPins: Map<string, PlayerPin>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -103,7 +105,8 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, mushrooms, corns, droppedItems, woodenStorageBoxes, playerPins,
+        players, trees, stones, campfires, mushrooms, corns, droppedItems, woodenStorageBoxes, sleepingBags,
+        playerPins,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -135,6 +138,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 corns={corns}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
+                sleepingBags={sleepingBags}
                 playerPins={playerPins}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}

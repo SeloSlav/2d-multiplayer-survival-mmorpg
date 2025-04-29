@@ -68,6 +68,8 @@ import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
 export { InteractWithCorn };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
+import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
+export { InteractWithSleepingBag };
 import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
 export { InteractWithStorageBox };
 import { Jump } from "./jump_reducer.ts";
@@ -94,6 +96,8 @@ import { PickupStorageBox } from "./pickup_storage_box_reducer.ts";
 export { PickupStorageBox };
 import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
+import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
+export { PlaceSleepingBag };
 import { PlaceWoodenStorageBox } from "./place_wooden_storage_box_reducer.ts";
 export { PlaceWoodenStorageBox };
 import { ProcessGlobalTick } from "./process_global_tick_reducer.ts";
@@ -194,6 +198,8 @@ import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
+import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
+export { SleepingBagTableHandle };
 import { StoneTableHandle } from "./stone_table.ts";
 export { StoneTableHandle };
 import { TreeTableHandle } from "./tree_table.ts";
@@ -248,6 +254,8 @@ import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
+import { SleepingBag } from "./sleeping_bag_type.ts";
+export { SleepingBag };
 import { Stone } from "./stone_type.ts";
 export { Stone };
 import { TimeOfDay } from "./time_of_day_type.ts";
@@ -358,6 +366,11 @@ const REMOTE_MODULE = {
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
     },
+    sleeping_bag: {
+      tableName: "sleeping_bag",
+      rowType: SleepingBag.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     stone: {
       tableName: "stone",
       rowType: Stone.getTypeScriptAlgebraicType(),
@@ -452,6 +465,10 @@ const REMOTE_MODULE = {
       reducerName: "interact_with_mushroom",
       argsType: InteractWithMushroom.getTypeScriptAlgebraicType(),
     },
+    interact_with_sleeping_bag: {
+      reducerName: "interact_with_sleeping_bag",
+      argsType: InteractWithSleepingBag.getTypeScriptAlgebraicType(),
+    },
     interact_with_storage_box: {
       reducerName: "interact_with_storage_box",
       argsType: InteractWithStorageBox.getTypeScriptAlgebraicType(),
@@ -503,6 +520,10 @@ const REMOTE_MODULE = {
     place_campfire: {
       reducerName: "place_campfire",
       argsType: PlaceCampfire.getTypeScriptAlgebraicType(),
+    },
+    place_sleeping_bag: {
+      reducerName: "place_sleeping_bag",
+      argsType: PlaceSleepingBag.getTypeScriptAlgebraicType(),
     },
     place_wooden_storage_box: {
       reducerName: "place_wooden_storage_box",
@@ -669,6 +690,7 @@ export type Reducer = never
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
+| { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
@@ -682,6 +704,7 @@ export type Reducer = never
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
+| { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
@@ -985,6 +1008,22 @@ export class RemoteReducers {
     this.connection.offReducer("interact_with_mushroom", callback);
   }
 
+  interactWithSleepingBag(bagId: number) {
+    const __args = { bagId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithSleepingBag.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_sleeping_bag", __argsBuffer, this.setCallReducerFlags.interactWithSleepingBagFlags);
+  }
+
+  onInteractWithSleepingBag(callback: (ctx: ReducerEventContext, bagId: number) => void) {
+    this.connection.onReducer("interact_with_sleeping_bag", callback);
+  }
+
+  removeOnInteractWithSleepingBag(callback: (ctx: ReducerEventContext, bagId: number) => void) {
+    this.connection.offReducer("interact_with_sleeping_bag", callback);
+  }
+
   interactWithStorageBox(boxId: number) {
     const __args = { boxId };
     let __writer = new BinaryWriter(1024);
@@ -1187,6 +1226,22 @@ export class RemoteReducers {
 
   removeOnPlaceCampfire(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_campfire", callback);
+  }
+
+  placeSleepingBag(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceSleepingBag.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_sleeping_bag", __argsBuffer, this.setCallReducerFlags.placeSleepingBagFlags);
+  }
+
+  onPlaceSleepingBag(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_sleeping_bag", callback);
+  }
+
+  removeOnPlaceSleepingBag(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_sleeping_bag", callback);
   }
 
   placeWoodenStorageBox(itemInstanceId: bigint, worldX: number, worldY: number) {
@@ -1728,6 +1783,11 @@ export class SetReducerFlags {
     this.interactWithMushroomFlags = flags;
   }
 
+  interactWithSleepingBagFlags: CallReducerFlags = 'FullUpdate';
+  interactWithSleepingBag(flags: CallReducerFlags) {
+    this.interactWithSleepingBagFlags = flags;
+  }
+
   interactWithStorageBoxFlags: CallReducerFlags = 'FullUpdate';
   interactWithStorageBox(flags: CallReducerFlags) {
     this.interactWithStorageBoxFlags = flags;
@@ -1791,6 +1851,11 @@ export class SetReducerFlags {
   placeCampfireFlags: CallReducerFlags = 'FullUpdate';
   placeCampfire(flags: CallReducerFlags) {
     this.placeCampfireFlags = flags;
+  }
+
+  placeSleepingBagFlags: CallReducerFlags = 'FullUpdate';
+  placeSleepingBag(flags: CallReducerFlags) {
+    this.placeSleepingBagFlags = flags;
   }
 
   placeWoodenStorageBoxFlags: CallReducerFlags = 'FullUpdate';
@@ -2022,6 +2087,10 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
+  }
+
+  get sleepingBag(): SleepingBagTableHandle {
+    return new SleepingBagTableHandle(this.connection.clientCache.getOrCreateTable<SleepingBag>(REMOTE_MODULE.tables.sleeping_bag));
   }
 
   get stone(): StoneTableHandle {

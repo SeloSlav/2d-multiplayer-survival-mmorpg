@@ -93,6 +93,7 @@ function AppContent() {
       messages,
       playerPins, // Destructure playerPins
       activeConnections, // <<< Destructure here
+      sleepingBags, // ADD destructuring
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -287,6 +288,7 @@ function AppContent() {
                       corns={corns}
                       droppedItems={droppedItems}
                       woodenStorageBoxes={woodenStorageBoxes}
+                      sleepingBags={sleepingBags}
                       inventoryItems={inventoryItems}
                       itemDefinitions={itemDefinitions}
                       worldState={worldState}
