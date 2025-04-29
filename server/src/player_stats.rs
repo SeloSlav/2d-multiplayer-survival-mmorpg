@@ -90,6 +90,12 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let mut player = player_ref.clone();
         let player_id = player.identity;
 
+        // --- Skip stat processing for offline players --- 
+        if !player.is_online {
+            log::trace!("Skipping stat processing for offline player {:?}", player_id);
+            continue; // Move to the next player in the loop
+        }
+
         if player.is_dead {
             continue;
         }

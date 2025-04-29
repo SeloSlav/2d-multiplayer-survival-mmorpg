@@ -586,25 +586,45 @@ async function success(ctx: any, value: any): Promise<Response> {
     const userId = codeData.userId;
     authCodes.delete(code); // Consume the code
 
+    console.log('[Token Endpoint] Code verified. Generating JWT...');
+    // Generate ID Token (JWT)
+    const payload = {
+        iss: ISSUER_URL,         // Issuer
+        sub: userId,             // Subject (unique user ID)
+        aud: clientIdForm,       // Audience (client ID)
+        // exp is handled by expiresIn option below
+        iat: Math.floor(Date.now() / 1000), // Issued at
+        // nonce: ??? // If nonce was provided in auth request, should include here
+    };
+
     const signOptions: jwt.SignOptions = {
-        algorithm: 'RS256', 
-        expiresIn: '1h',
-        keyid: keyId 
+        algorithm: 'RS256',
+        expiresIn: '4h', // Set expiration to 4 hours
+        keyid: keyId,    // Include key ID
+        audience: clientIdForm, // Redundant but ensures aud claim is set
+        issuer: ISSUER_URL,     // Redundant but ensures iss claim is set
+        subject: userId        // Redundant but ensures sub claim is set
     };
 
-    const idTokenPayload = { 
-        iss: ISSUER_URL, 
-        aud: clientIdForm, 
-        sub: userId, 
-        iat: Math.floor(Date.now()/1000) 
-    };
+    // Sign the ID token
+    const idToken = jwt.sign(payload, privateKey, signOptions);
 
-    // Sign accessToken (payload is just { sub }, options provide aud, iss etc)
-    const accessToken = jwt.sign({ sub: userId }, privateKey, signOptions);
-    // Sign idToken (payload contains aud, iss etc, options provide alg, kid, exp)
-    const idToken     = jwt.sign(idTokenPayload, privateKey, signOptions);
-    
-    return c.json({ access_token: accessToken, id_token: idToken, token_type: 'Bearer', expires_in: 3600 });
+    // For OpenID Connect, usually the id_token is sufficient. 
+    // If you need a separate access_token (e.g., for resource servers), 
+    // you might generate it here with a different payload/scope/expiration.
+    // For simplicity, we'll return the id_token as the access_token too.
+    const accessToken = idToken; 
+
+    // Calculate expires_in in seconds for the response
+    const expiresInSeconds = 4 * 60 * 60;
+
+    // Return the tokens
+    return c.json({
+        access_token: accessToken, 
+        id_token: idToken, 
+        token_type: 'Bearer', 
+        expires_in: expiresInSeconds 
+    });
   });
 
   // Mount the OpenAuth issuer routes AFTER your manual routes AND the interceptor
