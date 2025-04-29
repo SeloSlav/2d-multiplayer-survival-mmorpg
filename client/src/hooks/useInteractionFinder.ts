@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
     Player as SpacetimeDBPlayer,
     Mushroom as SpacetimeDBMushroom,
     Campfire as SpacetimeDBCampfire,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
-    Corn as SpacetimeDBCorn
+    Corn as SpacetimeDBCorn,
+    PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
 import {
     PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED,
@@ -25,6 +26,7 @@ interface UseInteractionFinderProps {
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
+    playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
 }
 
 // Define the hook's return type
@@ -35,6 +37,7 @@ interface UseInteractionFinderResult {
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
+    closestInteractableCorpseId: bigint | null;
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -50,7 +53,17 @@ export function useInteractionFinder({
     campfires,
     droppedItems,
     woodenStorageBoxes,
+    playerCorpses,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
+
+    // State for closest interactable IDs
+    const [closestInteractableMushroomId, setClosestInteractableMushroomId] = useState<bigint | null>(null);
+    const [closestInteractableCornId, setClosestInteractableCornId] = useState<bigint | null>(null);
+    const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
+    const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
+    const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
+    const [isClosestInteractableBoxEmpty, setIsClosestInteractableBoxEmpty] = useState<boolean>(false);
+    const [closestInteractableCorpseId, setClosestInteractableCorpseId] = useState<bigint | null>(null);
 
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
@@ -69,6 +82,9 @@ export function useInteractionFinder({
         let closestBoxId: number | null = null;
         let closestBoxDistSq = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED;
         let isClosestBoxEmpty = false;
+
+        let closestCorpse: bigint | null = null;
+        let closestCorpseDistSq = PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED;
 
         if (localPlayer) {
             const playerX = localPlayer.positionX;
@@ -140,6 +156,19 @@ export function useInteractionFinder({
                     isClosestBoxEmpty = isEmpty;
                 }
             });
+
+            // Find closest player corpse
+            if (playerCorpses) {
+                playerCorpses.forEach((corpse) => {
+                    const dx = playerX - corpse.posX;
+                    const dy = playerY - corpse.posY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestCorpseDistSq) {
+                        closestCorpseDistSq = distSq;
+                        closestCorpse = corpse.id as unknown as bigint;
+                    }
+                });
+            }
         }
 
         return {
@@ -149,9 +178,46 @@ export function useInteractionFinder({
             closestInteractableDroppedItemId: closestDroppedItemId,
             closestInteractableBoxId: closestBoxId,
             isClosestInteractableBoxEmpty: isClosestBoxEmpty,
+            closestInteractableCorpseId: closestCorpse,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, campfires, droppedItems, woodenStorageBoxes]);
+    }, [localPlayer, mushrooms, corns, campfires, droppedItems, woodenStorageBoxes, playerCorpses]);
 
-    return interactionResult;
+    // Effect to update state based on memoized results
+    useEffect(() => {
+        // Update state only if changed, comparing to current state
+        if (interactionResult.closestInteractableMushroomId !== closestInteractableMushroomId) {
+            setClosestInteractableMushroomId(interactionResult.closestInteractableMushroomId);
+        }
+        if (interactionResult.closestInteractableCornId !== closestInteractableCornId) {
+            setClosestInteractableCornId(interactionResult.closestInteractableCornId);
+        }
+        if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
+            setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
+        }
+        if (interactionResult.closestInteractableDroppedItemId !== closestInteractableDroppedItemId) {
+            setClosestInteractableDroppedItemId(interactionResult.closestInteractableDroppedItemId);
+        }
+        if (interactionResult.closestInteractableBoxId !== closestInteractableBoxId) {
+            setClosestInteractableBoxId(interactionResult.closestInteractableBoxId);
+        }
+        if (interactionResult.isClosestInteractableBoxEmpty !== isClosestInteractableBoxEmpty) {
+            setIsClosestInteractableBoxEmpty(interactionResult.isClosestInteractableBoxEmpty);
+        }
+        // Update corpse state based on memoized result
+        if (interactionResult.closestInteractableCorpseId !== closestInteractableCorpseId) {
+            setClosestInteractableCorpseId(interactionResult.closestInteractableCorpseId);
+        }
+    // Depend on the memoized result object
+    }, [interactionResult]);
+
+    return {
+        closestInteractableMushroomId,
+        closestInteractableCornId,
+        closestInteractableCampfireId,
+        closestInteractableDroppedItemId,
+        closestInteractableBoxId,
+        isClosestInteractableBoxEmpty,
+        closestInteractableCorpseId,
+    };
 } 

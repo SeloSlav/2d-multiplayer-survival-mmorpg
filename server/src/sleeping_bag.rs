@@ -182,17 +182,6 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
         player.username, sender_id, bag_id
     );
 
-    // --- Clear Player Inventory (Copied from respawn_randomly) ---
-    let mut items_to_delete = Vec::new();
-    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
-        items_to_delete.push(item.instance_id);
-    }
-    let delete_count = items_to_delete.len();
-    for item_instance_id in items_to_delete {
-        inventory.instance_id().delete(item_instance_id);
-    }
-    log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
-
     // --- Clear Crafting Queue & Refund (Copied from respawn_randomly) ---
     crafting_queue::clear_player_crafting_queue(ctx, sender_id);
 

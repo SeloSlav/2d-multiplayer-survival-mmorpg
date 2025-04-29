@@ -41,10 +41,4 @@ export function renderPlayerCorpse({
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, CORPSE_WIDTH, CORPSE_HEIGHT);
   }
-
-  // Optional: Render username above corpse
-  ctx.fillStyle = '#FFFFFF'; // White text
-  ctx.font = '12px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(corpse.originalPlayerUsername, corpse.posX, y - 5); // Position text above the rectangle
 } 

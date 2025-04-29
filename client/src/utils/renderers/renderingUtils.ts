@@ -102,7 +102,8 @@ export const renderYSortedEntities = ({
                 }
             }
             
-            const currentlyHovered = hoveredPlayerIds.has(playerId);
+            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
+            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
             
             const heroImg = heroImageRef.current;
             const isOnline = activeConnections ? activeConnections.has(playerId) : false;
@@ -124,18 +125,20 @@ export const renderYSortedEntities = ({
                 if (heroImg) {
                     renderPlayer(
                         ctx, player, heroImg, isOnline, 
-                        isPlayerMoving, currentlyHovered, 
+                        isPlayerMoving, 
+                        currentlyHovered,
                         animationFrame, nowMs, jumpOffset, 
-                        currentlyHovered
+                        isPersistentlyHovered
                     );
                 }
             } else { 
                 if (heroImg) {
                     renderPlayer(
                         ctx, player, heroImg, isOnline, 
-                        isPlayerMoving, currentlyHovered, 
+                        isPlayerMoving, 
+                        currentlyHovered,
                         animationFrame, nowMs, jumpOffset, 
-                        currentlyHovered
+                        isPersistentlyHovered
                     );
                 }
                 if (canRenderItem && equipment) {

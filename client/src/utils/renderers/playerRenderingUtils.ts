@@ -9,6 +9,13 @@ const PLAYER_SHAKE_AMOUNT_PX = 3;   // Max pixels to offset
 // Defined here as it depends on spriteWidth from config
 const playerRadius = gameConfig.spriteWidth / 2;
 
+const PLAYER_NAME_FONT = '12px "Press Start 2P", cursive';
+const PLAYER_NAME_FILL_STYLE = "white";
+const PLAYER_NAME_STROKE_STYLE = "black";
+const PLAYER_NAME_LINE_WIDTH = 2;
+const PLAYER_NAME_TEXT_ALIGN = "center";
+const PLAYER_NAME_Y_OFFSET = -50; // Offset above the player sprite
+
 // --- Helper Functions --- 
 
 // Calculates sx, sy for the spritesheet
@@ -88,14 +95,23 @@ export const renderPlayer = (
   ctx: CanvasRenderingContext2D,
   player: SpacetimeDBPlayer,
   heroImg: CanvasImageSource,
-  isOnline: boolean, // <<< ADDED: Explicit online status
+  isOnline: boolean,
   isMoving: boolean,
   isHovered: boolean,
   currentAnimationFrame: number,
-  nowMs: number, // <-- Added current time in ms
+  nowMs: number,
   jumpOffsetY: number = 0,
-  shouldShowLabel: boolean = false // New parameter to control label visibility
+  shouldShowLabel: boolean = false,
+  currentlyHovered: boolean = false
 ) => {
+  // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
+  // const { positionX, positionY, direction, color, username } = player;
+  // const drawX = positionX - gameConfig.spriteWidth / 2;
+  // const drawY = positionY - gameConfig.spriteHeight / 2 - jumpOffsetY;
+  // ctx.save();
+  // ... (removed name tag code) ...
+  // ctx.restore();
+
   // --- Hide player if dead ---
   if (player.isDead) {
     // console.log(`Skipping render for dead player: ${player.username}`);
@@ -201,8 +217,9 @@ export const renderPlayer = (
   // --- End Draw Sprite ---
 
   if (!player.isDead) {
-    const showingDueToCurrentHover = isHovered;
-    const showingDueToPersistentState = shouldShowLabel;
+    // Restore the logic using both hover and shouldShowLabel
+    const showingDueToCurrentHover = isHovered; // Use the direct hover state
+    const showingDueToPersistentState = shouldShowLabel; // Restore persistent state check
     const willShowLabel = showingDueToCurrentHover || showingDueToPersistentState;
     
     drawNameTag(ctx, player, spriteDrawY, spriteBaseX + drawWidth / 2, isOnline, willShowLabel);

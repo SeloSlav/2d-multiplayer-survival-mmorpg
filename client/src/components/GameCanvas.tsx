@@ -159,7 +159,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
-  } = useInteractionFinder({ localPlayer, mushrooms, corns, campfires, droppedItems, woodenStorageBoxes });
+    closestInteractableCorpseId,
+  } = useInteractionFinder({ 
+      localPlayer, 
+      mushrooms, 
+      corns, 
+      campfires, 
+      droppedItems, 
+      woodenStorageBoxes, 
+      playerCorpses
+  });
   const animationFrame = useAnimationCycle(150, 4);
   const { interactionProgress, processInputsAndActions } = useInputHandler({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
@@ -208,6 +217,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- UI State ---
   const { hoveredPlayerIds, handlePlayerHover } = usePlayerHover();
+
+  // --- Create Maps from Visible Entities (Using useMemo) ---
+  const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
@@ -352,9 +364,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         campfires: visibleCampfiresMap,
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
+        playerCorpses: visiblePlayerCorpsesMap,
         itemDefinitions,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId,
-        closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
+        closestInteractableMushroomId, 
+        closestInteractableCornId, 
+        closestInteractableCampfireId,
+        closestInteractableDroppedItemId, 
+        closestInteractableBoxId, 
+        isClosestInteractableBoxEmpty,
+        closestInteractableCorpseId,
     });
     renderPlacementPreview({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
