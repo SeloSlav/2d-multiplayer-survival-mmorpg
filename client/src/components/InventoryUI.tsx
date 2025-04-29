@@ -175,16 +175,50 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const currentInteraction = interactionTarget;
         const currentBoxId = currentInteraction?.type === 'wooden_storage_box' ? Number(currentInteraction.id) : null;
         const currentCampfireId = currentInteraction?.type === 'campfire' ? Number(currentInteraction.id) : null;
+        const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
 
+        // --- PRIORITY 1: Open Corpse ---
+        if (currentCorpseId !== null) {
+            try {
+                console.log(`[Inv CtxMenu Inv->Corpse] Corpse ${currentCorpseId} open. Calling quickMoveToCorpse for item ${itemInstanceId}`);
+                connection.reducers.quickMoveToCorpse(currentCorpseId, itemInstanceId);
+            } catch (e: any) { 
+                console.error("[Inv CtxMenu Inv->Corpse] Error quick moving to corpse:", e); 
+                // TODO: setUiError 
+            }
+            return; // Action handled
+        }
+
+        // --- PRIORITY 2: Open Box --- 
         if (currentBoxId !== null) {
-            try { connection.reducers.quickMoveToBox(currentBoxId, itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Box]", e); /* TODO: setUiError */ }
-        } else if (currentCampfireId !== null) {
-            try { connection.reducers.quickMoveToCampfire(currentCampfireId, itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Campfire]", e); /* TODO: setUiError */ }
-        } else {
+            try { 
+                // console.log(`[Inv CtxMenu Inv->Box] Box ${currentBoxId} open. Calling quickMoveToBox for item ${itemInstanceId}`);
+                connection.reducers.quickMoveToBox(currentBoxId, itemInstanceId); 
+            } catch (e: any) { 
+                console.error("[Inv CtxMenu Inv->Box]", e); 
+                // TODO: setUiError 
+            }
+            return; // Action handled
+        } 
+        // --- PRIORITY 3: Open Campfire --- 
+        else if (currentCampfireId !== null) {
+            try { 
+                // console.log(`[Inv CtxMenu Inv->Campfire] Campfire ${currentCampfireId} open. Calling quickMoveToCampfire for item ${itemInstanceId}`);
+                connection.reducers.quickMoveToCampfire(currentCampfireId, itemInstanceId); 
+            } catch (e: any) { 
+                console.error("[Inv CtxMenu Inv->Campfire]", e); 
+                // TODO: setUiError 
+            }
+            return; // Action handled
+        } 
+        // --- DEFAULT ACTIONS (No relevant container open) --- 
+        else {
             const isArmor = itemInfo.definition.category.tag === 'Armor' && itemInfo.definition.equipmentSlot !== null;
             if (isArmor) {
+                // console.log(`[Inv CtxMenu EquipArmor] No container open. Item ${itemInstanceId} is Armor. Calling equipArmorFromInventory.`);
                 try { connection.reducers.equipArmorFromInventory(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu EquipArmor]", e); /* TODO: setUiError */ }
             } else {
+                // console.log(`[Inv CtxMenu Inv->Hotbar] No container open. Item ${itemInstanceId} not Armor. Calling moveToFirstAvailableHotbarSlot.`);
                 try { connection.reducers.moveToFirstAvailableHotbarSlot(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Hotbar]", e); /* TODO: setUiError */ }
             }
         }
