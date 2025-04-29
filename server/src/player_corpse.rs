@@ -8,6 +8,7 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, SpacetimeType, Table};
 use log;
 use spacetimedb::spacetimedb_lib::ScheduleAt;
+use std::time::Duration;
 
 // Define constants for the corpse
 pub(crate) const CORPSE_DESPAWN_DURATION_SECONDS: u64 = 300; // 5 minutes
@@ -533,5 +534,108 @@ pub fn quick_move_to_corpse(
     corpses.id().update(corpse);
     Ok(())
 }
+
+// <<< ADDED: Central function to create a corpse and handle item transfer >>>
+/// Creates a PlayerCorpse entity, transfers items from the dead player's inventory,
+/// deletes the original items from the InventoryItem table, and schedules despawn.
+pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> Result<u32, String> {
+    let player_id = dead_player.identity;
+    log::info!("[CorpseCreate:{:?}] Attempting to create corpse.", player_id);
+
+    // Get necessary table handles
+    let inventory_items = ctx.db.inventory_item();
+    let player_corpses = ctx.db.player_corpse();
+    let corpse_schedules = ctx.db.player_corpse_despawn_schedule();
+
+    // 1. Initialize empty corpse struct
+    log::debug!("[CorpseCreate:{:?}] Initializing corpse struct.", player_id);
+    let despawn_time = ctx.timestamp + Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS);
+    let chunk_idx = calculate_chunk_index(dead_player.position_x, dead_player.position_y);
+    let mut new_corpse = PlayerCorpse {
+        id: 0, // Auto-incremented
+        original_player_identity: player_id,
+        original_player_username: dead_player.username.clone(),
+        pos_x: dead_player.position_x,
+        pos_y: dead_player.position_y,
+        chunk_index: chunk_idx,
+        created_at: ctx.timestamp,
+        despawn_at: despawn_time,
+        // Initialize all slots to None
+        slot_instance_id_0: None, slot_def_id_0: None, slot_instance_id_1: None, slot_def_id_1: None,
+        slot_instance_id_2: None, slot_def_id_2: None, slot_instance_id_3: None, slot_def_id_3: None,
+        slot_instance_id_4: None, slot_def_id_4: None, slot_instance_id_5: None, slot_def_id_5: None,
+        slot_instance_id_6: None, slot_def_id_6: None, slot_instance_id_7: None, slot_def_id_7: None,
+        slot_instance_id_8: None, slot_def_id_8: None, slot_instance_id_9: None, slot_def_id_9: None,
+        slot_instance_id_10: None, slot_def_id_10: None, slot_instance_id_11: None, slot_def_id_11: None,
+        slot_instance_id_12: None, slot_def_id_12: None, slot_instance_id_13: None, slot_def_id_13: None,
+        slot_instance_id_14: None, slot_def_id_14: None, slot_instance_id_15: None, slot_def_id_15: None,
+        slot_instance_id_16: None, slot_def_id_16: None, slot_instance_id_17: None, slot_def_id_17: None,
+        slot_instance_id_18: None, slot_def_id_18: None, slot_instance_id_19: None, slot_def_id_19: None,
+        slot_instance_id_20: None, slot_def_id_20: None, slot_instance_id_21: None, slot_def_id_21: None,
+        slot_instance_id_22: None, slot_def_id_22: None, slot_instance_id_23: None, slot_def_id_23: None,
+        slot_instance_id_24: None, slot_def_id_24: None, slot_instance_id_25: None, slot_def_id_25: None,
+        slot_instance_id_26: None, slot_def_id_26: None, slot_instance_id_27: None, slot_def_id_27: None,
+        slot_instance_id_28: None, slot_def_id_28: None, slot_instance_id_29: None, slot_def_id_29: None,
+    };
+
+    // 2. Gather items and mark for deletion
+    let mut items_to_delete = Vec::new();
+    let mut items_transferred_count = 0;
+    log::debug!("[CorpseCreate:{:?}] Starting item iteration.", player_id);
+    for item in inventory_items.iter().filter(|item| item.player_identity == player_id) {
+        log::trace!("[CorpseCreate:{:?}] Considering item instance {}.", player_id, item.instance_id);
+        if let Some(empty_slot_index) = new_corpse.find_first_empty_slot() {
+            log::trace!("[CorpseCreate:{:?}] Adding item {} to corpse slot {} and marking for deletion.", player_id, item.instance_id, empty_slot_index);
+            new_corpse.set_slot(empty_slot_index, Some(item.instance_id), Some(item.item_def_id));
+            items_to_delete.push(item.instance_id);
+            items_transferred_count += 1;
+        } else {
+            log::warn!("[CorpseCreate:{:?}] Corpse full, cannot transfer item {}. Item will be lost.", player_id, item.instance_id);
+        }
+    }
+    log::info!("[CorpseCreate:{:?}] Prepared {} items to transfer. Items to delete: {:?}", player_id, items_transferred_count, items_to_delete);
+
+    // 3. Insert the corpse
+    log::debug!("[CorpseCreate:{:?}] Attempting to insert corpse into table.", player_id);
+    match player_corpses.try_insert(new_corpse) {
+        Ok(inserted_corpse) => {
+            log::info!("[CorpseCreate:{:?}] Successfully inserted corpse {}. Proceeding with item deletion.", player_id, inserted_corpse.id);
+
+            // 4. Delete transferred items from InventoryItem table
+            log::debug!("[CorpseCreate:{:?}] DEBUG: SKIPPING item deletion loop for items: {:?}", player_id, items_to_delete);
+            /*
+            log::debug!("[CorpseCreate:{:?}] Starting deletion loop for {} items.", player_id, items_to_delete.len());
+            for item_instance_id_to_delete in items_to_delete {
+                log::trace!("[CorpseCreate:{:?}] Attempting to delete item instance {}.", player_id, item_instance_id_to_delete);
+                if !inventory_items.instance_id().delete(item_instance_id_to_delete) {
+                    log::warn!("[CorpseCreate:{:?}] Failed to delete item instance {} from InventoryItem table (Corpse ID: {}).", player_id, item_instance_id_to_delete, inserted_corpse.id);
+                } else {
+                    log::trace!("[CorpseCreate:{:?}] Successfully deleted item instance {}.", player_id, item_instance_id_to_delete);
+                }
+            }
+            log::debug!("[CorpseCreate:{:?}] Finished item deletion loop.", player_id);
+            */
+
+            // 5. Schedule Despawn
+            log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {}.", player_id, inserted_corpse.id);
+            let schedule_entry = PlayerCorpseDespawnSchedule {
+                corpse_id: inserted_corpse.id as u64, // Cast corpse ID to u64 for schedule PK
+                scheduled_at: despawn_time.into(),
+            };
+            match corpse_schedules.try_insert(schedule_entry) {
+                Ok(_) => log::info!("[CorpseCreate:{:?}] Scheduled despawn for corpse {} at {:?}", player_id, inserted_corpse.id, despawn_time),
+                Err(e) => log::error!("[CorpseCreate:{:?}] Failed to schedule despawn for corpse {}: {}", player_id, inserted_corpse.id, e),
+            }
+
+            Ok(inserted_corpse.id) // Return the ID of the created corpse
+        }
+        Err(e) => {
+            let err_msg = format!("[CorpseCreate:{:?}] Failed to insert player corpse: {}. Items NOT deleted.", player_id, e);
+            log::error!("{}", err_msg);
+            Err(err_msg)
+        }
+    }
+}
+// <<< END ADDED function >>>
 
 // TODO: Implement despawn schedule table and reducer 

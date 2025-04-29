@@ -253,34 +253,34 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                         );
                     })}
                 </div>
-            </div>
+                </div>
 
             {/* Right Pane: Always shows External Container if interacting */}
             <div className={styles.rightPane}> {/* Ensure rightPane class exists if needed */}
                 {interactionTarget ? (
                     // If interacting, show the external container
-                    <ExternalContainerUI
-                        interactionTarget={interactionTarget}
-                        inventoryItems={inventoryItems}
-                        itemDefinitions={itemDefinitions}
-                        campfires={campfires}
+                <ExternalContainerUI
+                    interactionTarget={interactionTarget}
+                    inventoryItems={inventoryItems}
+                    itemDefinitions={itemDefinitions}
+                    campfires={campfires}
                         woodenStorageBoxes={woodenStorageBoxes}
                         playerCorpses={playerCorpses}
-                        currentStorageBox={currentStorageBox}
-                        connection={connection}
-                        onItemDragStart={onItemDragStart}
-                        onItemDrop={onItemDrop}
-                    />
+                    currentStorageBox={currentStorageBox}
+                    connection={connection}
+                    onItemDragStart={onItemDragStart}
+                    onItemDrop={onItemDrop}
+                />
                 ) : (
                     // Otherwise, show the crafting UI
-                    <CraftingUI
-                        playerIdentity={playerIdentity}
-                        recipes={recipes}
-                        craftingQueueItems={craftingQueueItems}
-                        itemDefinitions={itemDefinitions}
-                        inventoryItems={inventoryItems}
-                        connection={connection}
-                    />
+            <CraftingUI
+                playerIdentity={playerIdentity}
+                recipes={recipes}
+                craftingQueueItems={craftingQueueItems}
+                itemDefinitions={itemDefinitions}
+                inventoryItems={inventoryItems}
+                connection={connection}
+            />
                 )}
             </div>
         </div>

@@ -226,7 +226,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                console.error("[Hotbar ContextMenu Hotbar->Campfire] Failed to call quickMoveToCampfire reducer:", error);
            }
            return; // Action handled
-      }
+      } 
       // --- ADD THIS --- 
       else if (interactingWith?.type === 'player_corpse') {
            const corpseId = Number(interactingWith.id); // Assuming corpse ID fits in number

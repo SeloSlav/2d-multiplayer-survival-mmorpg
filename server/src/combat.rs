@@ -37,6 +37,7 @@ use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait;
 use crate::inventory_management::ItemContainer;
 use crate::environment::calculate_chunk_index;
+use crate::player_corpse::create_corpse_for_player;
 
 // --- Game Balance Constants ---
 /// Multiplier for damage when attacking other players
@@ -401,111 +402,28 @@ pub fn damage_player(
     
     // --- Handle Death ---
     if new_health <= 0.0 && !target_player.is_dead {
-        log::info!("Player {} ({:?}) died from combat (Attacker: {:?}, Health: {:.1}). Creating corpse...",
+        log::info!("Player {} ({:?}) died from combat (Attacker: {:?}, Health: {:.1}).",
                  target_player.username, target_id, attacker_id, new_health);
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
 
-        // --- Drop Equipped Item --- 
-        match crate::active_equipment::unequip_item(ctx, target_id) {
-            Ok(_) => log::info!("Unequipped item for player {:?} on death.", target_id),
-            Err(e) => log::error!("Failed to unequip item for player {:?} on death: {}", target_id, e),
-            // Don't propagate error with `?` here, just log it.
-        }
-
-        // --- Create Player Corpse --- 
-        // 1. Gather Items (Instance ID, Def ID) from player's inventory and hotbar
-        let mut items_to_transfer: Vec<(Option<u64>, Option<u64>)> = vec![(None, None); NUM_CORPSE_SLOTS];
-        let mut items_gathered_count = 0;
-
-        for item in inventory_items.iter().filter(|i| i.player_identity == target_id) {
-            let slot_index: Option<u16> = if let Some(inv_slot) = item.inventory_slot {
-                if inv_slot < 24 { Some(inv_slot) } else { None } // Map inv 0-23 to corpse 0-23
-            } else if let Some(hotbar_slot) = item.hotbar_slot {
-                // Cast the result of addition to u16
-                if hotbar_slot < 6 { Some(24u16 + hotbar_slot as u16) } else { None } // Map hotbar 0-5 to corpse 24-29
-            } else {
-                None
-            };
-
-            if let Some(idx) = slot_index {
-                if (idx as usize) < NUM_CORPSE_SLOTS {
-                    items_to_transfer[idx as usize] = (Some(item.instance_id), Some(item.item_def_id));
-                    items_gathered_count += 1;
-                } else {
-                    log::warn!("Item {} for dying player {:?} had invalid slot index {}. Skipping for corpse.", item.instance_id, target_id, idx);
-                }
-            } else {
-                 // Item wasn't in inventory or hotbar? Maybe equipped/cursor? Log it.
-                 log::trace!("Item {} for dying player {:?} not in std inv/hotbar. Skipping for corpse.", item.instance_id, target_id);
-            }
-        }
-        log::info!("Gathered {} items from player {:?} for corpse.", items_gathered_count, target_id);
-
-        // 2. Create Corpse Struct
-        let despawn_timestamp = timestamp + TimeDuration::from(Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS));
-        let corpse_chunk_index = calculate_chunk_index(target_player.position_x, target_player.position_y);
-
-        let mut new_corpse = PlayerCorpse {
-            id: 0, // Auto-incremented
-            original_player_identity: target_id,
-            original_player_username: target_player.username.clone(),
-            pos_x: target_player.position_x,
-            pos_y: target_player.position_y,
-            chunk_index: corpse_chunk_index,
-            created_at: timestamp,
-            despawn_at: despawn_timestamp,
-            // Initialize all slots to None first
-            slot_instance_id_0: None, slot_def_id_0: None, slot_instance_id_1: None, slot_def_id_1: None,
-            slot_instance_id_2: None, slot_def_id_2: None, slot_instance_id_3: None, slot_def_id_3: None,
-            slot_instance_id_4: None, slot_def_id_4: None, slot_instance_id_5: None, slot_def_id_5: None,
-            slot_instance_id_6: None, slot_def_id_6: None, slot_instance_id_7: None, slot_def_id_7: None,
-            slot_instance_id_8: None, slot_def_id_8: None, slot_instance_id_9: None, slot_def_id_9: None,
-            slot_instance_id_10: None, slot_def_id_10: None, slot_instance_id_11: None, slot_def_id_11: None,
-            slot_instance_id_12: None, slot_def_id_12: None, slot_instance_id_13: None, slot_def_id_13: None,
-            slot_instance_id_14: None, slot_def_id_14: None, slot_instance_id_15: None, slot_def_id_15: None,
-            slot_instance_id_16: None, slot_def_id_16: None, slot_instance_id_17: None, slot_def_id_17: None,
-            slot_instance_id_18: None, slot_def_id_18: None, slot_instance_id_19: None, slot_def_id_19: None,
-            slot_instance_id_20: None, slot_def_id_20: None, slot_instance_id_21: None, slot_def_id_21: None,
-            slot_instance_id_22: None, slot_def_id_22: None, slot_instance_id_23: None, slot_def_id_23: None,
-            slot_instance_id_24: None, slot_def_id_24: None, slot_instance_id_25: None, slot_def_id_25: None,
-            slot_instance_id_26: None, slot_def_id_26: None, slot_instance_id_27: None, slot_def_id_27: None,
-            slot_instance_id_28: None, slot_def_id_28: None, slot_instance_id_29: None, slot_def_id_29: None,
-        };
-
-        // Populate slots using the ItemContainer trait's set_slot method
-        for (index, (instance_id_opt, def_id_opt)) in items_to_transfer.into_iter().enumerate() {
-             new_corpse.set_slot(index as u8, instance_id_opt, def_id_opt);
-        }
-
-        // 3. Insert Corpse
-        match player_corpses.try_insert(new_corpse) {
-            Ok(inserted_corpse) => {
-                log::info!("Created PlayerCorpse {} for player {:?}.", inserted_corpse.id, target_id);
-                
-                // 4. Schedule Despawn
-                let schedule_entry = PlayerCorpseDespawnSchedule {
-                    // Use corpse_id as the PK for the schedule table (assuming it's u64 now or cast needed)
-                    // REVERTING: Assuming PK is still u32 for corpse and schedule PK is u64
-                    corpse_id: inserted_corpse.id as u64, // Cast corpse ID to u64 for schedule PK
-                    scheduled_at: despawn_timestamp.into(), // Use .into() for ScheduleAt
-                };
-                match corpse_schedules.try_insert(schedule_entry) {
-                    Ok(_) => log::info!("Scheduled despawn for PlayerCorpse {}.", inserted_corpse.id),
-                    Err(e) => log::error!("Failed to schedule despawn for PlayerCorpse {}: {}", inserted_corpse.id, e),
+        // --- Call refactored corpse creation function ---
+        match create_corpse_for_player(ctx, &target_player) {
+            Ok(corpse_id) => {
+                log::info!("Successfully created corpse {} via combat death for player {:?}", corpse_id, target_id);
+                // Drop equipped item (if any) - moved from player_stats or ensure it runs once
+                match crate::active_equipment::unequip_item(ctx, target_id) {
+                    Ok(_) => log::debug!("Unequipped item for player {:?} due to combat death.", target_id),
+                    Err(e) => log::error!("Failed to unequip item for player {:?} during combat death: {}", target_id, e),
                 }
             }
             Err(e) => {
-                log::error!("Failed to insert PlayerCorpse for player {:?}: {}", target_id, e);
-                // If corpse fails, maybe try dropping items directly? Or just log?
-                // For now, just log the error.
+                log::error!("Failed to create corpse via combat death for player {:?}: {}", target_id, e);
+                // Handle corpse creation failure if needed (e.g., drop items?)
             }
         }
-
-        // 5. Clear Player Inventory (No longer needed - items stay in table, referenced by corpse)
-
         // --- Final Player Update (Mark dead) ---
-        players.identity().update(target_player.clone()); // Clone needed because we might modify it more below
+        players.identity().update(target_player.clone()); // Update player state AFTER corpse attempt
         log::info!("Player {:?} marked as dead.", target_id);
 
     } else if new_health > 0.0 {

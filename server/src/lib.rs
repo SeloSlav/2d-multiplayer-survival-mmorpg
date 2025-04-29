@@ -264,10 +264,10 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
     if let Some(initial_active_conn) = active_connections.identity().find(&sender_id) {
         if initial_active_conn.connection_id == disconnecting_connection_id {
             // --- Clean Up Connection --- 
-            // Log if possible
+                    // Log if possible
             // log::info!("[Disconnect] Removing active connection record for identity: {:?}, connection_id: {:?}", 
             //               sender_id, disconnecting_connection_id);
-            active_connections.identity().delete(&sender_id);
+                    active_connections.identity().delete(&sender_id);
             // --- END Clean Up Connection --- 
 
             // --- Set Player Offline Status --- 
@@ -287,11 +287,11 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
             // This means the player reconnected quickly before the old disconnect processed fully.
             // In this case, DO NOTHING. The new connection is already active, 
             // and we don't want to mark them offline or mess with their new state.
-            // Log if possible
+                            // Log if possible
             // log::info!("[Disconnect] Stale disconnect for {:?}. New connection ({:?}) already active. Ignoring disconnect for ID {:?}.", 
             //              sender_id, initial_active_conn.connection_id, disconnecting_connection_id);
-        }
-    } else {
+                        }
+                    } else {
         // No active connection found for this identity, maybe they disconnected before fully registering?
         // Or maybe the disconnect arrived *very* late after a new connection replaced the record.
         // Log if possible
@@ -1142,119 +1142,6 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
    } else {
        Err("Player not found".to_string())
    }
-}
-
-// --- Client-Requested Random Respawn Reducer ---
-#[spacetimedb::reducer]
-pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed function
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-    let item_defs = ctx.db.item_definition();
-    let inventory = ctx.db.inventory_item();
-
-    // Find the player requesting respawn
-    let mut player = players.identity().find(&sender_id)
-        .ok_or_else(|| "Player not found".to_string())?;
-
-    // Check if the player is actually dead
-    if !player.is_dead {
-        log::warn!("Player {:?} requested respawn but is not dead.", sender_id);
-        return Err("You are not dead.".to_string());
-    }
-
-    log::info!("Respawning player {} ({:?}) randomly. Items should be in corpse.", player.username, sender_id);
-
-    // --- Clear Player Inventory --- // REMOVED: Items are now in the corpse
-    // let mut items_to_delete = Vec::new();
-    // for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
-    //     items_to_delete.push(item.instance_id);
-    // }
-    // let delete_count = items_to_delete.len();
-    // for item_instance_id in items_to_delete {
-    //     inventory.instance_id().delete(item_instance_id);
-    // }
-    // log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
-    // --- End Clear Inventory ---
-
-    // --- Clear Crafting Queue & Refund --- // Keep this
-    crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
-    // --- END Clear Crafting Queue ---
-
-    // --- Grant Starting Rock --- // Keep this
-    log::info!("Granting starting Rock to respawned player: {}", player.username);
-    if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
-        match inventory.try_insert(crate::items::InventoryItem { // Qualify struct path
-            instance_id: 0, // Auto-incremented
-            player_identity: sender_id,
-            item_def_id: rock_def.id,
-            quantity: 1,
-            hotbar_slot: Some(0), // Put rock in first slot
-            inventory_slot: None,
-        }) {
-            Ok(_) => log::info!("Granted 1 Rock (slot 0) to player {}", player.username),
-            Err(e) => log::error!("Failed to grant starting Rock to player {}: {}", player.username, e),
-        }
-    } else {
-        log::error!("Could not find item definition for starting Rock!");
-    }
-    // --- End Grant Starting Rock ---
-
-    // --- Reset Stats and State ---
-    player.health = 100.0;
-    player.hunger = 100.0;
-    player.thirst = 100.0;
-    player.warmth = 100.0;
-    player.stamina = 100.0;
-    player.jump_start_time_ms = 0;
-    player.is_sprinting = false;
-    player.is_dead = false; // Mark as alive again
-    player.death_timestamp = None; // Clear death timestamp
-    player.last_hit_time = None;
-
-    // --- Reset Position to Random Location ---
-    let mut rng = ctx.rng(); // Use the rng() method
-    let spawn_padding = TILE_SIZE_PX as f32 * 2.0; // Padding from world edges
-    let mut spawn_x;
-    let mut spawn_y;
-    let mut attempts = 0;
-    const MAX_SPAWN_ATTEMPTS: u32 = 10; // Prevent infinite loop
-
-    loop {
-        spawn_x = rng.gen_range(spawn_padding..(WORLD_WIDTH_PX - spawn_padding));
-        spawn_y = rng.gen_range(spawn_padding..(WORLD_HEIGHT_PX - spawn_padding));
-        
-        // Basic collision check (simplified - TODO: Add proper safe spawn logic like in register_player)
-        let is_safe = true; // Placeholder - replace with actual check
-
-        if is_safe || attempts >= MAX_SPAWN_ATTEMPTS {
-            break;
-        }
-        attempts += 1;
-    }
-
-    if attempts >= MAX_SPAWN_ATTEMPTS {
-        log::warn!("Could not find a guaranteed safe random spawn point for player {:?} after {} attempts. Spawning anyway.", sender_id, MAX_SPAWN_ATTEMPTS);
-    }
-
-    player.position_x = spawn_x;
-    player.position_y = spawn_y;
-    player.direction = "down".to_string();
-
-    // --- Update Timestamp ---
-    player.last_update = ctx.timestamp;
-    player.last_stat_update = ctx.timestamp; // Reset stat timestamp on respawn
-
-    // --- Apply Player Changes ---
-    players.identity().update(player);
-    log::info!("Player {:?} respawned randomly at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
-
-    // Ensure item is unequipped on respawn
-    match active_equipment::unequip_item(ctx, sender_id) {
-        Ok(_) => log::info!("Ensured item is unequipped for respawned player {:?}", sender_id),
-        Err(e) => log::error!("Failed to unequip item for respawned player {:?}: {}", sender_id, e),
-    }
-
-    Ok(())
 }
 
 // --- NEW: Reducer to Update Viewport ---

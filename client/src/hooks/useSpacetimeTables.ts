@@ -110,8 +110,8 @@ export const useSpacetimeTables = ({
                  // Determine local player registration status within the callback
                  const localPlayerIdHex = connection?.identity?.toHexString();
                  if (localPlayerIdHex && player.identity.toHexString() === localPlayerIdHex) {
-                     // console.log('[useSpacetimeTables] Local player matched! Setting localPlayerRegistered = true.');
-                     setLocalPlayerRegistered(true);
+                         // console.log('[useSpacetimeTables] Local player matched! Setting localPlayerRegistered = true.');
+                         setLocalPlayerRegistered(true);
                  }
              };
             const handlePlayerUpdate = (ctx: any, oldPlayer: SpacetimeDB.Player, newPlayer: SpacetimeDB.Player) => {

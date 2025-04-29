@@ -151,9 +151,8 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     let sender_id = ctx.sender;
     let players = ctx.db.player();
     let sleeping_bags = ctx.db.sleeping_bag();
-    // Add table handles needed for item logic
-    let inventory = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
+    let inventory = ctx.db.inventory_item();
 
     log::info!(
         "[RespawnAtSleepingBag] Player {:?} attempting respawn at bag {}",
@@ -182,10 +181,26 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
         player.username, sender_id, bag_id
     );
 
-    // --- Clear Crafting Queue & Refund (Copied from respawn_randomly) ---
+    // --- Safeguard - Clear Player Inventory AGAIN ---
+    let mut items_to_delete = Vec::new();
+    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
+        items_to_delete.push(item.instance_id);
+    }
+    let delete_count = items_to_delete.len();
+    if delete_count > 0 {
+        log::warn!("[Respawn Safeguard] Found {} items still associated with player {:?} during respawn at bag. Deleting them now.", delete_count, sender_id);
+        for item_instance_id in items_to_delete {
+            if !inventory.instance_id().delete(item_instance_id) {
+                log::error!("[Respawn Safeguard] Failed to delete leftover item instance {} for player {:?}.", item_instance_id, sender_id);
+            }
+        }
+    }
+    // --- END Safeguard ---
+
+    // --- Clear Crafting Queue & Refund ---
     crafting_queue::clear_player_crafting_queue(ctx, sender_id);
 
-    // --- Grant Starting Rock (Copied from respawn_randomly) ---
+    // --- Grant Starting Rock ---
     log::info!("Granting starting Rock to respawned player: {}", player.username);
     if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
         match inventory.try_insert(crate::items::InventoryItem {

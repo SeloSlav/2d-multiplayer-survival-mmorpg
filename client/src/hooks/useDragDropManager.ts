@@ -288,7 +288,7 @@ export const useDragDropManager = ({
                     setDropError("Cannot split from this item source.");
                 }
                 return; // Split attempt handled
-            } 
+            }
 
             // --- Standard Item Move (Full Stack) ---
             if (targetSlot.type === 'inventory') {

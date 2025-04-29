@@ -15,6 +15,11 @@ use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait; // N
 
 // Placeholder for future content 
 
+// <<< ADDED Constants >>>
+pub(crate) const NUM_PLAYER_INVENTORY_SLOTS: u16 = 24;
+pub(crate) const NUM_PLAYER_HOTBAR_SLOTS: u8 = 6;
+// <<< END Added Constants >>>
+
 // --- Helper Functions --- 
 
 // Helper to find an item instance owned by the caller

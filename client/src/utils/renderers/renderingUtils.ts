@@ -81,70 +81,70 @@ export const renderYSortedEntities = ({
         if (type === 'player') {
             const player = entity as SpacetimeDBPlayer;
             const playerId = player.identity.toHexString();
-            const lastPos = lastPositionsRef.current.get(playerId);
-            let isPlayerMoving = false;
-            if (lastPos) {
+           const lastPos = lastPositionsRef.current.get(playerId);
+           let isPlayerMoving = false;
+           if (lastPos) {
                 const dx = Math.abs(player.positionX - lastPos.x);
                 const dy = Math.abs(player.positionY - lastPos.y);
                 if (dx > 0.1 || dy > 0.1) {
-                    isPlayerMoving = true;
-                }
-            }
+               isPlayerMoving = true;
+             }
+           }
             lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
 
-            let jumpOffset = 0;
+           let jumpOffset = 0;
             const jumpStartTime = player.jumpStartTimeMs;
-            if (jumpStartTime > 0) {
-                const elapsedJumpTime = nowMs - Number(jumpStartTime);
+           if (jumpStartTime > 0) {
+               const elapsedJumpTime = nowMs - Number(jumpStartTime);
                 if (elapsedJumpTime < 500) { 
                     const t = elapsedJumpTime / 500;
                     jumpOffset = Math.sin(t * Math.PI) * 50;
-                }
-            }
-            
+               }
+           }
+           
             const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
-            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
-            
-            const heroImg = heroImageRef.current;
-            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
+           const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
+           
+           const heroImg = heroImageRef.current;
+           const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
-            const equipment = activeEquipments.get(playerId);
-            let itemDef: SpacetimeDBItemDefinition | null = null;
-            let itemImg: HTMLImageElement | null = null;
+           const equipment = activeEquipments.get(playerId);
+           let itemDef: SpacetimeDBItemDefinition | null = null;
+           let itemImg: HTMLImageElement | null = null;
 
-            if (equipment && equipment.equippedItemDefId) {
-                itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
-                itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
-            }
-            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
+           if (equipment && equipment.equippedItemDefId) {
+             itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
+             itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
+           }
+           const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
 
             if (player.direction === 'left' || player.direction === 'up') {
-                if (canRenderItem && equipment) {
+              if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset);
-                }
-                if (heroImg) {
-                    renderPlayer(
+              }
+              if (heroImg) {
+                renderPlayer(
                         ctx, player, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
-                        animationFrame, nowMs, jumpOffset, 
-                        isPersistentlyHovered
-                    );
-                }
-            } else { 
-                if (heroImg) {
-                    renderPlayer(
+                  animationFrame, nowMs, jumpOffset, 
+                  isPersistentlyHovered
+                );
+              }
+           } else { 
+              if (heroImg) {
+                renderPlayer(
                         ctx, player, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
-                        animationFrame, nowMs, jumpOffset, 
-                        isPersistentlyHovered
-                    );
-                }
-                if (canRenderItem && equipment) {
+                  animationFrame, nowMs, jumpOffset, 
+                  isPersistentlyHovered
+                );
+              }
+              if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset);
-                }
-            }
+              }
+           }
         } else if (type === 'tree') {
             renderTree(ctx, entity as SpacetimeDBTree, nowMs);
         } else if (type === 'stone') {
@@ -160,6 +160,6 @@ export const renderYSortedEntities = ({
             });
         } else {
             console.warn('Unhandled entity type for Y-sorting:', type);
-        }
+        } 
     });
 }; 
