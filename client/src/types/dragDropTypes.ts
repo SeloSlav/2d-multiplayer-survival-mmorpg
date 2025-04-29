@@ -7,6 +7,7 @@ export type SlotType =
     | 'equipment' 
     | 'campfire_fuel'
     | 'wooden_storage_box'
+    | 'player_corpse'
     // Add more types as needed (e.g., 'furnace_input', 'furnace_fuel', 'crafting_output')
 
 // Type definition for the source/target of a drag/drop operation

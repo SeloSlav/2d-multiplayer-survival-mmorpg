@@ -27,6 +27,7 @@ interface UseInputHandlerProps {
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
     woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>; // <<< ADDED
+    closestInteractableCorpseId: bigint | null;
     // Callbacks for actions
     onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
     // Note: movement functions are now provided by usePlayerActions hook
@@ -68,6 +69,7 @@ export const useInputHandler = ({
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
     woodenStorageBoxes, // <<< ADDED
+    closestInteractableCorpseId,
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -97,7 +99,8 @@ export const useInputHandler = ({
         campfire: null as number | null,
         droppedItem: null as bigint | null,
         box: null as number | null,
-        boxEmpty: false
+        boxEmpty: false,
+        corpse: null as bigint | null,
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
@@ -136,8 +139,17 @@ export const useInputHandler = ({
             droppedItem: closestInteractableDroppedItemId,
             box: closestInteractableBoxId,
             boxEmpty: isClosestInteractableBoxEmpty,
+            corpse: closestInteractableCorpseId,
         };
-    }, [closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty]);
+    }, [
+        closestInteractableMushroomId, 
+        closestInteractableCornId, 
+        closestInteractableCampfireId, 
+        closestInteractableDroppedItemId, 
+        closestInteractableBoxId, 
+        isClosestInteractableBoxEmpty,
+        closestInteractableCorpseId,
+    ]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
@@ -222,8 +234,11 @@ export const useInputHandler = ({
 
                 const closest = closestIdsRef.current; // Use ref value
                 const { mushroom, corn, campfire, droppedItem, box, boxEmpty } = closest;
+                // <<< ADD logging for corpse ID >>>
+                const corpseId = closestIdsRef.current.corpse; // Get corpse ID from ref
+                console.log(`[Input E Down] Closest IDs: M=${mushroom}, Co=${corn}, Ca=${campfire}, D=${droppedItem}, B=${box}(${boxEmpty}), Corpse=${corpseId}`);
 
-                // Priority: DroppedItem > Empty Box > Mushroom > Corn > Open Box > Campfire
+                // Priority: DroppedItem > Empty Box > Mushroom > Corn > Open Box > Campfire > Corpse
                 if (droppedItem !== null) {
                     try {
                         currentConnection.reducers.pickupDroppedItem(droppedItem);
@@ -336,6 +351,14 @@ export const useInputHandler = ({
                         }
                     }, HOLD_INTERACTION_DURATION_MS);
                     return;
+                } else if (corpseId !== null) {
+                    // No hold action for corpse, just log for now. Interaction happens on KeyUp short press.
+                    console.log(`[Input E Down] Closest interactable is Corpse ID: ${corpseId}. Waiting for KeyUp.`);
+                    // Set isEHeldDownRef to track the key press for KeyUp logic
+                    isEHeldDownRef.current = true;
+                    eKeyDownTimestampRef.current = Date.now(); 
+                    // No timer or interactionProgress needed here for corpse looting
+                    return;
                 }
             }
 
@@ -375,13 +398,20 @@ export const useInputHandler = ({
                     }
                     setInteractionProgress(null);
                     eKeyDownTimestampRef.current = 0;
+                    console.log(`[Input E Up] Hold duration: ${holdDuration}ms. Closest before clear:`, closestBeforeClear);
 
                     if (holdDuration < HOLD_INTERACTION_DURATION_MS) {
                         const currentConnection = connectionRef.current;
                         if (!currentConnection?.reducers) return;
 
-                        // Prioritize Box if it was the target. Remove check for emptiness here.
-                        if (closestBeforeClear.box !== null) {
+                        // <<< MODIFY Priority: Check Corpse first on short press >>>
+                        if (closestBeforeClear.corpse !== null) {
+                            console.log(`[Input E Up - Short Press] Attempting interaction with Corpse ID: ${closestBeforeClear.corpse}`);
+                            // Try calling a (non-existent yet?) interact reducer or just set state
+                            // For now, just set the interaction state
+                            onSetInteractingWithRef.current({ type: 'player_corpse', id: closestBeforeClear.corpse });
+                            console.log(`[Input E Up - Short Press] Set interactingWith to Corpse ID: ${closestBeforeClear.corpse}`);
+                        } else if (closestBeforeClear.box !== null) {
                              // console.log(`[InputHandler KeyUp E - Short Press] Attempting interaction with Box ID: ${closestBeforeClear.box}`);
                              try {
                                 currentConnection.reducers.interactWithStorageBox(closestBeforeClear.box);

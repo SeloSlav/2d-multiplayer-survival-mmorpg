@@ -185,6 +185,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 interactingWith={interactingWith}
                 onSetInteractingWith={handleSetInteractingWith}
                 campfires={campfires}
+                woodenStorageBoxes={woodenStorageBoxes}
+                playerCorpses={playerCorpses}
                 currentStorageBox={
                     interactingWith?.type === 'wooden_storage_box'
                         ? woodenStorageBoxes.get(interactingWith.id.toString()) || null

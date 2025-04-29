@@ -5,8 +5,8 @@
   transform: translate(-50%, -50%); /* Centering trick */
   width: 90vw; /* Wider to accommodate panes */
   max-width: 1425px; /* Max width */
-  height: 75vh; /* Adjust height */
-  max-height: 800px;
+  height: 90vh; /* <<< INCREASE height from 75vh */
+  max-height: 950px; /* <<< INCREASE max-height from 800px */
   /* Style consistency with PlayerUI */
   background-color: rgba(40, 40, 60, 0.9); /* Match PlayerUI background */
   border: 1px solid #a0a0c0; /* Match PlayerUI border */

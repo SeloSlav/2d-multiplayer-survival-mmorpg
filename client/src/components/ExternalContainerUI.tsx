@@ -8,7 +8,7 @@ import DroppableSlot from './DroppableSlot';
 // Import Types
 import { 
     ItemDefinition, InventoryItem, DbConnection, 
-    Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox 
+    Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, PlayerCorpse 
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
@@ -17,13 +17,17 @@ import { PopulatedItem } from './InventoryUI'; // Assuming exported from Invento
 // Constants (can be moved/shared later)
 const NUM_FUEL_SLOTS = 5;
 const NUM_BOX_SLOTS = 18;
+const NUM_CORPSE_SLOTS = 30; // 24 inv + 6 hotbar
 const BOX_COLS = 6;
+const CORPSE_COLS = 6; // Same layout as inventory
 
 interface ExternalContainerUIProps {
     interactionTarget: InteractionTarget;
     inventoryItems: Map<string, InventoryItem>;
     itemDefinitions: Map<string, ItemDefinition>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
+    playerCorpses: Map<string, PlayerCorpse>;
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null; // The specific box being interacted with
     connection: DbConnection | null;
     onItemDragStart: (info: DraggedItemInfo) => void;
@@ -36,6 +40,8 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     inventoryItems,
     itemDefinitions,
     campfires,
+    woodenStorageBoxes,
+    playerCorpses,
     currentStorageBox,
     connection,
     onItemDragStart,
@@ -97,6 +103,33 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         return items;
     }, [isBoxInteraction, currentStorageBox, inventoryItems, itemDefinitions]);
 
+    // --- Derived Data for Corpse --- 
+    const isCorpseInteraction = interactionTarget?.type === 'player_corpse';
+    const corpseIdBigInt = isCorpseInteraction ? BigInt(interactionTarget!.id) : null;
+    const corpseIdStr = corpseIdBigInt?.toString() ?? null;
+    const currentCorpse = corpseIdStr !== null ? playerCorpses.get(corpseIdStr) : undefined;
+    const corpseItems = useMemo(() => {
+        const items: (PopulatedItem | null)[] = Array(NUM_CORPSE_SLOTS).fill(null);
+        if (!isCorpseInteraction || !currentCorpse) return items;
+        // Need to dynamically access slot_instance_id_N fields
+        for (let i = 0; i < NUM_CORPSE_SLOTS; i++) {
+            const instanceIdKey = `slotInstanceId${i}` as keyof PlayerCorpse;
+            const instanceIdOpt = currentCorpse[instanceIdKey] as bigint | null | undefined;
+
+            if (instanceIdOpt) {
+                const instanceIdStr = instanceIdOpt.toString();
+                const foundInvItem = inventoryItems.get(instanceIdStr);
+                if (foundInvItem) {
+                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
+                    if (definition) {
+                        items[i] = { instance: foundInvItem, definition };
+                    }
+                }
+            }
+        }
+        return items;
+    }, [isCorpseInteraction, currentCorpse, inventoryItems, itemDefinitions]);
+
     // --- Callbacks specific to containers ---
     const handleRemoveFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
         event.preventDefault();
@@ -114,6 +147,19 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (!connection?.reducers || !itemInfo || boxIdNum === null) return; // Check boxIdNum null
         try { connection.reducers.quickMoveFromBox(boxIdNum, slotIndex); } catch (e: any) { console.error("[ExtCont CtxMenu Box->Inv]", e); }
     }, [connection, boxIdNum]);
+
+    // --- NEW Callback for Corpse Context Menu ---
+    const handleCorpseItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
+        event.preventDefault();
+        if (!connection?.reducers || !itemInfo || !corpseIdBigInt) return;
+        // Corpse ID is u32 on the server, need to convert BigInt
+        const corpseIdU32 = Number(corpseIdBigInt); 
+        try {
+            connection.reducers.quickMoveFromCorpse(corpseIdU32, slotIndex);
+        } catch (e: any) { 
+            console.error("[ExtCont CtxMenu Corpse->Inv]", e); 
+        }
+    }, [connection, corpseIdBigInt]);
 
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
@@ -209,6 +255,47 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                         </div>
                     ) : (
                         <div>Error: Box data missing.</div>
+                    )}
+                </>
+            )}
+
+            {/* --- Corpse UI --- */}
+            {isCorpseInteraction && (
+                <>
+                    <h3 className={styles.sectionTitle} style={{ marginTop: '20px' }}>
+                        {currentCorpse ? `${currentCorpse.originalPlayerUsername}'s Backpack` : 'PLAYER CORPSE'}
+                    </h3>
+                    {currentCorpse ? (
+                        <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${CORPSE_COLS}, ${styles.slotSize || '60px'})` }}>
+                            {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
+                                const itemInSlot = corpseItems[index];
+                                // Ensure corpseIdBigInt is defined before creating slot info
+                                const corpseIdForSlot = corpseIdBigInt ?? undefined; 
+                                const currentCorpseSlotInfo: DragSourceSlotInfo = { type: 'player_corpse', index: index, parentId: corpseIdForSlot };
+                                const slotKey = `corpse-${corpseIdStr ?? 'unknown'}-${index}`;
+                                return (
+                                    <DroppableSlot
+                                        key={slotKey}
+                                        slotInfo={currentCorpseSlotInfo}
+                                        onItemDrop={onItemDrop}
+                                        className={styles.slot}
+                                        isDraggingOver={false} // Add state if needed
+                                    >
+                                        {itemInSlot && (
+                                            <DraggableItem
+                                                item={itemInSlot}
+                                                sourceSlot={currentCorpseSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={onItemDrop}
+                                                onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
+                                            />
+                                        )}
+                                    </DroppableSlot>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div>Error: Corpse data missing.</div>
                     )}
                 </>
             )}

@@ -177,7 +177,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableBoxId, isClosestInteractableBoxEmpty, 
       woodenStorageBoxes,
       isMinimapOpen, setIsMinimapOpen,
-      onSetInteractingWith, isChatting
+      onSetInteractingWith, isChatting,
+      closestInteractableCorpseId
   });
 
   // --- Use Entity Filtering Hook ---

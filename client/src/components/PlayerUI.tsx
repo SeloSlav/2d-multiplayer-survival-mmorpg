@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -8,6 +8,7 @@ import { itemIcons } from '../utils/itemIconUtils';
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 // NEW: Import placement types
 import { PlacementItemInfo, PlacementState, PlacementActions } from '../hooks/usePlacementManager';
+import { InteractionTarget } from '../hooks/useInteractionManager';
 
 // Define the StatusBar component inline for simplicity
 interface StatusBarProps {
@@ -57,14 +58,16 @@ interface PlayerUIProps {
   draggedItemInfo: DraggedItemInfo | null;
   activeEquipments: Map<string, ActiveEquipment>;
   campfires: Map<string, SpacetimeDBCampfire>;
-  onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
-  interactingWith: { type: string; id: number | bigint } | null;
+  onSetInteractingWith: (target: InteractionTarget) => void;
+  interactingWith: InteractionTarget;
   startPlacement: (itemInfo: PlacementItemInfo) => void;
   cancelPlacement: () => void;
   placementInfo: PlacementItemInfo | null;
   currentStorageBox?: SpacetimeDBWoodenStorageBox | null;
   recipes: Map<string, Recipe>;
   craftingQueueItems: Map<string, CraftingQueueItem>;
+  woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
+  playerCorpses: Map<string, PlayerCorpse>;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -85,7 +88,9 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     placementInfo,
     currentStorageBox,
     recipes,
-    craftingQueueItems
+    craftingQueueItems,
+    woodenStorageBoxes,
+    playerCorpses
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
     const [isInventoryOpen, setIsInventoryOpen] = useState(false);
@@ -234,6 +239,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     currentStorageBox={currentStorageBox}
                     recipes={recipes}
                     craftingQueueItems={craftingQueueItems}
+                    woodenStorageBoxes={woodenStorageBoxes}
+                    playerCorpses={playerCorpses}
                  />
              )}
 

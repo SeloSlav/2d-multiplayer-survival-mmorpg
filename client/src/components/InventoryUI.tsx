@@ -26,7 +26,8 @@ import {
     Campfire as SpacetimeDBCampfire, // Import Campfire type
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, // <<< Import Box type
     Recipe,
-    CraftingQueueItem
+    CraftingQueueItem,
+    PlayerCorpse
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 // NEW: Import placement types
@@ -51,6 +52,8 @@ interface InventoryUIProps {
     // Add new props for interaction context
     interactionTarget: { type: string; id: number | bigint } | null;
     campfires: Map<string, SpacetimeDBCampfire>;
+    woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>; // <<< ADDED Prop Definition
+    playerCorpses: Map<string, PlayerCorpse>; // <<< ADD prop definition for corpses
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null; // <<< ADDED Prop Definition
     // NEW: Add Generic Placement Props
     startPlacement: (itemInfo: PlacementItemInfo) => void;
@@ -97,6 +100,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     onItemDrop,
     interactionTarget,
     campfires,
+    woodenStorageBoxes,
+    playerCorpses,
     currentStorageBox,
     cancelPlacement,
     placementInfo, // Read isPlacing state from this
@@ -259,6 +264,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     connection={connection}
                     onItemDragStart={onItemDragStart}
                     onItemDrop={onItemDrop}
+                    woodenStorageBoxes={woodenStorageBoxes}
+                    playerCorpses={playerCorpses}
                 />
             </div>
 
