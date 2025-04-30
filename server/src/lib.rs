@@ -1166,7 +1166,12 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
 
     // --- Clear Player Inventory ---
     let mut items_to_delete = Vec::new();
-    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
+    // Modify the filter: only collect items that are actively in inventory or hotbar slots
+    for item in inventory.iter().filter(|item| 
+        item.player_identity == sender_id && (item.inventory_slot.is_some() || item.hotbar_slot.is_some())
+    ) {
+        log::trace!("[Respawn:{:?}] Marking item {} in slot (Inv: {:?}, Hotbar: {:?}) for deletion.", 
+                 sender_id, item.instance_id, item.inventory_slot, item.hotbar_slot);
         items_to_delete.push(item.instance_id);
     }
     let delete_count = items_to_delete.len();

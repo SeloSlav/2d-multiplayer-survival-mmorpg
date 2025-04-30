@@ -578,22 +578,46 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
         slot_instance_id_28: None, slot_def_id_28: None, slot_instance_id_29: None, slot_def_id_29: None,
     };
 
-    // 2. Gather items and mark for deletion
-    let mut items_to_delete = Vec::new();
+    // --- 2. Find items in player's direct possession and transfer them ---
+    let mut items_to_transfer = Vec::new();
+    log::debug!("[CorpseCreate:{:?}] Finding items in player inventory/hotbar.", player_id);
+    for item in inventory_items.iter().filter(|item| 
+        item.player_identity == player_id && (item.inventory_slot.is_some() || item.hotbar_slot.is_some())
+    ) {
+        items_to_transfer.push(item.clone()); // Clone needed items to avoid borrowing issues
+    }
+    log::info!("[CorpseCreate:{:?}] Found {} items to transfer.", player_id, items_to_transfer.len());
+
     let mut items_transferred_count = 0;
-    log::debug!("[CorpseCreate:{:?}] Starting item iteration.", player_id);
-    for item in inventory_items.iter().filter(|item| item.player_identity == player_id) {
-        log::trace!("[CorpseCreate:{:?}] Considering item instance {}.", player_id, item.instance_id);
+    for mut item in items_to_transfer { // Iterate over the collected items
+        log::trace!("[CorpseCreate:{:?}] Processing transfer for item instance {}.", player_id, item.instance_id);
         if let Some(empty_slot_index) = new_corpse.find_first_empty_slot() {
-            log::trace!("[CorpseCreate:{:?}] Adding item {} to corpse slot {} and marking for deletion.", player_id, item.instance_id, empty_slot_index);
+            // --- Transfer Item State ---
+            // Clear player-specific location info *before* adding reference to corpse
+            item.inventory_slot = None;
+            item.hotbar_slot = None;
+            // Set identity to default/null or keep as 'last possessor' - IMPORTANT: Respawn logic must ignore these items.
+            // For now, let's clear it to be explicit that it's no longer player-possessed.
+            item.player_identity = spacetimedb::Identity::default(); // Or some designated NULL_IDENTITY
+            
+            // Update the item in the InventoryItem table
+            inventory_items.instance_id().update(item.clone()); 
+            log::trace!("[CorpseCreate:{:?}] Updated item {} state (cleared player slots/identity). Adding to corpse slot {}.", player_id, item.instance_id, empty_slot_index);
+            
+            // Add reference to the corpse
             new_corpse.set_slot(empty_slot_index, Some(item.instance_id), Some(item.item_def_id));
-            items_to_delete.push(item.instance_id);
             items_transferred_count += 1;
         } else {
-            log::warn!("[CorpseCreate:{:?}] Corpse full, cannot transfer item {}. Item will be lost.", player_id, item.instance_id);
+            // Corpse is full, item cannot be transferred.
+            // Since we haven't modified its state, it will be cleaned up by respawn logic later.
+            log::warn!("[CorpseCreate:{:?}] Corpse full, cannot transfer item {}. Item will be cleared on respawn.", player_id, item.instance_id);
+            // Do NOT modify the item state here.
         }
     }
-    log::info!("[CorpseCreate:{:?}] Prepared {} items to transfer. Items to delete: {:?}", player_id, items_transferred_count, items_to_delete);
+    log::info!("[CorpseCreate:{:?}] Transferred {} items to corpse struct.", player_id, items_transferred_count);
+
+    // --- REMOVED Item Deletion Section ---
+    // The items are TRANSFERRED by updating their state, not deleted.
 
     // 3. Insert the corpse
     log::debug!("[CorpseCreate:{:?}] Attempting to insert corpse into table.", player_id);
@@ -601,22 +625,7 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
         Ok(inserted_corpse) => {
             log::info!("[CorpseCreate:{:?}] Successfully inserted corpse {}. Proceeding with item deletion.", player_id, inserted_corpse.id);
 
-            // 4. Delete transferred items from InventoryItem table
-            log::debug!("[CorpseCreate:{:?}] DEBUG: SKIPPING item deletion loop for items: {:?}", player_id, items_to_delete);
-            /*
-            log::debug!("[CorpseCreate:{:?}] Starting deletion loop for {} items.", player_id, items_to_delete.len());
-            for item_instance_id_to_delete in items_to_delete {
-                log::trace!("[CorpseCreate:{:?}] Attempting to delete item instance {}.", player_id, item_instance_id_to_delete);
-                if !inventory_items.instance_id().delete(item_instance_id_to_delete) {
-                    log::warn!("[CorpseCreate:{:?}] Failed to delete item instance {} from InventoryItem table (Corpse ID: {}).", player_id, item_instance_id_to_delete, inserted_corpse.id);
-                } else {
-                    log::trace!("[CorpseCreate:{:?}] Successfully deleted item instance {}.", player_id, item_instance_id_to_delete);
-                }
-            }
-            log::debug!("[CorpseCreate:{:?}] Finished item deletion loop.", player_id);
-            */
-
-            // 5. Schedule Despawn
+            // 4. Schedule Despawn
             log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {}.", player_id, inserted_corpse.id);
             let schedule_entry = PlayerCorpseDespawnSchedule {
                 corpse_id: inserted_corpse.id as u64, // Cast corpse ID to u64 for schedule PK
