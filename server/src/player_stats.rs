@@ -257,29 +257,3 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
 }
 
 pub const PLAYER_MAX_HEALTH: f32 = 100.0; // Define MAX_HEALTH here 
-
-#[spacetimedb::reducer]
-pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> {
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-    let item_defs = ctx.db.item_definition();
-    let inventory = ctx.db.inventory_item(); // Keep inventory handle if needed for granting rock
-
-    // Find the player requesting respawn
-    let mut player = players.identity().find(&sender_id)
-        .ok_or_else(|| "Player not found".to_string())?;
-
-    log::info!("Respawning player {} ({:?}) randomly.", player.username, sender_id);
-
-    // --- Clear Crafting Queue & Refund --- // Keep this
-    crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
-    // --- END Clear Crafting Queue ---
-
-    // --- Grant Starting Rock --- // Keep this
-    log::info!("Granting starting Rock to respawned player: {}", player.username);
-    if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
-        // TODO: Implement actual item granting logic here if needed
-        // For now, this block is empty but satisfies the borrow checker
-    }
-    Ok(())
-} 
