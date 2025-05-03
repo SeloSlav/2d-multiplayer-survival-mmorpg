@@ -34,11 +34,11 @@ const sleepingBagConfig: GroundEntityConfig<SpacetimeDBSleepingBag> = {
         ctx.translate(shadowCenterX, shadowCenterY);
         
         // Rotate the context 45 degrees clockwise (PI / 4 radians)
-        ctx.rotate(Math.PI / 4);
+        ctx.rotate(Math.PI / 3);
         
         // Draw the shadow centered at the new (0, 0) origin
         // The width/height params control the size of the rotated ellipse
-        drawShadow(ctx, 0, 0, SLEEPING_BAG_WIDTH * 0.3, SLEEPING_BAG_HEIGHT * 0.5);
+        drawShadow(ctx, 0, 0, SLEEPING_BAG_WIDTH * 0.2, SLEEPING_BAG_HEIGHT * 0.5);
         
         ctx.restore(); // Restore the context to its pre-transformation state
         // --- End Shadow ---

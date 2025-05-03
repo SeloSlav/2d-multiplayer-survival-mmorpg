@@ -13,6 +13,7 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 
 ## Table of Contents
 
+*   [⚡ Quick Local Setup](#️-quick-local-setup)
 *   [🗺️ Roadmap](#️-roadmap)
 *   [🛠️ Tech Stack](#️-tech-stack)
 *   [🔐 Authentication Setup](#-authentication-setup)
@@ -25,6 +26,73 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 *   [🔄 Development Workflow](#-development-workflow)
 *   [🤝 Contributing](#-contributing)
 *   [📜 License](#-license)
+
+## ⚡ Quick Local Setup
+
+For experienced users familiar with Node.js, Rust, and SpacetimeDB. See detailed sections below for troubleshooting or authentication specifics.
+
+**0. Install SpacetimeDB CLI:**
+Follow the instructions for your OS: [https://spacetimedb.com/install](https://spacetimedb.com/install)
+(e.g., `curl -sSf https://install.spacetimedb.com | sh` on macOS/Linux)
+
+**1. Clone & Install Client Deps:**
+```bash
+git clone https://github.com/SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival.git
+cd vibe-coding-starter-pack-2d-multiplayer-survival
+npm install
+```
+
+**2. Setup & Run Auth Server (Terminal 1):**
+```bash
+# Ensure OpenSSL is installed (https://www.openssl.org/source/)
+
+# From the project root directory, create a 'keys' directory:
+mkdir keys
+
+# Generate RSA private and public key files inside the 'keys' directory:
+openssl genpkey -algorithm RSA -out keys/private.pem -pkeyopt rsa_keygen_bits:2048
+openssl rsa -pubout -in keys/private.pem -out keys/public.pem
+
+# Navigate to the auth server directory and run it:
+cd auth-server-openauth/
+npm install
+npm start
+# Keep this terminal running (Auth Server on http://localhost:4001)
+```
+
+**3. Run SpacetimeDB Server (Terminal 2):**
+```bash
+# In project root directory
+spacetime start
+# Keep this terminal running (SpacetimeDB Server)
+```
+
+**4. Publish Server & Generate Bindings (Terminal 3):**
+```bash
+cd server/
+# Optional: Clean previous DB state if needed
+# spacetime delete vibe-survival-game
+spacetime publish vibe-survival-game
+spacetime generate --lang typescript --out-dir ../client/src/generated
+cd ..
+```
+
+**5. Run Client Dev Server (Terminal 3 or 4):**
+```bash
+# In project root directory
+npm run dev
+# Access game at http://localhost:3008 (or similar)
+```
+*   **For Multiplayer Testing:** Open a **new terminal** in the project root and run `npm run dev` again. The second client will likely open on a different port (e.g., 3009). Open this URL in a separate browser tab or window.
+
+**Updating Server Code:**
+*   **Logic Change Only:** `cd server && spacetime publish vibe-survival-game`
+*   **Schema Change (Tables/Reducers):**
+    1.  `(Optional but Recommended)` `spacetime delete vibe-survival-game` (Run *before* publish to prevent schema conflicts).
+    2.  `cd server`
+    3.  `spacetime publish vibe-survival-game`
+    4.  `spacetime generate --lang typescript --out-dir ../client/src/generated`
+    5.  `cd ..`
 
 ## 🗺️ Roadmap
 
