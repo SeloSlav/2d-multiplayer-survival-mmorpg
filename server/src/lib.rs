@@ -607,8 +607,9 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         placed_by: sender_id,
         placed_at: current_time,
         is_burning: true, // Start burning by default
-        current_fuel_def_id: None,
-        remaining_fuel_burn_time_secs: None,
+        // Let the scheduled processor handle these initially
+        current_fuel_def_id: None, 
+        remaining_fuel_burn_time_secs: None, 
         fuel_instance_id_0: None, 
         fuel_def_id_0: None,      
         fuel_instance_id_1: None,
@@ -646,18 +647,15 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     // Set the first fuel slot of the campfire
     campfire_to_update.fuel_instance_id_0 = Some(fuel_instance_id);
     campfire_to_update.fuel_def_id_0 = Some(wood_def_id);
-    // Also, ensure remaining_fuel_burn_time_secs is set based on the total initial fuel if not already handled.
-    // The current_fuel_def_id and remaining_fuel_burn_time_secs in new_campfire_data_without_fuel_ids 
-    // were based on a single unit. Let's ensure it reflects the full initial stack for now.
-    // This might be better handled by the first call to find_and_consume_fuel_for_campfire, but let's be explicit.
-    if let Some(burn_duration_per_unit) = initial_fuel_item_def.fuel_burn_duration_secs {
-        campfire_to_update.remaining_fuel_burn_time_secs = Some(burn_duration_per_unit * INITIAL_CAMPFIRE_FUEL_AMOUNT as f32);
-        campfire_to_update.current_fuel_def_id = Some(wood_def_id); // Reaffirm, as this is the fuel it starts burning
-    }
-    campfires.id().update(campfire_to_update);
+    // DO NOT set current_fuel_def_id or remaining_fuel_burn_time_secs here.
+    // is_burning is already true from new_campfire_data_without_fuel_ids.
+    // The scheduled process_campfire_logic_scheduled will pick it up.
     
-    log::info!("Player {} placed a campfire {} at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0).",
-             player.username, new_campfire_id, world_x, world_y, fuel_instance_id);
+    let is_burning_for_log = campfire_to_update.is_burning; // Capture before move
+    campfires.id().update(campfire_to_update); // campfire_to_update is moved here
+    
+    log::info!("Player {} placed a campfire {} at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0). Burning state: {}.",
+             player.username, new_campfire_id, world_x, world_y, fuel_instance_id, is_burning_for_log); // Use captured value
 
     // Schedule initial processing for the new campfire
     match crate::campfire::schedule_next_campfire_processing(ctx, new_campfire_id) {
