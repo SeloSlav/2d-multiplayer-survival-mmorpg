@@ -599,7 +599,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
 
     // --- 5a. Insert Campfire Entity first to get its ID ---
     // The campfire entity is created with initial fuel data directly
-    let new_campfire = Campfire {
+    let new_campfire_data_without_fuel_ids = Campfire {
         id: 0, // Auto-incremented
         pos_x: world_x,
         pos_y: world_y,
@@ -607,8 +607,8 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         placed_by: sender_id,
         placed_at: current_time,
         is_burning: true, // Start burning by default
-        current_fuel_def_id: Some(wood_def_id),
-        remaining_fuel_burn_time_secs: Some(initial_fuel_item_def.fuel_burn_duration_secs.unwrap_or(0.0)), // Set initial burn time
+        current_fuel_def_id: None,
+        remaining_fuel_burn_time_secs: None,
         fuel_instance_id_0: None, 
         fuel_def_id_0: None,      
         fuel_instance_id_1: None,
@@ -620,7 +620,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_instance_id_4: None,
         fuel_def_id_4: None,
     };
-    let inserted_campfire = campfires.try_insert(new_campfire)
+    let inserted_campfire = campfires.try_insert(new_campfire_data_without_fuel_ids)
         .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;
     let new_campfire_id = inserted_campfire.id; 
 
@@ -639,16 +639,22 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     let fuel_instance_id = inserted_fuel_item.instance_id;
     log::info!("[PlaceCampfire] Created initial fuel item (Wood, instance {}) for campfire {}.", fuel_instance_id, new_campfire_id);
 
-    // --- 5c. Update the Campfire Entity with the Fuel Item's ID in the correct slot ---  <- REMOVE THIS SECTION
-    // let mut campfire_to_update = campfires.id().find(new_campfire_id)
-    //     .ok_or_else(|| format!("Failed to re-find campfire {} to update with fuel.", new_campfire_id))?;
-    // 
-    // // Set the first inventory slot of the campfire
-    // campfire_to_update.inventory_slot_instance_id_0 = Some(fuel_instance_id);
-    // campfire_to_update.inventory_slot_def_id_0 = Some(wood_def_id);
-    // // remaining_fuel_burn_time_secs and current_fuel_def_id were already set when new_campfire was created.
-    // // No need to set them again here unless the logic changes to not set them initially.
-    // campfires.id().update(campfire_to_update);
+    // --- 5c. Update the Campfire Entity with the Fuel Item's ID in the correct slot --- 
+    let mut campfire_to_update = campfires.id().find(new_campfire_id)
+        .ok_or_else(|| format!("Failed to re-find campfire {} to update with fuel.", new_campfire_id))?;
+    
+    // Set the first fuel slot of the campfire
+    campfire_to_update.fuel_instance_id_0 = Some(fuel_instance_id);
+    campfire_to_update.fuel_def_id_0 = Some(wood_def_id);
+    // Also, ensure remaining_fuel_burn_time_secs is set based on the total initial fuel if not already handled.
+    // The current_fuel_def_id and remaining_fuel_burn_time_secs in new_campfire_data_without_fuel_ids 
+    // were based on a single unit. Let's ensure it reflects the full initial stack for now.
+    // This might be better handled by the first call to find_and_consume_fuel_for_campfire, but let's be explicit.
+    if let Some(burn_duration_per_unit) = initial_fuel_item_def.fuel_burn_duration_secs {
+        campfire_to_update.remaining_fuel_burn_time_secs = Some(burn_duration_per_unit * INITIAL_CAMPFIRE_FUEL_AMOUNT as f32);
+        campfire_to_update.current_fuel_def_id = Some(wood_def_id); // Reaffirm, as this is the fuel it starts burning
+    }
+    campfires.id().update(campfire_to_update);
     
     log::info!("Player {} placed a campfire {} at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0).",
              player.username, new_campfire_id, world_x, world_y, fuel_instance_id);

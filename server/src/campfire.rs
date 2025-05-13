@@ -424,92 +424,201 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
     }
 
     let campfire_id = schedule_args.campfire_id_for_schedule as u32;
-    let mut campfires = ctx.db.campfire();
+    let mut campfires_table = ctx.db.campfire(); // Renamed for clarity
+    let mut inventory_items_table = ctx.db.inventory_item(); // Added
 
-    let mut campfire = match campfires.id().find(campfire_id) {
+    let mut campfire = match campfires_table.id().find(campfire_id) {
         Some(cf) => cf,
         None => {
             log::warn!("[ProcessCampfireScheduled] Campfire {} not found for scheduled processing. Schedule might be stale. Not rescheduling.", campfire_id);
+            // Try to delete the schedule entry if the campfire is gone
+            ctx.db.campfire_processing_schedule().campfire_id_for_schedule().delete(campfire_id as u64);
             return Ok(());
         }
     };
 
-    let mut made_changes = false;
+    let mut made_changes_to_campfire_struct = false;
 
     if campfire.is_burning {
-        if let Some(remaining_time) = campfire.remaining_fuel_burn_time_secs {
-            let new_remaining_time = remaining_time - (CAMPFIRE_PROCESS_INTERVAL_SECS as f32);
-            if new_remaining_time <= 0.0 {
-                log::debug!("[ProcessCampfireScheduled] Fuel {:?} depleted in campfire {}. Remaining time was {}.", campfire.current_fuel_def_id, campfire.id, remaining_time);
-                campfire.current_fuel_def_id = None;
-                campfire.remaining_fuel_burn_time_secs = None;
-                made_changes = true;
+        if let Some(mut remaining_time) = campfire.remaining_fuel_burn_time_secs {
+            if remaining_time > 0.0 {
+                let time_decrement = CAMPFIRE_PROCESS_INTERVAL_SECS as f32;
+                remaining_time -= time_decrement;
+                log::debug!("[ProcessCampfireScheduled] Campfire {} ({:?}) still burning. {:.1}s remaining of current fuel unit. Decrementing by {}s.", 
+                         campfire.id, campfire.current_fuel_def_id, remaining_time + time_decrement, time_decrement);
 
-                // Try to find and consume next fuel item from slots
-                let fuel_slots = [
+                if remaining_time <= 0.0 {
+                    log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit burnt out (Def: {:?}). Attempting to consume from stack or find new fuel.", 
+                             campfire.id, campfire.current_fuel_def_id);
+                    
+                    // Current fuel unit (e.g., 1 wood) has burned. Decrement the actual InventoryItem.
+                    let mut current_fuel_item_instance_id_opt: Option<u64> = None;
+                    let mut current_fuel_slot_idx_opt: Option<u8> = None;
+
+                    // Find which slot holds the current_fuel_def_id
+                    let fuel_slots_ids = [
+                        (campfire.fuel_instance_id_0, 0u8), (campfire.fuel_instance_id_1, 1u8),
+                        (campfire.fuel_instance_id_2, 2u8), (campfire.fuel_instance_id_3, 3u8),
+                        (campfire.fuel_instance_id_4, 4u8),
+                    ];
+
+                    for (instance_id_opt, slot_idx) in fuel_slots_ids.iter() {
+                        if let Some(instance_id) = instance_id_opt {
+                            if let Some(item) = inventory_items_table.instance_id().find(*instance_id) {
+                                if Some(item.item_def_id) == campfire.current_fuel_def_id {
+                                    current_fuel_item_instance_id_opt = Some(*instance_id);
+                                    current_fuel_slot_idx_opt = Some(*slot_idx);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if let (Some(fuel_instance_id), Some(fuel_slot_idx)) = (current_fuel_item_instance_id_opt, current_fuel_slot_idx_opt) {
+                        if let Some(mut fuel_item) = inventory_items_table.instance_id().find(fuel_instance_id) {
+                            log::debug!("[ProcessCampfireScheduled] Campfire {} consuming 1 unit from InventoryItem {} (qty before: {}).", 
+                                     campfire.id, fuel_instance_id, fuel_item.quantity);
+                            if fuel_item.quantity > 1 {
+                                fuel_item.quantity -= 1;
+                                inventory_items_table.instance_id().update(fuel_item.clone());
+                                // Reload this fuel item for the next burn cycle
+                                if let Some(item_def) = ctx.db.item_definition().id().find(fuel_item.item_def_id) {
+                                    if let Some(burn_duration_per_unit) = item_def.fuel_burn_duration_secs {
+                                        campfire.remaining_fuel_burn_time_secs = Some(burn_duration_per_unit); // Burn time for the next single unit
+                                        log::info!("[ProcessCampfireScheduled] Campfire {} reloaded fuel unit (Def: {:?}, Qty: {}) from slot {}. Next unit burn time: {:.1}s.",
+                                                 campfire.id, campfire.current_fuel_def_id, fuel_item.quantity, fuel_slot_idx, burn_duration_per_unit);
+                                    } else { // Should not happen if it was burning
+                                        campfire.remaining_fuel_burn_time_secs = None;
+                                    }
+                                }
+                            } else {
+                                // Last unit of this item stack
+                                inventory_items_table.instance_id().delete(fuel_instance_id);
+                                campfire.set_slot(fuel_slot_idx, None, None); // Clear from Campfire struct
+                                log::info!("[ProcessCampfireScheduled] Campfire {} finished InventoryItem {} from slot {}.", campfire.id, fuel_instance_id, fuel_slot_idx);
+                                campfire.current_fuel_def_id = None; // Signal to find new fuel
+                                campfire.remaining_fuel_burn_time_secs = None;
+                            }
+                            made_changes_to_campfire_struct = true;
+                        } else { // Should not happen if current_fuel_def_id was set
+                             log::warn!("[ProcessCampfireScheduled] Campfire {}: Could not find InventoryItem {} for currently burning fuel. Clearing current fuel.", campfire.id, fuel_instance_id);
+                             campfire.current_fuel_def_id = None;
+                             campfire.remaining_fuel_burn_time_secs = None;
+                             made_changes_to_campfire_struct = true;
+                        }
+                    } else {
+                        log::warn!("[ProcessCampfireScheduled] Campfire {}: current_fuel_def_id {:?} was set, but no matching InventoryItem found in slots. Clearing current fuel.", 
+                                 campfire.id, campfire.current_fuel_def_id);
+                        campfire.current_fuel_def_id = None;
+                        campfire.remaining_fuel_burn_time_secs = None;
+                        made_changes_to_campfire_struct = true;
+                    }
+
+                    // If current fuel ran out (or item was missing), try to load next fuel
+                    if campfire.current_fuel_def_id.is_none() {
+                        log::info!("[ProcessCampfireScheduled] Campfire {} attempting to find new fuel source...", campfire.id);
+                        let mut new_fuel_loaded = false;
+                        let fuel_slots_for_new_search = [
+                            (campfire.fuel_instance_id_0, campfire.fuel_def_id_0, 0u8),
+                            (campfire.fuel_instance_id_1, campfire.fuel_def_id_1, 1u8),
+                            (campfire.fuel_instance_id_2, campfire.fuel_def_id_2, 2u8),
+                            (campfire.fuel_instance_id_3, campfire.fuel_def_id_3, 3u8),
+                            (campfire.fuel_instance_id_4, campfire.fuel_def_id_4, 4u8),
+                        ];
+                        for (instance_id_opt, def_id_opt, slot_idx) in fuel_slots_for_new_search.iter() {
+                            if let (Some(instance_id), Some(def_id)) = (instance_id_opt, def_id_opt) {
+                                // Call the existing helper, but it now just sets the burn time for *one unit*
+                                if find_and_set_burn_time_for_fuel_unit(ctx, &mut campfire, *instance_id, *def_id, *slot_idx) {
+                                    log::info!("[ProcessCampfireScheduled] Campfire {} started burning new fuel (Def: {:?}) from slot {}. Burn time for this unit: {:?})",
+                                             campfire.id, campfire.current_fuel_def_id, *slot_idx, campfire.remaining_fuel_burn_time_secs);
+                                    new_fuel_loaded = true;
+                                    made_changes_to_campfire_struct = true;
+                                    break; 
+                                }
+                            }
+                        }
+                        if !new_fuel_loaded {
+                            log::info!("[ProcessCampfireScheduled] Campfire {} found no new fuel. Extinguishing.", campfire.id);
+                            campfire.is_burning = false;
+                            // current_fuel_def_id and remaining_fuel_burn_time_secs are already None
+                            made_changes_to_campfire_struct = true;
+                        }
+                    }
+                } else {
+                    // Still burning current unit
+                    campfire.remaining_fuel_burn_time_secs = Some(remaining_time);
+                    made_changes_to_campfire_struct = true;
+                }
+            } else { // remaining_time was already <= 0.0 or None
+                log::info!("[ProcessCampfireScheduled] Campfire {} had remaining_time <= 0 or None. Attempting to find new fuel source...", campfire.id);
+                // This block is similar to the one above when current fuel runs out
+                let mut new_fuel_loaded = false;
+                let fuel_slots_for_initial_search = [
                     (campfire.fuel_instance_id_0, campfire.fuel_def_id_0, 0u8),
                     (campfire.fuel_instance_id_1, campfire.fuel_def_id_1, 1u8),
                     (campfire.fuel_instance_id_2, campfire.fuel_def_id_2, 2u8),
                     (campfire.fuel_instance_id_3, campfire.fuel_def_id_3, 3u8),
                     (campfire.fuel_instance_id_4, campfire.fuel_def_id_4, 4u8),
                 ];
-                let mut fuel_consumed_this_tick = false;
-                for (fuel_instance_id_opt, fuel_def_id_opt, slot_idx) in fuel_slots.iter() {
-                    if let (Some(fuel_instance_id), Some(fuel_def_id)) = (fuel_instance_id_opt, fuel_def_id_opt) {
-                        if find_and_consume_fuel_for_campfire(ctx, &mut campfire, *fuel_instance_id, *fuel_def_id, *slot_idx).is_some() {
-                            log::info!("[Campfire {}] Consumed new fuel (Def: {}) from slot {}. Remaining burn time: {:?})",
-                                     campfire.id, fuel_def_id, *slot_idx, campfire.remaining_fuel_burn_time_secs);
-                            fuel_consumed_this_tick = true;
-                            made_changes = true; 
-                            break; 
+                for (instance_id_opt, def_id_opt, slot_idx) in fuel_slots_for_initial_search.iter() {
+                    if let (Some(instance_id), Some(def_id)) = (instance_id_opt, def_id_opt) {
+                         if find_and_set_burn_time_for_fuel_unit(ctx, &mut campfire, *instance_id, *def_id, *slot_idx) {
+                            log::info!("[ProcessCampfireScheduled] Campfire {} started burning new fuel (Def: {:?}) from slot {}. Burn time for this unit: {:?})",
+                                     campfire.id, campfire.current_fuel_def_id, *slot_idx, campfire.remaining_fuel_burn_time_secs);
+                            new_fuel_loaded = true;
+                            made_changes_to_campfire_struct = true;
+                            break;
                         }
                     }
                 }
-                if !fuel_consumed_this_tick {
-                    log::info!("[ProcessCampfireScheduled] Campfire {} ran out of fuel and is extinguishing.", campfire.id);
+                if !new_fuel_loaded {
+                    log::info!("[ProcessCampfireScheduled] Campfire {} was lit but had no initial/suitable fuel. Extinguishing.", campfire.id);
                     campfire.is_burning = false;
+                    campfire.current_fuel_def_id = None; 
+                    campfire.remaining_fuel_burn_time_secs = None;
+                    made_changes_to_campfire_struct = true;
                 }
-            } else {
-                campfire.remaining_fuel_burn_time_secs = Some(new_remaining_time);
-                log::debug!("[ProcessCampfireScheduled] Campfire {} fuel {:?} still burning. {:.1}s remaining.", campfire.id, campfire.current_fuel_def_id, new_remaining_time);
-                made_changes = true; 
             }
-        } else { 
-            let fuel_slots = [
+        } else { // No remaining_fuel_burn_time_secs, meaning no fuel is currently "loaded"
+            log::info!("[ProcessCampfireScheduled] Campfire {} is burning but no current fuel loaded. Attempting to find new fuel source...", campfire.id);
+            // This block is similar to the one above
+            let mut new_fuel_loaded = false;
+            let fuel_slots_for_first_load = [
                 (campfire.fuel_instance_id_0, campfire.fuel_def_id_0, 0u8),
                 (campfire.fuel_instance_id_1, campfire.fuel_def_id_1, 1u8),
                 (campfire.fuel_instance_id_2, campfire.fuel_def_id_2, 2u8),
                 (campfire.fuel_instance_id_3, campfire.fuel_def_id_3, 3u8),
                 (campfire.fuel_instance_id_4, campfire.fuel_def_id_4, 4u8),
             ];
-            let mut new_fuel_started_burning = false;
-            for (fuel_instance_id_opt, fuel_def_id_opt, slot_idx) in fuel_slots.iter() {
-                if let (Some(fuel_instance_id), Some(fuel_def_id)) = (fuel_instance_id_opt, fuel_def_id_opt) {
-                     if find_and_consume_fuel_for_campfire(ctx, &mut campfire, *fuel_instance_id, *fuel_def_id, *slot_idx).is_some() {
-                        log::info!("[Campfire {}] Started burning new fuel (Def: {}) from slot {}. Burn time: {:?})",
-                                 campfire.id, fuel_def_id, *slot_idx, campfire.remaining_fuel_burn_time_secs);
-                        new_fuel_started_burning = true;
-                        made_changes = true;
+            for (instance_id_opt, def_id_opt, slot_idx) in fuel_slots_for_first_load.iter() {
+                if let (Some(instance_id), Some(def_id)) = (instance_id_opt, def_id_opt) {
+                     if find_and_set_burn_time_for_fuel_unit(ctx, &mut campfire, *instance_id, *def_id, *slot_idx) {
+                        log::info!("[ProcessCampfireScheduled] Campfire {} started burning new fuel (Def: {:?}) from slot {}. Burn time for this unit: {:?})",
+                                 campfire.id, campfire.current_fuel_def_id, *slot_idx, campfire.remaining_fuel_burn_time_secs);
+                        new_fuel_loaded = true;
+                        made_changes_to_campfire_struct = true;
                         break;
                     }
                 }
             }
-            if !new_fuel_started_burning {
-                log::info!("[ProcessCampfireScheduled] Campfire {} was lit but had no suitable fuel. Extinguishing.", campfire.id);
+            if !new_fuel_loaded {
+                log::info!("[ProcessCampfireScheduled] Campfire {} was lit but had no initial/suitable fuel. Extinguishing.", campfire.id);
                 campfire.is_burning = false;
                 campfire.current_fuel_def_id = None; 
                 campfire.remaining_fuel_burn_time_secs = None;
-                made_changes = true;
+                made_changes_to_campfire_struct = true;
             }
         }
-    } else {
+    } else { // Not burning
         log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed.", campfire.id);
+        // If it's not burning, but a schedule somehow exists, this `schedule_next_campfire_processing` call will clear it.
     }
 
-    if made_changes {
-        campfires.id().update(campfire.clone());
+    if made_changes_to_campfire_struct {
+        campfires_table.id().update(campfire.clone());
     }
 
+    // Always call schedule_next, it will decide if a new schedule is needed or if the current one (if periodic) continues, or if it should be cleared.
     schedule_next_campfire_processing(ctx, campfire_id)?;
     Ok(())
 }
@@ -728,41 +837,46 @@ pub(crate) fn check_if_campfire_has_fuel(ctx: &ReducerContext, campfire: &Campfi
     false
 }
 
-// Function to find and consume fuel, updating the campfire's remaining burn time.
-// Returns Some(consumed_quantity) if fuel was consumed, None otherwise.
-// fuel_slot_index is 0-4, used to update the correct campfire fuel fields.
-fn find_and_consume_fuel_for_campfire(
+// Renamed and refactored: find_and_consume_fuel_for_campfire to find_and_set_burn_time_for_fuel_unit
+// This function now only CHECKS if a fuel item is valid and sets the burn time for ONE unit of it.
+// It does NOT consume the item's quantity here. Consumption happens in process_campfire_logic_scheduled.
+// Returns true if valid fuel was found and burn time set, false otherwise.
+fn find_and_set_burn_time_for_fuel_unit(
     ctx: &ReducerContext,
     current_campfire: &mut Campfire, 
     fuel_instance_id: u64,      
     fuel_item_def_id: u64,      
-    fuel_slot_index: u8,
-) -> Option<u32> { 
-    let mut inventory_items = ctx.db.inventory_item();
+    _fuel_slot_index: u8, // Not strictly needed here anymore for setting, but good for logging if fuel_instance_id wasn't enough
+) -> bool { 
+    let inventory_items = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
 
-    if let Some(mut fuel_item) = inventory_items.instance_id().find(fuel_instance_id) {
-        if let Some(item_def) = item_defs.id().find(fuel_item_def_id) { 
-            if item_def.fuel_burn_duration_secs.is_some() {
-                log::debug!("[Campfire {}] Consuming 1 unit of fuel item {} (Def: {}) from slot {}", 
-                         current_campfire.id, fuel_instance_id, fuel_item_def_id, fuel_slot_index);
-
-                current_campfire.current_fuel_def_id = Some(fuel_item_def_id);
-                current_campfire.remaining_fuel_burn_time_secs = Some(item_def.fuel_burn_duration_secs.unwrap_or(0.0) * fuel_item.quantity as f32);
-                current_campfire.is_burning = true; 
-                
-                let consumed_quantity = 1;
-                if fuel_item.quantity > consumed_quantity {
-                    fuel_item.quantity -= consumed_quantity;
-                    inventory_items.instance_id().update(fuel_item);
-                } else {
-                    inventory_items.instance_id().delete(fuel_instance_id);
-                    // Also clear the slot in the campfire struct itself
-                    current_campfire.set_slot(fuel_slot_index, None, None);
-                }
-                return Some(consumed_quantity); 
-            }
+    if let Some(fuel_item) = inventory_items.instance_id().find(fuel_instance_id) {
+        if fuel_item.quantity == 0 { // Should not happen if slot is occupied, but good check
+            log::warn!("[find_and_set_burn_time] Fuel item {} has 0 quantity, cannot use.", fuel_instance_id);
+            return false;
         }
+        if let Some(item_def) = item_defs.id().find(fuel_item_def_id) { 
+            if let Some(burn_duration_per_unit) = item_def.fuel_burn_duration_secs {
+                if burn_duration_per_unit > 0.0 {
+                    log::debug!("[find_and_set_burn_time] Campfire {} found valid fuel item {} (Def: {}) with burn duration {}. Setting as current fuel.", 
+                             current_campfire.id, fuel_instance_id, fuel_item_def_id, burn_duration_per_unit);
+
+                    current_campfire.current_fuel_def_id = Some(fuel_item_def_id);
+                    current_campfire.remaining_fuel_burn_time_secs = Some(burn_duration_per_unit); // Burn time for ONE unit.
+                    current_campfire.is_burning = true; // Ensure it's set to burning if we found fuel
+                    return true; 
+                } else {
+                    log::debug!("[find_and_set_burn_time] Fuel item {} (Def: {}) has no burn duration.", fuel_instance_id, fuel_item_def_id);
+                }
+            } else {
+                 log::debug!("[find_and_set_burn_time] Fuel item {} (Def: {}) has no burn duration attribute.", fuel_instance_id, fuel_item_def_id);
+            }
+        }  else {
+            log::warn!("[find_and_set_burn_time] Definition not found for fuel item_def_id {}.", fuel_item_def_id);
+        }
+    } else {
+        log::warn!("[find_and_set_burn_time] InventoryItem instance {} not found for fuel.", fuel_instance_id);
     }
-    None
+    false
 }
