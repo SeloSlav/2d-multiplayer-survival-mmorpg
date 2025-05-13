@@ -127,7 +127,7 @@ export function renderInteractionLabels({
     if (closestInteractableCorpseId !== null) {
         const corpse = playerCorpses.get(closestInteractableCorpseId.toString());
         if (corpse) {
-            const text = `Press E to loot ${corpse.originalPlayerUsername}'s backpack`;
+            const text = `Press E to loot ${corpse.username}'s backpack`;
             const textX = corpse.posX;
             // Offset based on corpse height (using placeholder size for now)
             const textY = corpse.posY - (48 / 2) - 10; 

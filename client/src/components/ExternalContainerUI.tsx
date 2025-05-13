@@ -144,6 +144,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
 
     const handleBoxItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
+        console.log('[ExtCont CtxMenu Box->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, boxIdNum });
         if (!connection?.reducers || !itemInfo || boxIdNum === null) return; // Check boxIdNum null
         try { connection.reducers.quickMoveFromBox(boxIdNum, slotIndex); } catch (e: any) { console.error("[ExtCont CtxMenu Box->Inv]", e); }
     }, [connection, boxIdNum]);
@@ -151,6 +152,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // --- NEW Callback for Corpse Context Menu ---
     const handleCorpseItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
+        console.log('[ExtCont CtxMenu Corpse->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, corpseIdBigInt });
         if (!connection?.reducers || !itemInfo || !corpseIdBigInt) return;
         // Corpse ID is u32 on the server, need to convert BigInt
         const corpseIdU32 = Number(corpseIdBigInt); 
@@ -173,73 +175,33 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         return null; // Don't render anything if no interaction target
     }
 
+    let containerTitle = "External Container"; // Default title
+    if (isCampfireInteraction) {
+        containerTitle = "CAMPFIRE";
+    } else if (isBoxInteraction) {
+        containerTitle = "WOODEN STORAGE BOX";
+    } else if (isCorpseInteraction) {
+        containerTitle = currentCorpse?.username ? `${currentCorpse.username}'s Backpack` : "Player Corpse";
+    }
+
     return (
         <div className={styles.externalInventorySection}>
-            {/* Campfire UI */} 
-            {isCampfireInteraction && (
-                <>
-                    <h3 className={styles.sectionTitle}>CAMPFIRE</h3>
-                    {currentCampfire ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '5px' }}>
-                                {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
-                                    const itemInSlot = fuelItems[index];
-                                    const currentCampfireSlotInfo: DragSourceSlotInfo = { type: 'campfire_fuel', index: index, parentId: campfireIdNum ?? undefined };
-                                    const slotKey = `campfire-fuel-${campfireIdNum ?? 'unknown'}-${index}`;
-                                    return (
-                                        <DroppableSlot
-                                            key={slotKey}
-                                            slotInfo={currentCampfireSlotInfo}
-                                            onItemDrop={onItemDrop}
-                                            className={styles.slot}
-                                            isDraggingOver={false}
-                                        >
-                                            {itemInSlot && (
-                                                <DraggableItem
-                                                    item={itemInSlot}
-                                                    sourceSlot={currentCampfireSlotInfo}
-                                                    onItemDragStart={onItemDragStart}
-                                                    onItemDrop={onItemDrop}
-                                                    onContextMenu={(event) => handleRemoveFuel(event, index)}
-                                                />
-                                            )}
-                                        </DroppableSlot>
-                                    );
-                                })}
-                            </div>
-                            <button
-                                onClick={handleToggleBurn}
-                                disabled={isToggleButtonDisabled}
-                                className={`${styles.interactionButton} ${
-                                    currentCampfire.isBurning
-                                        ? styles.extinguishButton
-                                        : styles.lightFireButton
-                                }`}
-                                title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Wood > 0" : ""}
-                            >
-                                {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
-                            </button>
-                        </div>
-                    ) : (
-                        <div>Error: Campfire data missing.</div>
-                    )}
-                </>
-            )}
+            {/* Dynamic Title */}
+            <h3 className={styles.sectionTitle}>{containerTitle}</h3>
 
-            {/* Box UI */} 
-            {isBoxInteraction && (
+            {/* Campfire UI */} 
+            {isCampfireInteraction && currentCampfire && (
                 <>
-                    <h3 className={styles.sectionTitle}>WOODEN STORAGE BOX</h3>
-                    {currentStorageBox ? (
-                        <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${BOX_COLS}, ${styles.slotSize || '60px'})` }}>
-                            {Array.from({ length: NUM_BOX_SLOTS }).map((_, index) => {
-                                const itemInSlot = boxItems[index];
-                                const currentBoxSlotInfo: DragSourceSlotInfo = { type: 'wooden_storage_box', index: index, parentId: boxIdNum ?? undefined };
-                                const slotKey = `box-${boxIdNum ?? 'unknown'}-${index}`;
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '5px' }}>
+                            {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
+                                const itemInSlot = fuelItems[index];
+                                const currentCampfireSlotInfo: DragSourceSlotInfo = { type: 'campfire_fuel', index: index, parentId: campfireIdNum ?? undefined };
+                                const slotKey = `campfire-fuel-${campfireIdNum ?? 'unknown'}-${index}`;
                                 return (
                                     <DroppableSlot
                                         key={slotKey}
-                                        slotInfo={currentBoxSlotInfo}
+                                        slotInfo={currentCampfireSlotInfo}
                                         onItemDrop={onItemDrop}
                                         className={styles.slot}
                                         isDraggingOver={false}
@@ -247,63 +209,106 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                         {itemInSlot && (
                                             <DraggableItem
                                                 item={itemInSlot}
-                                                sourceSlot={currentBoxSlotInfo}
+                                                sourceSlot={currentCampfireSlotInfo}
                                                 onItemDragStart={onItemDragStart}
                                                 onItemDrop={onItemDrop}
-                                                onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
+                                                onContextMenu={(event) => handleRemoveFuel(event, index)}
                                             />
                                         )}
                                     </DroppableSlot>
                                 );
                             })}
                         </div>
-                    ) : (
-                        <div>Error: Box data missing.</div>
-                    )}
+                        <button
+                            onClick={handleToggleBurn}
+                            disabled={isToggleButtonDisabled}
+                            className={`${styles.interactionButton} ${
+                                currentCampfire.isBurning
+                                    ? styles.extinguishButton
+                                    : styles.lightFireButton
+                            }`}
+                            title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Wood > 0" : ""}
+                        >
+                            {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
+                        </button>
+                    </div>
                 </>
+            )}
+            {isCampfireInteraction && !currentCampfire && (
+                 <div>Error: Campfire data missing.</div>
             )}
 
-            {/* --- Corpse UI --- */}
-            {isCorpseInteraction && (
+            {/* Box UI */} 
+            {isBoxInteraction && currentStorageBox && (
                 <>
-                    <h3 className={styles.sectionTitle}>
-                        {currentCorpse ? `${currentCorpse.originalPlayerUsername}'s Backpack` : 'PLAYER CORPSE'}
-                    </h3>
-                    {currentCorpse ? (
-                        <div className={styles.inventoryGrid}>
-                            {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
-                                const itemInSlot = corpseItems[index];
-                                // Ensure corpseIdBigInt is defined before creating slot info
-                                const corpseIdForSlot = corpseIdBigInt ?? undefined; 
-                                const currentCorpseSlotInfo: DragSourceSlotInfo = { type: 'player_corpse', index: index, parentId: corpseIdForSlot };
-                                const slotKey = `corpse-${corpseIdStr ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentCorpseSlotInfo}
-                                        onItemDrop={onItemDrop}
-                                        className={styles.slot}
-                                        isDraggingOver={false} // Add state if needed
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentCorpseSlotInfo}
-                                                onItemDragStart={onItemDragStart}
-                                                onItemDrop={onItemDrop}
-                                                onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
-                                            />
-                                        )}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div>Error: Corpse data missing.</div>
-                    )}
+                    <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${BOX_COLS}, ${styles.slotSize || '60px'})` }}>
+                        {Array.from({ length: NUM_BOX_SLOTS }).map((_, index) => {
+                            const itemInSlot = boxItems[index];
+                            const currentBoxSlotInfo: DragSourceSlotInfo = { type: 'wooden_storage_box', index: index, parentId: boxIdNum ?? undefined };
+                            const slotKey = `box-${boxIdNum ?? 'unknown'}-${index}`;
+                            return (
+                                <DroppableSlot
+                                    key={slotKey}
+                                    slotInfo={currentBoxSlotInfo}
+                                    onItemDrop={onItemDrop}
+                                    className={styles.slot}
+                                    isDraggingOver={false}
+                                >
+                                    {itemInSlot && (
+                                        <DraggableItem
+                                            item={itemInSlot}
+                                            sourceSlot={currentBoxSlotInfo}
+                                            onItemDragStart={onItemDragStart}
+                                            onItemDrop={onItemDrop}
+                                            onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
+                                        />
+                                    )}
+                                </DroppableSlot>
+                            );
+                        })}
+                    </div>
                 </>
             )}
-            {/* Add more container types here using else if (interactionTarget?.type === 'new_type') */} 
+            {isBoxInteraction && !currentStorageBox && (
+                <div>Error: Wooden Storage Box data missing.</div>
+            )}
+
+            {/* Corpse UI */} 
+            {isCorpseInteraction && currentCorpse && (
+                <>
+                    <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${CORPSE_COLS}, ${styles.slotSize || '60px'})` }}>
+                        {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
+                            const itemInSlot = corpseItems[index];
+                            // Ensure corpseIdBigInt is defined before creating slot info
+                            const corpseIdForSlot = corpseIdBigInt ?? undefined; 
+                            const currentCorpseSlotInfo: DragSourceSlotInfo = { type: 'player_corpse', index: index, parentId: corpseIdForSlot };
+                            const slotKey = `corpse-${corpseIdStr ?? 'unknown'}-${index}`;
+                            return (
+                                <DroppableSlot
+                                    key={slotKey}
+                                    slotInfo={currentCorpseSlotInfo}
+                                    onItemDrop={onItemDrop}
+                                    className={styles.slot}
+                                    isDraggingOver={false} // Add state if needed
+                                >
+                                    {itemInSlot && (
+                                        <DraggableItem
+                                            item={itemInSlot}
+                                            sourceSlot={currentCorpseSlotInfo}
+                                            onItemDragStart={onItemDragStart}
+                                            onItemDrop={onItemDrop}
+                                            onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
+                                        />
+                                    )}
+                                </DroppableSlot>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
+            {isCorpseInteraction && !currentCorpse && (
+                <div>Error: Player Corpse data missing.</div>
+            )}
         </div>
     );
 };

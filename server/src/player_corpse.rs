@@ -11,7 +11,7 @@ use spacetimedb::spacetimedb_lib::ScheduleAt;
 use std::time::Duration;
 
 // Import new models
-use crate::models::{ItemLocation, ContainerType, EquipmentSlotType}; // <<< ADDED IMPORT
+use crate::models::{ItemLocation, ContainerType, EquipmentSlotType, ContainerLocationData}; // <<< ADDED ContainerLocationData
 
 // Define constants for the corpse
 pub(crate) const CORPSE_DESPAWN_DURATION_SECONDS: u64 = 300; // 5 minutes
@@ -421,15 +421,135 @@ pub fn quick_move_to_corpse(
 
 // Placeholder for the missing function
 fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> Result<u32, String> {
-    // TODO: Implement the logic to:
-    // 1. Create a new PlayerCorpse instance.
-    // 2. Iterate through dead_player's inventory, hotbar, and equipped items.
-    // 3. For each item, update its ItemLocation to point to the new corpse and a unique slot.
-    // 4. Set the corresponding slot_instance_id_X and slot_def_id_X on the PlayerCorpse.
-    // 5. Insert the PlayerCorpse into the table.
-    // 6. Return the new PlayerCorpse ID.
-    log::error!("[PlayerCorpse] transfer_inventory_to_corpse is not yet implemented!");
-    Err("transfer_inventory_to_corpse not implemented".to_string())
+    let mut inventory_table = ctx.db.inventory_item();
+    let mut player_corpse_table = ctx.db.player_corpse();
+    let player_id = dead_player.identity;
+
+    log::info!("[PlayerCorpse] Starting inventory transfer for player {}", player_id);
+
+    // 1. Collect all items to be transferred from the player
+    let mut items_to_transfer: Vec<InventoryItem> = Vec::new();
+    for item in inventory_table.iter() {
+        match &item.location {
+            ItemLocation::Inventory(data) if data.owner_id == player_id => {
+                items_to_transfer.push(item.clone());
+            }
+            ItemLocation::Hotbar(data) if data.owner_id == player_id => {
+                items_to_transfer.push(item.clone());
+            }
+            ItemLocation::Equipped(data) if data.owner_id == player_id => {
+                items_to_transfer.push(item.clone());
+            }
+            _ => {} // Item is elsewhere or belongs to someone else
+        }
+    }
+
+    if items_to_transfer.is_empty() {
+        log::info!("[PlayerCorpse] Player {} had no items to transfer.", player_id);
+        // Create an empty corpse if desired, or return early if no items means no corpse
+        // For now, let's create an empty corpse.
+    }
+
+    // 2. Create a new PlayerCorpse instance
+    let mut new_corpse = PlayerCorpse {
+        id: 0, // Will be auto-incremented
+        player_identity: player_id,
+        username: dead_player.username.clone(),
+        pos_x: dead_player.position_x,
+        pos_y: dead_player.position_y,
+        chunk_index: calculate_chunk_index(dead_player.position_x, dead_player.position_y),
+        death_time: ctx.timestamp,
+        despawn_scheduled_at: ctx.timestamp + Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS), // This will be set in create_corpse_for_player
+        slot_instance_id_0: None, slot_def_id_0: None,
+        slot_instance_id_1: None, slot_def_id_1: None,
+        slot_instance_id_2: None, slot_def_id_2: None,
+        slot_instance_id_3: None, slot_def_id_3: None,
+        slot_instance_id_4: None, slot_def_id_4: None,
+        slot_instance_id_5: None, slot_def_id_5: None,
+        slot_instance_id_6: None, slot_def_id_6: None,
+        slot_instance_id_7: None, slot_def_id_7: None,
+        slot_instance_id_8: None, slot_def_id_8: None,
+        slot_instance_id_9: None, slot_def_id_9: None,
+        slot_instance_id_10: None, slot_def_id_10: None,
+        slot_instance_id_11: None, slot_def_id_11: None,
+        slot_instance_id_12: None, slot_def_id_12: None,
+        slot_instance_id_13: None, slot_def_id_13: None,
+        slot_instance_id_14: None, slot_def_id_14: None,
+        slot_instance_id_15: None, slot_def_id_15: None,
+        slot_instance_id_16: None, slot_def_id_16: None,
+        slot_instance_id_17: None, slot_def_id_17: None,
+        slot_instance_id_18: None, slot_def_id_18: None,
+        slot_instance_id_19: None, slot_def_id_19: None,
+        slot_instance_id_20: None, slot_def_id_20: None,
+        slot_instance_id_21: None, slot_def_id_21: None,
+        slot_instance_id_22: None, slot_def_id_22: None,
+        slot_instance_id_23: None, slot_def_id_23: None,
+        slot_instance_id_24: None, slot_def_id_24: None,
+        slot_instance_id_25: None, slot_def_id_25: None,
+        slot_instance_id_26: None, slot_def_id_26: None,
+        slot_instance_id_27: None, slot_def_id_27: None,
+        slot_instance_id_28: None, slot_def_id_28: None,
+        slot_instance_id_29: None, slot_def_id_29: None,
+        slot_instance_id_30: None, slot_def_id_30: None,
+        slot_instance_id_31: None, slot_def_id_31: None,
+        slot_instance_id_32: None, slot_def_id_32: None,
+        slot_instance_id_33: None, slot_def_id_33: None,
+        slot_instance_id_34: None, slot_def_id_34: None,
+    };
+
+    // 3. Populate corpse slots and prepare items for location update
+    let mut updated_item_locations: Vec<(u64, ItemLocation)> = Vec::new();
+    let mut corpse_slot_idx: u8 = 0;
+
+    for item in items_to_transfer {
+        if corpse_slot_idx < NUM_CORPSE_SLOTS as u8 {
+            new_corpse.set_slot(corpse_slot_idx, Some(item.instance_id), Some(item.item_def_id));
+            // The actual corpse ID isn\'t known yet, so we\'ll update location after insertion.
+            // For now, we just note which slot it will go into.
+            // The ItemLocation will be updated after the corpse is inserted.
+            updated_item_locations.push((item.instance_id, ItemLocation::Container(ContainerLocationData {
+                container_type: ContainerType::PlayerCorpse,
+                container_id: 0, // Placeholder, will be updated
+                slot_index: corpse_slot_idx,
+            })));
+            corpse_slot_idx += 1;
+        } else {
+            log::warn!("[PlayerCorpse] Corpse full for player {}. Item {} (Def: {}) could not be transferred and will be effectively lost (not dropped yet).",
+                player_id, item.instance_id, item.item_def_id);
+            // Future: Implement dropping excess items. For now, they are marked as Unknown.
+            if let Some(mut excess_item) = inventory_table.instance_id().find(item.instance_id) {
+                excess_item.location = ItemLocation::Unknown; // Mark as unknown/lost
+                inventory_table.instance_id().update(excess_item);
+            }
+        }
+    }
+
+    // 4. Insert the PlayerCorpse into the table to get its ID
+    let inserted_corpse = match player_corpse_table.try_insert(new_corpse.clone()) {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("[PlayerCorpse] Failed to insert corpse for player {}: {:?}", player_id, e);
+            return Err(format!("Failed to insert corpse: {:?}", e));
+        }
+    };
+    log::info!("[PlayerCorpse] Inserted corpse with ID {} for player {}", inserted_corpse.id, player_id);
+
+    // 5. Update ItemLocation for all transferred items with the actual corpse ID
+    for (item_instance_id, mut target_location) in updated_item_locations {
+        if let Some(mut item_to_update) = inventory_table.instance_id().find(item_instance_id) {
+            if let ItemLocation::Container(ref mut loc_data) = target_location {
+                loc_data.container_id = inserted_corpse.id as u64; // Update with real corpse ID
+            }
+            item_to_update.location = target_location;
+            inventory_table.instance_id().update(item_to_update);
+            log::debug!("[PlayerCorpse] Updated location for item {} to corpse {} slot.", item_instance_id, inserted_corpse.id);
+        } else {
+            log::warn!("[PlayerCorpse] Item {} not found during final location update for corpse {}. This should not happen.", item_instance_id, inserted_corpse.id);
+        }
+    }
+    
+    log::info!("[PlayerCorpse] Successfully transferred {} items to corpse {} for player {}", corpse_slot_idx, inserted_corpse.id, player_id);
+    Ok(inserted_corpse.id)
 }
 
 pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> Result<u32, String> {

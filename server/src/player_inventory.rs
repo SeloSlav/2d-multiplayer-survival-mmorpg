@@ -171,31 +171,35 @@ pub fn move_item_to_inventory(ctx: &ReducerContext, item_instance_id: u64, targe
 
         match calculate_merge_result(&item_to_move, &target_item, &item_def_to_move) {
             Ok((qty_transfer, source_new_qty, target_new_qty, delete_source)) => {
-                log::info!("[MoveInv Merge] Merging {} from item {} onto {} in inv slot {}. Target new qty: {}", 
-                         qty_transfer, item_instance_id, target_item.instance_id, target_inventory_slot, target_new_qty);
+                log::info!("[MoveInv Merge] Merging {} from item {} onto {} in inv slot {}. Target new qty: {}. Delete source: {}", 
+                         qty_transfer, item_instance_id, target_item.instance_id, target_inventory_slot, target_new_qty, delete_source);
                 target_item.quantity = target_new_qty;
-                inventory_items.instance_id().update(target_item);
+                inventory_items.instance_id().update(target_item.clone());
                 if delete_source {
                     let mut item_to_delete = inventory_items.instance_id().find(item_instance_id).ok_or("Item to delete not found during merge!")?;
                     item_to_delete.location = ItemLocation::Unknown;
+                    log::info!("[MoveInv Merge] Updating location of item to delete {} to Unknown before deleting.", item_instance_id);
                     inventory_items.instance_id().update(item_to_delete);
                     inventory_items.instance_id().delete(item_instance_id);
                     log::info!("[MoveInv Merge] Source item {} deleted after merge.", item_instance_id);
                 } else {
                     item_to_move.quantity = source_new_qty;
-                    item_to_move.location = original_location;
-                    inventory_items.instance_id().update(item_to_move);
-                    log::info!("[MoveInv Merge] Source item {} quantity updated to {} after partial merge. Location unchanged.", item_instance_id, source_new_qty);
+                    item_to_move.location = original_location; // Reaffirm original location
+                    log::info!("[MoveInv Merge] Updating source item {} qty to {} at original location {:?}.", item_instance_id, source_new_qty, item_to_move.location);
+                    inventory_items.instance_id().update(item_to_move.clone());
                 }
             },
             Err(_) => {
                 log::info!("[MoveInv Swap] Cannot merge. Swapping inv slot {} (item {}) with source item {} (originally at {:?}).", 
                          target_inventory_slot, target_item.instance_id, item_instance_id, original_location);
                 
+                let original_target_location = target_item.location.clone(); // Should be the current inventory slot
                 target_item.location = original_location.clone();
-                inventory_items.instance_id().update(target_item);
+                log::info!("[MoveInv Swap] Updating target item {} (from slot {}) to new location {:?}.", target_item.instance_id, target_inventory_slot, target_item.location);
+                inventory_items.instance_id().update(target_item.clone());
                 
-                item_to_move.location = new_item_location;
+                item_to_move.location = new_item_location; // This is the target_inventory_slot
+                log::info!("[MoveInv Swap] Updating source item {} (from {:?}) to new location {:?}.", item_to_move.instance_id, original_location, item_to_move.location);
                 inventory_items.instance_id().update(item_to_move.clone());
 
                 if let ItemLocation::Equipped(data) = &original_location {
@@ -217,6 +221,7 @@ pub fn move_item_to_inventory(ctx: &ReducerContext, item_instance_id: u64, targe
         
         let original_location_for_clearing_equip = item_to_move.location.clone(); // Clone before changing location
         item_to_move.location = new_item_location;
+        log::info!("[MoveInv Place] Updating item {} from {:?} to new location {:?}.", item_to_move.instance_id, original_location_for_clearing_equip, item_to_move.location);
         inventory_items.instance_id().update(item_to_move.clone());
 
         if let ItemLocation::Equipped(data) = &original_location_for_clearing_equip {
@@ -307,31 +312,34 @@ pub fn move_item_to_hotbar(ctx: &ReducerContext, item_instance_id: u64, target_h
         
         match calculate_merge_result(&item_to_move, &target_item, &item_def_to_move) {
             Ok((qty_transfer, source_new_qty, target_new_qty, delete_source)) => {
-                log::info!("[MoveHotbar Merge] Merging {} from item {} onto {} in hotbar slot {}. Target new qty: {}", 
-                         qty_transfer, item_instance_id, target_item.instance_id, target_hotbar_slot, target_new_qty);
+                log::info!("[MoveHotbar Merge] Merging {} from item {} onto {} in hotbar slot {}. Target new qty: {}. Delete source: {}", 
+                         qty_transfer, item_instance_id, target_item.instance_id, target_hotbar_slot, target_new_qty, delete_source);
                 target_item.quantity = target_new_qty;
-                inventory_items.instance_id().update(target_item);
+                inventory_items.instance_id().update(target_item.clone());
                 if delete_source {
                     let mut item_to_delete = inventory_items.instance_id().find(item_instance_id).ok_or("Item to delete not found during merge!")?;
                     item_to_delete.location = ItemLocation::Unknown;
+                    log::info!("[MoveHotbar Merge] Updating location of item to delete {} to Unknown before deleting.", item_instance_id);
                     inventory_items.instance_id().update(item_to_delete);
                     inventory_items.instance_id().delete(item_instance_id);
                     log::info!("[MoveHotbar Merge] Source item {} deleted after merge.", item_instance_id);
                 } else {
                     item_to_move.quantity = source_new_qty;
                     item_to_move.location = original_location;
-                    inventory_items.instance_id().update(item_to_move);
-                    log::info!("[MoveHotbar Merge] Source item {} quantity updated to {} after partial merge. Location unchanged.", item_instance_id, source_new_qty);
+                    log::info!("[MoveHotbar Merge] Updating source item {} qty to {} at original location {:?}.", item_instance_id, source_new_qty, item_to_move.location);
+                    inventory_items.instance_id().update(item_to_move.clone());
                 }
             },
             Err(_) => {
                 log::info!("[MoveHotbar Swap] Cannot merge. Swapping hotbar slot {} (item {}) with source item {} (originally at {:?}).", 
                          target_hotbar_slot, target_item.instance_id, item_instance_id, original_location);
-
+                
                 target_item.location = original_location.clone();
-                inventory_items.instance_id().update(target_item);
+                log::info!("[MoveHotbar Swap] Updating target item {} (from slot {}) to new location {:?}.", target_item.instance_id, target_hotbar_slot, target_item.location);
+                inventory_items.instance_id().update(target_item.clone());
 
-                item_to_move.location = new_item_location;
+                item_to_move.location = new_item_location; // This is the target_hotbar_slot
+                log::info!("[MoveHotbar Swap] Updating source item {} (from {:?}) to new location {:?}.", item_to_move.instance_id, original_location, item_to_move.location);
                 inventory_items.instance_id().update(item_to_move.clone());
 
                 if let ItemLocation::Equipped(data) = &original_location {
@@ -353,6 +361,7 @@ pub fn move_item_to_hotbar(ctx: &ReducerContext, item_instance_id: u64, target_h
         
         let original_location_for_clearing_equip = item_to_move.location.clone(); // Clone before changing location
         item_to_move.location = new_item_location;
+        log::info!("[MoveHotbar Place] Updating item {} from {:?} to new location {:?}.", item_to_move.instance_id, original_location_for_clearing_equip, item_to_move.location);
         inventory_items.instance_id().update(item_to_move.clone());
 
         if let ItemLocation::Equipped(data) = &original_location_for_clearing_equip {
