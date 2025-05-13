@@ -38,12 +38,12 @@ import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_red
 export { AutoRemoveFuelFromCampfire };
 import { CancelCraftingItem } from "./cancel_crafting_item_reducer.ts";
 export { CancelCraftingItem };
-import { CheckCampfireFuelConsumption } from "./check_campfire_fuel_consumption_reducer.ts";
-export { CheckCampfireFuelConsumption };
 import { CheckFinishedCrafting } from "./check_finished_crafting_reducer.ts";
 export { CheckFinishedCrafting };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
+import { ClearActiveItemReducer } from "./clear_active_item_reducer_reducer.ts";
+export { ClearActiveItemReducer };
 import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
@@ -56,8 +56,6 @@ import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
 export { EquipArmorFromDrag };
 import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts";
 export { EquipArmorFromInventory };
-import { EquipItem } from "./equip_item_reducer.ts";
-export { EquipItem };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
@@ -106,6 +104,8 @@ import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
 export { PlaceSleepingBag };
 import { PlaceWoodenStorageBox } from "./place_wooden_storage_box_reducer.ts";
 export { PlaceWoodenStorageBox };
+import { ProcessCampfireLogicScheduled } from "./process_campfire_logic_scheduled_reducer.ts";
+export { ProcessCampfireLogicScheduled };
 import { ProcessCorpseDespawn } from "./process_corpse_despawn_reducer.ts";
 export { ProcessCorpseDespawn };
 import { ProcessGlobalTick } from "./process_global_tick_reducer.ts";
@@ -128,6 +128,8 @@ import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
 export { RespawnAtSleepingBag };
 import { RespawnRandomly } from "./respawn_randomly_reducer.ts";
 export { RespawnRandomly };
+import { ScheduleNextCampfireProcessing } from "./schedule_next_campfire_processing_reducer.ts";
+export { ScheduleNextCampfireProcessing };
 import { SeedEnvironment } from "./seed_environment_reducer.ts";
 export { SeedEnvironment };
 import { SeedItems } from "./seed_items_reducer.ts";
@@ -138,6 +140,8 @@ import { SeedWorldState } from "./seed_world_state_reducer.ts";
 export { SeedWorldState };
 import { SendMessage } from "./send_message_reducer.ts";
 export { SendMessage };
+import { SetActiveItemReducer } from "./set_active_item_reducer_reducer.ts";
+export { SetActiveItemReducer };
 import { SetPlayerPin } from "./set_player_pin_reducer.ts";
 export { SetPlayerPin };
 import { SetSprinting } from "./set_sprinting_reducer.ts";
@@ -170,8 +174,6 @@ import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
-import { UnequipItem } from "./unequip_item_reducer.ts";
-export { UnequipItem };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
@@ -186,8 +188,8 @@ import { ActiveEquipmentTableHandle } from "./active_equipment_table.ts";
 export { ActiveEquipmentTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
 export { CampfireTableHandle };
-import { CampfireFuelCheckScheduleTableHandle } from "./campfire_fuel_check_schedule_table.ts";
-export { CampfireFuelCheckScheduleTableHandle };
+import { CampfireProcessingScheduleTableHandle } from "./campfire_processing_schedule_table.ts";
+export { CampfireProcessingScheduleTableHandle };
 import { ClientViewportTableHandle } from "./client_viewport_table.ts";
 export { ClientViewportTableHandle };
 import { CornTableHandle } from "./corn_table.ts";
@@ -240,10 +242,14 @@ import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
 import { Campfire } from "./campfire_type.ts";
 export { Campfire };
-import { CampfireFuelCheckSchedule } from "./campfire_fuel_check_schedule_type.ts";
-export { CampfireFuelCheckSchedule };
+import { CampfireProcessingSchedule } from "./campfire_processing_schedule_type.ts";
+export { CampfireProcessingSchedule };
 import { ClientViewport } from "./client_viewport_type.ts";
 export { ClientViewport };
+import { ContainerLocationData } from "./container_location_data_type.ts";
+export { ContainerLocationData };
+import { ContainerType } from "./container_type_type.ts";
+export { ContainerType };
 import { Corn } from "./corn_type.ts";
 export { Corn };
 import { CraftingFinishSchedule } from "./crafting_finish_schedule_type.ts";
@@ -254,16 +260,26 @@ import { DroppedItem } from "./dropped_item_type.ts";
 export { DroppedItem };
 import { DroppedItemDespawnSchedule } from "./dropped_item_despawn_schedule_type.ts";
 export { DroppedItemDespawnSchedule };
-import { EquipmentSlot } from "./equipment_slot_type.ts";
-export { EquipmentSlot };
+import { DroppedLocationData } from "./dropped_location_data_type.ts";
+export { DroppedLocationData };
+import { EquipmentSlotType } from "./equipment_slot_type_type.ts";
+export { EquipmentSlotType };
+import { EquippedLocationData } from "./equipped_location_data_type.ts";
+export { EquippedLocationData };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
+import { HotbarLocationData } from "./hotbar_location_data_type.ts";
+export { HotbarLocationData };
 import { InventoryItem } from "./inventory_item_type.ts";
 export { InventoryItem };
+import { InventoryLocationData } from "./inventory_location_data_type.ts";
+export { InventoryLocationData };
 import { ItemCategory } from "./item_category_type.ts";
 export { ItemCategory };
 import { ItemDefinition } from "./item_definition_type.ts";
 export { ItemDefinition };
+import { ItemLocation } from "./item_location_type.ts";
+export { ItemLocation };
 import { Message } from "./message_type.ts";
 export { Message };
 import { Mushroom } from "./mushroom_type.ts";
@@ -314,10 +330,10 @@ const REMOTE_MODULE = {
       rowType: Campfire.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
-    campfire_fuel_check_schedule: {
-      tableName: "campfire_fuel_check_schedule",
-      rowType: CampfireFuelCheckSchedule.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
+    campfire_processing_schedule: {
+      tableName: "campfire_processing_schedule",
+      rowType: CampfireProcessingSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "campfireIdForSchedule",
     },
     client_viewport: {
       tableName: "client_viewport",
@@ -443,10 +459,6 @@ const REMOTE_MODULE = {
       reducerName: "cancel_crafting_item",
       argsType: CancelCraftingItem.getTypeScriptAlgebraicType(),
     },
-    check_campfire_fuel_consumption: {
-      reducerName: "check_campfire_fuel_consumption",
-      argsType: CheckCampfireFuelConsumption.getTypeScriptAlgebraicType(),
-    },
     check_finished_crafting: {
       reducerName: "check_finished_crafting",
       argsType: CheckFinishedCrafting.getTypeScriptAlgebraicType(),
@@ -454,6 +466,10 @@ const REMOTE_MODULE = {
     check_resource_respawns: {
       reducerName: "check_resource_respawns",
       argsType: CheckResourceRespawns.getTypeScriptAlgebraicType(),
+    },
+    clear_active_item_reducer: {
+      reducerName: "clear_active_item_reducer",
+      argsType: ClearActiveItemReducer.getTypeScriptAlgebraicType(),
     },
     consume_item: {
       reducerName: "consume_item",
@@ -478,10 +494,6 @@ const REMOTE_MODULE = {
     equip_armor_from_inventory: {
       reducerName: "equip_armor_from_inventory",
       argsType: EquipArmorFromInventory.getTypeScriptAlgebraicType(),
-    },
-    equip_item: {
-      reducerName: "equip_item",
-      argsType: EquipItem.getTypeScriptAlgebraicType(),
     },
     identity_connected: {
       reducerName: "identity_connected",
@@ -579,6 +591,10 @@ const REMOTE_MODULE = {
       reducerName: "place_wooden_storage_box",
       argsType: PlaceWoodenStorageBox.getTypeScriptAlgebraicType(),
     },
+    process_campfire_logic_scheduled: {
+      reducerName: "process_campfire_logic_scheduled",
+      argsType: ProcessCampfireLogicScheduled.getTypeScriptAlgebraicType(),
+    },
     process_corpse_despawn: {
       reducerName: "process_corpse_despawn",
       argsType: ProcessCorpseDespawn.getTypeScriptAlgebraicType(),
@@ -623,6 +639,10 @@ const REMOTE_MODULE = {
       reducerName: "respawn_randomly",
       argsType: RespawnRandomly.getTypeScriptAlgebraicType(),
     },
+    schedule_next_campfire_processing: {
+      reducerName: "schedule_next_campfire_processing",
+      argsType: ScheduleNextCampfireProcessing.getTypeScriptAlgebraicType(),
+    },
     seed_environment: {
       reducerName: "seed_environment",
       argsType: SeedEnvironment.getTypeScriptAlgebraicType(),
@@ -642,6 +662,10 @@ const REMOTE_MODULE = {
     send_message: {
       reducerName: "send_message",
       argsType: SendMessage.getTypeScriptAlgebraicType(),
+    },
+    set_active_item_reducer: {
+      reducerName: "set_active_item_reducer",
+      argsType: SetActiveItemReducer.getTypeScriptAlgebraicType(),
     },
     set_player_pin: {
       reducerName: "set_player_pin",
@@ -707,10 +731,6 @@ const REMOTE_MODULE = {
       reducerName: "toggle_campfire_burning",
       argsType: ToggleCampfireBurning.getTypeScriptAlgebraicType(),
     },
-    unequip_item: {
-      reducerName: "unequip_item",
-      argsType: UnequipItem.getTypeScriptAlgebraicType(),
-    },
     update_player_position: {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
@@ -753,16 +773,15 @@ export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
-| { name: "CheckCampfireFuelConsumption", args: CheckCampfireFuelConsumption }
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
+| { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DropItem", args: DropItem }
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
-| { name: "EquipItem", args: EquipItem }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
@@ -787,6 +806,7 @@ export type Reducer = never
 | { name: "PlaceCampfire", args: PlaceCampfire }
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
+| { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
@@ -798,11 +818,13 @@ export type Reducer = never
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
 | { name: "RespawnRandomly", args: RespawnRandomly }
+| { name: "ScheduleNextCampfireProcessing", args: ScheduleNextCampfireProcessing }
 | { name: "SeedEnvironment", args: SeedEnvironment }
 | { name: "SeedItems", args: SeedItems }
 | { name: "SeedRecipes", args: SeedRecipes }
 | { name: "SeedWorldState", args: SeedWorldState }
 | { name: "SendMessage", args: SendMessage }
+| { name: "SetActiveItemReducer", args: SetActiveItemReducer }
 | { name: "SetPlayerPin", args: SetPlayerPin }
 | { name: "SetSprinting", args: SetSprinting }
 | { name: "SplitAndMoveFromCampfire", args: SplitAndMoveFromCampfire }
@@ -819,7 +841,6 @@ export type Reducer = never
 | { name: "StartCrafting", args: StartCrafting }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
-| { name: "UnequipItem", args: UnequipItem }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
@@ -876,22 +897,6 @@ export class RemoteReducers {
     this.connection.offReducer("cancel_crafting_item", callback);
   }
 
-  checkCampfireFuelConsumption(schedule: CampfireFuelCheckSchedule) {
-    const __args = { schedule };
-    let __writer = new BinaryWriter(1024);
-    CheckCampfireFuelConsumption.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("check_campfire_fuel_consumption", __argsBuffer, this.setCallReducerFlags.checkCampfireFuelConsumptionFlags);
-  }
-
-  onCheckCampfireFuelConsumption(callback: (ctx: ReducerEventContext, schedule: CampfireFuelCheckSchedule) => void) {
-    this.connection.onReducer("check_campfire_fuel_consumption", callback);
-  }
-
-  removeOnCheckCampfireFuelConsumption(callback: (ctx: ReducerEventContext, schedule: CampfireFuelCheckSchedule) => void) {
-    this.connection.offReducer("check_campfire_fuel_consumption", callback);
-  }
-
   checkFinishedCrafting(schedule: CraftingFinishSchedule) {
     const __args = { schedule };
     let __writer = new BinaryWriter(1024);
@@ -918,6 +923,22 @@ export class RemoteReducers {
 
   removeOnCheckResourceRespawns(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("check_resource_respawns", callback);
+  }
+
+  clearActiveItemReducer(playerIdentity: Identity) {
+    const __args = { playerIdentity };
+    let __writer = new BinaryWriter(1024);
+    ClearActiveItemReducer.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("clear_active_item_reducer", __argsBuffer, this.setCallReducerFlags.clearActiveItemReducerFlags);
+  }
+
+  onClearActiveItemReducer(callback: (ctx: ReducerEventContext, playerIdentity: Identity) => void) {
+    this.connection.onReducer("clear_active_item_reducer", callback);
+  }
+
+  removeOnClearActiveItemReducer(callback: (ctx: ReducerEventContext, playerIdentity: Identity) => void) {
+    this.connection.offReducer("clear_active_item_reducer", callback);
   }
 
   consumeItem(itemInstanceId: bigint) {
@@ -1014,22 +1035,6 @@ export class RemoteReducers {
 
   removeOnEquipArmorFromInventory(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("equip_armor_from_inventory", callback);
-  }
-
-  equipItem(itemInstanceId: bigint) {
-    const __args = { itemInstanceId };
-    let __writer = new BinaryWriter(1024);
-    EquipItem.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("equip_item", __argsBuffer, this.setCallReducerFlags.equipItemFlags);
-  }
-
-  onEquipItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
-    this.connection.onReducer("equip_item", callback);
-  }
-
-  removeOnEquipItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
-    this.connection.offReducer("equip_item", callback);
   }
 
   onIdentityConnected(callback: (ctx: ReducerEventContext) => void) {
@@ -1396,19 +1401,35 @@ export class RemoteReducers {
     this.connection.offReducer("place_wooden_storage_box", callback);
   }
 
-  processCorpseDespawn(schedule: PlayerCorpseDespawnSchedule) {
-    const __args = { schedule };
+  processCampfireLogicScheduled(scheduleArgs: CampfireProcessingSchedule) {
+    const __args = { scheduleArgs };
+    let __writer = new BinaryWriter(1024);
+    ProcessCampfireLogicScheduled.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_campfire_logic_scheduled", __argsBuffer, this.setCallReducerFlags.processCampfireLogicScheduledFlags);
+  }
+
+  onProcessCampfireLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: CampfireProcessingSchedule) => void) {
+    this.connection.onReducer("process_campfire_logic_scheduled", callback);
+  }
+
+  removeOnProcessCampfireLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: CampfireProcessingSchedule) => void) {
+    this.connection.offReducer("process_campfire_logic_scheduled", callback);
+  }
+
+  processCorpseDespawn(args: PlayerCorpseDespawnSchedule) {
+    const __args = { args };
     let __writer = new BinaryWriter(1024);
     ProcessCorpseDespawn.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("process_corpse_despawn", __argsBuffer, this.setCallReducerFlags.processCorpseDespawnFlags);
   }
 
-  onProcessCorpseDespawn(callback: (ctx: ReducerEventContext, schedule: PlayerCorpseDespawnSchedule) => void) {
+  onProcessCorpseDespawn(callback: (ctx: ReducerEventContext, args: PlayerCorpseDespawnSchedule) => void) {
     this.connection.onReducer("process_corpse_despawn", callback);
   }
 
-  removeOnProcessCorpseDespawn(callback: (ctx: ReducerEventContext, schedule: PlayerCorpseDespawnSchedule) => void) {
+  removeOnProcessCorpseDespawn(callback: (ctx: ReducerEventContext, args: PlayerCorpseDespawnSchedule) => void) {
     this.connection.offReducer("process_corpse_despawn", callback);
   }
 
@@ -1568,6 +1589,22 @@ export class RemoteReducers {
     this.connection.offReducer("respawn_randomly", callback);
   }
 
+  scheduleNextCampfireProcessing(campfireId: number) {
+    const __args = { campfireId };
+    let __writer = new BinaryWriter(1024);
+    ScheduleNextCampfireProcessing.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("schedule_next_campfire_processing", __argsBuffer, this.setCallReducerFlags.scheduleNextCampfireProcessingFlags);
+  }
+
+  onScheduleNextCampfireProcessing(callback: (ctx: ReducerEventContext, campfireId: number) => void) {
+    this.connection.onReducer("schedule_next_campfire_processing", callback);
+  }
+
+  removeOnScheduleNextCampfireProcessing(callback: (ctx: ReducerEventContext, campfireId: number) => void) {
+    this.connection.offReducer("schedule_next_campfire_processing", callback);
+  }
+
   seedEnvironment() {
     this.connection.callReducer("seed_environment", new Uint8Array(0), this.setCallReducerFlags.seedEnvironmentFlags);
   }
@@ -1630,6 +1667,22 @@ export class RemoteReducers {
 
   removeOnSendMessage(callback: (ctx: ReducerEventContext, text: string) => void) {
     this.connection.offReducer("send_message", callback);
+  }
+
+  setActiveItemReducer(itemInstanceId: bigint) {
+    const __args = { itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    SetActiveItemReducer.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("set_active_item_reducer", __argsBuffer, this.setCallReducerFlags.setActiveItemReducerFlags);
+  }
+
+  onSetActiveItemReducer(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("set_active_item_reducer", callback);
+  }
+
+  removeOnSetActiveItemReducer(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("set_active_item_reducer", callback);
   }
 
   setPlayerPin(pinX: number, pinY: number) {
@@ -1888,22 +1941,6 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_campfire_burning", callback);
   }
 
-  unequipItem(playerIdentity: Identity) {
-    const __args = { playerIdentity };
-    let __writer = new BinaryWriter(1024);
-    UnequipItem.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("unequip_item", __argsBuffer, this.setCallReducerFlags.unequipItemFlags);
-  }
-
-  onUnequipItem(callback: (ctx: ReducerEventContext, playerIdentity: Identity) => void) {
-    this.connection.onReducer("unequip_item", callback);
-  }
-
-  removeOnUnequipItem(callback: (ctx: ReducerEventContext, playerIdentity: Identity) => void) {
-    this.connection.offReducer("unequip_item", callback);
-  }
-
   updatePlayerPosition(moveX: number, moveY: number) {
     const __args = { moveX, moveY };
     let __writer = new BinaryWriter(1024);
@@ -1966,11 +2003,6 @@ export class SetReducerFlags {
     this.cancelCraftingItemFlags = flags;
   }
 
-  checkCampfireFuelConsumptionFlags: CallReducerFlags = 'FullUpdate';
-  checkCampfireFuelConsumption(flags: CallReducerFlags) {
-    this.checkCampfireFuelConsumptionFlags = flags;
-  }
-
   checkFinishedCraftingFlags: CallReducerFlags = 'FullUpdate';
   checkFinishedCrafting(flags: CallReducerFlags) {
     this.checkFinishedCraftingFlags = flags;
@@ -1979,6 +2011,11 @@ export class SetReducerFlags {
   checkResourceRespawnsFlags: CallReducerFlags = 'FullUpdate';
   checkResourceRespawns(flags: CallReducerFlags) {
     this.checkResourceRespawnsFlags = flags;
+  }
+
+  clearActiveItemReducerFlags: CallReducerFlags = 'FullUpdate';
+  clearActiveItemReducer(flags: CallReducerFlags) {
+    this.clearActiveItemReducerFlags = flags;
   }
 
   consumeItemFlags: CallReducerFlags = 'FullUpdate';
@@ -2009,11 +2046,6 @@ export class SetReducerFlags {
   equipArmorFromInventoryFlags: CallReducerFlags = 'FullUpdate';
   equipArmorFromInventory(flags: CallReducerFlags) {
     this.equipArmorFromInventoryFlags = flags;
-  }
-
-  equipItemFlags: CallReducerFlags = 'FullUpdate';
-  equipItem(flags: CallReducerFlags) {
-    this.equipItemFlags = flags;
   }
 
   interactWithCampfireFlags: CallReducerFlags = 'FullUpdate';
@@ -2126,6 +2158,11 @@ export class SetReducerFlags {
     this.placeWoodenStorageBoxFlags = flags;
   }
 
+  processCampfireLogicScheduledFlags: CallReducerFlags = 'FullUpdate';
+  processCampfireLogicScheduled(flags: CallReducerFlags) {
+    this.processCampfireLogicScheduledFlags = flags;
+  }
+
   processCorpseDespawnFlags: CallReducerFlags = 'FullUpdate';
   processCorpseDespawn(flags: CallReducerFlags) {
     this.processCorpseDespawnFlags = flags;
@@ -2181,6 +2218,11 @@ export class SetReducerFlags {
     this.respawnRandomlyFlags = flags;
   }
 
+  scheduleNextCampfireProcessingFlags: CallReducerFlags = 'FullUpdate';
+  scheduleNextCampfireProcessing(flags: CallReducerFlags) {
+    this.scheduleNextCampfireProcessingFlags = flags;
+  }
+
   seedEnvironmentFlags: CallReducerFlags = 'FullUpdate';
   seedEnvironment(flags: CallReducerFlags) {
     this.seedEnvironmentFlags = flags;
@@ -2204,6 +2246,11 @@ export class SetReducerFlags {
   sendMessageFlags: CallReducerFlags = 'FullUpdate';
   sendMessage(flags: CallReducerFlags) {
     this.sendMessageFlags = flags;
+  }
+
+  setActiveItemReducerFlags: CallReducerFlags = 'FullUpdate';
+  setActiveItemReducer(flags: CallReducerFlags) {
+    this.setActiveItemReducerFlags = flags;
   }
 
   setPlayerPinFlags: CallReducerFlags = 'FullUpdate';
@@ -2286,11 +2333,6 @@ export class SetReducerFlags {
     this.toggleCampfireBurningFlags = flags;
   }
 
-  unequipItemFlags: CallReducerFlags = 'FullUpdate';
-  unequipItem(flags: CallReducerFlags) {
-    this.unequipItemFlags = flags;
-  }
-
   updatePlayerPositionFlags: CallReducerFlags = 'FullUpdate';
   updatePlayerPosition(flags: CallReducerFlags) {
     this.updatePlayerPositionFlags = flags;
@@ -2323,8 +2365,8 @@ export class RemoteTables {
     return new CampfireTableHandle(this.connection.clientCache.getOrCreateTable<Campfire>(REMOTE_MODULE.tables.campfire));
   }
 
-  get campfireFuelCheckSchedule(): CampfireFuelCheckScheduleTableHandle {
-    return new CampfireFuelCheckScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CampfireFuelCheckSchedule>(REMOTE_MODULE.tables.campfire_fuel_check_schedule));
+  get campfireProcessingSchedule(): CampfireProcessingScheduleTableHandle {
+    return new CampfireProcessingScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CampfireProcessingSchedule>(REMOTE_MODULE.tables.campfire_processing_schedule));
   }
 
   get clientViewport(): ClientViewportTableHandle {

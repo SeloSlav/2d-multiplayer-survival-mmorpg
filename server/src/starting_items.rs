@@ -3,9 +3,11 @@ use spacetimedb::Table;
 use log;
 
 // Import needed Item types and Table Traits
-use crate::items::{ItemDefinition, InventoryItem, EquipmentSlot, item_definition as ItemDefinitionTableTrait, inventory_item as InventoryItemTableTrait};
+use crate::items::{ItemDefinition, InventoryItem, item_definition as ItemDefinitionTableTrait, inventory_item as InventoryItemTableTrait};
 // Import ActiveEquipment types and Table Trait
 use crate::active_equipment::{ActiveEquipment, active_equipment as ActiveEquipmentTableTrait};
+// Import ItemLocation and EquipmentSlotType
+use crate::models::{ItemLocation, EquipmentSlotType};
 
 /// Grants the predefined starting items (inventory/hotbar) and starting equipment to a newly registered player.
 pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, username: &str) -> Result<(), String> {
@@ -38,13 +40,19 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
     for (item_name, quantity, hotbar_slot_opt, inventory_slot_opt) in starting_inv_items.iter() {
          log::debug!("[GrantItems] Processing inv/hotbar entry: {}", item_name);
         if let Some(item_def) = item_defs.iter().find(|def| def.name == *item_name) {
+            let location = if let Some(slot_idx) = *hotbar_slot_opt {
+                ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: player_id, slot_index: slot_idx })
+            } else if let Some(slot_idx) = *inventory_slot_opt {
+                ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: player_id, slot_index: slot_idx })
+            } else {
+                log::warn!("[GrantItems] Item {} for player {:?} had neither hotbar nor inventory slot specified. Setting to Unknown.", item_name, player_id);
+                ItemLocation::Unknown 
+            };
             let item_to_insert = InventoryItem { 
                 instance_id: 0,
-                player_identity: player_id, 
                 item_def_id: item_def.id,
                 quantity: *quantity,
-                hotbar_slot: *hotbar_slot_opt,
-                inventory_slot: *inventory_slot_opt,
+                location,
             };
             match inventory.try_insert(item_to_insert) {
                 Ok(_) => {
@@ -88,40 +96,51 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
     };
     let mut equipment_updated = false; // Track if we modify the entry
 
-    // Define the starting equipment: (item_name, equipment_slot)
+    // Define the starting equipment: (item_name, equipment_slot_type)
     let starting_equipment = [
-        ("Cloth Hood", EquipmentSlot::Head),
-        ("Cloth Shirt", EquipmentSlot::Chest),
-        ("Cloth Pants", EquipmentSlot::Legs),
-        ("Cloth Boots", EquipmentSlot::Feet),
-        ("Cloth Gloves", EquipmentSlot::Hands),
-        ("Burlap Backpack", EquipmentSlot::Back),
+        ("Cloth Hood", EquipmentSlotType::Head),
+        ("Cloth Shirt", EquipmentSlotType::Chest),
+        ("Cloth Pants", EquipmentSlotType::Legs),
+        ("Cloth Boots", EquipmentSlotType::Feet),
+        ("Cloth Gloves", EquipmentSlotType::Hands),
+        ("Burlap Backpack", EquipmentSlotType::Back),
     ];
 
-    for (item_name, target_slot) in starting_equipment.iter() {
+    for (item_name, target_slot_type) in starting_equipment.iter() {
         log::debug!("[GrantItems] Processing equipment entry: {}", item_name);
         if let Some(item_def) = item_defs.iter().find(|def| def.name == *item_name) {
-            // Create the InventoryItem instance (unslotted)
-            let item_to_equip = InventoryItem {
+            // Validate that item_def is equippable to this slot type
+            if item_def.equipment_slot_type.as_ref() != Some(target_slot_type) {
+                log::error!(
+                    "[GrantItems] Definition mismatch for equipment item: {} for player {:?}. Def has {:?}, expected {:?}.",
+                    item_name, player_id, item_def.equipment_slot_type, target_slot_type
+                );
+                continue;
+            }
+
+            // Create the InventoryItem instance, correctly located
+            let item_to_equip_for_insert = InventoryItem {
                 instance_id: 0, // Auto-inc
-                player_identity: player_id,
                 item_def_id: item_def.id,
                 quantity: 1, // Equipment is typically quantity 1
-                hotbar_slot: None, // Not in hotbar
-                inventory_slot: None, // Not in inventory
+                location: ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: player_id, slot_type: target_slot_type.clone() }),
             };
-            match inventory.try_insert(item_to_equip) {
+            match inventory.try_insert(item_to_equip_for_insert) {
                 Ok(inserted_item) => {
                     let new_instance_id = inserted_item.instance_id;
-                    log::info!("[GrantItems] Created InventoryItem (ID: {}) for equipping {} to player {:?}", new_instance_id, item_name, player_id);
+                    log::info!("[GrantItems] Created InventoryItem (ID: {}) for equipping {} to player {:?}. Location: {:?}", 
+                        new_instance_id, item_name, player_id, inserted_item.location);
+                    
                     // Update the correct slot in the equip_entry struct
-                    match target_slot {
-                        EquipmentSlot::Head => equip_entry.head_item_instance_id = Some(new_instance_id),
-                        EquipmentSlot::Chest => equip_entry.chest_item_instance_id = Some(new_instance_id),
-                        EquipmentSlot::Legs => equip_entry.legs_item_instance_id = Some(new_instance_id),
-                        EquipmentSlot::Feet => equip_entry.feet_item_instance_id = Some(new_instance_id),
-                        EquipmentSlot::Hands => equip_entry.hands_item_instance_id = Some(new_instance_id),
-                        EquipmentSlot::Back => equip_entry.back_item_instance_id = Some(new_instance_id),
+                    match target_slot_type {
+                        EquipmentSlotType::Head => equip_entry.head_item_instance_id = Some(new_instance_id),
+                        EquipmentSlotType::Chest => equip_entry.chest_item_instance_id = Some(new_instance_id),
+                        EquipmentSlotType::Legs => equip_entry.legs_item_instance_id = Some(new_instance_id),
+                        EquipmentSlotType::Feet => equip_entry.feet_item_instance_id = Some(new_instance_id),
+                        EquipmentSlotType::Hands => equip_entry.hands_item_instance_id = Some(new_instance_id),
+                        EquipmentSlotType::Back => equip_entry.back_item_instance_id = Some(new_instance_id),
+                        // No other types should reach here due to the check above
+                        _ => log::warn!("[GrantItems] Unexpected EquipmentSlotType {:?} encountered while setting ActiveEquipment for player {:?}", target_slot_type, player_id),
                     }
                     equipment_updated = true;
                 },

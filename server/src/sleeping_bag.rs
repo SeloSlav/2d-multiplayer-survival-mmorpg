@@ -25,13 +25,14 @@ use crate::items::{
     InventoryItem, ItemDefinition,
     inventory_item as InventoryItemTableTrait, 
     item_definition as ItemDefinitionTableTrait,
-    add_item_to_player_inventory // For pickup
+    add_item_to_player_inventory, // For pickup
 };
 // Remove Filter imports as they are gated behind unstable feature
 // use spacetimedb::{client_visibility_filter, Filter}; 
 // Add imports needed for inventory/item logic
 use crate::active_equipment; 
 use crate::crafting_queue;
+use crate::models::{ItemLocation, EquipmentSlotType}; // Removed PlayerActivity
 
 /// --- Sleeping Bag Data Structure ---
 /// Represents a placed sleeping bag in the world.
@@ -86,14 +87,22 @@ pub fn place_sleeping_bag(ctx: &ReducerContext, item_instance_id: u64, world_x: 
     let item_to_consume = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
     
-    if item_to_consume.player_identity != sender_id {
-        return Err(format!("Item instance {} not owned by player {:?}.", item_instance_id, sender_id));
+    // Validate ownership and location
+    let is_owned_and_in_player_slots = match &item_to_consume.location {
+        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) => *owner_id == sender_id,
+        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => *owner_id == sender_id,
+        _ => false,
+    };
+
+    if !is_owned_and_in_player_slots {
+        return Err(format!(
+            "Item instance {} must be in your inventory or hotbar to be placed. Location: {:?}", 
+            item_instance_id, item_to_consume.location
+        ));
     }
+
     if item_to_consume.item_def_id != bag_def_id {
         return Err(format!("Item instance {} is not a Sleeping Bag.", item_instance_id));
-    }
-    if item_to_consume.inventory_slot.is_none() && item_to_consume.hotbar_slot.is_none() {
-        return Err(format!("Item instance {} must be in inventory or hotbar.", item_instance_id));
     }
 
     // 3. Validate Placement Distance
@@ -183,7 +192,14 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
 
     // --- Safeguard - Clear Player Inventory AGAIN ---
     let mut items_to_delete = Vec::new();
-    for item in inventory.iter().filter(|item| item.player_identity == sender_id) {
+    for item in inventory.iter().filter(|item| {
+        match &item.location {
+            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) => *owner_id == sender_id,
+            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => *owner_id == sender_id,
+            ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id, .. }) => *owner_id == sender_id,
+            _ => false, // Only clear items directly associated with the player's active slots
+        }
+    }) {
         items_to_delete.push(item.instance_id);
     }
     let delete_count = items_to_delete.len();
@@ -203,13 +219,12 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     // --- Grant Starting Rock ---
     log::info!("Granting starting Rock to respawned player: {}", player.username);
     if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
+        let rock_location = ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: sender_id, slot_index: 0 }); // Put rock in first hotbar slot
         match inventory.try_insert(crate::items::InventoryItem {
             instance_id: 0, // Auto-incremented
-            player_identity: sender_id,
             item_def_id: rock_def.id,
             quantity: 1,
-            hotbar_slot: Some(0), // Put rock in first slot
-            inventory_slot: None,
+            location: rock_location,
         }) {
             Ok(_) => log::info!("Granted 1 Rock (slot 0) to player {}", player.username),
             Err(e) => log::error!("Failed to grant starting Rock to player {}: {}", player.username, e),
@@ -238,11 +253,16 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
 
     players.identity().update(player);
 
-    // Ensure item is unequipped on respawn (Copied from respawn_randomly)
-    match active_equipment::unequip_item(ctx, sender_id) {
-        Ok(_) => log::info!("Ensured item is unequipped for respawned player {:?}", sender_id),
-        Err(e) => log::error!("Failed to unequip item for respawned player {:?}: {}", sender_id, e),
-    }
+    // Clear equipped items (this should ideally happen before corpse creation if items are to be moved to it)
+    // If create_corpse_for_player handles un-equipping, these might be redundant or need careful ordering.
+    // match crate::active_equipment::clear_active_item_reducer(ctx, sender_id) {
+    //     Ok(_) => log::info!("[Respawn] Active item cleared for player {}", sender_id),
+    //     Err(e) => log::error!("[Respawn] Failed to clear active item for player {}: {}", sender_id, e),
+    // }
+    // match crate::items::clear_all_equipped_armor_from_player(ctx, sender_id) {
+    //     Ok(_) => log::info!("[Respawn] All equipped armor cleared for player {}", sender_id),
+    //     Err(e) => log::error!("[Respawn] Failed to clear all equipped armor for player {}: {}", sender_id, e),
+    // }
 
     log::info!(
         "[RespawnAtSleepingBag] Player {:?} respawned successfully at bag {} ({:.1}, {:.1})",

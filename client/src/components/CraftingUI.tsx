@@ -7,6 +7,8 @@ import {
     ItemDefinition,
     InventoryItem,
     DbConnection,
+    InventoryLocationData,
+    HotbarLocationData,
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PopulatedItem } from './InventoryUI'; // Reuse PopulatedItem type
@@ -53,15 +55,14 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
 
         Array.from(inventoryItems.values())
             .filter(item => {
-                const isOwned = item.playerIdentity && item.playerIdentity.isEqual(playerIdentity);
-                // Check both null and undefined explicitly for robustness
-                const isInPlayerSlots = (item.inventorySlot !== null && item.inventorySlot !== undefined) || 
-                                        (item.hotbarSlot !== null && item.hotbarSlot !== undefined);
-                // Focus logging on items involved in the move - ADJUST DEF IDs IF NEEDED
-                if (item.itemDefId.toString() === '1' || item.itemDefId.toString() === '0') { // Check Wood(0) or Stone(1)
-                     // console.log(`[CraftingUI DEBUG Filter Check] Item ${item.instanceId} (Def ${item.itemDefId}): Owned=${isOwned}, InvSlot=${item.inventorySlot}, HotbarSlot=${item.hotbarSlot} => Included=${isOwned && isInPlayerSlots}`);
-                 }
-                return isOwned && isInPlayerSlots;
+                if (item.location.tag === 'Inventory') {
+                    const inventoryData = item.location.value as InventoryLocationData;
+                    return inventoryData.ownerId.isEqual(playerIdentity);
+                } else if (item.location.tag === 'Hotbar') {
+                    const hotbarData = item.location.value as HotbarLocationData;
+                    return hotbarData.ownerId.isEqual(playerIdentity);
+                }
+                return false; // Not in player's inventory or hotbar
             })
             .forEach(item => {
                 const defIdStr = item.itemDefId.toString();

@@ -1,11 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { DraggedItemInfo, DragSourceSlotInfo } from '../types/dragDropTypes';
-import { DbConnection } from '../generated'; // Import connection type
+import { DbConnection, InventoryItem } from '../generated'; // Import connection type and InventoryItem
+import { Identity } from '@clockworklabs/spacetimedb-sdk'; // Ensure Identity is imported
+// Import location data types if not already present
+import { InventoryLocationData, HotbarLocationData } from '../generated'; 
 
 // Props for the hook
 interface UseDragDropManagerProps {
     connection: DbConnection | null;
     interactingWith: { type: string; id: number | bigint } | null;
+    playerIdentity: Identity | null; // Added playerIdentity
 }
 
 // Return type of the hook
@@ -19,6 +23,7 @@ interface DragDropManager {
 export const useDragDropManager = ({
     connection,
     interactingWith,
+    playerIdentity, // Destructure playerIdentity
 }: UseDragDropManagerProps): DragDropManager => {
     const [draggedItemInfo, setDraggedItemInfo] = useState<DraggedItemInfo | null>(null);
     const [dropError, setDropError] = useState<string | null>(null);
@@ -154,12 +159,22 @@ export const useDragDropManager = ({
                         console.log(`  Target Slot: ${targetSlotType}:${targetSlotIndexNum}`);
 
                         // Check target slot state BEFORE calling reducer
-                        let targetItemInstance = null;
-                        const allPlayerItems = Array.from(connection.db.inventoryItem.iter()); // Convert to array
-                        if (targetSlotType === 'inventory') {
-                            targetItemInstance = allPlayerItems.find(i => i.inventorySlot === targetSlotIndexNum);
-                        } else { // hotbar
-                            targetItemInstance = allPlayerItems.find(i => i.hotbarSlot === targetSlotIndexNum);
+                        let targetItemInstance: InventoryItem | undefined = undefined;
+                        if (connection && playerIdentity) { // Ensure connection and playerIdentity exist
+                            const allPlayerItems = Array.from(connection.db.inventoryItem.iter()); 
+                            if (targetSlotType === 'inventory') {
+                                targetItemInstance = allPlayerItems.find(i => 
+                                    i.location.tag === 'Inventory' &&
+                                    (i.location.value as InventoryLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as InventoryLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            } else { // hotbar
+                                targetItemInstance = allPlayerItems.find(i => 
+                                    i.location.tag === 'Hotbar' &&
+                                    (i.location.value as HotbarLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as HotbarLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            }
                         }
                         if (targetItemInstance) {
                             console.log(`  Target Slot Occupied By:`, targetItemInstance);
@@ -437,7 +452,7 @@ export const useDragDropManager = ({
             console.error("[useDragDropManager Drop] Error handling drop:", error);
             setDropError(`Failed to handle drop: ${error?.message || error}`);
         }
-    }, [connection, interactingWith]);
+    }, [connection, interactingWith, playerIdentity]);
 
     return { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop };
 };

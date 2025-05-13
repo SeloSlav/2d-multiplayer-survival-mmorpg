@@ -48,7 +48,8 @@ export type Campfire = {
   fuelDefId3: bigint | undefined,
   fuelInstanceId4: bigint | undefined,
   fuelDefId4: bigint | undefined,
-  nextFuelConsumeAt: Timestamp | undefined,
+  currentFuelDefId: bigint | undefined,
+  remainingFuelBurnTimeSecs: number | undefined,
 };
 
 /**
@@ -78,7 +79,8 @@ export namespace Campfire {
       new ProductTypeElement("fuelDefId3", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("fuelInstanceId4", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("fuelDefId4", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
-      new ProductTypeElement("nextFuelConsumeAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("currentFuelDefId", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("remainingFuelBurnTimeSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
     ]);
   }
 

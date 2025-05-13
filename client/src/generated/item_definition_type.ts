@@ -30,8 +30,8 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
+import { EquipmentSlotType as __EquipmentSlotType } from "./equipment_slot_type_type";
 import { ItemCategory as __ItemCategory } from "./item_category_type";
-import { EquipmentSlot as __EquipmentSlot } from "./equipment_slot_type";
 
 export type ItemDefinition = {
   id: bigint,
@@ -43,7 +43,8 @@ export type ItemDefinition = {
   isStackable: boolean,
   stackSize: number,
   isEquippable: boolean,
-  equipmentSlot: __EquipmentSlot | undefined,
+  equipmentSlotType: __EquipmentSlotType | undefined,
+  fuelBurnDurationSecs: number | undefined,
 };
 
 /**
@@ -65,7 +66,8 @@ export namespace ItemDefinition {
       new ProductTypeElement("isStackable", AlgebraicType.createBoolType()),
       new ProductTypeElement("stackSize", AlgebraicType.createU32Type()),
       new ProductTypeElement("isEquippable", AlgebraicType.createBoolType()),
-      new ProductTypeElement("equipmentSlot", AlgebraicType.createOptionType(__EquipmentSlot.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("equipmentSlotType", AlgebraicType.createOptionType(__EquipmentSlotType.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("fuelBurnDurationSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
     ]);
   }
 

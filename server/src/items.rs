@@ -22,6 +22,8 @@ use crate::player_inventory::move_item_to_hotbar;
 use crate::player_inventory::move_item_to_inventory;
 // Import helper used locally
 use crate::player_inventory::find_first_empty_inventory_slot; 
+use crate::models::{ItemLocation, EquipmentSlotType}; // <<< UPDATED IMPORT
+use std::collections::HashSet;
 
 // --- Item Enums and Structs ---
 
@@ -34,18 +36,6 @@ pub enum ItemCategory {
     Armor,
     Consumable,
     // Add other categories as needed (Consumable, Wearable, etc.)
-}
-
-// Define specific slots for equippable armor/items
-#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, SpacetimeType)]
-pub enum EquipmentSlot {
-    Head,
-    Chest,
-    Legs,
-    Feet,
-    Hands,
-    Back,
-    // Maybe add Trinket1, Trinket2 etc. later
 }
 
 #[spacetimedb::table(name = item_definition, public)]
@@ -62,7 +52,8 @@ pub struct ItemDefinition {
     pub is_stackable: bool,    // Can multiple instances exist in one inventory slot?
     pub stack_size: u32,       // Max number per stack (if stackable)
     pub is_equippable: bool,   // Can this item be equipped (in hand OR on body)?
-    pub equipment_slot: Option<EquipmentSlot>, // If equippable, does it go in a specific body slot?
+    pub equipment_slot_type: Option<EquipmentSlotType>, // <-- ADD THIS. Ensure EquipmentSlotType is imported from models.rs
+    pub fuel_burn_duration_secs: Option<f32>, // How long one unit of this fuel lasts. If Some, it's fuel.
 }
 
 // --- Inventory Table ---
@@ -74,11 +65,9 @@ pub struct InventoryItem {
     #[primary_key]
     #[auto_inc]
     pub instance_id: u64,      // Unique ID for this specific item instance
-    pub player_identity: spacetimedb::Identity, // Who owns this item
     pub item_def_id: u64,      // Links to ItemDefinition table (FK)
     pub quantity: u32,         // How many of this item
-    pub hotbar_slot: Option<u8>, // Which hotbar slot (0-5), if any
-    pub inventory_slot: Option<u16>, // Which main inventory slot (e.g., 0-23), if any
+    pub location: ItemLocation, // <<< NEW FIELD ADDED
     // Add other instance-specific data later (e.g., current_durability)
 }
 
@@ -115,8 +104,7 @@ pub fn seed_items(ctx: &ReducerContext) -> Result<(), String> {
 fn get_player_item(ctx: &ReducerContext, instance_id: u64) -> Result<InventoryItem, String> {
     ctx.db
         .inventory_item().iter()
-        .filter(|i| i.instance_id == instance_id && i.player_identity == ctx.sender)
-        .next()
+        .find(|i| i.instance_id == instance_id && i.location.is_player_bound() == Some(ctx.sender))
         .ok_or_else(|| format!("Item instance {} not found or not owned by caller.", instance_id))
 }
 
@@ -124,126 +112,162 @@ fn get_player_item(ctx: &ReducerContext, instance_id: u64) -> Result<InventoryIt
 fn find_item_in_inventory_slot(ctx: &ReducerContext, slot: u16) -> Option<InventoryItem> {
     ctx.db
         .inventory_item().iter()
-        .filter(|i| i.player_identity == ctx.sender && i.inventory_slot == Some(slot))
-        .next()
+        .find(|i| match &i.location { 
+            ItemLocation::Inventory(data) => data.owner_id == ctx.sender && data.slot_index == slot,
+            _ => false,
+        })
 }
 
 // Helper to find an item occupying a specific hotbar slot for the caller
 fn find_item_in_hotbar_slot(ctx: &ReducerContext, slot: u8) -> Option<InventoryItem> {
     ctx.db
         .inventory_item().iter()
-        .filter(|i| i.player_identity == ctx.sender && i.hotbar_slot == Some(slot))
-        .next()
+        .find(|i| match &i.location { 
+            ItemLocation::Hotbar(data) => data.owner_id == ctx.sender && data.slot_index == slot,
+            _ => false,
+        })
+}
+
+// Helper function to find an empty slot for a player (hotbar preferred, then inventory)
+// Returns ItemLocation pointing to the empty slot, or None if all full.
+fn find_empty_slot_for_player(
+    ctx: &ReducerContext, 
+    player_id: Identity,
+    // inventory_items: &(impl inventory_item + Table), // Removed direct table pass
+) -> Option<ItemLocation> {
+    // Check Hotbar first
+    let occupied_hotbar_slots: HashSet<u8> = ctx.db.inventory_item().iter() // Use ctx.db directly
+        .filter_map(|item| match &item.location { 
+            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: item_owner_id, slot_index }) if *item_owner_id == player_id => Some(*slot_index),
+            _ => None,
+        })
+        .collect();
+
+    for i in 0..crate::player_inventory::NUM_PLAYER_HOTBAR_SLOTS {
+        if !occupied_hotbar_slots.contains(&i) {
+            return Some(ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: player_id, slot_index: i }));
+        }
+    }
+
+    // Then check Inventory
+    let occupied_inventory_slots: HashSet<u16> = ctx.db.inventory_item().iter() // Use ctx.db directly
+        .filter_map(|item| match &item.location {
+            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: item_owner_id, slot_index }) if *item_owner_id == player_id => Some(*slot_index),
+            _ => None,
+        })
+        .collect();
+
+    for i in 0..crate::player_inventory::NUM_PLAYER_INVENTORY_SLOTS {
+        if !occupied_inventory_slots.contains(&i) {
+            return Some(ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: player_id, slot_index: i }));
+        }
+    }
+    None // No empty slots
 }
 
 // Helper to add an item to inventory, prioritizing hotbar for stacking and new slots.
 // Called when items are gathered/added directly (e.g., picking mushrooms, gathering resources).
-pub(crate) fn add_item_to_player_inventory(ctx: &ReducerContext, player_id: Identity, item_def_id: u64, quantity: u32) -> Result<(), String> {
+pub(crate) fn add_item_to_player_inventory(ctx: &ReducerContext, player_id: Identity, item_def_id: u64, quantity: u32) -> Result<Option<u64>, String> {
     let inventory = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
-    let mut remaining_quantity = quantity; // Use remaining_quantity throughout
+    let mut remaining_quantity = quantity;
 
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| format!("Item definition {} not found", item_def_id))?;
 
-    // 1. Try to stack onto existing items - PRIORITIZE HOTBAR
     if item_def.is_stackable && remaining_quantity > 0 {
-        let mut items_to_update: Vec<crate::items::InventoryItem> = Vec::new();
+        let mut items_to_update: Vec<InventoryItem> = Vec::new();
 
-        // --- Stack on Hotbar First ---
-        for mut item in inventory.iter().filter(|i| i.player_identity == player_id && i.item_def_id == item_def_id && i.hotbar_slot.is_some()) {
+        for mut item in inventory.iter().filter(|i| 
+            match &i.location {
+                ItemLocation::Hotbar(data) => data.owner_id == player_id && i.item_def_id == item_def_id,
+                _ => false,
+            }
+        ) {
             let space_available = item_def.stack_size.saturating_sub(item.quantity);
             if space_available > 0 {
                 let transfer_qty = std::cmp::min(remaining_quantity, space_available);
                 item.quantity += transfer_qty;
                 remaining_quantity -= transfer_qty;
-                items_to_update.push(item); // Add item to update list
-                if remaining_quantity == 0 { break; } // Done stacking
+                items_to_update.push(item.clone());
+                if remaining_quantity == 0 { break; }
             }
         }
 
-        // --- Then Stack on Inventory ---
         if remaining_quantity > 0 {
-            for mut item in inventory.iter().filter(|i| i.player_identity == player_id && i.item_def_id == item_def_id && i.inventory_slot.is_some()) {
+            for mut item in inventory.iter().filter(|i| 
+                match &i.location {
+                    ItemLocation::Inventory(data) => data.owner_id == player_id && i.item_def_id == item_def_id,
+                    _ => false,
+                }
+            ) {
                 let space_available = item_def.stack_size.saturating_sub(item.quantity);
                 if space_available > 0 {
                     let transfer_qty = std::cmp::min(remaining_quantity, space_available);
                     item.quantity += transfer_qty;
                     remaining_quantity -= transfer_qty;
-                    items_to_update.push(item); // Add item to update list
-                    if remaining_quantity == 0 { break; } // Done stacking
+                    items_to_update.push(item.clone());
+                    if remaining_quantity == 0 { break; }
                 }
             }
         }
-
-        // Apply updates if any stacking occurred
         for item in items_to_update {
              inventory.instance_id().update(item);
         }
-
-        // If quantity fully stacked, return early
         if remaining_quantity == 0 {
             log::info!("[AddItem] Fully stacked {} of item def {} for player {:?}.", quantity, item_def_id, player_id);
-            return Ok(());
+            return Ok(None); // Items stacked, no new instance ID
         }
-    } // End of stacking logic
+    }
 
-    // If quantity still remains (or item not stackable), find an empty slot
     if remaining_quantity > 0 {
-        let final_quantity_to_add = if item_def.is_stackable { remaining_quantity } else { 1 }; // Non-stackable always adds 1
+        let final_quantity_to_add = if item_def.is_stackable { remaining_quantity } else { 1 };
 
-        // 2. Find first empty HOTBAR slot
-        let occupied_hotbar_slots: std::collections::HashSet<u8> = inventory.iter()
-            .filter(|i| i.player_identity == player_id && i.hotbar_slot.is_some())
-            .map(|i| i.hotbar_slot.unwrap())
+        let occupied_hotbar_slots: HashSet<u8> = inventory.iter()
+            .filter_map(|i| match &i.location {
+                ItemLocation::Hotbar(data) if data.owner_id == player_id => Some(data.slot_index),
+                _ => None,
+            })
             .collect();
 
-        if let Some(empty_hotbar_slot) = (0..6).find(|slot| !occupied_hotbar_slots.contains(slot)) {
-            // Found empty hotbar slot
-            let new_item = crate::items::InventoryItem {
-                instance_id: 0, // Auto-inc
-                player_identity: player_id,
+        if let Some(empty_hotbar_slot) = (0..crate::player_inventory::NUM_PLAYER_HOTBAR_SLOTS as u8).find(|slot| !occupied_hotbar_slots.contains(slot)) {
+            let new_item = InventoryItem {
+                instance_id: 0, 
                 item_def_id,
                 quantity: final_quantity_to_add,
-                hotbar_slot: Some(empty_hotbar_slot),
-                inventory_slot: None,
+                location: ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: player_id, slot_index: empty_hotbar_slot }),
             };
-            inventory.insert(new_item);
-            log::info!("[AddItem] Added {} of item def {} to hotbar slot {} for player {:?}.",
-                     final_quantity_to_add, item_def_id, empty_hotbar_slot, player_id);
-            return Ok(()); // Item added successfully
+            let inserted_item = inventory.insert(new_item);
+            log::info!("[AddItem] Added {} of item def {} to hotbar slot {} for player {:?}. New ID: {}",
+                     final_quantity_to_add, item_def_id, empty_hotbar_slot, player_id, inserted_item.instance_id);
+            return Ok(Some(inserted_item.instance_id));
         } else {
-             // 3. Hotbar full, find first empty INVENTORY slot
-            let occupied_inventory_slots: std::collections::HashSet<u16> = inventory.iter()
-                .filter(|i| i.player_identity == player_id && i.inventory_slot.is_some())
-                .map(|i| i.inventory_slot.unwrap())
+            let occupied_inventory_slots: HashSet<u16> = inventory.iter()
+                .filter_map(|i| match &i.location {
+                    ItemLocation::Inventory(data) if data.owner_id == player_id => Some(data.slot_index),
+                    _ => None,
+                })
                 .collect();
 
-            if let Some(empty_inventory_slot) = (0..24).find(|slot| !occupied_inventory_slots.contains(slot)) {
-                // Found empty inventory slot
-                let new_item = crate::items::InventoryItem {
-                    instance_id: 0, // Auto-inc
-                    player_identity: player_id,
+            if let Some(empty_inventory_slot) = (0..crate::player_inventory::NUM_PLAYER_INVENTORY_SLOTS as u16).find(|slot| !occupied_inventory_slots.contains(slot)) {
+                let new_item = InventoryItem {
+                    instance_id: 0, 
                     item_def_id,
                     quantity: final_quantity_to_add,
-                    hotbar_slot: None,
-                    inventory_slot: Some(empty_inventory_slot),
+                    location: ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: player_id, slot_index: empty_inventory_slot }),
                 };
-                inventory.insert(new_item);
-                log::info!("[AddItem] Added {} of item def {} to inventory slot {} for player {:?}. (Hotbar was full)",
-                         final_quantity_to_add, item_def_id, empty_inventory_slot, player_id);
-                return Ok(()); // Item added successfully
+                let inserted_item = inventory.insert(new_item);
+                log::info!("[AddItem] Added {} of item def {} to inventory slot {} for player {:?}. (Hotbar was full) New ID: {}",
+                         final_quantity_to_add, item_def_id, empty_inventory_slot, player_id, inserted_item.instance_id);
+                return Ok(Some(inserted_item.instance_id));
             } else {
-                // 4. Both hotbar and inventory are full
                 log::error!("[AddItem] No empty hotbar or inventory slots for player {:?} to add item def {}.", player_id, item_def_id);
                 return Err("Inventory is full".to_string());
             }
         }
     } else {
-         // This case should only be reached if stacking happened perfectly and remaining_quantity became 0
-         // No further action needed, the stacking return above handles this.
          log::debug!("[AddItem] Stacking completed successfully for item def {} for player {:?}. No new slot needed.", item_def_id, player_id);
-         Ok(())
+         Ok(None) // Stacking completed, no new instance ID
     }
 }
 
@@ -254,14 +278,15 @@ pub(crate) fn clear_specific_item_from_equipment_slots(ctx: &ReducerContext, pla
     if let Some(mut equip) = active_equip_table.player_identity().find(player_id) {
         let mut updated = false;
 
-        // Check main hand
-        if equip.equipped_item_instance_id == Some(item_instance_id_to_clear) {
-             equip.equipped_item_instance_id = None;
-             equip.equipped_item_def_id = None;
-             equip.swing_start_time_ms = 0;
-             updated = true;
-             log::debug!("[ClearEquip] Removed item {} from main hand slot for player {:?}", item_instance_id_to_clear, player_id);
-        }
+        // DO NOT Check main hand here anymore - this is handled by clear_active_item_reducer
+        // if equip.equipped_item_instance_id == Some(item_instance_id_to_clear) {
+        //      equip.equipped_item_instance_id = None;
+        //      equip.equipped_item_def_id = None;
+        //      equip.swing_start_time_ms = 0;
+        //      updated = true;
+        //      log::debug!("[ClearEquip] Removed item {} from main hand slot for player {:?}", item_instance_id_to_clear, player_id);
+        // }
+        
         // Check armor slots
         if equip.head_item_instance_id == Some(item_instance_id_to_clear) {
             equip.head_item_instance_id = None;
@@ -327,31 +352,24 @@ pub(crate) fn clear_item_from_any_container(ctx: &ReducerContext, item_instance_
 // Clears an item from equipment OR container slots based on its state
 // This should be called *before* modifying or deleting the InventoryItem itself.
 fn clear_item_from_source_location(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
-    let sender_id = ctx.sender; // Assume the operation is initiated by the sender
-
-    // Check if item exists
+    let sender_id = ctx.sender;
     let item_opt = ctx.db.inventory_item().instance_id().find(item_instance_id);
-
     if item_opt.is_none() {
         log::debug!("[ClearSource] Item {} already gone. No clearing needed.", item_instance_id);
         return Ok(());
     }
-    let item = item_opt.unwrap(); // Safe to unwrap now
+    let item = item_opt.unwrap();
+    let was_equipped = matches!(&item.location, ItemLocation::Equipped(_)); 
+    let was_in_container = matches!(&item.location, ItemLocation::Container(_));
 
-    // Determine if it was equipped or in a container (not in player inv/hotbar)
-    let was_equipped_or_in_container = item.inventory_slot.is_none() && item.hotbar_slot.is_none();
-
-    if was_equipped_or_in_container {
-        // Try clearing from equipment first
+    if was_equipped {
         clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
-
-        // Then try clearing from ANY container 
-        // This will delegate to campfire, box, etc.
+        log::debug!("[ClearSource] Attempted clearing item {} from equipment slots for player {:?}", item_instance_id, sender_id);
+    } else if was_in_container {
         clear_item_from_any_container(ctx, item_instance_id);
-
-        log::debug!("[ClearSource] Attempted clearing item {} from equipment/container slots for player {:?}", item_instance_id, sender_id);
+        log::debug!("[ClearSource] Attempted clearing item {} from container slots.", item_instance_id);
     } else {
-        log::debug!("[ClearSource] Item {} was in inventory/hotbar. No equipment/container clearing needed.", item_instance_id);
+        log::debug!("[ClearSource] Item {} was in player inventory/hotbar. No equipment/container clearing needed.", item_instance_id);
     }
 
     Ok(())
@@ -370,34 +388,35 @@ pub fn equip_armor_from_drag(ctx: &ReducerContext, item_instance_id: u64, target
     let item_def = ctx.db.item_definition().id().find(item_to_equip.item_def_id)
         .ok_or_else(|| format!("Definition not found for item ID {}", item_to_equip.item_def_id))?;
 
-    // --- Store original location --- 
-    let original_inv_slot = item_to_equip.inventory_slot;
-    let original_hotbar_slot = item_to_equip.hotbar_slot;
-    let came_from_player_inv = original_inv_slot.is_some() || original_hotbar_slot.is_some();
+    // --- Store original location type --- 
+    let original_location = item_to_equip.location.clone(); // Clone to avoid borrow issues
+    let came_from_player_direct_possession = matches!(&original_location, ItemLocation::Inventory(_) | ItemLocation::Hotbar(_));
 
     // --- Validations --- 
     // Basic ownership check: Player must own it if it came from inv/hotbar
-    if came_from_player_inv && item_to_equip.player_identity != sender_id {
-        return Err(format!("Item {} in inventory/hotbar not owned by caller.", item_instance_id));
+    if came_from_player_direct_possession {
+        if item_to_equip.location.is_player_bound() != Some(sender_id) {
+             return Err(format!("Item {} in inventory/hotbar not owned by caller.", item_instance_id));
+        }
     }
     // 1. Must be Armor category
     if item_def.category != ItemCategory::Armor {
         return Err(format!("Item '{}' is not armor.", item_def.name));
     }
     // 2. Must have a defined equipment slot
-    let required_slot_enum = item_def.equipment_slot.ok_or_else(|| format!("Armor '{}' has no defined equipment slot in its definition.", item_def.name))?;
+    let required_slot_enum = item_def.equipment_slot_type.ok_or_else(|| format!("Armor '{}' has no defined equipment slot in its definition.", item_def.name))?;
     // 3. Target slot name must match the item's defined equipment slot
-    let target_slot_enum = match target_slot_name.as_str() {
-        "Head" => EquipmentSlot::Head,
-        "Chest" => EquipmentSlot::Chest,
-        "Legs" => EquipmentSlot::Legs,
-        "Feet" => EquipmentSlot::Feet,
-        "Hands" => EquipmentSlot::Hands,
-        "Back" => EquipmentSlot::Back,
+    let target_slot_enum_model = match target_slot_name.as_str() {
+        "Head" => EquipmentSlotType::Head,
+        "Chest" => EquipmentSlotType::Chest,
+        "Legs" => EquipmentSlotType::Legs,
+        "Feet" => EquipmentSlotType::Feet,
+        "Hands" => EquipmentSlotType::Hands,
+        "Back" => EquipmentSlotType::Back,
         _ => return Err(format!("Invalid target equipment slot name: {}", target_slot_name)),
     };
-    if required_slot_enum != target_slot_enum {
-        return Err(format!("Cannot equip '{}' ({:?}) into {} slot ({:?}).", item_def.name, required_slot_enum, target_slot_name, target_slot_enum));
+    if required_slot_enum != target_slot_enum_model {
+        return Err(format!("Cannot equip '{}' ({:?}) into {} slot ({:?}).", item_def.name, required_slot_enum, target_slot_name, target_slot_enum_model));
     }
 
     // --- Logic ---
@@ -406,71 +425,63 @@ pub fn equip_armor_from_drag(ctx: &ReducerContext, item_instance_id: u64, target
                      .ok_or_else(|| "ActiveEquipment entry not found for player.".to_string())?;
 
     // Check if something is already in the target slot and unequip it
-    let current_item_in_slot: Option<u64> = match target_slot_enum {
-        EquipmentSlot::Head => equip.head_item_instance_id,
-        EquipmentSlot::Chest => equip.chest_item_instance_id,
-        EquipmentSlot::Legs => equip.legs_item_instance_id,
-        EquipmentSlot::Feet => equip.feet_item_instance_id,
-        EquipmentSlot::Hands => equip.hands_item_instance_id,
-        EquipmentSlot::Back => equip.back_item_instance_id,
+    let current_item_in_slot: Option<u64> = match target_slot_enum_model {
+        EquipmentSlotType::Head => equip.head_item_instance_id,
+        EquipmentSlotType::Chest => equip.chest_item_instance_id,
+        EquipmentSlotType::Legs => equip.legs_item_instance_id,
+        EquipmentSlotType::Feet => equip.feet_item_instance_id,
+        EquipmentSlotType::Hands => equip.hands_item_instance_id,
+        EquipmentSlotType::Back => equip.back_item_instance_id,
     };
 
     if let Some(currently_equipped_id) = current_item_in_slot {
         if currently_equipped_id == item_instance_id { return Ok(()); } // Already equipped
 
-        log::info!("[EquipArmorDrag] Unequipping item {} from slot {:?}", currently_equipped_id, target_slot_enum);
+        log::info!("[EquipArmorDrag] Unequipping item {} from slot {:?}", currently_equipped_id, target_slot_enum_model);
         // Try to move the currently equipped item to the first available inventory slot
         match find_first_empty_inventory_slot(ctx, sender_id) {
-            Some(empty_slot) => {
-                if let Ok(mut currently_equipped_item) = get_player_item(ctx, currently_equipped_id) {
-                    currently_equipped_item.inventory_slot = Some(empty_slot);
-                    currently_equipped_item.hotbar_slot = None;
-                    ctx.db.inventory_item().instance_id().update(currently_equipped_item);
-                    log::info!("[EquipArmorDrag] Moved previously equipped item {} to inventory slot {}", currently_equipped_id, empty_slot);
+            Some(empty_slot_idx) => {
+                if let Ok(mut currently_equipped_item_row) = get_player_item(ctx, currently_equipped_id) {
+                    currently_equipped_item_row.location = ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: sender_id, slot_index: empty_slot_idx });
+                    ctx.db.inventory_item().instance_id().update(currently_equipped_item_row);
+                    log::info!("[EquipArmorDrag] Moved previously equipped item {} to inventory slot {}", currently_equipped_id, empty_slot_idx);
                 } else {
                     log::error!("[EquipArmorDrag] Failed to find InventoryItem for previously equipped item {}!", currently_equipped_id);
                     // Continue anyway, clearing the slot, but log the error
                 }
             }
             None => {
-                log::error!("[EquipArmorDrag] Inventory full! Cannot unequip item {} from slot {:?}. Aborting equip.", currently_equipped_id, target_slot_enum);
+                log::error!("[EquipArmorDrag] Inventory full! Cannot unequip item {} from slot {:?}. Aborting equip.", currently_equipped_id, target_slot_enum_model);
                 return Err("Inventory full, cannot unequip existing item.".to_string());
             }
         }
     }
 
     // Equip the new item
-    log::info!("[EquipArmorDrag] Equipping item {} to slot {:?}", item_instance_id, target_slot_enum);
-    match target_slot_enum {
-        EquipmentSlot::Head => equip.head_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Chest => equip.chest_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Legs => equip.legs_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Feet => equip.feet_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Hands => equip.hands_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Back => equip.back_item_instance_id = Some(item_instance_id),
+    log::info!("[EquipArmorDrag] Equipping item {} to slot {:?}", item_instance_id, target_slot_enum_model);
+    let equipment_slot_type_for_location = target_slot_enum_model;
+
+    match target_slot_enum_model {
+        EquipmentSlotType::Head => equip.head_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Chest => equip.chest_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Legs => equip.legs_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Feet => equip.feet_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Hands => equip.hands_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Back => equip.back_item_instance_id = Some(item_instance_id),
     };
 
     // Update ActiveEquipment table
     active_equip_table.player_identity().update(equip);
 
-    // Clear the original slot of the equipped item
-    if came_from_player_inv {
-        log::debug!("[EquipArmorDrag] Clearing original inv/hotbar slot for item {}.", item_instance_id);
-        item_to_equip.inventory_slot = None;
-        item_to_equip.hotbar_slot = None;
-        inventory_items.instance_id().update(item_to_equip); // Update the item itself
-    } else {
-        log::debug!("[EquipArmorDrag] Item {} potentially came from container. Clearing containers.", item_instance_id);
-        // Item didn't come from player inv/hotbar, try clearing containers
+    // Update the InventoryItem's location
+    item_to_equip.location = ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: sender_id, slot_type: equipment_slot_type_for_location });
+    inventory_items.instance_id().update(item_to_equip.clone()); // Update the item itself
+
+    // Clear from original container if it wasn't in player direct possession
+    if !came_from_player_direct_possession {
+        log::debug!("[EquipArmorDrag] Item {} came from container/other. Clearing containers.", item_instance_id);
         clear_item_from_any_container(ctx, item_instance_id);
-        // Also update the item instance itself to remove slot info just in case (should be None already)
-        // and assign ownership to the equipping player if it wasn't already.
-        if item_to_equip.player_identity != sender_id {
-             item_to_equip.player_identity = sender_id;
-        }
-        item_to_equip.inventory_slot = None; 
-        item_to_equip.hotbar_slot = None;
-        inventory_items.instance_id().update(item_to_equip);
+        // Ownership was implicitly handled by setting ItemLocation::Equipped above.
     }
 
     Ok(())
@@ -504,7 +515,8 @@ pub(crate) fn calculate_merge_result(
 pub(crate) fn split_stack_helper(
     ctx: &ReducerContext,
     source_item: &mut InventoryItem, // Takes mutable reference to modify quantity
-    quantity_to_split: u32
+    quantity_to_split: u32,
+    initial_location_for_new_item: ItemLocation // Explicitly pass the initial location for the new stack
 ) -> Result<u64, String> {
     // Validations already done in reducers calling this, but sanity check:
     if quantity_to_split == 0 || quantity_to_split >= source_item.quantity {
@@ -513,24 +525,22 @@ pub(crate) fn split_stack_helper(
 
     // Decrease quantity of the source item
     source_item.quantity -= quantity_to_split;
-    // Update source item in DB *before* creating new one to avoid potential unique constraint issues if moved immediately
+    // Update source item in DB *before* creating new one
     ctx.db.inventory_item().instance_id().update(source_item.clone()); 
 
     // Create the new item stack with the split quantity
     let new_item = InventoryItem {
         instance_id: 0, // Will be auto-generated
-        player_identity: source_item.player_identity, // Initially belongs to the same player
         item_def_id: source_item.item_def_id,
         quantity: quantity_to_split,
-        hotbar_slot: None, // New item has no location yet
-        inventory_slot: None,
+        location: initial_location_for_new_item.clone(), // Set by caller, clone for logging
     };
     let inserted_item = ctx.db.inventory_item().insert(new_item);
     let new_instance_id = inserted_item.instance_id;
 
     log::info!(
-        "[SplitStack Helper] Split {} from item {}. New stack ID: {}. Original stack qty: {}.",
-        quantity_to_split, source_item.instance_id, new_instance_id, source_item.quantity
+        "[SplitStack Helper] Split {} from item {}. New stack ID: {}. Original stack qty: {}. New item location: {:?}",
+        quantity_to_split, source_item.instance_id, new_instance_id, source_item.quantity, initial_location_for_new_item
     );
 
     Ok(new_instance_id)
@@ -546,20 +556,42 @@ pub fn drop_item(
     let sender_id = ctx.sender;
     log::info!("[DropItem] Player {:?} attempting to drop {} of item instance {}", sender_id, quantity_to_drop, item_instance_id);
 
+    let inventory_items = ctx.db.inventory_item();
+    let item_defs = ctx.db.item_definition();
+    let players = ctx.db.player();
+    let active_equip_table_opt = ctx.db.active_equipment().player_identity().find(sender_id);
+
     // --- 1. Find Player ---
-    let player = ctx.db.player().identity().find(sender_id)
+    let player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found.".to_string())?;
 
     // --- 2. Find Item & Validate ---
-    let mut item_to_drop = ctx.db.inventory_item().instance_id().find(item_instance_id)
+    let mut item_to_drop = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
+    
+    // Clone the original location *before* any modifications to item_to_drop for partial drops.
+    let original_location_of_item = item_to_drop.location.clone();
 
-    let was_originally_equipped_or_fuel = item_to_drop.inventory_slot.is_none() && item_to_drop.hotbar_slot.is_none();
-
-    // Validate ownership if it wasn't equipped/fuel
-    if !was_originally_equipped_or_fuel && item_to_drop.player_identity != sender_id {
-        return Err(format!("Item instance {} not owned by caller.", item_instance_id));
+    // --- 2. Validate Item Ownership and Location ---
+    match &item_to_drop.location {
+        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) |
+        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => {
+            if *owner_id != sender_id {
+                return Err(format!("Item instance {} in inv/hotbar not owned by caller.", item_instance_id));
+            }
+        }
+        ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id, slot_type }) => { 
+            if *owner_id != sender_id {
+                return Err(format!("Equipped item instance {} not owned by caller.", item_instance_id));
+            }
+            if quantity_to_drop >= item_to_drop.quantity { 
+                clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id); 
+                log::info!("[DropItem] Dropping full stack of equipped armor {:?}. Slot cleared.", slot_type);
+            }
+        }
+        _ => return Err(format!("Cannot drop item {} from its current location: {:?}. Must be in inventory, hotbar, or equipped.", item_instance_id, item_to_drop.location)),
     }
+
     // Validate quantity
     if quantity_to_drop == 0 {
         return Err("Cannot drop a quantity of 0.".to_string());
@@ -569,62 +601,47 @@ pub fn drop_item(
     }
 
     // --- 3. Get Item Definition ---
-    let item_def = ctx.db.item_definition().id().find(item_to_drop.item_def_id)
+    let item_def = item_defs.id().find(item_to_drop.item_def_id)
         .ok_or_else(|| format!("Definition missing for item {}", item_to_drop.item_def_id))?;
 
-    // --- 4. Check if dropped item was the EQUIPPED item and unequip (only if dropping entire stack) ---
-    if quantity_to_drop == item_to_drop.quantity {
-        let active_equip_table = ctx.db.active_equipment();
-        if let Some(mut equip) = active_equip_table.player_identity().find(sender_id) {
-            // Check only the main hand slot (equipped_item_instance_id)
-            if equip.equipped_item_instance_id == Some(item_instance_id) {
-                log::info!("[DropItem] Dropped item {} was equipped. Unequipping.", item_instance_id);
-                equip.equipped_item_instance_id = None;
-                equip.equipped_item_def_id = None;
-                equip.swing_start_time_ms = 0;
-                active_equip_table.player_identity().update(equip); // Update the equipment table
+    // --- 4. Check if dropped item was the ACTIVE tool/weapon and clear active status (only if dropping entire stack) ---
+    if quantity_to_drop >= item_to_drop.quantity { // Only if entire stack is dropped
+        if let Some(active_equip) = active_equip_table_opt.as_ref() { 
+            if active_equip.equipped_item_instance_id == Some(item_instance_id) {
+                match crate::active_equipment::clear_active_item_reducer(ctx, sender_id) {
+                    Ok(_) => {
+                        log::info!("[DropItem] Dropped item {} was the active item. Cleared from ActiveEquipment.", item_instance_id);
+                    }
+                    Err(e) => {
+                        log::error!("[DropItem] Failed to clear active item {} during drop: {}. Proceeding with drop.", item_instance_id, e);
+                    }
+                }
             }
         }
     }
 
-    // --- 5. Calculate Drop Position ---
-    let (drop_x, drop_y) = calculate_drop_position(&player);
-    log::debug!("[DropItem] Calculated drop position: ({:.1}, {:.1}) for player {:?}", drop_x, drop_y, sender_id);
-
-    // --- 6. Handle Item Quantity (Split or Delete Original) ---
+    // --- 5. Handle Quantity & Potential Splitting ---
     if quantity_to_drop == item_to_drop.quantity {
         // Dropping the entire stack
         log::info!("[DropItem] Dropping entire stack (ID: {}, Qty: {}). Deleting original InventoryItem.", item_instance_id, quantity_to_drop);
         
-        // Only clear from source location if dropping the entire stack
         clear_item_from_source_location(ctx, item_instance_id)?;
-        ctx.db.inventory_item().instance_id().delete(item_instance_id);
+        inventory_items.instance_id().delete(item_instance_id);
     } else {
         // Dropping part of the stack
-        // Need to check if the item is actually stackable for splitting (though UI should prevent this)
         if !item_def.is_stackable {
             return Err(format!("Cannot drop partial quantity of non-stackable item '{}'.", item_def.name));
         }
         
-        // Store original slot information (key fix)
-        let original_inventory_slot = item_to_drop.inventory_slot;
-        let original_hotbar_slot = item_to_drop.hotbar_slot;
-        
         log::info!("[DropItem] Dropping partial stack (ID: {}, QtyDrop: {}). Reducing original quantity.", item_instance_id, quantity_to_drop);
         item_to_drop.quantity -= quantity_to_drop;
         
-        // Preserve slot information for partial drops (key fix)
-        item_to_drop.inventory_slot = original_inventory_slot;
-        item_to_drop.hotbar_slot = original_hotbar_slot;
-        
-        // If the item was originally equip/fuel, assign ownership to the sender now
-        if was_originally_equipped_or_fuel {
-            item_to_drop.player_identity = sender_id;
-            log::debug!("[DropItem] Assigning ownership of remaining stack {} to player {:?}", item_instance_id, sender_id);
-        }
-        
-        ctx.db.inventory_item().instance_id().update(item_to_drop);
+        inventory_items.instance_id().update(item_to_drop);
     }
+
+    // --- 6. Calculate Drop Position ---
+    let (drop_x, drop_y) = calculate_drop_position(&player);
+    log::debug!("[DropItem] Calculated drop position: ({:.1}, {:.1}) for player {:?}", drop_x, drop_y, sender_id);
 
     // --- 7. Create Dropped Item Entity in World ---
     create_dropped_item_entity(ctx, item_def.id, quantity_to_drop, drop_x, drop_y)?;
@@ -650,9 +667,12 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     if item_def.category != ItemCategory::Armor {
         return Err(format!("Item '{}' is not armor.", item_def.name));
     }
-    let target_slot_enum = item_def.equipment_slot
+    let target_slot_enum_model = item_def.equipment_slot_type
         .ok_or_else(|| format!("Armor '{}' has no defined equipment slot.", item_def.name))?;
-    if item_to_equip.inventory_slot.is_none() && item_to_equip.hotbar_slot.is_none() {
+    
+    // Ensure item is currently in player inventory or hotbar
+    if !matches!(&item_to_equip.location, ItemLocation::Inventory(data) if data.owner_id == sender_id) && 
+       !matches!(&item_to_equip.location, ItemLocation::Hotbar(data) if data.owner_id == sender_id) {
         return Err("Item must be in inventory or hotbar to be equipped this way.".to_string());
     }
 
@@ -661,34 +681,33 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     let mut equip = active_equip_table.player_identity().find(sender_id)
                      .ok_or_else(|| "ActiveEquipment entry not found for player.".to_string())?;
 
-    let current_item_in_slot_id: Option<u64> = match target_slot_enum {
-        EquipmentSlot::Head => equip.head_item_instance_id,
-        EquipmentSlot::Chest => equip.chest_item_instance_id,
-        EquipmentSlot::Legs => equip.legs_item_instance_id,
-        EquipmentSlot::Feet => equip.feet_item_instance_id,
-        EquipmentSlot::Hands => equip.hands_item_instance_id,
-        EquipmentSlot::Back => equip.back_item_instance_id,
+    let current_item_in_slot_id: Option<u64> = match target_slot_enum_model {
+        EquipmentSlotType::Head => equip.head_item_instance_id,
+        EquipmentSlotType::Chest => equip.chest_item_instance_id,
+        EquipmentSlotType::Legs => equip.legs_item_instance_id,
+        EquipmentSlotType::Feet => equip.feet_item_instance_id,
+        EquipmentSlotType::Hands => equip.hands_item_instance_id,
+        EquipmentSlotType::Back => equip.back_item_instance_id,
     };
 
     if let Some(currently_equipped_id) = current_item_in_slot_id {
         if currently_equipped_id == item_instance_id { return Ok(()); } // Already equipped in the correct slot
 
-        log::info!("[EquipArmorInv] Unequipping item {} from slot {:?}.", currently_equipped_id, target_slot_enum);
+        log::info!("[EquipArmorInv] Unequipping item {} from slot {:?}.", currently_equipped_id, target_slot_enum_model);
         match find_first_empty_inventory_slot(ctx, sender_id) {
-            Some(empty_slot) => {
-                if let Ok(mut currently_equipped_item) = get_player_item(ctx, currently_equipped_id) {
-                    currently_equipped_item.inventory_slot = Some(empty_slot);
-                    currently_equipped_item.hotbar_slot = None;
-                    ctx.db.inventory_item().instance_id().update(currently_equipped_item);
-                    log::info!("[EquipArmorInv] Moved previously equipped item {} to inventory slot {}.", currently_equipped_id, empty_slot);
+            Some(empty_slot_idx) => {
+                if let Ok(mut currently_equipped_item_row) = get_player_item(ctx, currently_equipped_id) {
+                    currently_equipped_item_row.location = ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: sender_id, slot_index: empty_slot_idx });
+                    ctx.db.inventory_item().instance_id().update(currently_equipped_item_row);
+                    log::info!("[EquipArmorInv] Moved previously equipped item {} to inventory slot {}.", currently_equipped_id, empty_slot_idx);
                     // Clear the slot in ActiveEquipment *after* successfully moving the old item
-                    match target_slot_enum {
-                        EquipmentSlot::Head => equip.head_item_instance_id = None,
-                        EquipmentSlot::Chest => equip.chest_item_instance_id = None,
-                        EquipmentSlot::Legs => equip.legs_item_instance_id = None,
-                        EquipmentSlot::Feet => equip.feet_item_instance_id = None,
-                        EquipmentSlot::Hands => equip.hands_item_instance_id = None,
-                        EquipmentSlot::Back => equip.back_item_instance_id = None,
+                    match target_slot_enum_model {
+                        EquipmentSlotType::Head => equip.head_item_instance_id = None,
+                        EquipmentSlotType::Chest => equip.chest_item_instance_id = None,
+                        EquipmentSlotType::Legs => equip.legs_item_instance_id = None,
+                        EquipmentSlotType::Feet => equip.feet_item_instance_id = None,
+                        EquipmentSlotType::Hands => equip.hands_item_instance_id = None,
+                        EquipmentSlotType::Back => equip.back_item_instance_id = None,
                     };
                 } else {
                     log::error!("[EquipArmorInv] Failed to find InventoryItem for previously equipped item {}! Aborting equip.", currently_equipped_id);
@@ -696,27 +715,28 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
                 }
             }
             None => {
-                log::error!("[EquipArmorInv] Inventory full! Cannot unequip item {} from slot {:?}. Aborting equip.", currently_equipped_id, target_slot_enum);
+                log::error!("[EquipArmorInv] Inventory full! Cannot unequip item {} from slot {:?}. Aborting equip.", currently_equipped_id, target_slot_enum_model);
                 return Err("Inventory full, cannot unequip existing item.".to_string());
             }
         }
     } // End handling currently equipped item
 
     // 4. Equip the New Item
-    log::info!("[EquipArmorInv] Equipping item {} to slot {:?}.", item_instance_id, target_slot_enum);
-    match target_slot_enum {
-        EquipmentSlot::Head => equip.head_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Chest => equip.chest_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Legs => equip.legs_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Feet => equip.feet_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Hands => equip.hands_item_instance_id = Some(item_instance_id),
-        EquipmentSlot::Back => equip.back_item_instance_id = Some(item_instance_id),
+    log::info!("[EquipArmorInv] Equipping item {} to slot {:?}.", item_instance_id, target_slot_enum_model);
+    let equipment_slot_type_for_location = target_slot_enum_model;
+
+    match target_slot_enum_model {
+        EquipmentSlotType::Head => equip.head_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Chest => equip.chest_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Legs => equip.legs_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Feet => equip.feet_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Hands => equip.hands_item_instance_id = Some(item_instance_id),
+        EquipmentSlotType::Back => equip.back_item_instance_id = Some(item_instance_id),
     };
     active_equip_table.player_identity().update(equip);
 
-    // 5. Clear the Inventory/Hotbar Slot of the Newly Equipped Item
-    item_to_equip.inventory_slot = None;
-    item_to_equip.hotbar_slot = None;
+    // 5. Update the InventoryItem's location
+    item_to_equip.location = ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: sender_id, slot_type: equipment_slot_type_for_location });
     ctx.db.inventory_item().instance_id().update(item_to_equip);
 
     Ok(())

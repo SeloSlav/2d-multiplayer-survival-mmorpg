@@ -1,18 +1,20 @@
-use crate::items::{ItemDefinition, ItemCategory, EquipmentSlot};
+use crate::items::{ItemDefinition, ItemCategory};
+use crate::models::EquipmentSlotType;
 
 pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
     let initial_items = vec![
         ItemDefinition {
             id: 0,
             name: "Wood".to_string(),
-            description: "A sturdy piece of wood.".to_string(),
+            description: "A sturdy piece of wood. Good for fuel.".to_string(),
             category: ItemCategory::Material,
             icon_asset_name: "wood.png".to_string(),
             damage: None,
             is_stackable: true,
             stack_size: 1000,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: Some(10.0),
         },
         ItemDefinition {
             id: 0,
@@ -24,7 +26,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: true,
             stack_size: 1000,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -36,7 +39,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -48,7 +52,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -60,7 +65,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -72,7 +78,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -84,7 +91,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Chest),
+            equipment_slot_type: Some(EquipmentSlotType::Chest),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -96,7 +104,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Legs),
+            equipment_slot_type: Some(EquipmentSlotType::Legs),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -108,7 +117,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Head),
+            equipment_slot_type: Some(EquipmentSlotType::Head),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -120,7 +130,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Feet),
+            equipment_slot_type: Some(EquipmentSlotType::Feet),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -132,7 +143,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Hands),
+            equipment_slot_type: Some(EquipmentSlotType::Hands),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -144,7 +156,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
-            equipment_slot: Some(EquipmentSlot::Back),
+            equipment_slot_type: Some(EquipmentSlotType::Back),
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -156,7 +169,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: true,
             stack_size: 50,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         // --- NEW Item: Wooden Storage Box ---
         ItemDefinition {
@@ -169,7 +183,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false, // Placeables are usually not stackable in inventory
             stack_size: 1,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         // --- NEW Item: Sleeping Bag ---
         ItemDefinition {
@@ -182,7 +197,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: false,
             stack_size: 1,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -194,7 +210,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             is_stackable: true,
             stack_size: 50,
             is_equippable: false,
-            equipment_slot: None,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
         },
     ];
     initial_items

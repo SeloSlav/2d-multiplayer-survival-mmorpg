@@ -29,9 +29,11 @@ use crate::items::{
     item_definition as ItemDefinitionTableTrait,
     add_item_to_player_inventory
 };
-use crate::inventory_management::{self, ItemContainer, ContainerItemClearer};
+use crate::inventory_management::{self, ItemContainer, ContainerItemClearer, merge_or_place_into_container_slot};
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::environment::calculate_chunk_index;
+use crate::models::{ContainerType, ItemLocation, InventoryLocationData, HotbarLocationData, DroppedLocationData, EquippedLocationData, ContainerLocationData};
+use crate::player_inventory::{find_first_empty_player_slot, move_item_to_inventory, move_item_to_hotbar, get_player_item};
 
 /// --- Wooden Storage Box Data Structure ---
 /// Represents a storage box in the game world with position, owner, and
@@ -206,28 +208,18 @@ pub fn split_stack_into_box(
     source_item_instance_id: u64,
     quantity_to_split: u32,
 ) -> Result<(), String> {
-    // Get tables
     let mut boxes = ctx.db.wooden_storage_box();
-    let inventory_items = ctx.db.inventory_item(); // Need this to find source_item
-    let item_defs = ctx.db.item_definition(); // Need this for validation
-
-    // --- Validations --- 
     let (_player, mut storage_box) = validate_box_interaction(ctx, box_id)?;
-    // Fetch item here because handler needs mutable ref
-    let mut source_item = inventory_items.instance_id().find(source_item_instance_id).ok_or("Source item not found")?;
-    // REMOVED: Further validations moved to handler
     
-    // --- Call GENERIC Handler --- 
+    // The handler will fetch the source_item, validate its location/ownership, quantity, and stackability.
     inventory_management::handle_split_into_container(
         ctx, 
         &mut storage_box, 
         target_slot_index, 
-        &mut source_item, // Pass mutable source item ref
+        source_item_instance_id, 
         quantity_to_split
-        // Removed inventory_table arg
     )?;
 
-    // --- Commit Box Update --- 
     boxes.id().update(storage_box);
     Ok(())
 }
@@ -245,15 +237,9 @@ pub fn split_stack_from_box(
     target_slot_type: String, 
     target_slot_index: u32,   
 ) -> Result<(), String> {
-    // Get tables
     let mut boxes = ctx.db.wooden_storage_box();
-    // NOTE: Other tables accessed in handler via ctx
-
-    // --- Validations --- 
     let (_player, mut storage_box) = validate_box_interaction(ctx, box_id)?;
-    // REMOVED: Item fetching/validation moved to handler
-
-    // --- Call GENERIC Handler --- 
+    
     inventory_management::handle_split_from_container(
         ctx, 
         &mut storage_box, 
@@ -262,8 +248,7 @@ pub fn split_stack_from_box(
         target_slot_type, 
         target_slot_index
     )?;
-
-    // --- Commit Box Update --- 
+    
     boxes.id().update(storage_box);
     Ok(())
 }
@@ -371,131 +356,92 @@ pub fn quick_move_to_box(
 #[spacetimedb::reducer]
 pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, world_y: f32) -> Result<(), String> {
     let sender_id = ctx.sender;
-    // Use table traits via ctx.db
-    let inventory_items = ctx.db.inventory_item();
+    let mut inventory_items = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
+    let mut boxes = ctx.db.wooden_storage_box();
     let players = ctx.db.player();
-    let wooden_storage_boxes = ctx.db.wooden_storage_box(); // Use trait alias
 
-    log::info!(
-        "[PlaceStorageBox] Player {:?} attempting placement of item {} at ({:.1}, {:.1})",
-        sender_id, item_instance_id, world_x, world_y
-    );
+    log::info!("Player {:?} attempting to place wooden storage box (item instance {}) at ({}, {}).", sender_id, item_instance_id, world_x, world_y);
 
-    // --- 1. Find the 'Wooden Storage Box' Item Definition ID ---
-    let box_def_id = item_defs.iter()
-        .find(|def| def.name == "Wooden Storage Box")
-        .map(|def| def.id)
-        .ok_or_else(|| "Item definition 'Wooden Storage Box' not found.".to_string())?;
+    // 1. Validate Player
+    let player = players.identity().find(sender_id)
+        .ok_or_else(|| "Player not found.".to_string())?;
 
-    // --- 2. Find the specific item instance and validate --- 
-    let item_to_consume = inventory_items.instance_id().find(item_instance_id)
-        .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
-    
-    // Validate ownership
-    if item_to_consume.player_identity != sender_id {
-        return Err(format!("Item instance {} not owned by player {:?}.", item_instance_id, sender_id));
+    // 2. Validate Item to be Placed ---
+    // Get the item definition to ensure it's a placeable box
+    let mut item_to_place = get_player_item(ctx, item_instance_id)?;
+    let item_def = item_defs.id().find(item_to_place.item_def_id)
+        .ok_or_else(|| format!("Item definition {} not found for item instance {}.", item_to_place.item_def_id, item_instance_id))?;
+
+    // Check if the item is a Wooden Storage Box and is in player's inventory/hotbar
+    if item_def.name != "Wooden Storage Box" {
+        return Err("Item is not a Wooden Storage Box.".to_string());
     }
-    // Validate item type
-    if item_to_consume.item_def_id != box_def_id {
-        return Err(format!("Item instance {} is not a Wooden Storage Box (expected def {}, got {}).", 
-                        item_instance_id, box_def_id, item_to_consume.item_def_id));
-    }
-    // Validate location (must be in inv or hotbar)
-    if item_to_consume.inventory_slot.is_none() && item_to_consume.hotbar_slot.is_none() {
-        return Err(format!("Item instance {} must be in inventory or hotbar to be placed.", item_instance_id));
-    }
-    
-    // Use the validated item_instance_id directly
-    let item_instance_id_to_delete = item_instance_id; 
 
-    // --- 3. Validate Placement (Simplified - basic distance check) ---
-    if let Some(player) = players.identity().find(sender_id) {
-        let dx = player.position_x - world_x;
-        let dy = player.position_y - world_y;
-        let dist_sq = dx * dx + dy * dy;
-        // Use a reasonable placement distance squared (e.g., 96 pixels radius)
-        let placement_range_sq = 96.0 * 96.0;
-        if dist_sq > placement_range_sq {
-            return Err("Placement location is too far away.".to_string());
+    match &item_to_place.location { 
+        ItemLocation::Inventory(data) => {
+            if data.owner_id != sender_id {
+                return Err("Item to place storage box not owned by player or not in direct possession.".to_string());
+            }
         }
-    } else {
-        return Err("Could not find player data to validate placement distance.".to_string());
-    }
-
-    // Check collision with other storage boxes
-    for other_box in wooden_storage_boxes.iter() {
-        let dx = world_x - other_box.pos_x;
-        let dy = world_y - other_box.pos_y;
-        let dist_sq = dx * dx + dy * dy;
-        if dist_sq < BOX_BOX_COLLISION_DISTANCE_SQUARED {
-            return Err("Cannot place storage box too close to another storage box.".to_string());
+        ItemLocation::Hotbar(data) => {
+            if data.owner_id != sender_id {
+                return Err("Item to place storage box not owned by player or not in direct possession.".to_string());
+            }
         }
+        _ => return Err("Wooden Storage Box must be in inventory or hotbar to be placed.".to_string()),
     }
 
-    // TODO: Add collision checks? Ensure not placing inside another object?
+    // 3. Validate Placement Location (Collision Checks)
+    let new_chunk_index = calculate_chunk_index(world_x, world_y);
+    if boxes.iter().any(|b| {
+        let dist_sq = (b.pos_x - world_x).powi(2) + (b.pos_y - world_y).powi(2);
+        dist_sq < BOX_BOX_COLLISION_DISTANCE_SQUARED
+    }) {
+        return Err("Too close to another storage box.".to_string());
+    }
+    // Add other collision checks as needed (e.g., with players, other entities)
 
-    // --- 4. Consume the Item ---
-    // Since storage boxes aren't stackable, we assume quantity is 1 and delete the item.
-    log::info!(
-        "[PlaceStorageBox] Consuming item instance {} (Def ID: {}) from player {:?}",
-        item_instance_id_to_delete, box_def_id, sender_id
-    );
-    inventory_items.instance_id().delete(item_instance_id_to_delete);
-
-    // --- 5. Create the WoodenStorageBox Entity ---
-    // --- ADD: Calculate chunk index ---
-    let chunk_idx = calculate_chunk_index(world_x, world_y);
-    // --- END ADD ---
+    // 4. Create the WoodenStorageBox entity
     let new_box = WoodenStorageBox {
         id: 0, // Auto-incremented
         pos_x: world_x,
         pos_y: world_y,
-        chunk_index: chunk_idx, // <<< SET chunk_index
+        chunk_index: new_chunk_index,
         placed_by: sender_id,
-        slot_instance_id_0: None,
-        slot_def_id_0: None,
-        slot_instance_id_1: None,
-        slot_def_id_1: None,
-        slot_instance_id_2: None,
-        slot_def_id_2: None,
-        slot_instance_id_3: None,
-        slot_def_id_3: None,
-        slot_instance_id_4: None,
-        slot_def_id_4: None,
-        slot_instance_id_5: None,
-        slot_def_id_5: None,
-        slot_instance_id_6: None,
-        slot_def_id_6: None,
-        slot_instance_id_7: None,
-        slot_def_id_7: None,
-        slot_instance_id_8: None,
-        slot_def_id_8: None,
-        slot_instance_id_9: None,
-        slot_def_id_9: None,
-        slot_instance_id_10: None,
-        slot_def_id_10: None,
-        slot_instance_id_11: None,
-        slot_def_id_11: None,
-        slot_instance_id_12: None,
-        slot_def_id_12: None,
-        slot_instance_id_13: None,
-        slot_def_id_13: None,
-        slot_instance_id_14: None,
-        slot_def_id_14: None,
-        slot_instance_id_15: None,
-        slot_def_id_15: None,
-        slot_instance_id_16: None,
-        slot_def_id_16: None,
-        slot_instance_id_17: None,
-        slot_def_id_17: None,
+        slot_instance_id_0: None, slot_def_id_0: None,
+        slot_instance_id_1: None, slot_def_id_1: None,
+        slot_instance_id_2: None, slot_def_id_2: None,
+        slot_instance_id_3: None, slot_def_id_3: None,
+        slot_instance_id_4: None, slot_def_id_4: None,
+        slot_instance_id_5: None, slot_def_id_5: None,
+        slot_instance_id_6: None, slot_def_id_6: None,
+        slot_instance_id_7: None, slot_def_id_7: None,
+        slot_instance_id_8: None, slot_def_id_8: None,
+        slot_instance_id_9: None, slot_def_id_9: None,
+        slot_instance_id_10: None, slot_def_id_10: None,
+        slot_instance_id_11: None, slot_def_id_11: None,
+        slot_instance_id_12: None, slot_def_id_12: None,
+        slot_instance_id_13: None, slot_def_id_13: None,
+        slot_instance_id_14: None, slot_def_id_14: None,
+        slot_instance_id_15: None, slot_def_id_15: None,
+        slot_instance_id_16: None, slot_def_id_16: None,
+        slot_instance_id_17: None, slot_def_id_17: None,
     };
-    wooden_storage_boxes.insert(new_box);
+    let inserted_box = boxes.insert(new_box);
+    log::info!("Player {:?} placed new Wooden Storage Box with ID {}.
+Location: {:?}", sender_id, inserted_box.id, item_to_place.location);
 
-    log::info!(
-        "[PlaceStorageBox] Successfully placed Wooden Storage Box at ({:.1}, {:.1}) by {:?}",
-        world_x, world_y, sender_id
-    );
+
+    // 5. Consume the item from player's inventory
+    if item_to_place.quantity > 1 {
+        item_to_place.quantity -= 1;
+        inventory_items.instance_id().update(item_to_place);
+    } else {
+        inventory_items.instance_id().delete(item_instance_id);
+    }
+    
+    log::info!("Wooden Storage Box (item instance {}) consumed from player {:?} inventory after placement.", item_instance_id, sender_id);
 
     Ok(())
 }
@@ -515,40 +461,46 @@ pub fn interact_with_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<()
 #[spacetimedb::reducer]
 pub fn pickup_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<(), String> {
     let sender_id = ctx.sender;
-    let mut boxes = ctx.db.wooden_storage_box();
-    let item_defs = ctx.db.item_definition();
+    let mut boxes_table = ctx.db.wooden_storage_box();
+    let item_defs_table = ctx.db.item_definition();
+    // inventory_items_table is not needed if the box must be empty
 
-    log::info!("[PickupBox] Player {:?} attempting pickup of box {}", sender_id, box_id);
+    log::info!("Player {:?} attempting to pick up storage box {}.", sender_id, box_id);
 
-    // 1. Validate Interaction & Get Entities
-    let (_player, storage_box) = validate_box_interaction(ctx, box_id)?;
+    // 1. Validate Interaction
+    let (_player, storage_box_to_pickup) = validate_box_interaction(ctx, box_id)?;
+    // Optional: Add ownership check if only the placer can pick it up:
+    // if storage_box_to_pickup.placed_by != sender_id {
+    //     return Err("You did not place this storage box.".to_string());
+    // }
 
-    // 2. Check if Box is Empty
-    let is_empty = inventory_management::is_container_empty(&storage_box);
-    if !is_empty {
-        log::warn!("[PickupBox] Failed: Box {} is not empty.", box_id);
-        return Err("Cannot pick up a storage box that contains items.".to_string());
+    // 2. Check if the box is empty
+    for i in 0..NUM_BOX_SLOTS {
+        if storage_box_to_pickup.get_slot_instance_id(i as u8).is_some() {
+            return Err("Cannot pick up storage box: It is not empty.".to_string());
+        }
     }
 
-    // 3. Find the "Wooden Storage Box" Item Definition
-    let box_item_def = item_defs.iter()
+    // 3. Find the ItemDefinition for "Wooden Storage Box"
+    let box_item_def = item_defs_table.iter()
         .find(|def| def.name == "Wooden Storage Box")
-        .ok_or_else(|| "Item definition 'Wooden Storage Box' not found.".to_string())?;
+        .ok_or_else(|| "ItemDefinition for 'Wooden Storage Box' not found. Cannot give item back.".to_string())?;
 
-    // 4. Add the item to the player's inventory
+    // 4. Give the player back one "Wooden Storage Box" item
+    // The add_item_to_player_inventory function will handle finding a slot or stacking.
     match add_item_to_player_inventory(ctx, sender_id, box_item_def.id, 1) {
-        Ok(_) => {
-            // 5. If item added successfully, delete the box entity
-            log::info!("[PickupBox] Box item added to player {:?} inventory. Deleting box entity {}.", sender_id, box_id);
-            boxes.id().delete(box_id);
-            Ok(())
-        }
+        Ok(_) => log::info!("Added 'Wooden Storage Box' item to player {:?} inventory.", sender_id),
         Err(e) => {
-            // 6. If adding item failed (e.g., inventory full), return the error
-            log::error!("[PickupBox] Failed to add box item to inventory for player {:?}: {}. Box {} not deleted.", sender_id, e, box_id);
-            Err(format!("Failed to pick up box: {}", e))
+            log::error!("Failed to give 'Wooden Storage Box' item to player {:?}: {}. Box not deleted.", sender_id, e);
+            return Err(format!("Could not add Wooden Storage Box to your inventory: {}", e));
         }
     }
+
+    // 5. Delete the WoodenStorageBox entity from the world
+    boxes_table.id().delete(box_id);
+    log::info!("Storage box {} picked up and removed from world by player {:?}.", box_id, sender_id);
+
+    Ok(())
 }
 
 /******************************************************************************
@@ -567,7 +519,6 @@ impl ItemContainer for WoodenStorageBox {
     /// Returns the instance ID for a given slot index.
     /// Returns None if the slot index is out of bounds.
     fn get_slot_instance_id(&self, slot_index: u8) -> Option<u64> {
-        if slot_index >= NUM_BOX_SLOTS as u8 { return None; }
         match slot_index {
             0 => self.slot_instance_id_0,
             1 => self.slot_instance_id_1,
@@ -587,7 +538,7 @@ impl ItemContainer for WoodenStorageBox {
             15 => self.slot_instance_id_15,
             16 => self.slot_instance_id_16,
             17 => self.slot_instance_id_17,
-            _ => None, // Unreachable due to index check
+            _ => None,
         }
     }
 
@@ -595,7 +546,6 @@ impl ItemContainer for WoodenStorageBox {
     /// Returns the definition ID for a given slot index.
     /// Returns None if the slot index is out of bounds.
     fn get_slot_def_id(&self, slot_index: u8) -> Option<u64> {
-        if slot_index >= NUM_BOX_SLOTS as u8 { return None; }
         match slot_index {
             0 => self.slot_def_id_0,
             1 => self.slot_def_id_1,
@@ -623,28 +573,36 @@ impl ItemContainer for WoodenStorageBox {
     /// Sets the item instance ID and definition ID for a given slot index. 
     /// Returns None if the slot index is out of bounds.
     fn set_slot(&mut self, slot_index: u8, instance_id: Option<u64>, def_id: Option<u64>) {
-        if slot_index >= NUM_BOX_SLOTS as u8 { return; }
         match slot_index {
-            0 => { self.slot_instance_id_0 = instance_id; self.slot_def_id_0 = def_id; },
-            1 => { self.slot_instance_id_1 = instance_id; self.slot_def_id_1 = def_id; },
-            2 => { self.slot_instance_id_2 = instance_id; self.slot_def_id_2 = def_id; },
-            3 => { self.slot_instance_id_3 = instance_id; self.slot_def_id_3 = def_id; },
-            4 => { self.slot_instance_id_4 = instance_id; self.slot_def_id_4 = def_id; },
-            5 => { self.slot_instance_id_5 = instance_id; self.slot_def_id_5 = def_id; },
-            6 => { self.slot_instance_id_6 = instance_id; self.slot_def_id_6 = def_id; },
-            7 => { self.slot_instance_id_7 = instance_id; self.slot_def_id_7 = def_id; },
-            8 => { self.slot_instance_id_8 = instance_id; self.slot_def_id_8 = def_id; },
-            9 => { self.slot_instance_id_9 = instance_id; self.slot_def_id_9 = def_id; },
-            10 => { self.slot_instance_id_10 = instance_id; self.slot_def_id_10 = def_id; },
-            11 => { self.slot_instance_id_11 = instance_id; self.slot_def_id_11 = def_id; },
-            12 => { self.slot_instance_id_12 = instance_id; self.slot_def_id_12 = def_id; },
-            13 => { self.slot_instance_id_13 = instance_id; self.slot_def_id_13 = def_id; },
-            14 => { self.slot_instance_id_14 = instance_id; self.slot_def_id_14 = def_id; },
-            15 => { self.slot_instance_id_15 = instance_id; self.slot_def_id_15 = def_id; },
-            16 => { self.slot_instance_id_16 = instance_id; self.slot_def_id_16 = def_id; },
-            17 => { self.slot_instance_id_17 = instance_id; self.slot_def_id_17 = def_id; },
-            _ => {}, // Unreachable due to index check
+            0 => { self.slot_instance_id_0 = instance_id; self.slot_def_id_0 = def_id; }
+            1 => { self.slot_instance_id_1 = instance_id; self.slot_def_id_1 = def_id; }
+            2 => { self.slot_instance_id_2 = instance_id; self.slot_def_id_2 = def_id; }
+            3 => { self.slot_instance_id_3 = instance_id; self.slot_def_id_3 = def_id; }
+            4 => { self.slot_instance_id_4 = instance_id; self.slot_def_id_4 = def_id; }
+            5 => { self.slot_instance_id_5 = instance_id; self.slot_def_id_5 = def_id; }
+            6 => { self.slot_instance_id_6 = instance_id; self.slot_def_id_6 = def_id; }
+            7 => { self.slot_instance_id_7 = instance_id; self.slot_def_id_7 = def_id; }
+            8 => { self.slot_instance_id_8 = instance_id; self.slot_def_id_8 = def_id; }
+            9 => { self.slot_instance_id_9 = instance_id; self.slot_def_id_9 = def_id; }
+            10 => { self.slot_instance_id_10 = instance_id; self.slot_def_id_10 = def_id; }
+            11 => { self.slot_instance_id_11 = instance_id; self.slot_def_id_11 = def_id; }
+            12 => { self.slot_instance_id_12 = instance_id; self.slot_def_id_12 = def_id; }
+            13 => { self.slot_instance_id_13 = instance_id; self.slot_def_id_13 = def_id; }
+            14 => { self.slot_instance_id_14 = instance_id; self.slot_def_id_14 = def_id; }
+            15 => { self.slot_instance_id_15 = instance_id; self.slot_def_id_15 = def_id; }
+            16 => { self.slot_instance_id_16 = instance_id; self.slot_def_id_16 = def_id; }
+            17 => { self.slot_instance_id_17 = instance_id; self.slot_def_id_17 = def_id; }
+            _ => { log::error!("[WoodenStorageBox] Attempted to set invalid slot index: {}", slot_index); }
         }
+    }
+
+    // --- NEW Methods for ItemLocation Refactor ---
+    fn get_container_type(&self) -> crate::models::ContainerType {
+        ContainerType::WoodenStorageBox
+    }
+
+    fn get_container_id(&self) -> u64 {
+        self.id as u64
     }
 }
 
@@ -655,37 +613,37 @@ pub struct WoodenStorageBoxClearer;
 
 impl ContainerItemClearer for WoodenStorageBoxClearer {
     fn clear_item(ctx: &ReducerContext, item_instance_id: u64) -> bool {
-        // Get access to the table
         let mut boxes = ctx.db.wooden_storage_box();
+        let inventory_items = ctx.db.inventory_item(); 
         let mut box_updated = false;
         let mut box_to_update: Option<WoodenStorageBox> = None; 
 
-        // Iterate through all boxes to find the item
         for current_box in boxes.iter() {
-            let mut temp_box = current_box.clone(); // Clone to modify if needed
+            let mut temp_box = current_box.clone(); 
             let mut found_in_this_box = false;
             
-            // Use the ItemContainer trait methods to search through slots
             for i in 0..temp_box.num_slots() as u8 {
                 if temp_box.get_slot_instance_id(i) == Some(item_instance_id) {
-                    log::debug!("[WoodenStorageBoxClearer] Found item {} in box {} slot {}. Clearing.", 
-                              item_instance_id, temp_box.id, i);
-                    temp_box.set_slot(i, None, None);
-                    box_to_update = Some(temp_box);
-                    box_updated = true;
+                    log::debug!("[WoodenStorageBoxClearer] Found item {} in box {} slot {}. Clearing slot and updating item location.", item_instance_id, temp_box.id, i);
+                    temp_box.set_slot(i, None, None); 
                     found_in_this_box = true;
+                    box_to_update = Some(temp_box.clone()); 
                     break;
                 }
             }
-            if found_in_this_box { break; } // Stop checking other boxes
-        }
 
-        // Update the box if it was modified
-        if let Some(updated_box) = box_to_update {
-            boxes.id().update(updated_box);
+            if found_in_this_box {
+                if let Some(mut item_to_update) = inventory_items.instance_id().find(item_instance_id) {
+                    item_to_update.location = ItemLocation::Unknown;
+                    inventory_items.instance_id().update(item_to_update);
+                }
+                box_updated = true;
+                break; 
+            }
         }
-
-        // Return whether the item was found and cleared
+        if let Some(b) = box_to_update {
+            boxes.id().update(b);
+        }
         box_updated
     }
 }

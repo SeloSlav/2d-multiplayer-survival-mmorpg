@@ -202,11 +202,27 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             match player_corpse::create_corpse_for_player(ctx, &player) {
                 Ok(corpse_id) => {
                     log::info!("Successfully created corpse {} via stats decay for player {:?}", corpse_id, player_id);
-                    // Optionally drop equipped item if not handled elsewhere (e.g., in combat death)
-                    match crate::active_equipment::unequip_item(ctx, player_id) {
-                        Ok(_) => log::debug!("Unequipped item for player {:?} due to stat death.", player_id),
-                        Err(e) => log::error!("Failed to unequip item for player {:?} during stat death: {}", player_id, e),
+                    // If player was holding an item, it should be unequipped (returned to inventory or dropped)
+                    if let Some(player_state) = ctx.db.player().identity().find(&player_id) {
+                        if player_state.health == 0.0 {
+                            // Player is dead, clear active equipment if any
+                            // Check ActiveEquipment table
+                            if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&player_id) {
+                                if let Some(item_id) = active_equip.equipped_item_instance_id {
+                                    log::info!("[StatsUpdate] Player {} died with active item instance {}. Clearing.", player_id, item_id);
+                                    match crate::active_equipment::clear_active_item_reducer(ctx, player_id) {
+                                        Ok(_) => log::info!("[PlayerDeath] Active item cleared for player {}", player_id),
+                                        Err(e) => log::error!("[PlayerDeath] Failed to clear active item for player {}: {}", player_id, e),
+                                    }
+                                }
+                            }
+                        }
                     }
+                    // Additional: Clear any equipped armor as well by calling the specific armor clearing logic
+                    // match crate::items::clear_all_equipped_armor_from_player(ctx, player_id) {
+                    //     Ok(_) => log::info!("[PlayerDeath] All equipped armor cleared for player {}", player_id),
+                    //     Err(e) => log::error!("[PlayerDeath] Failed to clear all equipped armor for player {}: {}", player_id, e),
+                    // }
                 }
                 Err(e) => {
                     log::error!("Failed to create corpse via stats decay for player {:?}: {}", player_id, e);
@@ -241,13 +257,14 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             // ALWAYS update last_stat_update timestamp after processing
             player.last_stat_update = current_time;
 
-            players.identity().update(player);
-            log::debug!("Updated stats for player {:?}", player_id);
+            players.identity().update(player.clone());
+            log::trace!("[StatsUpdate] Updated stats for player {:?}. Health: {:.1}, Hunger: {:.1}, Thirst: {:.1}, Warmth: {:.1}, Stamina: {:.1}, Sprinting: {}, Dead: {}",
+                      player_id, player.health, player.hunger, player.thirst, player.warmth, player.stamina, player.is_sprinting, player.is_dead);
         } else {
              log::trace!("No significant stat changes for player {:?}, skipping update.", player_id);
              // Still update the stat timestamp even if nothing changed, to prevent large future deltas
              player.last_stat_update = current_time;
-             players.identity().update(player);
+             players.identity().update(player.clone());
              log::trace!("Updated player {:?} last_stat_update timestamp anyway.", player_id);
         }
     }

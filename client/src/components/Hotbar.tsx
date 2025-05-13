@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire } from '../generated';
+import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 
 // Import Custom Components
@@ -56,10 +56,15 @@ const Hotbar: React.FC<HotbarProps> = ({
     if (!playerIdentity) return null;
     // Use props directly inside useCallback dependencies
     for (const itemInstance of inventoryItems.values()) { 
-      if (itemInstance.playerIdentity.isEqual(playerIdentity) && itemInstance.hotbarSlot === slotIndex) {
-        const definition = itemDefinitions.get(itemInstance.itemDefId.toString());
-        if (definition) {
-            return { instance: itemInstance, definition };
+      // Check if the item is in a Hotbar location
+      if (itemInstance.location.tag === 'Hotbar') {
+        // Access the Hotbar-specific data using the imported type
+        const hotbarData = itemInstance.location.value as HotbarLocationData;
+        if (hotbarData.ownerId.isEqual(playerIdentity) && hotbarData.slotIndex === slotIndex) {
+          const definition = itemDefinitions.get(itemInstance.itemDefId.toString());
+          if (definition) {
+              return { instance: itemInstance, definition };
+          }
         }
       }
     }
@@ -99,7 +104,7 @@ const Hotbar: React.FC<HotbarProps> = ({
           } else if (categoryTag === 'Armor') {
               // console.log(`Hotbar Key ${keyNum}: Equipping ARMOR instance ${instanceId} (${name})`);
               cancelPlacement();
-              try { connection.reducers.equipArmor(instanceId); } catch (err) { console.error("Error equipArmor:", err); }
+              try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
           } else if (categoryTag === 'Placeable') {
               // console.log(`Hotbar Key ${keyNum}: Starting placement for ${name}.`);
               const placementInfo: PlacementItemInfo = {
@@ -109,22 +114,22 @@ const Hotbar: React.FC<HotbarProps> = ({
                   instanceId: BigInt(itemInNewSlot.instance.instanceId)
               };
               startPlacement(placementInfo);
-              try { if (playerIdentity) connection.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+              try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
           } else if (itemInNewSlot.definition.isEquippable) {
               // console.log(`Hotbar Key ${keyNum}: Equipping item instance ${instanceId} (${name})`);
               cancelPlacement();
-              try { connection.reducers.equipItem(instanceId); } catch (err) { console.error("Error equip:", err); }
+              try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
           } else {
               // Item exists but isn't consumable, armor, campfire, or equippable - treat as selecting non-actionable (unequip current)
               // console.log(`Hotbar Key ${keyNum}: Selected non-actionable item (${name}), unequipping.`);
               cancelPlacement();
-              try { if (playerIdentity) connection.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+              try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
           }
       } else {
           // Slot is empty - Unequip current item
           // console.log(`Hotbar Key ${keyNum}: Slot empty, unequipping.`);
           cancelPlacement();
-          try { if (playerIdentity) connection.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       }
     }
   }, [numSlots, findItemForSlot, connection, cancelPlacement, startPlacement, playerIdentity]);
@@ -149,7 +154,7 @@ const Hotbar: React.FC<HotbarProps> = ({
          if (!clickedItem) {
              // console.log(`Hotbar Click: Slot ${index + 1} empty, unequipping.`);
              cancelPlacement(); // Cancel placement if slot empty
-             try { if (playerIdentity) connection?.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+             try { if (playerIdentity) connection?.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
          }
          return; 
       }
@@ -170,7 +175,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       } else if (categoryTag === 'Armor') {
           // console.log(`Hotbar Click: Equipping ARMOR instance ${instanceId} (${name}) in slot ${index + 1}`);
           cancelPlacement();
-          try { connection.reducers.equipArmor(instanceId); } catch (err) { console.error("Error equipArmor:", err); }
+          try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
       } else if (categoryTag === 'Placeable') {
           // console.log(`Hotbar Click: Starting placement for ${name} (Slot ${index + 1}).`);
           const placementInfo: PlacementItemInfo = {
@@ -180,16 +185,16 @@ const Hotbar: React.FC<HotbarProps> = ({
               instanceId: BigInt(clickedItem.instance.instanceId)
           };
           startPlacement(placementInfo);
-          try { if (playerIdentity) connection.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       } else if (clickedItem.definition.isEquippable) {
           // console.log(`Hotbar Click: Equipping item instance ${instanceId} (${name}) in slot ${index + 1}`);
           cancelPlacement();
-          try { connection.reducers.equipItem(instanceId); } catch (err) { console.error("Error equip:", err); }
+          try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
       } else {
           // Default: If not consumable, armor, campfire, or equippable, treat as selecting non-actionable item (unequip current hand item)
           // console.log(`Hotbar Click: Slot ${index + 1} contains non-actionable item (${name}), unequipping.`);
           cancelPlacement();
-          try { if (playerIdentity) connection.reducers.unequipItem(playerIdentity); } catch (err) { console.error("Error unequip:", err); }
+          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       }
   };
 
@@ -198,6 +203,15 @@ const Hotbar: React.FC<HotbarProps> = ({
       event.preventDefault();
       event.stopPropagation();
       // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${itemInfo.instance.hotbarSlot}`);
+      // Update to use location for slot identification if necessary, or remove if PopulatedItem now gets slot from findItemForSlot correctly
+      // If itemInfo.instance.location.tag === 'Hotbar', then use itemInfo.instance.location.value.slot_index
+      if (itemInfo.instance.location.tag === 'Hotbar') {
+        const hotbarData = itemInfo.instance.location.value as HotbarLocationData;
+        console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${hotbarData.slotIndex}`);
+      } else {
+        console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} (not in hotbar)`);
+      }
+
       if (!connection?.reducers) return;
 
       const itemInstanceId = BigInt(itemInfo.instance.instanceId);
@@ -243,15 +257,15 @@ const Hotbar: React.FC<HotbarProps> = ({
       // 3. Else (no container open), check if it's armor to equip
       else {
           const isArmor = itemInfo.definition.category.tag === 'Armor';
-          const hasEquipSlot = itemInfo.definition.equipmentSlot !== null && itemInfo.definition.equipmentSlot !== undefined;
+          const hasEquipSlot = itemInfo.definition.equipmentSlotType !== null && itemInfo.definition.equipmentSlotType !== undefined;
           
           if (isArmor && hasEquipSlot) {
               // console.log(`[Hotbar ContextMenu Equip] No container open. Item is Armor. Calling equip_armor for item ${itemInstanceId}`);
                try {
                    // Hotbar already has a specific equipArmor reducer call, let's keep it for now
-                   connection.reducers.equipArmor(itemInstanceId);
+                   connection.reducers.equipArmorFromInventory(itemInstanceId);
                } catch (error: any) {
-                   console.error("[Hotbar ContextMenu Equip] Failed to call equipArmor reducer:", error);
+                   console.error("[Hotbar ContextMenu Equip] Failed to call equipArmorFromInventory reducer:", error);
               }
               return; // Action handled
           }

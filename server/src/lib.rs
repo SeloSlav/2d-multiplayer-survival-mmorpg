@@ -3,6 +3,7 @@ use log;
 use std::time::Duration;
 use rand::Rng; // Add rand for random respawn location
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
+use crate::models::{ContainerType, ItemLocation}; // Ensure ItemLocation and ContainerType are in scope
 
 // Declare the module
 mod environment;
@@ -40,6 +41,7 @@ mod collectible_resources; // Add the new collectible resources system
 mod corn; // Add the new corn resource module
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
+mod models; // <<< ADDED
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -54,7 +56,6 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::dropped_item::dropped_item_despawn_schedule as DroppedItemDespawnScheduleTableTrait;
-use crate::campfire::campfire_fuel_check_schedule as CampfireFuelCheckScheduleTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::chat::message as MessageTableTrait; // Import the trait for Message table
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
@@ -77,6 +78,9 @@ use crate::player_stats::{
 // Use specific items needed globally (or use qualified paths)
 use crate::world_state::TimeOfDay; // Keep TimeOfDay if needed elsewhere, otherwise remove
 use crate::campfire::{Campfire, WARMTH_RADIUS_SQUARED, WARMTH_PER_SECOND, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED, CAMPFIRE_COLLISION_Y_OFFSET, PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED, PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED };
+
+// Initial Amounts
+pub const INITIAL_CAMPFIRE_FUEL_AMOUNT: u32 = 50; // Example amount
 
 // --- Global Constants ---
 pub const TILE_SIZE_PX: u32 = 48;
@@ -165,8 +169,6 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
 
     // Initialize the dropped item despawn schedule
     crate::dropped_item::init_dropped_item_schedule(ctx)?;
-    // Initialize the campfire fuel check schedule
-    crate::campfire::init_campfire_fuel_schedule(ctx)?;
     // Initialize the crafting finish check schedule
     crate::crafting_queue::init_crafting_schedule(ctx)?;
     // ADD: Initialize the player stat update schedule
@@ -223,7 +225,7 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     // --- End Track Active Connection ---
 
     // --- Set Player Online Status ---
-    let mut players = ctx.db.player(); // Get mutable player table
+    let mut players = ctx.db.player();
     if let Some(mut player) = players.identity().find(&client_identity) {
         if !player.is_online {
             player.is_online = true;
@@ -516,6 +518,18 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     let players = ctx.db.player();
     let campfires = ctx.db.campfire();
 
+    // --- Look up Item Definition IDs by Name ---
+    let campfire_def_id = item_defs.iter()
+        .find(|def| def.name == "Camp Fire")
+        .map(|def| def.id)
+        .ok_or_else(|| "Item definition for 'Camp Fire' not found.".to_string())?;
+
+    let wood_def_id = item_defs.iter()
+        .find(|def| def.name == "Wood")
+        .map(|def| def.id)
+        .ok_or_else(|| "Item definition for 'Wood' not found.".to_string())?;
+    // --- End Look up ---
+
     log::info!(
         "[PlaceCampfire] Player {:?} attempting placement of item {} at ({:.1}, {:.1})",
         sender_id, item_instance_id, world_x, world_y
@@ -525,7 +539,6 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     let player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
 
-    // Check distance from player
     let dx_place = world_x - player.position_x;
     let dy_place = world_y - player.position_y;
     let dist_sq_place = dx_place * dx_place + dy_place * dy_place;
@@ -533,8 +546,6 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         return Err(format!("Cannot place campfire too far away ({} > {}).",
                 dist_sq_place.sqrt(), CAMPFIRE_PLACEMENT_MAX_DISTANCE));
     }
-
-    // Check collision with other campfires
     for other_fire in campfires.iter() {
         let dx_fire = world_x - other_fire.pos_x;
         let dy_fire = world_y - other_fire.pos_y;
@@ -543,83 +554,63 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
             return Err("Cannot place campfire too close to another campfire.".to_string());
         }
     }
-    // Add more collision checks here if needed (e.g., vs trees, stones)
-
-    // --- 2. Find the "Camp Fire" item definition ---
-    let campfire_def_id = item_defs.iter()
-        .find(|def| def.name == "Camp Fire")
-        .map(|def| def.id)
-        .ok_or_else(|| "Item definition 'Camp Fire' not found.".to_string())?;
 
     // --- 3. Find the specific item instance and validate ---
     let item_to_consume = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
 
-    // Validate ownership
-    if item_to_consume.player_identity != sender_id {
-        return Err(format!("Item instance {} not owned by player {:?}.", item_instance_id, sender_id));
+    // Validate ownership and location based on ItemLocation
+    match item_to_consume.location {
+        ItemLocation::Inventory(data) => {
+            if data.owner_id != sender_id {
+                return Err(format!("Item instance {} for campfire not owned by player {:?}.", item_instance_id, sender_id));
+            }
+        }
+        ItemLocation::Hotbar(data) => {
+            if data.owner_id != sender_id {
+                return Err(format!("Item instance {} for campfire not owned by player {:?}.", item_instance_id, sender_id));
+            }
+        }
+        _ => {
+            return Err(format!("Item instance {} must be in inventory or hotbar to be placed.", item_instance_id));
+        }
     }
-    // Validate item type
     if item_to_consume.item_def_id != campfire_def_id {
         return Err(format!("Item instance {} is not a Camp Fire (expected def {}, got {}).",
                         item_instance_id, campfire_def_id, item_to_consume.item_def_id));
     }
-    // Validate location (must be in inv or hotbar)
-    if item_to_consume.inventory_slot.is_none() && item_to_consume.hotbar_slot.is_none() {
-        return Err(format!("Item instance {} must be in inventory or hotbar to be placed.", item_instance_id));
-    }
 
-    // Use the validated item_instance_id directly
-    let item_instance_id_to_delete = item_instance_id;
-
-    // --- 4. Consume the Item ---
+    // --- 4. Consume the Item (Delete from InventoryItem table) ---
     log::info!(
         "[PlaceCampfire] Consuming item instance {} (Def ID: {}) from player {:?}",
-        item_instance_id_to_delete, campfire_def_id, sender_id
+        item_instance_id, campfire_def_id, sender_id
     );
-    inventory_items.instance_id().delete(item_instance_id_to_delete);
+    inventory_items.instance_id().delete(item_instance_id);
 
-    // --- 5. Create Campfire Entity ---
-    // --- 5a. Create Initial Fuel Item (Wood) ---
-    let wood_def = item_defs.iter()
-        .find(|def| def.name == "Wood")
-        .ok_or_else(|| "Wood item definition not found for initial fuel".to_string())?;
-
-    let initial_fuel_item = crate::items::InventoryItem {
-        instance_id: 0, // Auto-inc
-        player_identity: sender_id, // Belongs to the placer initially (needed? maybe not)
-        item_def_id: wood_def.id,
-        quantity: 50, // Start with 50 wood
-        hotbar_slot: None, // Not in hotbar
-        inventory_slot: None, // Not in inventory (it's "in" the campfire slot 0)
-    };
-    // Insert the fuel item and get its generated instance ID
-    let inserted_fuel_item = inventory_items.try_insert(initial_fuel_item)
-        .map_err(|e| format!("Failed to insert initial fuel item: {}", e))?;
-    let fuel_instance_id = inserted_fuel_item.instance_id;
-    log::info!("[PlaceCampfire] Created initial fuel item (Wood, instance {}) for campfire.", fuel_instance_id);
-
-    // --- 5b. Initialize Campfire with Fuel and Burning ---
+    // --- 5. Create Campfire Entity & Initial Fuel ---
+    // --- 5a. Insert Campfire Entity first to get its ID ---
     let current_time = ctx.timestamp;
-    // Use constant from campfire module
-    let first_consumption_time = current_time + spacetimedb::TimeDuration::from(Duration::from_secs(crate::campfire::FUEL_CONSUME_INTERVAL_SECS));
-
-    // --- ADD: Calculate chunk index ---
     let chunk_idx = calculate_chunk_index(world_x, world_y);
-    // --- END ADD ---
 
-    // Initialize all fields explicitly
-    let new_campfire = crate::campfire::Campfire {
+    // --- 5b. Create Initial Fuel Item (Wood) with correct ItemLocation ---
+    // We need the ItemDefinition of the wood to get its fuel_burn_duration_secs
+    let initial_fuel_item_def = ctx.db.item_definition().id().find(wood_def_id)
+        .ok_or_else(|| "Wood item definition not found for initial fuel.".to_string())?;
+
+    // --- 5a. Insert Campfire Entity first to get its ID ---
+    // The campfire entity is created with initial fuel data directly
+    let new_campfire = Campfire {
         id: 0, // Auto-incremented
         pos_x: world_x,
         pos_y: world_y,
-        chunk_index: chunk_idx, // <<< SET chunk_index HERE
+        chunk_index: chunk_idx,
         placed_by: sender_id,
-        placed_at: ctx.timestamp,
-        is_burning: true, // Start burning
-        // Initialize all fuel slots to None
-        fuel_instance_id_0: Some(fuel_instance_id), // Add the wood
-        fuel_def_id_0: Some(wood_def.id),
+        placed_at: current_time,
+        is_burning: true, // Start burning by default
+        current_fuel_def_id: Some(wood_def_id),
+        remaining_fuel_burn_time_secs: Some(initial_fuel_item_def.fuel_burn_duration_secs.unwrap_or(0.0)), // Set initial burn time
+        fuel_instance_id_0: None, 
+        fuel_def_id_0: None,      
         fuel_instance_id_1: None,
         fuel_def_id_1: None,
         fuel_instance_id_2: None,
@@ -628,13 +619,45 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_def_id_3: None,
         fuel_instance_id_4: None,
         fuel_def_id_4: None,
-        next_fuel_consume_at: Some(first_consumption_time), // Schedule consumption
     };
+    let inserted_campfire = campfires.try_insert(new_campfire)
+        .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;
+    let new_campfire_id = inserted_campfire.id; 
 
-    campfires.try_insert(new_campfire)
-        .map_err(|e| format!("Failed to insert campfire: {}", e))?;
-    log::info!("Player {} placed a campfire at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0).",
-             player.username, world_x, world_y, fuel_instance_id);
+    let initial_fuel_item = crate::items::InventoryItem {
+        instance_id: 0, // Auto-inc
+        item_def_id: wood_def_id, 
+        quantity: INITIAL_CAMPFIRE_FUEL_AMOUNT, 
+        location: ItemLocation::Container(models::ContainerLocationData {
+            container_type: ContainerType::Campfire,
+            container_id: new_campfire_id as u64, 
+            slot_index: 0, 
+        }),
+    };
+    let inserted_fuel_item = inventory_items.try_insert(initial_fuel_item)
+        .map_err(|e| format!("Failed to insert initial fuel item: {}", e))?;
+    let fuel_instance_id = inserted_fuel_item.instance_id;
+    log::info!("[PlaceCampfire] Created initial fuel item (Wood, instance {}) for campfire {}.", fuel_instance_id, new_campfire_id);
+
+    // --- 5c. Update the Campfire Entity with the Fuel Item's ID in the correct slot ---  <- REMOVE THIS SECTION
+    // let mut campfire_to_update = campfires.id().find(new_campfire_id)
+    //     .ok_or_else(|| format!("Failed to re-find campfire {} to update with fuel.", new_campfire_id))?;
+    // 
+    // // Set the first inventory slot of the campfire
+    // campfire_to_update.inventory_slot_instance_id_0 = Some(fuel_instance_id);
+    // campfire_to_update.inventory_slot_def_id_0 = Some(wood_def_id);
+    // // remaining_fuel_burn_time_secs and current_fuel_def_id were already set when new_campfire was created.
+    // // No need to set them again here unless the logic changes to not set them initially.
+    // campfires.id().update(campfire_to_update);
+    
+    log::info!("Player {} placed a campfire {} at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0).",
+             player.username, new_campfire_id, world_x, world_y, fuel_instance_id);
+
+    // Schedule initial processing for the new campfire
+    match crate::campfire::schedule_next_campfire_processing(ctx, new_campfire_id) {
+        Ok(_) => log::info!("[PlaceCampfire] Scheduled initial processing for campfire {}", new_campfire_id),
+        Err(e) => log::error!("[PlaceCampfire] Failed to schedule initial processing for campfire {}: {}", new_campfire_id, e),
+    }
 
     Ok(())
 }
@@ -1150,7 +1173,6 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     let sender_id = ctx.sender;
     let players = ctx.db.player();
     let item_defs = ctx.db.item_definition();
-    let inventory = ctx.db.inventory_item();
 
     // Find the player requesting respawn
     let mut player = players.identity().find(&sender_id)
@@ -1162,45 +1184,33 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
         return Err("You are not dead.".to_string());
     }
 
-    log::info!("Respawning player {} ({:?}) randomly. Clearing inventory and crafting queue...", player.username, sender_id);
-
-    // --- Clear Player Inventory ---
-    let mut items_to_delete = Vec::new();
-    // Modify the filter: only collect items that are actively in inventory or hotbar slots
-    for item in inventory.iter().filter(|item| 
-        item.player_identity == sender_id && (item.inventory_slot.is_some() || item.hotbar_slot.is_some())
-    ) {
-        log::trace!("[Respawn:{:?}] Marking item {} in slot (Inv: {:?}, Hotbar: {:?}) for deletion.", 
-                 sender_id, item.instance_id, item.inventory_slot, item.hotbar_slot);
-        items_to_delete.push(item.instance_id);
-    }
-    let delete_count = items_to_delete.len();
-    for item_instance_id in items_to_delete {
-        inventory.instance_id().delete(item_instance_id);
-    }
-    log::info!("Cleared {} items from inventory for player {:?}.", delete_count, sender_id);
-    // --- End Clear Inventory ---
+    log::info!("Respawning player {} ({:?}). Crafting queue will be cleared.", player.username, sender_id);
 
     // --- Clear Crafting Queue & Refund ---
     crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
     // --- END Clear Crafting Queue ---
 
+    // --- Look up Rock Item Definition ID ---
+    let rock_item_def_id = item_defs.iter()
+        .find(|def| def.name == "Rock")
+        .map(|def| def.id)
+        .ok_or_else(|| "Item definition for 'Rock' not found.".to_string())?;
+    // --- End Look up ---
+
     // --- Grant Starting Rock ---
     log::info!("Granting starting Rock to respawned player: {}", player.username);
-    if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
-        match inventory.try_insert(crate::items::InventoryItem { // Qualify struct path
-            instance_id: 0, // Auto-incremented
-            player_identity: sender_id,
-            item_def_id: rock_def.id,
-            quantity: 1,
-            hotbar_slot: Some(0), // Put rock in first slot
-            inventory_slot: None,
-        }) {
-            Ok(_) => log::info!("Granted 1 Rock (slot 0) to player {}", player.username),
-            Err(e) => log::error!("Failed to grant starting Rock to player {}: {}", player.username, e),
+    let opt_instance_id = crate::items::add_item_to_player_inventory(ctx, sender_id, rock_item_def_id, 1)?;
+    match opt_instance_id {
+        Some(new_rock_instance_id) => {
+            let _ = log::info!("Granted 1 Rock (ID: {}) to player {}.", new_rock_instance_id, player.username);
+            ()
         }
-    } else {
-        log::error!("Could not find item definition for starting Rock!");
+        None => {
+            let _ = log::error!("Failed to grant starting Rock to player {} (no slot found).", player.username);
+            // Optionally, we could return an Err here if not getting a rock is critical
+            // return Err("Could not grant starting Rock: Inventory full or other issue.".to_string());
+            ()
+        }
     }
     // --- End Grant Starting Rock ---
 
@@ -1254,10 +1264,15 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     log::info!("Player {:?} respawned randomly at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
 
     // Ensure item is unequipped on respawn
-    match active_equipment::unequip_item(ctx, sender_id) {
-        Ok(_) => log::info!("Ensured item is unequipped for respawned player {:?}", sender_id),
-        Err(e) => log::error!("Failed to unequip item for respawned player {:?}: {}", sender_id, e),
+    match active_equipment::clear_active_item_reducer(ctx, sender_id) {
+        Ok(_) => log::info!("Ensured active item is cleared for respawned player {:?}", sender_id),
+        Err(e) => log::error!("Failed to clear active item for respawned player {:?}: {}", sender_id, e),
     }
+
+    // match items::clear_all_equipped_armor_from_player(ctx, sender_id) {
+    //     Ok(_) => log::info!("All equipped armor cleared for player {} before respawn.", sender_id),
+    //     Err(e) => log::error!("Failed to clear equipped armor for player {} before respawn: {}", sender_id, e),
+    // }
 
     Ok(())
 }
@@ -1295,4 +1310,4 @@ pub fn update_viewport(ctx: &ReducerContext, min_x: f32, min_y: f32, max_x: f32,
         }
     }
     Ok(())
-} 
+}

@@ -28,7 +28,7 @@ use crate::stone::{STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQU
 // Core game types
 use crate::Player;
 use crate::PLAYER_RADIUS;
-use crate::items::{InventoryItem, ItemDefinition, ItemCategory, EquipmentSlot};
+use crate::items::{InventoryItem, ItemDefinition, ItemCategory, add_item_to_player_inventory};
 
 // Table trait imports for database access
 use crate::tree::tree as TreeTableTrait;
@@ -37,6 +37,12 @@ use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
 use crate::active_equipment as ActiveEquipmentTableTrait;
+
+// Models imports
+use crate::models::{ItemLocation, EquipmentSlotType};
+
+// Player inventory imports
+use crate::player_inventory::find_first_empty_player_slot;
 
 // --- Interaction Constants ---
 /// Maximum distance for player-item interactions
@@ -62,75 +68,108 @@ pub struct ActiveEquipment {
     pub back_item_instance_id: Option<u64>,
 }
 
-/// Equips an item from inventory to the player's main hand
-///
-/// Finds the specified item in the player's inventory and moves it to the main hand slot.
-/// If the item is not equippable (or is armor), it clears the main hand slot instead.
+/// Sets an item from inventory/hotbar as the player's "active" item (e.g., tool or weapon in hand).
+/// This does NOT change the item's actual ItemLocation, only updates the ActiveEquipment table
+/// to reflect which item is currently wielded/active.
 #[spacetimedb::reducer]
-pub fn equip_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
+pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
     let sender_id = ctx.sender;
     let inventory_items = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
     let active_equipments = ctx.db.active_equipment();
 
-    // Find the inventory item
-    let item_to_equip = inventory_items.instance_id().find(item_instance_id)
+    let item_to_make_active = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Inventory item with instance ID {} not found.", item_instance_id))?;
 
-    // Verify the item belongs to the sender
-    if item_to_equip.player_identity != sender_id {
-        return Err("Cannot equip an item that does not belong to you.".to_string());
+    let item_def = item_defs.id().find(item_to_make_active.item_def_id)
+        .ok_or_else(|| format!("Item definition {} not found for item instance {}.", item_to_make_active.item_def_id, item_instance_id))?;
+
+    // --- Validate Item Location & Ownership ---
+    // Item must be in player's inventory or hotbar to be made active.
+    match &item_to_make_active.location {
+        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) |
+        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => {
+            // Check ownership
+            if *owner_id != sender_id {
+                return Err("Cannot activate an item you don't possess.".to_string());
+            }
+            // If item is a tool or weapon, allow activation
+            if item_def.category == ItemCategory::Tool { // ItemCategory::Weapon removed
+                // Valid location and type for activation
+            } else {
+                return Err(format!("Item '{}' (category {:?}) is not a tool and cannot be activated in hand.", item_def.name, item_def.category));
+            }
+        }
+        ItemLocation::Equipped(data) => {
+             return Err(format!("Cannot set item {} as active: it is currently equipped as armor in slot {:?}.", item_instance_id, data.slot_type));
+        }
+        ItemLocation::Container(_) => return Err("Cannot set an item from a container as active.".to_string()),
+        ItemLocation::Dropped(_) => return Err("Cannot set a dropped item as active.".to_string()),
+        ItemLocation::Unknown => return Err("Cannot set an item with an unknown location as active.".to_string()),
+        // Catch-all for any other unhandled or future locations
+        _ => {
+            return Err(format!(
+                "Item '{}' has an unsupported location ({:?}) for activation.",
+                item_def.name, item_to_make_active.location
+            ));
+        }
     }
 
-    // Find the item definition
-    let item_def = item_defs.id().find(item_to_equip.item_def_id)
-        .ok_or_else(|| format!("Item definition {} not found.", item_to_equip.item_def_id))?;
+    // --- Item Definition Validations (moved after location check) ---
+    // let item_def = item_defs.id().find(item_to_make_active.item_def_id) // Already fetched above
+    //     .ok_or_else(|| format!("Item definition {} not found for item instance {}.", item_to_make_active.item_def_id, item_instance_id))?;
 
-    // --- Get existing equipment or create default ---
+    if !item_def.is_equippable {
+        return Err(format!("Item '{}' (Instance ID: {}) is not a usable tool or weapon and cannot be set as active.", item_def.name, item_instance_id));
+    }
+    if item_def.category == ItemCategory::Armor {
+        return Err(format!("Armor item '{}' (Instance ID: {}) cannot be set as active. Use equip_armor.", item_def.name, item_instance_id));
+    }
+
     let mut equipment = get_or_create_active_equipment(ctx, sender_id)?;
 
-    // Check if item is actually equippable using the field from ItemDefinition
-    if !item_def.is_equippable || item_def.category == ItemCategory::Armor {
-        // If not equippable OR if it's armor (handled by equip_armor), clear the main hand slot.
-        log::info!("Player {:?} selected non-tool/weapon item {} or armor {}. Clearing main hand.", sender_id, item_def.name, item_instance_id);
-        equipment.equipped_item_def_id = None;
-        equipment.equipped_item_instance_id = None;
-        equipment.swing_start_time_ms = 0;
-        active_equipments.player_identity().update(equipment);
+    if equipment.equipped_item_instance_id == Some(item_instance_id) {
+        log::debug!("Item {} is already the active item for player {:?}. No change to ActiveEquipment needed.", item_instance_id, sender_id);
         return Ok(());
     }
+    
+    if let Some(old_active_id) = equipment.equipped_item_instance_id {
+        if old_active_id != item_instance_id {
+             log::info!("Player {:?} changing active item from {} to {}.", sender_id, old_active_id, item_instance_id);
+        }
+    }
 
-    // --- Update the main hand equipment entry ---
-    // Only update the fields related to the main hand item. Armor slots remain untouched.
     equipment.equipped_item_def_id = Some(item_def.id);
     equipment.equipped_item_instance_id = Some(item_instance_id);
-    equipment.swing_start_time_ms = 0; // Reset swing state when equipping
+    equipment.swing_start_time_ms = 0;
+    active_equipments.player_identity().update(equipment.clone());
 
-    active_equipments.player_identity().update(equipment); // Update the existing row
-    log::info!("Player {:?} equipped item: {} (Instance ID: {}) to hotbar", sender_id, item_def.name, item_instance_id);
+    log::info!("Player {:?} set active item to: {} (Instance ID: {}). Item remains in location: {:?}",
+        sender_id, item_def.name, item_instance_id, item_to_make_active.location);
 
     Ok(())
 }
 
-/// Unequips whatever item is currently in the player's main hand
-///
-/// Clears the main hand slot for the specified player, if they have an item equipped.
+/// Clears the player's currently "active" item (e.g., tool or weapon in hand).
+/// This does NOT change the item's actual ItemLocation, only clears the ActiveEquipment table fields.
 #[spacetimedb::reducer]
-pub fn unequip_item(ctx: &ReducerContext, player_identity: Identity) -> Result<(), String> {
+pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity) -> Result<(), String> {
     let active_equipments = ctx.db.active_equipment();
 
     if let Some(mut equipment) = active_equipments.player_identity().find(player_identity) {
-        // Only clear the hotbar fields. Leave armor slots untouched.
         if equipment.equipped_item_instance_id.is_some() {
-             log::info!("Player {:?} explicitly unequipped hotbar item.", player_identity);
-             equipment.equipped_item_def_id = None;
-             equipment.equipped_item_instance_id = None;
-             equipment.swing_start_time_ms = 0;
-             active_equipments.player_identity().update(equipment);
+            log::info!("Player {:?} cleared active item (was instance ID: {:?}, def ID: {:?}).", 
+                     player_identity, equipment.equipped_item_instance_id, equipment.equipped_item_def_id);
+            
+            equipment.equipped_item_def_id = None;
+            equipment.equipped_item_instance_id = None;
+            equipment.swing_start_time_ms = 0;
+            active_equipments.player_identity().update(equipment);
+        } else {
+            log::debug!("Player {:?} called clear_active_item_reducer, but no item was active.", player_identity);
         }
     } else {
-        log::info!("Player {:?} tried to unequip, but no ActiveEquipment row found.", player_identity);
-        // No row exists, so nothing to unequip. Not an error.
+        log::info!("Player {:?} tried to clear active item, but no ActiveEquipment row found.", player_identity);
     }
     Ok(())
 }
@@ -146,12 +185,10 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let now_micros = now_ts.to_micros_since_unix_epoch();
     let now_ms = (now_micros / 1000) as u64;
 
-    // Get tables
     let active_equipments = ctx.db.active_equipment();
     let players = ctx.db.player();
     let item_defs = ctx.db.item_definition();
 
-    // --- Get Player and Equipment Info ---
     let player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
     let mut current_equipment = active_equipments.player_identity().find(sender_id)
@@ -162,28 +199,22 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
 
-    // --- Update Swing Time ---
     current_equipment.swing_start_time_ms = now_ms;
-    active_equipments.player_identity().update(current_equipment.clone()); // Update swing time regardless of hitting anything
+    active_equipments.player_identity().update(current_equipment.clone());
     log::debug!("Player {:?} started using item '{}' (ID: {})",
              sender_id, item_def.name, item_def_id);
 
-    // --- Get Item Damage ---
     let item_damage = match item_def.damage {
         Some(dmg) if dmg > 0 => dmg,
-        _ => return Ok(()), // Item has no damage, nothing more to do
+        _ => return Ok(()),
     };
 
-    // --- Attack Logic ---
-    let attack_range = PLAYER_RADIUS * 4.0; // Increased range further
-    let attack_angle_degrees = 90.0; // Widen attack arc to 90 degrees
+    let attack_range = PLAYER_RADIUS * 4.0;
+    let attack_angle_degrees = 90.0;
     
-    // Find potential targets using the combat module
     let targets = find_targets_in_cone(ctx, &player, attack_range, attack_angle_degrees);
     
-    // Determine the best target based on weapon type
     if let Some(target) = find_best_target(&targets, &item_def.name) {
-        // Process the attack using the combat module
         match process_attack(ctx, sender_id, &target, &item_def, now_ts) {
             Ok(result) => {
                 if result.hit {
@@ -211,10 +242,9 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
         log::info!("Creating new ActiveEquipment row for player {:?}", player_id);
         let new_equip = ActiveEquipment { 
             player_identity: player_id, 
-            equipped_item_def_id: None, // Initialize hand slot
+            equipped_item_def_id: None,
             equipped_item_instance_id: None,
             swing_start_time_ms: 0,
-            // Initialize all armor slots to None
             head_item_instance_id: None,
             chest_item_instance_id: None,
             legs_item_instance_id: None,
@@ -222,7 +252,7 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
             hands_item_instance_id: None,
             back_item_instance_id: None,
         };
-        table.insert(new_equip.clone()); // Insert returns nothing useful here
+        table.insert(new_equip.clone());
         Ok(new_equip)
     }
 }
@@ -235,76 +265,83 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
 pub fn equip_armor(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
     let sender_id = ctx.sender;
     log::info!("Player {:?} attempting to equip armor item instance {}", sender_id, item_instance_id);
+    let inventory_items = ctx.db.inventory_item();
+    let item_defs = ctx.db.item_definition();
+    let active_equipments = ctx.db.active_equipment();
 
-    // 1. Get the InventoryItem being equipped
-    let mut item_to_equip = ctx.db.inventory_item().iter()
-        .find(|i| i.instance_id == item_instance_id && i.player_identity == sender_id)
-        .ok_or_else(|| format!("Item instance {} not found or not owned.", item_instance_id))?;
-    let source_inv_slot = item_to_equip.inventory_slot; // Store original location
-    let source_hotbar_slot = item_to_equip.hotbar_slot; // Store original location
+    let mut item_to_equip = inventory_items.instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
 
-    // 2. Get its ItemDefinition
-    let item_def = ctx.db.item_definition().iter()
-        .find(|def| def.id == item_to_equip.item_def_id)
+    match &item_to_equip.location {
+        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) |
+        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => {
+            if *owner_id != sender_id {
+                return Err("Cannot equip item not in your inventory/hotbar.".to_string());
+            }
+        }
+        _ => return Err("Item to equip must be in player inventory or hotbar.".to_string()),
+    }
+
+    let item_def = item_defs.id().find(item_to_equip.item_def_id)
         .ok_or_else(|| format!("Definition not found for item ID {}", item_to_equip.item_def_id))?;
 
-    // 3. Validate: Must be Armor category and have a defined equipment_slot
     if item_def.category != ItemCategory::Armor {
-        return Err(format!("Item '{}' is not Armor.", item_def.name));
+        return Err(format!("Item '{}' is not armor.", item_def.name));
     }
-    let target_slot_type = item_def.equipment_slot
-        .clone() // Clone the Option<EquipmentSlot>
-        .ok_or_else(|| format!("Armor '{}' does not have a defined equipment slot.", item_def.name))?;
+    let target_slot_type = item_def.equipment_slot_type
+        .ok_or_else(|| format!("Armor '{}' has no defined equipment slot.", item_def.name))?;
 
-    // 4. Find or create the player's ActiveEquipment row
-    let mut active_equipment = get_or_create_active_equipment(ctx, sender_id)?;
+    let mut equipment = get_or_create_active_equipment(ctx, sender_id)?;
+    let mut previously_equipped_item_id: Option<u64> = None;
 
-    // 5. Check if the target slot is already occupied & get old item ID
-    let old_item_instance_id_opt = match target_slot_type {
-         EquipmentSlot::Head => active_equipment.head_item_instance_id.take(), // .take() retrieves value and sets field to None
-         EquipmentSlot::Chest => active_equipment.chest_item_instance_id.take(),
-         EquipmentSlot::Legs => active_equipment.legs_item_instance_id.take(),
-         EquipmentSlot::Feet => active_equipment.feet_item_instance_id.take(),
-         EquipmentSlot::Hands => active_equipment.hands_item_instance_id.take(),
-         EquipmentSlot::Back => active_equipment.back_item_instance_id.take(),
-    };
-
-    // 6. If occupied, move the old item back to the source slot of the item being equipped
-    if let Some(old_item_instance_id) = old_item_instance_id_opt {
-        log::info!("Slot {:?} was occupied by item {}. Moving it back to source slot (Inv: {:?}, Hotbar: {:?}).", 
-                 target_slot_type, old_item_instance_id, source_inv_slot, source_hotbar_slot);
-                 
-        if let Some(mut old_item) = ctx.db.inventory_item().instance_id().find(old_item_instance_id) {
-            old_item.inventory_slot = source_inv_slot; 
-            old_item.hotbar_slot = source_hotbar_slot;
-            ctx.db.inventory_item().instance_id().update(old_item);
-        } else {
-            // This shouldn't happen if data is consistent, but log an error if it does
-            log::error!("Failed to find InventoryItem for previously equipped armor (ID: {})!", old_item_instance_id);
-        }
-    } else {
-         log::info!("Slot {:?} was empty.", target_slot_type);
-    }
-
-    // 7. Update ActiveEquipment row with the new item ID in the correct slot
     match target_slot_type {
-         EquipmentSlot::Head => active_equipment.head_item_instance_id = Some(item_instance_id),
-         EquipmentSlot::Chest => active_equipment.chest_item_instance_id = Some(item_instance_id),
-         EquipmentSlot::Legs => active_equipment.legs_item_instance_id = Some(item_instance_id),
-         EquipmentSlot::Feet => active_equipment.feet_item_instance_id = Some(item_instance_id),
-         EquipmentSlot::Hands => active_equipment.hands_item_instance_id = Some(item_instance_id),
-         EquipmentSlot::Back => active_equipment.back_item_instance_id = Some(item_instance_id),
-         // Note: The .take() above already cleared the field, so we just set the new value
-    };
-    ctx.db.active_equipment().player_identity().update(active_equipment); // Save ActiveEquipment changes
+        EquipmentSlotType::Head => {
+            previously_equipped_item_id = equipment.head_item_instance_id.take();
+            equipment.head_item_instance_id = Some(item_instance_id);
+        }
+        EquipmentSlotType::Chest => {
+            previously_equipped_item_id = equipment.chest_item_instance_id.take();
+            equipment.chest_item_instance_id = Some(item_instance_id);
+        }
+        EquipmentSlotType::Legs => {
+            previously_equipped_item_id = equipment.legs_item_instance_id.take();
+            equipment.legs_item_instance_id = Some(item_instance_id);
+        }
+        EquipmentSlotType::Feet => {
+            previously_equipped_item_id = equipment.feet_item_instance_id.take();
+            equipment.feet_item_instance_id = Some(item_instance_id);
+        }
+        EquipmentSlotType::Hands => {
+            previously_equipped_item_id = equipment.hands_item_instance_id.take();
+            equipment.hands_item_instance_id = Some(item_instance_id);
+        }
+        EquipmentSlotType::Back => {
+            previously_equipped_item_id = equipment.back_item_instance_id.take();
+            equipment.back_item_instance_id = Some(item_instance_id);
+        }
+    }
 
-    // 8. Update the InventoryItem being equipped (remove from inventory/hotbar)
-    item_to_equip.inventory_slot = None;
-    item_to_equip.hotbar_slot = None;
-    ctx.db.inventory_item().instance_id().update(item_to_equip);
+    if let Some(old_item_id) = previously_equipped_item_id {
+        if old_item_id != item_instance_id {
+            if let Some(mut old_item) = inventory_items.instance_id().find(old_item_id) {
+                match find_first_empty_player_slot(ctx, sender_id) {
+                    Some(empty_slot_location) => {
+                        old_item.location = empty_slot_location;
+                        inventory_items.instance_id().update(old_item);
+                        log::info!("Moved previously equipped armor {} to {:?}", old_item_id, item_to_equip.location);
+                    }
+                    None => return Err("No space in inventory to unequip previous armor.".to_string()),
+                }
+            } else {
+                 log::warn!("Could not find InventoryItem for previously equipped armor ID {}. Slot was cleared.", old_item_id);
+            }
+        }
+    }
 
-    log::info!("Successfully equipped armor '{}' (ID: {}) to slot {:?}", 
-             item_def.name, item_instance_id, target_slot_type);
-             
+    item_to_equip.location = ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: sender_id, slot_type: target_slot_type.clone() });
+    inventory_items.instance_id().update(item_to_equip);
+    active_equipments.player_identity().update(equipment);
+
+    log::info!("Player {:?} equipped armor '{}' (Instance ID: {}) to slot {:?}.", sender_id, item_def.name, item_instance_id, target_slot_type);
     Ok(())
 }

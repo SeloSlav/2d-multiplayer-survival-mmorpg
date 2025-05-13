@@ -255,6 +255,7 @@ pub fn grant_resource(
         .ok_or_else(|| format!("{} item definition not found.", resource_name))?;
         
     crate::items::add_item_to_player_inventory(ctx, player_id, resource_def.id, amount)
+        .map(|_| ())
         .map_err(|e| format!("Failed to grant {} to player: {}", resource_name, e))
 }
 
@@ -384,14 +385,18 @@ pub fn damage_player(
     item_name: &str,
     timestamp: Timestamp
 ) -> Result<AttackResult, String> {
-    let players = ctx.db.player(); // Mutable needed for update
-    let inventory_items = ctx.db.inventory_item(); // Needed for item gathering
-    let player_corpses = ctx.db.player_corpse(); // Needed for insertion
-    let corpse_schedules = ctx.db.player_corpse_despawn_schedule(); // Needed for scheduling
+    log::debug!("Attempting to damage player {:?} from attacker {:?} with item {}", target_id, attacker_id, item_name);
+    let players = ctx.db.player();
+    let active_equipment_table = ctx.db.active_equipment();
+    let inventory_items_table = ctx.db.inventory_item();
+    let player_corpse_table = ctx.db.player_corpse();
+    let player_corpse_schedule_table = ctx.db.player_corpse_despawn_schedule();
 
-    let mut target_player = players.identity().find(target_id)
-        .ok_or_else(|| "Target player disappeared".to_string())?;
-    
+    // Fetch attacker and target players
+    let attacker_player_opt = players.identity().find(&attacker_id);
+    let mut target_player = players.identity().find(&target_id)
+        .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
+
     let old_health = target_player.health;
     let new_health = (target_player.health - damage).max(0.0);
     target_player.health = new_health;
@@ -406,15 +411,34 @@ pub fn damage_player(
                  target_player.username, target_id, attacker_id, new_health);
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
+        target_player.last_update = timestamp;
 
-        // --- Call refactored corpse creation function ---
+        // Clear player's active equipped item (tool/weapon in hand)
+        // Call the reducer directly. It handles logging.
+        match crate::active_equipment::clear_active_item_reducer(ctx, target_player.identity) {
+            Ok(_) => log::info!("[PlayerDeath] Active item cleared for dying player {}", target_player.identity),
+            Err(e) => log::error!("[PlayerDeath] Failed to clear active item for dying player {}: {}", target_player.identity, e),
+        }
+
+        // TODO: Armor handling on death is now intended to be part of `transfer_inventory_to_corpse`
+        // when the corpse is created. Commenting out the direct call here.
+        // match clear_all_equipped_armor_from_player(ctx, target_player.identity) {
+        //     Ok(_) => log::info!("[PlayerDeath] All equipped armor cleared for player {}", target_player.identity),
+        //     Err(e) => log::error!("[PlayerDeath] Failed to clear equipped armor for player {}: {}", target_player.identity, e),
+        // }
+
+        // Create corpse for the player
         match create_corpse_for_player(ctx, &target_player) {
             Ok(corpse_id) => {
                 log::info!("Successfully created corpse {} via combat death for player {:?}", corpse_id, target_id);
-                // Drop equipped item (if any) - moved from player_stats or ensure it runs once
-                match crate::active_equipment::unequip_item(ctx, target_id) {
-                    Ok(_) => log::debug!("Unequipped item for player {:?} due to combat death.", target_id),
-                    Err(e) => log::error!("Failed to unequip item for player {:?} during combat death: {}", target_id, e),
+                // If target was holding an item, it should be unequipped (returned to inventory or dropped)
+                if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&target_id) {
+                    if active_equip.equipped_item_instance_id.is_some() {
+                        match crate::active_equipment::clear_active_item_reducer(ctx, target_id) {
+                            Ok(_) => log::info!("[CombatDeath] Active item cleared for target {}", target_id),
+                            Err(e) => log::error!("[CombatDeath] Failed to clear active item for target {}: {}", target_id, e),
+                        }
+                    }
                 }
             }
             Err(e) => {

@@ -34,7 +34,7 @@ import {
 import { PlayerCorpseDespawnSchedule as __PlayerCorpseDespawnSchedule } from "./player_corpse_despawn_schedule_type";
 
 export type ProcessCorpseDespawn = {
-  schedule: __PlayerCorpseDespawnSchedule,
+  args: __PlayerCorpseDespawnSchedule,
 };
 
 /**
@@ -47,7 +47,7 @@ export namespace ProcessCorpseDespawn {
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("schedule", __PlayerCorpseDespawnSchedule.getTypeScriptAlgebraicType()),
+      new ProductTypeElement("args", __PlayerCorpseDespawnSchedule.getTypeScriptAlgebraicType()),
     ]);
   }
 

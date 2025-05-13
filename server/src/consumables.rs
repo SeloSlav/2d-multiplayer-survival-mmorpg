@@ -7,6 +7,7 @@ use crate::player as PlayerTableTrait;
 use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait};
 use crate::items::{ItemDefinition, item_definition as ItemDefinitionTableTrait};
 use crate::items::ItemCategory; // Import the enum itself
+use crate::models::ItemLocation; // Added import
 
 // --- Consumable Effect Constants ---
 const MUSHROOM_HEALTH_GAIN: f32 = 5.0;
@@ -32,9 +33,19 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let mut item_to_consume = inventory.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
 
-    // 2. Verify ownership
-    if item_to_consume.player_identity != sender_id {
-        return Err("Cannot consume an item that does not belong to you.".to_string());
+    // 2. Verify ownership and location
+    let is_in_possession = match &item_to_consume.location {
+        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) => *owner_id == sender_id,
+        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => *owner_id == sender_id,
+        _ => false,
+    };
+
+    if !is_in_possession {
+        log::warn!(
+            "[ConsumeItem] Player {:?} failed to consume item {} due to invalid location or ownership: {:?}.",
+            sender_id, item_instance_id, item_to_consume.location
+        );
+        return Err("Cannot consume an item that is not in your inventory or hotbar.".to_string());
     }
 
     // 3. Get its ItemDefinition

@@ -31,6 +31,8 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { InventoryItem } from "./inventory_item_type";
+import { ItemLocation as __ItemLocation } from "./item_location_type";
+
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**

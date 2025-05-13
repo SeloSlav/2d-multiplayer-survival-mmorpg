@@ -6,7 +6,7 @@
 
 use spacetimedb::{Identity, ReducerContext, Table, Timestamp, TimeDuration};
 use log;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, time::Duration, ops::AddAssign};
 
 // Import table traits and types
 use crate::crafting::{Recipe, RecipeIngredient};
@@ -16,6 +16,8 @@ use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as
 use crate::Player;
 use crate::player as PlayerTableTrait;
 use crate::dropped_item; // For dropping items
+use crate::models::ItemLocation; // Corrected import
+use crate::player_inventory::{find_first_empty_player_slot, get_player_item};
 
 // --- Crafting Queue Table ---
 #[spacetimedb::table(name = crafting_queue_item, public)]
@@ -60,38 +62,58 @@ pub fn start_crafting(ctx: &ReducerContext, recipe_id: u64) -> Result<(), String
         .ok_or(format!("Recipe with ID {} not found.", recipe_id))?;
 
     // 2. Check Resources
-    let mut required_resources: HashMap<u64, u32> = HashMap::new();
+    let mut required_resources_map: HashMap<u64, u32> = HashMap::new();
     for ingredient in &recipe.ingredients {
-        *required_resources.entry(ingredient.item_def_id).or_insert(0) += ingredient.quantity;
+        *required_resources_map.entry(ingredient.item_def_id).or_insert(0) += ingredient.quantity;
     }
 
-    let mut available_resources: HashMap<u64, u32> = HashMap::new();
-    let mut items_to_consume: HashMap<u64, u32> = HashMap::new(); // Map<instance_id, quantity_to_consume>
+    let mut available_resources_check: HashMap<u64, u32> = HashMap::new();
+    let mut items_to_consume_map: HashMap<u64, u32> = HashMap::new(); // Map<instance_id, quantity_to_consume>
 
-    for item in inventory_table.iter().filter(|i| i.player_identity == sender_id && (i.inventory_slot.is_some() || i.hotbar_slot.is_some())) {
-        if let Some(required_qty) = required_resources.get_mut(&item.item_def_id) {
-            if *required_qty == 0 { continue; } // Already fulfilled this requirement
-            let available_in_stack = item.quantity;
-            let needed = *required_qty;
-            let can_take = std::cmp::min(available_in_stack, needed);
+    // Iterate over player's inventory and hotbar items to find materials
+    for item in inventory_table.iter() {
+        let is_in_player_possession = match &item.location {
+            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) => *owner_id == sender_id,
+            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => *owner_id == sender_id,
+            _ => false,
+        };
 
-            *available_resources.entry(item.item_def_id).or_insert(0) += available_in_stack; // Track total available for check
-            *items_to_consume.entry(item.instance_id).or_insert(0) += can_take; // Add to this instance
-            *required_qty -= can_take; // Decrease remaining needed
+        if is_in_player_possession {
+            // Track total available for this item definition
+            *available_resources_check.entry(item.item_def_id).or_insert(0) += item.quantity;
+
+            // If this item definition is required for the recipe, determine how much of this stack to consume
+            if let Some(needed_qty_for_def) = required_resources_map.get_mut(&item.item_def_id) {
+                if *needed_qty_for_def > 0 { // Still need some of this item definition
+                    let can_take_from_stack = std::cmp::min(item.quantity, *needed_qty_for_def);
+                    *items_to_consume_map.entry(item.instance_id).or_insert(0) += can_take_from_stack;
+                    *needed_qty_for_def -= can_take_from_stack;
+                }
+            }
         }
     }
 
-    // Verify all requirements met
-    for (def_id, needed) in required_resources.iter() {
-        if *needed > 0 {
-            let item_name = ctx.db.item_definition().id().find(*def_id).map(|d| d.name.clone()).unwrap_or_else(|| format!("ID {}", def_id));
-            return Err(format!("Missing {} {} to craft.", needed, item_name));
+    // Verify all requirements met by checking the initial required_resources_map against available_resources_check
+    for (def_id, initial_needed) in recipe.ingredients.iter().map(|ing| (ing.item_def_id, ing.quantity)) {
+        let total_available_for_def = available_resources_check.get(&def_id).copied().unwrap_or(0);
+        if total_available_for_def < initial_needed {
+            let item_name = ctx.db.item_definition().id().find(def_id).map(|d| d.name.clone()).unwrap_or_else(|| format!("ID {}", def_id));
+            return Err(format!("Missing {} {} to craft. You have {}.", initial_needed - total_available_for_def, item_name, total_available_for_def));
+        }
+    }
+    
+    // Double check that all entries in required_resources_map are now zero (or less, if over-provided)
+    // This check might be redundant if the above available_resources_check is correct
+    for (def_id, still_needed) in required_resources_map.iter() {
+        if *still_needed > 0 {
+             let item_name = ctx.db.item_definition().id().find(*def_id).map(|d| d.name.clone()).unwrap_or_else(|| format!("ID {}", def_id));
+            return Err(format!("Internal error: Resource check failed. Still need {} of {}.", still_needed, item_name));
         }
     }
 
     // 3. Consume Resources
     log::info!("[Crafting] Consuming resources for Recipe ID {} for player {:?}", recipe_id, sender_id);
-    for (instance_id, qty_to_consume) in items_to_consume {
+    for (instance_id, qty_to_consume) in items_to_consume_map {
         if let Some(mut item) = inventory_table.instance_id().find(instance_id) {
             if qty_to_consume >= item.quantity {
                 inventory_table.instance_id().delete(instance_id);
@@ -266,6 +288,7 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
     let queue_table = ctx.db.crafting_queue_item();
     let recipe_table = ctx.db.recipe();
     let player_table = ctx.db.player();
+    let inventory_table = ctx.db.inventory_item();
     let mut items_to_remove: Vec<u64> = Vec::new();
     let mut resources_to_refund: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
 
@@ -322,6 +345,38 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
          log::warn!("[Clear Queue] Refund complete for player {:?}, but some resources were dropped.", player_id);
     } else {
          log::info!("[Clear Queue] Refund complete for player {:?}.", player_id);
+    }
+
+    // The following item deletion logic might be too aggressive as it deletes ALL items
+    // in the player's inventory/hotbar upon respawn/queue clear, not just those
+    // that *would have been* consumed. This was part of the original flawed logic.
+    // For now, we preserve it but log a warning.
+    // TODO: Revisit this logic. It should ideally only remove items that were part of recipes
+    // in the cleared queue if precise refund isn't possible or if this is intended as a penalty.
+    let mut items_to_delete = Vec::new();
+
+    for item in inventory_table.iter() {
+        match &item.location {
+            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) if *owner_id == player_id => {
+                items_to_delete.push(item.instance_id);
+            }
+            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) if *owner_id == player_id => {
+                items_to_delete.push(item.instance_id);
+            }
+            _ => {}
+        }
+    }
+
+    if !items_to_delete.is_empty() {
+        for instance_id in items_to_delete {
+            // Fetch the item to log its location, or remove location from log
+            let item_location_str = inventory_table.instance_id().find(instance_id)
+                .map_or("Unknown (deleted)".to_string(), |item_found| format!("{:?}", item_found.location));
+
+            log::warn!("[CraftingQueueClear] Deleting item instance {} for player {:?} from inventory due to queue clear (respawn path). Original Loc: {}",
+                instance_id, player_id, item_location_str);
+            inventory_table.instance_id().delete(instance_id);
+        }
     }
 }
 

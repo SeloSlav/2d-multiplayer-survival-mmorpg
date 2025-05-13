@@ -32,13 +32,13 @@ import {
 } from "@clockworklabs/spacetimedb-sdk";
 export type PlayerCorpse = {
   id: number,
-  originalPlayerIdentity: Identity,
-  originalPlayerUsername: string,
+  playerIdentity: Identity,
+  username: string,
   posX: number,
   posY: number,
   chunkIndex: number,
-  createdAt: Timestamp,
-  despawnAt: Timestamp,
+  deathTime: Timestamp,
+  despawnScheduledAt: Timestamp,
   slotInstanceId0: bigint | undefined,
   slotDefId0: bigint | undefined,
   slotInstanceId1: bigint | undefined,
@@ -99,6 +99,16 @@ export type PlayerCorpse = {
   slotDefId28: bigint | undefined,
   slotInstanceId29: bigint | undefined,
   slotDefId29: bigint | undefined,
+  slotInstanceId30: bigint | undefined,
+  slotDefId30: bigint | undefined,
+  slotInstanceId31: bigint | undefined,
+  slotDefId31: bigint | undefined,
+  slotInstanceId32: bigint | undefined,
+  slotDefId32: bigint | undefined,
+  slotInstanceId33: bigint | undefined,
+  slotDefId33: bigint | undefined,
+  slotInstanceId34: bigint | undefined,
+  slotDefId34: bigint | undefined,
 };
 
 /**
@@ -112,13 +122,13 @@ export namespace PlayerCorpse {
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
       new ProductTypeElement("id", AlgebraicType.createU32Type()),
-      new ProductTypeElement("originalPlayerIdentity", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("originalPlayerUsername", AlgebraicType.createStringType()),
+      new ProductTypeElement("playerIdentity", AlgebraicType.createIdentityType()),
+      new ProductTypeElement("username", AlgebraicType.createStringType()),
       new ProductTypeElement("posX", AlgebraicType.createF32Type()),
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
-      new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("despawnAt", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("deathTime", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("despawnScheduledAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("slotInstanceId0", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotDefId0", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotInstanceId1", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
@@ -179,6 +189,16 @@ export namespace PlayerCorpse {
       new ProductTypeElement("slotDefId28", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotInstanceId29", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotDefId29", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotInstanceId30", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotDefId30", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotInstanceId31", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotDefId31", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotInstanceId32", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotDefId32", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotInstanceId33", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotDefId33", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotInstanceId34", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("slotDefId34", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
     ]);
   }
 

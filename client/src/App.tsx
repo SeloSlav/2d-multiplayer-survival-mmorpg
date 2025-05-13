@@ -72,7 +72,7 @@ function AppContent() {
 
     const { interactingWith, handleSetInteractingWith } = useInteractionManager();
 
-    const { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop } = useDragDropManager({ connection, interactingWith });
+    const { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop } = useDragDropManager({ connection, interactingWith, playerIdentity: dbIdentity });
 
     // --- App-Level State --- 
     const [isRegistering, setIsRegistering] = useState<boolean>(false); // Still track registration attempt

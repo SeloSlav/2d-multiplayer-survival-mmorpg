@@ -18,16 +18,21 @@ import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes'; //
 
 // Import SpacetimeDB types needed for props and logic
 import {
-    ItemDefinition,
+    Player,
     InventoryItem,
+    ItemDefinition,
     DbConnection,
-    EquipmentSlot as BackendEquipmentSlot, // Keep alias if used
     ActiveEquipment,
-    Campfire as SpacetimeDBCampfire, // Import Campfire type
-    WoodenStorageBox as SpacetimeDBWoodenStorageBox, // <<< Import Box type
+    Campfire as SpacetimeDBCampfire,
+    WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Recipe,
     CraftingQueueItem,
-    PlayerCorpse
+    PlayerCorpse,
+    // Import the generated types for ItemLocation variants
+    ItemLocation,
+    InventoryLocationData, // Assuming this is the type for ItemLocation.Inventory.value
+    EquippedLocationData,  // Assuming this is the type for ItemLocation.Equipped.value
+    EquipmentSlotType    // Make sure this matches the actual exported name for the slot type enum/union
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 // NEW: Import placement types
@@ -79,13 +84,13 @@ const INVENTORY_COLS = 6;
 const TOTAL_INVENTORY_SLOTS = INVENTORY_ROWS * INVENTORY_COLS;
 
 // Define Equipment Slot Layout (matches enum variants/logical names)
-const EQUIPMENT_SLOT_LAYOUT: { name: string, type: BackendEquipmentSlot | null }[] = [
-    { name: 'Head', type: { tag: 'Head' } },
-    { name: 'Chest', type: { tag: 'Chest' } },
-    { name: 'Legs', type: { tag: 'Legs' } },
-    { name: 'Feet', type: { tag: 'Feet' } },
-    { name: 'Hands', type: { tag: 'Hands' } },
-    { name: 'Back', type: { tag: 'Back' } },
+const EQUIPMENT_SLOT_LAYOUT: { name: string, type: EquipmentSlotType | null }[] = [
+    { name: 'Head', type: { tag: 'Head' } as EquipmentSlotType },
+    { name: 'Chest', type: { tag: 'Chest' } as EquipmentSlotType },
+    { name: 'Legs', type: { tag: 'Legs' } as EquipmentSlotType },
+    { name: 'Feet', type: { tag: 'Feet' } as EquipmentSlotType },
+    { name: 'Hands', type: { tag: 'Hands' } as EquipmentSlotType },
+    { name: 'Back', type: { tag: 'Back' } as EquipmentSlotType },
 ];
 
 // --- Main Component ---
@@ -119,43 +124,31 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const equipMap = new Map<string, PopulatedItem>();
         if (!playerIdentity) return { itemsByInvSlot: invMap, itemsByEquipSlot: equipMap };
 
-        // Map inventory items
         inventoryItems.forEach(itemInstance => {
-            if (itemInstance.playerIdentity.isEqual(playerIdentity)) {
-                const definition = itemDefinitions.get(itemInstance.itemDefId.toString());
-                if (definition) {
-                    const populatedItem = { instance: itemInstance, definition };
-                    if (itemInstance.inventorySlot !== null && itemInstance.inventorySlot !== undefined) {
-                        invMap.set(itemInstance.inventorySlot, populatedItem);
+            const definition = itemDefinitions.get(itemInstance.itemDefId.toString());
+            if (definition) {
+                const populatedItem = { instance: itemInstance, definition };
+                const location = itemInstance.location; // Get location once
+
+                if (location.tag === 'Inventory') {
+                    // No need for type assertion if TypeScript can infer from .tag, but explicit for clarity if needed
+                    const inventoryData = location.value as InventoryLocationData;
+                    if (inventoryData.ownerId.isEqual(playerIdentity)) {
+                        invMap.set(inventoryData.slotIndex, populatedItem);
                     }
-                    // Note: Hotbar items are handled separately by Hotbar component
+                } else if (location.tag === 'Equipped') {
+                    // No need for type assertion if TypeScript can infer, but explicit for clarity
+                    const equipmentData = location.value as EquippedLocationData;
+                    if (equipmentData.ownerId.isEqual(playerIdentity)) {
+                        // equipmentData.slotType will be like { tag: 'Head' } or { tag: 'Chest', value: ... }
+                        // We need the string tag for the map key
+                        equipMap.set(equipmentData.slotType.tag, populatedItem);
+                    }
                 }
             }
         });
-
-        // Map equipped items
-        const playerEquipment = activeEquipments.get(playerIdentity.toHexString());
-        if (playerEquipment) {
-            const equipMapping: { field: keyof ActiveEquipment; logicalSlot: string }[] = [
-                { field: 'headItemInstanceId', logicalSlot: 'Head' }, { field: 'chestItemInstanceId', logicalSlot: 'Chest' },
-                { field: 'legsItemInstanceId', logicalSlot: 'Legs' }, { field: 'feetItemInstanceId', logicalSlot: 'Feet' },
-                { field: 'handsItemInstanceId', logicalSlot: 'Hands' }, { field: 'backItemInstanceId', logicalSlot: 'Back' },
-            ];
-            equipMapping.forEach(({ field, logicalSlot }) => {
-                const instanceId = playerEquipment[field];
-                if (instanceId) {
-                    const foundItem = inventoryItems.get(instanceId.toString()); // More direct lookup
-                    if (foundItem) {
-                        const definition = itemDefinitions.get(foundItem.itemDefId.toString());
-                        if (definition) {
-                            equipMap.set(logicalSlot, { instance: foundItem, definition });
-                        }
-                    }
-                }
-            });
-        }
         return { itemsByInvSlot: invMap, itemsByEquipSlot: equipMap };
-    }, [playerIdentity, inventoryItems, itemDefinitions, activeEquipments]);
+    }, [playerIdentity, inventoryItems, itemDefinitions]);
 
     // --- Callbacks & Handlers ---
     const handleClose = useCallback(() => {
@@ -213,7 +206,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         } 
         // --- DEFAULT ACTIONS (No relevant container open) --- 
         else {
-            const isArmor = itemInfo.definition.category.tag === 'Armor' && itemInfo.definition.equipmentSlot !== null;
+            const isArmor = itemInfo.definition.category.tag === 'Armor' && itemInfo.definition.equipmentSlotType !== null;
             if (isArmor) {
                 // console.log(`[Inv CtxMenu EquipArmor] No container open. Item ${itemInstanceId} is Armor. Calling equipArmorFromInventory.`);
                 try { connection.reducers.equipArmorFromInventory(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu EquipArmor]", e); /* TODO: setUiError */ }
