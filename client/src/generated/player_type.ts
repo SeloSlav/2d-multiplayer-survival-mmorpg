@@ -50,6 +50,7 @@ export type Player = {
   deathTimestamp: Timestamp | undefined,
   lastHitTime: Timestamp | undefined,
   isOnline: boolean,
+  isTorchLit: boolean,
 };
 
 /**
@@ -81,6 +82,7 @@ export namespace Player {
       new ProductTypeElement("deathTimestamp", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("isOnline", AlgebraicType.createBoolType()),
+      new ProductTypeElement("isTorchLit", AlgebraicType.createBoolType()),
     ]);
   }
 

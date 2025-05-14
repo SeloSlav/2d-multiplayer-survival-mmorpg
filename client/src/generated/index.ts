@@ -176,6 +176,8 @@ import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
+import { ToggleTorch } from "./toggle_torch_reducer.ts";
+export { ToggleTorch };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
@@ -750,6 +752,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_campfire_burning",
       argsType: ToggleCampfireBurning.getTypeScriptAlgebraicType(),
     },
+    toggle_torch: {
+      reducerName: "toggle_torch",
+      argsType: ToggleTorch.getTypeScriptAlgebraicType(),
+    },
     update_player_position: {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
@@ -861,6 +867,7 @@ export type Reducer = never
 | { name: "StartCrafting", args: StartCrafting }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
+| { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
@@ -1977,6 +1984,18 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_campfire_burning", callback);
   }
 
+  toggleTorch() {
+    this.connection.callReducer("toggle_torch", new Uint8Array(0), this.setCallReducerFlags.toggleTorchFlags);
+  }
+
+  onToggleTorch(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("toggle_torch", callback);
+  }
+
+  removeOnToggleTorch(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("toggle_torch", callback);
+  }
+
   updatePlayerPosition(moveX: number, moveY: number) {
     const __args = { moveX, moveY };
     let __writer = new BinaryWriter(1024);
@@ -2372,6 +2391,11 @@ export class SetReducerFlags {
   toggleCampfireBurningFlags: CallReducerFlags = 'FullUpdate';
   toggleCampfireBurning(flags: CallReducerFlags) {
     this.toggleCampfireBurningFlags = flags;
+  }
+
+  toggleTorchFlags: CallReducerFlags = 'FullUpdate';
+  toggleTorch(flags: CallReducerFlags) {
+    this.toggleTorchFlags = flags;
   }
 
   updatePlayerPositionFlags: CallReducerFlags = 'FullUpdate';

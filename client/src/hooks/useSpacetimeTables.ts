@@ -120,10 +120,12 @@ export const useSpacetimeTables = ({
                 const EPSILON = 0.01;
                 const posChanged = Math.abs(oldPlayer.positionX - newPlayer.positionX) > EPSILON || Math.abs(oldPlayer.positionY - newPlayer.positionY) > EPSILON;
                 const statsChanged = Math.round(oldPlayer.health) !== Math.round(newPlayer.health) || Math.round(oldPlayer.stamina) !== Math.round(newPlayer.stamina) || Math.round(oldPlayer.hunger) !== Math.round(newPlayer.hunger) || Math.round(oldPlayer.thirst) !== Math.round(newPlayer.thirst) || Math.round(oldPlayer.warmth) !== Math.round(newPlayer.warmth);
-                const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead;
+                const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead || oldPlayer.isTorchLit !== newPlayer.isTorchLit;
                 const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
+                const usernameChanged = oldPlayer.username !== newPlayer.username; // Added for completeness
+                const colorChanged = oldPlayer.color !== newPlayer.color; // Added for completeness
 
-                if (posChanged || statsChanged || stateChanged || onlineStatusChanged) {
+                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged) {
                     setPlayers(prev => new Map(prev).set(newPlayer.identity.toHexString(), newPlayer));
                 }
             };

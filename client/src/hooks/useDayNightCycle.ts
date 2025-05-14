@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
     Campfire as SpacetimeDBCampfire,
     WorldState as SpacetimeDBWorldState,
@@ -12,7 +12,7 @@ import { CAMPFIRE_LIGHT_RADIUS_BASE } from '../config/gameConfig';
 const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; // Slightly smaller than campfire
 
 // Define time constants based on server's logic (world_state.rs)
-const DAY_DURATION_MINUTES = 2700.0 / 60.0; // 4.5 minutes, corrected from 270.0
+const DAY_DURATION_MINUTES = 900.0 / 60.0; // 1.5 minutes, corrected from 90.0
 const NIGHT_DURATION_MINUTES = 900.0 / 60.0;  // 1.5 minutes, corrected from 90.0
 const TOTAL_CYCLE_MINUTES = DAY_DURATION_MINUTES + NIGHT_DURATION_MINUTES;
 
@@ -114,6 +114,22 @@ export function useDayNightCycle({
     const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [overlayRgba, setOverlayRgba] = useState<string>('transparent');
 
+    // --- Create a derived state string that changes when any torch's lit status changes ---
+    const torchLitStatesKey = useMemo(() => {
+        let key = "torch_light_states:";
+        players.forEach((player, playerId) => {
+            const equipment = activeEquipments.get(playerId);
+            if (equipment && equipment.equippedItemDefId) {
+                const itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString());
+                if (itemDef && itemDef.name === "Torch") {
+                    key += `${playerId}:${player.isTorchLit};`;
+                }
+            }
+        });
+        return key;
+    }, [players, activeEquipments, itemDefinitions]);
+    // --- End derived state ---
+
     useEffect(() => {
         if (!maskCanvasRef.current) {
             maskCanvasRef.current = document.createElement('canvas');
@@ -164,10 +180,10 @@ export function useDayNightCycle({
             }
         });
 
-        players.forEach((player) => {
+        players.forEach((player, playerId) => {
             if (!player || player.isDead) return;
 
-            const equipment = activeEquipments.get(player.identity.toHexString());
+            const equipment = activeEquipments.get(playerId);
             if (!equipment || !equipment.equippedItemDefId) {
                 return;
             }
@@ -176,22 +192,24 @@ export function useDayNightCycle({
                 return;
             }
 
-            const screenX = player.positionX + cameraOffsetX;
-            const screenY = player.positionY + cameraOffsetY;
-            const lightRadius = TORCH_LIGHT_RADIUS_BASE;
+            if (itemDef && itemDef.name === "Torch" && player.isTorchLit) {
+                const lightScreenX = player.positionX + cameraOffsetX;
+                const lightScreenY = player.positionY + cameraOffsetY;
+                const lightRadius = TORCH_LIGHT_RADIUS_BASE;
 
-            const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.1, screenX, screenY, lightRadius);
-            maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
-            maskGradient.addColorStop(1, 'rgba(0,0,0,0)');
-            maskCtx.fillStyle = maskGradient;
-            maskCtx.beginPath();
-            maskCtx.arc(screenX, screenY, lightRadius, 0, Math.PI * 2);
-            maskCtx.fill();
+                const maskGradient = maskCtx.createRadialGradient(lightScreenX, lightScreenY, lightRadius * 0.1, lightScreenX, lightScreenY, lightRadius);
+                maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
+                maskGradient.addColorStop(1, 'rgba(0,0,0,0)');
+                maskCtx.fillStyle = maskGradient;
+                maskCtx.beginPath();
+                maskCtx.arc(lightScreenX, lightScreenY, lightRadius, 0, Math.PI * 2);
+                maskCtx.fill();
+            }
         });
         
         maskCtx.globalCompositeOperation = 'source-over';
 
-    }, [worldState, campfires, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height]);
+    }, [worldState, campfires, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey]);
 
     return { overlayRgba, maskCanvasRef };
 } 

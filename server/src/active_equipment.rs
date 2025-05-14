@@ -59,6 +59,7 @@ pub struct ActiveEquipment {
     pub player_identity: Identity,
     pub equipped_item_def_id: Option<u64>, // ID from ItemDefinition table
     pub equipped_item_instance_id: Option<u64>, // Instance ID from InventoryItem
+    pub icon_asset_name: Option<String>, // Icon to display for equipped item
     pub swing_start_time_ms: u64, // Timestamp (ms) when the current swing started, 0 if not swinging
     // Fields for worn armor
     pub head_item_instance_id: Option<u64>,
@@ -78,6 +79,7 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     let inventory_items = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
     let active_equipments = ctx.db.active_equipment();
+    let mut players_table = ctx.db.player(); // Get a mutable reference for player updates
 
     let item_to_make_active = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Inventory item with instance ID {} not found.", item_instance_id))?;
@@ -143,6 +145,32 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     equipment.equipped_item_def_id = Some(item_def.id);
     equipment.equipped_item_instance_id = Some(item_instance_id);
     equipment.swing_start_time_ms = 0;
+    equipment.icon_asset_name = Some(item_def.icon_asset_name.clone());
+
+    // --- Handle Torch Specific State on Equip ---
+    if item_def.name == "Torch" {
+        equipment.icon_asset_name = Some("torch.png".to_string()); // Default to off
+        if let Some(mut player) = players_table.identity().find(&sender_id) {
+            // Ensure torch starts off, even if it was somehow lit with a previous torch
+            if player.is_torch_lit { 
+                player.is_torch_lit = false;
+                player.last_update = ctx.timestamp; // Update timestamp
+                players_table.identity().update(player);
+            }
+        }
+    } else {
+        equipment.icon_asset_name = Some(item_def.icon_asset_name.clone());
+        // If equipping something else and a torch was lit, turn it off
+        if let Some(mut player) = players_table.identity().find(&sender_id) {
+            if player.is_torch_lit {
+                player.is_torch_lit = false;
+                player.last_update = ctx.timestamp; // Update timestamp
+                players_table.identity().update(player);
+            }
+        }
+    }
+    // --- End Handle Torch Specific State ---
+
     active_equipments.player_identity().update(equipment.clone());
 
     log::info!("Player {:?} set active item to: {} (Instance ID: {}). Item remains in location: {:?}",
@@ -156,8 +184,13 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
 #[spacetimedb::reducer]
 pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity) -> Result<(), String> {
     let active_equipments = ctx.db.active_equipment();
+    let item_defs = ctx.db.item_definition(); // For checking item name
+    let mut players_table = ctx.db.player(); // For updating player state
 
     if let Some(mut equipment) = active_equipments.player_identity().find(player_identity) {
+        // Store old item def ID before clearing for torch check
+        let old_item_def_id_opt = equipment.equipped_item_def_id;
+
         if equipment.equipped_item_instance_id.is_some() {
             log::info!("Player {:?} cleared active item (was instance ID: {:?}, def ID: {:?}).", 
                      player_identity, equipment.equipped_item_instance_id, equipment.equipped_item_def_id);
@@ -165,7 +198,25 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
             equipment.equipped_item_def_id = None;
             equipment.equipped_item_instance_id = None;
             equipment.swing_start_time_ms = 0;
+            equipment.icon_asset_name = None; // <<< CLEAR icon name
             active_equipments.player_identity().update(equipment);
+
+            // --- Handle Torch Lit State on Unequip ---
+            if let Some(old_item_def_id) = old_item_def_id_opt {
+                if let Some(item_def) = item_defs.id().find(old_item_def_id) {
+                    if item_def.name == "Torch" {
+                        if let Some(mut player) = players_table.identity().find(&player_identity) {
+                            if player.is_torch_lit {
+                                player.is_torch_lit = false;
+                                player.last_update = ctx.timestamp;
+                                players_table.identity().update(player);
+                                log::info!("Player {:?} unequipped a lit torch, extinguishing it.", player_identity);
+                            }
+                        }
+                    }
+                }
+            }
+            // --- End Handle Torch Lit State on Unequip ---
         } else {
             log::debug!("Player {:?} called clear_active_item_reducer, but no item was active.", player_identity);
         }
@@ -243,6 +294,7 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
             player_identity: player_id, 
             equipped_item_def_id: None,
             equipped_item_instance_id: None,
+            icon_asset_name: None,
             swing_start_time_ms: 0,
             head_item_instance_id: None,
             chest_item_instance_id: None,

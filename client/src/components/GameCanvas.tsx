@@ -155,6 +155,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return players.get(localPlayerId);
   }, [players, localPlayerId]);
 
+  // [DIAGNOSTIC LOG]
+  // if (localPlayerId) {
+  //   const currentLocalPlayer = players.get(localPlayerId);
+  //   const currentEquipment = activeEquipments.get(localPlayerId);
+  //   console.log(
+  //     `[GameCanvas Render] Player: ${localPlayerId}, isTorchLit: ${currentLocalPlayer?.isTorchLit}, Icon: ${currentEquipment?.iconAssetName}`
+  //   );
+  // }
+  // [END DIAGNOSTIC LOG]
+
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
   const { heroImageRef, grassImageRef, itemImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
@@ -204,7 +214,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     currentJumpOffsetY
   } = useInputHandler({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
-      activeEquipments, placementInfo, placementActions, worldMousePos,
+      activeEquipments, itemDefinitions,
+      placementInfo, placementActions, worldMousePos,
       closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId,
       closestInteractableCampfireId, closestInteractableDroppedItemId,
       closestInteractableBoxId, isClosestInteractableBoxEmpty, 
@@ -468,6 +479,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
 
     // --- Render Torch Light (if active) ---
+    /*
     if (_localTorchLightParams) {
         const lightScreenX = _localTorchLightParams.centerX + cameraOffsetX;
         const lightScreenY = _localTorchLightParams.centerY + cameraOffsetY;
@@ -481,6 +493,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
         ctx.fill();
     }
+    */
     // --- End Torch Light ---
 
     ctx.restore();

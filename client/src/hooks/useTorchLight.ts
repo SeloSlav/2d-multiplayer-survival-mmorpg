@@ -40,7 +40,7 @@ export function useTorchLight({
     localPlayerId,
 }: UseTorchLightProps): TorchLightParams | null {
     return useMemo(() => {
-        if (!localPlayer || !localPlayerId) {
+        if (!localPlayer || !localPlayerId || !localPlayer.isTorchLit) {
             return null;
         }
 

@@ -15,8 +15,9 @@ interface UseInputHandlerProps {
     canvasRef: RefObject<HTMLCanvasElement | null>;
     connection: DbConnection | null;
     localPlayerId?: string;
-    localPlayer?: SpacetimeDB.Player | null; // Pass the local player data
-    activeEquipments?: Map<string, SpacetimeDB.ActiveEquipment>; // Pass active equipment map
+    localPlayer?: SpacetimeDB.Player | null;
+    activeEquipments?: Map<string, SpacetimeDB.ActiveEquipment>;
+    itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
     placementInfo: PlacementItemInfo | null;
     placementActions: PlacementActions;
     worldMousePos: { x: number | null; y: number | null }; // Pass world mouse position
@@ -62,6 +63,7 @@ export const useInputHandler = ({
     localPlayerId,
     localPlayer,
     activeEquipments,
+    itemDefinitions,
     placementInfo,
     placementActions,
     worldMousePos,
@@ -111,6 +113,7 @@ export const useInputHandler = ({
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
     const woodenStorageBoxesRef = useRef(woodenStorageBoxes); // <<< ADDED Ref
+    const itemDefinitionsRef = useRef(itemDefinitions); // <<< ADDED Ref
 
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
@@ -161,6 +164,7 @@ export const useInputHandler = ({
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
+    useEffect(() => { itemDefinitionsRef.current = itemDefinitions; }, [itemDefinitions]); // <<< ADDED Effect
 
     // --- Jump Offset Calculation Effect ---
     useEffect(() => {
@@ -460,10 +464,27 @@ export const useInputHandler = ({
             if (placementInfo) {
                 event.preventDefault();
                 placementActionsRef.current?.cancelPlacement();
-            }
-            // Prevent default context menu unless placing
-            else {
-                 event.preventDefault();
+            } else {
+                 event.preventDefault(); // Prevent default context menu even when not placing
+                 const currentConnection = connectionRef.current;
+                 const player = localPlayerRef.current;
+                 const equipments = activeEquipmentsRef.current;
+                 const definitions = itemDefinitionsRef.current; // Use the ref
+
+                 if (currentConnection?.reducers && player && !player.isDead && equipments && definitions) { // Added !player.isDead check
+                    const localPlayerEquipment = equipments.get(player.identity.toHexString());
+                    if (localPlayerEquipment && localPlayerEquipment.equippedItemDefId) {
+                        const itemDef = definitions.get(localPlayerEquipment.equippedItemDefId.toString());
+                        if (itemDef && itemDef.name === "Torch") {
+                            try {
+                                currentConnection.reducers.toggleTorch();
+                                // console.log("[InputHandler] Called toggleTorch reducer for Torch."); // Keep for debugging if desired
+                            } catch (err) {
+                                console.error("[InputHandler] Error calling toggleTorch reducer:", err);
+                            }
+                        }
+                    }
+                 }
             }
         };
 
