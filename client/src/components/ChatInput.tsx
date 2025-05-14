@@ -63,6 +63,10 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
       if (ref && 'current' in ref && ref.current) {
         ref.current.blur();
       }
+    } else if (event.key.toLowerCase() === 'g' || event.key === ' ') {
+      // Prevent 'g' and 'spacebar' from triggering game actions
+      // but still allow typing them into the input.
+      event.stopPropagation(); 
     }
   };
 

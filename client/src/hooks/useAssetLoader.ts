@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 // Import asset paths
-import heroSpriteSheet from '../assets/hero.png';
+import heroSpriteSheet from '../assets/hero2.png';
 import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/Items/burlap_sack.png';

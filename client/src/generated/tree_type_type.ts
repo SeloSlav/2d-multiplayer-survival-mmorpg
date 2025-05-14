@@ -35,7 +35,9 @@ export namespace TreeType {
   // These are the generated variant types for each variant of the tagged union.
   // One type is generated per variant and will be used in the `value` field of
   // the tagged union.
-  export type Oak = { tag: "Oak" };
+  export type AleppoPine = { tag: "AleppoPine" };
+  export type MannaAsh = { tag: "MannaAsh" };
+  export type DownyOak = { tag: "DownyOak" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -43,11 +45,15 @@ export namespace TreeType {
   // assert!(foo.tag === "A");
   // assert!(foo.value === 42);
   // ```
-  export const Oak = { tag: "Oak" };
+  export const AleppoPine = { tag: "AleppoPine" };
+  export const MannaAsh = { tag: "MannaAsh" };
+  export const DownyOak = { tag: "DownyOak" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
-      new SumTypeVariant("Oak", AlgebraicType.createProductType([])),
+      new SumTypeVariant("AleppoPine", AlgebraicType.createProductType([])),
+      new SumTypeVariant("MannaAsh", AlgebraicType.createProductType([])),
+      new SumTypeVariant("DownyOak", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -62,7 +68,7 @@ export namespace TreeType {
 }
 
 // The tagged union or sum type for the algebraic type `TreeType`.
-export type TreeType = TreeType.Oak;
+export type TreeType = TreeType.AleppoPine | TreeType.MannaAsh | TreeType.DownyOak;
 
 export default TreeType;
 

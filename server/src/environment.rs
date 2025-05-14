@@ -132,6 +132,10 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Seeding Trees...");
     while spawned_tree_count < target_tree_count && tree_attempts < max_tree_attempts {
         tree_attempts += 1;
+
+        // Determine tree type roll *before* calling attempt_single_spawn
+        let tree_type_roll_for_this_attempt: f64 = rng.gen_range(0.0..1.0);
+
         match attempt_single_spawn(
             &mut rng,
             &mut occupied_tiles,
@@ -145,22 +149,31 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::tree::MIN_TREE_DISTANCE_SQ,
             0.0,
             0.0,
-            |pos_x, pos_y, _extra: ()| {
+            |pos_x, pos_y, tree_type_roll: f64| { // Closure now accepts the pre-calculated roll
                 // Calculate chunk index for the tree
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                // Determine tree type with weighted probability using the passed-in roll
+                let tree_type = if tree_type_roll < 0.6 { // 60% chance for DownyOak
+                    crate::tree::TreeType::DownyOak
+                } else if tree_type_roll < 0.8 { // 20% chance for AleppoPine
+                    crate::tree::TreeType::AleppoPine
+                } else { // 20% chance for MannaAsh
+                    crate::tree::TreeType::MannaAsh
+                };
                 
                 crate::tree::Tree {
                     id: 0,
                     pos_x,
                     pos_y,
                     health: crate::tree::TREE_INITIAL_HEALTH,
-                    tree_type: crate::tree::TreeType::Oak,
+                    tree_type, // Assign the chosen type
                     chunk_index: chunk_idx, // Set the chunk index
                     last_hit_time: None,
                     respawn_at: None,
                 }
             },
-            (),
+            tree_type_roll_for_this_attempt, // Pass the roll as extra_args
             trees,
         ) {
             Ok(true) => spawned_tree_count += 1,

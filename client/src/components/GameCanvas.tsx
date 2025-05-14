@@ -536,15 +536,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCampfiresMap.forEach((fire: SpacetimeDBCampfire) => {
         if (fire.isBurning) {
             const lightScreenX = fire.posX + cameraOffsetX;
-            const lightScreenY = fire.posY + cameraOffsetY;
+            
+            // Calculate the original visual center of the campfire sprite in world Y
+            const visualCenterWorldY = fire.posY - (CAMPFIRE_HEIGHT / 2);
+            // Shift this center up by 15% of the campfire's height
+            const gradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0.15);
+            // Convert the new world Y center to screen coordinates for drawing
+            const newLightScreenY = gradientCenterWorldY + cameraOffsetY;
+
             const flicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
-            const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker);
-            const lightGradient = ctx.createRadialGradient(lightScreenX, lightScreenY, 0, lightScreenX, lightScreenY, currentLightRadius);
+            // Increase the radius by 50%
+            const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 1.5;
+            
+            const lightGradient = ctx.createRadialGradient(
+                lightScreenX,       // Screen X for gradient
+                newLightScreenY,    // New shifted screen Y for gradient
+                0,                  // Inner radius
+                lightScreenX,       // Screen X for gradient
+                newLightScreenY,    // New shifted screen Y for gradient
+                currentLightRadius
+            );
             lightGradient.addColorStop(0, CAMPFIRE_LIGHT_INNER_COLOR);
             lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
             ctx.fillStyle = lightGradient;
             ctx.beginPath();
-            ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
+            ctx.arc(
+                lightScreenX,       // Screen X for arc
+                newLightScreenY,    // New shifted screen Y for arc
+                currentLightRadius, 
+                0, 
+                Math.PI * 2
+            );
             ctx.fill();
         }
     });

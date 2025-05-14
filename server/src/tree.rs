@@ -7,7 +7,7 @@ use crate::{PLAYER_RADIUS}; // Removed unused TILE_SIZE_PX
 
 // Tree Collision settings
 pub(crate) const TREE_TRUNK_RADIUS: f32 = 30.0;
-pub(crate) const TREE_COLLISION_Y_OFFSET: f32 = 20.0;
+pub(crate) const TREE_COLLISION_Y_OFFSET: f32 = 40.0;
 pub(crate) const PLAYER_TREE_COLLISION_DISTANCE_SQUARED: f32 = (PLAYER_RADIUS + TREE_TRUNK_RADIUS) * (PLAYER_RADIUS + TREE_TRUNK_RADIUS);
 
 // Tree Spawning Parameters
@@ -25,7 +25,9 @@ pub(crate) const TREE_INITIAL_HEALTH: u32 = 2000;
 // Define the different types of trees
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, SpacetimeType)]
 pub enum TreeType {
-    Oak, // Represents tree.png
+    AleppoPine,
+    MannaAsh,
+    DownyOak,
 }
 
 #[spacetimedb::table(name = tree, public)]

@@ -1,12 +1,14 @@
 import { Tree } from '../../generated'; // Import generated types
-import treeImage from '../../assets/doodads/tree.png'; // Direct import for Vite
+import aleppoPineImage from '../../assets/doodads/aleppo_pine.png';
+import mannaAshImage from '../../assets/doodads/manna_ash.png';
+import downyOakImage from '../../assets/doodads/downy_oak.png';
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
 // Define constants for tree rendering
-const TARGET_TREE_WIDTH_PX = 160; // Target width on screen
+const TARGET_TREE_WIDTH_PX = 240; // Target width on screen (doubled from 160)
 const SHAKE_DURATION_MS = 150; // How long the shake effect lasts
 const SHAKE_INTENSITY_PX = 10; // Maximum pixel offset for the shake
 
@@ -14,10 +16,35 @@ const SHAKE_INTENSITY_PX = 10; // Maximum pixel offset for the shake
 const treeConfig: GroundEntityConfig<Tree> = {
     // Use the imported URL from Vite
     getImageSource: (entity) => {
-        // TODO: Add logic here if different tree types use different images
-        // Example: 
-        // if (entity.treeType.tag === 'Pine') return pineTreeImage; 
-        return treeImage; // Default to the imported oak tree image
+        // Assuming entity.tree_type will be an object with a `tag` property like { tag: "DownyOak" }
+        // or a simple string after client type generation. This handles both.
+        if (typeof entity.treeType === 'object' && entity.treeType !== null && 'tag' in entity.treeType) {
+            switch ((entity.treeType as any).tag) {
+                case 'AleppoPine':
+                    return aleppoPineImage;
+                case 'MannaAsh':
+                    return mannaAshImage;
+                case 'DownyOak':
+                    return downyOakImage;
+                default:
+                    console.warn(`Unknown tree type tag: ${(entity.treeType as any).tag}, falling back to Downy Oak.`);
+                    return downyOakImage;
+            }
+        } else if (typeof entity.treeType === 'string') { // Handle if it's just a string representation
+             switch (entity.treeType) {
+                case 'AleppoPine':
+                    return aleppoPineImage;
+                case 'MannaAsh':
+                    return mannaAshImage;
+                case 'DownyOak':
+                    return downyOakImage;
+                default:
+                    console.warn(`Unknown tree type string: ${entity.treeType}, falling back to Downy Oak.`);
+                    return downyOakImage;
+            }
+        }
+        console.error('Unexpected treeType structure:', entity.treeType, 'Falling back to Downy Oak.');
+        return downyOakImage; 
     },
 
     getTargetDimensions: (img, _entity) => {
@@ -70,7 +97,9 @@ const treeConfig: GroundEntityConfig<Tree> = {
 };
 
 // Preload using the imported URL
-imageManager.preloadImage(treeImage);
+imageManager.preloadImage(aleppoPineImage);
+imageManager.preloadImage(mannaAshImage);
+imageManager.preloadImage(downyOakImage);
 // TODO: Preload other variants if added
 
 // Refactored rendering function
