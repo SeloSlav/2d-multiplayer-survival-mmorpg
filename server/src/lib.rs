@@ -738,7 +738,7 @@ pub fn update_player_position(
     // --- Calculate Delta Time ---
     let elapsed_micros = now.to_micros_since_unix_epoch().saturating_sub(current_player.last_update.to_micros_since_unix_epoch());
     // Clamp max delta time to avoid huge jumps on first update or after lag spikes (e.g., 100ms)
-    let delta_time_secs = (elapsed_micros as f32 / 1_000_000.0).min(0.1); // Clamp max delta time
+    let delta_time_secs = (elapsed_micros as f32 / 1_000_000.0).min(0.05); // Clamp max delta time
 
     // --- Stamina Drain & Base Speed Calculation ---
     let mut new_stamina = current_player.stamina; // Base this on current_player for speed calc
