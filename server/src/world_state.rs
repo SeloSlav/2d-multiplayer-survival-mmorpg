@@ -10,8 +10,8 @@ use crate::items::InventoryItem;
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
 
 // --- Constants ---
-const DAY_DURATION_SECONDS: f32 = 2700.0; // 45 minutes (45 * 60)
-const NIGHT_DURATION_SECONDS: f32 = 900.0; // 15 minutes (15 * 60)
+const DAY_DURATION_SECONDS: f32 = 270.0; // 4.5 minutes (4.5 * 60)
+const NIGHT_DURATION_SECONDS: f32 = 90.0; // 1.5 minutes (1.5 * 60)
 const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 60 minutes total
 
 // Full moon occurs roughly every 3 cycles (adjust as needed)

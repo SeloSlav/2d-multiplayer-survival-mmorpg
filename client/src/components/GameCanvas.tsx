@@ -33,6 +33,8 @@ import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
+import { useTorchLight } from '../hooks/useTorchLight';
+import { useTorchParticles } from '../hooks/useTorchParticles';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -156,7 +158,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
   const { heroImageRef, grassImageRef, itemImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
-  const { overlayRgba, maskCanvasRef } = useDayNightCycle({ worldState, campfires, cameraOffsetX, cameraOffsetY, canvasSize });
+
+  // Call useTorchLight for local player specific effects (like a very subtle local glow perhaps, if still needed)
+  // Its output is NOT for the day/night cycle mask anymore, and also not directly for multi-player particles.
+  const _localTorchLightParams = useTorchLight({
+    localPlayer,
+    activeEquipments,
+    itemDefinitions,
+    localPlayerId,
+  });
+
+  const { overlayRgba, maskCanvasRef } = useDayNightCycle({ 
+    worldState, 
+    campfires, 
+    players, // Pass all players
+    activeEquipments, // Pass all active equipments
+    itemDefinitions, // Pass all item definitions
+    cameraOffsetX, 
+    cameraOffsetY, 
+    canvasSize 
+  });
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
@@ -300,6 +321,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visibleCampfiresMap: visibleCampfiresMap || new Map(), 
       deltaTime 
   });
+  const torchParticles = useTorchParticles({
+    players,
+    activeEquipments,
+    itemDefinitions,
+    deltaTime,
+  });
 
   // New function to render particles
   const renderParticlesToCanvas = useCallback((ctx: CanvasRenderingContext2D, particlesToRender: Particle[]) => {
@@ -409,6 +436,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     if (ctx) { // Ensure context is still valid
         // Call without camera offsets, as ctx is already translated
         renderParticlesToCanvas(ctx, campfireParticles);
+        renderParticlesToCanvas(ctx, torchParticles);
     }
 
     renderInteractionLabels({
@@ -434,6 +462,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
         worldMouseY: currentWorldMouseY, isPlacementTooFar, placementError,
     });
+
+    // --- Render Torch Light (if active) ---
+    if (_localTorchLightParams) {
+        const lightScreenX = _localTorchLightParams.centerX + cameraOffsetX;
+        const lightScreenY = _localTorchLightParams.centerY + cameraOffsetY;
+        const flicker = (Math.random() - 0.5) * 2 * _localTorchLightParams.flickerAmount;
+        const currentLightRadius = Math.max(0, _localTorchLightParams.radius + flicker);
+        const lightGradient = ctx.createRadialGradient(lightScreenX, lightScreenY, 0, lightScreenX, lightScreenY, currentLightRadius);
+        lightGradient.addColorStop(0, _localTorchLightParams.innerColor);
+        lightGradient.addColorStop(1, _localTorchLightParams.outerColor);
+        ctx.fillStyle = lightGradient;
+        ctx.beginPath();
+        ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // --- End Torch Light ---
 
     ctx.restore();
 
@@ -527,6 +571,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       activeConnections,
       visiblePlayerCorpses,
       campfireParticles, 
+      torchParticles,
   ]);
 
   const gameLoopCallback = useCallback(() => {
