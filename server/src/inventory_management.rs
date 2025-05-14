@@ -162,25 +162,31 @@ pub(crate) fn handle_move_to_container_slot<C: ItemContainer>(
                 }
                 // Container slot content (target_instance_id) unchanged on merge, only its quantity.
             },
-            Err(_) => {
+            Err(merge_err_msg) => { // Changed from _ to merge_err_msg for logging
                 // Merge Failed: Swap
-                log::info!("[InvManager SwapToContainer] Cannot merge. Swapping container slot {} (item {}) with player item {} (originally at {:?}).", 
-                         target_slot_index, target_instance_id, item_instance_id, original_location);
+                log::warn!("[InvManager SwapToContainer] Cannot merge item {} (def {}) with item {} (def {}) in slot {}: {}. Attempting SWAP.", 
+                         item_instance_id, item_to_move.item_def_id, target_instance_id, target_item.item_def_id, target_slot_index, merge_err_msg);
 
                 // Move target item (from container) to player's original slot
                 target_item.location = original_location.clone(); 
-                inventory_table.instance_id().update(target_item);
+                inventory_table.instance_id().update(target_item.clone()); // target_item is already mut
                 log::debug!("[InvManager SwapToContainer] Moved target item {} from container to player's original location {:?}", 
                          target_instance_id, original_location);
                 
                 // Update source item (from player) location to the container slot
                 item_to_move.location = new_item_location.clone();
-                inventory_table.instance_id().update(item_to_move);
+                inventory_table.instance_id().update(item_to_move.clone()); // item_to_move is already mut
                 log::debug!("[InvManager SwapToContainer] Moved source item {} to container location {:?}", 
                          item_instance_id, new_item_location);
 
                 // Update the container slot to hold the source item.
+                let target_item_def_id = target_item.item_def_id; // Capture before target_item might be shadowed or modified further if logic changes
                 container.set_slot(target_slot_index, Some(item_instance_id), Some(item_def_to_move.id));
+                // And set the original player slot's effective content to target_item (handled by its location update)
+                // If original_location was an equipment slot, this logic path implies the player item (item_to_move) also came from equipment.
+                // The swap needs to respect that the target_item now occupies that equipment slot implicitly by its location.
+                // No direct update to ActiveEquipment table here, that's for equipping actions.
+                // This function assumes the player will re-equip if needed.
             }
         }
     } else {
@@ -195,8 +201,16 @@ pub(crate) fn handle_move_to_container_slot<C: ItemContainer>(
 
     // --- Clear Original Equipment Slot if Necessary --- 
     if let Some(eq_slot_type) = original_equipment_slot_type {
-        log::info!("[MoveToContainer] Clearing original equipment slot {:?} for item {}.", eq_slot_type, item_instance_id);
+        // Check if the item_instance_id is still in that equipment slot. 
+        // It wouldn't be if it was swapped with another item that took its original equipment slot.
+        // However, a simple clear is safer if its location is no longer equipped.
+        let current_item_location = inventory_table.instance_id().find(item_instance_id)
+                                        .map(|item| item.location)
+                                        .unwrap_or(ItemLocation::Unknown); // Default if item deleted (e.g. merged fully)
+        if !matches!(current_item_location, ItemLocation::Equipped(data) if data.slot_type == eq_slot_type) {
+            log::info!("[MoveToContainer] Item {} no longer in original equipment slot {:?}. Clearing slot.", item_instance_id, eq_slot_type);
         crate::items::clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
+        }
     }
 
     Ok(())
@@ -214,20 +228,23 @@ pub(crate) fn handle_move_from_container_slot<C: ItemContainer>(
     let inventory_table = ctx.db.inventory_item();
     let item_def_table = ctx.db.item_definition();
 
-    // --- Fetch and Validate Item to Move from Container --- 
+    // --- 1. Validate Source Container Slot and Get Item from Container ---
     if source_slot_index >= container.num_slots() as u8 {
         return Err(format!("Source slot index {} out of bounds.", source_slot_index));
     }
-    let source_instance_id = container.get_slot_instance_id(source_slot_index)
+    let item_from_container_id = container.get_slot_instance_id(source_slot_index)
         .ok_or_else(|| format!("Source slot {} in container is empty", source_slot_index))?;
-    // let source_def_id = container.get_slot_def_id(source_slot_index) // No longer strictly needed here
-    //     .ok_or_else(|| format!("Source slot {} has instance ID but no Def ID! Inconsistent state.", source_slot_index))?;
-
-    log::info!("[InvManager FromContainer] Attempting move item {} from container slot {} to player {:?} {} slot {}", 
-             source_instance_id, source_slot_index, sender_id, target_slot_type, target_slot_index);
     
-    // --- Determine Target Player Location --- 
-    let target_location = match target_slot_type.as_str() {
+    let mut item_from_container = inventory_table.instance_id().find(item_from_container_id)
+        .ok_or_else(|| format!("Item instance {} (from container slot {}) not found in DB", item_from_container_id, source_slot_index))?;
+    let item_def_from_container = item_def_table.id().find(item_from_container.item_def_id)
+        .ok_or_else(|| format!("Definition for item {} not found", item_from_container.item_def_id))?;
+
+    log::info!("[InvManager FromContainer] Moving item {} (def {}) from container slot {} to player {} {} slot {}", 
+             item_from_container_id, item_from_container.item_def_id, source_slot_index, sender_id, target_slot_type, target_slot_index);
+    
+    // --- 2. Determine Target Player Location ---
+    let player_target_location = match target_slot_type.as_str() {
         "inventory" => {
             if target_slot_index >= NUM_PLAYER_INVENTORY_SLOTS as u32 {
                 return Err("Invalid target inventory slot index.".to_string());
@@ -243,47 +260,92 @@ pub(crate) fn handle_move_from_container_slot<C: ItemContainer>(
         _ => return Err("Invalid target_slot_type. Must be 'inventory' or 'hotbar'".to_string()),
     };
 
-    // --- Clear Slot in Container First --- 
-    // Do this before moving to player inv to avoid potential duplication issues if player move fails.
-    container.set_slot(source_slot_index, None, None);
-    log::info!("[InvManager FromContainer] Cleared container slot {} (held item {}). Verify struct: Slot {} now holds {:?}.", 
-             source_slot_index, source_instance_id, source_slot_index, container.get_slot_instance_id(source_slot_index));
-
-    // --- NEW: Update item's location to the TARGET PLAYER LOCATION before moving via player_inventory functions ---
-    let mut item_to_move_to_player = inventory_table.instance_id().find(source_instance_id)
-        .ok_or_else(|| format!("Item {} not found before attempting to set its location for player move", source_instance_id))?;
-    
-    log::info!("[InvManager FromContainer] Current location of item {} before setting to target player slot: {:?}", source_instance_id, item_to_move_to_player.location);
-    item_to_move_to_player.location = target_location.clone(); // target_location is ItemLocation::Inventory or ItemLocation::Hotbar
-    inventory_table.instance_id().update(item_to_move_to_player.clone()); // Persist this new location
-    log::info!("[InvManager FromContainer] Set location of item {} to {:?}. Now attempting move via player_inventory functions.", source_instance_id, target_location);
-
-    // --- Move Item to Player Inventory/Hotbar (using player_inventory functions) --- 
-    // These functions handle merging/swapping within player inventory/hotbar and update the item's location.
-    let move_result = match target_location {
-        ItemLocation::Inventory(ref data) => { // Destructure to get data if needed, or just use target_location directly
-            move_item_to_inventory(ctx, source_instance_id, data.slot_index)
-        }
-        ItemLocation::Hotbar(ref data) => { // Destructure to get data if needed
-            move_item_to_hotbar(ctx, source_instance_id, data.slot_index)
-        }
-        _ => Err("Internal error: Target location is not player inventory or hotbar after validation.".to_string()) // Should not happen
+    // --- 3. Check if Player's Target Slot is Occupied ---
+    let item_in_player_slot_opt = match player_target_location {
+        ItemLocation::Inventory(ref data) => crate::player_inventory::find_item_in_inventory_slot(ctx, data.slot_index),
+        ItemLocation::Hotbar(ref data) => crate::player_inventory::find_item_in_hotbar_slot(ctx, data.slot_index),
+        _ => None, // Should not happen based on above validation
     };
 
-    // Handle potential errors during the move
-    if let Err(e) = move_result {
-        log::error!("[InvManager FromContainer] Failed to move item {} to player location {:?}: {}. Attempting to revert.", 
-                 source_instance_id, target_location, e);
-        // Attempt to put the item back into the container slot if the player move failed
-        container.set_slot(source_slot_index, Some(source_instance_id), None);
-        // We don't revert the InventoryItem location here because the move functions 
-        // should ideally roll back changes on error or not commit invalid states.
-        // If the move function failed *after* updating the item location, that's a deeper issue.
-        return Err(format!("Failed to move item to player: {}", e));
-    }
+    if let Some(mut item_in_player_slot) = item_in_player_slot_opt {
+        // --- Player's Target Slot is OCCUPIED: Try to Merge or Swap ---
+        if item_in_player_slot.instance_id == item_from_container_id {
+             // Dragging item from container onto itself (somehow, if client allowed this by mistake)
+             // This scenario should ideally not happen if client logic is correct.
+             // For safety, treat as no-op for now, or ensure locations are distinct.
+             log::warn!("[InvManager FromContainer] Item {} from container slot {} attempted to move onto itself in player slot {:?}. No action.", 
+                      item_from_container_id, source_slot_index, player_target_location);
+             return Ok(()); // Or an error if this state is truly invalid.
+        }
 
-    log::info!("[InvManager FromContainer] Successfully moved item {} from container slot {} to player location {:?}.", 
-             source_instance_id, source_slot_index, target_location);
+        let item_def_in_player_slot = item_def_table.id().find(item_in_player_slot.item_def_id)
+            .ok_or_else(|| format!("Definition for item {} in player slot not found", item_in_player_slot.item_def_id))?;
+    
+        log::info!("[InvManager FromContainer] Player slot {:?} occupied by item {} (def {}). Attempting merge with item {} (def {}).", 
+                 player_target_location, item_in_player_slot.instance_id, item_in_player_slot.item_def_id, 
+                 item_from_container_id, item_from_container.item_def_id);
+
+        match calculate_merge_result(&item_from_container, &item_in_player_slot, &item_def_from_container) {
+            Ok((qty_transfer, source_new_qty, target_new_qty, delete_source)) => {
+                // MERGE Successful
+                log::info!("[InvManager FromContainer MERGE] Merging {} from item {} (container) onto {} (player). Player item new qty: {}. Delete source from container: {}",
+                         qty_transfer, item_from_container_id, item_in_player_slot.instance_id, target_new_qty, delete_source);
+
+                item_in_player_slot.quantity = target_new_qty;
+                inventory_table.instance_id().update(item_in_player_slot.clone());
+
+                if delete_source {
+                    // Item from container was fully merged. Delete it and clear container slot.
+                    log::debug!("[InvManager FromContainer MERGE] Deleting fully merged item {} from container slot {}.", item_from_container_id, source_slot_index);
+                    inventory_table.instance_id().delete(item_from_container_id);
+                    container.set_slot(source_slot_index, None, None);
+                } else {
+                    // Item from container partially merged. Update its quantity.
+                    item_from_container.quantity = source_new_qty;
+                    // Its location remains the container slot (implicitly, not changing InventoryItem.location yet for this branch)
+                    inventory_table.instance_id().update(item_from_container.clone());
+                    // Container slot still holds item_from_container, its quantity updated.
+                }
+            }
+            Err(merge_err_msg) => {
+                // MERGE Failed: SWAP items
+                log::warn!("[InvManager FromContainer SWAP] Cannot merge: {}. Swapping item {} (container slot {}) with item {} (player slot {:?}).", 
+                         merge_err_msg, item_from_container_id, source_slot_index, item_in_player_slot.instance_id, player_target_location);
+
+                let original_container_slot_location = ItemLocation::Container(crate::models::ContainerLocationData {
+                    container_id: container.get_container_id(),
+                    container_type: container.get_container_type(),
+                    slot_index: source_slot_index,
+                });
+
+                // 1. Item from container (Mushroom) moves to player's target slot
+                item_from_container.location = player_target_location.clone();
+                inventory_table.instance_id().update(item_from_container.clone());
+                log::debug!("[InvManager FromContainer SWAP] Item {} (was container) new location: {:?}", item_from_container_id, item_from_container.location);
+
+                // 2. Item from player's slot (Hatchet) moves to the original container slot
+                item_in_player_slot.location = original_container_slot_location;
+                inventory_table.instance_id().update(item_in_player_slot.clone());
+                log::debug!("[InvManager FromContainer SWAP] Item {} (was player) new location: {:?}", item_in_player_slot.instance_id, item_in_player_slot.location);
+                
+                // 3. Update the container's direct slot state to hold item_in_player_slot (Hatchet)
+                container.set_slot(source_slot_index, Some(item_in_player_slot.instance_id), Some(item_def_in_player_slot.id));
+                log::debug!("[InvManager FromContainer SWAP] Container slot {} now holds item {} (def {}).", 
+                         source_slot_index, item_in_player_slot.instance_id, item_def_in_player_slot.id);
+            }
+        }
+    } else {
+        // --- Player's Target Slot is EMPTY: Place item_from_container there ---
+        log::info!("[InvManager FromContainer PLACE] Player slot {:?} is empty. Placing item {} (def {}) from container slot {} there.", 
+                 player_target_location, item_from_container_id, item_from_container.item_def_id, source_slot_index);
+        
+        item_from_container.location = player_target_location.clone();
+        inventory_table.instance_id().update(item_from_container.clone());
+        
+        // Clear the original container slot in the container's state
+        container.set_slot(source_slot_index, None, None);
+        log::debug!("[InvManager FromContainer PLACE] Cleared container slot {} after moving item {}.", source_slot_index, item_from_container_id);
+    }
 
     Ok(())
 }
@@ -321,68 +383,83 @@ pub(crate) fn handle_move_within_container<C: ItemContainer>(
             
             let source_item_def = item_def_table.id().find(source_item.item_def_id)
                 .ok_or_else(|| format!("Definition not found for source item ID {}", source_item.item_def_id))?;
-            // Fetch target_item_def, it might be needed if swap logic uses it directly, or for consistency
             let target_item_def = item_def_table.id().find(target_item.item_def_id)
                 .ok_or_else(|| format!("Definition not found for target item ID {}", target_item.item_def_id))?;
 
-            log::info!("[InvManager WithinContainer] Attempting merge/swap: source item {}, target item {}", source_id, target_id);
+            log::info!("[InvManager WithinContainer] Attempting merge/swap: source item {} (slot {}), target item {} (slot {}).", 
+                     source_id, source_slot_index, target_id, target_slot_index);
 
             match calculate_merge_result(&source_item, &target_item, &source_item_def) { // Pass &source_item_def
                 Ok((_, source_new_qty, target_new_qty, delete_source)) => {
                     // Merge successful
-                    log::info!("[InvManager WithinContainer Merge] Merge successful. Target new qty: {}, Source new qty: {}, Delete source: {}", target_new_qty, source_new_qty, delete_source);
+                    log::info!("[InvManager WithinContainer Merge] Merge successful. Target new qty: {}, Source new qty: {}, Delete source: {}", 
+                             target_new_qty, source_new_qty, delete_source);
                     
-                    // Update InventoryItem for the target item (which received the merged quantity)
                     target_item.quantity = target_new_qty;
-                    inventory_table.instance_id().update(target_item); // Target item's location (target_slot_index) is unchanged
+                    inventory_table.instance_id().update(target_item.clone());
 
                     if delete_source {
-                        // Source item was fully merged into the target item.
-                        // Delete the source InventoryItem from the database.
                         log::debug!("[InvManager WithinContainer Merge] Source item {} fully merged. Deleting from DB and clearing container slot {}.", source_id, source_slot_index);
                         inventory_table.instance_id().delete(source_id);
-                        // Clear the source slot in the container.
                         container.set_slot(source_slot_index, None, None);
                     } else {
-                        // Source item was partially merged. Update its quantity in the database.
-                        // Its location (source_slot_index) remains unchanged.
                         log::debug!("[InvManager WithinContainer Merge] Source item {} partially merged. Updating quantity to {}. Container slot {} unchanged.", source_id, source_new_qty, source_slot_index);
                         source_item.quantity = source_new_qty;
-                        inventory_table.instance_id().update(source_item);
+                        inventory_table.instance_id().update(source_item.clone());
                     }
-                    // The target_slot_index in the container continues to hold target_id.
-                    // Its associated InventoryItem's quantity has been updated. No change to container.set_slot for target_slot_index is needed.
                 },
-                Err(msg) => {
-                    log::warn!("[InvManager WithinContainer] Cannot merge item {} into slot {} (item {}): {}. Item not placed.", source_id, target_slot_index, target_id, msg);
-                    return Err(format!("Slot {} is occupied and items cannot be merged: {}", target_slot_index, msg));
+                Err(merge_err_msg) => {
+                    log::warn!("[InvManager WithinContainer] Cannot merge item {} (def {}) with item {} (def {}) in slot {}: {}. Attempting SWAP.", 
+                             source_id, source_item.item_def_id, target_id, target_item.item_def_id, target_slot_index, merge_err_msg);
+
+                    // Update source_item's location to target_slot_index
+                    source_item.location = ItemLocation::Container(crate::models::ContainerLocationData {
+                        container_id,
+                        container_type: container_type.clone(),
+                        slot_index: target_slot_index,
+                    });
+                    inventory_table.instance_id().update(source_item.clone());
+
+                    // Update target_item's location to source_slot_index
+                    target_item.location = ItemLocation::Container(crate::models::ContainerLocationData {
+                        container_id, // container_id is the same for both items now
+                        container_type: container_type.clone(),
+                        slot_index: source_slot_index,
+                    });
+                    inventory_table.instance_id().update(target_item.clone());
+
+                    // Update container's slots
+                    container.set_slot(target_slot_index, Some(source_id), Some(source_item_def.id));
+                    container.set_slot(source_slot_index, Some(target_id), Some(target_item_def.id));
+
+                    log::info!("[InvManager WithinContainer Swap] Swapped item {} (now in slot {}) with item {} (now in slot {}).",
+                             source_id, target_slot_index, target_id, source_slot_index);
                 }
             }
         },
         (Some(source_id), None) => {
             // Target slot empty: Move source item to target slot
-            let source_item = inventory_table.instance_id().find(source_id)
+            let mut source_item = inventory_table.instance_id().find(source_id)
                 .ok_or_else(|| format!("Source item {} not found in DB for move to empty slot", source_id))?;
             let source_item_def = item_def_table.id().find(source_item.item_def_id)
                 .ok_or_else(|| format!("Definition not found for source item ID {}", source_item.item_def_id))?;
 
             log::info!("[InvManager WithinContainer Move] Moving item {} from slot {} to empty slot {}", source_id, source_slot_index, target_slot_index);
             
-            let mut source_item_mut = source_item.clone(); // Clone to make mutable for location update
-            source_item_mut.location = ItemLocation::Container(crate::models::ContainerLocationData {
+            source_item.location = ItemLocation::Container(crate::models::ContainerLocationData {
                 container_id: container.get_container_id(),
                 container_type: container.get_container_type(),
                 slot_index: target_slot_index,
             });
-            inventory_table.instance_id().update(source_item_mut);
+            inventory_table.instance_id().update(source_item.clone());
 
             container.set_slot(target_slot_index, Some(source_id), Some(source_item_def.id));
             container.set_slot(source_slot_index, None, None); // Clear original slot
         },
         (None, Some(target_id)) => {
             // Source slot empty: Move target item to source slot
-            // This is effectively the same as the above case, just swapping source/target logic
-            if let Some(mut target_item) = inventory_table.instance_id().find(target_id) {
+            let mut target_item = inventory_table.instance_id().find(target_id)
+                .ok_or_else(|| format!("Target item {} not found in DB when source slot was empty", target_id))?;
                 let target_item_def = item_def_table.id().find(target_item.item_def_id)
                     .ok_or_else(|| format!("Definition not found for target item ID {} when moving to empty source slot", target_item.item_def_id))?;
                 
@@ -393,15 +470,10 @@ pub(crate) fn handle_move_within_container<C: ItemContainer>(
                     container_type: container.get_container_type(),
                     slot_index: source_slot_index, 
                 });
-                inventory_table.instance_id().update(target_item.clone()); // target_item is already mut, clone not strictly needed for update but safe
+            inventory_table.instance_id().update(target_item.clone());
 
                 container.set_slot(source_slot_index, Some(target_id), Some(target_item_def.id));
                 container.set_slot(target_slot_index, None, None); // Clear original target slot
-            } else {
-                log::error!("[InvManager WithinContainer Move] Failed to find target item {} to move to empty source slot {}.", target_id, source_slot_index);
-                // Optionally return an error here if this case should be fatal
-                // return Err(format!("Target item {} not found for move operation", target_id));
-            }
         },
         (None, None) => {
             // Both slots empty: Do nothing
@@ -421,17 +493,26 @@ pub(crate) fn merge_or_place_into_container_slot<C: ItemContainer>(
     item_def_for_item_to_place: &ItemDefinition // Definition for item_to_place
 ) -> Result<(), String> {
     let inventory_table = ctx.db.inventory_item();
-    let item_def_table = ctx.db.item_definition(); // For fetching target item's def if slot is occupied
+    // let item_def_table = ctx.db.item_definition(); // For fetching target item's def if slot is occupied (not strictly needed by current merge logic)
+
+    log::debug!("[MergeOrPlace] Attempting to place/merge item {} (def {}) into container slot {}. Container ID: {}, Type: {:?}", 
+             item_to_place.instance_id, item_to_place.item_def_id, target_slot_index, container.get_container_id(), container.get_container_type());
 
     if target_slot_index >= container.num_slots() as u8 {
         return Err(format!("Target slot index {} out of bounds for merge/place.", target_slot_index));
     }
 
-    if let Some(target_instance_id) = container.get_slot_instance_id(target_slot_index) {
+    let existing_item_id_in_slot = container.get_slot_instance_id(target_slot_index);
+    log::debug!("[MergeOrPlace] Slot {} in container currently holds: {:?}", target_slot_index, existing_item_id_in_slot);
+
+    if let Some(target_instance_id) = existing_item_id_in_slot {
         // Target slot is OCCUPIED. Attempt to merge.
         let mut target_item_in_slot = inventory_table.instance_id().find(target_instance_id)
             .ok_or_else(|| format!("Item {} in target container slot {} not found in DB for merge!", target_instance_id, target_slot_index))?;
-        // Note: item_def_for_item_to_place is for the item_to_place (source-like), not target_item_in_slot.
+        
+        log::debug!("[MergeOrPlace] Target slot {} occupied by item {} (def {}). Item to place is {} (def {}).", 
+                 target_slot_index, target_instance_id, target_item_in_slot.item_def_id, 
+                 item_to_place.instance_id, item_to_place.item_def_id);
         
         match calculate_merge_result(item_to_place, &target_item_in_slot, item_def_for_item_to_place) {
             Ok((_, source_new_qty, target_new_qty, delete_source)) => {
@@ -440,56 +521,59 @@ pub(crate) fn merge_or_place_into_container_slot<C: ItemContainer>(
                     item_to_place.instance_id, source_new_qty, target_instance_id, target_slot_index, target_new_qty, delete_source
                 );
                 target_item_in_slot.quantity = target_new_qty;
-                inventory_table.instance_id().update(target_item_in_slot); // Target location unchanged
+                inventory_table.instance_id().update(target_item_in_slot.clone());
 
-                item_to_place.quantity = source_new_qty; // Update quantity of the item being placed/merged
+                item_to_place.quantity = source_new_qty; 
                 if delete_source {
-                    // item_to_place was fully merged.
                     log::debug!("[InvManager MergeOrPlace] item_to_place {} (qty {}) fully merged into target. Attempting to delete source.", item_to_place.instance_id, item_to_place.quantity);
-                    // Ensure the item exists before attempting to delete.
                     if let Some(mut actual_item_to_delete) = inventory_table.instance_id().find(item_to_place.instance_id) {
-                        actual_item_to_delete.location = ItemLocation::Unknown; // Mark location before delete
-                        inventory_table.instance_id().update(actual_item_to_delete); // Persist location change
+                        actual_item_to_delete.location = ItemLocation::Unknown; 
+                        inventory_table.instance_id().update(actual_item_to_delete.clone());
                         inventory_table.instance_id().delete(item_to_place.instance_id);
                         log::info!("[InvManager MergeOrPlace] Successfully deleted fully merged source item {}.", item_to_place.instance_id);
                     } else {
-                        // This might happen if item_to_place was a new, unsaved item that got fully merged.
                         log::debug!("[InvManager MergeOrPlace] Source item {} was not found in DB for deletion, possibly a new item that was fully merged before first save.", item_to_place.instance_id);
                     }
                 } else {
                     // item_to_place partially merged, its quantity is updated.
-                    // Its location should have been set by the caller to the target container slot.
-                    // We update it here to persist its new quantity at that location.
-                    inventory_table.instance_id().update(item_to_place.clone());
-                    log::debug!("[InvManager MergeOrPlace] item_to_place {} partially merged. Its quantity is now {}. Location {:?}. Updated in DB.", 
+                    // Its location field should already reflect the target container slot (set by caller like split_stack_helper).
+                    // Update it in DB to persist new quantity at that location.
+                    log::debug!("[InvManager MergeOrPlace] item_to_place {} partially merged. Its quantity is now {}. Location {:?}. Updating in DB.", 
                                 item_to_place.instance_id, item_to_place.quantity, item_to_place.location);
+                    inventory_table.instance_id().update(item_to_place.clone());
                 }
-                // Container slot already holds target_instance_id, its quantity was updated.
             },
             Err(msg) => {
-                log::warn!("[InvManager MergeOrPlace] Cannot merge item {} into slot {} (item {}): {}. Item not placed.", item_to_place.instance_id, target_slot_index, target_instance_id, msg);
+                log::warn!("[InvManager MergeOrPlace] Cannot merge item {} (def {}) into slot {} (item {}, def {}): {}. Item not placed.", 
+                         item_to_place.instance_id, item_to_place.item_def_id, 
+                         target_slot_index, target_instance_id, 
+                         target_item_in_slot.item_def_id, msg);
                 return Err(format!("Slot {} is occupied and items cannot be merged: {}", target_slot_index, msg));
             }
         }
     } else {
         // Target slot is EMPTY. Place the item_to_place.
-        log::info!("[InvManager MergeOrPlace] Placing item {} (qty {}) into empty container slot {}. Location {:?}", 
+        log::info!("[InvManager MergeOrPlace] Placing item {} (qty {}) into empty container slot {}. Desired Location: {:?}", 
                  item_to_place.instance_id, item_to_place.quantity, target_slot_index, item_to_place.location);
         
-        // Item's location should already be set to this container slot by the caller (e.g. split_stack_helper)
-        // If item_to_place is an existing DB item, update it. If it's a new one, it will be inserted by caller.
-        // For safety, ensure its location is correct if it's already in the DB.
-        if inventory_table.instance_id().find(item_to_place.instance_id).is_some() {
-             item_to_place.location = ItemLocation::Container(crate::models::ContainerLocationData {
+        // Ensure item's location is correctly set to this container slot before updating/inserting.
+        // This is crucial if item_to_place is an existing DB item being moved, or a new one from split.
+        let final_location = ItemLocation::Container(crate::models::ContainerLocationData {
                 container_id: container.get_container_id(),
                 container_type: container.get_container_type(),
                 slot_index: target_slot_index,
             });
+        item_to_place.location = final_location;
+
+        // If item_to_place is an existing DB item, update it. 
+        // If it's a new one (e.g. from split_stack_helper), it was already inserted into DB by the helper,
+        // so we just update its location and quantity here.
             inventory_table.instance_id().update(item_to_place.clone());
-        } 
-        // If it's a brand new item not yet in DB, caller of split_stack_helper handles insert with this location.
+        log::debug!("[InvManager MergeOrPlace] Updated/Persisted item_to_place {} with location {:?} and quantity {}.", 
+                    item_to_place.instance_id, item_to_place.location, item_to_place.quantity);
 
         container.set_slot(target_slot_index, Some(item_to_place.instance_id), Some(item_def_for_item_to_place.id));
+        log::debug!("[InvManager MergeOrPlace] Container slot {} set to hold item {}.", target_slot_index, item_to_place.instance_id);
     }
     Ok(())
 }
@@ -505,6 +589,9 @@ pub(crate) fn handle_split_into_container<C: ItemContainer>(
     let inventory_table = ctx.db.inventory_item();
     let sender_id = ctx.sender;
     let item_def_table = ctx.db.item_definition();
+
+    log::debug!("[SplitIntoContainer] Player {} splitting {} of item {} into container slot {}. Container ID: {}, Type: {:?}", 
+             sender_id, quantity_to_split, source_item_instance_id, target_slot_index, container.get_container_id(), container.get_container_type());
 
     // Fetch source item (owned by player)
     let mut source_item = inventory_table.instance_id().find(source_item_instance_id)
@@ -543,34 +630,27 @@ pub(crate) fn handle_split_into_container<C: ItemContainer>(
     });
 
     // --- Perform Split using Helper --- 
-    // This updates source_item quantity and creates the new item instance
     let new_item_instance_id = crate::items::split_stack_helper(ctx, &mut source_item, quantity_to_split, initial_location_for_new_item)?;
-    inventory_table.instance_id().update(source_item); // Persist source item quantity change
+    // inventory_table.instance_id().update(source_item); // split_stack_helper already updates source_item
     
-    // --- Fetch the NEW item to merge/place --- 
     let mut new_item = inventory_table.instance_id().find(new_item_instance_id)
                        .ok_or("Failed to find newly split item instance after creation")?;
     let new_item_def = item_def_table.id().find(new_item.item_def_id).ok_or("Def for new item not found!")?;
 
-    // --- Merge or Place NEW item into Container Slot --- 
-    // The new item was created with the target container location already set.
-    // Now, we need to see if the target slot in the *container itself* is occupied and potentially merge.
+    log::debug!("[SplitIntoContainer] After split_stack_helper: source_item {} qty {}, new_item {} (def {}) qty {} with location {:?}. Target slot in container is {}.",
+        source_item.instance_id, source_item.quantity, new_item.instance_id, new_item.item_def_id, new_item.quantity, new_item.location, target_slot_index);
+
     match merge_or_place_into_container_slot(ctx, container, target_slot_index, &mut new_item, &new_item_def) {
         Ok(_) => {
             log::info!("[SplitIntoContainer] Successfully split {} from item {} and placed/merged new item {} into container slot {}.", 
                      quantity_to_split, source_item_instance_id, new_item_instance_id, target_slot_index);
-            // If merge_or_place_into_container_slot updated new_item quantity (partial merge, though currently errors),
-            // we might need to update it in the DB again. However, it currently errors on partial merge.
-            // If it was deleted, no further action needed for new_item.
             Ok(())
         }
         Err(e) => {
             log::error!("[SplitIntoContainer] Failed to place/merge new item {} after split: {}. Attempting to delete new item and revert source.", new_item_instance_id, e);
-            // Attempt to clean up the newly created item if placement failed
             inventory_table.instance_id().delete(new_item_instance_id);
-            // Revert source item quantity change because the split couldn't be completed in container
             let mut source_to_revert = inventory_table.instance_id().find(source_item_instance_id).ok_or("Failed to find source item to revert qty")?;
-            source_to_revert.quantity += quantity_to_split; // Add back the quantity
+            source_to_revert.quantity += quantity_to_split; 
             inventory_table.instance_id().update(source_to_revert);
             Err(format!("Failed to place split stack: {}", e))
         }
@@ -590,17 +670,20 @@ pub(crate) fn handle_split_from_container<C: ItemContainer>(
     let inventory_table = ctx.db.inventory_item();
     let item_def_table = ctx.db.item_definition();
 
-    // --- Get Source Item from Container --- 
+    log::debug!("[SplitFromContainer] Splitting {} from container slot {} to player {} slot {}. Container ID: {}, Type: {:?}", 
+             quantity_to_split, source_slot_index, target_slot_type, target_slot_index, container.get_container_id(), container.get_container_type());
+
+    // --- 1. Get Source Item from Container --- 
     if source_slot_index >= container.num_slots() as u8 {
         return Err("Invalid source container slot index.".to_string());
     }
     let source_instance_id = container.get_slot_instance_id(source_slot_index)
         .ok_or("Source container slot is empty.")?;
-    let mut source_item = inventory_table.instance_id().find(source_instance_id)
-        .ok_or("Source item instance not found in DB!")?;
+    let mut source_item_from_container = inventory_table.instance_id().find(source_instance_id)
+        .ok_or_else(|| format!("Source item instance {} from container slot {} not found in DB!", source_instance_id, source_slot_index))?;
 
-    // --- Determine Target Location for New Stack (in Player Inv/Hotbar) ---
-    let initial_location_for_new_item = match target_slot_type.as_str() {
+    // --- 2. Determine Target Location for New Stack (in Player Inv/Hotbar) ---
+    let player_target_location = match target_slot_type.as_str() {
         "inventory" => {
             if target_slot_index >= NUM_PLAYER_INVENTORY_SLOTS as u32 {
                 return Err("Invalid target inventory slot index for split".to_string());
@@ -616,52 +699,153 @@ pub(crate) fn handle_split_from_container<C: ItemContainer>(
         _ => return Err("Invalid target_slot_type for split. Must be 'inventory' or 'hotbar'.".to_string()),
     };
 
-    // --- Perform Split using Helper --- 
-    // This updates source_item quantity (in container) and creates new_item_instance_id
-    // with the specified initial_location_for_new_item (in player inv/hotbar).
-    let new_item_instance_id = crate::items::split_stack_helper(ctx, &mut source_item, quantity_to_split, initial_location_for_new_item.clone())?;
-    inventory_table.instance_id().update(source_item); // Persist source item quantity change
+    // --- 3. Perform Split using Helper --- 
+    // split_stack_helper updates source_item_from_container quantity in DB,
+    // and creates newly_split_item_id in DB with its location set to player_target_location.
+    let newly_split_item_id = crate::items::split_stack_helper(ctx, &mut source_item_from_container, quantity_to_split, player_target_location.clone())?;
     
-    // --- Update Container Slot if Source Item Quantity is Now Zero --- 
-    let updated_source_item = inventory_table.instance_id().find(source_instance_id)
-        .ok_or("Failed to refetch source item after split!")?;
-    if updated_source_item.quantity == 0 {
-        log::debug!("[SplitFromContainer] Source item {} in container slot {} has quantity 0 after split. Deleting item and clearing slot.", 
-                 source_instance_id, source_slot_index);
-        let mut item_to_delete = updated_source_item;
-        item_to_delete.location = ItemLocation::Unknown;
-        inventory_table.instance_id().update(item_to_delete);
-        inventory_table.instance_id().delete(source_instance_id);
+    let mut newly_split_item = inventory_table.instance_id().find(newly_split_item_id)
+        .ok_or_else(|| format!("Newly split item {} not found after creation!", newly_split_item_id))?;
+    let newly_split_item_def = item_def_table.id().find(newly_split_item.item_def_id)
+        .ok_or_else(|| format!("Definition for newly split item {} not found", newly_split_item.item_def_id))?;
+
+    log::debug!("[SplitFromContainer] After helper: source item {} (slot {}) now qty {}. New item {} (qty {}) at target {:?}.",
+        source_item_from_container.instance_id, source_slot_index, source_item_from_container.quantity,
+        newly_split_item.instance_id, newly_split_item.quantity, newly_split_item.location
+    );
+    
+    // --- 4. Update Source Container Slot State ---
+    // If source_item_from_container quantity is now zero after split, clear it from container struct.
+    // Otherwise, the container struct still points to it with its reduced quantity.
+    // (split_stack_helper already updated the source_item_from_container in the InventoryItem table)
+    let source_item_after_split = inventory_table.instance_id().find(source_instance_id) // Re-fetch to be safe
+        .ok_or_else(|| format!("Source item {} not found after split_stack_helper!", source_instance_id))?;
+
+    if source_item_after_split.quantity == 0 {
+        log::debug!("[SplitFromContainer] Source item {} in container slot {} depleted. Clearing slot and deleting item.", source_instance_id, source_slot_index);
+        inventory_table.instance_id().delete(source_instance_id); // Delete the DB row for the depleted stack
         container.set_slot(source_slot_index, None, None);
     } else {
-        // If source quantity > 0, the container slot remains unchanged.
-        log::debug!("[SplitFromContainer] Source item {} in container slot {} has quantity {} remaining.", 
-                 source_instance_id, source_slot_index, updated_source_item.quantity);
+        // Container's slot already points to source_instance_id, which has its quantity updated in DB.
+        // No change needed to container.set_slot here if item remains.
+        log::debug!("[SplitFromContainer] Source item {} in container slot {} remains with qty {}.", source_instance_id, source_slot_index, source_item_after_split.quantity);
     }
 
-    // --- Move/Merge the NEWLY CREATED stack to its target player slot --- 
-    // Use player_inventory functions which handle merging/swapping.
-    log::debug!("[SplitFromContainer] Attempting to move/merge new item {} to player location {:?}.", 
-             new_item_instance_id, initial_location_for_new_item);
-
-    let move_result = match initial_location_for_new_item {
-        ItemLocation::Inventory(data) => {
-            move_item_to_inventory(ctx, new_item_instance_id, data.slot_index)
-        }
-        ItemLocation::Hotbar(data) => {
-            move_item_to_hotbar(ctx, new_item_instance_id, data.slot_index)
-        }
-        _ => Err("Internal error: Invalid target location for new item after split.".to_string()),
+    // --- 5. Handle Placement/Merge/Swap of newly_split_item in Player's Inventory ---
+    // Check if the player's target slot is occupied by a *different* item.
+    // Note: newly_split_item.location is already player_target_location.
+    let item_actually_in_player_slot_opt = match player_target_location {
+        ItemLocation::Inventory(ref data) => crate::player_inventory::find_item_in_inventory_slot(ctx, data.slot_index),
+        ItemLocation::Hotbar(ref data) => crate::player_inventory::find_item_in_hotbar_slot(ctx, data.slot_index),
+        _ => None, 
     };
 
-    if let Err(e) = move_result {
-         log::error!("[SplitFromContainer] Failed to move/merge new item {} to player after split: {}. Deleting new item.", new_item_instance_id, e);
-         // Attempt cleanup of the new item
-         inventory_table.instance_id().delete(new_item_instance_id);
-         // State might be inconsistent if source container item was modified.
-         // This requires careful consideration of transactional rollback or compensating actions.
-         // For now, we have to assume the split_stack_helper's reduction of source_item qty is an issue if this fails.
-         return Err(format!("Failed to place split stack into player inventory: {}", e));
+    if let Some(mut actual_item_in_player_slot) = item_actually_in_player_slot_opt {
+        // Player slot is occupied.
+        // Important: Check if it's occupied by the newly_split_item itself (this means the slot was empty before split_stack_helper, which is fine)
+        // or by a pre-existing different item.
+        if actual_item_in_player_slot.instance_id == newly_split_item_id {
+            // Slot was empty, newly_split_item is now there. This is a successful placement.
+            log::info!("[SplitFromContainer] Newly split item {} (qty {}) successfully placed in player slot {:?}.", 
+                     newly_split_item_id, newly_split_item.quantity, player_target_location);
+        } else {
+            // Player slot is occupied by a DIFFERENT pre-existing item. Try to merge or swap.
+            let actual_item_in_player_slot_def = item_def_table.id().find(actual_item_in_player_slot.item_def_id)
+                .ok_or_else(|| format!("Definition for item {} in player slot not found", actual_item_in_player_slot.item_def_id))?;
+            
+            log::info!("[SplitFromContainer] Player slot {:?} occupied by item {} (def {}). Attempting merge with new split item {} (def {}).", 
+                     player_target_location, actual_item_in_player_slot.instance_id, actual_item_in_player_slot.item_def_id, 
+                     newly_split_item_id, newly_split_item_def.id);
+
+            match calculate_merge_result(&newly_split_item, &actual_item_in_player_slot, &newly_split_item_def) {
+                Ok((qty_transfer, source_new_qty, target_new_qty, delete_source_of_merge)) => {
+                    // MERGE Successful (newly_split_item into actual_item_in_player_slot)
+                    log::info!("[SplitFromContainer MERGE] Merging {} from new split item {} onto player item {}. Player item new qty: {}. Delete new split item: {}",
+                             qty_transfer, newly_split_item_id, actual_item_in_player_slot.instance_id, target_new_qty, delete_source_of_merge);
+
+                    actual_item_in_player_slot.quantity = target_new_qty;
+                    inventory_table.instance_id().update(actual_item_in_player_slot.clone());
+
+                    if delete_source_of_merge {
+                        log::debug!("[SplitFromContainer MERGE] Deleting fully merged new split item {}.", newly_split_item_id);
+                        inventory_table.instance_id().delete(newly_split_item_id);
+                    } else {
+                        newly_split_item.quantity = source_new_qty;
+                        // Its location is already player_target_location, just update qty
+                        inventory_table.instance_id().update(newly_split_item.clone()); 
+                    }
+                }
+                Err(merge_err_msg) => {
+                    // MERGE Failed: SWAP (newly_split_item with actual_item_in_player_slot)
+                    log::warn!("[SplitFromContainer SWAP] Cannot merge: {}. Swapping new split item {} (destined for player slot {:?}) with player item {} (currently in that slot).", 
+                             merge_err_msg, newly_split_item_id, player_target_location, actual_item_in_player_slot.instance_id);
+
+                    let original_container_slot_location = ItemLocation::Container(crate::models::ContainerLocationData {
+                        container_id: container.get_container_id(),
+                        container_type: container.get_container_type(),
+                        slot_index: source_slot_index, // The slot from which the original stack was split
+                    });
+
+                    // 1. Item from player's slot (Hatchet) moves to the original container slot
+                    actual_item_in_player_slot.location = original_container_slot_location;
+                    inventory_table.instance_id().update(actual_item_in_player_slot.clone());
+                    log::debug!("[SplitFromContainer SWAP] Player item {} (was {:?}) new location: {:?}.", 
+                             actual_item_in_player_slot.instance_id, player_target_location, actual_item_in_player_slot.location);
+                    
+                    // 2. Update the container's direct slot state to hold actual_item_in_player_slot (Hatchet)
+                    // This assumes the source_container_slot is now available for the Hatchet.
+                    // If source_item_from_container still has items, this is more complex.
+                    // For now, assume if a split happened, the source_slot is available or the remaining part of source_item_from_container stays.
+                    // The Hatchet needs *a* slot in the container. If source_slot_index is still partially occupied, this will fail.
+                    // This logic needs to ensure that the source_slot_index is effectively empty or can receive the swapped item.
+                    // The original source_item_from_container was either depleted (slot cleared) or its quantity reduced.
+                    // If it was depleted, container.set_slot was called with None.
+                    // If it was NOT depleted, its entry in container.set_slot was NOT changed.
+                    // So, if source_item_from_container was NOT depleted, Hatchet cannot go to source_slot_index. This swap would fail.
+                    // This implies the current swap logic is too simple if the original container slot isn't fully clear.
+
+                    // Re-evaluating the swap: The `actual_item_in_player_slot` needs to go to an empty slot in the source container,
+                    // or if the source container's `source_slot_index` became empty due to the split taking the whole stack.
+                    // For simplicity, this example will assume for now that for a SWAP to occur during split,
+                    // the `source_slot_index` in the container must have been fully emptied by the split.
+                    // A more robust solution would find any empty slot or handle partial source stack.
+
+                    if source_item_after_split.quantity != 0 {
+                        // The original slot in the container is still occupied by the remainder of the split stack.
+                        // We cannot swap the player's item into this slot directly.
+                        // This scenario requires a more complex handling: either fail the split-swap,
+                        // or find another empty slot in the container for the player's item.
+                        // For now, let's revert the newly_split_item and fail.
+                        log::error!("[SplitFromContainer SWAP] Cannot swap: Original container slot {} still occupied by remainder of stack {}. Reverting split.", 
+                                  source_slot_index, source_instance_id);
+                        inventory_table.instance_id().delete(newly_split_item_id); // Delete the new item
+                        // Revert source_item_from_container quantity (refetch and update)
+                        let mut source_to_revert = inventory_table.instance_id().find(source_instance_id)
+                            .ok_or_else(|| format!("Failed to find source item {} to revert qty for failed swap", source_instance_id))?;
+                        source_to_revert.quantity += quantity_to_split; // Add back the split quantity
+                        inventory_table.instance_id().update(source_to_revert);
+                        // No changes to player's item or container struct needed for this failed swap path.
+                        return Err("Cannot swap: Source container slot still occupied after split.".to_string());
+                    }
+                    
+                    // If we reach here, source_item_after_split.quantity was 0, so container slot was cleared.
+                    // Now, place the actual_item_in_player_slot into that cleared container slot.
+                    container.set_slot(source_slot_index, Some(actual_item_in_player_slot.instance_id), Some(actual_item_in_player_slot_def.id));
+                    log::debug!("[SplitFromContainer SWAP] Container slot {} now holds player item {} (def {}).", 
+                             source_slot_index, actual_item_in_player_slot.instance_id, actual_item_in_player_slot_def.id);
+
+                    // 3. newly_split_item's location is already player_target_location, and it's in DB.
+                    // Its InventoryItem record is correct.
+                    log::debug!("[SplitFromContainer SWAP] New split item {} remains at player location {:?}.",
+                             newly_split_item_id, newly_split_item.location);
+                }
+            }
+        }
+    } else {
+        // Player slot was empty. newly_split_item is already placed there by split_stack_helper.
+        log::info!("[SplitFromContainer] Newly split item {} (qty {}) placed in empty player slot {:?}.", 
+                 newly_split_item_id, newly_split_item.quantity, player_target_location);
+        // No further action needed for item placement.
     }
 
     Ok(())
@@ -679,6 +863,9 @@ pub(crate) fn handle_split_within_container<C: ItemContainer>(
     let item_def_table = ctx.db.item_definition();
     let container_id = container.get_container_id();
     let container_type = container.get_container_type();
+
+    log::debug!("[SplitWithinContainer] Splitting {} from slot {} to slot {} in container ID {}, Type {:?}", 
+        quantity_to_split, source_slot_index, target_slot_index, container_id, container_type);
 
     // --- Validate Indices --- 
     if source_slot_index >= container.num_slots() as u8 || target_slot_index >= container.num_slots() as u8 {
@@ -703,25 +890,27 @@ pub(crate) fn handle_split_within_container<C: ItemContainer>(
 
     // --- Perform Split using Helper --- 
     let new_item_instance_id = crate::items::split_stack_helper(ctx, &mut source_item, quantity_to_split, initial_location_for_new_item)?;
-    inventory_table.instance_id().update(source_item); // Persist source item quantity change
+    // inventory_table.instance_id().update(source_item); // split_stack_helper updates source_item
     
-    // --- Fetch the NEW item to merge/place --- 
     let mut new_item = inventory_table.instance_id().find(new_item_instance_id)
                        .ok_or("Failed to find newly split item instance after creation")?;
     let new_item_def = item_def_table.id().find(new_item.item_def_id).ok_or("Def for new item not found!")?;
 
-    // --- Merge or Place NEW item into Target Container Slot --- 
+    log::debug!("[SplitWithinContainer] After split_stack_helper: source_item {} (slot {}) qty {}, new_item {} (def {}) qty {} with location {:?}. Target slot in container is {}.",
+        source_item.instance_id, source_slot_index, source_item.quantity, 
+        new_item.instance_id, new_item.item_def_id, new_item.quantity, new_item.location, target_slot_index);
+
     match merge_or_place_into_container_slot(ctx, container, target_slot_index, &mut new_item, &new_item_def) {
         Ok(_) => {
             log::info!("[SplitWithinContainer] Successfully split {} from item {} (slot {}) and placed/merged new item {} into container slot {}.", 
                      quantity_to_split, source_instance_id, source_slot_index, new_item_instance_id, target_slot_index);
-            // Check if source item quantity is now zero after split and update container slot
-            let updated_source_item = inventory_table.instance_id().find(source_instance_id)
-                .ok_or("Failed to refetch source item after split!")?;
-            if updated_source_item.quantity == 0 {
+            
+            let updated_source_item_from_db = inventory_table.instance_id().find(source_instance_id)
+                .ok_or("Failed to refetch source item after split and merge/place attempt!")?;
+            if updated_source_item_from_db.quantity == 0 {
                 log::debug!("[SplitWithinContainer] Source item {} in slot {} has quantity 0. Deleting item and clearing slot.", 
                          source_instance_id, source_slot_index);
-                let mut item_to_delete = updated_source_item;
+                let mut item_to_delete = updated_source_item_from_db;
                 item_to_delete.location = ItemLocation::Unknown;
                 inventory_table.instance_id().update(item_to_delete);
                 inventory_table.instance_id().delete(source_instance_id);
@@ -731,8 +920,7 @@ pub(crate) fn handle_split_within_container<C: ItemContainer>(
         }
         Err(e) => {
             log::error!("[SplitWithinContainer] Failed to place/merge new item {} after split: {}. Reverting source and deleting new.", new_item_instance_id, e);
-            inventory_table.instance_id().delete(new_item_instance_id); // Delete the new item
-            // Revert source item qty
+            inventory_table.instance_id().delete(new_item_instance_id); 
             let mut source_to_revert = inventory_table.instance_id().find(source_instance_id).ok_or("Failed to find source item to revert qty")?;
             source_to_revert.quantity += quantity_to_split; 
             inventory_table.instance_id().update(source_to_revert);
@@ -749,7 +937,7 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
 ) -> Result<(), String> {
     let sender_id = ctx.sender;
     let inventory_table = ctx.db.inventory_item();
-    let item_def_table = ctx.db.item_definition();
+    // let item_def_table = ctx.db.item_definition(); // Not needed for this function
 
     // --- 1. Validate Source and Get Item ID --- 
     if source_slot_index >= container.num_slots() as u8 {
@@ -757,8 +945,8 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
     }
     let source_instance_id = container.get_slot_instance_id(source_slot_index)
         .ok_or("Source container slot is empty.")?;
-    let source_def_id = container.get_slot_def_id(source_slot_index)
-        .ok_or_else(|| format!("Source slot {} missing def ID! Inconsistent state.", source_slot_index))?;
+    // let source_def_id = container.get_slot_def_id(source_slot_index)
+    //     .ok_or_else(|| format!("Source slot {} missing def ID! Inconsistent state.", source_slot_index))?;
     
     // --- 2. Find First Available Player Slot --- 
     let target_location_opt = find_first_empty_player_slot(ctx, sender_id);
@@ -787,8 +975,7 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
                 if let Err(e) = move_item_to_inventory(ctx, source_instance_id, data.slot_index) {
                     // Attempt to revert
                     log::error!("[InvManager QuickMoveFromContainer] Failed to move item {} to player inv slot {}: {}. Attempting revert.", source_instance_id, data.slot_index, e);
-                    // Re-fetch item def for revert
-                    let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(||"Source item lost".to_string())?;
+                    let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(|| format!("QuickMove: Source item {} lost during revert", source_instance_id))?;
                     let source_def_id_for_revert = source_item_for_revert.item_def_id;
                     container.set_slot(source_slot_index, Some(source_instance_id), Some(source_def_id_for_revert));
                     return Err(e);
@@ -798,7 +985,7 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
                 if let Err(e) = move_item_to_hotbar(ctx, source_instance_id, data.slot_index) {
                      // Attempt to revert
                     log::error!("[InvManager QuickMoveFromContainer] Failed to move item {} to player hotbar slot {}: {}. Attempting revert.", source_instance_id, data.slot_index, e);
-                    let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(||"Source item lost".to_string())?;
+                    let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(|| format!("QuickMove: Source item {} lost during revert", source_instance_id))?;
                     let source_def_id_for_revert = source_item_for_revert.item_def_id;
                     container.set_slot(source_slot_index, Some(source_instance_id), Some(source_def_id_for_revert));
                     return Err(e);
@@ -806,8 +993,7 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
             }
             _ => { // Should not happen if find_first_empty_player_slot is correct
                 log::error!("[InvManager QuickMoveFromContainer] Unexpected target location type from find_first_empty_player_slot: {:?}. Reverting item {} to container slot {}.", target_location, source_instance_id, source_slot_index);
-                // Attempt to revert by putting item back
-                let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(||"Source item lost".to_string())?;
+                let source_item_for_revert = inventory_table.instance_id().find(source_instance_id).ok_or_else(|| format!("QuickMove: Source item {} lost during revert", source_instance_id))?;
                 let source_def_id_for_revert = source_item_for_revert.item_def_id;
                 container.set_slot(source_slot_index, Some(source_instance_id), Some(source_def_id_for_revert));
                 return Err("Unexpected target location type for quick move.".to_string());
@@ -889,39 +1075,23 @@ pub(crate) fn handle_quick_move_to_container<C: ItemContainer>(
         }
     }
 
-    // If no suitable slot found
     let target_slot_idx = target_slot_index_opt.ok_or_else(|| "Container is full or no suitable slot found.".to_string())?;
     
     log::info!("[QuickMoveToContainer] Attempting move item {} from player location {:?} to container slot {}.",
              item_instance_id, original_location, target_slot_idx);
 
-    // --- 4. Merge or Place into Container Slot --- 
-    // Pass a mutable reference to item_to_move to allow its quantity to be updated directly by the helper if partially merged.
     match merge_or_place_into_container_slot(ctx, container, target_slot_idx, &mut item_to_move, &item_def_to_move) {
         Ok(_) => {
             log::info!("[QuickMoveToContainer] Successfully moved/merged item {} to container slot {}.", item_instance_id, target_slot_idx);
             
-            // If item_to_move.quantity became 0 (fully merged & deleted by helper), no further DB update needed for it.
-            // If item_to_move.quantity > 0 (partially merged), its quantity was updated by the helper,
-            // but its location is still the player's. We need to persist this quantity update for the player's item.
-            // The location remains the player's original location unless it was fully merged.
-            // If it was fully merged, it was deleted by merge_or_place_into_container_slot.
-            // If it was NOT fully merged, we must update its quantity in the DB at its original location.
-            // merge_or_place_into_container_slot already updates it if not deleted.
-            
-            // --- 5. Clear Original Equipment Slot if Necessary --- 
-            // This should only happen if the item was *actually* removed from the player (i.e., fully merged or placed).
-            // If item_to_move was fully merged and deleted, then its original_equipment_slot can be cleared.
-            // If it was partially merged, it remains in the equipment slot with reduced quantity.
-            // If it was placed (target slot empty), then it's fully moved.
-            let item_fully_moved_or_merged = inventory_table.instance_id().find(item_instance_id).is_none() || item_to_move.location != original_location;
+            let item_after_merge_opt = inventory_table.instance_id().find(item_instance_id);
+            let item_fully_moved_or_merged = item_after_merge_opt.is_none() || 
+                                             item_after_merge_opt.map_or(false, |item| item.location != original_location);
 
             if let Some(eq_slot_type) = original_equipment_slot_type {
                 if item_fully_moved_or_merged {
                     log::info!("[QuickMoveToContainer] Clearing original equipment slot {:?} as item {} was fully moved/merged.", eq_slot_type, item_instance_id);
                     crate::items::clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
-                } else {
-                    log::debug!("[QuickMoveToContainer] Item {} was partially merged or move failed, not clearing equipment slot {:?}.", item_instance_id, eq_slot_type);
                 }
             }
             Ok(())

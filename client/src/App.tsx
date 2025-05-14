@@ -284,7 +284,7 @@ function AppContent() {
             {/* If authenticated AND registered/game ready */}
             {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
                 (() => { // Use an IIFE to allow logging before returning GameScreen
-                    console.log("[AppContent] About to render GameScreen. hemps variable:", hemps);
+                    // console.log("[AppContent] About to render GameScreen. hemps variable:", hemps);
                     return (
                         <GameScreen 
                             players={players}

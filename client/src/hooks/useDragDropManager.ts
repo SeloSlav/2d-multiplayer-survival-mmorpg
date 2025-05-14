@@ -98,6 +98,35 @@ export const useDragDropManager = ({
                     if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         if (isNaN(targetSlotIndexNum)) { setDropError("Invalid target slot index."); return; }
+
+                        // START MODIFICATION: Check if target slot is occupied by a different item type
+                        let targetItemInstance: InventoryItem | undefined = undefined;
+                        if (connection && playerIdentity) {
+                            const allPlayerItems = Array.from(connection.db.inventoryItem.iter());
+                            if (targetSlotType === 'inventory') {
+                                targetItemInstance = allPlayerItems.find(i =>
+                                    i.location.tag === 'Inventory' &&
+                                    i.location.value instanceof Object && 'ownerId' in i.location.value && 'slotIndex' in i.location.value && // Type guard
+                                    (i.location.value as InventoryLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as InventoryLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            } else { // hotbar
+                                targetItemInstance = allPlayerItems.find(i =>
+                                    i.location.tag === 'Hotbar' &&
+                                    i.location.value instanceof Object && 'ownerId' in i.location.value && 'slotIndex' in i.location.value && // Type guard
+                                    (i.location.value as HotbarLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as HotbarLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            }
+                        }
+
+                        if (targetItemInstance && sourceInfo.item.definition.id !== targetItemInstance.itemDefId) {
+                            // console.log(`[useDragDropManager Drop Split] Prevented split: Source item def ID '${sourceInfo.item.definition.id}' differs from target item def ID '${targetItemInstance.itemDefId}'.`);
+                            // setDropError("Cannot stack different item types."); 
+                            return; 
+                        }
+                        // END MODIFICATION
+
                         // console.log(`[useDragDropManager Drop Split] Calling splitStack (Inv/Hotbar -> Inv/Hotbar)`);
                         connection.reducers.splitStack(sourceInstanceId, quantityToSplit, targetSlotType, targetSlotIndexNum);
                     } else if (targetSlotType === 'campfire_fuel') {
