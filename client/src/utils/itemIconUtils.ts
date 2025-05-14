@@ -63,9 +63,15 @@ const iconMap: { [key: string]: string | undefined } = {
 // Export a function that provides the fallback logic
 export function getItemIcon(assetName: string | undefined | null): string {
     if (!assetName) {
+        console.log('[ItemIconUtils] assetName is missing, returning errorIcon');
         return errorIcon; // Return error icon if assetName is missing
     }
-    return iconMap[assetName] || errorIcon; // Return mapped icon or error icon
+    const iconPath = iconMap[assetName];
+    if (!iconPath) {
+        // Log details if the specific assetName for spear is not found
+        console.log(`[ItemIconUtils] No icon found in map for '${assetName}', returning errorIcon. Mapped value:`, iconPath);
+    }
+    return iconPath || errorIcon; // Return mapped icon or error icon
 }
 
 // Keep the itemIcons map export if it's used elsewhere, but prefer getItemIcon

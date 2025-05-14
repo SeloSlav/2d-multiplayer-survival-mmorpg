@@ -204,11 +204,11 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: Some(15),
             pvp_damage_max: Some(15),
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Wood".to_string(), quantity: 75 },
-                CostIngredient { item_name: "Stone".to_string(), quantity: 25 }
+                CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
+                CostIngredient { item_name: "Stone".to_string(), quantity: 100 }
             ]),
             crafting_output_quantity: Some(1),
-            crafting_time_secs: Some(10),
+            crafting_time_secs: Some(30),
             consumable_health_gain: None,
             consumable_hunger_satiated: None,
             consumable_thirst_quenched: None,
@@ -241,11 +241,11 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: Some(17),
             pvp_damage_max: Some(17),
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Wood".to_string(), quantity: 75 },
-                CostIngredient { item_name: "Stone".to_string(), quantity: 25 }
+                CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
+                CostIngredient { item_name: "Stone".to_string(), quantity: 100 }
             ]),
             crafting_output_quantity: Some(1),
-            crafting_time_secs: Some(10),
+            crafting_time_secs: Some(30),
             consumable_health_gain: None,
             consumable_hunger_satiated: None,
             consumable_thirst_quenched: None,
@@ -311,13 +311,13 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             secondary_target_yield_max: None,
             secondary_target_type: None,
             secondary_yield_resource_name: None,
-            pvp_damage_min: Some(15),
-            pvp_damage_max: Some(20),
+            pvp_damage_min: Some(25),
+            pvp_damage_max: Some(25),
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Wood".to_string(), quantity: 50 },
+                CostIngredient { item_name: "Wood".to_string(), quantity: 300 },
             ]),
             crafting_output_quantity: Some(1),
-            crafting_time_secs: Some(5),
+            crafting_time_secs: Some(30),
             consumable_health_gain: None,
             consumable_hunger_satiated: None,
             consumable_thirst_quenched: None,

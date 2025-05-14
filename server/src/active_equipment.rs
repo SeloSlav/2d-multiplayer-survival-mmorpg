@@ -254,15 +254,24 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
 
+    // Default values for attack cone
+    let mut actual_attack_range = PLAYER_RADIUS * 4.0;
+    let mut actual_attack_angle_degrees = 90.0;
+
+    // Check if the item is a Wooden Spear and adjust its properties
+    if item_def.name == "Wooden Spear" {
+        // Spears have a longer range and a narrower cone for a thrust-like attack
+        actual_attack_range = PLAYER_RADIUS * 6.0; // Further increased range for better standoff
+        actual_attack_angle_degrees = 30.0;      // Narrow 30-degree cone for thrust
+        log::debug!("Wooden Spear detected: Using custom range {:.1}, angle {:.1}", actual_attack_range, actual_attack_angle_degrees);
+    }
+
     current_equipment.swing_start_time_ms = now_ms;
     active_equipments.player_identity().update(current_equipment.clone());
-    log::debug!("Player {:?} started using item '{}' (ID: {})",
-             sender_id, item_def.name, item_def_id);
-
-    let attack_range = PLAYER_RADIUS * 4.0;
-    let attack_angle_degrees = 90.0;
+    log::debug!("Player {:?} started using item '{}' (ID: {}). Effective range: {:.1}, angle: {:.1}",
+             sender_id, item_def.name, item_def_id, actual_attack_range, actual_attack_angle_degrees);
     
-    let targets = find_targets_in_cone(ctx, &player, attack_range, attack_angle_degrees);
+    let targets = find_targets_in_cone(ctx, &player, actual_attack_range, actual_attack_angle_degrees);
     
     if let Some(target) = find_best_target(&targets, &item_def) {
         match process_attack(ctx, sender_id, &target, &item_def, now_ts, &mut rng) {
