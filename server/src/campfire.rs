@@ -628,6 +628,7 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
 #[spacetimedb::reducer]
 pub fn schedule_next_campfire_processing(ctx: &ReducerContext, campfire_id: u32) -> Result<(), String> {
     let mut schedules = ctx.db.campfire_processing_schedule();
+    // Fetch campfire mutably by getting an owned copy that we can change and then update
     let campfire_opt = ctx.db.campfire().id().find(campfire_id);
 
     // If campfire doesn't exist, remove any existing schedule for it.
@@ -637,35 +638,70 @@ pub fn schedule_next_campfire_processing(ctx: &ReducerContext, campfire_id: u32)
         return Ok(());
     }
 
-    let campfire = campfire_opt.unwrap();
+    let mut campfire = campfire_opt.unwrap(); // Now an owned, mutable copy
+    let mut campfire_state_changed = false; // Track if we modify the campfire struct
 
-    if campfire.is_burning && check_if_campfire_has_fuel(ctx, &campfire) {
-        // If burning and has fuel, schedule periodic processing
-        let interval = TimeDuration::from_micros((CAMPFIRE_PROCESS_INTERVAL_SECS * 1_000_000) as i64); // Convert seconds to micros
-        let schedule_entry = CampfireProcessingSchedule {
-            campfire_id_for_schedule: campfire_id as u64,
-            scheduled_at: interval.into(),
-        };
-        match schedules.try_insert(schedule_entry) {
-            Ok(_) => log::debug!("[ScheduleCampfire] Successfully scheduled periodic processing for burning campfire {}.", campfire_id),
-            Err(e) => {
-                // This might happen if a schedule already exists (e.g. from a previous failed update).
-                // We can try to update it, or just log. For now, log.
-                log::warn!("[ScheduleCampfire] Failed to insert new schedule for campfire {}: {}. It might already exist or PK conflict.", campfire_id, e);
-                // Attempt to update the existing schedule if PK is the issue (assuming PK is campfire_id_for_schedule)
-                if let Some(mut existing_schedule) = schedules.campfire_id_for_schedule().find(campfire_id as u64) {
-                    existing_schedule.scheduled_at = interval.into();
-                    schedules.campfire_id_for_schedule().update(existing_schedule);
-                    log::debug!("[ScheduleCampfire] Updated existing schedule for burning campfire {}.", campfire_id);
-                } else {
-                    return Err(format!("Failed to insert or update schedule for campfire {}: {}", campfire_id, e));
+    let has_fuel = check_if_campfire_has_fuel(ctx, &campfire);
+
+    if campfire.is_burning {
+        if has_fuel {
+            // If burning and has fuel, ensure schedule is active for periodic processing
+            let interval = TimeDuration::from_micros((CAMPFIRE_PROCESS_INTERVAL_SECS * 1_000_000) as i64);
+            let schedule_entry = CampfireProcessingSchedule {
+                campfire_id_for_schedule: campfire_id as u64,
+                scheduled_at: interval.into(),
+            };
+            // Try to insert; if it already exists (e.g. PK conflict), update it.
+            if schedules.campfire_id_for_schedule().find(campfire_id as u64).is_some() {
+                // Schedule exists, update it
+                let mut existing_schedule = schedules.campfire_id_for_schedule().find(campfire_id as u64).unwrap(); // Safe due to check
+                existing_schedule.scheduled_at = interval.into();
+                schedules.campfire_id_for_schedule().update(existing_schedule);
+                log::debug!("[ScheduleCampfire] Updated existing periodic processing schedule for burning campfire {}.", campfire_id);
+            } else {
+                // Schedule does not exist, insert new one
+                match schedules.try_insert(schedule_entry) {
+                    Ok(_) => log::debug!("[ScheduleCampfire] Successfully scheduled new periodic processing for burning campfire {}.", campfire_id),
+                    Err(e) => {
+                        // This case should ideally not be hit if the find check above is correct,
+                        // but log as warning just in case of race or other unexpected state.
+                        log::warn!("[ScheduleCampfire] Failed to insert new schedule for campfire {} despite not finding one: {}. Attempting update as fallback.", campfire_id, e);
+                        // Attempt to update the existing schedule if PK is the issue (assuming PK is campfire_id_for_schedule)
+                        if let Some(mut existing_schedule_fallback) = schedules.campfire_id_for_schedule().find(campfire_id as u64) {
+                            existing_schedule_fallback.scheduled_at = interval.into();
+                            schedules.campfire_id_for_schedule().update(existing_schedule_fallback);
+                            log::debug!("[ScheduleCampfire] Fallback update of existing schedule for burning campfire {}.", campfire_id);
+                        } else {
+                            // If find still fails, then the original try_insert error was for a different reason.
+                            return Err(format!("Failed to insert or update schedule for campfire {}: {}", campfire_id, e));
+                        }
+                    }
                 }
             }
+        } else {
+            // Burning but NO fuel: extinguish and remove schedule
+            log::info!("[ScheduleCampfire] Campfire {} is burning but found no valid fuel. Extinguishing.", campfire_id);
+            campfire.is_burning = false;
+            campfire.current_fuel_def_id = None;
+            campfire.remaining_fuel_burn_time_secs = None;
+            campfire_state_changed = true;
+
+            schedules.campfire_id_for_schedule().delete(campfire_id as u64);
+            log::debug!("[ScheduleCampfire] Campfire {} extinguished. Removed processing schedule.", campfire_id);
         }
-    } else {
-        // If not burning or no fuel, remove any existing schedule to stop processing.
+    } else { // Not currently burning
+        // If not burning, regardless of fuel presence, ensure any processing schedule is removed.
+        // The fire must be manually lit via toggle_campfire_burning.
         schedules.campfire_id_for_schedule().delete(campfire_id as u64);
-        log::debug!("[ScheduleCampfire] Campfire {} is not burning or has no fuel. Removed processing schedule.", campfire_id);
+        if has_fuel {
+            log::debug!("[ScheduleCampfire] Campfire {} is not burning (but has fuel). Ensured no active processing schedule.", campfire_id);
+        } else {
+            log::debug!("[ScheduleCampfire] Campfire {} is not burning and has no fuel. Ensured no active processing schedule.", campfire_id);
+        }
+    }
+
+    if campfire_state_changed {
+        ctx.db.campfire().id().update(campfire); // Update campfire if its state (e.g., is_burning) changed
     }
     Ok(())
 }
