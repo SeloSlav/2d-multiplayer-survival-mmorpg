@@ -32,6 +32,7 @@ import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
+import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -53,7 +54,7 @@ import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import {
-    gameConfig, // Import gameConfig
+    gameConfig,
     CAMPFIRE_LIGHT_RADIUS_BASE,
     CAMPFIRE_FLICKER_AMOUNT,
     HOLD_INTERACTION_DURATION_MS,
@@ -291,6 +292,38 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
   }, [itemDefinitions, itemImagesRef]);
 
+  const lastFrameTimeRef = useRef<number>(performance.now());
+  const [deltaTime, setDeltaTime] = useState<number>(0);
+
+  // Use the new hook for campfire particles
+  const campfireParticles = useCampfireParticles({ 
+      visibleCampfiresMap: visibleCampfiresMap || new Map(), 
+      deltaTime 
+  });
+
+  // New function to render particles
+  const renderParticlesToCanvas = useCallback((ctx: CanvasRenderingContext2D, particlesToRender: Particle[]) => {
+    if (!particlesToRender.length) return;
+
+    particlesToRender.forEach(p => {
+        // Use p.x and p.y directly as ctx is already translated by camera offsets
+        const screenX = Math.floor(p.x); 
+        const screenY = Math.floor(p.y); 
+        const size = Math.max(1, Math.floor(p.size)); 
+
+        ctx.globalAlpha = p.alpha;
+
+        if (p.type === 'fire' && p.color) {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
+        } else if (p.type === 'smoke') {
+            ctx.fillStyle = `rgba(160, 160, 160, 1)`; 
+            ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
+        }
+    });
+    ctx.globalAlpha = 1.0; 
+  }, []);
+
   const renderGame = useCallback(() => {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
@@ -371,6 +404,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         renderPlayerCorpse: (props) => renderPlayerCorpse(props)
     });
     // --- End Y-Sorted Entities ---
+
+    // Render campfire particles here, after other world entities but before labels/UI
+    if (ctx) { // Ensure context is still valid
+        // Call without camera offsets, as ctx is already translated
+        renderParticlesToCanvas(ctx, campfireParticles);
+    }
 
     renderInteractionLabels({
         ctx,
@@ -486,12 +525,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
       isMinimapOpen, isMouseOverMinimap, minimapZoom,
       activeConnections,
-      visiblePlayerCorpses
+      visiblePlayerCorpses,
+      campfireParticles, 
   ]);
 
   const gameLoopCallback = useCallback(() => {
-    processInputsAndActions();
-    renderGame();
+    const now = performance.now();
+    const dt = now - lastFrameTimeRef.current;
+    lastFrameTimeRef.current = now;
+    setDeltaTime(dt > 0 ? dt : 0); // Ensure deltaTime is not negative
+
+    processInputsAndActions(); 
+    renderGame(); 
   }, [processInputsAndActions, renderGame]);
   useGameLoop(gameLoopCallback);
 
