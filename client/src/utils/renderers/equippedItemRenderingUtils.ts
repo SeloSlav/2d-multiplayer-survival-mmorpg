@@ -15,9 +15,10 @@ export const renderEquippedItem = (
   player: SpacetimeDBPlayer, 
   equipment: SpacetimeDBActiveEquipment,
   itemDef: SpacetimeDBItemDefinition,
-  itemImg: HTMLImageElement,
+  itemImgFromCaller: HTMLImageElement,
   now_ms: number,
-  jumpOffset: number
+  jumpOffset: number,
+  itemImages: Map<string, HTMLImageElement>
 ) => {
   // --- Calculate Shake Offset (Only if alive) ---
   let shakeX = 0;
@@ -34,8 +35,8 @@ export const renderEquippedItem = (
 
   // --- Item Size and Position ---
   const scale = 0.05; // User's value
-  const itemWidth = itemImg.width * scale;
-  const itemHeight = itemImg.height * scale;
+  const itemWidth = itemImgFromCaller.width * scale;
+  const itemHeight = itemImgFromCaller.height * scale;
   let itemOffsetX = 0; 
   let itemOffsetY = 0; 
   let rotation = 0;
@@ -49,19 +50,19 @@ export const renderEquippedItem = (
 
   switch (player.direction) {
       case 'up': 
-          itemOffsetX = -handOffsetX * -1.5;
-          itemOffsetY = -handOffsetY * 2.0; 
+          itemOffsetX = -handOffsetX * -2.5;
+          itemOffsetY = handOffsetY * -1.0;
           pivotX += itemOffsetX;
           pivotY += itemOffsetY; 
           break;
       case 'down': 
           itemOffsetX = handOffsetX * -2.5;
-          itemOffsetY = handOffsetY * 1.5; 
+          itemOffsetY = handOffsetY * 1.0; 
           pivotX += itemOffsetX;
           pivotY += itemOffsetY; 
           break;
       case 'left': 
-          itemOffsetX = -handOffsetX * 2.0; 
+          itemOffsetX = -handOffsetX * 1.5; 
           itemOffsetY = handOffsetY;
           pivotX += itemOffsetX; 
           pivotY += itemOffsetY; 
@@ -90,6 +91,24 @@ export const renderEquippedItem = (
       }
   }
   
+  // --- Resolve the correct image to render ---
+  let imageToRender: HTMLImageElement | undefined = itemImgFromCaller;
+  if (itemDef.name === "Torch" && equipment.iconAssetName) {
+    const specificTorchImage = itemImages.get(equipment.iconAssetName);
+    if (specificTorchImage) {
+      imageToRender = specificTorchImage;
+    } else {
+      console.warn(`[renderEquippedItem] Image for torch state '${equipment.iconAssetName}' not found in itemImages map. Falling back.`);
+      // Fallback to itemImgFromCaller if specific one isn't found (shouldn't happen if preloaded)
+    }
+  }
+
+  if (!imageToRender) {
+    // console.warn("[renderEquippedItem] No image resolved for rendering equipped item.");
+    return; // Don't attempt to render if no image
+  }
+  // --- End Image Resolution ---
+
   // Apply transformations
   ctx.save();
   ctx.translate(pivotX, pivotY);
@@ -101,7 +120,7 @@ export const renderEquippedItem = (
   }
 
   // Draw image centered AT the pivot point
-  ctx.drawImage(itemImg, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
+  ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
   ctx.restore();
 
   // --- Draw Slash Effect --- 

@@ -121,7 +121,7 @@ export const renderYSortedEntities = ({
 
             if (player.direction === 'left' || player.direction === 'up') {
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current);
               }
               if (heroImg) {
                 renderPlayer(
@@ -132,7 +132,7 @@ export const renderYSortedEntities = ({
                   isPersistentlyHovered
                 );
               }
-           } else { 
+           } else {
               if (heroImg) {
                 renderPlayer(
                         ctx, player, heroImg, isOnline, 
@@ -143,7 +143,7 @@ export const renderYSortedEntities = ({
                 );
               }
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current);
               }
            }
         } else if (type === 'tree') {

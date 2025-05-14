@@ -55,7 +55,7 @@ function getOverlayAlpha(
     _sunsetStartHour: number,
     cycleProgress: number
 ): number {
-    const nightAlpha = 0.7;
+    const nightAlpha = 0.90;
     const dayAlpha = 0.0;
 
     // Server TimeOfDay based on cycle_progress (from world_state.rs):

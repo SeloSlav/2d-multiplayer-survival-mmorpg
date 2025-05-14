@@ -314,19 +314,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Effects ---
   useEffect(() => {
-    itemDefinitions.forEach(itemDef => {
-      const iconSrc = itemIcons[itemDef.iconAssetName];
-      if (itemDef && iconSrc && typeof iconSrc === 'string' && !itemImagesRef.current.has(itemDef.iconAssetName)) {
+    // Iterate over all known icons in itemIconUtils.ts to ensure they are preloaded
+    Object.entries(itemIcons).forEach(([assetName, iconSrc]) => {
+      // Ensure iconSrc is a string (path) and not already loaded
+      if (iconSrc && typeof iconSrc === 'string' && !itemImagesRef.current.has(assetName)) {
         const img = new Image();
-        img.src = iconSrc;
+        img.src = iconSrc; // iconSrc is the imported image path
         img.onload = () => {
-          itemImagesRef.current.set(itemDef.iconAssetName, img);
+          itemImagesRef.current.set(assetName, img); // Store with assetName as key
         };
-        img.onerror = () => console.error(`Failed to preload item image asset: ${itemDef.iconAssetName} (Expected path/source: ${iconSrc})`);
-        itemImagesRef.current.set(itemDef.iconAssetName, img);
+        img.onerror = () => console.error(`Failed to preload item image asset: ${assetName} (Source: ${iconSrc})`);
       }
     });
-  }, [itemDefinitions, itemImagesRef]);
+  }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
 
   const lastFrameTimeRef = useRef<number>(performance.now());
   const [deltaTime, setDeltaTime] = useState<number>(0);

@@ -45,17 +45,17 @@ const BASE_TORCH_FLAME_OFFSET_X = 0;
 const BASE_TORCH_FLAME_OFFSET_Y = 0;
 
 // Refined Directional Offsets based on user feedback
-const OFFSET_X_LEFT = -27;
-const OFFSET_Y_LEFT = -15;
+const OFFSET_X_LEFT = -25;
+const OFFSET_Y_LEFT = -10;
 
 const OFFSET_X_RIGHT = 15;  // Was 20, user wants it "translated left a bit"
-const OFFSET_Y_RIGHT = -15;
+const OFFSET_Y_RIGHT = -10;
 
-const OFFSET_X_UP = 23;     // Making X for Up slightly different from Right, still offset right
-const OFFSET_Y_UP = -23;    // User wants it "up just a little bit"
+const OFFSET_X_UP = 35;     // Making X for Up slightly different from Right, still offset right
+const OFFSET_Y_UP = -15;    // User wants it "up just a little bit"
 
-const OFFSET_X_DOWN = -32;  // From user's DIRECTIONAL_ADJUST_X_DOWN
-const OFFSET_Y_DOWN = -15;    // User wants it "up just a little bit" from its previous Y of +10
+const OFFSET_X_DOWN = -30;  // From user's DIRECTIONAL_ADJUST_X_DOWN
+const OFFSET_Y_DOWN = -10;    // User wants it "up just a little bit" from its previous Y of +10
 
 interface UseTorchParticlesProps {
     players: Map<string, SpacetimeDBPlayer>;
