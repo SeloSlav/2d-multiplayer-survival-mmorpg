@@ -254,10 +254,8 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
             e.preventDefault();
             splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
         } else if (e.button === 2) { // Right mouse button (for drag-split)
-            // If right-click and stackable, initiate drag with full quantity for now,
-            // but potential to adjust on drop for splitting (or a dedicated split mode later)
-            // For now, right-drag will behave like left-drag for starting.
-            // The split decision will be made on mouseUp based on whether it was a click or drag.
+            // If right-click and stackable, initiate drag with a split quantity of 1.
+            splitQuantity = 1;
         }
     }
     currentSplitQuantity.current = splitQuantity;

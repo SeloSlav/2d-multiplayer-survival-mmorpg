@@ -100,30 +100,40 @@ export const useDragDropManager = ({
                 
                 if (handler) {
                     const rawEntityId = sourceInfo.sourceContainerEntityId;
-                    const slotIndex = sourceInfo.sourceSlot.index;
+                    const rawSlotIndex = sourceInfo.sourceSlot.index;
                     const entityIdNum = handler.validateAndGetEntityId(rawEntityId);
 
-                    if (entityIdNum !== null && slotIndex !== undefined && slotIndex !== null) {
+                    let numericSlotIndex: number | null = null;
+                    if (typeof rawSlotIndex === 'number') {
+                        numericSlotIndex = rawSlotIndex;
+                    } else if (typeof rawSlotIndex === 'string') {
+                        numericSlotIndex = parseInt(rawSlotIndex, 10);
+                        if (isNaN(numericSlotIndex)) {
+                            numericSlotIndex = null; // Parsing failed
+                        }
+                    }
+
+                    if (entityIdNum !== null && numericSlotIndex !== null) {
                         if (sourceInfo.splitQuantity) {
-                            console.log(`[useDragDropManager Drop] Calling split_and_drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${slotIndex}, Qty: ${quantityToDrop}`);
+                            console.log(`[useDragDropManager Drop] Calling split_and_drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}, Qty: ${quantityToDrop}`);
                             if (handler.splitDropReducer) {
-                                handler.splitDropReducer(entityIdNum as number, slotIndex, quantityToDrop);
+                                handler.splitDropReducer(entityIdNum, numericSlotIndex, quantityToDrop);
                             } else {
                                 console.error(`[useDragDropManager Drop] splitDropReducer is undefined for ${handler.containerName}`);
                                 setDropError(`Configuration error: Split drop action not found for ${handler.containerName.toLowerCase()}.`);
                             }
                         } else {
-                            console.log(`[useDragDropManager Drop] Calling drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${slotIndex}`);
+                            console.log(`[useDragDropManager Drop] Calling drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}`);
                             if (handler.dropReducer) {
-                                handler.dropReducer(entityIdNum as number, slotIndex);
+                                handler.dropReducer(entityIdNum, numericSlotIndex);
                             } else {
                                 console.error(`[useDragDropManager Drop] dropReducer is undefined for ${handler.containerName}`);
                                 setDropError(`Configuration error: Drop action not found for ${handler.containerName.toLowerCase()}.`);
                             }
                         }
                     } else {
-                        console.error(`[useDragDropManager Drop] Invalid or missing entityId (ID was: ${rawEntityId}, Type: ${typeof rawEntityId}) or slotIndex for ${handler.containerName}.`);
-                        setDropError(`Cannot drop item: Invalid container ID or slot for ${handler.containerName.toLowerCase()}.`);
+                        console.error(`[useDragDropManager Drop] Invalid entityId (ID: ${rawEntityId}) or slotIndex (Raw: ${rawSlotIndex}, Parsed: ${numericSlotIndex}) for ${handler.containerName}.`);
+                        setDropError(`Cannot drop item: Invalid container ID or slot index for ${handler.containerName.toLowerCase()}.`);
                     }
                 } else { 
                     // Default to player inventory drop if sourceContainerType is not in handlers
