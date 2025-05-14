@@ -155,8 +155,6 @@ pub fn split_stack_into_campfire(
     
     // Update the source item (quantity changed by split_stack_helper)
     ctx.db.inventory_item().instance_id().update(source_item); 
-    // Update the new item if its quantity was changed by merge_or_place (e.g. merged into existing stack)
-    ctx.db.inventory_item().instance_id().update(new_item);
     ctx.db.campfire().id().update(campfire.clone());
     schedule_next_campfire_processing(ctx, target_campfire_id);
     Ok(())

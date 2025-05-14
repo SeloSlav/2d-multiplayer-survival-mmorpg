@@ -51,6 +51,10 @@ import { DraggedItemInfo } from '../types/dragDropTypes';
 // Import useSpeechBubbleManager hook
 import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
+// Import other necessary imports
+import { useInteractionManager } from '../hooks/useInteractionManager';
+import { useState } from 'react';
+
 // Define props required by GameScreen and its children
 interface GameScreenProps {
     // Core Game State (from useSpacetimeTables)
@@ -131,6 +135,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Use our custom hook to get camera offsets
     const { cameraOffsetX, cameraOffsetY } = useSpeechBubbleManager(localPlayer);
 
+    // Added state
+    const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
+
     return (
         <div className="game-container">
             <GameCanvas
@@ -164,6 +171,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 setIsMinimapOpen={setIsMinimapOpen}
                 isChatting={isChatting}
                 messages={messages}
+                isSearchingCraftRecipes={isCraftingSearchFocused}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -200,6 +208,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 placementInfo={placementInfo}
                 connection={connection}
                 activeEquipments={activeEquipments}
+                onCraftingSearchFocusChange={setIsCraftingSearchFocused}
             />
             <Hotbar
                 playerIdentity={playerIdentity}

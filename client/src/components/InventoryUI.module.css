@@ -174,7 +174,7 @@
 }
 
 .craftingQueueSection {
-    height: 150px; /* Adjust height as needed */
+    height: 220px; /* Increased height from 150px */
     border: 1px solid #555;
     border-radius: 3px;
     padding: 5px;
@@ -431,6 +431,89 @@
   color: #aaa;
 }
 
+/* New styles for crafting controls area */
+.craftingControls {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Space between input, max button, and craft button */
+  margin-left: auto; /* Push this group to the right */
+}
+
+.quantityInput {
+  width: 45px; /* Adjust width as needed */
+  padding: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  background-color: rgba(0,0,0,0.3);
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 3px;
+  /* Remove spinner arrows for a cleaner look in some browsers */
+  -moz-appearance: textfield; /* Firefox */
+}
+
+.quantityInput::-webkit-outer-spin-button,
+.quantityInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0; /* Safari */
+}
+
+.maxButton {
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 10px; /* Slightly smaller than craft button */
+  cursor: pointer;
+  border: 1px solid #777; /* Lighter border than craft button */
+  background-color: #6688cc; /* A distinct blue color */
+  color: white;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.maxButton:hover {
+  background-color: #7799dd;
+}
+
+.maxButton:disabled { /* If we ever disable it, though not currently planned */
+  background-color: #555;
+  border-color: #444;
+  color: #999;
+  cursor: not-allowed;
+}
+
+/* Style for the new Cancel All Queue button */
+.cancelAllButton {
+  padding: 8px 12px; /* Slightly more padding for a larger button */
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid #a03030; /* Darker red border */
+  background-color: #c04040; /* Reddish background */
+  color: white;
+  border-radius: 4px; /* Match other buttons */
+  transition: background-color 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 10px; /* Space above it */
+  align-self: center; /* Center it if the parent is a flex container with cross-axis alignment */
+  width: fit-content; /* Adjust width to content */
+}
+
+.cancelAllButton:hover {
+  background-color: #d05050; /* Lighter red on hover */
+}
+
+/* Disabled state if ever needed */
+.cancelAllButton:disabled {
+  background-color: #777;
+  border-color: #666;
+  color: #bbb;
+  cursor: not-allowed;
+}
+
 .craftButton {
   padding: 5px 10px;
   font-family: inherit;
@@ -461,4 +544,33 @@
     margin-top: 0;
     margin-block-start: 0; /* Override browser default */
     padding-top: 0; /* <<< ADDED: Ensure no top padding */
+}
+
+/* Styles for Crafting Search Bar */
+.craftingSearchBarContainer {
+  margin-bottom: 10px; /* Space below the search bar */
+  padding: 0 5px; /* Slight horizontal padding to align with content below if needed */
+}
+
+.craftingSearchInput {
+  width: 100%; /* Make input take full width of its container */
+  padding: 8px 10px;
+  font-family: inherit; /* Use panel font */
+  font-size: 11px;
+  background-color: rgba(0, 0, 0, 0.3); /* Dark background */
+  color: #eee; /* Light text */
+  border: 1px solid #555; /* Border similar to other elements */
+  border-radius: 3px;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.craftingSearchInput::placeholder {
+  color: #888; /* Lighter placeholder text */
+  opacity: 1; /* Ensure placeholder is fully visible */
+}
+
+.craftingSearchInput:focus {
+  outline: none; /* Remove default focus outline */
+  border-color: #7799dd; /* Highlight border on focus - matches Max button */
+  box-shadow: 0 0 0 2px rgba(119, 153, 221, 0.3); /* Subtle glow on focus */
 } 

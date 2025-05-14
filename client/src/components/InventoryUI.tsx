@@ -67,6 +67,7 @@ interface InventoryUIProps {
     // ADD: Crafting related props
     recipes: Map<string, Recipe>;
     craftingQueueItems: Map<string, CraftingQueueItem>;
+    onCraftingSearchFocusChange?: (isFocused: boolean) => void;
 }
 
 // Represents an item instance with its definition for rendering
@@ -113,6 +114,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     // ADD: Destructure crafting props
     recipes,
     craftingQueueItems,
+    onCraftingSearchFocusChange,
 }) => {
     const isPlacingItem = placementInfo !== null;
 
@@ -307,6 +309,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 itemDefinitions={itemDefinitions}
                 inventoryItems={inventoryItems}
                 connection={connection}
+                onCraftingSearchFocusChange={onCraftingSearchFocusChange}
             />
                 )}
             </div>

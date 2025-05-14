@@ -68,6 +68,7 @@ interface PlayerUIProps {
   craftingQueueItems: Map<string, CraftingQueueItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   playerCorpses: Map<string, PlayerCorpse>;
+  onCraftingSearchFocusChange?: (isFocused: boolean) => void;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -90,7 +91,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     recipes,
     craftingQueueItems,
     woodenStorageBoxes,
-    playerCorpses
+    playerCorpses,
+    onCraftingSearchFocusChange
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
     const [isInventoryOpen, setIsInventoryOpen] = useState(false);
@@ -241,6 +243,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     craftingQueueItems={craftingQueueItems}
                     woodenStorageBoxes={woodenStorageBoxes}
                     playerCorpses={playerCorpses}
+                    onCraftingSearchFocusChange={onCraftingSearchFocusChange}
                  />
              )}
 

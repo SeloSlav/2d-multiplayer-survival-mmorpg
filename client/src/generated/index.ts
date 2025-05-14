@@ -36,6 +36,8 @@ import { AddFuelToCampfire } from "./add_fuel_to_campfire_reducer.ts";
 export { AddFuelToCampfire };
 import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
 export { AutoRemoveFuelFromCampfire };
+import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
+export { CancelAllCrafting };
 import { CancelCraftingItem } from "./cancel_crafting_item_reducer.ts";
 export { CancelCraftingItem };
 import { CheckFinishedCrafting } from "./check_finished_crafting_reducer.ts";
@@ -172,6 +174,8 @@ import { SplitStackWithinCorpse } from "./split_stack_within_corpse_reducer.ts";
 export { SplitStackWithinCorpse };
 import { StartCrafting } from "./start_crafting_reducer.ts";
 export { StartCrafting };
+import { StartCraftingMultiple } from "./start_crafting_multiple_reducer.ts";
+export { StartCraftingMultiple };
 import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
@@ -472,6 +476,10 @@ const REMOTE_MODULE = {
       reducerName: "auto_remove_fuel_from_campfire",
       argsType: AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType(),
     },
+    cancel_all_crafting: {
+      reducerName: "cancel_all_crafting",
+      argsType: CancelAllCrafting.getTypeScriptAlgebraicType(),
+    },
     cancel_crafting_item: {
       reducerName: "cancel_crafting_item",
       argsType: CancelCraftingItem.getTypeScriptAlgebraicType(),
@@ -744,6 +752,10 @@ const REMOTE_MODULE = {
       reducerName: "start_crafting",
       argsType: StartCrafting.getTypeScriptAlgebraicType(),
     },
+    start_crafting_multiple: {
+      reducerName: "start_crafting_multiple",
+      argsType: StartCraftingMultiple.getTypeScriptAlgebraicType(),
+    },
     tick_world_state: {
       reducerName: "tick_world_state",
       argsType: TickWorldState.getTypeScriptAlgebraicType(),
@@ -797,6 +809,7 @@ const REMOTE_MODULE = {
 export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
+| { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
@@ -865,6 +878,7 @@ export type Reducer = never
 | { name: "SplitStackWithinCampfire", args: SplitStackWithinCampfire }
 | { name: "SplitStackWithinCorpse", args: SplitStackWithinCorpse }
 | { name: "StartCrafting", args: StartCrafting }
+| { name: "StartCraftingMultiple", args: StartCraftingMultiple }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
 | { name: "ToggleTorch", args: ToggleTorch }
@@ -906,6 +920,18 @@ export class RemoteReducers {
 
   removeOnAutoRemoveFuelFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
     this.connection.offReducer("auto_remove_fuel_from_campfire", callback);
+  }
+
+  cancelAllCrafting() {
+    this.connection.callReducer("cancel_all_crafting", new Uint8Array(0), this.setCallReducerFlags.cancelAllCraftingFlags);
+  }
+
+  onCancelAllCrafting(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("cancel_all_crafting", callback);
+  }
+
+  removeOnCancelAllCrafting(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("cancel_all_crafting", callback);
   }
 
   cancelCraftingItem(queueItemId: bigint) {
@@ -1952,6 +1978,22 @@ export class RemoteReducers {
     this.connection.offReducer("start_crafting", callback);
   }
 
+  startCraftingMultiple(recipeId: bigint, quantityToCraft: number) {
+    const __args = { recipeId, quantityToCraft };
+    let __writer = new BinaryWriter(1024);
+    StartCraftingMultiple.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("start_crafting_multiple", __argsBuffer, this.setCallReducerFlags.startCraftingMultipleFlags);
+  }
+
+  onStartCraftingMultiple(callback: (ctx: ReducerEventContext, recipeId: bigint, quantityToCraft: number) => void) {
+    this.connection.onReducer("start_crafting_multiple", callback);
+  }
+
+  removeOnStartCraftingMultiple(callback: (ctx: ReducerEventContext, recipeId: bigint, quantityToCraft: number) => void) {
+    this.connection.offReducer("start_crafting_multiple", callback);
+  }
+
   tickWorldState(timestamp: Timestamp) {
     const __args = { timestamp };
     let __writer = new BinaryWriter(1024);
@@ -2051,6 +2093,11 @@ export class SetReducerFlags {
   autoRemoveFuelFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   autoRemoveFuelFromCampfire(flags: CallReducerFlags) {
     this.autoRemoveFuelFromCampfireFlags = flags;
+  }
+
+  cancelAllCraftingFlags: CallReducerFlags = 'FullUpdate';
+  cancelAllCrafting(flags: CallReducerFlags) {
+    this.cancelAllCraftingFlags = flags;
   }
 
   cancelCraftingItemFlags: CallReducerFlags = 'FullUpdate';
@@ -2381,6 +2428,11 @@ export class SetReducerFlags {
   startCraftingFlags: CallReducerFlags = 'FullUpdate';
   startCrafting(flags: CallReducerFlags) {
     this.startCraftingFlags = flags;
+  }
+
+  startCraftingMultipleFlags: CallReducerFlags = 'FullUpdate';
+  startCraftingMultiple(flags: CallReducerFlags) {
+    this.startCraftingMultipleFlags = flags;
   }
 
   tickWorldStateFlags: CallReducerFlags = 'FullUpdate';

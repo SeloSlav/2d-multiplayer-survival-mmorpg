@@ -17,6 +17,10 @@ use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as
 use crate::models::{ItemLocation, ContainerType, EquipmentSlotType};
 // Import player inventory helpers
 use crate::player_inventory::{move_item_to_inventory, move_item_to_hotbar, find_first_empty_player_slot, NUM_PLAYER_INVENTORY_SLOTS, NUM_PLAYER_HOTBAR_SLOTS};
+// Import for clearing active item
+use crate::active_equipment; // Added import
+// Import for active_equipment table trait
+use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 
 // --- Generic Item Container Trait --- 
 
@@ -209,9 +213,33 @@ pub(crate) fn handle_move_to_container_slot<C: ItemContainer>(
                                         .unwrap_or(ItemLocation::Unknown); // Default if item deleted (e.g. merged fully)
         if !matches!(current_item_location, ItemLocation::Equipped(data) if data.slot_type == eq_slot_type) {
             log::info!("[MoveToContainer] Item {} no longer in original equipment slot {:?}. Clearing slot.", item_instance_id, eq_slot_type);
-        crate::items::clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
+            crate::items::clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
         }
     }
+
+    // --- Check if the moved item was the active equipped item and clear if so ---
+    let active_equip_table = ctx.db.active_equipment();
+    if let Some(active_equipment_state) = active_equip_table.player_identity().find(sender_id) {
+        if active_equipment_state.equipped_item_instance_id == Some(item_instance_id) {
+            // Check if the item still exists and is now in a container, or if it was fully merged (and thus deleted)
+            let item_was_deleted = inventory_table.instance_id().find(&item_instance_id).is_none();
+            let item_now_in_container = if !item_was_deleted {
+                inventory_table.instance_id().find(item_instance_id)
+                    .map_or(false, |item| matches!(item.location, ItemLocation::Container(_)))
+            } else {
+                false // If deleted, it's not in a container in the sense of needing a location check
+            };
+
+            if item_was_deleted || item_now_in_container {
+                log::info!("[InvManager MoveToContainer] Item {} was the active equipped item and is now in a container or was fully merged. Clearing active item for player {}.", item_instance_id, sender_id);
+                match active_equipment::clear_active_item_reducer(ctx, sender_id) {
+                    Ok(_) => log::debug!("[InvManager MoveToContainer] Successfully cleared active item for {} after item {} moved to container/merged.", sender_id, item_instance_id),
+                    Err(e) => log::error!("[InvManager MoveToContainer] Error clearing active item for {}: {}", sender_id, e),
+                }
+            }
+        }
+    }
+    // --- End active item check ---
 
     Ok(())
 }
@@ -1005,6 +1033,7 @@ pub(crate) fn handle_quick_move_from_container<C: ItemContainer>(
                  sender_id, source_instance_id, source_slot_index);
         return Err("Player inventory and hotbar are full.".to_string());
     }
+
     Ok(())
 }
 
@@ -1094,6 +1123,25 @@ pub(crate) fn handle_quick_move_to_container<C: ItemContainer>(
                     crate::items::clear_specific_item_from_equipment_slots(ctx, sender_id, item_instance_id);
                 }
             }
+
+            // --- Check if the moved item was the active equipped item and clear if so ---
+            let active_equip_table = ctx.db.active_equipment();
+            if let Some(active_equipment_state) = active_equip_table.player_identity().find(sender_id) {
+                if active_equipment_state.equipped_item_instance_id == Some(item_instance_id) {
+                    // Item was identified as active. Check if it was indeed moved to container or deleted.
+                    // The `item_fully_moved_or_merged` flag correctly covers if the item was deleted 
+                    // or if its location changed from the original player slot.
+                    if item_fully_moved_or_merged {
+                        log::info!("[QuickMoveToContainer] Item {} was the active equipped item and was fully moved/merged to container. Clearing active item for player {}.", item_instance_id, sender_id);
+                        match active_equipment::clear_active_item_reducer(ctx, sender_id) {
+                            Ok(_) => log::debug!("[QuickMoveToContainer] Successfully cleared active item for {} after item {} quick moved to container/merged.", sender_id, item_instance_id),
+                            Err(e) => log::error!("[QuickMoveToContainer] Error clearing active item for {}: {}", sender_id, e),
+                        }
+                    }
+                }
+            }
+            // --- End active item check ---
+
             Ok(())
         }
         Err(e) => {

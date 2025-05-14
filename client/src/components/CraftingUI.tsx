@@ -13,6 +13,7 @@ import {
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PopulatedItem } from './InventoryUI'; // Reuse PopulatedItem type
 import { getItemIcon } from '../utils/itemIconUtils';
+import CraftingSearchBar from './CraftingSearchBar'; // Import the new component
 
 interface CraftingUIProps {
     playerIdentity: Identity | null;
@@ -21,6 +22,7 @@ interface CraftingUIProps {
     itemDefinitions: Map<string, ItemDefinition>;
     inventoryItems: Map<string, InventoryItem>; // Needed to check resource availability
     connection: DbConnection | null;
+    onCraftingSearchFocusChange?: (isFocused: boolean) => void;
 }
 
 // Helper to calculate remaining time
@@ -35,8 +37,11 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
     itemDefinitions,
     inventoryItems,
     connection,
+    onCraftingSearchFocusChange,
 }) => {
     const [currentTime, setCurrentTime] = useState(Date.now());
+    const [craftQuantities, setCraftQuantities] = useState<Map<string, number>>(new Map()); // State for quantity input
+    const [searchTerm, setSearchTerm] = useState(''); // State for the search term
 
     // Timer to update queue times
     useEffect(() => {
@@ -84,13 +89,18 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
     }, [craftingQueueItems, playerIdentity]);
 
     // --- Crafting Handlers ---
-    const handleCraftItem = (recipeId: bigint) => {
+    const handleCraftItem = (recipeId: bigint, quantity: number) => {
         if (!connection?.reducers) return;
-        // console.log(`Attempting to craft recipe ID: ${recipeId}`);
+        // console.log(`Attempting to craft recipe ID: ${recipeId}, quantity: ${quantity}`);
         try {
-            connection.reducers.startCrafting(recipeId);
+            if (quantity > 0) { // Ensure quantity is positive
+                // Call the new reducer
+                connection.reducers.startCraftingMultiple(recipeId, quantity);
+            } else {
+                console.warn("Attempted to craft with quantity 0 or less.");
+            }
         } catch (err) {
-            console.error("Error calling startCrafting reducer:", err);
+            console.error("Error calling startCraftingMultiple reducer:", err);
             // TODO: Show user-friendly error feedback
         }
     };
@@ -106,16 +116,67 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
         }
     };
 
-    // --- Helper to check craftability ---
-    const canCraft = (recipe: Recipe): boolean => {
+    const handleCancelAllCrafting = () => {
+        if (!connection?.reducers) return;
+        // console.log("Attempting to cancel all crafting items.");
+        try {
+            connection.reducers.cancelAllCrafting();
+        } catch (err) {
+            console.error("Error calling cancelAllCrafting reducer:", err);
+            // TODO: Show user-friendly error feedback
+        }
+    };
+
+    // --- Helper to calculate max craftable quantity ---
+    const calculateMaxCraftable = (recipe: Recipe): number => {
+        if (!recipe.ingredients || recipe.ingredients.length === 0) return 0; // Cannot craft if no ingredients
+
+        let maxPossible = Infinity;
         for (const ingredient of recipe.ingredients) {
             const available = playerInventoryResources.get(ingredient.itemDefId.toString()) || 0;
-            if (available < ingredient.quantity) {
+            if (ingredient.quantity === 0) continue; // Should not happen, but avoid division by zero
+            maxPossible = Math.min(maxPossible, Math.floor(available / ingredient.quantity));
+        }
+        return maxPossible === Infinity ? 0 : maxPossible; // If loop didn't run (e.g. no ingredients with quantity > 0), return 0
+    };
+
+    // --- Helper to check craftability ---
+    const canCraft = (recipe: Recipe, quantity: number = 1): boolean => {
+        for (const ingredient of recipe.ingredients) {
+            const available = playerInventoryResources.get(ingredient.itemDefId.toString()) || 0;
+            if (available < ingredient.quantity * quantity) { // Check against total needed
                 return false;
             }
         }
         return true;
     };
+
+    // --- Search Handler ---
+    const handleSearchChange = (newSearchTerm: string) => {
+        setSearchTerm(newSearchTerm);
+    };
+
+    // Filter recipes based on search term
+    const filteredRecipes = useMemo(() => {
+        if (!searchTerm.trim()) {
+            return Array.from(recipes.values());
+        }
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        return Array.from(recipes.values()).filter(recipe => {
+            const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
+            if (outputDef && outputDef.name.toLowerCase().includes(lowerSearchTerm)) {
+                return true;
+            }
+            for (const ingredient of recipe.ingredients) {
+                const ingDef = itemDefinitions.get(ingredient.itemDefId.toString());
+                if (ingDef && ingDef.name.toLowerCase().includes(lowerSearchTerm)) {
+                    return true;
+                }
+            }
+            // TODO: Add search by description if item definitions get a description field
+            return false;
+        });
+    }, [recipes, itemDefinitions, searchTerm]);
 
     return (
         <div className={styles.rightPane}> {/* Use existing right pane style */}
@@ -123,15 +184,39 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             <div className={styles.craftingHeader}>
                 <h3 className={styles.sectionTitle}>CRAFTING</h3>
             </div>
+            {/* Add Search Bar */}
+            <CraftingSearchBar 
+                searchTerm={searchTerm}
+                onSearchChange={handleSearchChange}
+                placeholder="Search by item or ingredient name..."
+                onFocus={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(true)}
+                onBlur={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(false)}
+            />
             {/* Added scrollable class */}
             <div className={`${styles.craftableItemsSection} ${styles.scrollableSection}`}> 
                 {/* Changed grid to list */}
                 <div className={styles.craftableItemsList}> 
-                    {Array.from(recipes.values()).map((recipe) => {
+                    {filteredRecipes.map((recipe) => {
                         const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
                         if (!outputDef) return null;
 
-                        const isCraftable = canCraft(recipe);
+                        const currentQuantity = craftQuantities.get(recipe.recipeId.toString()) || 1;
+                        const maxCraftableForThisRecipe = calculateMaxCraftable(recipe);
+                        const isCraftable = canCraft(recipe, currentQuantity) && currentQuantity <= maxCraftableForThisRecipe && currentQuantity > 0;
+
+                        const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                            let newQuantity = parseInt(e.target.value, 10);
+                            if (isNaN(newQuantity) || newQuantity < 1) {
+                                newQuantity = 1; // Default to 1 if invalid or less than 1
+                            }
+                            const clampedQuantity = Math.min(newQuantity, maxCraftableForThisRecipe > 0 ? maxCraftableForThisRecipe : 1);
+                            setCraftQuantities(prev => new Map(prev).set(recipe.recipeId.toString(), clampedQuantity));
+                        };
+
+                        const handleMaxClick = () => {
+                            const maxVal = calculateMaxCraftable(recipe);
+                            setCraftQuantities(prev => new Map(prev).set(recipe.recipeId.toString(), maxVal > 0 ? maxVal : 1));
+                        };
                         
                         return (
                             // New recipe row structure
@@ -149,7 +234,8 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                                         {recipe.ingredients.map((ing, index) => {
                                             const ingDef = itemDefinitions.get(ing.itemDefId.toString());
                                             const available = playerInventoryResources.get(ing.itemDefId.toString()) || 0;
-                                            const color = available >= ing.quantity ? '#aaffaa' : '#ffaaaa'; // Light Green / Light Red (was yellow)
+                                            const neededTotal = ing.quantity * currentQuantity;
+                                            const color = available >= neededTotal ? '#aaffaa' : '#ffaaaa';
                                             return (
                                                 <span key={index} style={{ color: color, display: 'block' }}>
                                                     {ing.quantity} x {ingDef?.name || 'Unknown'} ({available})
@@ -159,13 +245,30 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                                     </div>
                                     <div className={styles.recipeTime}>Time: {recipe.craftingTimeSecs}s</div>
                                 </div>
-                                <button
-                                    onClick={() => handleCraftItem(recipe.recipeId)}
-                                    disabled={!isCraftable}
-                                    className={styles.craftButton} // New style for craft button
-                                >
-                                    Craft
-                                </button>
+                                {/* New Input, Max Button, and Craft Button Area */}
+                                <div className={styles.craftingControls}>
+                                    <input 
+                                        type="number" 
+                                        value={currentQuantity}
+                                        onChange={handleQuantityChange}
+                                        className={styles.quantityInput}
+                                        min="1"
+                                        max={maxCraftableForThisRecipe > 0 ? maxCraftableForThisRecipe : 1} // Set HTML max attribute
+                                    />
+                                    <button 
+                                        onClick={handleMaxClick}
+                                        className={styles.maxButton}
+                                    >
+                                        Max
+                                    </button>
+                                    <button
+                                        onClick={() => handleCraftItem(recipe.recipeId, currentQuantity)}
+                                        disabled={!isCraftable}
+                                        className={styles.craftButton}
+                                    >
+                                        Craft
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}
@@ -205,6 +308,16 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                     })}
                     {playerQueue.length === 0 && <p className={styles.emptyQueueText}>Queue is empty</p>}
                 </div>
+                {/* Add Cancel All Button Here */}
+                {playerQueue.length > 0 && (
+                    <button 
+                        onClick={handleCancelAllCrafting}
+                        className={styles.cancelAllButton} // Will need a new style
+                        title="Cancel all items in queue and refund resources"
+                    >
+                        Cancel All Queue
+                    </button>
+                )}
             </div>
         </div>
     );

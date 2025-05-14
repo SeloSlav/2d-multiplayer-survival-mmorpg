@@ -39,6 +39,7 @@ interface UseInputHandlerProps {
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isChatting: boolean;
+    isSearchingCraftRecipes?: boolean;
 }
 
 // --- Hook Return Value Interface ---
@@ -80,6 +81,7 @@ export const useInputHandler = ({
     isMinimapOpen,
     setIsMinimapOpen,
     isChatting,
+    isSearchingCraftRecipes,
 }: UseInputHandlerProps): InputHandlerState => {
     // Get player actions from the context instead of props
     const { updatePlayerPosition, jump, setSprinting } = usePlayerActions();
@@ -226,9 +228,8 @@ export const useInputHandler = ({
     // --- Input Handling useEffect (Listeners only) ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-            // Block if player is dead or chat is focused
-            if (!event || isPlayerDead || chatInputIsFocused) return; 
+            // MODIFIED: Block if player is dead, chatting, or searching recipes
+            if (!event || isPlayerDead || isChatting || isSearchingCraftRecipes) return;
             const key = event.key.toLowerCase();
 
             // Placement cancellation (checked before general input disabled)
@@ -366,9 +367,8 @@ export const useInputHandler = ({
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-            // Block if player is dead or chat is focused
-            if (!event || isPlayerDead || chatInputIsFocused) return; 
+            // MODIFIED: Block if player is dead, chatting, or searching recipes
+            if (!event || isPlayerDead || isChatting || isSearchingCraftRecipes) return;
             const key = event.key.toLowerCase();
             // Sprinting end
             if (key === 'shift') {
@@ -432,15 +432,15 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-            // Block if player is dead, chat focused, button isn't left, or placing
-            if (isPlayerDead || chatInputIsFocused || event.button !== 0 || placementInfo) return; 
+            // MODIFIED: Block if player is dead, chatting, searching, button isn't left, or placing
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo) return;
             isMouseDownRef.current = true;
             attemptSwing(); // Call internal swing logic
         };
 
         const handleMouseUp = (event: MouseEvent) => {
             // No need to check focus here, just handle the button state
+            // MODIFIED: Only care about left mouse button for releasing isMouseDownRef
             if (event.button === 0) {
                 isMouseDownRef.current = false;
             }
@@ -448,9 +448,8 @@ export const useInputHandler = ({
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
-            const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-            // Block if player is dead, chat focused, or button isn't left
-            if (isPlayerDead || chatInputIsFocused || event.button !== 0) return; 
+            // MODIFIED: Block if player is dead, chatting, searching, or button isn't left
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0) return;
             const currentWorldMouse = worldMousePosRefInternal.current;
             if (placementInfo && currentWorldMouse.x !== null && currentWorldMouse.y !== null) {
                  placementActionsRef.current?.attemptPlacement(currentWorldMouse.x, currentWorldMouse.y);
@@ -555,14 +554,18 @@ export const useInputHandler = ({
         const currentConnection = connectionRef.current;
         const player = localPlayerRef.current; // Get the current player state
 
-        // Do nothing if player is dead (overall input disable)
-        if (!player || player.isDead) {
+        // MODIFIED: Do nothing if player is dead, or if chatting/searching
+        if (!player || player.isDead || isChatting || isSearchingCraftRecipes) {
              // Reset sprint state on death if not already handled by useEffect
-            if (isSprintingRef.current) {
+            if (isSprintingRef.current && player?.isDead) { // Only reset sprint due to death
                 isSprintingRef.current = false;
-                // No need to call reducer here, useEffect for player.isDead handles it
+                // No need to call reducer here, useEffect for player.isDead handles it for death
+            } else if (isSprintingRef.current && (isChatting || isSearchingCraftRecipes)) {
+                // If chatting or searching and was sprinting, send stop sprinting
+                isSprintingRef.current = false;
+                setSprinting(false); 
             }
-            // Also clear jump offset if player is dead
+            // Also clear jump offset if player is dead or UI is active
             if (currentJumpOffsetY !== 0) {
                 setCurrentJumpOffsetY(0);
             }
@@ -587,7 +590,7 @@ export const useInputHandler = ({
         // --- End Jump Offset Calculation ---
 
         // Placement rotation
-        // Process movement
+        // Process movement - This block is now effectively guarded by the check above
         const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
                    (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
         const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
@@ -598,7 +601,8 @@ export const useInputHandler = ({
         }
 
         // Handle continuous swing check
-        if (isMouseDownRef.current && !placementInfo) { // Only swing if not placing
+        // MODIFIED: Guard this with isChatting and isSearchingCraftRecipes as well
+        if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes) { // Only swing if not placing and not in UI
             attemptSwing(); // Call internal attemptSwing function
         }
     }, [
@@ -606,7 +610,8 @@ export const useInputHandler = ({
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
         closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
-        isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY
+        isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY,
+        isChatting, isSearchingCraftRecipes, setSprinting // Added isChatting, isSearchingCraftRecipes, setSprinting
     ]);
 
     // --- Return State & Actions ---

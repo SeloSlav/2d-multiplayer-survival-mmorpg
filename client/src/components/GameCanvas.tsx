@@ -99,6 +99,7 @@ interface GameCanvasProps {
   setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isChatting: boolean;
   messages: any;
+  isSearchingCraftRecipes?: boolean;
 }
 
 /**
@@ -139,6 +140,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   setIsMinimapOpen,
   isChatting,
   messages,
+  isSearchingCraftRecipes,
 }) => {
 
   // --- Refs ---
@@ -222,7 +224,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       woodenStorageBoxes,
       isMinimapOpen, setIsMinimapOpen,
       onSetInteractingWith, isChatting,
-      closestInteractableCorpseId
+      closestInteractableCorpseId,
+      isSearchingCraftRecipes,
   });
 
   // --- Use Entity Filtering Hook ---
@@ -591,6 +594,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visiblePlayerCorpses,
       campfireParticles, 
       torchParticles,
+      isSearchingCraftRecipes,
   ]);
 
   const gameLoopCallback = useCallback(() => {

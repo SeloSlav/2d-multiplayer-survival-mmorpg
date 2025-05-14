@@ -158,6 +158,126 @@ pub fn start_crafting(ctx: &ReducerContext, recipe_id: u64) -> Result<(), String
     Ok(())
 }
 
+/// Starts crafting multiple items of the same recipe if the player has the required resources.
+#[spacetimedb::reducer]
+pub fn start_crafting_multiple(ctx: &ReducerContext, recipe_id: u64, quantity_to_craft: u32) -> Result<(), String> {
+    if quantity_to_craft == 0 {
+        return Err("Quantity to craft must be greater than 0.".to_string());
+    }
+
+    let sender_id = ctx.sender;
+    let recipe_table = ctx.db.recipe();
+    let inventory_table = ctx.db.inventory_item();
+    let queue_table = ctx.db.crafting_queue_item();
+    let item_def_table = ctx.db.item_definition(); // For item names in errors
+
+    // 1. Find the Recipe
+    let recipe = recipe_table.recipe_id().find(&recipe_id)
+        .ok_or(format!("Recipe with ID {} not found.", recipe_id))?;
+
+    // 2. Check Resources for the total quantity
+    let mut total_required_resources_map: HashMap<u64, u32> = HashMap::new();
+    for ingredient in &recipe.ingredients {
+        *total_required_resources_map.entry(ingredient.item_def_id).or_insert(0) += ingredient.quantity * quantity_to_craft;
+    }
+
+    let mut available_resources_check: HashMap<u64, u32> = HashMap::new();
+    // This map will store {item_instance_id, quantity_to_consume_from_this_stack}
+    let mut items_to_consume_map: HashMap<u64, u32> = HashMap::new();
+
+    // Iterate over player's inventory and hotbar items
+    for item_instance in inventory_table.iter() {
+        let is_in_player_possession = match &item_instance.location {
+            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) => *owner_id == sender_id,
+            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => *owner_id == sender_id,
+            _ => false,
+        };
+
+        if is_in_player_possession {
+            *available_resources_check.entry(item_instance.item_def_id).or_insert(0) += item_instance.quantity;
+
+            if let Some(total_needed_for_def) = total_required_resources_map.get_mut(&item_instance.item_def_id) {
+                if *total_needed_for_def > 0 { // Still need some of this item definition
+                    let already_marked_to_consume_from_this_def = items_to_consume_map.iter()
+                        .filter(|(id, _)| inventory_table.instance_id().find(**id).map_or(false, |i| i.item_def_id == item_instance.item_def_id))
+                        .map(|(_, qty)| qty)
+                        .sum::<u32>();
+                    
+                    let remaining_needed_for_def = (*total_needed_for_def).saturating_sub(already_marked_to_consume_from_this_def);
+                    let can_take_from_stack = std::cmp::min(item_instance.quantity, remaining_needed_for_def);
+                    
+                    if can_take_from_stack > 0 {
+                        *items_to_consume_map.entry(item_instance.instance_id).or_insert(0) += can_take_from_stack;
+                        // No, don't decrement total_needed_for_def here. We verify it at the end.
+                    }
+                }
+            }
+        }
+    }
+    
+    // Verify all requirements met
+    for (def_id, total_required) in total_required_resources_map.iter() {
+        let total_available_for_def = available_resources_check.get(def_id).copied().unwrap_or(0);
+        if total_available_for_def < *total_required {
+            let item_name = item_def_table.id().find(*def_id).map(|d| d.name.clone()).unwrap_or_else(|| format!("ID {}", def_id));
+            return Err(format!("Missing {} {} to craft {}x. You have {}.",
+                total_required - total_available_for_def, item_name, quantity_to_craft, total_available_for_def));
+        }
+    }
+
+    // 3. Consume Resources
+    log::info!("[Crafting Multiple] Consuming resources for Recipe ID {} ({}x) for player {:?}", recipe_id, quantity_to_craft, sender_id);
+    for (instance_id, qty_to_consume) in items_to_consume_map {
+        if let Some(mut item) = inventory_table.instance_id().find(instance_id) {
+            if qty_to_consume >= item.quantity {
+                inventory_table.instance_id().delete(instance_id);
+            } else {
+                item.quantity -= qty_to_consume;
+                inventory_table.instance_id().update(item);
+            }
+        } else {
+            log::error!("[Crafting Multiple] Failed to find item instance {} to consume resources.", instance_id);
+            return Err("Internal error consuming resources for multiple craft.".to_string());
+        }
+    }
+
+    // 4. Calculate Finish Times and Add to Queue
+    let mut current_item_start_time = ctx.timestamp;
+    // Find the latest finish time for items already in this player's queue
+    // This becomes the start time for the first item in this batch.
+    for item in queue_table.iter().filter(|q| q.player_identity == sender_id) {
+        if item.finish_time > current_item_start_time {
+            current_item_start_time = item.finish_time;
+        }
+    }
+
+    let crafting_duration_per_item = TimeDuration::from(Duration::from_secs(recipe.crafting_time_secs as u64));
+
+    for i in 0..quantity_to_craft {
+        let item_finish_time = current_item_start_time + crafting_duration_per_item;
+        
+        let queue_item = CraftingQueueItem {
+            queue_item_id: 0, // Auto-increment
+            player_identity: sender_id,
+            recipe_id,
+            output_item_def_id: recipe.output_item_def_id,
+            output_quantity: recipe.output_quantity,
+            start_time: current_item_start_time, // The effective start time for this item in the sequence
+            finish_time: item_finish_time,
+        };
+        queue_table.insert(queue_item.clone()); // Clone here if insert takes ownership and we log after
+
+        current_item_start_time = item_finish_time; // Next item starts when this one finishes
+
+        if i == 0 { // Log the start of the batch
+             let item_name = item_def_table.id().find(recipe.output_item_def_id).map(|d| d.name.clone()).unwrap_or_else(|| format!("ID {}", recipe.output_item_def_id));
+             log::info!("[Crafting Multiple] Player {:?} started crafting {}x {} (Recipe ID {}). First item finishes: {:?}, Last item finishes: {:?}",
+                 sender_id, quantity_to_craft, item_name, recipe_id, item_finish_time, current_item_start_time);
+        }
+    }
+    Ok(())
+}
+
 /// Scheduled reducer to check for and grant finished crafting items.
 #[spacetimedb::reducer]
 pub fn check_finished_crafting(ctx: &ReducerContext, _schedule: CraftingFinishSchedule) -> Result<(), String> {
@@ -327,7 +447,7 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
             Ok(_) => { /* Successfully refunded */ }
             Err(_) => {
                 // Inventory full or other error, try to drop
-                if let Some(ref player) = player_opt {
+                if let Some(ref player) = player_opt { // Use ref player to borrow instead of move
                     let (drop_x, drop_y) = dropped_item::calculate_drop_position(&player);
                     if let Err(drop_err) = dropped_item::create_dropped_item_entity(ctx, def_id, quantity, drop_x, drop_y) {
                         log::error!("[Clear Queue] Failed to add AND drop refunded item {} (qty {}) for player {:?}: {}", def_id, quantity, player_id, drop_err);
@@ -377,6 +497,89 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
                 instance_id, player_id, item_location_str);
             inventory_table.instance_id().delete(instance_id);
         }
+    }
+}
+
+/// Cancels all items in the player's crafting queue and refunds all resources.
+#[spacetimedb::reducer]
+pub fn cancel_all_crafting(ctx: &ReducerContext) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let queue_table = ctx.db.crafting_queue_item();
+    let recipe_table = ctx.db.recipe();
+    let player_table = ctx.db.player();
+    let item_def_table = ctx.db.item_definition(); // For logging item names
+
+    let mut items_to_remove_from_queue: Vec<u64> = Vec::new();
+    let mut total_resources_to_refund: HashMap<u64, u32> = HashMap::new(); // <item_def_id, total_quantity>
+
+    log::info!("[Cancel All Crafting] Player {:?} initiated cancel all.", sender_id);
+
+    // 1. Collect all queued items and their ingredients for the player
+    for item in queue_table.iter().filter(|q| q.player_identity == sender_id) {
+        items_to_remove_from_queue.push(item.queue_item_id);
+        if let Some(recipe) = recipe_table.recipe_id().find(&item.recipe_id) {
+            for ingredient in &recipe.ingredients {
+                *total_resources_to_refund.entry(ingredient.item_def_id).or_insert(0) += ingredient.quantity;
+            }
+        } else {
+            log::warn!("[Cancel All Crafting] Recipe {} not found for queue item {}. Resources for this item might not be refunded.", item.recipe_id, item.queue_item_id);
+        }
+    }
+
+    if items_to_remove_from_queue.is_empty() {
+        log::info!("[Cancel All Crafting] No items in queue for player {:?}. Nothing to cancel.", sender_id);
+        return Ok(()); // Nothing to do
+    }
+
+    // 2. Delete all items from the queue for this player
+    for queue_id in &items_to_remove_from_queue {
+        queue_table.queue_item_id().delete(*queue_id);
+    }
+    log::info!("[Cancel All Crafting] Deleted {} items from queue for player {:?}. Now refunding resources.", items_to_remove_from_queue.len(), sender_id);
+
+    // 3. Refund all collected resources
+    let mut refund_partially_failed_and_dropped = false;
+    if let Some(player) = player_table.identity().find(&sender_id) { // Need player for drop position
+        for (item_def_id, quantity_to_refund) in total_resources_to_refund {
+            if quantity_to_refund == 0 { continue; }
+
+            match crate::items::add_item_to_player_inventory(ctx, sender_id, item_def_id, quantity_to_refund) {
+                Ok(_) => {
+                    let item_name = item_def_table.id().find(item_def_id).map_or_else(|| format!("ID {}", item_def_id), |def| def.name.clone());
+                    log::debug!("[Cancel All Crafting] Successfully refunded {} {} to player {:?}.", quantity_to_refund, item_name, sender_id);
+                }
+                Err(e) => {
+                    let item_name = item_def_table.id().find(item_def_id).map_or_else(|| format!("ID {}", item_def_id), |def| def.name.clone());
+                    log::warn!("[Cancel All Crafting] Inventory full for player {:?} while refunding {} {}. Attempting to drop. Error: {}", sender_id, quantity_to_refund, item_name, e);
+                    refund_partially_failed_and_dropped = true;
+                    let (drop_x, drop_y) = dropped_item::calculate_drop_position(&player);
+                    if let Err(drop_err) = dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity_to_refund, drop_x, drop_y) {
+                        log::error!("[Cancel All Crafting] Failed to drop refunded item {} (DefID: {}) for player {:?}: {}", item_name, item_def_id, sender_id, drop_err);
+                        // Resource is lost if dropping also fails
+                    } else {
+                        log::info!("[Cancel All Crafting] Successfully dropped {} {} for player {:?} near ({}, {}).", quantity_to_refund, item_name, sender_id, drop_x, drop_y);
+                    }
+                }
+            }
+        }
+    } else {
+        log::error!("[Cancel All Crafting] Player {:?} not found. Cannot determine drop position for refunded items. Resources may be lost if inventory is full.", sender_id);
+        // Attempt to refund anyway, but dropping won't be possible if player is gone.
+        // This case should be rare if the player is initiating the cancel all.
+        for (item_def_id, quantity_to_refund) in total_resources_to_refund {
+             if quantity_to_refund == 0 { continue; }
+             if crate::items::add_item_to_player_inventory(ctx, sender_id, item_def_id, quantity_to_refund).is_err() {
+                let item_name = item_def_table.id().find(item_def_id).map_or_else(|| format!("ID {}", item_def_id), |def| def.name.clone());
+                log::error!("[Cancel All Crafting] Failed to refund {} {} to non-existent player {:?} and cannot drop. Item lost.", quantity_to_refund, item_name, sender_id);
+             }
+        }
+        return Err("Player not found during refund process, some items may have been lost if inventory was full.".to_string());
+    }
+
+    if refund_partially_failed_and_dropped {
+        Err("Crafting queue canceled. Some resources were dropped due to full inventory.".to_string())
+    } else {
+        Ok(())
     }
 }
 
