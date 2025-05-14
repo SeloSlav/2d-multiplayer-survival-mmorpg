@@ -554,13 +554,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const validTrees = trees instanceof Map ? trees : new Map();
         const validStones = stones instanceof Map ? stones : new Map();
         const validSleepingBags = sleepingBags instanceof Map ? sleepingBags : new Map();
+        const validCampfires = campfires instanceof Map ? campfires : new Map();
 
         drawMinimapOntoCanvas({ 
             ctx: ctx!, // Use non-null assertion if context is guaranteed here
             players: validPlayers, 
             trees: validTrees, 
             stones: validStones, 
-            sleepingBags: validSleepingBags, // Pass validated map
+            campfires: validCampfires,
+            sleepingBags: validSleepingBags,
             localPlayer, // Pass localPlayer directly
             localPlayerId,
             viewCenterOffset, // Pass pan offset
@@ -651,6 +653,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           players={players}
           trees={trees}
           stones={stones}
+          campfires={campfires}
           playerPin={localPlayerPin}
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
         />

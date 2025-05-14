@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin } from '../generated'; // Import necessary types
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -16,6 +16,7 @@ interface DeathScreenProps {
   players: Map<string, SpacetimeDBPlayer>;
   trees: Map<string, Tree>;
   stones: Map<string, Stone>;
+  campfires: Map<string, Campfire>; // Use corrected type
   playerPin: PlayerPin | null;
   sleepingBagImage?: HTMLImageElement | null;
 }
@@ -28,6 +29,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   players,
   trees,
   stones,
+  campfires,
   playerPin,
   sleepingBagImage,
 }) => {
@@ -88,6 +90,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       players, // Pass all players for context if needed
       trees,
       stones,
+      campfires,
       sleepingBags,
       localPlayer: undefined, // Explicitly pass undefined for localPlayer
       localPlayerId: localPlayerIdentity,
@@ -124,7 +127,8 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
 
   }, [
     players, trees, stones, sleepingBags, ownedSleepingBagIds, hoveredBagId,
-    canvasSize.width, canvasSize.height, localPlayer, localPlayerIdentity, minimapZoom, viewCenterOffset, sleepingBagImage
+    canvasSize.width, canvasSize.height, localPlayer, localPlayerIdentity, minimapZoom, viewCenterOffset, sleepingBagImage,
+    campfires,
   ]);
 
   // --- Click Handler for Minimap Canvas ---

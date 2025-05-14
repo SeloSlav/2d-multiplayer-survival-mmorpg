@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire } from '../generated';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -20,8 +20,10 @@ const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
 // Add colors for trees and rocks
 const TREE_DOT_COLOR = '#008000'; // Green
 const ROCK_DOT_COLOR = '#808080'; // Grey
+const CAMPFIRE_DOT_COLOR = '#FFA500'; // Orange for campfires and lit players
 const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 const ENTITY_DOT_SIZE = 2; // Slightly smaller dot size for world objects
+const LIT_ENTITY_DOT_SIZE = 4; // Larger size for lit campfires and players with torches
 const OWNED_BAG_DOT_SIZE = 24; // Make owned bags larger
 const REGULAR_BAG_ICON_SIZE = 24; // Increased size considerably
 const REGULAR_BAG_BORDER_WIDTH = 2;
@@ -48,6 +50,7 @@ interface MinimapProps {
   players: Map<string, SpacetimeDBPlayer>; // Map of player identities to player data
   trees: Map<string, Tree>; // Map of tree identities/keys to tree data
   stones: Map<string, SpacetimeDBStone>; // Add stones prop
+  campfires: Map<string, SpacetimeDBCampfire>; // Add campfires prop
   sleepingBags: Map<number, SleepingBag>; // Map of sleeping bag IDs to data
   localPlayer?: SpacetimeDBPlayer; // Pass the full local player object
   localPlayerId?: string; // Revert to string only, Identity type is not exported
@@ -72,6 +75,7 @@ export function drawMinimapOntoCanvas({
   players,
   trees,
   stones,
+  campfires,
   sleepingBags,
   localPlayer, // Destructure localPlayer
   localPlayerId,
@@ -278,6 +282,42 @@ export function drawMinimapOntoCanvas({
           ENTITY_DOT_SIZE
         );
       }
+  });
+
+  // --- Draw Campfires ---
+  ctx.fillStyle = CAMPFIRE_DOT_COLOR;
+  campfires.forEach(campfire => {
+    // Only draw burning campfires
+    if (campfire.isBurning) {
+      const screenCoords = worldToMinimap(campfire.posX, campfire.posY);
+      if (screenCoords) {
+        ctx.fillRect(
+          screenCoords.x - LIT_ENTITY_DOT_SIZE / 2,
+          screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
+          LIT_ENTITY_DOT_SIZE,
+          LIT_ENTITY_DOT_SIZE
+        );
+      }
+    }
+  });
+
+  // --- Draw Remote Players with Torch ON ---
+  players.forEach((player, playerId) => {
+    if (localPlayerId && playerId === localPlayerId) {
+      return; // Skip local player, handled separately
+    }
+    if (player.isTorchLit) {
+      const screenCoords = worldToMinimap(player.positionX, player.positionY);
+      if (screenCoords) {
+        ctx.fillStyle = CAMPFIRE_DOT_COLOR; // Use shared color
+        ctx.fillRect(
+          screenCoords.x - LIT_ENTITY_DOT_SIZE / 2, // Use shared larger size
+          screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
+          LIT_ENTITY_DOT_SIZE,
+          LIT_ENTITY_DOT_SIZE
+        );
+      }
+    }
   });
 
   // --- Draw Sleeping Bags ---
