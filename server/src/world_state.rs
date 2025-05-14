@@ -10,9 +10,9 @@ use crate::items::InventoryItem;
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
 
 // --- Constants ---
-const DAY_DURATION_SECONDS: f32 = 90.0;
-const NIGHT_DURATION_SECONDS: f32 = 90.0;
-const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 60 minutes total
+const DAY_DURATION_SECONDS: f32 = 270.0; // 4.5 minutes
+const NIGHT_DURATION_SECONDS: f32 = 90.0;  // 1.5 minutes
+const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 360 seconds = 6 minutes total
 
 // Full moon occurs roughly every 3 cycles (adjust as needed)
 const FULL_MOON_CYCLE_INTERVAL: u32 = 3;
@@ -113,15 +113,15 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         }
 
         // Determine the new TimeOfDay based on new_progress
+        // Day is now 0.0 to 0.75, Night is 0.75 to 1.0
         let new_time_of_day = match new_progress {
-            p if p < 0.05 => TimeOfDay::Midnight, 
-            p if p < 0.20 => TimeOfDay::Night,
-            p if p < 0.35 => TimeOfDay::Dawn,    // Adjusted timing
-            p if p < 0.50 => TimeOfDay::Morning, // Adjusted timing
-            p if p < 0.65 => TimeOfDay::Noon,    // Adjusted timing
-            p if p < 0.80 => TimeOfDay::Afternoon, // Adjusted timing
-            p if p < 0.95 => TimeOfDay::Dusk,    // Adjusted timing
-            _             => TimeOfDay::Night,   // Default to Night for late dusk/early night
+            p if p < 0.05 => TimeOfDay::Dawn,     // First ~6.7% of daytime (0.0 - 0.05)
+            p if p < 0.30 => TimeOfDay::Morning,   // Next ~33.3% of daytime (0.05 - 0.30)
+            p if p < 0.45 => TimeOfDay::Noon,      // Middle ~20% of daytime (0.30 - 0.45)
+            p if p < 0.70 => TimeOfDay::Afternoon, // Next ~33.3% of daytime (0.45 - 0.70)
+            p if p < 0.75 => TimeOfDay::Dusk,      // Last ~6.7% of daytime (0.70 - 0.75)
+            p if p < 0.90 => TimeOfDay::Night,     // First 60% of nighttime (0.75 - 0.90)
+            _             => TimeOfDay::Midnight, // Last 40% of nighttime (0.90 - 1.0), also default
         };
 
         // Assign the calculated new values to the world_state object

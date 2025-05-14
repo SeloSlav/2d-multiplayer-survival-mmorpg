@@ -293,7 +293,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             name: "Wooden Spear".to_string(),
             description: "A sharpened stick. Better than fists.".to_string(),
             category: ItemCategory::Tool,
-            icon_asset_name: "wooden_spear.png".to_string(),
+            icon_asset_name: "spear.png".to_string(),
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,

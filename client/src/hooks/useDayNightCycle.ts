@@ -6,14 +6,14 @@ import {
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
-import { CAMPFIRE_LIGHT_RADIUS_BASE } from '../config/gameConfig';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_HEIGHT } from '../config/gameConfig';
 
 // Define TORCH_LIGHT_RADIUS_BASE locally
 const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; // Slightly smaller than campfire
 
 // Define time constants based on server's logic (world_state.rs)
-const DAY_DURATION_MINUTES = 900.0 / 60.0; // 1.5 minutes, corrected from 90.0
-const NIGHT_DURATION_MINUTES = 900.0 / 60.0;  // 1.5 minutes, corrected from 90.0
+const DAY_DURATION_MINUTES = 270.0 / 60.0;  // 4.5 minutes
+const NIGHT_DURATION_MINUTES = 90.0 / 60.0; // 1.5 minutes
 const TOTAL_CYCLE_MINUTES = DAY_DURATION_MINUTES + NIGHT_DURATION_MINUTES;
 
 // Client-side interpretation for visual transitions
@@ -55,34 +55,33 @@ function getOverlayAlpha(
     _sunsetStartHour: number,
     cycleProgress: number
 ): number {
-    const nightAlpha = 0.90;
-    const dayAlpha = 0.0;
+    const MAX_NIGHT_OVERLAY_ALPHA = 0.90;
 
-    // Server TimeOfDay based on cycle_progress (from world_state.rs):
-    // Midnight: p < 0.05
-    // Night:    p < 0.20
-    // Dawn:     p < 0.35
-    // Morning:  p < 0.50
-    // Noon:     p < 0.65
-    // Afternoon:p < 0.80
-    // Dusk:     p < 0.95
-    // Night:    default
+    // Day is 0.0 to 0.75, Night is 0.75 to 1.0
+    // Dawn: 0.0 to 0.05
+    // Morning: 0.05 to 0.30
+    // Noon: 0.30 to 0.45
+    // Afternoon: 0.45 to 0.70
+    // Dusk: 0.70 to 0.75
+    // Night: 0.75 to 0.90
+    // Midnight: 0.90 to 1.0
 
-    // Let's map these server phases to alpha transitions more directly.
-    if (cycleProgress < 0.05) return nightAlpha; // Midnight
-    if (cycleProgress < 0.20) return nightAlpha; // Night
-    if (cycleProgress < 0.35) { // Dawn: transition from nightAlpha to dayAlpha
-        const phaseProgress = (cycleProgress - 0.20) / (0.35 - 0.20);
-        return nightAlpha - (nightAlpha - dayAlpha) * phaseProgress;
+    if (cycleProgress >= 0.05 && cycleProgress < 0.70) {
+        // Morning, Noon, Afternoon (Full Day)
+        return 0.0;
+    } else if (cycleProgress >= 0.75 && cycleProgress < 1.0) {
+        // Night, Midnight (Full Night)
+        return MAX_NIGHT_OVERLAY_ALPHA;
+    } else if (cycleProgress >= 0.0 && cycleProgress < 0.05) {
+        // Dawn: Transition from Night to Day
+        const dawnProgress = cycleProgress / 0.05;
+        return MAX_NIGHT_OVERLAY_ALPHA * (1 - dawnProgress);
+    } else if (cycleProgress >= 0.70 && cycleProgress < 0.75) {
+        // Dusk: Transition from Day to Night
+        const duskProgress = (cycleProgress - 0.70) / 0.05;
+        return MAX_NIGHT_OVERLAY_ALPHA * duskProgress;
     }
-    if (cycleProgress < 0.50) return dayAlpha; // Morning
-    if (cycleProgress < 0.65) return dayAlpha; // Noon
-    if (cycleProgress < 0.80) return dayAlpha; // Afternoon
-    if (cycleProgress < 0.95) { // Dusk: transition from dayAlpha to nightAlpha
-        const phaseProgress = (cycleProgress - 0.80) / (0.95 - 0.80);
-        return dayAlpha + (nightAlpha - dayAlpha) * phaseProgress;
-    }
-    return nightAlpha; // Default to Night (covers p >= 0.95)
+    return 0.0; // Default to day
 }
 
 interface UseDayNightCycleProps {
@@ -167,8 +166,13 @@ export function useDayNightCycle({
 
         campfires.forEach(campfire => {
             if (campfire.isBurning) {
+                // Adjust Y position for the light source to be centered on the flame
+                const visualCenterWorldY = campfire.posY - (CAMPFIRE_HEIGHT / 2);
+                const adjustedGradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0); // Changed from 0.6 to 0.4
+                
                 const screenX = campfire.posX + cameraOffsetX;
-                const screenY = campfire.posY + cameraOffsetY;
+                const screenY = adjustedGradientCenterWorldY + cameraOffsetY; // Use adjusted Y
+                
                 const lightRadius = CAMPFIRE_LIGHT_RADIUS_BASE;
                 const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.1, screenX, screenY, lightRadius);
                 maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
