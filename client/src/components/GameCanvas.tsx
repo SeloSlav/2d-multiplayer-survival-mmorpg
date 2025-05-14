@@ -198,7 +198,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       playerCorpses
   });
   const animationFrame = useAnimationCycle(150, 4);
-  const { interactionProgress, processInputsAndActions } = useInputHandler({
+  const { 
+    interactionProgress, 
+    processInputsAndActions,
+    currentJumpOffsetY
+  } = useInputHandler({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, placementInfo, placementActions, worldMousePos,
       closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId,

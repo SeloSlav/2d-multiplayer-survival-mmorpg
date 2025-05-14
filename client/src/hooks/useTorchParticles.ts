@@ -5,6 +5,7 @@ import {
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
 import { Particle } from './useCampfireParticles'; // Reuse Particle type
+import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig';
 
 // --- Particle Constants for Torch (can be adjusted) ---
 const TORCH_PARTICLE_LIFETIME_MIN = 100;  // Shorter lifetime for smaller flame, increased from 80
@@ -54,7 +55,7 @@ export function useTorchParticles({
         if (deltaTime <= 0) {
             // If no time passed, update existing particles but don't emit new ones (simplified from original)
             if (particles.length > 0) {
-                 const now = performance.now();
+                 const now = Date.now();
                  setParticles(prevParticles => prevParticles.map(p => {
                     const age = now - p.spawnTime;
                     const lifetimeRemaining = p.initialLifetime - age;
@@ -70,7 +71,7 @@ export function useTorchParticles({
             return;
         }
 
-        const now = performance.now();
+        const now = Date.now();
         const newGeneratedParticlesThisFrame: Particle[] = [];
 
         players.forEach((player, playerId) => {
@@ -90,6 +91,17 @@ export function useTorchParticles({
                 
                 let dynamicOffsetX = BASE_TORCH_FLAME_OFFSET_X;
                 let dynamicOffsetY = BASE_TORCH_FLAME_OFFSET_Y;
+
+                // --- Calculate Jump Offset for THIS player ---
+                let currentJumpOffsetY = 0;
+                if (player.jumpStartTimeMs > 0) {
+                    const elapsedJumpTime = now - Number(player.jumpStartTimeMs);
+                    if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
+                        const t = elapsedJumpTime / JUMP_DURATION_MS;
+                        currentJumpOffsetY = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
+                    }
+                }
+                // --- End Jump Offset Calculation ---
 
                 switch (player.direction) {
                     case "left": 
@@ -112,8 +124,12 @@ export function useTorchParticles({
                         break;
                 }
 
+                let finalEmissionPointY = player.positionY + dynamicOffsetY;
+                // Apply jump offset only for the local player
+                finalEmissionPointY -= currentJumpOffsetY;
+
                 const emissionPointX = player.positionX + dynamicOffsetX;
-                const emissionPointY = player.positionY + dynamicOffsetY;
+                const emissionPointY = finalEmissionPointY; // Use the potentially adjusted Y
 
                 while (acc >= 1) {
                     acc -= 1;

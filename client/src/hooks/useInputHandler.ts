@@ -4,6 +4,7 @@ import { DbConnection } from '../generated';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
+import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig'; // <<< ADDED IMPORT
 
 // --- Constants (Copied from GameCanvas) ---
 const HOLD_INTERACTION_DURATION_MS = 250;
@@ -44,6 +45,7 @@ interface InputHandlerState {
     // State needed for rendering or other components
     interactionProgress: InteractionProgressState | null;
     isSprinting: boolean; // Expose current sprint state if needed elsewhere
+    currentJumpOffsetY: number; // <<< ADDED
     // Function to be called each frame by the game loop
     processInputsAndActions: () => void;
 }
@@ -89,6 +91,7 @@ export const useInputHandler = ({
     const eKeyDownTimestampRef = useRef<number>(0);
     const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
     const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
+    const [currentJumpOffsetY, setCurrentJumpOffsetY] = useState<number>(0); // <<< ADDED
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -159,6 +162,29 @@ export const useInputHandler = ({
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
 
+    // --- Jump Offset Calculation Effect ---
+    useEffect(() => {
+        const player = localPlayerRef.current;
+        if (player && player.jumpStartTimeMs > 0) {
+            const nowMs = Date.now();
+            const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
+
+            if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
+                const t = elapsedJumpTime / JUMP_DURATION_MS; // Normalized time (0 to 1)
+                const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
+                setCurrentJumpOffsetY(jumpOffset);
+            } else {
+                setCurrentJumpOffsetY(0); // End of jump
+            }
+        } else {
+            setCurrentJumpOffsetY(0); // Not jumping or no player
+        }
+        // This effect should run very frequently to update the jump arc smoothly.
+        // Relying on localPlayer changes might not be frequent enough.
+        // We'll add a requestAnimationFrame based update in processInputsAndActions or a separate loop.
+        // For now, localPlayer is the main trigger.
+    }, [localPlayer]);
+
     // --- Swing Logic --- 
     const attemptSwing = useCallback(() => {
         const currentConnection = connectionRef.current;
@@ -223,7 +249,7 @@ export const useInputHandler = ({
 
             // Jump
             if (key === ' ' && !event.repeat) {
-                if (localPlayerRef.current) { // Check player exists via ref
+                if (localPlayerRef.current && !localPlayerRef.current.isDead) { // Check player exists and is not dead
                     jump();
                 }
             }
@@ -505,33 +531,50 @@ export const useInputHandler = ({
 
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
-        const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-        // Block if player is dead or chat is focused
-        if (isPlayerDead || chatInputIsFocused) return; 
+        const currentConnection = connectionRef.current;
+        const player = localPlayerRef.current; // Get the current player state
 
-        // --- Movement --- 
-        let dx = 0;
-        let dy = 0;
-
-        const pressed = keysPressed.current;
-        // Determine raw direction vector components (-1, 0, or 1)
-        if (pressed.has('w') || pressed.has('arrowup')) { dy -= 1; }
-        if (pressed.has('s') || pressed.has('arrowdown')) { dy += 1; }
-        if (pressed.has('a') || pressed.has('arrowleft')) { dx -= 1; }
-        if (pressed.has('d') || pressed.has('arrowright')) { dx += 1; }
-
-        // Normalize the direction vector
-        let normX = 0;
-        let normY = 0;
-        const magnitude = Math.sqrt(dx * dx + dy * dy);
-
-        if (magnitude > 0) {
-            normX = dx / magnitude;
-            normY = dy / magnitude;
+        // Do nothing if player is dead (overall input disable)
+        if (!player || player.isDead) {
+             // Reset sprint state on death if not already handled by useEffect
+            if (isSprintingRef.current) {
+                isSprintingRef.current = false;
+                // No need to call reducer here, useEffect for player.isDead handles it
+            }
+            // Also clear jump offset if player is dead
+            if (currentJumpOffsetY !== 0) {
+                setCurrentJumpOffsetY(0);
+            }
+            return;
         }
+        
+        // --- Jump Offset Calculation (moved here for per-frame update) ---
+        if (player && player.jumpStartTimeMs > 0) {
+            const nowMs = Date.now();
+            const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
 
-        // Call updatePlayerPosition (from context)
-        updatePlayerPosition(normX, normY);
+            if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
+                const t = elapsedJumpTime / JUMP_DURATION_MS;
+                const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
+                setCurrentJumpOffsetY(jumpOffset);
+            } else {
+                setCurrentJumpOffsetY(0); // End of jump
+            }
+        } else if (currentJumpOffsetY !== 0) { // Ensure it resets if not jumping
+            setCurrentJumpOffsetY(0);
+        }
+        // --- End Jump Offset Calculation ---
+
+        // Placement rotation
+        // Process movement
+        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                   (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                   (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+
+        if (dx !== 0 || dy !== 0) {
+            updatePlayerPosition(dx, dy);
+        }
 
         // Handle continuous swing check
         if (isMouseDownRef.current && !placementInfo) { // Only swing if not placing
@@ -542,13 +585,14 @@ export const useInputHandler = ({
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
         closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
-        isClosestInteractableBoxEmpty, onSetInteractingWith
+        isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY
     ]);
 
     // --- Return State & Actions ---
     return {
         interactionProgress,
-        isSprinting: isSprintingRef.current, // Return current value of the ref
-        processInputsAndActions, // Return the processing function
+        isSprinting: isSprintingRef.current, // Return the ref's current value
+        currentJumpOffsetY, // <<< ADDED
+        processInputsAndActions,
     };
 }; 
