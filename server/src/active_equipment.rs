@@ -18,7 +18,7 @@ use rand::{Rng, SeedableRng};
 
 // Combat system imports
 use crate::combat::{
-    PVP_DAMAGE_MULTIPLIER, RESOURCE_RESPAWN_DURATION_SECS, RESPAWN_TIME_MS,
+    RESOURCE_RESPAWN_DURATION_SECS, RESPAWN_TIME_MS,
     find_targets_in_cone, find_best_target, process_attack
 };
 

@@ -1222,6 +1222,25 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     }
     // --- End Grant Starting Rock ---
 
+    // --- Grant Starting Torch ---
+    match item_defs.iter().find(|def| def.name == "Torch") {
+        Some(torch_def) => {
+            log::info!("Granting starting Torch to respawned player: {}", player.username);
+            match crate::items::add_item_to_player_inventory(ctx, sender_id, torch_def.id, 1)? {
+                Some(new_torch_instance_id) => {
+                    log::info!("Granted 1 Torch (ID: {}) to player {}.", new_torch_instance_id, player.username);
+                }
+                None => {
+                    log::error!("Failed to grant starting Torch to player {} (no slot found).", player.username);
+                }
+            }
+        }
+        None => {
+            log::error!("Item definition for 'Torch' not found. Cannot grant starting torch.");
+        }
+    }
+    // --- End Grant Starting Torch ---
+
     // --- Reset Stats and State ---
     player.health = 100.0;
     player.hunger = 100.0;

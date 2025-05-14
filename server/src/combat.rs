@@ -42,8 +42,6 @@ use crate::environment::calculate_chunk_index;
 use crate::player_corpse::create_corpse_for_player;
 
 // --- Game Balance Constants ---
-/// Multiplier for damage when attacking other players
-pub const PVP_DAMAGE_MULTIPLIER: f32 = 6.0;
 /// Time in seconds before resources (trees, stones) respawn after being depleted
 pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
 /// Time in milliseconds before a dead player can respawn
@@ -333,7 +331,7 @@ pub fn calculate_damage_and_yield(
         let pvp_min = item_def.pvp_damage_min.unwrap_or(0); // Default to 0 if not specified
         let pvp_max = item_def.pvp_damage_max.unwrap_or(pvp_min);
         let base_pvp_damage = if pvp_min == pvp_max { pvp_min } else { rng.gen_range(pvp_min..=pvp_max) };
-        final_damage = base_pvp_damage as f32 * PVP_DAMAGE_MULTIPLIER;
+        final_damage = base_pvp_damage as f32;
         // Yield and resource_name for PvP are already 0 and "None"
         return (final_damage, 0, "None".to_string());
     }
