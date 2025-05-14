@@ -1,3 +1,11 @@
+/******************************************************************************
+ * ExternalContainerUI.tsx                                                     *
+ * -------------------------------------------------------------------------- *
+ * Manages the UI for external containers like campfires and wooden storage   *
+ * boxes. Displays items, handles drag-and-drop interactions, and context   *
+ * menus for these containers.                                                *
+ ******************************************************************************/
+
 import React, { useCallback, useMemo } from 'react';
 import styles from './InventoryUI.module.css'; // Reuse styles for now
 
@@ -251,15 +259,15 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     key={slotKey}
                                     slotInfo={currentBoxSlotInfo}
                                     onItemDrop={onItemDrop}
-                                    className={styles.slot}
-                                    isDraggingOver={false}
+                                    className={styles.slot} 
+                                    isDraggingOver={false} // Placeholder, real value from drag state needed
                                 >
                                     {itemInSlot && (
                                         <DraggableItem
                                             item={itemInSlot}
                                             sourceSlot={currentBoxSlotInfo}
                                             onItemDragStart={onItemDragStart}
-                                            onItemDrop={onItemDrop}
+                                            onItemDrop={onItemDrop} 
                                             onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
                                         />
                                     )}

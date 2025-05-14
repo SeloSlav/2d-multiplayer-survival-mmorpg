@@ -10,9 +10,10 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, log, SpacetimeType, TimeDuration, ScheduleAt};
 use std::cmp::min;
 use std::time::Duration;
+use rand::Rng; // Added for random chance
 
 // Import new models
-use crate::models::{ContainerType, ItemLocation, EquipmentSlotType};
+use crate::models::{ContainerType, ItemLocation, EquipmentSlotType, ContainerLocationData}; // Added ContainerLocationData
 
 // Import table traits and concrete types
 use crate::player as PlayerTableTrait;
@@ -26,6 +27,7 @@ use crate::items::{
 use crate::inventory_management::{self, ItemContainer, ContainerItemClearer, merge_or_place_into_container_slot};
 use crate::player_inventory::{move_item_to_inventory, move_item_to_hotbar, find_first_empty_player_slot, get_player_item};
 use crate::environment::calculate_chunk_index; // Assuming helper is here or in utils
+use crate::dropped_item::create_dropped_item_entity; // For dropping charcoal
 
 // --- Constants ---
 // Collision constants
@@ -49,6 +51,7 @@ pub(crate) const FUEL_CONSUME_INTERVAL_SECS: u64 = 5;
 pub const NUM_FUEL_SLOTS: usize = 5;
 const FUEL_CHECK_INTERVAL_SECS: u64 = 1;
 pub const CAMPFIRE_PROCESS_INTERVAL_SECS: u64 = 1; // How often to run the main logic when burning
+const CHARCOAL_PRODUCTION_CHANCE: u8 = 75; // 75% chance
 
 /// --- Campfire Data Structure ---
 /// Represents a campfire in the game world with position, owner, burning state,
@@ -422,8 +425,9 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
     }
 
     let campfire_id = schedule_args.campfire_id_for_schedule as u32;
-    let mut campfires_table = ctx.db.campfire(); // Renamed for clarity
-    let mut inventory_items_table = ctx.db.inventory_item(); // Added
+    let mut campfires_table = ctx.db.campfire();
+    let mut inventory_items_table = ctx.db.inventory_item();
+    let item_definition_table = ctx.db.item_definition(); // Ensure this is available for item def lookups
 
     let mut campfire = match campfires_table.id().find(campfire_id) {
         Some(cf) => cf,
@@ -436,6 +440,7 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
     };
 
     let mut made_changes_to_campfire_struct = false;
+    let mut produced_charcoal_and_modified_campfire_struct = false; // New flag for charcoal specifically
 
     if campfire.is_burning {
         if let Some(mut remaining_time) = campfire.remaining_fuel_burn_time_secs {
@@ -449,7 +454,6 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
                     log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit burnt out (Def: {:?}). Attempting to consume from stack or find new fuel.", 
                              campfire.id, campfire.current_fuel_def_id);
                     
-                    // Current fuel unit (e.g., 1 wood) has burned. Decrement the actual InventoryItem.
                     let mut current_fuel_item_instance_id_opt: Option<u64> = None;
                     let mut current_fuel_slot_idx_opt: Option<u8> = None;
 
@@ -476,6 +480,15 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
                         if let Some(mut fuel_item) = inventory_items_table.instance_id().find(fuel_instance_id) {
                             log::debug!("[ProcessCampfireScheduled] Campfire {} consuming 1 unit from InventoryItem {} (qty before: {}).", 
                                      campfire.id, fuel_instance_id, fuel_item.quantity);
+                            
+                            let consumed_item_def_id = fuel_item.item_def_id; // Capture def ID before quantity changes
+                            let mut consumed_item_was_wood = false;
+                            if let Some(consumed_def) = item_definition_table.id().find(consumed_item_def_id) {
+                                if consumed_def.name == "Wood" {
+                                    consumed_item_was_wood = true;
+                                }
+                            }
+
                             if fuel_item.quantity > 1 {
                                 fuel_item.quantity -= 1;
                                 inventory_items_table.instance_id().update(fuel_item.clone());
@@ -498,8 +511,35 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
                                 campfire.remaining_fuel_burn_time_secs = None;
                             }
                             made_changes_to_campfire_struct = true;
+
+                            // --- CHARCOAL PRODUCTION --- 
+                            if consumed_item_was_wood {
+                                if ctx.rng().gen_range(0..100) < CHARCOAL_PRODUCTION_CHANCE {
+                                    log::info!("[Charcoal] Campfire {}: Wood consumed, 75% chance succeeded for charcoal production.", campfire.id);
+                                    if let Some(charcoal_def) = get_item_def_by_name(ctx, "Charcoal") {
+                                        match try_add_charcoal_to_campfire_or_drop(ctx, &mut campfire, &charcoal_def, 1) {
+                                            Ok(added_to_slots) => {
+                                                if added_to_slots {
+                                                    produced_charcoal_and_modified_campfire_struct = true;
+                                                }
+                                                // If not added_to_slots, it was dropped, no campfire struct change from this op.
+                                            }
+                                            Err(e) => {
+                                                log::error!("[Charcoal] Campfire {}: Error producing charcoal: {}", campfire.id, e);
+                                            }
+                                        }
+                                    } else {
+                                        log::error!("[Charcoal] Campfire {}: Charcoal item definition not found! Cannot produce charcoal.", campfire.id);
+                                    }
+                                } else {
+                                    log::debug!("[Charcoal] Campfire {}: Wood consumed, but 75% chance failed for charcoal.", campfire.id);
+                                }
+                            }
+                            // --- END CHARCOAL PRODUCTION ---
+
                         } else { // Should not happen if current_fuel_def_id was set
-                             log::warn!("[ProcessCampfireScheduled] Campfire {}: Could not find InventoryItem {} for currently burning fuel. Clearing current fuel.", campfire.id, fuel_instance_id);
+                             log::warn!("[ProcessCampfireScheduled] Campfire {}: current_fuel_def_id {:?} was set, but no matching InventoryItem found in slots. Clearing current fuel.", 
+                                     campfire.id, campfire.current_fuel_def_id);
                              campfire.current_fuel_def_id = None;
                              campfire.remaining_fuel_burn_time_secs = None;
                              made_changes_to_campfire_struct = true;
@@ -612,7 +652,7 @@ pub fn process_campfire_logic_scheduled(ctx: &ReducerContext, schedule_args: Cam
         // If it's not burning, but a schedule somehow exists, this `schedule_next_campfire_processing` call will clear it.
     }
 
-    if made_changes_to_campfire_struct {
+    if made_changes_to_campfire_struct || produced_charcoal_and_modified_campfire_struct {
         campfires_table.id().update(campfire.clone());
     }
 
@@ -913,4 +953,146 @@ fn find_and_set_burn_time_for_fuel_unit(
         log::warn!("[find_and_set_burn_time] InventoryItem instance {} not found for fuel.", fuel_instance_id);
     }
     false
+}
+
+// --- NEW: Drop Item from Campfire Fuel Slot to World ---
+#[spacetimedb::reducer]
+pub fn drop_item_from_campfire_slot_to_world(
+    ctx: &ReducerContext,
+    campfire_id: u32,
+    slot_index: u8, // This will be 0-4 for fuel slots
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player();
+    let mut campfire_table = ctx.db.campfire();
+
+    log::info!("[DropFromCampfireToWorld] Player {} attempting to drop fuel from campfire ID {}, slot index {}.", 
+             sender_id, campfire_id, slot_index);
+
+    // 1. Validate interaction and get campfire
+    let (_player_for_validation, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
+
+    // 2. Get Player for drop location
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+    // 3. Call the generic handler from inventory_management
+    // The ItemContainer trait for Campfire handles the slot_index for fuel slots
+    crate::inventory_management::handle_drop_from_container_slot(ctx, &mut campfire, slot_index, &player_for_drop_location)?;
+
+    // 4. Persist changes to the Campfire
+    campfire_table.id().update(campfire);
+    log::info!("[DropFromCampfireToWorld] Successfully dropped fuel from campfire {}, slot {}. Campfire updated.", campfire_id, slot_index);
+
+    Ok(())
+}
+
+// --- NEW: Split and Drop Item from Campfire Fuel Slot to World ---
+#[spacetimedb::reducer]
+pub fn split_and_drop_item_from_campfire_slot_to_world(
+    ctx: &ReducerContext,
+    campfire_id: u32,
+    slot_index: u8, // This will be 0-4 for fuel slots
+    quantity_to_split: u32,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player();
+    let mut campfire_table = ctx.db.campfire();
+
+    log::info!("[SplitDropFromCampfireToWorld] Player {} attempting to split {} fuel from campfire ID {}, slot {}.", 
+             sender_id, quantity_to_split, campfire_id, slot_index);
+
+    // 1. Validate interaction and get campfire
+    let (_player_for_validation, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
+
+    // 2. Get Player for drop location
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+    // 3. Call the generic handler from inventory_management
+    crate::inventory_management::handle_split_and_drop_from_container_slot(ctx, &mut campfire, slot_index, quantity_to_split, &player_for_drop_location)?;
+
+    // 4. Persist changes to the Campfire
+    campfire_table.id().update(campfire);
+    log::info!("[SplitDropFromCampfireToWorld] Successfully split and dropped fuel from campfire {}, slot {}. Campfire updated.", campfire_id, slot_index);
+    
+    Ok(())
+}
+
+// --- Helper: Get Item Definition by Name ---
+fn get_item_def_by_name<'a>(ctx: &'a ReducerContext, name: &str) -> Option<ItemDefinition> {
+    ctx.db.item_definition().iter().find(|def| def.name == name)
+}
+
+// --- Helper: Try to add charcoal to campfire or drop it ---
+// Returns Ok(bool) where true means campfire struct was modified (charcoal added to slots)
+// and false means it was dropped or not produced.
+fn try_add_charcoal_to_campfire_or_drop(
+    ctx: &ReducerContext,
+    campfire: &mut Campfire,
+    charcoal_def: &ItemDefinition,
+    quantity: u32
+) -> Result<bool, String> {
+    let inventory_items_table = ctx.db.inventory_item();
+    let charcoal_def_id = charcoal_def.id;
+    let charcoal_stack_size = charcoal_def.stack_size;
+    let mut charcoal_added_to_campfire_slots = false;
+
+    // 1. Try to stack with existing charcoal in campfire slots
+    for i in 0..NUM_FUEL_SLOTS as u8 {
+        if campfire.get_slot_def_id(i) == Some(charcoal_def_id) {
+            if let Some(instance_id) = campfire.get_slot_instance_id(i) {
+                if let Some(mut existing_charcoal_item) = inventory_items_table.instance_id().find(instance_id) {
+                    if existing_charcoal_item.quantity < charcoal_stack_size {
+                        let can_add = charcoal_stack_size - existing_charcoal_item.quantity;
+                        let to_add = min(quantity, can_add);
+                        existing_charcoal_item.quantity += to_add;
+                        inventory_items_table.instance_id().update(existing_charcoal_item);
+                        log::info!("[Charcoal] Campfire {}: Stacked {} charcoal onto existing stack in slot {}.", campfire.id, to_add, i);
+                        // If quantity was fully added, we're done. This simple version assumes we add 1 unit only.
+                        return Ok(false); // Campfire struct (slots) didn't change, only InventoryItem quantity
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Try to place in an empty slot
+    for i in 0..NUM_FUEL_SLOTS as u8 {
+        if campfire.get_slot_instance_id(i).is_none() {
+            let new_charcoal_location = ItemLocation::Container(ContainerLocationData {
+                container_type: ContainerType::Campfire,
+                container_id: campfire.id as u64,
+                slot_index: i,
+            });
+            let new_charcoal_item = InventoryItem {
+                instance_id: 0, // Auto-incremented by SpacetimeDB on insert - Changed id to instance_id
+                item_def_id: charcoal_def_id,
+                quantity,
+                location: new_charcoal_location,
+            };
+            match inventory_items_table.try_insert(new_charcoal_item) {
+                Ok(inserted_item) => {
+                    campfire.set_slot(i, Some(inserted_item.instance_id), Some(charcoal_def_id));
+                    log::info!("[Charcoal] Campfire {}: Placed {} charcoal into empty slot {}.", campfire.id, quantity, i);
+                    charcoal_added_to_campfire_slots = true;
+                    return Ok(charcoal_added_to_campfire_slots);
+                }
+                Err(e) => {
+                    log::error!("[Charcoal] Campfire {}: Failed to insert new charcoal item for slot {}: {:?}", campfire.id, i, e);
+                    // Continue to drop if insert fails
+                    break; 
+                }
+            }
+        }
+    }
+
+    // 3. If not added to campfire (full or insert error), drop it
+    log::info!("[Charcoal] Campfire {}: Slots full or error encountered. Dropping {} charcoal.", campfire.id, quantity);
+    let drop_x = campfire.pos_x;
+    // Slightly offset Y to avoid dropping directly in the middle of the campfire model
+    let drop_y = campfire.pos_y + crate::dropped_item::DROP_OFFSET / 2.0; 
+    create_dropped_item_entity(ctx, charcoal_def_id, quantity, drop_x, drop_y)?;
+    
+    Ok(charcoal_added_to_campfire_slots) // False, as it was dropped or failed to add to slots
 }

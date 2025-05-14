@@ -1,3 +1,0 @@
-(std::string::String, u32): spacetimedb::Deserialize<'_>
-Vec<(std::string::String, u32)>
-std::option::Option<Vec<(std::string::String, u32)>>

@@ -52,6 +52,12 @@ import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
 import { DropItem } from "./drop_item_reducer.ts";
 export { DropItem };
+import { DropItemFromBoxSlotToWorld } from "./drop_item_from_box_slot_to_world_reducer.ts";
+export { DropItemFromBoxSlotToWorld };
+import { DropItemFromCampfireSlotToWorld } from "./drop_item_from_campfire_slot_to_world_reducer.ts";
+export { DropItemFromCampfireSlotToWorld };
+import { DropItemFromCorpseSlotToWorld } from "./drop_item_from_corpse_slot_to_world_reducer.ts";
+export { DropItemFromCorpseSlotToWorld };
 import { EquipArmor } from "./equip_armor_reducer.ts";
 export { EquipArmor };
 import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
@@ -150,6 +156,12 @@ import { SetPlayerPin } from "./set_player_pin_reducer.ts";
 export { SetPlayerPin };
 import { SetSprinting } from "./set_sprinting_reducer.ts";
 export { SetSprinting };
+import { SplitAndDropItemFromBoxSlotToWorld } from "./split_and_drop_item_from_box_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromBoxSlotToWorld };
+import { SplitAndDropItemFromCampfireSlotToWorld } from "./split_and_drop_item_from_campfire_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromCampfireSlotToWorld };
+import { SplitAndDropItemFromCorpseSlotToWorld } from "./split_and_drop_item_from_corpse_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromCorpseSlotToWorld };
 import { SplitAndMoveFromCampfire } from "./split_and_move_from_campfire_reducer.ts";
 export { SplitAndMoveFromCampfire };
 import { SplitStack } from "./split_stack_reducer.ts";
@@ -508,6 +520,18 @@ const REMOTE_MODULE = {
       reducerName: "drop_item",
       argsType: DropItem.getTypeScriptAlgebraicType(),
     },
+    drop_item_from_box_slot_to_world: {
+      reducerName: "drop_item_from_box_slot_to_world",
+      argsType: DropItemFromBoxSlotToWorld.getTypeScriptAlgebraicType(),
+    },
+    drop_item_from_campfire_slot_to_world: {
+      reducerName: "drop_item_from_campfire_slot_to_world",
+      argsType: DropItemFromCampfireSlotToWorld.getTypeScriptAlgebraicType(),
+    },
+    drop_item_from_corpse_slot_to_world: {
+      reducerName: "drop_item_from_corpse_slot_to_world",
+      argsType: DropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     equip_armor: {
       reducerName: "equip_armor",
       argsType: EquipArmor.getTypeScriptAlgebraicType(),
@@ -704,6 +728,18 @@ const REMOTE_MODULE = {
       reducerName: "set_sprinting",
       argsType: SetSprinting.getTypeScriptAlgebraicType(),
     },
+    split_and_drop_item_from_box_slot_to_world: {
+      reducerName: "split_and_drop_item_from_box_slot_to_world",
+      argsType: SplitAndDropItemFromBoxSlotToWorld.getTypeScriptAlgebraicType(),
+    },
+    split_and_drop_item_from_campfire_slot_to_world: {
+      reducerName: "split_and_drop_item_from_campfire_slot_to_world",
+      argsType: SplitAndDropItemFromCampfireSlotToWorld.getTypeScriptAlgebraicType(),
+    },
+    split_and_drop_item_from_corpse_slot_to_world: {
+      reducerName: "split_and_drop_item_from_corpse_slot_to_world",
+      argsType: SplitAndDropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     split_and_move_from_campfire: {
       reducerName: "split_and_move_from_campfire",
       argsType: SplitAndMoveFromCampfire.getTypeScriptAlgebraicType(),
@@ -817,6 +853,9 @@ export type Reducer = never
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DropItem", args: DropItem }
+| { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
+| { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
+| { name: "DropItemFromCorpseSlotToWorld", args: DropItemFromCorpseSlotToWorld }
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
@@ -866,6 +905,9 @@ export type Reducer = never
 | { name: "SetActiveItemReducer", args: SetActiveItemReducer }
 | { name: "SetPlayerPin", args: SetPlayerPin }
 | { name: "SetSprinting", args: SetSprinting }
+| { name: "SplitAndDropItemFromBoxSlotToWorld", args: SplitAndDropItemFromBoxSlotToWorld }
+| { name: "SplitAndDropItemFromCampfireSlotToWorld", args: SplitAndDropItemFromCampfireSlotToWorld }
+| { name: "SplitAndDropItemFromCorpseSlotToWorld", args: SplitAndDropItemFromCorpseSlotToWorld }
 | { name: "SplitAndMoveFromCampfire", args: SplitAndMoveFromCampfire }
 | { name: "SplitStack", args: SplitStack }
 | { name: "SplitStackFromBox", args: SplitStackFromBox }
@@ -1040,6 +1082,54 @@ export class RemoteReducers {
 
   removeOnDropItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, quantityToDrop: number) => void) {
     this.connection.offReducer("drop_item", callback);
+  }
+
+  dropItemFromBoxSlotToWorld(boxId: number, slotIndex: number) {
+    const __args = { boxId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromBoxSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_box_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromBoxSlotToWorldFlags);
+  }
+
+  onDropItemFromBoxSlotToWorld(callback: (ctx: ReducerEventContext, boxId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_box_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromBoxSlotToWorld(callback: (ctx: ReducerEventContext, boxId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_box_slot_to_world", callback);
+  }
+
+  dropItemFromCampfireSlotToWorld(campfireId: number, slotIndex: number) {
+    const __args = { campfireId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromCampfireSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_campfire_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromCampfireSlotToWorldFlags);
+  }
+
+  onDropItemFromCampfireSlotToWorld(callback: (ctx: ReducerEventContext, campfireId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_campfire_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromCampfireSlotToWorld(callback: (ctx: ReducerEventContext, campfireId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_campfire_slot_to_world", callback);
+  }
+
+  dropItemFromCorpseSlotToWorld(corpseId: number, slotIndex: number) {
+    const __args = { corpseId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_corpse_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromCorpseSlotToWorldFlags);
+  }
+
+  onDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_corpse_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_corpse_slot_to_world", callback);
   }
 
   equipArmor(itemInstanceId: bigint) {
@@ -1786,6 +1876,54 @@ export class RemoteReducers {
     this.connection.offReducer("set_sprinting", callback);
   }
 
+  splitAndDropItemFromBoxSlotToWorld(boxId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { boxId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromBoxSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_box_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromBoxSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromBoxSlotToWorld(callback: (ctx: ReducerEventContext, boxId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_box_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromBoxSlotToWorld(callback: (ctx: ReducerEventContext, boxId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_box_slot_to_world", callback);
+  }
+
+  splitAndDropItemFromCampfireSlotToWorld(campfireId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { campfireId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromCampfireSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_campfire_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromCampfireSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromCampfireSlotToWorld(callback: (ctx: ReducerEventContext, campfireId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_campfire_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromCampfireSlotToWorld(callback: (ctx: ReducerEventContext, campfireId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_campfire_slot_to_world", callback);
+  }
+
+  splitAndDropItemFromCorpseSlotToWorld(corpseId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { corpseId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_corpse_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromCorpseSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_corpse_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_corpse_slot_to_world", callback);
+  }
+
   splitAndMoveFromCampfire(sourceCampfireId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { sourceCampfireId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -2135,6 +2273,21 @@ export class SetReducerFlags {
     this.dropItemFlags = flags;
   }
 
+  dropItemFromBoxSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromBoxSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromBoxSlotToWorldFlags = flags;
+  }
+
+  dropItemFromCampfireSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromCampfireSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromCampfireSlotToWorldFlags = flags;
+  }
+
+  dropItemFromCorpseSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromCorpseSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromCorpseSlotToWorldFlags = flags;
+  }
+
   equipArmorFlags: CallReducerFlags = 'FullUpdate';
   equipArmor(flags: CallReducerFlags) {
     this.equipArmorFlags = flags;
@@ -2368,6 +2521,21 @@ export class SetReducerFlags {
   setSprintingFlags: CallReducerFlags = 'FullUpdate';
   setSprinting(flags: CallReducerFlags) {
     this.setSprintingFlags = flags;
+  }
+
+  splitAndDropItemFromBoxSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromBoxSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromBoxSlotToWorldFlags = flags;
+  }
+
+  splitAndDropItemFromCampfireSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromCampfireSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromCampfireSlotToWorldFlags = flags;
+  }
+
+  splitAndDropItemFromCorpseSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromCorpseSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromCorpseSlotToWorldFlags = flags;
   }
 
   splitAndMoveFromCampfireFlags: CallReducerFlags = 'FullUpdate';

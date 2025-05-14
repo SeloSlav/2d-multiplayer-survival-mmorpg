@@ -416,6 +416,68 @@ pub fn quick_move_to_corpse(
     Ok(())
 }
 
+// --- NEW: Drop Item from Corpse Slot to World ---
+#[spacetimedb::reducer]
+pub fn drop_item_from_corpse_slot_to_world(
+    ctx: &ReducerContext,
+    corpse_id: u32,
+    slot_index: u8,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player(); // For fetching the player for drop location
+    let mut corpse_table = ctx.db.player_corpse();
+
+    log::info!("[DropFromCorpseToWorld] Player {} attempting to drop item from corpse ID {}, slot index {}.", sender_id, corpse_id, slot_index);
+
+    // 1. Validate interaction and get corpse (also gets a player instance for validation)
+    let (_player_for_validation, mut corpse) = validate_corpse_interaction(ctx, corpse_id)?;
+    
+    // 2. Get Player again for drop location calculation (ensure it's the sender)
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+    // 3. Call the generic handler from inventory_management
+    crate::inventory_management::handle_drop_from_container_slot(ctx, &mut corpse, slot_index, &player_for_drop_location)?;
+
+    // 4. Persist changes to the PlayerCorpse
+    corpse_table.id().update(corpse);
+    log::info!("[DropFromCorpseToWorld] Successfully dropped item from corpse {}, slot {}. Corpse updated.", corpse_id, slot_index);
+
+    Ok(())
+}
+
+// --- NEW: Split and Drop Item from Corpse Slot to World ---
+#[spacetimedb::reducer]
+pub fn split_and_drop_item_from_corpse_slot_to_world(
+    ctx: &ReducerContext,
+    corpse_id: u32,
+    slot_index: u8,
+    quantity_to_split: u32,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player(); // For fetching the player for drop location
+    let mut corpse_table = ctx.db.player_corpse();
+
+    log::info!("[SplitDropFromCorpseToWorld] Player {} attempting to split {} from corpse ID {}, slot {}.", 
+             sender_id, quantity_to_split, corpse_id, slot_index);
+
+    // 1. Validate interaction and get corpse
+    let (_player_for_validation, mut corpse) = validate_corpse_interaction(ctx, corpse_id)?;
+
+    // 2. Get Player again for drop location
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+    // 3. Call the generic handler from inventory_management
+    crate::inventory_management::handle_split_and_drop_from_container_slot(ctx, &mut corpse, slot_index, quantity_to_split, &player_for_drop_location)?;
+
+    // 4. Persist changes to the PlayerCorpse
+    corpse_table.id().update(corpse);
+    log::info!("[SplitDropFromCorpseToWorld] Successfully split and dropped from corpse {}, slot {}. Corpse updated.", corpse_id, slot_index);
+    
+    Ok(())
+}
+
 /// Creates a PlayerCorpse entity, transfers items from the dead player's inventory,
 /// and schedules despawn.
 

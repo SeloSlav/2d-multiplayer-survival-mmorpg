@@ -21,6 +21,8 @@ export interface DragSourceSlotInfo {
 export interface DraggedItemInfo {
     item: PopulatedItem;
     sourceSlot: DragSourceSlotInfo;
+    sourceContainerType?: string; // e.g., 'player_inventory', 'wooden_storage_box', 'campfire'
+    sourceContainerEntityId?: number | string | bigint; // ID of the container entity if applicable
     splitQuantity?: number;
     // Add split info later if needed
 } 

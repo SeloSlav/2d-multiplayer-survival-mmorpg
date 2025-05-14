@@ -503,6 +503,74 @@ pub fn pickup_storage_box(ctx: &ReducerContext, box_id: u32) -> Result<(), Strin
     Ok(())
 }
 
+#[spacetimedb::reducer]
+pub fn drop_item_from_box_slot_to_world(
+    ctx: &ReducerContext,
+    box_id: u32,
+    slot_index: u8,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player();
+    let mut wooden_box_table = ctx.db.wooden_storage_box();
+
+    log::info!("[DropFromBoxToWorld] Player {} attempting to drop item from box ID {}, slot index {}.", sender_id, box_id, slot_index);
+
+    // 1. Get Player (for drop position calculation and permission, though permission is implicit by calling)
+    let player = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found.", sender_id))?;
+
+    // 2. Get WoodenStorageBox
+    // Use validate_box_interaction to also check distance
+    let (_player_for_validation, mut wooden_box) = validate_box_interaction(ctx, box_id)?;
+    // We refetch player here specifically for the drop location, 
+    // as validate_box_interaction returns a potentially different instance.
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+    // 3. Call the generic handler from inventory_management
+    // The handler will modify wooden_box (clear slot) and create dropped item, delete inventory_item.
+    crate::inventory_management::handle_drop_from_container_slot(ctx, &mut wooden_box, slot_index, &player_for_drop_location)?;
+
+    // 4. Persist changes to the WoodenStorageBox
+    wooden_box_table.id().update(wooden_box);
+    log::info!("[DropFromBoxToWorld] Successfully dropped item from box {}, slot {}. Box updated.", box_id, slot_index);
+
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn split_and_drop_item_from_box_slot_to_world(
+    ctx: &ReducerContext,
+    box_id: u32,
+    slot_index: u8,
+    quantity_to_split: u32,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let player_table = ctx.db.player();
+    let mut wooden_box_table = ctx.db.wooden_storage_box();
+
+    log::info!("[SplitDropFromBoxToWorld] Player {} attempting to split {} from box ID {}, slot {}.", 
+             sender_id, quantity_to_split, box_id, slot_index);
+
+    // 1. Get Player (for drop position calculation and permission)
+    // Use validate_box_interaction to also check distance
+    let (_player_for_validation, mut wooden_box) = validate_box_interaction(ctx, box_id)?;
+    // Refetch player for drop location
+    let player_for_drop_location = player_table.identity().find(sender_id)
+        .ok_or_else(|| format!("Player {} not found for drop location.", sender_id))?;
+
+
+    // 3. Call the generic handler from inventory_management
+    crate::inventory_management::handle_split_and_drop_from_container_slot(ctx, &mut wooden_box, slot_index, quantity_to_split, &player_for_drop_location)?;
+
+    // 4. Persist changes to the WoodenStorageBox (if its slot was cleared because the whole stack was dropped)
+    wooden_box_table.id().update(wooden_box); 
+
+    log::info!("[SplitDropFromBoxToWorld] Successfully split and dropped from box {}, slot {}. Box updated if slot cleared.", box_id, slot_index);
+    
+    Ok(())
+}
+
 /******************************************************************************
  *                            TRAIT IMPLEMENTATIONS                           *
  ******************************************************************************/

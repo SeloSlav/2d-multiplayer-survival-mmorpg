@@ -66,13 +66,74 @@ export const useDragDropManager = ({
 
         // --- Handle Dropping Item into the World ---
         if (targetSlot === null) {
-            // console.log(`[useDragDropManager Drop] Target is NULL. Dropping item ${itemInstanceId} into the world.`);
             const quantityToDrop = sourceInfo.splitQuantity ?? sourceInfo.item.instance.quantity;
+
+            // Define handlers for specific container types
+            const worldDropHandlers: Record<string, {
+                validateAndGetEntityId: (rawId: any) => number | null;
+                dropReducer: (entityId: number, slotIndex: number) => void;
+                splitDropReducer: (entityId: number, slotIndex: number, quantity: number) => void;
+                containerName: string; // For logging
+            }> = {
+                'wooden_storage_box': {
+                    validateAndGetEntityId: (rawId) => (typeof rawId === 'number' ? rawId : null),
+                    dropReducer: connection.reducers.dropItemFromBoxSlotToWorld.bind(connection.reducers),
+                    splitDropReducer: connection.reducers.splitAndDropItemFromBoxSlotToWorld.bind(connection.reducers),
+                    containerName: "Box"
+                },
+                'player_corpse': {
+                    validateAndGetEntityId: (rawId) => (typeof rawId === 'bigint' ? Number(rawId) : null),
+                    dropReducer: connection.reducers.dropItemFromCorpseSlotToWorld.bind(connection.reducers),
+                    splitDropReducer: connection.reducers.splitAndDropItemFromCorpseSlotToWorld.bind(connection.reducers),
+                    containerName: "Corpse"
+                },
+                'campfire_fuel': {
+                    validateAndGetEntityId: (rawId) => (typeof rawId === 'number' ? rawId : null),
+                    dropReducer: connection.reducers.dropItemFromCampfireSlotToWorld.bind(connection.reducers),
+                    splitDropReducer: connection.reducers.splitAndDropItemFromCampfireSlotToWorld.bind(connection.reducers),
+                    containerName: "Campfire"
+                }
+            };
+
             try {
-                connection.reducers.dropItem(itemInstanceId, quantityToDrop);
-            } catch (error: any) {
-                // console.error("[useDragDropManager Drop] Error calling dropItem reducer:", error);
-                setDropError(`Failed to drop item: ${error?.message || error}`);
+                const handler = worldDropHandlers[sourceInfo.sourceContainerType || ''];
+                
+                if (handler) {
+                    const rawEntityId = sourceInfo.sourceContainerEntityId;
+                    const slotIndex = sourceInfo.sourceSlot.index;
+                    const entityIdNum = handler.validateAndGetEntityId(rawEntityId);
+
+                    if (entityIdNum !== null && slotIndex !== undefined && slotIndex !== null) {
+                        if (sourceInfo.splitQuantity) {
+                            console.log(`[useDragDropManager Drop] Calling split_and_drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${slotIndex}, Qty: ${quantityToDrop}`);
+                            if (handler.splitDropReducer) {
+                                handler.splitDropReducer(entityIdNum as number, slotIndex, quantityToDrop);
+                            } else {
+                                console.error(`[useDragDropManager Drop] splitDropReducer is undefined for ${handler.containerName}`);
+                                setDropError(`Configuration error: Split drop action not found for ${handler.containerName.toLowerCase()}.`);
+                            }
+                        } else {
+                            console.log(`[useDragDropManager Drop] Calling drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${slotIndex}`);
+                            if (handler.dropReducer) {
+                                handler.dropReducer(entityIdNum as number, slotIndex);
+                            } else {
+                                console.error(`[useDragDropManager Drop] dropReducer is undefined for ${handler.containerName}`);
+                                setDropError(`Configuration error: Drop action not found for ${handler.containerName.toLowerCase()}.`);
+                            }
+                        }
+                    } else {
+                        console.error(`[useDragDropManager Drop] Invalid or missing entityId (ID was: ${rawEntityId}, Type: ${typeof rawEntityId}) or slotIndex for ${handler.containerName}.`);
+                        setDropError(`Cannot drop item: Invalid container ID or slot for ${handler.containerName.toLowerCase()}.`);
+                    }
+                } else { 
+                    // Default to player inventory drop if sourceContainerType is not in handlers
+                    // (e.g., 'inventory', 'hotbar', 'equipment')
+                    console.log(`[useDragDropManager Drop] Calling drop_item (default/player inventory). Item: ${itemInstanceId}, Qty: ${quantityToDrop}`);
+                    connection.reducers.dropItem(itemInstanceId, quantityToDrop);
+                }
+            } catch (error) {
+                console.error(`[useDragDropManager Drop] Error calling drop reducer (Source: ${sourceInfo.sourceContainerType}):`, error);
+                setDropError(`Failed to drop item: ${(error as any)?.message || error}`);
             }
             return; // Drop handled, exit
         }

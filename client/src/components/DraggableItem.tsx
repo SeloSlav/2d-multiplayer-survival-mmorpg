@@ -250,25 +250,41 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
             } else {
                 splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
             }
-        } else if (e.button === 2) { // Right mouse button
-            e.preventDefault(); 
-            splitQuantity = 1;
+        } else if (e.button === 0 && e.ctrlKey) { // Ctrl + Left Click for splitting
+            e.preventDefault();
+            splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
+        } else if (e.button === 2) { // Right mouse button (for drag-split)
+            // If right-click and stackable, initiate drag with full quantity for now,
+            // but potential to adjust on drop for splitting (or a dedicated split mode later)
+            // For now, right-drag will behave like left-drag for starting.
+            // The split decision will be made on mouseUp based on whether it was a click or drag.
         }
     }
-    if (e.button === 0 || !splitQuantity) {
-         currentSplitQuantity.current = null; 
-         if (e.button === 0) e.preventDefault(); 
-    } else {
-         currentSplitQuantity.current = splitQuantity; 
-    }
-    e.stopPropagation();
-    isDraggingRef.current = true;
-    setIsDraggingState(true); 
+    currentSplitQuantity.current = splitQuantity;
+
     dragStartPos.current = { x: e.clientX, y: e.clientY };
+    isDraggingRef.current = true;
+    setIsDraggingState(true);
+    document.body.classList.add('item-dragging');
+    if (itemRef.current) {
+      itemRef.current.style.opacity = '0.5'; // Make original item semi-transparent
+    }
+    
+    // Construct the DraggedItemInfo
+    const dragInfo: DraggedItemInfo = {
+      item: item, 
+      sourceSlot: sourceSlot,
+      sourceContainerType: sourceSlot.type, // Use type from sourceSlot
+      sourceContainerEntityId: sourceSlot.parentId, // Use parentId from sourceSlot
+      splitQuantity: currentSplitQuantity.current === null ? undefined : currentSplitQuantity.current,
+    };
+
+    // console.log("[DraggableItem MouseDown] Starting drag. Info:", dragInfo);
+    onItemDragStart(dragInfo);
+
+    // Add temporary listeners to the document
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    const dragInfo: DraggedItemInfo = { item, sourceSlot, splitQuantity: splitQuantity ?? undefined };
-    onItemDragStart(dragInfo);
 
   }, [item, sourceSlot, onItemDragStart, handleMouseMove, handleMouseUp, createGhostElement]);
 

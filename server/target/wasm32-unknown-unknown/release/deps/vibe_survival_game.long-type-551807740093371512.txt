@@ -1,4 +1,0 @@
-(std::string::String, u32)
-(std::string::String, u32): SpacetimeType
-Vec<(std::string::String, u32)>
-std::option::Option<Vec<(std::string::String, u32)>>

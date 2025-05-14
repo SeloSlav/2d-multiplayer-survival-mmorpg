@@ -1,1 +1,0 @@
-UniqueColumn<items::inventory_item__TableHandle, u64, instance_id>

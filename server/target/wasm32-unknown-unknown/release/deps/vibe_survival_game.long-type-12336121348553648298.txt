@@ -1,2 +1,0 @@
-(timestamp::Timestamp,)
-(spacetimedb::Timestamp,)

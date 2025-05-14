@@ -537,16 +537,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         if (fire.isBurning) {
             const lightScreenX = fire.posX + cameraOffsetX;
             
-            // Calculate the original visual center of the campfire sprite in world Y
+            // Calculate the visual center of the campfire sprite in world Y
             const visualCenterWorldY = fire.posY - (CAMPFIRE_HEIGHT / 2);
-            // Shift this center up by 15% of the campfire's height
-            const gradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0.15);
+            // Shift this center up by 10% of the campfire's height for a slight upward offset
+            const gradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0.10);
             // Convert the new world Y center to screen coordinates for drawing
             const newLightScreenY = gradientCenterWorldY + cameraOffsetY;
 
             const flicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
-            // Increase the radius by 50%
-            const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 1.5;
+            // Increase the radius by 100% (double size)
+            const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 2.0;
             
             const lightGradient = ctx.createRadialGradient(
                 lightScreenX,       // Screen X for gradient
@@ -556,7 +556,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 newLightScreenY,    // New shifted screen Y for gradient
                 currentLightRadius
             );
-            lightGradient.addColorStop(0, CAMPFIRE_LIGHT_INNER_COLOR);
+            lightGradient.addColorStop(0, CAMPFIRE_LIGHT_INNER_COLOR); // Inner color covers inner 10%
             lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
             ctx.fillStyle = lightGradient;
             ctx.beginPath();

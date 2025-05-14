@@ -11,16 +11,27 @@ use spacetimedb::{ReducerContext, Identity, Table};
 use log;
 
 // Import necessary types and Table Traits
-use crate::items::{InventoryItem, ItemDefinition, calculate_merge_result, add_item_to_player_inventory};
+use crate::items::{InventoryItem, ItemDefinition, calculate_merge_result, add_item_to_player_inventory, split_stack_helper};
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 // Import new models
 use crate::models::{ItemLocation, ContainerType, EquipmentSlotType};
 // Import player inventory helpers
 use crate::player_inventory::{move_item_to_inventory, move_item_to_hotbar, find_first_empty_player_slot, NUM_PLAYER_INVENTORY_SLOTS, NUM_PLAYER_HOTBAR_SLOTS};
 // Import for clearing active item
-use crate::active_equipment; // Added import
+use crate::active_equipment;
 // Import for active_equipment table trait
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
+
+// Corrected imports for WoodenStorageBox (used as an example ItemContainer implementor, not for direct table access here)
+use crate::wooden_storage_box::WoodenStorageBox; 
+// use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait; // Not needed directly in generic part
+
+// Corrected imports for Player (used for drop location calculation)
+use crate::Player;                             
+use crate::player; // Trait for ctx.db.player() and its methods
+
+// Import for dropped item creation
+use crate::dropped_item::{create_dropped_item_entity, calculate_drop_position};
 
 // --- Generic Item Container Trait --- 
 
@@ -1149,4 +1160,125 @@ pub(crate) fn handle_quick_move_to_container<C: ItemContainer>(
              Err(format!("Failed to place/merge item into container: {}", e))
         }
     }
+}
+
+// --- NEW GENERIC HANDLERS for Dropping Items from Containers ---
+
+/// Generic handler to drop an entire item/stack from a container slot into the world.
+/// The calling reducer is responsible for fetching the container and player, and updating the container in DB.
+pub(crate) fn handle_drop_from_container_slot<C: ItemContainer>(
+    ctx: &ReducerContext,
+    container: &mut C, // Mutable reference to the container struct
+    slot_index: u8,
+    player_for_drop_location: &Player, // Player whose position determines drop location
+) -> Result<(), String> {
+    let inventory_table = ctx.db.inventory_item();
+    let item_def_table = ctx.db.item_definition();
+
+    log::info!("[GenericDropFromContainer] Dropping item from container ID {}, type {:?}, slot index {}. Drop relative to player {}.", 
+             container.get_container_id(), container.get_container_type(), slot_index, player_for_drop_location.identity);
+
+    // 1. Get item instance ID from the container slot
+    let item_instance_id = container.get_slot_instance_id(slot_index)
+        .ok_or_else(|| format!("No item in container {:?} ID {} slot {}.", container.get_container_type(), container.get_container_id(), slot_index))?;
+    
+    // 2. Fetch the InventoryItem and ItemDefinition
+    let item_to_drop = inventory_table.instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("InventoryItem instance {} not found in DB.", item_instance_id))?;
+    let item_def = item_def_table.id().find(item_to_drop.item_def_id)
+        .ok_or_else(|| format!("ItemDefinition {} not found for item instance {}.", item_to_drop.item_def_id, item_instance_id))?;
+
+    // 3. Calculate drop position based on the provided player
+    let (drop_pos_x, drop_pos_y) = calculate_drop_position(player_for_drop_location);
+
+    // 4. Create the dropped item entity in the world
+    create_dropped_item_entity(ctx, item_def.id, item_to_drop.quantity, drop_pos_x, drop_pos_y)?;
+
+    // 5. Delete the original InventoryItem from the database
+    inventory_table.instance_id().delete(item_instance_id);
+    log::debug!("[GenericDropFromContainer] Deleted InventoryItem instance {} from DB.", item_instance_id);
+
+    // 6. Clear the slot in the container struct (passed by mut ref)
+    // The caller (reducer) is responsible for persisting this change to the DB.
+    container.set_slot(slot_index, None, None);
+    log::info!("[GenericDropFromContainer] Item {} (def {}) qty {} dropped from container {:?} ID {} slot {}. Container struct updated.", 
+             item_instance_id, item_def.id, item_to_drop.quantity, container.get_container_type(), container.get_container_id(), slot_index);
+
+    Ok(())
+}
+
+/// Generic handler to split a quantity from an item stack in a container slot and drop the new stack into the world.
+/// The calling reducer is responsible for fetching the container and player, and updating the container in DB.
+pub(crate) fn handle_split_and_drop_from_container_slot<C: ItemContainer>(
+    ctx: &ReducerContext,
+    container: &mut C, // Mutable reference to the container struct
+    slot_index: u8,
+    quantity_to_split: u32,
+    player_for_drop_location: &Player, // Player whose position determines drop location
+) -> Result<(), String> {
+    let inventory_table = ctx.db.inventory_item();
+    let item_def_table = ctx.db.item_definition();
+
+    log::info!("[GenericSplitDropFromContainer] Splitting {} from container ID {}, type {:?}, slot {}. Drop relative to player {}.", 
+             quantity_to_split, container.get_container_id(), container.get_container_type(), slot_index, player_for_drop_location.identity);
+
+    if quantity_to_split == 0 {
+        return Err("Quantity to split cannot be zero.".to_string());
+    }
+
+    // 1. Get source item instance ID from the container slot
+    let source_item_instance_id = container.get_slot_instance_id(slot_index)
+        .ok_or_else(|| format!("No item in container {:?} ID {} slot {} to split.", container.get_container_type(), container.get_container_id(), slot_index))?;
+    
+    // 2. Fetch the source InventoryItem (mutable for split_stack_helper)
+    let mut source_item = inventory_table.instance_id().find(source_item_instance_id)
+        .ok_or_else(|| format!("Source InventoryItem instance {} not found in DB.", source_item_instance_id))?;
+    let source_item_def = item_def_table.id().find(source_item.item_def_id)
+        .ok_or_else(|| format!("ItemDefinition {} not found for source item {}.", source_item.item_def_id, source_item_instance_id))?;
+
+    // 3. Handle splitting the entire stack (or more than available)
+    if quantity_to_split >= source_item.quantity {
+        log::info!("[GenericSplitDropFromContainer] Quantity to split ({}) is >= available ({}). Dropping entire stack from container {:?} ID {} slot {}.",
+                 quantity_to_split, source_item.quantity, container.get_container_type(), container.get_container_id(), slot_index);
+        // Delegate to the full drop handler. The container will be updated by it.
+        return handle_drop_from_container_slot(ctx, container, slot_index, player_for_drop_location);
+    }
+
+    // 4. Perform the split using split_stack_helper
+    let initial_location_for_new_split_item = ItemLocation::Unknown; // Temporary location
+    let newly_split_item_id = split_stack_helper(
+        ctx,
+        &mut source_item, // Source item in the container, its quantity will be reduced by helper and updated in DB.
+        quantity_to_split,
+        initial_location_for_new_split_item,
+    )?;
+    // `source_item` (in the container) now has reduced quantity in the DB.
+    // A new `InventoryItem` row (`newly_split_item_id`) exists with `quantity_to_split`.
+
+    // 5. Fetch the newly created split item to get its details for dropping
+    let new_item_for_drop = inventory_table.instance_id().find(newly_split_item_id)
+        .ok_or_else(|| format!("Newly split item {} not found after creation.", newly_split_item_id))?;
+
+    // 6. Calculate drop position based on the provided player
+    let (drop_pos_x, drop_pos_y) = calculate_drop_position(player_for_drop_location);
+
+    // 7. Create the dropped item entity for the new split stack
+    create_dropped_item_entity(ctx, new_item_for_drop.item_def_id, new_item_for_drop.quantity, drop_pos_x, drop_pos_y)?;
+    log::debug!("[GenericSplitDropFromContainer] Created DroppedItem entity for newly split stack {} (def {}, qty {}).", 
+             newly_split_item_id, new_item_for_drop.item_def_id, new_item_for_drop.quantity);
+
+    // 8. Delete the temporary InventoryItem row for the newly split stack (which was at ItemLocation::Unknown)
+    inventory_table.instance_id().delete(newly_split_item_id);
+    log::debug!("[GenericSplitDropFromContainer] Deleted temporary InventoryItem instance {} for the split part.", newly_split_item_id);
+
+    // 9. The container's slot still points to source_item_instance_id, 
+    // which has its quantity correctly updated in the InventoryItem table by split_stack_helper.
+    // No direct change to container.set_slot() is needed here if the item instance ID in the slot remains the same.
+    // The ItemContainer struct itself doesn't store quantity, only the instance ID.
+    // The calling reducer is responsible for persisting any changes to the container struct if its structure changed (which it doesn't here, only item within it).
+
+    log::info!("[GenericSplitDropFromContainer] Successfully split {} of item def {} (original instance {}) from container {:?} ID {} slot {}. Original stack now has {} items. Dropped stack created.",
+             quantity_to_split, source_item_def.id, source_item_instance_id, container.get_container_type(), container.get_container_id(), slot_index, source_item.quantity);
+    
+    Ok(())
 }
