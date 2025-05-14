@@ -20,6 +20,7 @@ import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
 import { renderSleepingBag } from './sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
+// import { renderHemp } from './hempRenderingUtils';
 // Import specific constants from gameConfig
 import {
     MOVEMENT_POSITION_THRESHOLD,

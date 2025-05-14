@@ -22,8 +22,9 @@ use crate::player_inventory::move_item_to_hotbar;
 use crate::player_inventory::move_item_to_inventory;
 // Import helper used locally
 use crate::player_inventory::find_first_empty_inventory_slot; 
-use crate::models::{ItemLocation, EquipmentSlotType}; // <<< UPDATED IMPORT
+use crate::models::{ItemLocation, EquipmentSlotType, TargetType}; // <<< UPDATED IMPORT
 use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
 
 // --- Item Enums and Structs ---
 
@@ -35,11 +36,19 @@ pub enum ItemCategory {
     Placeable,
     Armor,
     Consumable,
+    Ammunition, // Added Ammunition as per previous user feedback, ensure it's used or remove if not
     // Add other categories as needed (Consumable, Wearable, etc.)
 }
 
+#[derive(SpacetimeType, Clone, Debug, Serialize, Deserialize)] // Added Serialize, Deserialize
+pub struct CostIngredient {
+    pub item_name: String,
+    pub quantity: u32,
+}
+
 #[spacetimedb::table(name = item_definition, public)]
-#[derive(Clone)]
+#[derive(Clone, Debug)] // Removed SpacetimeType, Serialize, Deserialize here as it's a table
+                       // It will get them from the #[table] macro automatically.
 pub struct ItemDefinition {
     #[primary_key]
     #[auto_inc]
@@ -48,12 +57,40 @@ pub struct ItemDefinition {
     pub description: String,   // Optional flavor text
     pub category: ItemCategory,
     pub icon_asset_name: String, // e.g., "stone_hatchet.png", used by client
-    pub damage: Option<u32>,   // Damage dealt (e.g., by tools)
     pub is_stackable: bool,    // Can multiple instances exist in one inventory slot?
     pub stack_size: u32,       // Max number per stack (if stackable)
     pub is_equippable: bool,   // Can this item be equipped (in hand OR on body)?
     pub equipment_slot_type: Option<EquipmentSlotType>, // <-- ADD THIS. Ensure EquipmentSlotType is imported from models.rs
     pub fuel_burn_duration_secs: Option<f32>, // How long one unit of this fuel lasts. If Some, it's fuel.
+
+    // New fields for detailed damage and yield
+    pub primary_target_damage_min: Option<u32>,
+    pub primary_target_damage_max: Option<u32>,
+    pub primary_target_yield_min: Option<u32>,
+    pub primary_target_yield_max: Option<u32>,
+    pub primary_target_type: Option<TargetType>,
+    pub primary_yield_resource_name: Option<String>,
+
+    pub secondary_target_damage_min: Option<u32>,
+    pub secondary_target_damage_max: Option<u32>,
+    pub secondary_target_yield_min: Option<u32>,
+    pub secondary_target_yield_max: Option<u32>,
+    pub secondary_target_type: Option<TargetType>,
+    pub secondary_yield_resource_name: Option<String>,
+
+    pub pvp_damage_min: Option<u32>,
+    pub pvp_damage_max: Option<u32>,
+
+    pub crafting_cost: Option<Vec<CostIngredient>>, // MODIFIED HERE
+    pub crafting_output_quantity: Option<u32>,      // How many items this recipe produces
+    pub crafting_time_secs: Option<u32>,            // Time in seconds to craft
+
+    // Consumable Effects
+    pub consumable_health_gain: Option<f32>,
+    pub consumable_hunger_satiated: Option<f32>,
+    pub consumable_thirst_quenched: Option<f32>,
+    pub consumable_stamina_gain: Option<f32>,
+    pub consumable_duration_secs: Option<f32>, // For effects over time, 0 or None for instant
 }
 
 // --- Inventory Table ---

@@ -6,6 +6,7 @@ import {
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Corn as SpacetimeDBCorn,
+    Hemp as SpacetimeDBHemp,
     PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
 import {
@@ -17,12 +18,15 @@ import {
 
 // Define the constant for corn interaction (use same as mushroom for now)
 const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
+// Define the constant for hemp interaction (use same as mushroom for now)
+const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
 
 // Define the hook's input props
 interface UseInteractionFinderProps {
     localPlayer: SpacetimeDBPlayer | null | undefined;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     corns: Map<string, SpacetimeDBCorn>;
+    hemps: Map<string, SpacetimeDBHemp>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -33,6 +37,7 @@ interface UseInteractionFinderProps {
 interface UseInteractionFinderResult {
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -50,6 +55,7 @@ export function useInteractionFinder({
     localPlayer,
     mushrooms,
     corns,
+    hemps,
     campfires,
     droppedItems,
     woodenStorageBoxes,
@@ -59,6 +65,7 @@ export function useInteractionFinder({
     // State for closest interactable IDs
     const [closestInteractableMushroomId, setClosestInteractableMushroomId] = useState<bigint | null>(null);
     const [closestInteractableCornId, setClosestInteractableCornId] = useState<bigint | null>(null);
+    const [closestInteractableHempId, setClosestInteractableHempId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
     const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
     const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
@@ -72,6 +79,9 @@ export function useInteractionFinder({
 
         let closestCornId: bigint | null = null;
         let closestCornDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
+
+        let closestHempId: bigint | null = null;
+        let closestHempDistSq = PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED;
 
         let closestCampfireId: number | null = null;
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
@@ -113,6 +123,20 @@ export function useInteractionFinder({
                     closestCornId = corn.id;
                 }
             });
+
+            // Find closest hemp
+            if (hemps) {
+                hemps.forEach((hemp) => {
+                    if (hemp.respawnAt !== null && hemp.respawnAt !== undefined) return;
+                    const dx = playerX - hemp.posX;
+                    const dy = playerY - hemp.posY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestHempDistSq) {
+                        closestHempDistSq = distSq;
+                        closestHempId = hemp.id;
+                    }
+                });
+            }
 
             // Find closest campfire
             campfires.forEach((campfire) => {
@@ -174,6 +198,7 @@ export function useInteractionFinder({
         return {
             closestInteractableMushroomId: closestMushroomId,
             closestInteractableCornId: closestCornId,
+            closestInteractableHempId: closestHempId,
             closestInteractableCampfireId: closestCampfireId,
             closestInteractableDroppedItemId: closestDroppedItemId,
             closestInteractableBoxId: closestBoxId,
@@ -181,7 +206,7 @@ export function useInteractionFinder({
             closestInteractableCorpseId: closestCorpse,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, campfires, droppedItems, woodenStorageBoxes, playerCorpses]);
+    }, [localPlayer, mushrooms, corns, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -191,6 +216,9 @@ export function useInteractionFinder({
         }
         if (interactionResult.closestInteractableCornId !== closestInteractableCornId) {
             setClosestInteractableCornId(interactionResult.closestInteractableCornId);
+        }
+        if (interactionResult.closestInteractableHempId !== closestInteractableHempId) {
+            setClosestInteractableHempId(interactionResult.closestInteractableHempId);
         }
         if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
             setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
@@ -214,6 +242,7 @@ export function useInteractionFinder({
     return {
         closestInteractableMushroomId,
         closestInteractableCornId,
+        closestInteractableHempId,
         closestInteractableCampfireId,
         closestInteractableDroppedItemId,
         closestInteractableBoxId,

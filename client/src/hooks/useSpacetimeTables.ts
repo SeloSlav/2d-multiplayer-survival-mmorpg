@@ -11,6 +11,7 @@ export interface SpacetimeTableStates {
     campfires: Map<string, SpacetimeDB.Campfire>;
     mushrooms: Map<string, SpacetimeDB.Mushroom>;
     corns: Map<string, SpacetimeDB.Corn>;
+    hemps: Map<string, SpacetimeDB.Hemp>;
     itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
     inventoryItems: Map<string, SpacetimeDB.InventoryItem>;
     worldState: SpacetimeDB.WorldState | null;
@@ -49,6 +50,7 @@ export const useSpacetimeTables = ({
     const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
     const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(() => new Map());
     const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(() => new Map());
+    const [hemps, setHemps] = useState<Map<string, SpacetimeDB.Hemp>>(() => new Map());
     const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(() => new Map());
     const [inventoryItems, setInventoryItems] = useState<Map<string, SpacetimeDB.InventoryItem>>(() => new Map());
     const [worldState, setWorldState] = useState<SpacetimeDB.WorldState | null>(null);
@@ -203,6 +205,16 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleCornDelete = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => { const newMap = new Map(prev); newMap.delete(corn.id.toString()); return newMap; });
+            const handleHempInsert = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => new Map(prev).set(hemp.id.toString(), hemp));
+            const handleHempUpdate = (ctx: any, oldHemp: SpacetimeDB.Hemp, newHemp: SpacetimeDB.Hemp) => {
+                const changed = oldHemp.posX !== newHemp.posX ||
+                                oldHemp.posY !== newHemp.posY ||
+                                oldHemp.respawnAt !== newHemp.respawnAt;
+                if (changed) {
+                    setHemps(prev => new Map(prev).set(newHemp.id.toString(), newHemp));
+                }
+            };
+            const handleHempDelete = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => { const newMap = new Map(prev); newMap.delete(hemp.id.toString()); return newMap; });
             const handleDroppedItemInsert = (ctx: any, item: SpacetimeDB.DroppedItem) => setDroppedItems(prev => new Map(prev).set(item.id.toString(), item));
             const handleDroppedItemUpdate = (ctx: any, oldItem: SpacetimeDB.DroppedItem, newItem: SpacetimeDB.DroppedItem) => setDroppedItems(prev => new Map(prev).set(newItem.id.toString(), newItem));
             const handleDroppedItemDelete = (ctx: any, item: SpacetimeDB.DroppedItem) => setDroppedItems(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
@@ -277,6 +289,7 @@ export const useSpacetimeTables = ({
             connection.db.activeEquipment.onInsert(handleActiveEquipmentInsert); connection.db.activeEquipment.onUpdate(handleActiveEquipmentUpdate); connection.db.activeEquipment.onDelete(handleActiveEquipmentDelete);
             connection.db.mushroom.onInsert(handleMushroomInsert); connection.db.mushroom.onUpdate(handleMushroomUpdate); connection.db.mushroom.onDelete(handleMushroomDelete);
             connection.db.corn.onInsert(handleCornInsert); connection.db.corn.onUpdate(handleCornUpdate); connection.db.corn.onDelete(handleCornDelete);
+            connection.db.hemp.onInsert(handleHempInsert); connection.db.hemp.onUpdate(handleHempUpdate); connection.db.hemp.onDelete(handleHempDelete);
             connection.db.droppedItem.onInsert(handleDroppedItemInsert); connection.db.droppedItem.onUpdate(handleDroppedItemUpdate); connection.db.droppedItem.onDelete(handleDroppedItemDelete);
             connection.db.woodenStorageBox.onInsert(handleWoodenStorageBoxInsert); connection.db.woodenStorageBox.onUpdate(handleWoodenStorageBoxUpdate); connection.db.woodenStorageBox.onDelete(handleWoodenStorageBoxDelete);
             connection.db.recipe.onInsert(handleRecipeInsert); connection.db.recipe.onUpdate(handleRecipeUpdate); connection.db.recipe.onDelete(handleRecipeDelete);
@@ -397,6 +410,9 @@ export const useSpacetimeTables = ({
                             // Corn
                             const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
+                            // Hemp
+                            const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
                             // Campfire
                             const campfireQuery = `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Campfire Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(campfireQuery));
@@ -481,6 +497,7 @@ export const useSpacetimeTables = ({
         campfires,
         mushrooms,
         corns,
+        hemps,
         itemDefinitions,
         inventoryItems,
         worldState,

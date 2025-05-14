@@ -42,6 +42,7 @@ mod corn; // Add the new corn resource module
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
+mod hemp; // Added for Hemp resource
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -59,6 +60,7 @@ use crate::dropped_item::dropped_item_despawn_schedule as DroppedItemDespawnSche
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::chat::message as MessageTableTrait; // Import the trait for Message table
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
+use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;

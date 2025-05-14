@@ -32,6 +32,8 @@ import {
 } from "@clockworklabs/spacetimedb-sdk";
 import { EquipmentSlotType as __EquipmentSlotType } from "./equipment_slot_type_type";
 import { ItemCategory as __ItemCategory } from "./item_category_type";
+import { TargetType as __TargetType } from "./target_type_type";
+import { CostIngredient as __CostIngredient } from "./cost_ingredient_type";
 
 export type ItemDefinition = {
   id: bigint,
@@ -39,12 +41,33 @@ export type ItemDefinition = {
   description: string,
   category: __ItemCategory,
   iconAssetName: string,
-  damage: number | undefined,
   isStackable: boolean,
   stackSize: number,
   isEquippable: boolean,
   equipmentSlotType: __EquipmentSlotType | undefined,
   fuelBurnDurationSecs: number | undefined,
+  primaryTargetDamageMin: number | undefined,
+  primaryTargetDamageMax: number | undefined,
+  primaryTargetYieldMin: number | undefined,
+  primaryTargetYieldMax: number | undefined,
+  primaryTargetType: __TargetType | undefined,
+  primaryYieldResourceName: string | undefined,
+  secondaryTargetDamageMin: number | undefined,
+  secondaryTargetDamageMax: number | undefined,
+  secondaryTargetYieldMin: number | undefined,
+  secondaryTargetYieldMax: number | undefined,
+  secondaryTargetType: __TargetType | undefined,
+  secondaryYieldResourceName: string | undefined,
+  pvpDamageMin: number | undefined,
+  pvpDamageMax: number | undefined,
+  craftingCost: __CostIngredient[] | undefined,
+  craftingOutputQuantity: number | undefined,
+  craftingTimeSecs: number | undefined,
+  consumableHealthGain: number | undefined,
+  consumableHungerSatiated: number | undefined,
+  consumableThirstQuenched: number | undefined,
+  consumableStaminaGain: number | undefined,
+  consumableDurationSecs: number | undefined,
 };
 
 /**
@@ -62,12 +85,33 @@ export namespace ItemDefinition {
       new ProductTypeElement("description", AlgebraicType.createStringType()),
       new ProductTypeElement("category", __ItemCategory.getTypeScriptAlgebraicType()),
       new ProductTypeElement("iconAssetName", AlgebraicType.createStringType()),
-      new ProductTypeElement("damage", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
       new ProductTypeElement("isStackable", AlgebraicType.createBoolType()),
       new ProductTypeElement("stackSize", AlgebraicType.createU32Type()),
       new ProductTypeElement("isEquippable", AlgebraicType.createBoolType()),
       new ProductTypeElement("equipmentSlotType", AlgebraicType.createOptionType(__EquipmentSlotType.getTypeScriptAlgebraicType())),
       new ProductTypeElement("fuelBurnDurationSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("primaryTargetDamageMin", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("primaryTargetDamageMax", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("primaryTargetYieldMin", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("primaryTargetYieldMax", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("primaryTargetType", AlgebraicType.createOptionType(__TargetType.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("primaryYieldResourceName", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
+      new ProductTypeElement("secondaryTargetDamageMin", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("secondaryTargetDamageMax", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("secondaryTargetYieldMin", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("secondaryTargetYieldMax", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("secondaryTargetType", AlgebraicType.createOptionType(__TargetType.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("secondaryYieldResourceName", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
+      new ProductTypeElement("pvpDamageMin", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("pvpDamageMax", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("craftingCost", AlgebraicType.createOptionType(AlgebraicType.createArrayType(__CostIngredient.getTypeScriptAlgebraicType()))),
+      new ProductTypeElement("craftingOutputQuantity", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("craftingTimeSecs", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("consumableHealthGain", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("consumableHungerSatiated", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("consumableThirstQuenched", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("consumableStaminaGain", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("consumableDurationSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
     ]);
   }
 

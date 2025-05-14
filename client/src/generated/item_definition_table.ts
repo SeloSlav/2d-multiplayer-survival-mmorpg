@@ -33,6 +33,8 @@ import {
 import { ItemDefinition } from "./item_definition_type";
 import { EquipmentSlotType as __EquipmentSlotType } from "./equipment_slot_type_type";
 import { ItemCategory as __ItemCategory } from "./item_category_type";
+import { TargetType as __TargetType } from "./target_type_type";
+import { CostIngredient as __CostIngredient } from "./cost_ingredient_type";
 
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 

@@ -10,6 +10,7 @@
 // Standard library imports
 use std::f32::consts::PI;
 use std::time::Duration;
+use rand::{Rng, SeedableRng};
 
 // SpacetimeDB imports
 use spacetimedb::{Identity, ReducerContext, Table, Timestamp, TimeDuration};
@@ -19,6 +20,7 @@ use log;
 use crate::Player;
 use crate::PLAYER_RADIUS;
 use crate::items::{ItemDefinition, ItemCategory};
+use crate::models::TargetType;
 
 // Collision constants
 use crate::tree::{TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
@@ -48,14 +50,6 @@ pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
 
 // --- Combat System Types ---
-
-/// Types of entities that can be targeted in combat
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TargetType {
-    Tree,
-    Stone,
-    Player,
-}
 
 /// Identifiers for specific combat targets
 #[derive(Debug, Clone)]
@@ -205,37 +199,45 @@ pub fn find_targets_in_cone(
 ///
 /// Different weapons have different priorities (e.g., pickaxes prioritize stones).
 /// This function selects the appropriate target based on the weapon and available targets.
-pub fn find_best_target(targets: &[Target], item_name: &str) -> Option<Target> {
+pub fn find_best_target(targets: &[Target], item_def: &ItemDefinition) -> Option<Target> {
     if targets.is_empty() {
         return None;
     }
     
-    match item_name {
-        "Stone Pickaxe" => {
-            // Prioritize Stones > Players
-            let stone_target = targets.iter().find(|t| t.target_type == TargetType::Stone);
-            if stone_target.is_some() {
-                return stone_target.cloned();
-            }
-            
-            let player_target = targets.iter().find(|t| t.target_type == TargetType::Player);
-            return player_target.cloned();
-        },
-        "Stone Hatchet" => {
-            // Prioritize Trees > Players
-            let tree_target = targets.iter().find(|t| t.target_type == TargetType::Tree);
-            if tree_target.is_some() {
-                return tree_target.cloned();
-            }
-            
-            let player_target = targets.iter().find(|t| t.target_type == TargetType::Player);
-            return player_target.cloned();
-        },
-        _ => {
-            // Default: take closest target
-            return targets.first().cloned();
+    // 1. Check for primary target type
+    if let Some(primary_type) = item_def.primary_target_type {
+        if let Some(target) = targets.iter().find(|t| t.target_type == primary_type) {
+            return Some(target.clone());
         }
     }
+
+    // 2. Check for secondary target type
+    if let Some(secondary_type) = item_def.secondary_target_type {
+        if let Some(target) = targets.iter().find(|t| t.target_type == secondary_type) {
+            return Some(target.clone());
+        }
+    }
+
+    // 3. If tool has PvP damage, check for Player targets if no resource target was found
+    if item_def.pvp_damage_min.is_some() || item_def.pvp_damage_max.is_some() { // Check if any PvP damage is defined
+        if let Some(player_target) = targets.iter().find(|t| t.target_type == TargetType::Player) {
+            // Only return player if primary/secondary types weren't found or aren't defined
+            if item_def.primary_target_type.is_none() && item_def.secondary_target_type.is_none() {
+                return Some(player_target.clone());
+            } else if item_def.primary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.primary_target_type.unwrap()).is_none() &&
+                      item_def.secondary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.secondary_target_type.unwrap()).is_none() {
+                 return Some(player_target.clone()); // Primary & secondary not found
+            } else if item_def.primary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.primary_target_type.unwrap()).is_none() && item_def.secondary_target_type.is_none(){
+                return Some(player_target.clone()); // Primary not found, no secondary defined
+            } else if item_def.secondary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.secondary_target_type.unwrap()).is_none() && item_def.primary_target_type.is_none(){
+                 return Some(player_target.clone()); // Secondary not found, no primary defined
+            }
+        }
+    }
+
+    // 4. If no specific preferred target found, return the closest target of any type.
+    // This allows hitting unintended targets, and calculate_damage_and_yield will determine effect (possibly zero).
+    return targets.first().cloned();
 }
 
 // --- Resource & Damage Functions ---
@@ -259,27 +261,84 @@ pub fn grant_resource(
         .map_err(|e| format!("Failed to grant {} to player: {}", resource_name, e))
 }
 
-/// Calculates damage amount based on item definition and target type
-///
-/// Applies special cases like PVP multiplier and custom damage values for specific items.
-pub fn calculate_damage(item_def: &ItemDefinition, target_type: TargetType) -> f32 {
-    let base_damage = item_def.damage.unwrap_or(0);
-    
-    // Apply special case for Rock item
-    if item_def.name == "Rock" {
-        return if target_type == TargetType::Player { 
-            1.0 * PVP_DAMAGE_MULTIPLIER 
-        } else { 
-            1.0 
-        };
-    }
-    
-    // Apply PVP multiplier for player targets
+/// Calculates damage amount based on item definition, target type, and RNG.
+/// Returns a random f32 damage value within the defined min/max range for the interaction.
+pub fn calculate_damage_and_yield(
+    item_def: &ItemDefinition, 
+    target_type: TargetType,
+    rng: &mut impl Rng,
+) -> (f32, u32, String) {
+    let mut damage_min = 0u32;
+    let mut damage_max = 0u32;
+    let mut yield_min = 0u32;
+    let mut yield_max = 0u32;
+    let mut resource_name = "None".to_string(); // Default to None, especially for PvP
+
     if target_type == TargetType::Player {
-        base_damage as f32 * PVP_DAMAGE_MULTIPLIER
+        damage_min = item_def.pvp_damage_min.unwrap_or(0);
+        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min); 
+        yield_min = 0; // No yield from players
+        yield_max = 0;
+        // resource_name is already "None"
+    } else if Some(target_type) == item_def.primary_target_type {
+        // Target matches the item's primary target type
+        damage_min = item_def.primary_target_damage_min.unwrap_or(0);
+        damage_max = item_def.primary_target_damage_max.unwrap_or(damage_min);
+        yield_min = item_def.primary_target_yield_min.unwrap_or(0);
+        yield_max = item_def.primary_target_yield_max.unwrap_or(yield_min);
+        resource_name = item_def.primary_yield_resource_name.clone().unwrap_or_else(|| "None".to_string());
+    } else if Some(target_type) == item_def.secondary_target_type {
+        // Target matches the item's secondary target type
+        damage_min = item_def.secondary_target_damage_min.unwrap_or(0);
+        damage_max = item_def.secondary_target_damage_max.unwrap_or(damage_min);
+        yield_min = item_def.secondary_target_yield_min.unwrap_or(0);
+        yield_max = item_def.secondary_target_yield_max.unwrap_or(yield_min);
+        resource_name = item_def.secondary_yield_resource_name.clone().unwrap_or_else(|| "None".to_string());
     } else {
-        base_damage as f32
+        // Tool is not designed for this target type (e.g., trying to hit a tree with something that has no tree affinity)
+        // Fallback to very low/no damage and no yield.
+        // If it has PvP damage defined, use that as a last resort even for non-player, otherwise 0.
+        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Could be 0 if not a weapon
+        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
+        yield_min = 0;
+        yield_max = 0;
+        // resource_name is already "None"
+        log::warn!(
+            "Item '{}' used against unhandled target type '{:?}'. Primary: {:?}, Secondary: {:?}. Defaulting to minimal/no effect.", 
+            item_def.name, 
+            target_type,
+            item_def.primary_target_type,
+            item_def.secondary_target_type
+        );
     }
+
+    // Ensure max is not less than min
+    if damage_max < damage_min { damage_max = damage_min; }
+    if yield_max < yield_min { yield_max = yield_min; }
+
+    let mut final_damage = if damage_min == damage_max {
+        damage_min as f32
+    } else {
+        rng.gen_range(damage_min..=damage_max) as f32
+    };
+
+    let final_yield = if yield_min == yield_max {
+        yield_min
+    } else {
+        rng.gen_range(yield_min..=yield_max)
+    };
+    
+    // Apply PVP multiplier if target is a player. This is now the authoritative damage for PvP.
+    if target_type == TargetType::Player {
+        let pvp_min = item_def.pvp_damage_min.unwrap_or(0); // Default to 0 if not specified
+        let pvp_max = item_def.pvp_damage_max.unwrap_or(pvp_min);
+        let base_pvp_damage = if pvp_min == pvp_max { pvp_min } else { rng.gen_range(pvp_min..=pvp_max) };
+        final_damage = base_pvp_damage as f32 * PVP_DAMAGE_MULTIPLIER;
+        // Yield and resource_name for PvP are already 0 and "None"
+        return (final_damage, 0, "None".to_string());
+    }
+
+    (final_damage, final_yield, resource_name)
 }
 
 /// Applies damage to a tree and handles destruction/respawning
@@ -289,42 +348,39 @@ pub fn damage_tree(
     ctx: &ReducerContext, 
     attacker_id: Identity, 
     tree_id: u64, 
-    damage: u32, 
+    damage: f32,
+    yield_amount: u32,
+    resource_name_to_grant: &str,
     timestamp: Timestamp
 ) -> Result<AttackResult, String> {
     let mut tree = ctx.db.tree().id().find(tree_id)
         .ok_or_else(|| "Target tree disappeared".to_string())?;
     
     let old_health = tree.health;
-    tree.health = tree.health.saturating_sub(damage);
+    tree.health = tree.health.saturating_sub(damage as u32);
     tree.last_hit_time = Some(timestamp);
     
-    log::info!("Player {:?} hit Tree {} for {} damage. Health: {} -> {}", 
+    log::info!("Player {:?} hit Tree {} for {:.1} damage. Health: {} -> {}", 
            attacker_id, tree_id, damage, old_health, tree.health);
     
-    // Grant wood
-    let resource_name = "Wood";
-    let resource_amount = damage as u32;
-    let resource_result = grant_resource(ctx, attacker_id, resource_name, resource_amount);
+    let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, yield_amount);
     
     if let Err(e) = resource_result {
-        log::error!("Failed to grant Wood to player {:?}: {}", attacker_id, e);
+        log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
     }
     
-    // Handle destruction
     if tree.health == 0 {
         log::info!("Tree {} destroyed by Player {:?}. Scheduling respawn.", tree_id, attacker_id);
         let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
         tree.respawn_at = Some(respawn_time);
     }
     
-    // Update the tree
     ctx.db.tree().id().update(tree);
     
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Tree),
-        resource_granted: Some((resource_name.to_string(), resource_amount)),
+        resource_granted: Some((resource_name_to_grant.to_string(), yield_amount)),
     })
 }
 
@@ -335,42 +391,39 @@ pub fn damage_stone(
     ctx: &ReducerContext, 
     attacker_id: Identity, 
     stone_id: u64, 
-    damage: u32, 
+    damage: f32,
+    yield_amount: u32,
+    resource_name_to_grant: &str,
     timestamp: Timestamp
 ) -> Result<AttackResult, String> {
     let mut stone = ctx.db.stone().id().find(stone_id)
         .ok_or_else(|| "Target stone disappeared".to_string())?;
     
     let old_health = stone.health;
-    stone.health = stone.health.saturating_sub(damage);
+    stone.health = stone.health.saturating_sub(damage as u32);
     stone.last_hit_time = Some(timestamp);
     
-    log::info!("Player {:?} hit Stone {} for {} damage. Health: {} -> {}", 
+    log::info!("Player {:?} hit Stone {} for {:.1} damage. Health: {} -> {}", 
            attacker_id, stone_id, damage, old_health, stone.health);
     
-    // Grant stone
-    let resource_name = "Stone";
-    let resource_amount = damage as u32;
-    let resource_result = grant_resource(ctx, attacker_id, resource_name, resource_amount);
+    let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, yield_amount);
     
     if let Err(e) = resource_result {
-        log::error!("Failed to grant Stone to player {:?}: {}", attacker_id, e);
+        log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
     }
     
-    // Handle destruction
     if stone.health == 0 {
         log::info!("Stone {} depleted by Player {:?}. Scheduling respawn.", stone_id, attacker_id);
         let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
         stone.respawn_at = Some(respawn_time);
     }
     
-    // Update the stone
     ctx.db.stone().id().update(stone);
     
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Stone),
-        resource_granted: Some((resource_name.to_string(), resource_amount)),
+        resource_granted: Some((resource_name_to_grant.to_string(), yield_amount)),
     })
 }
 
@@ -392,7 +445,6 @@ pub fn damage_player(
     let player_corpse_table = ctx.db.player_corpse();
     let player_corpse_schedule_table = ctx.db.player_corpse_despawn_schedule();
 
-    // Fetch attacker and target players
     let attacker_player_opt = players.identity().find(&attacker_id);
     let mut target_player = players.identity().find(&target_id)
         .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
@@ -405,7 +457,6 @@ pub fn damage_player(
     log::info!("Player {:?} hit Player {:?} with {} for {:.1} damage. Health: {:.1} -> {:.1}",
            attacker_id, target_id, item_name, damage, old_health, new_health);
     
-    // --- Handle Death ---
     if new_health <= 0.0 && !target_player.is_dead {
         log::info!("Player {} ({:?}) died from combat (Attacker: {:?}, Health: {:.1}).",
                  target_player.username, target_id, attacker_id, new_health);
@@ -413,25 +464,14 @@ pub fn damage_player(
         target_player.death_timestamp = Some(timestamp);
         target_player.last_update = timestamp;
 
-        // Clear player's active equipped item (tool/weapon in hand)
-        // Call the reducer directly. It handles logging.
         match crate::active_equipment::clear_active_item_reducer(ctx, target_player.identity) {
             Ok(_) => log::info!("[PlayerDeath] Active item cleared for dying player {}", target_player.identity),
             Err(e) => log::error!("[PlayerDeath] Failed to clear active item for dying player {}: {}", target_player.identity, e),
         }
 
-        // TODO: Armor handling on death is now intended to be part of `transfer_inventory_to_corpse`
-        // when the corpse is created. Commenting out the direct call here.
-        // match clear_all_equipped_armor_from_player(ctx, target_player.identity) {
-        //     Ok(_) => log::info!("[PlayerDeath] All equipped armor cleared for player {}", target_player.identity),
-        //     Err(e) => log::error!("[PlayerDeath] Failed to clear equipped armor for player {}: {}", target_player.identity, e),
-        // }
-
-        // Create corpse for the player
         match create_corpse_for_player(ctx, &target_player) {
             Ok(corpse_id) => {
                 log::info!("Successfully created corpse {} via combat death for player {:?}", corpse_id, target_id);
-                // If target was holding an item, it should be unequipped (returned to inventory or dropped)
                 if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&target_id) {
                     if active_equip.equipped_item_instance_id.is_some() {
                         match crate::active_equipment::clear_active_item_reducer(ctx, target_id) {
@@ -443,22 +483,19 @@ pub fn damage_player(
             }
             Err(e) => {
                 log::error!("Failed to create corpse via combat death for player {:?}: {}", target_id, e);
-                // Handle corpse creation failure if needed (e.g., drop items?)
             }
         }
-        // --- Final Player Update (Mark dead) ---
-        players.identity().update(target_player.clone()); // Update player state AFTER corpse attempt
+        players.identity().update(target_player.clone());
         log::info!("Player {:?} marked as dead.", target_id);
 
     } else if new_health > 0.0 {
-         // Update the player if they were damaged but didn't die
-         players.identity().update(target_player);
+        players.identity().update(target_player);
     }
 
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Player),
-        resource_granted: None, // No resources from hitting players
+        resource_granted: None,
     })
 }
 
@@ -471,25 +508,20 @@ pub fn process_attack(
     attacker_id: Identity,
     target: &Target,
     item_def: &ItemDefinition,
-    timestamp: Timestamp
+    timestamp: Timestamp,
+    rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
-    let damage = match target.target_type {
-        TargetType::Tree | TargetType::Stone => {
-            if item_def.name == "Rock" { 1 } else { item_def.damage.unwrap_or(0) }
-        },
-        TargetType::Player => item_def.damage.unwrap_or(0),
-    };
+    let (damage, yield_amount, resource_name) = calculate_damage_and_yield(item_def, target.target_type, rng);
     
     match &target.id {
         TargetId::Tree(tree_id) => {
-            damage_tree(ctx, attacker_id, *tree_id, damage, timestamp)
+            damage_tree(ctx, attacker_id, *tree_id, damage, yield_amount, &resource_name, timestamp)
         },
         TargetId::Stone(stone_id) => {
-            damage_stone(ctx, attacker_id, *stone_id, damage, timestamp)
+            damage_stone(ctx, attacker_id, *stone_id, damage, yield_amount, &resource_name, timestamp)
         },
         TargetId::Player(player_id) => {
-            let actual_damage = calculate_damage(item_def, TargetType::Player);
-            damage_player(ctx, attacker_id, *player_id, actual_damage, &item_def.name, timestamp)
+            damage_player(ctx, attacker_id, *player_id, damage, &item_def.name, timestamp)
         }
     }
 } 

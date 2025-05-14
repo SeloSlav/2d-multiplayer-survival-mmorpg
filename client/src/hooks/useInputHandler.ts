@@ -22,6 +22,7 @@ interface UseInputHandlerProps {
     // Closest interactables (passed in for now)
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -64,6 +65,7 @@ export const useInputHandler = ({
     worldMousePos,
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractableHempId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -96,6 +98,7 @@ export const useInputHandler = ({
     const closestIdsRef = useRef({
         mushroom: null as bigint | null,
         corn: null as bigint | null,
+        hemp: null as bigint | null,
         campfire: null as number | null,
         droppedItem: null as bigint | null,
         box: null as number | null,
@@ -135,6 +138,7 @@ export const useInputHandler = ({
         closestIdsRef.current = {
             mushroom: closestInteractableMushroomId,
             corn: closestInteractableCornId,
+            hemp: closestInteractableHempId,
             campfire: closestInteractableCampfireId,
             droppedItem: closestInteractableDroppedItemId,
             box: closestInteractableBoxId,
@@ -144,6 +148,7 @@ export const useInputHandler = ({
     }, [
         closestInteractableMushroomId, 
         closestInteractableCornId, 
+        closestInteractableHempId,
         closestInteractableCampfireId, 
         closestInteractableDroppedItemId, 
         closestInteractableBoxId, 
@@ -225,123 +230,83 @@ export const useInputHandler = ({
 
             // Interaction key ('e')
             if (key === 'e' && !event.repeat && !isEHeldDownRef.current) {
-                // *** NEW LOGGING HERE ***
-                // console.log(`[InputHandler KeyDown E - Ref Check] woodenStorageBoxesRef.current exists: ${!!woodenStorageBoxesRef.current}, Map size: ${woodenStorageBoxesRef.current?.size ?? 'N/A'}`);
-                // *** END NEW LOGGING ***
-
                 const currentConnection = connectionRef.current;
-                if (!currentConnection?.reducers) return; // Need connection for interactions
+                if (!currentConnection?.reducers) return;
+                const closest = closestIdsRef.current;
+                console.log(`[Input E Down] Closest IDs: M=${closest.mushroom}, Co=${closest.corn}, H=${closest.hemp}, Ca=${closest.campfire}, D=${closest.droppedItem}, B=${closest.box}(${closest.boxEmpty}), Corpse=${closest.corpse}`);
 
-                const closest = closestIdsRef.current; // Use ref value
-                const { mushroom, corn, campfire, droppedItem, box, boxEmpty } = closest;
-                // <<< ADD logging for corpse ID >>>
-                const corpseId = closestIdsRef.current.corpse; // Get corpse ID from ref
-                console.log(`[Input E Down] Closest IDs: M=${mushroom}, Co=${corn}, Ca=${campfire}, D=${droppedItem}, B=${box}(${boxEmpty}), Corpse=${corpseId}`);
-
-                // Priority: DroppedItem > Empty Box > Mushroom > Corn > Open Box > Campfire > Corpse
-                if (droppedItem !== null) {
+                // Pure Tap Actions (Highest Priority)
+                if (closest.droppedItem !== null) {
                     try {
-                        currentConnection.reducers.pickupDroppedItem(droppedItem);
+                        currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
                     } catch (err) {
                         console.error("Error calling pickupDroppedItem reducer:", err);
                     }
-                    return;
-                } else if (box !== null) {
-                    // console.log(`[InputHandler KeyDown E] Starting hold check for Box ID: ${box}. Empty: ${boxEmpty}`);
+                    return; // Consume E press
+                }
+                if (closest.mushroom !== null) {
+                    try {
+                        currentConnection.reducers.interactWithMushroom(closest.mushroom);
+                    } catch (err) {
+                        console.error("Error calling interactWithMushroom reducer:", err);
+                    }
+                    return; // Consume E press
+                }
+                if (closest.corn !== null) {
+                    try {
+                        currentConnection.reducers.interactWithCorn(closest.corn);
+                    } catch (err) {
+                        console.error("Error calling interactWithCorn reducer:", err);
+                    }
+                    return; // Consume E press
+                }
+                if (closest.hemp !== null) {
+                    try {
+                        currentConnection.reducers.interactWithHemp(closest.hemp);
+                    } catch (err) {
+                        console.error("Error calling interactWithHemp reducer:", err);
+                    }
+                    return; // Consume E press
+                }
+
+                // Tap-or-Hold Actions (Process one, then return)
+                if (closest.box !== null) {
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
-                    if (boxEmpty) {
-                        setInteractionProgress({ targetId: box, targetType: 'wooden_storage_box', startTime: Date.now() });
-                        // console.log(`[InputHandler KeyDown E - Box] Set interactionProgress.targetId = ${box}, targetType = wooden_storage_box`);
-                    }
-                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-                    eKeyHoldTimerRef.current = setTimeout(() => {
-                        if (isEHeldDownRef.current) {
-                            const stillClosest = closestIdsRef.current; // Re-check closest box via ref
-                    
-                            // --- ADD CLIENT LOGGING ---
-                            let clientBoxContents = "Box data not found client-side";
-                            const clientBoxesMap = woodenStorageBoxesRef.current; // Access via ref
-                            if (clientBoxesMap && box !== null) { // Check box is not null here
-                                const boxData = clientBoxesMap.get(box.toString()); // 'box' is the ID captured when 'E' was pressed
-                                if (boxData) {
-                                    const slots: (string | null)[] = [];
-                                    // Loop based on known slot count (e.g., 18)
-                                    for (let i = 0; i < 18; i++) { 
-                                        const slotKey = `slotInstanceId${i}` as keyof SpacetimeDB.WoodenStorageBox;
-                                        // Safely access the property and convert ID to string or use 'None'
-                                        const instanceId = boxData[slotKey];
-                                        slots.push(instanceId ? instanceId.toString() : 'None'); 
-                                    }
-                                    clientBoxContents = `[${slots.join(', ')}]`;
-                                } else {
-                                    clientBoxContents = `Box ID ${box} not found in client map.`;
+                    if (closest.boxEmpty) { // Primary action for empty box is HOLD to pickup
+                        setInteractionProgress({ targetId: closest.box, targetType: 'wooden_storage_box', startTime: Date.now() });
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
+                        eKeyHoldTimerRef.current = setTimeout(() => {
+                            if (isEHeldDownRef.current) {
+                                const stillClosest = closestIdsRef.current;
+                                if (stillClosest.box === closest.box && stillClosest.boxEmpty) {
+                                    try {
+                                        connectionRef.current?.reducers.pickupStorageBox(closest.box!);
+                                    } catch (err) { console.error("[InputHandler Hold Timer] Error calling pickupStorageBox reducer:", err); }
                                 }
-                            } else if (!clientBoxesMap) {
-                                clientBoxContents = "Client boxes map is null/undefined.";
-                            } else {
-                                clientBoxContents = "Target box ID was null."; // Should not happen if we entered this block
-                            }
-                            // Log both the flag from useInteractionFinder and the actual contents
-                            // console.log(`[InputHandler Hold Timer - Client Check] Target Box ID: ${box}, Current Closest Box ID: ${stillClosest.box}, isClosestEmptyFlag: ${stillClosest.boxEmpty}, Client Actual Contents: ${clientBoxContents}`);
-                            // --- END CLIENT LOGGING ---
-                    
-                            // The original condition check remains the same
-                            if (stillClosest.box === box && stillClosest.boxEmpty) { 
-                                // console.log(`[InputHandler Hold Timer] Conditions met. Attempting pickup...`);
-                                try {
-                                    connectionRef.current?.reducers.pickupStorageBox(box); // 'box' is not null here
-                                    // Reset state after successful pickup
-                                    isEHeldDownRef.current = false; 
-                                    setInteractionProgress(null);
-                                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-                                    eKeyHoldTimerRef.current = null;
-                                } catch (err) {
-                                    console.error("[InputHandler Hold Timer] Error calling pickupStorageBox reducer:", err);
-                                    // Reset state even on error
-                                    isEHeldDownRef.current = false;
-                                    setInteractionProgress(null);
-                                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-                                    eKeyHoldTimerRef.current = null;
-                                }
-                            } else {
-                                // console.log(`[InputHandler Hold Timer] Conditions NOT met. No pickup.`);
-                                // Reset state
+                                isEHeldDownRef.current = false;
                                 setInteractionProgress(null);
                                 if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
                                 eKeyHoldTimerRef.current = null;
                             }
-                        }
-                    }, HOLD_INTERACTION_DURATION_MS);
-                    return;
-                } else if (mushroom !== null) {
-                    try {
-                        currentConnection.reducers.interactWithMushroom(mushroom);
-                    } catch (err) {
-                        console.error("Error calling interactWithMushroom reducer:", err);
+                        }, HOLD_INTERACTION_DURATION_MS);
                     }
-                    return;
-                } else if (corn !== null) {
-                    try {
-                        currentConnection.reducers.interactWithCorn(corn);
-                    } catch (err) {
-                        console.error("Error calling interactWithCorn reducer:", err);
-                    }
-                    return;
-                } else if (campfire !== null) {
-                    // console.log(`[InputHandler KeyDown E] Starting hold check for Campfire ID: ${campfire}`);
+                    // For non-empty box, tap is handled by keyUp. No timer started here for tap.
+                    return; // Box interaction initiated (either hold timer or setup for tap)
+                }
+                
+                if (closest.campfire !== null) {
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
-                    setInteractionProgress({ targetId: campfire, targetType: 'campfire', startTime: Date.now() });
-                    // console.log(`[InputHandler KeyDown E - Campfire] Set interactionProgress.targetId = ${campfire}, targetType = campfire`);
+                    // Primary interaction for campfire on E-down is to start hold for toggling burn
+                    setInteractionProgress({ targetId: closest.campfire, targetType: 'campfire', startTime: Date.now() });
                     if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
                     eKeyHoldTimerRef.current = setTimeout(() => {
                         if (isEHeldDownRef.current) {
-                            const stillClosest = closestIdsRef.current; // Re-check via ref
-                            if (stillClosest.campfire === campfire) {
-                                // console.log(`[InputHandler Hold Timer - Campfire] Executing toggle for Campfire ID: ${campfire}`);
+                            const stillClosest = closestIdsRef.current;
+                            if (stillClosest.campfire === closest.campfire) {
                                 try {
-                                    connectionRef.current?.reducers.toggleCampfireBurning(campfire);
+                                    connectionRef.current?.reducers.toggleCampfireBurning(closest.campfire!);
                                 } catch (err) { console.error("[InputHandler Hold Timer - Campfire] Error toggling campfire:", err); }
                             }
                             isEHeldDownRef.current = false;
@@ -350,15 +315,15 @@ export const useInputHandler = ({
                             eKeyHoldTimerRef.current = null;
                         }
                     }, HOLD_INTERACTION_DURATION_MS);
-                    return;
-                } else if (corpseId !== null) {
-                    // No hold action for corpse, just log for now. Interaction happens on KeyUp short press.
-                    console.log(`[Input E Down] Closest interactable is Corpse ID: ${corpseId}. Waiting for KeyUp.`);
-                    // Set isEHeldDownRef to track the key press for KeyUp logic
+                    return; // Campfire interaction initiated (hold timer or setup for tap)
+                }
+
+                if (closest.corpse !== null) {
                     isEHeldDownRef.current = true;
-                    eKeyDownTimestampRef.current = Date.now(); 
-                    // No timer or interactionProgress needed here for corpse looting
-                    return;
+                    eKeyDownTimestampRef.current = Date.now();
+                    // Tap to loot corpse is handled by keyUp. No timer started here for tap.
+                    // console.log(`[Input E Down] Closest interactable is Corpse ID: ${closest.corpse}. Waiting for KeyUp.`);
+                    return; // Corpse interaction setup for tap resolution on keyUp
                 }
             }
 
@@ -575,8 +540,8 @@ export const useInputHandler = ({
     }, [
         isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, 
-        closestInteractableDroppedItemId, closestInteractableBoxId, 
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId, 
+        closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
         isClosestInteractableBoxEmpty, onSetInteractingWith
     ]);
 

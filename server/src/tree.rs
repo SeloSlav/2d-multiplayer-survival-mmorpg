@@ -18,7 +18,7 @@ pub(crate) const TREE_SPAWN_WORLD_MARGIN_TILES: u32 = 3;
 pub(crate) const MAX_TREE_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
 pub(crate) const MIN_TREE_DISTANCE_PX: f32 = 200.0;
 pub(crate) const MIN_TREE_DISTANCE_SQ: f32 = MIN_TREE_DISTANCE_PX * MIN_TREE_DISTANCE_PX;
-pub(crate) const TREE_INITIAL_HEALTH: u32 = 100;
+pub(crate) const TREE_INITIAL_HEALTH: u32 = 2000;
 
 // --- Tree Enums and Structs ---
 

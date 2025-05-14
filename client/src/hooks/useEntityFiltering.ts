@@ -10,12 +10,14 @@ import {
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   SleepingBag as SpacetimeDBSleepingBag,
   Corn as SpacetimeDBCorn,
+  Hemp as SpacetimeDBHemp,
   PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
 import {
   isPlayer, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isWoodenStorageBox,
   isSleepingBag,
-  isCorn
+  isCorn,
+  isHemp
 } from '../utils/typeGuards';
 
 interface ViewportBounds {
@@ -35,13 +37,15 @@ interface EntityFilteringResult {
   visibleWoodenStorageBoxes: SpacetimeDBWoodenStorageBox[];
   visibleSleepingBags: SpacetimeDBSleepingBag[];
   visibleCorns: SpacetimeDBCorn[];
+  visibleHemps: SpacetimeDBHemp[];
   visibleMushroomsMap: Map<string, SpacetimeDBMushroom>;
   visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
   visibleDroppedItemsMap: Map<string, SpacetimeDBDroppedItem>;
   visibleBoxesMap: Map<string, SpacetimeDBWoodenStorageBox>;
   visibleCornsMap: Map<string, SpacetimeDBCorn>;
+  visibleHempsMap: Map<string, SpacetimeDBHemp>;
   visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
-  groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn)[];
+  groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn | SpacetimeDBHemp)[];
   ySortedEntities: YSortedEntityType[];
 }
 
@@ -63,6 +67,7 @@ export function useEntityFiltering(
   campfires: Map<string, SpacetimeDBCampfire>,
   mushrooms: Map<string, SpacetimeDBMushroom>,
   corns: Map<string, SpacetimeDBCorn>,
+  hemps: Map<string, SpacetimeDBHemp>,
   droppedItems: Map<string, SpacetimeDBDroppedItem>,
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>,
   sleepingBags: Map<string, SpacetimeDBSleepingBag>,
@@ -227,6 +232,12 @@ export function useEntityFiltering(
     ,[playerCorpses, isEntityInView, viewBounds]
   );
 
+  const visibleHemps = useMemo(() => 
+    hemps ? Array.from(hemps.values())
+      .filter(e => isEntityInView(e, viewBounds) && !e.respawnAt)
+      : []
+  , [hemps, isEntityInView, viewBounds]);
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -253,13 +264,19 @@ export function useEntityFiltering(
     [visibleCorns]
   );
 
+  const visibleHempsMap = useMemo(() => 
+    new Map(visibleHemps.map(h => [h.id.toString(), h])), 
+    [visibleHemps]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleDroppedItems,
     ...visibleCampfires,
     ...visibleSleepingBags,
-    ...visibleCorns
-  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns]);
+    ...visibleCorns,
+    ...visibleHemps
+  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns, visibleHemps]);
 
   // Y-sorted entities with sorting and correct type structure
   const ySortedEntities = useMemo(() => {
@@ -289,6 +306,7 @@ export function useEntityFiltering(
   return {
     visibleMushrooms,
     visibleCorns,
+    visibleHemps,
     visibleDroppedItems,
     visibleCampfires,
     visiblePlayers,
@@ -302,6 +320,7 @@ export function useEntityFiltering(
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visibleHempsMap,
     groundItems,
     ySortedEntities
   };

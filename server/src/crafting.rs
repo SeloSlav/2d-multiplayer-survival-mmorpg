@@ -5,8 +5,10 @@
  */
 
 use spacetimedb::{SpacetimeType, Table, ReducerContext};
-use crate::items::ItemDefinition;
-use crate::items::item_definition as ItemDefinitionTableTrait;
+use crate::items::{ItemDefinition, ItemCategory};
+use crate::models::{EquipmentSlotType, TargetType};
+use crate::items::item_definition;
+use crate::items::item_definition__TableHandle;
 
 // Represents a single ingredient required for a recipe
 #[derive(Clone, Debug, PartialEq, SpacetimeType)]
@@ -31,28 +33,15 @@ pub struct Recipe {
 
 // Function to get the initial set of recipes data (before resolving IDs)
 // Returns: Vec<(Output Item Name, Output Qty, Vec<(Ingredient Name, Ingredient Qty)>, Crafting Time Secs)>
-pub fn get_initial_recipes_data() -> Vec<(String, u32, Vec<(String, u32)>, u32)> {
-    vec![
-        // Output Name, Output Qty, Ingredients (Name, Qty), Time
-        
-        // Rock (Cost: 1 Stone, Time: 1s)
-        ("Rock".to_string(), 1, vec![("Stone".to_string(), 1)], 1),
-  
-        // Stone Hatchet (Cost: 75 Wood, 150 Stone, Time: 20s)
-        ("Stone Hatchet".to_string(), 1, vec![("Wood".to_string(), 75), ("Stone".to_string(), 150)], 20),
-  
-        // Stone Pickaxe (Cost: 75 Wood, 150 Stone, Time: 20s)
-        ("Stone Pickaxe".to_string(), 1, vec![("Wood".to_string(), 75), ("Stone".to_string(), 150)], 20),
-  
-        // Camp Fire (Cost: 50 Wood, 5 Stone, Time: 10s)
-        ("Camp Fire".to_string(), 1, vec![("Wood".to_string(), 50), ("Stone".to_string(), 5)], 10),
-  
-        // Wooden Storage Box (Cost: 100 Wood, Time: 15s)
-        ("Wooden Storage Box".to_string(), 1, vec![("Wood".to_string(), 100)], 15),
+// REMOVED get_initial_recipes_data()
 
-        // Sleeping Bag (Cost: 50 Wood, Time: 15s) - Placeholder cost
-        ("Sleeping Bag".to_string(), 1, vec![("Wood".to_string(), 100)], 15),
-    ]
+// Helper function to find ItemDefinition ID by name
+// ACCEPTS A REFERENCE to the table handle now
+fn find_def_id_by_name(name_to_find: &str, item_definitions_table: &item_definition__TableHandle) -> Result<u64, String> {
+    item_definitions_table.iter() // .iter() works on &item_definition__TableHandle
+        .find(|def| def.name == name_to_find)
+        .map(|def| def.id)
+        .ok_or_else(|| format!("Failed to find ItemDefinition for ingredient name '{}'", name_to_find))
 }
 
 /// Seeds the Recipe table if it's empty.
@@ -64,46 +53,59 @@ pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
         return Ok(());
     }
 
-    log::info!("Seeding recipes...");
+    log::info!("Seeding recipes from ItemDefinitions...");
     let item_defs_table = ctx.db.item_definition();
-    let initial_recipes_data = get_initial_recipes_data();
+    let mut recipes_created_count = 0;
 
-    // Helper closure to find ItemDefinition ID by name
-    let find_def_id = |name: &str| -> Result<u64, String> {
-        item_defs_table.iter()
-            .find(|def| def.name == name)
-            .map(|def| def.id)
-            .ok_or_else(|| format!("Failed to find ItemDefinition for '{}'", name))
-    };
+    // item_defs_table.iter() takes &item_defs_table, so item_defs_table is borrowed for this loop
+    for item_def_for_output in item_defs_table.iter() { 
+        if let (Some(cost_ingredients), Some(output_qty), Some(time_secs)) = (
+            &item_def_for_output.crafting_cost,
+            item_def_for_output.crafting_output_quantity,
+            item_def_for_output.crafting_time_secs,
+        ) {
+            if cost_ingredients.is_empty() {
+                log::debug!("Skipping item '{}' for recipe creation: crafting_cost is empty.", item_def_for_output.name);
+                continue;
+            }
 
-    for (output_name, output_qty, ingredients_data, time_secs) in initial_recipes_data {
-        // Resolve output item ID
-        let output_def_id = find_def_id(&output_name)?;
+            let mut resolved_ingredients_for_recipe = Vec::new();
+            let mut ingredients_valid = true;
+            for cost_ingredient in cost_ingredients {
+                // Pass a reference to item_defs_table. This is fine as the original item_defs_table is still valid.
+                match find_def_id_by_name(&cost_ingredient.item_name, &item_defs_table) { 
+                    Ok(ingredient_def_id) => {
+                        resolved_ingredients_for_recipe.push(RecipeIngredient {
+                            item_def_id: ingredient_def_id,
+                            quantity: cost_ingredient.quantity,
+                        });
+                    }
+                    Err(e) => {
+                        log::error!("Error resolving ingredient '{}' for recipe '{}': {}. Skipping this recipe.", cost_ingredient.item_name, item_def_for_output.name, e);
+                        ingredients_valid = false;
+                        break;
+                    }
+                }
+            }
 
-        // Resolve ingredient item IDs
-        let mut resolved_ingredients = Vec::new();
-        for (ingredient_name, ingredient_qty) in ingredients_data {
-            let ingredient_def_id = find_def_id(&ingredient_name)?;
-            resolved_ingredients.push(RecipeIngredient {
-                item_def_id: ingredient_def_id,
-                quantity: ingredient_qty,
-            });
+            if ingredients_valid {
+                let recipe = Recipe {
+                    recipe_id: 0, // Auto-incremented
+                    output_item_def_id: item_def_for_output.id,
+                    output_quantity: output_qty,
+                    ingredients: resolved_ingredients_for_recipe,
+                    crafting_time_secs: time_secs,
+                };
+
+                log::debug!("Inserting recipe for: {}", item_def_for_output.name);
+                recipe_table.insert(recipe);
+                recipes_created_count += 1;
+            }
+        } else {
+            // log::debug!("Item '{}' does not have complete crafting information. Not creating recipe.", item_def_for_output.name);
         }
-
-        // Create the recipe struct
-        let recipe = Recipe {
-            recipe_id: 0, // Auto-incremented
-            output_item_def_id: output_def_id,
-            output_quantity: output_qty,
-            ingredients: resolved_ingredients,
-            crafting_time_secs: time_secs,
-        };
-
-        // Insert the resolved recipe
-        log::debug!("Inserting recipe for: {}", output_name);
-        recipe_table.insert(recipe);
     }
 
-    log::info!("Finished seeding recipes.");
+    log::info!("Finished seeding {} recipes from ItemDefinitions.", recipes_created_count);
     Ok(())
 }

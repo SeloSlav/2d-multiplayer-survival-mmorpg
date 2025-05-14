@@ -14,6 +14,7 @@ use std::time::Duration;
 // SpacetimeDB imports
 use spacetimedb::{Identity, ReducerContext, Table, Timestamp};
 use log;
+use rand::{Rng, SeedableRng};
 
 // Combat system imports
 use crate::combat::{
@@ -189,6 +190,9 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let players = ctx.db.player();
     let item_defs = ctx.db.item_definition();
 
+    // Get RNG from context
+    let mut rng = rand::rngs::StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to create RNG: {}",e))?;
+
     let player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
     let mut current_equipment = active_equipments.player_identity().find(sender_id)
@@ -204,18 +208,13 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     log::debug!("Player {:?} started using item '{}' (ID: {})",
              sender_id, item_def.name, item_def_id);
 
-    let item_damage = match item_def.damage {
-        Some(dmg) if dmg > 0 => dmg,
-        _ => return Ok(()),
-    };
-
     let attack_range = PLAYER_RADIUS * 4.0;
     let attack_angle_degrees = 90.0;
     
     let targets = find_targets_in_cone(ctx, &player, attack_range, attack_angle_degrees);
     
-    if let Some(target) = find_best_target(&targets, &item_def.name) {
-        match process_attack(ctx, sender_id, &target, &item_def, now_ts) {
+    if let Some(target) = find_best_target(&targets, &item_def) {
+        match process_attack(ctx, sender_id, &target, &item_def, now_ts, &mut rng) {
             Ok(result) => {
                 if result.hit {
                     log::debug!("Player {:?} hit a {:?} with {}.", sender_id, result.target_type, item_def.name);

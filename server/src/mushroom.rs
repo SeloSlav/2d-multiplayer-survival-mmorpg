@@ -10,6 +10,7 @@
 
 // SpacetimeDB imports
 use spacetimedb::{Table, ReducerContext, Identity, Timestamp};
+use rand::Rng;
 use log;
 
 // Module imports
@@ -42,6 +43,14 @@ pub(crate) const MIN_MUSHROOM_TREE_DISTANCE_SQ: f32 = MIN_MUSHROOM_TREE_DISTANCE
 /// Minimum distance from stones for better distribution
 pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_PX: f32 = 80.0;
 pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_SQ: f32 = MIN_MUSHROOM_STONE_DISTANCE_PX * MIN_MUSHROOM_STONE_DISTANCE_PX;
+
+// --- Mushroom Yield Constants ---
+const MUSHROOM_PRIMARY_YIELD_ITEM_NAME: &str = "Mushroom";
+const MUSHROOM_PRIMARY_YIELD_AMOUNT: u32 = 1;
+const MUSHROOM_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
+const MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT: u32 = 0;
+const MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT: u32 = 1;
+const MUSHROOM_SECONDARY_YIELD_CHANCE: f32 = 0.33; // 33% chance
 
 /// Represents a mushroom resource in the game world
 #[spacetimedb::table(name = mushroom, public)]
@@ -92,6 +101,11 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
     // Find the mushroom
     let mushroom = mushrooms.id().find(mushroom_id)
         .ok_or_else(|| format!("Mushroom {} not found", mushroom_id))?;
+
+    // Check if the mushroom is already harvested and waiting for respawn
+    if mushroom.respawn_at.is_some() {
+        return Err("This mushroom has already been harvested and is respawning.".to_string());
+    }
     
     // Validate player can interact with this mushroom (distance check)
     let _player = validate_player_resource_interaction(ctx, sender_id, mushroom.pos_x, mushroom.pos_y)?;
@@ -100,11 +114,16 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
     collect_resource_and_schedule_respawn(
         ctx,
         sender_id,
-        "Mushroom",
-        mushroom_id,
-        mushroom.pos_x,
-        mushroom.pos_y,
-        1, // Quantity to give
+        MUSHROOM_PRIMARY_YIELD_ITEM_NAME,
+        MUSHROOM_PRIMARY_YIELD_AMOUNT,
+        MUSHROOM_SECONDARY_YIELD_ITEM_NAME,
+        MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT,
+        MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT,
+        MUSHROOM_SECONDARY_YIELD_CHANCE,
+        &mut ctx.rng().clone(), // Pass a mutable clone of the RNG from context
+        mushroom_id, // Pass resource_id for logging
+        mushroom.pos_x, // Pass pos_x for logging
+        mushroom.pos_y, // Pass pos_y for logging
         |respawn_time| -> Result<(), String> {
             // This closure handles the mushroom-specific update logic
             if let Some(mut mushroom_to_update) = ctx.db.mushroom().id().find(mushroom_id) {
@@ -112,7 +131,7 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
                 ctx.db.mushroom().id().update(mushroom_to_update);
                 Ok(())
             } else {
-                Err("Failed to update mushroom respawn time".to_string())
+                Err(format!("Mushroom {} disappeared before respawn scheduling.", mushroom_id))
             }
         }
     )

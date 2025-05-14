@@ -5,6 +5,7 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
     Corn as SpacetimeDBCorn,
+    Hemp as SpacetimeDBHemp,
     PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../../generated';
 import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../../config/gameConfig';
@@ -13,6 +14,7 @@ interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     corns: Map<string, SpacetimeDBCorn>;
+    hemps: Map<string, SpacetimeDBHemp>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -20,6 +22,7 @@ interface RenderLabelsParams {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>; // Needed for dropped item names
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -40,6 +43,7 @@ export function renderInteractionLabels({
     ctx,
     mushrooms,
     corns,
+    hemps,
     campfires,
     droppedItems,
     woodenStorageBoxes,
@@ -47,6 +51,7 @@ export function renderInteractionLabels({
     itemDefinitions,
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractableHempId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -85,13 +90,25 @@ export function renderInteractionLabels({
         }
     }
 
+    // Hemp Label
+    if (closestInteractableHempId !== null) {
+        const hemp = hemps.get(closestInteractableHempId.toString());
+        if (hemp) {
+            const text = "Press E to Harvest";
+            const textX = hemp.posX;
+            const textY = hemp.posY - 70;
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
     // Dropped Item Label
     if (closestInteractableDroppedItemId !== null) {
         const item = droppedItems.get(closestInteractableDroppedItemId.toString());
         if (item) {
             const itemDef = itemDefinitions.get(item.itemDefId.toString());
             const itemName = itemDef ? itemDef.name : 'Item';
-            const text = `Hold E to pick up ${itemName} (x${item.quantity})`;
+            const text = `Press E to pick up ${itemName} (x${item.quantity})`;
             const textX = item.posX;
             const textY = item.posY - 25; // Offset above item
             ctx.strokeText(text, textX, textY);

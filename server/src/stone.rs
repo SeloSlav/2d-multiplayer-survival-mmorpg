@@ -15,7 +15,7 @@ pub(crate) const MIN_STONE_DISTANCE_PX: f32 = 150.0;
 pub(crate) const MIN_STONE_DISTANCE_SQ: f32 = MIN_STONE_DISTANCE_PX * MIN_STONE_DISTANCE_PX;
 pub(crate) const MIN_STONE_TREE_DISTANCE_PX: f32 = 100.0;
 pub(crate) const MIN_STONE_TREE_DISTANCE_SQ: f32 = MIN_STONE_TREE_DISTANCE_PX * MIN_STONE_TREE_DISTANCE_PX;
-pub(crate) const STONE_INITIAL_HEALTH: u32 = 100;
+pub(crate) const STONE_INITIAL_HEALTH: u32 = 1000;
 
 // --- Stone Struct and Table ---
 #[spacetimedb::table(name = stone, public)]

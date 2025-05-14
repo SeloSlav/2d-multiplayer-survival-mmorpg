@@ -1,0 +1,3 @@
+(std::string::String, u32): spacetimedb::Serialize
+Vec<(std::string::String, u32)>
+std::option::Option<Vec<(std::string::String, u32)>>

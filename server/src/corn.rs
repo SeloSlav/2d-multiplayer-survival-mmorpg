@@ -9,7 +9,7 @@
 // SpacetimeDB imports
 use spacetimedb::{Table, ReducerContext, Identity, Timestamp};
 use log;
-use rand::prelude::*;
+use rand::Rng;
 use crate::TILE_SIZE_PX;
 
 // Module imports
@@ -40,6 +40,14 @@ pub const MIN_CORN_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0; // Min distance from tre
 pub const MIN_CORN_STONE_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance from stones squared
 /// Minimum respawn time for corn plants
 pub const CORN_RESPAWN_TIME_SECS: u64 = 180; // 3 minutes (adjust as needed)
+
+// --- Corn Yield Constants ---
+const CORN_PRIMARY_YIELD_ITEM_NAME: &str = "Corn";
+const CORN_PRIMARY_YIELD_AMOUNT: u32 = 1;
+const CORN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
+const CORN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
+const CORN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
+const CORN_SECONDARY_YIELD_CHANCE: f32 = 0.50; // 50% chance
 
 /// Represents a corn resource in the game world
 #[spacetimedb::table(name = corn, public)]
@@ -89,6 +97,11 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
     // Find the corn
     let corn = ctx.db.corn().id().find(corn_id)
         .ok_or_else(|| format!("Corn {} not found", corn_id))?;
+
+    // Check if the corn is already harvested and waiting for respawn
+    if corn.respawn_at.is_some() {
+        return Err("This corn has already been harvested and is respawning.".to_string());
+    }
     
     // Validate player can interact with this corn (distance check)
     let _player = validate_player_resource_interaction(ctx, player_id, corn.pos_x, corn.pos_y)?;
@@ -97,11 +110,16 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
     collect_resource_and_schedule_respawn(
         ctx,
         player_id,
-        "Corn", // Capitalize for item name
-        corn.id,
-        corn.pos_x,
-        corn.pos_y,
-        1, // Quantity to give
+        CORN_PRIMARY_YIELD_ITEM_NAME,
+        CORN_PRIMARY_YIELD_AMOUNT,
+        CORN_SECONDARY_YIELD_ITEM_NAME,
+        CORN_SECONDARY_YIELD_MIN_AMOUNT,
+        CORN_SECONDARY_YIELD_MAX_AMOUNT,
+        CORN_SECONDARY_YIELD_CHANCE,
+        &mut ctx.rng().clone(), // Pass a mutable clone of the RNG from context
+        corn.id, // Pass resource_id for logging
+        corn.pos_x, // Pass pos_x for logging
+        corn.pos_y, // Pass pos_y for logging
         |respawn_time| -> Result<(), String> {
             // This closure handles the corn-specific update logic
             if let Some(mut corn_to_update) = ctx.db.corn().id().find(corn.id) {
@@ -109,11 +127,12 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
                 ctx.db.corn().id().update(corn_to_update);
                 Ok(())
             } else {
-                Err("Failed to update corn respawn time".to_string())
+                Err(format!("Corn {} disappeared before respawn scheduling.", corn.id))
             }
         }
     )?;
 
-    log::info!("Player {} collected corn {}", player_id, corn_id);
+    // Log statement is now handled within collect_resource_and_schedule_respawn
+    // log::info!("Player {} collected corn {}", player_id, corn_id);
     Ok(())
 } 

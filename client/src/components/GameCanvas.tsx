@@ -14,6 +14,7 @@ import {
   PlayerPin as SpacetimeDBPlayerPin,
   ActiveConnection,
   Corn as SpacetimeDBCorn,
+  Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated';
@@ -42,6 +43,7 @@ import { drawMinimapOntoCanvas } from './Minimap';
 import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
 import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
 import { renderCorn } from '../utils/renderers/cornRenderingUtils';
+import { renderHemp } from '../utils/renderers/hempRenderingUtils';
 import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
@@ -70,6 +72,7 @@ interface GameCanvasProps {
   campfires: Map<string, SpacetimeDBCampfire>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
   corns: Map<string, SpacetimeDBCorn>;
+  hemps: Map<string, SpacetimeDBHemp>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
@@ -109,6 +112,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   campfires,
   mushrooms,
   corns,
+  hemps,
   droppedItems,
   woodenStorageBoxes,
   sleepingBags,
@@ -155,6 +159,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractableHempId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -164,6 +169,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       localPlayer, 
       mushrooms, 
       corns, 
+      hemps,
       campfires, 
       droppedItems, 
       woodenStorageBoxes, 
@@ -173,7 +179,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { interactionProgress, processInputsAndActions } = useInputHandler({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, placementInfo, placementActions, worldMousePos,
-      closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId, closestInteractableDroppedItemId,
+      closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId,
+      closestInteractableCampfireId, closestInteractableDroppedItemId,
       closestInteractableBoxId, isClosestInteractableBoxEmpty, 
       woodenStorageBoxes,
       isMinimapOpen, setIsMinimapOpen,
@@ -190,6 +197,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSleepingBags,
     visibleMushrooms,
     visibleCorns,
+    visibleHemps,
     visibleDroppedItems,
     visibleCampfires,
     visibleMushroomsMap,
@@ -197,6 +205,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visibleHempsMap,
     visiblePlayerCorpses,
     ySortedEntities
   } = useEntityFiltering(
@@ -206,6 +215,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     campfires,
     mushrooms,
     corns,
+    hemps,
     droppedItems,
     woodenStorageBoxes,
     sleepingBags,
@@ -332,6 +342,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCorns.forEach(corn => {
         renderCorn(ctx, corn, now_ms);
     });
+    // Render Hemp
+    visibleHemps.forEach(hemp => {
+        renderHemp(ctx, hemp, now_ms);
+    });
     // Render Sleeping Bags
     visibleSleepingBags.forEach(sleepingBag => {
         renderSleepingBag({ ctx, sleepingBag, nowMs: now_ms });
@@ -362,6 +376,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx,
         mushrooms: visibleMushroomsMap,
         corns: visibleCornsMap,
+        hemps: visibleHempsMap,
         campfires: visibleCampfiresMap,
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
@@ -369,6 +384,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemDefinitions,
         closestInteractableMushroomId, 
         closestInteractableCornId, 
+        closestInteractableHempId,
         closestInteractableCampfireId,
         closestInteractableDroppedItemId, 
         closestInteractableBoxId, 

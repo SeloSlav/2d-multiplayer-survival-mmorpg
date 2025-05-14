@@ -7,6 +7,7 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   Corn as SpacetimeDBCorn,
+  Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse
 } from '../generated'; // Import necessary types
@@ -65,6 +66,29 @@ export function isCorn(entity: any): entity is SpacetimeDBCorn {
            typeof entity.placedBy === 'undefined' &&
            typeof entity.itemDefId === 'undefined'
            ;
+    
+    return result;
+}
+
+// Type guard for Hemp
+export function isHemp(entity: any): entity is SpacetimeDBHemp {
+    const result = entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' && 
+           // Ensure it doesn't match other resource types or entities
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.health === 'undefined' && // Not a Stone (or other entities with health like Player)
+           typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, or SleepingBag
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           // Differentiate from Corn/Mushroom by checking a non-existent unique field or by ensuring it IS hemp via a marker if added later
+           // For now, relying on the specific structure and absence of other markers.
+           // If Corn and Mushroom have a field that Hemp doesn't, that could be used.
+           // This guard might need refinement if Hemp becomes structurally identical to Corn/Mushroom
+           // without a specific type marker from the backend (like __entityType when mapped in client state).
+           true; // Placeholder for further differentiation if needed
     
     return result;
 }

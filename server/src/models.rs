@@ -83,4 +83,12 @@ impl ItemLocation {
             _ => None,
         }
     }
-} 
+}
+
+// Add the TargetType enum here
+#[derive(Debug, Clone, Copy, PartialEq, SpacetimeType, serde::Serialize, serde::Deserialize)]
+pub enum TargetType {
+    Tree,
+    Stone,
+    Player,
+}

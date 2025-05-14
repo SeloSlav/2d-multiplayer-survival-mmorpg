@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 
 // Components
 import LoginScreen from './components/LoginScreen';
@@ -87,7 +88,8 @@ function AppContent() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, stones, campfires, mushrooms, corns, itemDefinitions, 
+      players, trees, stones, campfires, mushrooms, corns, hemps,
+      itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
       messages,
@@ -97,8 +99,8 @@ function AppContent() {
       playerCorpses // <<< ADD playerCorpses destructuring
     } = useSpacetimeTables({ 
         connection, 
-        cancelPlacement, // <<< REVERTED: Pass the action directly
-        viewport: currentViewport, // Make sure viewport is passed correctly
+        cancelPlacement, 
+        viewport: currentViewport, 
     });
 
     // --- Refs for Cross-Hook/Component Communication --- 
@@ -243,6 +245,7 @@ function AppContent() {
     const loggedInPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) ?? null : null;
 
     // --- Render Logic --- 
+    // console.log("[AppContent] Rendering. Hemps map:", hemps); // <<< TEMP DEBUG LOG
     return (
         <div className="App" style={{ backgroundColor: '#111' }}>
             {/* Display combined errors */} 
@@ -280,47 +283,53 @@ function AppContent() {
             
             {/* If authenticated AND registered/game ready */}
             {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
-                 <GameScreen 
-                      players={players}
-                      trees={trees}
-                      stones={stones}
-                      campfires={campfires}
-                      mushrooms={mushrooms}
-                      corns={corns}
-                      droppedItems={droppedItems}
-                      woodenStorageBoxes={woodenStorageBoxes}
-                      sleepingBags={sleepingBags}
-                      playerCorpses={playerCorpses}
-                      inventoryItems={inventoryItems}
-                      itemDefinitions={itemDefinitions}
-                      worldState={worldState}
-                      activeEquipments={activeEquipments}
-                      activeConnections={activeConnections}
-                      recipes={recipes}
-                      craftingQueueItems={craftingQueueItems}
-                      localPlayerId={dbIdentity?.toHexString() ?? undefined} // Use derived SpacetimeDB ID
-                      playerIdentity={dbIdentity} // Pass derived SpacetimeDB Identity
-                      connection={connection}
-                      placementInfo={placementInfo}
-                      placementActions={placementActions}
-                      placementError={placementError}
-                      startPlacement={startPlacement}
-                      cancelPlacement={cancelPlacement}
-                      interactingWith={interactingWith}
-                      handleSetInteractingWith={handleSetInteractingWith}
-                      playerPins={playerPins}
-                      draggedItemInfo={draggedItemInfo}
-                      onItemDragStart={handleItemDragStart}
-                      onItemDrop={handleItemDrop}
-                      updatePlayerPosition={updatePlayerPosition}
-                      callJumpReducer={jump}
-                      callSetSprintingReducer={setSprinting}
-                      isMinimapOpen={isMinimapOpen}
-                      setIsMinimapOpen={setIsMinimapOpen}
-                      isChatting={isChatting}
-                      setIsChatting={setIsChatting}
-                      messages={messages}
-                  />
+                (() => { // Use an IIFE to allow logging before returning GameScreen
+                    console.log("[AppContent] About to render GameScreen. hemps variable:", hemps);
+                    return (
+                        <GameScreen 
+                            players={players}
+                            trees={trees}
+                            stones={stones}
+                            campfires={campfires}
+                            mushrooms={mushrooms}
+                            hemps={hemps}
+                            corns={corns}
+                            droppedItems={droppedItems}
+                            woodenStorageBoxes={woodenStorageBoxes}
+                            sleepingBags={sleepingBags}
+                            playerCorpses={playerCorpses}
+                            inventoryItems={inventoryItems}
+                            itemDefinitions={itemDefinitions}
+                            worldState={worldState}
+                            activeEquipments={activeEquipments}
+                            activeConnections={activeConnections}
+                            recipes={recipes}
+                            craftingQueueItems={craftingQueueItems}
+                            localPlayerId={dbIdentity?.toHexString() ?? undefined} // Use derived SpacetimeDB ID
+                            playerIdentity={dbIdentity} // Pass derived SpacetimeDB Identity
+                            connection={connection}
+                            placementInfo={placementInfo}
+                            placementActions={placementActions}
+                            placementError={placementError}
+                            startPlacement={startPlacement}
+                            cancelPlacement={cancelPlacement}
+                            interactingWith={interactingWith}
+                            handleSetInteractingWith={handleSetInteractingWith}
+                            playerPins={playerPins}
+                            draggedItemInfo={draggedItemInfo}
+                            onItemDragStart={handleItemDragStart}
+                            onItemDrop={handleItemDrop}
+                            updatePlayerPosition={updatePlayerPosition}
+                            callJumpReducer={jump}
+                            callSetSprintingReducer={setSprinting}
+                            isMinimapOpen={isMinimapOpen}
+                            setIsMinimapOpen={setIsMinimapOpen}
+                            isChatting={isChatting}
+                            setIsChatting={setIsChatting}
+                            messages={messages}
+                        />
+                    );
+                })()
             )}
         </div>
     );

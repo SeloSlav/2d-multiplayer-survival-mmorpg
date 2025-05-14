@@ -13,6 +13,7 @@ use std::time::Duration;
 
 // SpacetimeDB imports
 use spacetimedb::{table, reducer, ReducerContext, Identity, Timestamp, Table, log, TimeDuration};
+use rand::Rng;
 
 // Resource respawn timing (shared by all collectible resources)
 pub use crate::combat::RESOURCE_RESPAWN_DURATION_SECS;
@@ -66,24 +67,61 @@ pub fn validate_player_resource_interaction(
 pub fn collect_resource_and_schedule_respawn<F>(
     ctx: &ReducerContext,
     player_id: Identity,
-    resource_name: &str,
-    resource_id: u64,
-    resource_pos_x: f32, 
-    resource_pos_y: f32,
-    quantity: u32,
+    primary_resource_name: &str,
+    primary_quantity_to_grant: u32,
+    secondary_item_name_to_grant: Option<&str>,
+    secondary_yield_min: u32,
+    secondary_yield_max: u32,
+    secondary_yield_chance: f32,
+    rng: &mut impl Rng,
+    _resource_id_for_log: u64,
+    _resource_pos_x_for_log: f32,
+    _resource_pos_y_for_log: f32,
     update_resource_fn: F
 ) -> Result<(), String> 
 where 
     F: FnOnce(Timestamp) -> Result<(), String>
 {
-    // Find the item definition for this resource
     let item_defs = ctx.db.item_definition();
-    let item_def = item_defs.iter()
-        .find(|def| def.name == resource_name)
-        .ok_or_else(|| format!("{} item definition not found", resource_name))?;
 
-    // Add to player's inventory
-    crate::items::add_item_to_player_inventory(ctx, player_id, item_def.id, quantity)?;
+    // --- Handle Primary Resource --- 
+    let primary_item_def = item_defs.iter()
+        .find(|def| def.name == primary_resource_name)
+        .ok_or_else(|| format!("Primary resource item definition '{}' not found", primary_resource_name))?;
+
+    crate::items::add_item_to_player_inventory(ctx, player_id, primary_item_def.id, primary_quantity_to_grant)?;
+    log::info!("Player {:?} collected {} of primary resource: {}.", player_id, primary_quantity_to_grant, primary_resource_name);
+
+    // --- Handle Secondary Resource --- 
+    if let Some(sec_item_name) = secondary_item_name_to_grant {
+        if secondary_yield_max > 0 && secondary_yield_chance > 0.0 {
+            if rng.gen::<f32>() < secondary_yield_chance {
+                let secondary_amount_to_grant = if secondary_yield_min >= secondary_yield_max {
+                    secondary_yield_min // If min >= max, grant min (or max, it's the same or misconfigured)
+                } else {
+                    rng.gen_range(secondary_yield_min..=secondary_yield_max)
+                };
+
+                if secondary_amount_to_grant > 0 {
+                    let secondary_item_def = item_defs.iter()
+                        .find(|def| def.name == sec_item_name)
+                        .ok_or_else(|| format!("Secondary resource item definition '{}' not found", sec_item_name))?;
+                    
+                    match crate::items::add_item_to_player_inventory(ctx, player_id, secondary_item_def.id, secondary_amount_to_grant) {
+                        Ok(_) => {
+                            log::info!("Player {:?} also collected {} of secondary resource: {}.", player_id, secondary_amount_to_grant, sec_item_name);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to add secondary resource {} for player {:?}: {}", sec_item_name, player_id, e);
+                            // Decide if this error should propagate or just be logged. For now, just log.
+                        }
+                    }
+                }
+            }
+        } else if secondary_yield_chance > 0.0 && secondary_yield_max == 0 { // Chance to get 0 is pointless, log warning
+            log::warn!("Secondary yield for '{}' has a chance ({}) but max yield is 0.", sec_item_name, secondary_yield_chance);
+        }
+    }
 
     // Calculate respawn time
     let respawn_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
@@ -91,8 +129,11 @@ where
     // Update the resource (delegate to resource-specific implementation)
     update_resource_fn(respawn_time)?;
     
-    log::info!("Player {:?} collected {} × {} (id: {}). Scheduling respawn.", 
-        player_id, quantity, resource_name, resource_id);
+    // Original log was more specific to the resource type via _resource_id_for_log.
+    // Kept specific logs above for primary/secondary grants.
+    // General log about scheduling respawn can remain or be adapted.
+    log::info!("Interaction complete for resource (ID: {}), scheduling respawn for player {:?}.", 
+        _resource_id_for_log, player_id);
 
     Ok(())
 }

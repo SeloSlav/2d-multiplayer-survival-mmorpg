@@ -64,6 +64,8 @@ import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
 import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
 export { InteractWithCorn };
+import { InteractWithHemp } from "./interact_with_hemp_reducer.ts";
+export { InteractWithHemp };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
 import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
@@ -204,6 +206,8 @@ import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_sc
 export { DroppedItemDespawnScheduleTableHandle };
 import { GlobalTickScheduleTableHandle } from "./global_tick_schedule_table.ts";
 export { GlobalTickScheduleTableHandle };
+import { HempTableHandle } from "./hemp_table.ts";
+export { HempTableHandle };
 import { InventoryItemTableHandle } from "./inventory_item_table.ts";
 export { InventoryItemTableHandle };
 import { ItemDefinitionTableHandle } from "./item_definition_table.ts";
@@ -252,6 +256,8 @@ import { ContainerType } from "./container_type_type.ts";
 export { ContainerType };
 import { Corn } from "./corn_type.ts";
 export { Corn };
+import { CostIngredient } from "./cost_ingredient_type.ts";
+export { CostIngredient };
 import { CraftingFinishSchedule } from "./crafting_finish_schedule_type.ts";
 export { CraftingFinishSchedule };
 import { CraftingQueueItem } from "./crafting_queue_item_type.ts";
@@ -268,6 +274,8 @@ import { EquippedLocationData } from "./equipped_location_data_type.ts";
 export { EquippedLocationData };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
+import { Hemp } from "./hemp_type.ts";
+export { Hemp };
 import { HotbarLocationData } from "./hotbar_location_data_type.ts";
 export { HotbarLocationData };
 import { InventoryItem } from "./inventory_item_type.ts";
@@ -302,6 +310,8 @@ import { SleepingBag } from "./sleeping_bag_type.ts";
 export { SleepingBag };
 import { Stone } from "./stone_type.ts";
 export { Stone };
+import { TargetType } from "./target_type_type.ts";
+export { TargetType };
 import { TimeOfDay } from "./time_of_day_type.ts";
 export { TimeOfDay };
 import { Tree } from "./tree_type.ts";
@@ -368,6 +378,11 @@ const REMOTE_MODULE = {
     global_tick_schedule: {
       tableName: "global_tick_schedule",
       rowType: GlobalTickSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    hemp: {
+      tableName: "hemp",
+      rowType: Hemp.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     inventory_item: {
@@ -510,6 +525,10 @@ const REMOTE_MODULE = {
     interact_with_corn: {
       reducerName: "interact_with_corn",
       argsType: InteractWithCorn.getTypeScriptAlgebraicType(),
+    },
+    interact_with_hemp: {
+      reducerName: "interact_with_hemp",
+      argsType: InteractWithHemp.getTypeScriptAlgebraicType(),
     },
     interact_with_mushroom: {
       reducerName: "interact_with_mushroom",
@@ -786,6 +805,7 @@ export type Reducer = never
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithCorn", args: InteractWithCorn }
+| { name: "InteractWithHemp", args: InteractWithHemp }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
@@ -1083,6 +1103,22 @@ export class RemoteReducers {
 
   removeOnInteractWithCorn(callback: (ctx: ReducerEventContext, cornId: bigint) => void) {
     this.connection.offReducer("interact_with_corn", callback);
+  }
+
+  interactWithHemp(hempId: bigint) {
+    const __args = { hempId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithHemp.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_hemp", __argsBuffer, this.setCallReducerFlags.interactWithHempFlags);
+  }
+
+  onInteractWithHemp(callback: (ctx: ReducerEventContext, hempId: bigint) => void) {
+    this.connection.onReducer("interact_with_hemp", callback);
+  }
+
+  removeOnInteractWithHemp(callback: (ctx: ReducerEventContext, hempId: bigint) => void) {
+    this.connection.offReducer("interact_with_hemp", callback);
   }
 
   interactWithMushroom(mushroomId: bigint) {
@@ -2058,6 +2094,11 @@ export class SetReducerFlags {
     this.interactWithCornFlags = flags;
   }
 
+  interactWithHempFlags: CallReducerFlags = 'FullUpdate';
+  interactWithHemp(flags: CallReducerFlags) {
+    this.interactWithHempFlags = flags;
+  }
+
   interactWithMushroomFlags: CallReducerFlags = 'FullUpdate';
   interactWithMushroom(flags: CallReducerFlags) {
     this.interactWithMushroomFlags = flags;
@@ -2395,6 +2436,10 @@ export class RemoteTables {
 
   get globalTickSchedule(): GlobalTickScheduleTableHandle {
     return new GlobalTickScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GlobalTickSchedule>(REMOTE_MODULE.tables.global_tick_schedule));
+  }
+
+  get hemp(): HempTableHandle {
+    return new HempTableHandle(this.connection.clientCache.getOrCreateTable<Hemp>(REMOTE_MODULE.tables.hemp));
   }
 
   get inventoryItem(): InventoryItemTableHandle {

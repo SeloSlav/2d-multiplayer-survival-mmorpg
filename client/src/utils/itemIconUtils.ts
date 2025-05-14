@@ -21,6 +21,9 @@ import mushroomIcon from '../assets/items/mushroom.png';
 import cornIcon from '../assets/items/corn.png';
 import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
 import sleepingBagIcon from '../assets/items/sleeping_bag.png';
+import clothIcon from '../assets/items/cloth.png';
+import plantFiberIcon from '../assets/items/plant_fiber.png';
+import bandageIcon from '../assets/items/bandage.png';
 // We don't import the missing ones (hood, boots, etc.)
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
@@ -43,6 +46,9 @@ const iconMap: { [key: string]: string | undefined } = {
   'corn.png': cornIcon,
   'wooden_storage_box.png': woodenStorageBoxIcon,
   'sleeping_bag.png': sleepingBagIcon,
+  'cloth.png': clothIcon,
+  'plant_fiber.png': plantFiberIcon,
+  'bandage.png': bandageIcon,
   // Add mappings for existing icons only
 };
 
