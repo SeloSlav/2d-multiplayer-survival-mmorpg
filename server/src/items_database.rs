@@ -152,7 +152,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             stack_size: 1000,
             is_equippable: false,
             equipment_slot_type: None,
-            fuel_burn_duration_secs: Some(15.0),
+            fuel_burn_duration_secs: None,
             primary_target_damage_min: None,
             primary_target_damage_max: None,
             primary_target_yield_min: None,

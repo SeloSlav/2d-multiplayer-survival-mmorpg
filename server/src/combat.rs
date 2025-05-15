@@ -50,6 +50,8 @@ use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_B
 pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
+/// Distance player is knocked back in PvP
+pub const PVP_KNOCKBACK_DISTANCE: f32 = 32.0;
 
 // --- Combat System Types ---
 
@@ -581,6 +583,28 @@ pub fn damage_player(
     let attacker_player_opt = players.identity().find(&attacker_id);
     let mut target_player = players.identity().find(&target_id)
         .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
+
+    // --- BEGIN KNOCKBACK LOGIC ---
+    if let Some(attacker_player) = attacker_player_opt {
+        // Only apply knockback if the target is currently alive and was hit by another player
+        if !target_player.is_dead && attacker_player.identity != target_player.identity {
+            let dx = target_player.position_x - attacker_player.position_x;
+            let dy = target_player.position_y - attacker_player.position_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            if distance > 0.0 { // Avoid division by zero and self-knockback issues
+                let norm_dx = dx / distance;
+                let norm_dy = dy / distance;
+
+                target_player.position_x += norm_dx * PVP_KNOCKBACK_DISTANCE;
+                target_player.position_y += norm_dy * PVP_KNOCKBACK_DISTANCE;
+
+                log::debug!("Player {:?} knocked back by ({:.1}, {:.1}) from attacker {:?}",
+                         target_id, norm_dx * PVP_KNOCKBACK_DISTANCE, norm_dy * PVP_KNOCKBACK_DISTANCE, attacker_id);
+            }
+        }
+    }
+    // --- END KNOCKBACK LOGIC ---
 
     let old_health = target_player.health;
     let new_health = (target_player.health - damage).max(0.0);
