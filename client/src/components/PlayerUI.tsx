@@ -178,6 +178,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     // --- NEW STATE FOR NOTIFICATIONS ---
     const [acquisitionNotifications, setAcquisitionNotifications] = useState<NotificationItem[]>([]);
     const NOTIFICATION_DURATION = 3000; // ms
+    const FADE_OUT_ANIMATION_DURATION = 500; // ms for fade-out animation
     const MAX_NOTIFICATIONS_DISPLAYED = 5;
     // --- END NEW STATE ---
     
@@ -263,12 +264,29 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
 
     // --- NEW: HELPER TO ADD ACQUISITION NOTIFICATIONS ---
     const addAcquisitionNotification = useCallback((itemDefId: bigint, quantityChange: number) => {
-        if (!itemDefinitions || quantityChange <= 0) return;
+        if (!itemDefinitions || quantityChange <= 0 || !connection || !identity) return;
 
         const def = itemDefinitions.get(itemDefId.toString());
         if (!def) {
             console.warn(`No item definition found for ID: ${itemDefId}`);
             return;
+        }
+
+        let currentTotalInInventory: number | undefined = undefined;
+
+        if (def.category.tag === 'Material') {
+            let total = 0;
+            const playerIdentityHex = identity.toHexString();
+            for (const invItem of connection.db.inventoryItem.iter()) {
+                if (invItem.itemDefId === itemDefId) {
+                    if (invItem.location.tag === 'Inventory' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
+                        total += invItem.quantity;
+                    } else if (invItem.location.tag === 'Hotbar' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
+                        total += invItem.quantity;
+                    }
+                }
+            }
+            currentTotalInInventory = total;
         }
 
         const newNotification: NotificationItem = {
@@ -277,7 +295,9 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             itemName: def.name,
             itemIcon: def.iconAssetName,
             quantityChange: quantityChange,
+            currentTotalInInventory: currentTotalInInventory, // Add the calculated total here
             timestamp: Date.now(),
+            isFadingOut: false, // Initialize as not fading out
         };
 
         setAcquisitionNotifications(prevNotifications => {
@@ -285,11 +305,20 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             return updatedNotifications; 
         });
 
+        // First timeout: Mark for fade-out
         setTimeout(() => {
-            setAcquisitionNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+            setAcquisitionNotifications(prev =>
+                prev.map(n => 
+                    n.id === newNotification.id ? { ...n, isFadingOut: true } : n
+                )
+            );
+            // Second timeout: Actually remove after fade-out animation completes
+            setTimeout(() => {
+                setAcquisitionNotifications(prev => prev.filter(n => n.id !== newNotification.id));
+            }, FADE_OUT_ANIMATION_DURATION);
         }, NOTIFICATION_DURATION);
 
-    }, [itemDefinitions]);
+    }, [itemDefinitions, connection, identity]);
     // --- END NEW HELPER ---
 
     // --- NEW: EFFECT FOR INVENTORY ITEM CHANGES (ACQUISITION NOTIFICATIONS) ---

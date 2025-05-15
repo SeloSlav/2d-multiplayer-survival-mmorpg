@@ -34,10 +34,12 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
     }}>
       {visibleNotifications.map((notif, index) => {
         const isMostRecent = index === visibleNotifications.length - 1;
+        // Apply 'fading-out' class if isFadingOut is true
+        const itemClassName = `notification-item ${notif.isFadingOut ? 'fading-out' : ''}`;
         return (
           <div
             key={notif.id}
-            className="notification-item-fade-in-out" // CSS class for animation
+            className={itemClassName} // Use dynamic class name
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -59,7 +61,12 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
               alt={notif.itemName}
               style={{ width: '20px', height: '20px', marginRight: '8px', imageRendering: 'pixelated' }}
             />
-            <span>{`${notif.quantityChange > 0 ? '+' : ''}${notif.quantityChange} ${notif.itemName}`}</span>
+            <span>
+                {`${notif.quantityChange > 0 ? '+' : ''}${notif.quantityChange} ${notif.itemName}`}
+                {notif.currentTotalInInventory !== undefined && (
+                    <span style={{ color: 'rgba(200, 200, 200, 0.9)', marginLeft: '5px' }}>{`(${notif.currentTotalInInventory})`}</span>
+                )}
+            </span>
           </div>
         );
       })}
@@ -67,17 +74,37 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
   );
 };
 
-// It's good practice to add some basic CSS for animations if you name a class like `notification-item-fade-in-out`
-// This could be in your global CSS file or injected via JavaScript if preferred.
-// For example:
-// @keyframes fadeInOut {
-//   0% { opacity: 0; transform: translateY(10px); }
-//   15% { opacity: 1; transform: translateY(0); }
-//   85% { opacity: 1; transform: translateY(0); }
-//   100% { opacity: 0; transform: translateY(-10px); }
-// }
-// .notification-item-fade-in-out {
-//   animation: fadeInOut ${NOTIFICATION_TIMEOUT_MS / 1000}s ease-in-out forwards;
-// }
+// Define keyframes and classes for animations
+const styles = `
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeOutUp {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-10px); }
+  }
+
+  .notification-item {
+    /* Default styles are applied via inline style prop */
+    /* Animation for fade-in is applied by default */
+    animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  .notification-item.fading-out {
+    animation: fadeOutUp 0.5s ease-out forwards;
+  }
+`;
+
+// Inject styles into the document head
+// This is a common pattern for component-specific global styles if not using CSS-in-JS or modules
+if (!document.getElementById('item-acquisition-notification-styles')) {
+  const styleSheet = document.createElement("style");
+  styleSheet.id = 'item-acquisition-notification-styles';
+  styleSheet.type = "text/css";
+  styleSheet.innerText = styles;
+  document.head.appendChild(styleSheet);
+}
 
 export default React.memo(ItemAcquisitionNotificationUI); 
