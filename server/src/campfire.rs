@@ -14,6 +14,7 @@
  
  // Import new models
  use crate::models::{ContainerType, ItemLocation, EquipmentSlotType, ContainerLocationData}; // Added ContainerLocationData
+ use crate::cooking::CookingProgress; // Added CookingProgress
  
  // Import table traits and concrete types
  use crate::player as PlayerTableTrait;
@@ -52,14 +53,6 @@
  const FUEL_CHECK_INTERVAL_SECS: u64 = 1;
  pub const CAMPFIRE_PROCESS_INTERVAL_SECS: u64 = 1; // How often to run the main logic when burning
  const CHARCOAL_PRODUCTION_CHANCE: u8 = 75; // 75% chance
- 
- /// --- NEW: Cooking Progress Struct ---
- #[derive(SpacetimeType, Clone, Debug, PartialEq)]
- pub struct CookingProgress {
-     pub current_cook_time_secs: f32,  // Time accumulated towards the current stage
-     pub target_cook_time_secs: f32,   // Time needed for this stage (e.g. raw to cooked, or cooked to burnt)
-     pub target_item_def_name: String, // Name of the item this stage produces
- }
  
  /// --- Campfire Data Structure ---
  /// Represents a campfire in the game world with position, owner, burning state,
@@ -447,7 +440,7 @@
      let campfire_id = schedule_args.campfire_id as u32;
      let mut campfires_table = ctx.db.campfire();
      let mut inventory_items_table = ctx.db.inventory_item();
-     let item_definition_table = ctx.db.item_definition();
+     let item_definition_table = ctx.db.item_definition(); // Keep this if fuel logic or charcoal needs it.
  
      let mut campfire = match campfires_table.id().find(campfire_id) {
          Some(cf) => cf,
@@ -465,343 +458,123 @@
      }
  
      let mut made_changes_to_campfire_struct = false;
-     let mut produced_charcoal_and_modified_campfire_struct = false;
+     let mut produced_charcoal_and_modified_campfire_struct = false; // For charcoal logic
  
-     if campfire.is_burning { // दिस इज़ व्हेयर द मेन if campfire.is_burning ब्लॉक स्टार्ट्स
+     if campfire.is_burning {
          let time_increment = CAMPFIRE_PROCESS_INTERVAL_SECS as f32;
  
-         // --- COOKING LOGIC ---
-         for i in 0..NUM_FUEL_SLOTS as u8 {
-             let mut slot_cooking_progress_opt = match i {
-                 0 => campfire.slot_0_cooking_progress.clone(),
-                 1 => campfire.slot_1_cooking_progress.clone(),
-                 2 => campfire.slot_2_cooking_progress.clone(),
-                 3 => campfire.slot_3_cooking_progress.clone(),
-                 4 => campfire.slot_4_cooking_progress.clone(),
-                 _ => None,
-             };
- 
-             let mut this_slot_is_active_fuel = false;
-             if campfire.remaining_fuel_burn_time_secs.is_some() && campfire.remaining_fuel_burn_time_secs.unwrap_or(0.0) > 0.0 {
-                 if let Some(slot_inst_id) = campfire.get_slot_instance_id(i) {
-                     if let Some(item_in_slot) = inventory_items_table.instance_id().find(slot_inst_id) {
-                         if Some(item_in_slot.item_def_id) == campfire.current_fuel_def_id {
-                             this_slot_is_active_fuel = true;
+         // --- COOKING LOGIC (now delegated) ---
+         let active_fuel_instance_id_for_cooking_check = campfire.current_fuel_def_id.and_then(|fuel_def_id| {
+             (0..NUM_FUEL_SLOTS as u8).find_map(|slot_idx_check| {
+                 if campfire.get_slot_def_id(slot_idx_check) == Some(fuel_def_id) {
+                     if let Some(instance_id_check) = campfire.get_slot_instance_id(slot_idx_check) {
+                         if campfire.remaining_fuel_burn_time_secs.is_some() && campfire.remaining_fuel_burn_time_secs.unwrap_or(0.0) > 0.0 {
+                             return Some(instance_id_check);
                          }
                      }
                  }
-             }
+                 None
+             })
+         });
  
-             if this_slot_is_active_fuel {
-                 if slot_cooking_progress_opt.is_some() {
-                     slot_cooking_progress_opt = None;
+         match crate::cooking::process_appliance_cooking_tick(ctx, &mut campfire, time_increment, active_fuel_instance_id_for_cooking_check) {
+             Ok(cooking_modified_appliance) => {
+                 if cooking_modified_appliance {
                      made_changes_to_campfire_struct = true;
-                     log::debug!("[Cooking] Campfire {}: Slot {} contains active fuel. Clearing any cooking progress.", campfire.id, i);
                  }
-             } else if let Some(_current_item_instance_id) = campfire.get_slot_instance_id(i) {
-                 if let Some(current_item_def_id) = campfire.get_slot_def_id(i) {
-                     if let Some(current_item_def) = item_definition_table.id().find(current_item_def_id) {
-                         if let Some(mut progress_data) = slot_cooking_progress_opt.take() {
-                             progress_data.current_cook_time_secs += time_increment;
-                             log::debug!("[Cooking] Campfire {}: Slot {} item (Def: {:?}) incremented cook time to {:.1}s / {:.1}s for target {}", campfire.id, i, current_item_def.id, progress_data.current_cook_time_secs, progress_data.target_cook_time_secs, progress_data.target_item_def_name);
- 
-                             if progress_data.current_cook_time_secs >= progress_data.target_cook_time_secs {
-                                 // Transformation time!
-                                 match transform_campfire_item(ctx, &mut campfire, i, &progress_data.target_item_def_name) {
-                                     Ok((newly_transformed_item_def, new_item_instance_id)) => {
-                                         made_changes_to_campfire_struct = true; // transform_campfire_item might have changed it
-                                         
-                                         // Handle placement of the newly cooked item
-                                         match handle_cooked_item_placement(ctx, &mut campfire, new_item_instance_id, newly_transformed_item_def.id) {
-                                             Ok(campfire_struct_modified_by_placement) => {
-                                                 if campfire_struct_modified_by_placement {
-                                                     made_changes_to_campfire_struct = true;
-                                                 }
-                                             }
-                                             Err(e) => {
-                                                 log::error!("[CookingPlacement] Campfire {}: Error placing cooked item {}: {}. Item may be lost or in Unknown state.", campfire.id, new_item_instance_id, e);
-                                                 // Potentially try to delete the new_item_instance_id if placement fails badly to avoid orphaned items
-                                                 ctx.db.inventory_item().instance_id().delete(new_item_instance_id);
-                                             }
-                                         }
-
-                                         // Check the original slot for remaining items or next cooking stage
-                                         if let Some(source_item_instance_id_after_transform) = campfire.get_slot_instance_id(i) {
-                                             // Original stack still has items
-                                             if let Some(source_item_after_transform) = ctx.db.inventory_item().instance_id().find(source_item_instance_id_after_transform) {
-                                                 if source_item_after_transform.quantity > 0 {
-                                                     // Reset progress to cook next item in the stack
-                                                     // The target_item_def_name and target_cook_time_secs for the *raw* item are still valid from current_item_def
-                                                      if let Some(raw_item_def) = ctx.db.item_definition().id().find(source_item_after_transform.item_def_id) {
-                                                         if let (Some(raw_target_name), Some(raw_target_time)) = (&raw_item_def.cooked_item_def_name, raw_item_def.cook_time_secs) {
-                                                             if raw_target_time > 0.0 {
-                                                                 slot_cooking_progress_opt = Some(CookingProgress {
-                                                                     current_cook_time_secs: 0.0, // Reset for next unit
-                                                                     target_cook_time_secs: raw_target_time,
-                                                                     target_item_def_name: raw_target_name.clone(),
-                                                                 });
-                                                                 log::debug!("[Cooking] Campfire {}: Slot {} still has {} units of {}. Resetting progress to cook next.", 
-                                                                          campfire.id, i, source_item_after_transform.quantity, raw_item_def.name);
-                                                             } else { slot_cooking_progress_opt = None; } // Raw item not cookable further
-                                                         } else { slot_cooking_progress_opt = None; } // Raw item has no next stage
-                                                     } else { slot_cooking_progress_opt = None; } // Cannot find raw item def
-                                                 } else { 
-                                                     // Should have been caught by transform_campfire_item deleting the item if qty hit 0
-                                                     // This means slot is now effectively empty for further cooking from original stack
-                                                     slot_cooking_progress_opt = None; 
-                                                 }
-                                             } else { slot_cooking_progress_opt = None; } // Should not happen if instance ID is there
-                                         } else { 
-                                             // Original stack was depleted and slot cleared by transform_campfire_item.
-                                             // Check if the *transformed* item has a next stage (e.g., cooked -> burnt)
-                                             if let (Some(next_target_name), Some(next_target_time)) = 
-                                                 (&newly_transformed_item_def.cooked_item_def_name, newly_transformed_item_def.cook_time_secs) {
-                                                 if next_target_time > 0.0 { // Ensure valid next cook time
-                                                     // This assumes the transformed item was placed BACK into this slot,
-                                                     // which is NOT what handle_cooked_item_placement does.
-                                                     // So, this logic branch for next stage from the *same slot* is problematic
-                                                     // if the item was moved. For now, if original stack is gone, this slot's cooking stops.
-                                                     slot_cooking_progress_opt = None; 
-                                                     log::debug!("[Cooking] Campfire {}: Original stack in slot {} depleted. Next stage for transformed item {} (if any) will happen in its new slot.", 
-                                                              campfire.id, i, newly_transformed_item_def.name);
-                                                 } else {
-                                                     slot_cooking_progress_opt = None; // No valid next stage
-                                                 }
-                                             } else {
-                                                 // Final stage or not cookable further
-                                                 slot_cooking_progress_opt = None;
-                                             }
-                                         }
-                                     }
-                                     Err(e) => {
-                                         log::error!("[Cooking] Campfire {}: Error transforming item in slot {}: {}. Cooking halted for this slot.", campfire.id, i, e);
-                                         slot_cooking_progress_opt = None; // Halt cooking on error
-                                     }
-                                 }
-                             } else {
-                                 // Continue current cooking stage
-                                 slot_cooking_progress_opt = Some(progress_data);
-                             }
-                         } else {
-                             // This item is not currently cooking. Check if it *should* start cooking.
-
-                             // PREVENT COOKING IF IT MIGHT BECOME FUEL:
-                             let item_can_be_fuel = current_item_def.fuel_burn_duration_secs.is_some() && current_item_def.fuel_burn_duration_secs.unwrap_or(0.0) > 0.0;
-                             let prevent_cooking_due_to_potential_fuel_selection = campfire.current_fuel_def_id.is_none() && item_can_be_fuel;
-
-                             if prevent_cooking_due_to_potential_fuel_selection {
-                                 log::debug!("[Cooking] Campfire {}: Item {} in slot {} is potential fuel and no fuel is active. Deferring cooking start.", campfire.id, current_item_def.name, i);
-                             } else {
-                                 // Proceed to check if it should start cooking
-                                 if let (Some(target_name), Some(target_time)) = (&current_item_def.cooked_item_def_name, current_item_def.cook_time_secs) {
-                                     if target_time > 0.0 { // Ensure there's a valid cook time
-                                         slot_cooking_progress_opt = Some(CookingProgress {
-                                             current_cook_time_secs: 0.0, // Start at 0, not time_increment
-                                             target_cook_time_secs: target_time,
-                                             target_item_def_name: target_name.clone(),
-                                         });
-                                         log::debug!("[Cooking] Campfire {}: Item {} in slot {} (not active fuel) starting to cook towards {} ({}s).", 
-                                                  campfire.id, current_item_def.name, i, target_name, target_time);
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
-             } else if slot_cooking_progress_opt.is_some() {
-                 // Slot became empty but still had cooking progress; clear it.
-                 slot_cooking_progress_opt = None;
-                 log::debug!("[Cooking] Campfire {}: Slot {} became empty, cleared stale cooking progress.", campfire.id, i);
              }
-
-             // Update campfire's slot_X_cooking_progress for the current slot i
-             let previous_slot_progress = match i {
-                 0 => campfire.slot_0_cooking_progress.clone(),
-                 1 => campfire.slot_1_cooking_progress.clone(),
-                 2 => campfire.slot_2_cooking_progress.clone(),
-                 3 => campfire.slot_3_cooking_progress.clone(),
-                 4 => campfire.slot_4_cooking_progress.clone(),
-                 _ => None,
-             };
-
-             match i {
-                 0 => campfire.slot_0_cooking_progress = slot_cooking_progress_opt.clone(),
-                 1 => campfire.slot_1_cooking_progress = slot_cooking_progress_opt.clone(),
-                 2 => campfire.slot_2_cooking_progress = slot_cooking_progress_opt.clone(),
-                 3 => campfire.slot_3_cooking_progress = slot_cooking_progress_opt.clone(),
-                 4 => campfire.slot_4_cooking_progress = slot_cooking_progress_opt.clone(),
-                 _ => {}
-             }
-
-             if previous_slot_progress != slot_cooking_progress_opt {
-                 made_changes_to_campfire_struct = true;
+             Err(e) => {
+                 log::error!("[ProcessCampfireScheduled] Error during generic cooking tick for campfire {}: {}. Further processing might be affected.", campfire.id, e);
              }
          }
-         // --- END COOKING LOGIC ---
+         // --- END COOKING LOGIC (delegated) ---
  
-         // --- FUEL CONSUMPTION LOGIC ---
+         // --- FUEL CONSUMPTION LOGIC (remains specific to campfire) ---
          if let Some(mut remaining_time) = campfire.remaining_fuel_burn_time_secs {
              if remaining_time > 0.0 {
-                 let time_decrement = CAMPFIRE_PROCESS_INTERVAL_SECS as f32;
-                 remaining_time -= time_decrement;
-
+                 remaining_time -= time_increment; // time_increment was defined above
+ 
                  if remaining_time <= 0.0 {
                      log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit (Def: {:?}) burnt out. Consuming unit and checking stack/new fuel.", campfire.id, campfire.current_fuel_def_id);
                      
                      let mut consumed_and_reloaded_from_stack = false;
-                     let mut active_fuel_slot_idx: Option<u8> = None;
-
-                     // Find which slot holds the currently burning fuel definition
+                     let mut active_fuel_slot_idx_found: Option<u8> = None;
+ 
                      for i in 0..NUM_FUEL_SLOTS as u8 {
                          if campfire.get_slot_def_id(i) == campfire.current_fuel_def_id {
                              if let Some(instance_id) = campfire.get_slot_instance_id(i) {
-                                 // This slot matches the definition and has an item. Assume it's the one.
                                  if let Some(mut fuel_item) = inventory_items_table.instance_id().find(instance_id) {
-                                     active_fuel_slot_idx = Some(i);
-                                     log::debug!("[ProcessCampfireScheduled] Campfire {} consuming 1 unit from InventoryItem {} (Def: {}, Qty before: {}) in slot {}.", 
-                                              campfire.id, fuel_item.instance_id, fuel_item.item_def_id, fuel_item.quantity, i);
-
+                                     active_fuel_slot_idx_found = Some(i);
                                      let consumed_item_def_id_for_charcoal = fuel_item.item_def_id;
-                                     
                                      fuel_item.quantity -= 1;
-
+ 
                                      if fuel_item.quantity > 0 {
                                          inventory_items_table.instance_id().update(fuel_item.clone());
-                                         // Reload this fuel item for the next burn cycle from the same stack
                                          if let Some(item_def) = item_definition_table.id().find(fuel_item.item_def_id) {
                                              if let Some(burn_duration_per_unit) = item_def.fuel_burn_duration_secs {
                                                  campfire.remaining_fuel_burn_time_secs = Some(burn_duration_per_unit);
-                                                 // current_fuel_def_id remains the same
                                                  consumed_and_reloaded_from_stack = true;
-                                                 log::info!("[ProcessCampfireScheduled] Campfire {} reloaded fuel (Def: {:?}, Qty after: {}) from slot {}. Next unit burn time: {:.1}s.",
-                                                          campfire.id, campfire.current_fuel_def_id, fuel_item.quantity, i, burn_duration_per_unit);
-                                             } else {
-                                                 log::warn!("[ProcessCampfireScheduled] Campfire {}: Fuel item (Def: {}) in slot {} lacks burn_duration. Clearing current fuel.", campfire.id, fuel_item.item_def_id, i);
-                                                 campfire.current_fuel_def_id = None;
-                                                 campfire.remaining_fuel_burn_time_secs = None;
-                                             }
-                                         } else {
-                                             log::warn!("[ProcessCampfireScheduled] Campfire {}: Definition not found for fuel item (ID: {}) in slot {}. Clearing current fuel.", campfire.id, fuel_item.item_def_id, i);
-                                             campfire.current_fuel_def_id = None;
-                                             campfire.remaining_fuel_burn_time_secs = None;
-                                         }
+                                             } else { campfire.current_fuel_def_id = None; campfire.remaining_fuel_burn_time_secs = None; }
+                                         } else { campfire.current_fuel_def_id = None; campfire.remaining_fuel_burn_time_secs = None; }
                                      } else {
-                                         // Last unit of this item stack
                                          inventory_items_table.instance_id().delete(instance_id);
-                                         campfire.set_slot(i, None, None); // Clear from Campfire struct
-                                         log::info!("[ProcessCampfireScheduled] Campfire {} finished InventoryItem {} from slot {}.", campfire.id, instance_id, i);
+                                         campfire.set_slot(i, None, None);
                                          campfire.current_fuel_def_id = None; 
                                          campfire.remaining_fuel_burn_time_secs = None;
                                      }
                                      made_changes_to_campfire_struct = true;
-
-                                     // --- CHARCOAL PRODUCTION (if applicable) ---
+ 
                                      if let Some(consumed_def) = item_definition_table.id().find(consumed_item_def_id_for_charcoal) {
-                                         if consumed_def.name == "Wood" { // Check if the *original* item was Wood
-                                             if ctx.rng().gen_range(0..100) < CHARCOAL_PRODUCTION_CHANCE {
-                                                 log::info!("[Charcoal] Campfire {}: Wood consumed, chance succeeded for charcoal.", campfire.id);
-                                                 if let Some(charcoal_def) = get_item_def_by_name(ctx, "Charcoal") {
-                                                     match try_add_charcoal_to_campfire_or_drop(ctx, &mut campfire, &charcoal_def, 1) {
-                                                         Ok(added_to_slots) => {
-                                                             if added_to_slots { // try_add_charcoal might modify campfire struct
-                                                                 produced_charcoal_and_modified_campfire_struct = true;
-                                                             }
-                                                         }
-                                                         Err(e) => log::error!("[Charcoal] Campfire {}: Error producing charcoal: {}", campfire.id, e),
-                                                     }
-                                                 } else {
-                                                     log::error!("[Charcoal] Campfire {}: Charcoal item definition not found!", campfire.id);
+                                         if consumed_def.name == "Wood" && ctx.rng().gen_range(0..100) < CHARCOAL_PRODUCTION_CHANCE {
+                                             if let Some(charcoal_def) = get_item_def_by_name(ctx, "Charcoal") {
+                                                 if try_add_charcoal_to_campfire_or_drop(ctx, &mut campfire, &charcoal_def, 1).unwrap_or(false) {
+                                                     produced_charcoal_and_modified_campfire_struct = true;
                                                  }
-                                             } else {
-                                                 log::debug!("[Charcoal] Campfire {}: Wood consumed, chance failed for charcoal.", campfire.id);
                                              }
                                          }
                                      }
-                                     // --- END CHARCOAL PRODUCTION ---
-                                     break; // Found and processed the active fuel slot
-                                 } else {
-                                      log::warn!("[ProcessCampfireScheduled] Campfire {}: Could not find InventoryItem for instance ID {} in slot {} (expected for current fuel {:?}). Clearing current fuel.",
-                                                campfire.id, instance_id, i, campfire.current_fuel_def_id);
-                                      campfire.current_fuel_def_id = None;
-                                      campfire.remaining_fuel_burn_time_secs = None;
-                                      made_changes_to_campfire_struct = true;
-                                      break; // Avoid processing other slots if current fuel is inconsistent
-                                 }
+                                     break; 
+                                 } else { campfire.current_fuel_def_id = None; campfire.remaining_fuel_burn_time_secs = None; made_changes_to_campfire_struct = true; break;}
                              }
                          }
                      }
-                     
-                     // If after looping, we didn't reload from stack (meaning the stack depleted or some error occurred)
-                     // and current_fuel_def_id is now None, the logic below for "if campfire.current_fuel_def_id.is_none()" will handle finding new fuel.
-                     // If consumed_and_reloaded_from_stack is false AND current_fuel_def_id is still Some (e.g. error finding item def), clear it to be safe.
-                     if !consumed_and_reloaded_from_stack && campfire.current_fuel_def_id.is_some() && active_fuel_slot_idx.is_none() {
-                         log::warn!("[ProcessCampfireScheduled] Campfire {}: Fuel unit ({:?}) was supposed to be consumed, but no matching slot item was processed. Clearing current fuel to prevent issues.", campfire.id, campfire.current_fuel_def_id);
-                         campfire.current_fuel_def_id = None;
-                         campfire.remaining_fuel_burn_time_secs = None;
-                         made_changes_to_campfire_struct = true;
+                     if !consumed_and_reloaded_from_stack && campfire.current_fuel_def_id.is_some() && active_fuel_slot_idx_found.is_none() {
+                         campfire.current_fuel_def_id = None; campfire.remaining_fuel_burn_time_secs = None; made_changes_to_campfire_struct = true;
                      }
-
                  } else {
-                     // Fuel is still burning, update the remaining time
                      campfire.remaining_fuel_burn_time_secs = Some(remaining_time);
                      made_changes_to_campfire_struct = true;
                  }
-             } else { // remaining_time was already <= 0.0
-                 campfire.current_fuel_def_id = None; // Force new fuel search
+             } else { // remaining_fuel_burn_time_secs was already <= 0.0 or None
+                 campfire.current_fuel_def_id = None; 
                  campfire.remaining_fuel_burn_time_secs = None;
-                 made_changes_to_campfire_struct = true; // Ensure it tries to find new fuel
+                 made_changes_to_campfire_struct = true; 
              }
          }
          
-         // If no fuel is currently burning (either just ran out or was never set)
-         if campfire.current_fuel_def_id.is_none() {
-             log::info!("[ProcessCampfireScheduled] Campfire {} attempting to find new fuel source...", campfire.id);
+         if campfire.current_fuel_def_id.is_none() { // Try to find new fuel
              let mut new_fuel_loaded = false;
-             let fuel_slots_for_search = [
-                 (campfire.fuel_instance_id_0, campfire.fuel_def_id_0, 0u8),
-                 (campfire.fuel_instance_id_1, campfire.fuel_def_id_1, 1u8),
-                 (campfire.fuel_instance_id_2, campfire.fuel_def_id_2, 2u8),
-                 (campfire.fuel_instance_id_3, campfire.fuel_def_id_3, 3u8),
-                 (campfire.fuel_instance_id_4, campfire.fuel_def_id_4, 4u8),
-             ];
-             for (instance_id_opt, def_id_opt, slot_idx) in fuel_slots_for_search.iter() {
-                 if let (Some(instance_id), Some(def_id)) = (instance_id_opt, def_id_opt) {
-                     // Check if item instance still exists and has quantity
-                     if let Some(fuel_item_check) = inventory_items_table.instance_id().find(*instance_id){
+             for i in 0..NUM_FUEL_SLOTS as u8 {
+                 if let (Some(instance_id), Some(def_id)) = (campfire.get_slot_instance_id(i), campfire.get_slot_def_id(i)) {
+                     if let Some(fuel_item_check) = inventory_items_table.instance_id().find(instance_id){
                          if fuel_item_check.quantity > 0 {
-                              if find_and_set_burn_time_for_fuel_unit(ctx, &mut campfire, *instance_id, *def_id, *slot_idx) {
-                                 new_fuel_loaded = true;
-                                 made_changes_to_campfire_struct = true;
-                                 break;
+                              if find_and_set_burn_time_for_fuel_unit(ctx, &mut campfire, instance_id, def_id, i) {
+                                 new_fuel_loaded = true; made_changes_to_campfire_struct = true; break;
                              }
-                         } else {
-                             // Item stack depleted, clear from slot if it was somehow still registered
-                             campfire.set_slot(*slot_idx, None, None);
-                             log::info!("[ProcessCampfireScheduled] Campfire {}: Cleared depleted fuel stack (Instance: {}) from slot {}.", campfire.id, *instance_id, *slot_idx);
-                             made_changes_to_campfire_struct = true;
-                         }
-                     } else {
-                         // Item instance doesn't exist, clear from slot
-                         campfire.set_slot(*slot_idx, None, None);
-                         log::info!("[ProcessCampfireScheduled] Campfire {}: Cleared non-existent fuel item (Instance: {:?}) from slot {}.", campfire.id, *instance_id, *slot_idx);
-                         made_changes_to_campfire_struct = true;
-                     }
+                         } else { campfire.set_slot(i, None, None); made_changes_to_campfire_struct = true; }
+                     } else { campfire.set_slot(i, None, None); made_changes_to_campfire_struct = true; }
                  }
              }
              if !new_fuel_loaded {
-                 log::info!("[ProcessCampfireScheduled] Campfire {} found no suitable fuel. Extinguishing.", campfire.id);
-                 campfire.is_burning = false;
-                 // current_fuel_def_id and remaining_fuel_burn_time_secs are already None or set to None above
-                 made_changes_to_campfire_struct = true;
+                 campfire.is_burning = false; made_changes_to_campfire_struct = true;
              }
          }
      } else { // campfire.is_burning is false
          log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed for fuel/cooking.", campfire.id);
-         // If it's not burning, the schedule_next_campfire_processing call below will handle clearing any active schedule.
      }
  
      if made_changes_to_campfire_struct || produced_charcoal_and_modified_campfire_struct {
-         campfires_table.id().update(campfire.clone());
+         campfires_table.id().update(campfire); // Update the owned campfire variable
      }
  
      schedule_next_campfire_processing(ctx, campfire_id)?;
@@ -1176,145 +949,6 @@
  fn get_item_def_by_name<'a>(ctx: &'a ReducerContext, name: &str) -> Option<ItemDefinition> {
      ctx.db.item_definition().iter().find(|def| def.name == name)
  }
- 
- // --- NEW Helper: Handle placement of a newly cooked item ---
- // Returns Ok(true) if campfire struct was modified, Ok(false) if dropped/merged without campfire struct change.
- fn handle_cooked_item_placement(
-     ctx: &ReducerContext,
-     campfire: &mut Campfire,
-     new_item_instance_id: u64,
-     new_item_def_id: u64,
- ) -> Result<bool, String> {
-     let mut inventory_items_table = ctx.db.inventory_item();
-     let item_defs_table = ctx.db.item_definition();
-
-     let new_item_def = item_defs_table.id().find(new_item_def_id)
-         .ok_or_else(|| format!("[CookedPlacement] Definition not found for new item def ID {}", new_item_def_id))?;
-
-     // 1. Try to stack with existing items of the same type in OTHER campfire slots
-     for i in 0..NUM_FUEL_SLOTS as u8 {
-         if campfire.get_slot_def_id(i) == Some(new_item_def_id) {
-             if let Some(target_slot_instance_id) = campfire.get_slot_instance_id(i) {
-                 if target_slot_instance_id != new_item_instance_id { // Don't stack with self if somehow it got placed back
-                     if let Some(mut target_item) = inventory_items_table.instance_id().find(target_slot_instance_id) {
-                         if target_item.quantity < new_item_def.stack_size {
-                             // Found a stackable slot with space
-                             target_item.quantity += 1; // Cooked items are qty 1
-                             inventory_items_table.instance_id().update(target_item);
-                             inventory_items_table.instance_id().delete(new_item_instance_id); // Delete the single unit item
-                             log::info!("[CookedPlacement] Campfire {}: Stacked cooked item (Def {}) onto existing stack in slot {}.", campfire.id, new_item_def_id, i);
-                             return Ok(false); // Campfire struct (slots) didn't change, only InventoryItem quantity
-                         }
-                     }
-                 }
-             }
-         }
-     }
-
-     // 2. Try to place in an empty slot in the campfire
-     for i in 0..NUM_FUEL_SLOTS as u8 {
-         if campfire.get_slot_instance_id(i).is_none() {
-             if let Some(mut new_item_to_place) = inventory_items_table.instance_id().find(new_item_instance_id) {
-                 new_item_to_place.location = ItemLocation::Container(ContainerLocationData {
-                     container_type: ContainerType::Campfire,
-                     container_id: campfire.id as u64,
-                     slot_index: i,
-                 });
-                 inventory_items_table.instance_id().update(new_item_to_place);
-                 campfire.set_slot(i, Some(new_item_instance_id), Some(new_item_def_id));
-                 log::info!("[CookedPlacement] Campfire {}: Placed cooked item (Instance {}, Def {}) into empty slot {}.", campfire.id, new_item_instance_id, new_item_def_id, i);
-                 return Ok(true); // Campfire struct (slots) modified
-             } else {
-                 return Err(format!("[CookedPlacement] Failed to find new item instance {} to place in empty slot.", new_item_instance_id));
-             }
-         }
-     }
-
-     // 3. If not added to campfire (full or error), drop it
-     log::info!("[CookedPlacement] Campfire {}: Slots full or error. Dropping cooked item (Instance {}, Def {}).", campfire.id, new_item_instance_id, new_item_def_id);
-     let drop_x = campfire.pos_x;
-     let drop_y = campfire.pos_y + crate::dropped_item::DROP_OFFSET / 2.0; 
-     
-     // Update location before dropping, create_dropped_item_entity might not do this for an existing item.
-     if let Some(mut item_to_drop) = inventory_items_table.instance_id().find(new_item_instance_id) {
-         item_to_drop.location = ItemLocation::Unknown; // Mark as unknown before drop, create_dropped_item_entity makes a *new* one.
-         inventory_items_table.instance_id().update(item_to_drop);
-     }
-     
-     // create_dropped_item_entity creates a *new* item. We need to effectively transfer ownership.
-     // For simplicity, we delete the temporary cooked item and let create_dropped_item_entity make the "official" dropped one.
-     inventory_items_table.instance_id().delete(new_item_instance_id);
-     create_dropped_item_entity(ctx, new_item_def_id, 1, drop_x, drop_y)?;
-     
-     Ok(false) // Campfire struct not modified by this drop operation
- }
-
-/// --- Helper: Transforms an item in a campfire slot to a new item ---
-/// Deletes the old item, creates the new one, and updates the campfire slot.
-/// Returns the ItemDefinition of the newly transformed item, or an error string.
-fn transform_campfire_item(
-    ctx: &ReducerContext,
-    campfire: &mut Campfire, // Pass mutable reference to update slots directly
-    slot_index: u8,
-    new_item_def_name: &str,
-) -> Result<(ItemDefinition, u64), String> { // Returns (new_item_def, new_item_instance_id)
-    let item_defs_table = ctx.db.item_definition();
-    let mut inventory_items_table = ctx.db.inventory_item();
-
-    let new_item_def = item_defs_table
-        .iter()
-        .find(|def| def.name == new_item_def_name)
-        .ok_or_else(|| format!("Target item definition '{}' not found for transformation.", new_item_def_name))?;
-
-    // Get the instance ID of the item currently in the slot
-    let source_item_instance_id = campfire.get_slot_instance_id(slot_index)
-        .ok_or_else(|| format!("No item instance found in campfire slot {} to transform.", slot_index))?;
-    
-    let mut source_item = inventory_items_table.instance_id().find(source_item_instance_id)
-        .ok_or_else(|| format!("Source item instance {} not found in DB for slot {}.", source_item_instance_id, slot_index))?;
-
-    // Decrement quantity of the source item
-    if source_item.quantity > 0 {
-        source_item.quantity -= 1;
-    } else {
-        // Should not happen if cooking was initiated correctly
-        log::error!("[TransformItem] Attempted to transform item {} in slot {} with quantity 0.", source_item_instance_id, slot_index);
-        return Err(format!("Cannot transform item in slot {} with 0 quantity.", slot_index));
-    }
-
-    if source_item.quantity == 0 {
-        // Last item in stack was consumed, delete it and clear slot
-        inventory_items_table.instance_id().delete(source_item_instance_id);
-        campfire.set_slot(slot_index, None, None); // Clears def_id and instance_id, also cooking progress via set_slot
-        log::debug!("[TransformItem] Consumed last unit of item instance {} from campfire {} slot {}. Slot cleared.", 
-                 source_item_instance_id, campfire.id, slot_index);
-    } else {
-        // Stack still has items, update its quantity
-        inventory_items_table.instance_id().update(source_item);
-        log::debug!("[TransformItem] Consumed 1 unit from stack {} in campfire {} slot {}. Remaining qty: {}.", 
-                 source_item_instance_id, campfire.id, slot_index, campfire.get_slot_instance_id(slot_index).and_then(|id| inventory_items_table.instance_id().find(id).map(|item| item.quantity)).unwrap_or(0));
-    }
-
-    // Create the new transformed item instance (it will be placed by the caller)
-    // For now, give it an 'Unknown' location; the caller will place it.
-    let new_inventory_item = InventoryItem {
-        instance_id: 0, // Auto-incremented
-        item_def_id: new_item_def.id,
-        quantity: 1, // Transformed items are typically single units
-        location: ItemLocation::Unknown, // Caller will determine final location
-    };
-
-    let inserted_item = inventory_items_table.try_insert(new_inventory_item)
-        .map_err(|e| format!("Failed to insert new transformed item '{}': {}", new_item_def_name, e))?;
-    log::info!("[TransformItem] Campfire {}: Produced 1 unit of {} (New Instance ID: {}) from slot {}. Caller will place it.", 
-             campfire.id, new_item_def_name, inserted_item.instance_id, slot_index);
-
-    // DO NOT update the campfire slot here with the new item.
-    // The original slot either has remaining raw items or is now empty.
-    // The new cooked item is returned to be placed by the caller.
-
-    Ok((new_item_def.clone(), inserted_item.instance_id))
-}
 
 // --- Helper: Try to add charcoal to campfire or drop it ---
 // Returns Ok(bool) where true means campfire struct was modified (charcoal added to slots)
@@ -1387,4 +1021,60 @@ fn try_add_charcoal_to_campfire_or_drop(
     create_dropped_item_entity(ctx, charcoal_def_id, quantity, drop_x, drop_y)?;
     
     Ok(charcoal_added_to_campfire_slots) // False, as it was dropped or failed to add to slots by modifying campfire struct
+}
+
+// --- CookableAppliance Trait Implementation for Campfire ---
+impl crate::cooking::CookableAppliance for Campfire {
+    fn num_processing_slots(&self) -> usize {
+        NUM_FUEL_SLOTS // Campfires use their fuel slots for cooking
+    }
+
+    fn get_slot_instance_id(&self, slot_index: u8) -> Option<u64> {
+        // Delegate to existing ItemContainer method
+        <Self as ItemContainer>::get_slot_instance_id(self, slot_index)
+    }
+
+    fn get_slot_def_id(&self, slot_index: u8) -> Option<u64> {
+        // Delegate to existing ItemContainer method
+        <Self as ItemContainer>::get_slot_def_id(self, slot_index)
+    }
+
+    fn set_slot(&mut self, slot_index: u8, instance_id: Option<u64>, def_id: Option<u64>) {
+        // Delegate to existing ItemContainer method
+        <Self as ItemContainer>::set_slot(self, slot_index, instance_id, def_id);
+    }
+    
+    fn get_slot_cooking_progress(&self, slot_index: u8) -> Option<CookingProgress> {
+        match slot_index {
+            0 => self.slot_0_cooking_progress.clone(),
+            1 => self.slot_1_cooking_progress.clone(),
+            2 => self.slot_2_cooking_progress.clone(),
+            3 => self.slot_3_cooking_progress.clone(),
+            4 => self.slot_4_cooking_progress.clone(),
+            _ => None,
+        }
+    }
+
+    fn set_slot_cooking_progress(&mut self, slot_index: u8, progress: Option<CookingProgress>) {
+        match slot_index {
+            0 => self.slot_0_cooking_progress = progress,
+            1 => self.slot_1_cooking_progress = progress,
+            2 => self.slot_2_cooking_progress = progress,
+            3 => self.slot_3_cooking_progress = progress,
+            4 => self.slot_4_cooking_progress = progress,
+            _ => { log::warn!("[CookableAppliance] Attempted to set cooking progress for invalid Campfire slot: {}", slot_index); }
+        }
+    }
+
+    fn get_appliance_entity_id(&self) -> u64 {
+        self.id as u64
+    }
+
+    fn get_appliance_world_position(&self) -> (f32, f32) {
+        (self.pos_x, self.pos_y)
+    }
+
+    fn get_appliance_container_type(&self) -> ContainerType {
+        ContainerType::Campfire // Campfire's own container type
+    }
 }

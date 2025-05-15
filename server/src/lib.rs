@@ -42,6 +42,7 @@ mod corn; // Add the new corn resource module
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
+mod cooking; // <<< ADDED: For generic cooking logic
 mod hemp; // Added for Hemp resource
 mod stash; // Added Stash module
 

@@ -802,7 +802,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             consumable_thirst_quenched: Some(5.0),
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
-            cook_time_secs: Some(10.0),
+            cook_time_secs: Some(30.0),
             cooked_item_def_name: Some("Cooked Mushroom".to_string()),
         },
         ItemDefinition {
@@ -838,7 +838,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             consumable_thirst_quenched: None,
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
-            cook_time_secs: Some(20.0),
+            cook_time_secs: Some(30.0),
             cooked_item_def_name: Some("Burnt Mushroom".to_string()),
         },
         ItemDefinition {
@@ -910,7 +910,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             consumable_thirst_quenched: Some(5.0),
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
-            cook_time_secs: Some(25.0),
+            cook_time_secs: Some(30.0),
             cooked_item_def_name: Some("Burnt Corn".to_string()),
         },
         ItemDefinition {
@@ -982,7 +982,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             consumable_thirst_quenched: Some(10.0),
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
-            cook_time_secs: Some(15.0),
+            cook_time_secs: Some(30.0),
             cooked_item_def_name: Some("Cooked Corn".to_string()),
         },
         // --- NEW ITEM: Bandage ---
