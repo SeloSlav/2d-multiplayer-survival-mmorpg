@@ -37,7 +37,7 @@ const sleepingBagConfig: GroundEntityConfig<SleepingBag> = {
     getShadowParams: undefined,
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
+        applyStandardDropShadow(ctx, { cycleProgress, blur: 3, offsetY: 2 });
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
@@ -96,7 +96,12 @@ const sleepingBagConfig: GroundEntityConfig<SleepingBag> = {
 
 imageManager.preloadImage(sleepingBagImageSrc);
 
-export function renderSleepingBag(ctx: CanvasRenderingContext2D, bag: SleepingBag, nowMs: number, cycleProgress: number) {
+export function renderSleepingBag(
+    ctx: CanvasRenderingContext2D, 
+    bag: SleepingBag, 
+    nowMs: number, 
+    cycleProgress: number
+) {
     renderConfiguredGroundEntity({
         ctx,
         entity: bag,

@@ -1,6 +1,6 @@
 import { Corn } from '../../generated'; // Import generated Corn type
 import cornImage from '../../assets/doodads/corn_stalk.png'; // Direct import
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { drawDynamicGroundShadow } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -28,8 +28,23 @@ const cornConfig: GroundEntityConfig<Corn> = {
 
     getShadowParams: undefined, // Remove old shadow
 
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 1.0, // Corn is taller
+            minStretchFactor: 0.1,
+            shadowBlur: 1,
+            pivotYOffset: 10      // Shadow pivot a bit higher for taller plant
+        });
+    },
+
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
         return {
             offsetX: 0,
             offsetY: 0,
@@ -43,7 +58,14 @@ const cornConfig: GroundEntityConfig<Corn> = {
 imageManager.preloadImage(cornImage);
 
 // Function to draw a single corn plant using the generic renderer
-export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: number, cycleProgress: number) {
+export function renderCorn(
+    ctx: CanvasRenderingContext2D, 
+    corn: Corn, 
+    now_ms: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean, // Added flag
+    skipDrawingShadow?: boolean // Added flag
+) {
   renderConfiguredGroundEntity({
     ctx,
     entity: corn,
@@ -52,5 +74,7 @@ export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: nu
     entityPosX: corn.posX,
     entityPosY: corn.posY,
     cycleProgress,
+    onlyDrawShadow,    // Pass flag
+    skipDrawingShadow  // Pass flag
   });
 } 

@@ -147,6 +147,7 @@ export const renderYSortedEntities = ({
             // Render stone, skip its dynamic shadow in this pass
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, true);
         } else if (type === 'wooden_storage_box') {
+            // Render box normally, its applyStandardDropShadow will handle the shadow
             renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress);
         } else if (type === 'player_corpse') {
             renderCorpse({ 
@@ -167,6 +168,9 @@ export const renderYSortedEntities = ({
             renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, true, false);
         } else if (type === 'stone') {
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
+        } else if (type === 'wooden_storage_box') {
+            // No shadow-only pass needed for wooden_storage_box as it uses applyStandardDropShadow
+            // renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress, true, false);
         }
         // Other entity types are ignored in this pass
     });

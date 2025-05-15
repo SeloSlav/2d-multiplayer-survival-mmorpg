@@ -1,6 +1,6 @@
 import { Pumpkin } from '../../generated'; // Import generated Pumpkin type
 import pumpkinImage from '../../assets/doodads/pumpkin.png'; // Direct import
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { drawDynamicGroundShadow } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -28,8 +28,23 @@ const pumpkinConfig: GroundEntityConfig<Pumpkin> = {
 
     getShadowParams: undefined, // Remove old shadow
 
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 0.8, // Pumpkins are low and wide
+            minStretchFactor: 0.2, // Wider at noon
+            shadowBlur: 2,
+            pivotYOffset: 20       // Close to ground
+        });
+    },
+
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
         return {
             offsetX: 0,
             offsetY: 0,
@@ -43,7 +58,14 @@ const pumpkinConfig: GroundEntityConfig<Pumpkin> = {
 imageManager.preloadImage(pumpkinImage);
 
 // Function to draw a single pumpkin plant using the generic renderer
-export function renderPumpkin(ctx: CanvasRenderingContext2D, pumpkin: Pumpkin, now_ms: number, cycleProgress: number) {
+export function renderPumpkin(
+    ctx: CanvasRenderingContext2D, 
+    pumpkin: Pumpkin, 
+    now_ms: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean, // Added flag
+    skipDrawingShadow?: boolean // Added flag
+) {
   renderConfiguredGroundEntity({
     ctx,
     entity: pumpkin,
@@ -52,5 +74,7 @@ export function renderPumpkin(ctx: CanvasRenderingContext2D, pumpkin: Pumpkin, n
     entityPosX: pumpkin.posX,
     entityPosY: pumpkin.posY,
     cycleProgress,
+    onlyDrawShadow,    // Pass flag
+    skipDrawingShadow  // Pass flag
   });
 } 

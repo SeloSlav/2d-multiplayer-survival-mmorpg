@@ -423,31 +423,56 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // --- Render Ground Items Individually --- 
-    // Render Campfires
+
+    // First pass: Draw ONLY shadows for ground items that have custom shadows
+    // Render Campfire Shadows
     visibleCampfires.forEach(campfire => {
-        renderCampfire(ctx, campfire, now_ms, currentCycleProgress);
+        renderCampfire(ctx, campfire, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+    });
+    // Render Pumpkin Shadows
+    visiblePumpkins.forEach(pumpkin => {
+        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+    });
+    // Render Corn Shadows
+    visibleCorns.forEach(corn => {
+        renderCorn(ctx, corn, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+    });
+    // Render Hemp Shadows
+    visibleHemps.forEach(hemp => {
+        renderHemp(ctx, hemp, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+    });
+    // Render Mushroom Shadows - RE-ADDED
+    visibleMushrooms.forEach(mushroom => {
+        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+    });
+    // TODO: Add other ground items like mushrooms, crops here if they get custom dynamic shadows
+
+    // Second pass: Draw the actual entities for ground items
+    // Render Campfires (actual image, skip shadow as it's already drawn if burning)
+    visibleCampfires.forEach(campfire => {
+        renderCampfire(ctx, campfire, now_ms, currentCycleProgress, false /* onlyDrawShadow */, !campfire.isBurning /* skip if burning, as dynamic shadow was drawn */);
     });
     // Render Dropped Items
     visibleDroppedItems.forEach(item => {
         const itemDef = itemDefinitions.get(item.itemDefId.toString());
         // Use the new signature: ctx, item, itemDef, nowMs
-        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); // Dropped items don't have this shadow yet
+        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); 
     });
     // Render Mushrooms
     visibleMushrooms.forEach(mushroom => {
-        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress);
+        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, false, true); // Flags re-added
     });
     // Render Corn
     visibleCorns.forEach(corn => {
-        renderCorn(ctx, corn, now_ms, currentCycleProgress);
+        renderCorn(ctx, corn, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
     });
     // Render Pumpkins
     visiblePumpkins.forEach(pumpkin => {
-        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress);
+        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
     });
     // Render Hemp
     visibleHemps.forEach(hemp => {
-        renderHemp(ctx, hemp, now_ms, currentCycleProgress);
+        renderHemp(ctx, hemp, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
     });
     // Render Sleeping Bags
     visibleSleepingBags.forEach(sleepingBag => {

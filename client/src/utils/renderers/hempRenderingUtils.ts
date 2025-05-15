@@ -1,6 +1,6 @@
 import { Hemp } from '../../generated'; // Import generated Hemp type
 import hempImage from '../../assets/doodads/hemp.png'; // Direct import
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { drawDynamicGroundShadow } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -28,8 +28,23 @@ const hempConfig: GroundEntityConfig<Hemp> = {
 
     getShadowParams: undefined, // Remove old shadow
 
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 1.0, // Similar to Corn
+            minStretchFactor: 0.1,
+            shadowBlur: 3,
+            pivotYOffset: 5
+        });
+    },
+
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
         return {
             offsetX: 0,
             offsetY: 0,
@@ -43,7 +58,14 @@ const hempConfig: GroundEntityConfig<Hemp> = {
 imageManager.preloadImage(hempImage);
 
 // Function to draw a single hemp plant using the generic renderer
-export function renderHemp(ctx: CanvasRenderingContext2D, hemp: Hemp, now_ms: number, cycleProgress: number) {
+export function renderHemp(
+    ctx: CanvasRenderingContext2D, 
+    hemp: Hemp, 
+    now_ms: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean, // Added flag
+    skipDrawingShadow?: boolean // Added flag
+) {
   renderConfiguredGroundEntity({
     ctx,
     entity: hemp,
@@ -52,5 +74,7 @@ export function renderHemp(ctx: CanvasRenderingContext2D, hemp: Hemp, now_ms: nu
     entityPosX: hemp.posX,
     entityPosY: hemp.posY,
     cycleProgress,
+    onlyDrawShadow,    // Pass flag
+    skipDrawingShadow  // Pass flag
   });
 } 

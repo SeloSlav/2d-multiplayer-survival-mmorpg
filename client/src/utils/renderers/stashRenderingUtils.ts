@@ -41,7 +41,10 @@ const stashConfig: GroundEntityConfig<Stash> = {
     getShadowParams: undefined, // No special shadow for stash, can use default from applyEffects
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
+        // Only apply shadow if not hidden and not destroyed
+        if (!entity.isHidden && !entity.isDestroyed) {
+            applyStandardDropShadow(ctx, { cycleProgress, blur: 2, offsetY: 1 }); 
+        }
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
@@ -102,7 +105,12 @@ const stashConfig: GroundEntityConfig<Stash> = {
 
 imageManager.preloadImage(stashImageSrc);
 
-export function renderStash(ctx: CanvasRenderingContext2D, stash: Stash, nowMs: number, cycleProgress: number) {
+export function renderStash(
+    ctx: CanvasRenderingContext2D, 
+    stash: Stash, 
+    nowMs: number, 
+    cycleProgress: number
+) {
     renderConfiguredGroundEntity({
         ctx,
         entity: stash,

@@ -1,6 +1,6 @@
 import { WoodenStorageBox } from '../../generated'; // Import generated type
 import boxImage from '../../assets/doodads/wooden_storage_box.png'; // Direct import
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { applyStandardDropShadow } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -13,9 +13,7 @@ const HEALTH_BAR_WIDTH = 50;
 const HEALTH_BAR_HEIGHT = 6;
 const HEALTH_BAR_Y_OFFSET = 8; // Adjust offset for box image centering
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Added for fade effect
-const SHARD_COUNT = 7; // More shards for a bigger box
-const SHARD_SIZE = 18;
-const SHARD_SPREAD_RADIUS = 50;
+
 
 // --- Define Configuration --- 
 const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
@@ -39,7 +37,10 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
     getShadowParams: undefined,
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
+        // Apply shadow if not destroyed
+        if (!entity.isDestroyed) {
+            applyStandardDropShadow(ctx, { cycleProgress, blur: 4, offsetY: 3 }); 
+        }
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
@@ -104,7 +105,12 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
 imageManager.preloadImage(boxImage);
 
 // --- Rendering Function (Refactored) ---
-export function renderWoodenStorageBox(ctx: CanvasRenderingContext2D, box: WoodenStorageBox, nowMs: number, cycleProgress: number) {
+export function renderWoodenStorageBox(
+    ctx: CanvasRenderingContext2D, 
+    box: WoodenStorageBox, 
+    nowMs: number, 
+    cycleProgress: number
+) {
     renderConfiguredGroundEntity({
         ctx,
         entity: box,

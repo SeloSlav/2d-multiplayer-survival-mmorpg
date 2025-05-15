@@ -1,6 +1,7 @@
 // client/src/utils/mushroomRenderingUtils.ts
 import { Mushroom } from '../../generated'; // Import generated Mushroom type
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { drawDynamicGroundShadow } from './shadowUtils'; // Added back
+// import { applyStandardDropShadow } from './shadowUtils'; // Removed
 import mushroomImage from '../../assets/doodads/mushroom.png'; // Direct import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
@@ -29,8 +30,25 @@ const mushroomConfig: GroundEntityConfig<Mushroom> = {
 
     getShadowParams: undefined, // Remove old shadow
 
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Re-added dynamic shadow for mushrooms
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 0.5, 
+            minStretchFactor: 0.1,
+            shadowBlur: 1,
+            pivotYOffset: 20 // Using the value from user's previous edit
+        });
+    },
+
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
+        // applyStandardDropShadow(ctx, { cycleProgress, blur: 2, offsetY: 1 }); // Removed standard shadow
         return {
             offsetX: 0,
             offsetY: 0,
@@ -44,7 +62,14 @@ const mushroomConfig: GroundEntityConfig<Mushroom> = {
 imageManager.preloadImage(mushroomImage);
 
 // Function to draw a single mushroom using the generic renderer
-export function renderMushroom(ctx: CanvasRenderingContext2D, mushroom: Mushroom, now_ms: number, cycleProgress: number) {
+export function renderMushroom(
+    ctx: CanvasRenderingContext2D, 
+    mushroom: Mushroom, 
+    now_ms: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean, // Added back
+    skipDrawingShadow?: boolean // Added back
+) {
   renderConfiguredGroundEntity({
     ctx,
     entity: mushroom,
@@ -53,5 +78,7 @@ export function renderMushroom(ctx: CanvasRenderingContext2D, mushroom: Mushroom
     entityPosX: mushroom.posX,
     entityPosY: mushroom.posY,
     cycleProgress,
+    onlyDrawShadow, 
+    skipDrawingShadow  
   });
 } 

@@ -2,7 +2,7 @@ import { Campfire } from '../../generated'; // Import generated Campfire type
 import campfireImage from '../../assets/doodads/campfire.png'; // Direct import ON
 import campfireOffImage from '../../assets/doodads/campfire_off.png'; // Direct import OFF
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
-import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
+import { drawDynamicGroundShadow, applyStandardDropShadow } from './shadowUtils'; // Added applyStandardDropShadow back
 import { imageManager } from './imageManager'; // Import image manager
 
 // --- Constants ---
@@ -38,8 +38,36 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
 
     getShadowParams: undefined,
 
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Only draw DYNAMIC ground shadow if burning and not destroyed
+        if (entity.isBurning && !entity.isDestroyed) {
+            drawDynamicGroundShadow({
+                ctx,
+                entityImage,
+                entityCenterX: entityPosX,
+                entityBaseY: entityPosY,
+                imageDrawWidth,
+                imageDrawHeight,
+                cycleProgress,
+                maxStretchFactor: 1.2, 
+                minStretchFactor: 0.1,  
+                shadowBlur: 2,         
+                pivotYOffset: 35       
+            });
+        } 
+        // The simple ellipse for the "off" state was removed from here.
+        // It will now be handled by applyStandardDropShadow in applyEffects.
+    },
+
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress });
+        if (!entity.isDestroyed) {
+            if (entity.isBurning) {
+                // Potentially other effects for burning state later
+            } else {
+                // Apply standard drop shadow if OFF and not destroyed
+                applyStandardDropShadow(ctx, { cycleProgress, blur: 2, offsetY: 1, color: '0,0,0' });
+            }
+        }
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
@@ -52,7 +80,7 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
                 const shakeFactor = 1.0 - (elapsedSinceHit / SHAKE_DURATION_MS);
                 const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
                 shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
-                shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity; // Allow vertical shake too
+                shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity; 
             }
         }
 
@@ -109,7 +137,14 @@ imageManager.preloadImage(campfireImage);
 imageManager.preloadImage(campfireOffImage);
 
 // --- Rendering Function (Refactored) ---
-export function renderCampfire(ctx: CanvasRenderingContext2D, campfire: Campfire, nowMs: number, cycleProgress: number) { 
+export function renderCampfire(
+    ctx: CanvasRenderingContext2D, 
+    campfire: Campfire, 
+    nowMs: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean,
+    skipDrawingShadow?: boolean
+) { 
     renderConfiguredGroundEntity({
         ctx,
         entity: campfire,
@@ -118,5 +153,7 @@ export function renderCampfire(ctx: CanvasRenderingContext2D, campfire: Campfire
         entityPosX: campfire.posX,
         entityPosY: campfire.posY,
         cycleProgress, // Pass actual cycleProgress
+        onlyDrawShadow,    // Pass flag
+        skipDrawingShadow  // Pass flag
     });
 } 
