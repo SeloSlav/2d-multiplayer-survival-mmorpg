@@ -7,13 +7,16 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Corn as SpacetimeDBCorn,
     Hemp as SpacetimeDBHemp,
-    PlayerCorpse as SpacetimeDBPlayerCorpse
+    PlayerCorpse as SpacetimeDBPlayerCorpse,
+    Stash as SpacetimeDBStash
 } from '../generated';
 import {
     PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED,
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
     PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED,
-    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED
+    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED,
+    PLAYER_STASH_INTERACTION_DISTANCE_SQUARED,
+    PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED
 } from '../config/gameConfig';
 
 // Define the constant for corn interaction (use same as mushroom for now)
@@ -31,6 +34,7 @@ interface UseInteractionFinderProps {
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
+    stashes: Map<string, SpacetimeDBStash>;
 }
 
 // Define the hook's return type
@@ -43,6 +47,7 @@ interface UseInteractionFinderResult {
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
     closestInteractableCorpseId: bigint | null;
+    closestInteractableStashId: number | null;
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -60,6 +65,7 @@ export function useInteractionFinder({
     droppedItems,
     woodenStorageBoxes,
     playerCorpses,
+    stashes,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -71,6 +77,7 @@ export function useInteractionFinder({
     const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
     const [isClosestInteractableBoxEmpty, setIsClosestInteractableBoxEmpty] = useState<boolean>(false);
     const [closestInteractableCorpseId, setClosestInteractableCorpseId] = useState<bigint | null>(null);
+    const [closestInteractableStashId, setClosestInteractableStashId] = useState<number | null>(null);
 
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
@@ -95,6 +102,8 @@ export function useInteractionFinder({
 
         let closestCorpse: bigint | null = null;
         let closestCorpseDistSq = PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED;
+
+        let closestStashId: number | null = null;
 
         if (localPlayer) {
             const playerX = localPlayer.positionX;
@@ -193,6 +202,33 @@ export function useInteractionFinder({
                     }
                 });
             }
+
+            // Find closest stash
+            if (stashes) {
+                let currentMinDistSq = Infinity;
+
+                stashes.forEach((stash) => {
+                    const dx = playerX - stash.posX;
+                    const dy = playerY - stash.posY;
+                    const distSq = dx * dx + dy * dy;
+
+                    // Determine the correct interaction radius based on stash visibility
+                    const interactionThresholdSq = stash.isHidden
+                        ? PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED
+                        : PLAYER_STASH_INTERACTION_DISTANCE_SQUARED;
+
+                    // Check if the stash is within its applicable interaction radius
+                    if (distSq < interactionThresholdSq) {
+                        // If it's within the radius, check if it's closer than any previous candidate
+                        if (distSq < currentMinDistSq) {
+                            currentMinDistSq = distSq;
+                            closestStashId = stash.id; // Set the main closestStashId directly here
+                        }
+                    }
+                });
+                // closestStashId is now correctly set to the ID of the stash that is
+                // within its specific interaction range AND is the closest among such stashes.
+            }
         }
 
         return {
@@ -204,9 +240,10 @@ export function useInteractionFinder({
             closestInteractableBoxId: closestBoxId,
             isClosestInteractableBoxEmpty: isClosestBoxEmpty,
             closestInteractableCorpseId: closestCorpse,
+            closestInteractableStashId: closestStashId,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses]);
+    }, [localPlayer, mushrooms, corns, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -236,6 +273,9 @@ export function useInteractionFinder({
         if (interactionResult.closestInteractableCorpseId !== closestInteractableCorpseId) {
             setClosestInteractableCorpseId(interactionResult.closestInteractableCorpseId);
         }
+        if (interactionResult.closestInteractableStashId !== closestInteractableStashId) {
+            setClosestInteractableStashId(interactionResult.closestInteractableStashId);
+        }
     // Depend on the memoized result object
     }, [interactionResult]);
 
@@ -248,5 +288,6 @@ export function useInteractionFinder({
         closestInteractableBoxId,
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
+        closestInteractableStashId,
     };
 } 

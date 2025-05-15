@@ -7,27 +7,17 @@ import {
     ActiveConnection,
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
+    Stash as SpacetimeDBStash,
+    DroppedItem as SpacetimeDBDroppedItem,
+    Campfire as SpacetimeDBCampfire,
+    PlayerCorpse
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
-import * as SpacetimeDB from '../../generated';
-import {
-    isPlayer, isTree, isStone, isWoodenStorageBox,
-} from '../typeGuards';
 // Import individual rendering functions
 import { renderTree } from './treeRenderingUtils';
 import { renderStone } from './stoneRenderingUtils';
 import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
-import { renderSleepingBag } from './sleepingBagRenderingUtils';
-import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
-// import { renderHemp } from './hempRenderingUtils';
-// Import specific constants from gameConfig
-import {
-    MOVEMENT_POSITION_THRESHOLD,
-    JUMP_DURATION_MS,
-    JUMP_HEIGHT_PX,
-} from '../../config/gameConfig';
-
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
 
@@ -49,6 +39,7 @@ interface RenderYSortedEntitiesProps {
     nowMs: number;
     hoveredPlayerIds: Set<string>;
     onPlayerHover: (identity: string, hover: boolean) => void;
+    cycleProgress: number;
     renderPlayerCorpse: (props: { 
         ctx: CanvasRenderingContext2D; 
         corpse: SpacetimeDBPlayerCorpse; 
@@ -75,9 +66,12 @@ export const renderYSortedEntities = ({
     nowMs,
     hoveredPlayerIds,
     onPlayerHover,
+    cycleProgress,
     renderPlayerCorpse: renderCorpse,
 }: RenderYSortedEntitiesProps) => {
 
+    // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
+    // Other entities (players, boxes, etc.) render as normal.
     ySortedEntities.forEach(({ type, entity }) => {
         if (type === 'player') {
             const player = entity as SpacetimeDBPlayer;
@@ -147,11 +141,13 @@ export const renderYSortedEntities = ({
               }
            }
         } else if (type === 'tree') {
-            renderTree(ctx, entity as SpacetimeDBTree, nowMs);
+            // Render tree, skip its dynamic shadow in this pass
+            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, true);
         } else if (type === 'stone') {
-            renderStone(ctx, entity as SpacetimeDBStone, nowMs);
+            // Render stone, skip its dynamic shadow in this pass
+            renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, true);
         } else if (type === 'wooden_storage_box') {
-            renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs);
+            renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress);
         } else if (type === 'player_corpse') {
             renderCorpse({ 
                 ctx, 
@@ -160,7 +156,18 @@ export const renderYSortedEntities = ({
                 itemImagesRef
             });
         } else {
-            console.warn('Unhandled entity type for Y-sorting:', type);
+            console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);
         } 
+    });
+
+    // Second Pass: Render ONLY the dynamic ground shadows for trees and stones.
+    // These will be drawn on top of the entities rendered in the first pass.
+    ySortedEntities.forEach(({ type, entity }) => {
+        if (type === 'tree') {
+            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, true, false);
+        } else if (type === 'stone') {
+            renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
+        }
+        // Other entity types are ignored in this pass
     });
 }; 

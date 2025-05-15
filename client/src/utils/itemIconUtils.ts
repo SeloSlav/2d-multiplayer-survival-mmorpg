@@ -28,6 +28,7 @@ import torchIcon from '../assets/items/torch.png';
 import torchFlameIcon from '../assets/items/torch_on.png';
 import charcoalIcon from '../assets/items/charcoal.png';
 import spearIcon from '../assets/items/spear.png';
+import stashIcon from '../assets/items/stash.png';
 // We don't import the missing ones (hood, boots, etc.)
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
@@ -57,6 +58,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'torch_on.png': torchFlameIcon,
   'charcoal.png': charcoalIcon,
   'spear.png': spearIcon,
+  'stash.png': stashIcon,
   // Add mappings for existing icons only
 };
 

@@ -1,5 +1,6 @@
 import { Stone } from '../../generated'; // Import generated Stone type
 import stoneImage from '../../assets/doodads/stone.png'; // Direct import
+import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager';
 
@@ -29,19 +30,25 @@ const stoneConfig: GroundEntityConfig<Stone> = {
         drawY: entity.posY - drawHeight, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.4;
-        const shadowRadiusY = shadowRadiusX * 0.5;
-        const shadowOffsetY = -drawHeight * 0.225; // Push shadow up slightly 
-        return {
-            offsetX: 0, // Centered horizontally on entity.posX
-            offsetY: shadowOffsetY, // Offset vertically from entity.posY
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
-        };
+    getShadowParams: undefined, // No longer using this for stones
+
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 1.2, // Specific to stones
+            minStretchFactor: 0.1,  // Specific to stones
+            shadowBlur: 2,
+            pivotYOffset: 25 // Added pivot offset for stones
+        });
     },
 
-    applyEffects: (ctx, entity, nowMs, _baseDrawX, _baseDrawY) => {
+    applyEffects: (ctx, entity, nowMs, _baseDrawX, _baseDrawY, _cycleProgress) => { // cycleProgress not needed here
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
 
@@ -70,7 +77,14 @@ imageManager.preloadImage(stoneImage);
 /**
  * Renders a single stone entity onto the canvas using the generic renderer.
  */
-export function renderStone(ctx: CanvasRenderingContext2D, stone: Stone, nowMs: number) {
+export function renderStone(
+    ctx: CanvasRenderingContext2D, 
+    stone: Stone, 
+    nowMs: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean,    // New flag
+    skipDrawingShadow?: boolean // New flag
+) {
     renderConfiguredGroundEntity({
         ctx,
         entity: stone,
@@ -78,5 +92,8 @@ export function renderStone(ctx: CanvasRenderingContext2D, stone: Stone, nowMs: 
         nowMs,
         entityPosX: stone.posX,
         entityPosY: stone.posY,
+        cycleProgress,
+        onlyDrawShadow,     // Pass flag
+        skipDrawingShadow   // Pass flag
     });
 } 

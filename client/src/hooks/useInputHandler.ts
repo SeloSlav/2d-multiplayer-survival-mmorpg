@@ -31,6 +31,8 @@ interface UseInputHandlerProps {
     isClosestInteractableBoxEmpty: boolean;
     woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>; // <<< ADDED
     closestInteractableCorpseId: bigint | null;
+    closestInteractableStashId: number | null; // Changed from bigint to number for Stash ID
+    stashes: Map<string, SpacetimeDB.Stash>; // Added stashes map
     // Callbacks for actions
     onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
     // Note: movement functions are now provided by usePlayerActions hook
@@ -54,7 +56,7 @@ interface InputHandlerState {
 
 interface InteractionProgressState {
     targetId: number | bigint | null;
-    targetType: 'campfire' | 'wooden_storage_box';
+    targetType: 'campfire' | 'wooden_storage_box' | 'stash'; // Added 'stash'
     startTime: number;
 }
 
@@ -77,6 +79,8 @@ export const useInputHandler = ({
     isClosestInteractableBoxEmpty,
     woodenStorageBoxes, // <<< ADDED
     closestInteractableCorpseId,
+    closestInteractableStashId, // Changed from bigint to number for Stash ID
+    stashes, // Added stashes map
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -111,10 +115,12 @@ export const useInputHandler = ({
         box: null as number | null,
         boxEmpty: false,
         corpse: null as bigint | null,
+        stash: null as number | null, // Changed from bigint to number for Stash ID
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
     const woodenStorageBoxesRef = useRef(woodenStorageBoxes); // <<< ADDED Ref
+    const stashesRef = useRef(stashes); // Added stashesRef
     const itemDefinitionsRef = useRef(itemDefinitions); // <<< ADDED Ref
 
     // --- Derive input disabled state based ONLY on player death --- 
@@ -152,6 +158,7 @@ export const useInputHandler = ({
             box: closestInteractableBoxId,
             boxEmpty: isClosestInteractableBoxEmpty,
             corpse: closestInteractableCorpseId,
+            stash: closestInteractableStashId, // Changed from bigint to number for Stash ID
         };
     }, [
         closestInteractableMushroomId, 
@@ -162,10 +169,12 @@ export const useInputHandler = ({
         closestInteractableBoxId, 
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
+        closestInteractableStashId, // Changed from bigint to number for Stash ID
     ]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
+    useEffect(() => { stashesRef.current = stashes; }, [stashes]); // Added stashesRef effect
     useEffect(() => { itemDefinitionsRef.current = itemDefinitions; }, [itemDefinitions]); // <<< ADDED Effect
 
     // --- Jump Offset Calculation Effect ---
@@ -264,16 +273,50 @@ export const useInputHandler = ({
                 const currentConnection = connectionRef.current;
                 if (!currentConnection?.reducers) return;
                 const closest = closestIdsRef.current;
-                console.log(`[Input E Down] Closest IDs: M=${closest.mushroom}, Co=${closest.corn}, H=${closest.hemp}, Ca=${closest.campfire}, D=${closest.droppedItem}, B=${closest.box}(${closest.boxEmpty}), Corpse=${closest.corpse}`);
+                const currentStashes = stashesRef.current;
+                const currentClosestStashId = closest.stash;
+                
+                // console.log(`[Input E Down] Closest IDs: M=${closest.mushroom}, Co=${closest.corn}, H=${closest.hemp}, Ca=${closest.campfire}, D=${closest.droppedItem}, B=${closest.box}(${closest.boxEmpty}), Corpse=${closest.corpse}, Stash=${currentClosestStashId}`);
 
-                // Pure Tap Actions (Highest Priority)
+                // --- Stash Interaction ---
+                if (currentClosestStashId !== null && currentStashes) {
+                    const stashEntity = currentStashes.get(currentClosestStashId.toString());
+                    if (stashEntity) {
+                        console.log(`[Stash E-Down] Stash ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}. About to setInteractionProgress.`);
+                        
+                        isEHeldDownRef.current = true; 
+                        eKeyDownTimestampRef.current = Date.now();
+
+                        setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
+                        
+                        console.log(`[Stash E-Down] setInteractionProgress CALLED. interactionProgress in this closure:`, interactionProgress);
+                        
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                        eKeyHoldTimerRef.current = setTimeout(() => {
+                            if (isEHeldDownRef.current && connectionRef.current?.reducers && closestIdsRef.current.stash === currentClosestStashId) {
+                                try {
+                                    connectionRef.current.reducers.toggleStashVisibility(Number(currentClosestStashId));
+                                } catch (error) {
+                                    console.error("[InputHandler] Error calling toggleStashVisibility in timer:", error);
+                                }
+                            }
+                            setInteractionProgress(null); 
+                            isEHeldDownRef.current = false; 
+                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                            eKeyHoldTimerRef.current = null; 
+                        }, HOLD_INTERACTION_DURATION_MS);
+                        return; 
+                    }
+                }
+
+                // Pure Tap Actions (If no stash interaction was initiated)
                 if (closest.droppedItem !== null) {
                     try {
                         currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
                     } catch (err) {
                         console.error("Error calling pickupDroppedItem reducer:", err);
                     }
-                    return; // Consume E press
+                    return; 
                 }
                 if (closest.mushroom !== null) {
                     try {
@@ -281,7 +324,7 @@ export const useInputHandler = ({
                     } catch (err) {
                         console.error("Error calling interactWithMushroom reducer:", err);
                     }
-                    return; // Consume E press
+                    return; 
                 }
                 if (closest.corn !== null) {
                     try {
@@ -289,7 +332,7 @@ export const useInputHandler = ({
                     } catch (err) {
                         console.error("Error calling interactWithCorn reducer:", err);
                     }
-                    return; // Consume E press
+                    return; 
                 }
                 if (closest.hemp !== null) {
                     try {
@@ -297,16 +340,16 @@ export const useInputHandler = ({
                     } catch (err) {
                         console.error("Error calling interactWithHemp reducer:", err);
                     }
-                    return; // Consume E press
+                    return; 
                 }
-
-                // Tap-or-Hold Actions (Process one, then return)
+                
+                // Tap-or-Hold Actions for other entities (Box, Campfire)
                 if (closest.box !== null) {
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
-                    if (closest.boxEmpty) { // Primary action for empty box is HOLD to pickup
+                    if (closest.boxEmpty) { 
                         setInteractionProgress({ targetId: closest.box, targetType: 'wooden_storage_box', startTime: Date.now() });
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = setTimeout(() => {
                             if (isEHeldDownRef.current) {
                                 const stillClosest = closestIdsRef.current;
@@ -315,23 +358,21 @@ export const useInputHandler = ({
                                         connectionRef.current?.reducers.pickupStorageBox(closest.box!);
                                     } catch (err) { console.error("[InputHandler Hold Timer] Error calling pickupStorageBox reducer:", err); }
                                 }
-                                isEHeldDownRef.current = false;
-                                setInteractionProgress(null);
-                                if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-                                eKeyHoldTimerRef.current = null;
                             }
+                            setInteractionProgress(null); 
+                            isEHeldDownRef.current = false; 
+                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
+                            eKeyHoldTimerRef.current = null;
                         }, HOLD_INTERACTION_DURATION_MS);
                     }
-                    // For non-empty box, tap is handled by keyUp. No timer started here for tap.
-                    return; // Box interaction initiated (either hold timer or setup for tap)
+                    return; 
                 }
                 
                 if (closest.campfire !== null) {
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
-                    // Primary interaction for campfire on E-down is to start hold for toggling burn
                     setInteractionProgress({ targetId: closest.campfire, targetType: 'campfire', startTime: Date.now() });
-                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
+                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                     eKeyHoldTimerRef.current = setTimeout(() => {
                         if (isEHeldDownRef.current) {
                             const stillClosest = closestIdsRef.current;
@@ -340,21 +381,19 @@ export const useInputHandler = ({
                                     connectionRef.current?.reducers.toggleCampfireBurning(closest.campfire!);
                                 } catch (err) { console.error("[InputHandler Hold Timer - Campfire] Error toggling campfire:", err); }
                             }
-                            isEHeldDownRef.current = false;
-                            setInteractionProgress(null);
-                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-                            eKeyHoldTimerRef.current = null;
                         }
+                        setInteractionProgress(null); 
+                        isEHeldDownRef.current = false; 
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
+                        eKeyHoldTimerRef.current = null;
                     }, HOLD_INTERACTION_DURATION_MS);
-                    return; // Campfire interaction initiated (hold timer or setup for tap)
+                    return; 
                 }
 
                 if (closest.corpse !== null) {
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
-                    // Tap to loot corpse is handled by keyUp. No timer started here for tap.
-                    // console.log(`[Input E Down] Closest interactable is Corpse ID: ${closest.corpse}. Waiting for KeyUp.`);
-                    return; // Corpse interaction setup for tap resolution on keyUp
+                    return; 
                 }
             }
 
@@ -363,6 +402,47 @@ export const useInputHandler = ({
                 setIsMinimapOpen((prev: boolean) => !prev); // Toggle immediately
                 event.preventDefault(); // Prevent typing 'g' in chat etc.
                 return; // Don't add 'g' to keysPressed
+            }
+
+            // --- E Key (Interact / Hold Interact) ---
+            if (event.key.toLowerCase() === 'e') {
+                if (isEHeldDownRef.current) return; // Prevent re-triggering if already held
+
+                const currentClosestStashId = closestIdsRef.current.stash;
+                const currentStashes = stashesRef.current;
+
+                // Priority 1: Stash Interaction (Open or Initiate Hold)
+                if (currentClosestStashId !== null && currentStashes) {
+                    const stashEntity = currentStashes.get(currentClosestStashId.toString());
+                    if (stashEntity) {
+                        if (!stashEntity.isHidden) {
+                            // Short press E on VISIBLE stash: Open it
+                            onSetInteractingWithRef.current({ type: 'stash', id: currentClosestStashId });
+                            // console.log(`[InputHandler E-Press] Opening stash: ${currentClosestStashId}`);
+                            return; // Interaction handled, don't proceed to hold logic for this press
+                        }
+                        // If stash is hidden OR if it's visible and we didn't return above (e.g. future proofing for explicit hide action)
+                        // Initiate HOLD interaction for toggling visibility
+                        eKeyDownTimestampRef.current = Date.now();
+                        isEHeldDownRef.current = true;
+                        setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
+                        // console.log(`[InputHandler E-Press] Starting HOLD for stash: ${currentClosestStashId}`);
+
+                        eKeyHoldTimerRef.current = setTimeout(() => {
+                            if (isEHeldDownRef.current && connectionRef.current?.reducers && closestIdsRef.current.stash !== null) {
+                                // console.log(`[InputHandler E-Hold COMPLETED] Toggling visibility for stash: ${closestIdsRef.current.stash}`);
+                                try {
+                                    connectionRef.current.reducers.toggleStashVisibility(Number(closestIdsRef.current.stash));
+                                } catch (error) {
+                                    console.error("[InputHandler] Error calling toggleStashVisibility:", error);
+                                }
+                            }
+                            setInteractionProgress(null);
+                            isEHeldDownRef.current = false; // Reset hold state after action or if key was released
+                        }, HOLD_INTERACTION_DURATION_MS);
+                        return; // Hold initiated or visible stash opened, interaction handled
+                    }
+                }
             }
         };
 
@@ -382,50 +462,60 @@ export const useInputHandler = ({
 
             // Interaction key ('e') up
             if (key === 'e') {
-                if (isEHeldDownRef.current) {
-                    const closestBeforeClear = { ...closestIdsRef.current }; // Capture state before clearing
+                if (isEHeldDownRef.current) { // Check if E was being held for an interaction
                     const holdDuration = Date.now() - eKeyDownTimestampRef.current;
+                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash; 
+                    const RETAINED_CLOSEST_CORPSE_ID = closestIdsRef.current.corpse;
+                    const RETAINED_CLOSEST_BOX_ID = closestIdsRef.current.box;
+                    const RETAINED_CLOSEST_CAMPFIRE_ID = closestIdsRef.current.campfire;
 
-                    isEHeldDownRef.current = false;
+                    // Always clear the timer if it exists (in case keyUp happens before timer fires)
                     if (eKeyHoldTimerRef.current) {
-                        clearTimeout(eKeyHoldTimerRef.current);
+                        clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = null;
                     }
-                    setInteractionProgress(null);
-                    eKeyDownTimestampRef.current = 0;
-                    console.log(`[Input E Up] Hold duration: ${holdDuration}ms. Closest before clear:`, closestBeforeClear);
 
+                    // Reset hold state and unconditionally clear interaction progress if a hold was active
+                    isEHeldDownRef.current = false;
+                    eKeyDownTimestampRef.current = 0;
+                    if (interactionProgress) { // If there was any interaction progress, clear it now
+                        setInteractionProgress(null);
+                        // console.log(`[InputHandler E-KeyUp] Cleared interactionProgress because E hold ended.`);
+                    }
+
+                    // Check if it was a TAP action (released before hold duration)
                     if (holdDuration < HOLD_INTERACTION_DURATION_MS) {
                         const currentConnection = connectionRef.current;
-                        if (!currentConnection?.reducers) return;
+                        const currentStashes = stashesRef.current;
 
-                        // <<< MODIFY Priority: Check Corpse first on short press >>>
-                        if (closestBeforeClear.corpse !== null) {
-                            console.log(`[Input E Up - Short Press] Attempting interaction with Corpse ID: ${closestBeforeClear.corpse}`);
-                            // Try calling a (non-existent yet?) interact reducer or just set state
-                            // For now, just set the interaction state
-                            onSetInteractingWithRef.current({ type: 'player_corpse', id: closestBeforeClear.corpse });
-                            console.log(`[Input E Up - Short Press] Set interactingWith to Corpse ID: ${closestBeforeClear.corpse}`);
-                        } else if (closestBeforeClear.box !== null) {
-                             // console.log(`[InputHandler KeyUp E - Short Press] Attempting interaction with Box ID: ${closestBeforeClear.box}`);
+                        if (RETAINED_CLOSEST_STASH_ID !== null && currentStashes) {
+                            const stashEntity = currentStashes.get(RETAINED_CLOSEST_STASH_ID.toString());
+                            if (stashEntity && !stashEntity.isHidden) {
+                                onSetInteractingWithRef.current({ type: 'stash', id: RETAINED_CLOSEST_STASH_ID });
+                            }
+                        } 
+                        else if (RETAINED_CLOSEST_CORPSE_ID !== null) {
+                            onSetInteractingWithRef.current({ type: 'player_corpse', id: RETAINED_CLOSEST_CORPSE_ID });
+                        } 
+                        else if (RETAINED_CLOSEST_BOX_ID !== null && currentConnection?.reducers) {
                              try {
-                                currentConnection.reducers.interactWithStorageBox(closestBeforeClear.box);
-                                // console.log(`[InputHandler KeyUp E - Short Press] Called interactWithStorageBox for Box ID: ${closestBeforeClear.box}`);
-                                onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: closestBeforeClear.box });
+                                currentConnection.reducers.interactWithStorageBox(RETAINED_CLOSEST_BOX_ID);
+                                onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: RETAINED_CLOSEST_BOX_ID });
                              } catch (err) { 
-                                console.error("[InputHandler KeyUp E - Short Press] Error calling interactWithStorageBox:", err);
+                                console.error("[InputHandler KeyUp E - TAP Box] Error calling interactWithStorageBox:", err);
                              }
-                        } else if (closestBeforeClear.campfire !== null) {
-                             // console.log(`[InputHandler KeyUp E - Short Press] Attempting interaction with Campfire ID: ${closestBeforeClear.campfire}`);
+                        } 
+                        else if (RETAINED_CLOSEST_CAMPFIRE_ID !== null && currentConnection?.reducers) {
                             try {
-                                currentConnection.reducers.interactWithCampfire(closestBeforeClear.campfire);
-                                // console.log(`[InputHandler KeyUp E - Short Press] Called interactWithCampfire for Campfire ID: ${closestBeforeClear.campfire}`);
-                                onSetInteractingWithRef.current({ type: 'campfire', id: closestBeforeClear.campfire });
+                                currentConnection.reducers.interactWithCampfire(RETAINED_CLOSEST_CAMPFIRE_ID);
+                                onSetInteractingWithRef.current({ type: 'campfire', id: RETAINED_CLOSEST_CAMPFIRE_ID });
                             } catch (err) {
-                                console.error("[InputHandler KeyUp E - Short Press] Error calling interactWithCampfire:", err);
+                                console.error("[InputHandler KeyUp E - TAP Campfire] Error calling interactWithCampfire:", err);
                             }
                         }
-                    }
+                    } 
+                    // If it was a hold, the timer in keyDown (or its clearing here) handles the action.
+                    // Interaction progress is cleared above.
                 }
             }
         };
@@ -544,7 +634,8 @@ export const useInputHandler = ({
             }
             // Clear any active timers on cleanup
             if (eKeyHoldTimerRef.current) {
-                clearTimeout(eKeyHoldTimerRef.current);
+                clearTimeout(eKeyHoldTimerRef.current as number); // Ensure casting for browser env
+                eKeyHoldTimerRef.current = null;
             }
         };
     }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen]);

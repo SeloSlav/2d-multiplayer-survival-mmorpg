@@ -1,5 +1,6 @@
 // client/src/utils/mushroomRenderingUtils.ts
 import { Mushroom } from '../../generated'; // Import generated Mushroom type
+import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
 import mushroomImage from '../../assets/doodads/mushroom.png'; // Direct import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
@@ -26,19 +27,15 @@ const mushroomConfig: GroundEntityConfig<Mushroom> = {
         drawY: entity.posY - drawHeight, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.3;
-        const shadowRadiusY = shadowRadiusX * 0.4;
-        const shadowOffsetY = -drawHeight * 0.3; // Push shadow up slightly
+    getShadowParams: undefined, // Remove old shadow
+
+    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
+        applyStandardDropShadow(ctx, { cycleProgress });
         return {
-            offsetX: 0, // Centered horizontally on entity.posX
-            offsetY: shadowOffsetY, // Offset vertically from entity.posY
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
+            offsetX: 0,
+            offsetY: 0,
         };
     },
-
-    applyEffects: undefined, // No specific effects for mushrooms currently
 
     fallbackColor: 'red', // Fallback if image fails to load
 };
@@ -47,7 +44,7 @@ const mushroomConfig: GroundEntityConfig<Mushroom> = {
 imageManager.preloadImage(mushroomImage);
 
 // Function to draw a single mushroom using the generic renderer
-export function renderMushroom(ctx: CanvasRenderingContext2D, mushroom: Mushroom, now_ms: number) {
+export function renderMushroom(ctx: CanvasRenderingContext2D, mushroom: Mushroom, now_ms: number, cycleProgress: number) {
   renderConfiguredGroundEntity({
     ctx,
     entity: mushroom,
@@ -55,5 +52,6 @@ export function renderMushroom(ctx: CanvasRenderingContext2D, mushroom: Mushroom
     nowMs: now_ms, // Pass now_ms
     entityPosX: mushroom.posX,
     entityPosY: mushroom.posY,
+    cycleProgress,
   });
 } 

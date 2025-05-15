@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType } from '../generated';
+import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 
 // Import Custom Components
@@ -31,6 +31,7 @@ interface HotbarProps {
   draggedItemInfo: DraggedItemInfo | null;
   interactingWith: { type: string; id: number | bigint } | null;
   campfires: Map<string, SpacetimeDBCampfire>;
+  stashes: Map<string, Stash>;
   startPlacement: (itemInfo: PlacementItemInfo) => void;
   cancelPlacement: () => void;
 }
@@ -44,6 +45,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     onItemDragStart,
     onItemDrop,
     interactingWith,
+    stashes,
     startPlacement,
     cancelPlacement,
 }) => {
@@ -252,6 +254,23 @@ const Hotbar: React.FC<HotbarProps> = ({
                // TODO: Show user feedback?
            }
            return; // Action handled
+      } else if (interactingWith?.type === 'stash') {
+          const stashId = Number(interactingWith.id); // Stash ID is u32 (entity_id from server), safe to Number
+          const currentStash = stashes.get(interactingWith.id.toString());
+
+          if (currentStash && !currentStash.isHidden) {
+            // console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
+            try {
+                connection.reducers.quickMoveToStash(stashId, itemInstanceId);
+            } catch (error: any) {
+                console.error("[Hotbar ContextMenu Hotbar->Stash] Failed to call quickMoveToStash reducer:", error);
+                // TODO: Show user feedback? (e.g., "Stash full")
+            }
+          } else {
+            console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} is hidden or not found. Cannot quick move.`);
+            // Optionally, provide feedback to the user that the stash is hidden
+          }
+          return; // Action handled
       }
       // --- END ADDITION ---
       // 3. Else (no container open), check if it's armor to equip

@@ -1,9 +1,9 @@
 /******************************************************************************
  * ExternalContainerUI.tsx                                                     *
  * -------------------------------------------------------------------------- *
- * Manages the UI for external containers like campfires and wooden storage   *
- * boxes. Displays items, handles drag-and-drop interactions, and context   *
- * menus for these containers.                                                *
+ * Manages the UI for external containers like campfires, wooden storage      *
+ * boxes, player corpses, and stashes. Displays items, handles               *
+ * drag-and-drop interactions, and context menus for these containers.        *
  ******************************************************************************/
 
 import React, { useCallback, useMemo } from 'react';
@@ -16,18 +16,23 @@ import DroppableSlot from './DroppableSlot';
 // Import Types
 import { 
     ItemDefinition, InventoryItem, DbConnection, 
-    Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, PlayerCorpse 
+    Campfire as SpacetimeDBCampfire, 
+    WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
+    PlayerCorpse, 
+    Stash as SpacetimeDBStash // Added Stash type
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
-import { PopulatedItem } from './InventoryUI'; // Assuming exported from InventoryUI
+import { PopulatedItem } from './InventoryUI';
 
-// Constants (can be moved/shared later)
+// Constants
 const NUM_FUEL_SLOTS = 5;
 const NUM_BOX_SLOTS = 18;
-const NUM_CORPSE_SLOTS = 30; // 24 inv + 6 hotbar
+const NUM_CORPSE_SLOTS = 30;
+const NUM_STASH_SLOTS = 6; // Added for Stash
 const BOX_COLS = 6;
-const CORPSE_COLS = 6; // Same layout as inventory
+const CORPSE_COLS = 6;
+const STASH_COLS = 6; // Stash layout: 1 row of 6
 
 interface ExternalContainerUIProps {
     interactionTarget: InteractionTarget;
@@ -36,11 +41,13 @@ interface ExternalContainerUIProps {
     campfires: Map<string, SpacetimeDBCampfire>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
-    currentStorageBox?: SpacetimeDBWoodenStorageBox | null; // The specific box being interacted with
+    stashes: Map<string, SpacetimeDBStash>; // Added stashes
+    currentStorageBox?: SpacetimeDBWoodenStorageBox | null;
+    // currentStash will be derived like currentCampfire/currentCorpse
     connection: DbConnection | null;
     onItemDragStart: (info: DraggedItemInfo) => void;
     onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void;
-    // Consider a more generic context menu handler if patterns emerge
+    playerId: string | null; // Need player ID to check ownership for hiding stash
 }
 
 const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
@@ -50,10 +57,12 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     campfires,
     woodenStorageBoxes,
     playerCorpses,
+    stashes, // Added stashes
     currentStorageBox,
     connection,
     onItemDragStart,
     onItemDrop,
+    playerId,
 }) => {
 
     // --- Derived Data for Campfire ---
@@ -138,6 +147,32 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         return items;
     }, [isCorpseInteraction, currentCorpse, inventoryItems, itemDefinitions]);
 
+    // --- Derived Data for Stash ---
+    const isStashInteraction = interactionTarget?.type === 'stash';
+    const stashIdNum = isStashInteraction ? Number(interactionTarget!.id) : null;
+    const currentStash = stashIdNum !== null ? stashes.get(stashIdNum.toString()) : undefined;
+    const stashItems = useMemo(() => {
+        const items: (PopulatedItem | null)[] = Array(NUM_STASH_SLOTS).fill(null);
+        if (!isStashInteraction || !currentStash) return items;
+        // Dynamically access slot_instance_id_N fields for Stash
+        for (let i = 0; i < NUM_STASH_SLOTS; i++) {
+            const instanceIdKey = `slotInstanceId${i}` as keyof SpacetimeDBStash;
+            const instanceIdOpt = currentStash[instanceIdKey] as bigint | null | undefined;
+
+            if (instanceIdOpt) {
+                const instanceIdStr = instanceIdOpt.toString();
+                const foundInvItem = inventoryItems.get(instanceIdStr);
+                if (foundInvItem) {
+                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
+                    if (definition) {
+                        items[i] = { instance: foundInvItem, definition };
+                    }
+                }
+            }
+        }
+        return items;
+    }, [isStashInteraction, currentStash, inventoryItems, itemDefinitions]);
+
     // --- Callbacks specific to containers ---
     const handleRemoveFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
         event.preventDefault();
@@ -171,6 +206,29 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
     }, [connection, corpseIdBigInt]);
 
+    // --- NEW Callback for Stash Context Menu (Quick Move from Stash) ---
+    const handleStashItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
+        event.preventDefault();
+        if (!connection?.reducers || !itemInfo || stashIdNum === null || !currentStash || currentStash.isHidden) return;
+        try {
+            connection.reducers.quickMoveFromStash(stashIdNum, slotIndex);
+        } catch (e: any) { 
+            console.error("[ExtCont CtxMenu Stash->Inv]", e); 
+        }
+    }, [connection, stashIdNum, currentStash]);
+
+    // --- NEW Callback for Toggling Stash Visibility ---
+    const handleToggleStashVisibility = useCallback(() => {
+        if (!connection?.reducers || stashIdNum === null || !currentStash) return;
+        // Permission to hide might be on server (placed_by or last_surfaced_by)
+        // Permission to surface is based on proximity (handled by server) but client can always try.
+        try {
+            connection.reducers.toggleStashVisibility(stashIdNum);
+        } catch (e: any) {
+            console.error("Error toggling stash visibility:", e);
+        }
+    }, [connection, stashIdNum, currentStash]);
+
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
         if (!isCampfireInteraction || !currentCampfire) return true;
@@ -190,7 +248,23 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         containerTitle = "WOODEN STORAGE BOX";
     } else if (isCorpseInteraction) {
         containerTitle = currentCorpse?.username ? `${currentCorpse.username}'s Backpack` : "Player Corpse";
+    } else if (isStashInteraction) {
+        containerTitle = currentStash?.isHidden ? "HIDDEN STASH (NEARBY)" : "STASH";
+        if (currentStash?.isHidden && playerId !== currentStash?.placedBy?.toHexString() && playerId !== currentStash?.lastSurfacedBy?.toHexString()) {
+            // If it's hidden and not our stash (placer/surfacer), don't show item UI, only surface button potentially.
+            // For now, the generic title change is enough, actual slot rendering will be conditional.
+        }
     }
+
+    // Determine if the current player can operate the stash hide/surface button
+    const canOperateStashButton = useMemo(() => {
+        if (!isStashInteraction || !currentStash || !playerId) return false;
+        if (currentStash.isHidden) {
+            return true; // Anyone can attempt to surface if they are close enough (server validates proximity)
+        }
+        // If not hidden, only placer or last surfacer can hide it
+        return currentStash.placedBy?.toHexString() === playerId || currentStash.lastSurfacedBy?.toHexString() === playerId;
+    }, [isStashInteraction, currentStash, playerId]);
 
     return (
         <div className={styles.externalInventorySection}>
@@ -316,6 +390,58 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             )}
             {isCorpseInteraction && !currentCorpse && (
                 <div>Error: Player Corpse data missing.</div>
+            )}
+
+            {/* Stash UI */}
+            {isStashInteraction && currentStash && (
+                <>
+                    {!currentStash.isHidden && (
+                        <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${STASH_COLS}, ${styles.slotSize || '60px'})` }}>
+                            {Array.from({ length: NUM_STASH_SLOTS }).map((_, index) => {
+                                const itemInSlot = stashItems[index];
+                                const currentStashSlotInfo: DragSourceSlotInfo = { type: 'stash', index: index, parentId: stashIdNum ?? undefined };
+                                const slotKey = `stash-${stashIdNum ?? 'unknown'}-${index}`;
+                                return (
+                                    <DroppableSlot
+                                        key={slotKey}
+                                        slotInfo={currentStashSlotInfo}
+                                        onItemDrop={onItemDrop}
+                                        className={styles.slot}
+                                        isDraggingOver={false} // Add state if needed
+                                    >
+                                        {itemInSlot && (
+                                            <DraggableItem
+                                                item={itemInSlot}
+                                                sourceSlot={currentStashSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={onItemDrop}
+                                                onContextMenu={(event) => handleStashItemContextMenu(event, itemInSlot, index)}
+                                            />
+                                        )}
+                                    </DroppableSlot>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {canOperateStashButton && (
+                         <button
+                            onClick={handleToggleStashVisibility}
+                            className={`${styles.interactionButton} ${
+                                currentStash.isHidden
+                                    ? styles.lightFireButton // Use a generic "positive action" style
+                                    : styles.extinguishButton // Use a generic "negative action" style
+                            }`}
+                        >
+                            {currentStash.isHidden ? "Surface Stash" : "Hide Stash"}
+                        </button>
+                    )}
+                    {currentStash.isHidden && !canOperateStashButton && (
+                        <p className={styles.infoText}>This stash is hidden. You might be able to surface it if you are on top of it.</p>
+                    )}
+                </>
+            )}
+            {isStashInteraction && !currentStash && (
+                <div>Error: Stash data missing.</div>
             )}
         </div>
     );

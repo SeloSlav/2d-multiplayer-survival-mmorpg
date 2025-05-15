@@ -11,13 +11,15 @@ import {
   SleepingBag as SpacetimeDBSleepingBag,
   Corn as SpacetimeDBCorn,
   Hemp as SpacetimeDBHemp,
-  PlayerCorpse as SpacetimeDBPlayerCorpse
+  PlayerCorpse as SpacetimeDBPlayerCorpse,
+  Stash as SpacetimeDBStash
 } from '../generated';
 import {
   isPlayer, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isWoodenStorageBox,
   isSleepingBag,
   isCorn,
-  isHemp
+  isHemp,
+  isStash
 } from '../utils/typeGuards';
 
 interface ViewportBounds {
@@ -45,6 +47,9 @@ interface EntityFilteringResult {
   visibleCornsMap: Map<string, SpacetimeDBCorn>;
   visibleHempsMap: Map<string, SpacetimeDBHemp>;
   visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
+  visiblePlayerCorpsesMap: Map<string, SpacetimeDBPlayerCorpse>;
+  visibleStashes: SpacetimeDBStash[];
+  visibleStashesMap: Map<string, SpacetimeDBStash>;
   groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn | SpacetimeDBHemp)[];
   ySortedEntities: YSortedEntityType[];
 }
@@ -59,6 +64,7 @@ export type YSortedEntityType =
   | { type: 'stone'; entity: SpacetimeDBStone }
   | { type: 'wooden_storage_box'; entity: SpacetimeDBWoodenStorageBox }
   | { type: 'player_corpse'; entity: SpacetimeDBPlayerCorpse }
+  | { type: 'stash'; entity: SpacetimeDBStash }
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -72,6 +78,7 @@ export function useEntityFiltering(
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>,
   sleepingBags: Map<string, SpacetimeDBSleepingBag>,
   playerCorpses: Map<string, SpacetimeDBPlayerCorpse>,
+  stashes: Map<string, SpacetimeDBStash>,
   cameraOffsetX: number,
   cameraOffsetY: number,
   canvasWidth: number,
@@ -139,6 +146,16 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 32;
       height = 48;
+    } else if (isHemp(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 32;
+      height = 48;
+    } else if (isStash(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 32;
+      height = 32;
     } else {
       return false; // Unknown entity type
     }
@@ -232,6 +249,12 @@ export function useEntityFiltering(
     ,[playerCorpses, isEntityInView, viewBounds]
   );
 
+  const visibleStashes = useMemo(() => 
+    stashes ? Array.from(stashes.values()).filter(e => !e.isHidden && isEntityInView(e, viewBounds))
+    : [],
+    [stashes, isEntityInView, viewBounds]
+  );
+
   const visibleHemps = useMemo(() => 
     hemps ? Array.from(hemps.values())
       .filter(e => isEntityInView(e, viewBounds) && !e.respawnAt)
@@ -269,13 +292,16 @@ export function useEntityFiltering(
     [visibleHemps]
   );
 
+  const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
+  const visibleStashesMap = useMemo(() => new Map(visibleStashes.map(s => [s.id.toString(), s])), [visibleStashes]);
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleDroppedItems,
     ...visibleCampfires,
     ...visibleSleepingBags,
     ...visibleCorns,
-    ...visibleHemps
+    ...visibleHemps,
   ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns, visibleHemps]);
 
   // Y-sorted entities with sorting and correct type structure
@@ -286,7 +312,7 @@ export function useEntityFiltering(
       ...visibleTrees.map(t => ({ type: 'tree' as const, entity: t })),
       ...visibleStones.filter(stone => stone.health > 0).map(s => ({ type: 'stone' as const, entity: s })),
       ...visibleWoodenStorageBoxes.map(b => ({ type: 'wooden_storage_box' as const, entity: b })),
-      ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c }))
+      ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
     ];
 
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
@@ -315,12 +341,15 @@ export function useEntityFiltering(
     visibleWoodenStorageBoxes,
     visibleSleepingBags,
     visiblePlayerCorpses,
+    visibleStashes,
     visibleMushroomsMap,
     visibleCampfiresMap,
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
     visibleHempsMap,
+    visiblePlayerCorpsesMap,
+    visibleStashesMap,
     groundItems,
     ySortedEntities
   };

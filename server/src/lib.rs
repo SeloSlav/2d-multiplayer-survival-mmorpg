@@ -43,6 +43,7 @@ mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
 mod hemp; // Added for Hemp resource
+mod stash; // Added Stash module
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -61,6 +62,7 @@ use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::chat::message as MessageTableTrait; // Import the trait for Message table
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
 use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
+use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -72,7 +74,6 @@ use crate::global_tick::GlobalTickSchedule as GlobalTickScheduleTableTrait;
 use crate::player_stats::{
     SPRINT_SPEED_MULTIPLIER,
     JUMP_COOLDOWN_MS,
-    LOW_NEED_THRESHOLD,
     LOW_THIRST_SPEED_PENALTY,
     LOW_WARMTH_SPEED_PENALTY
 };
@@ -178,6 +179,8 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::player_stats::init_player_stat_schedule(ctx)?;
     // ADD: Initialize the global tick schedule
     crate::global_tick::init_global_tick_schedule(ctx)?;
+    // <<< UPDATED: Initialize StatThresholdsConfig table >>>
+    crate::player_stats::init_stat_thresholds_config(ctx)?; 
 
     log::info!("Module initialization complete.");
     Ok(())
@@ -624,6 +627,11 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_def_id_3: None,
         fuel_instance_id_4: None,
         fuel_def_id_4: None,
+        health: 250.0, // Initial health for Campfire
+        max_health: 250.0, // Max health for Campfire
+        is_destroyed: false,
+        destroyed_at: None,
+        last_hit_time: None, // Initialize last_hit_time
     };
     let inserted_campfire = campfires.try_insert(new_campfire_data_without_fuel_ids)
         .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;
@@ -760,21 +768,28 @@ pub fn update_player_position(
     // --- Calculate Final Speed Multiplier based on Current Stats ---
     let mut final_speed_multiplier = base_speed_multiplier;
     // Use current player stats read at the beginning of the reducer
-    if current_player.thirst < LOW_NEED_THRESHOLD {
-        if is_moving { // Only apply penalty if trying to move
-            final_speed_multiplier *= LOW_THIRST_SPEED_PENALTY;
-            log::debug!("Player {:?} has low thirst. Applying speed penalty.", sender_id);
+
+    // --- <<< UPDATED: Read LOW_NEED_THRESHOLD from StatThresholdsConfig table >>> ---
+    let stat_thresholds_config_table = ctx.db.stat_thresholds_config(); // <<< CORRECT: Use the direct table accessor
+    let stat_thresholds_config = stat_thresholds_config_table.iter().filter(|stc| stc.id == 0).next();
+    
+    let mut effective_speed = PLAYER_SPEED * final_speed_multiplier;
+    if let Some(config) = stat_thresholds_config { // <<< UPDATED variable name
+        let low_need_threshold = config.low_need_threshold;
+        if current_player.thirst < low_need_threshold {
+            effective_speed *= LOW_THIRST_SPEED_PENALTY;
+            log::debug!("Player {:?} has low thirst. Applying speed penalty. New speed: {}", sender_id, effective_speed);
         }
-    }
-    if current_player.warmth < LOW_NEED_THRESHOLD {
-        if is_moving { // Only apply penalty if trying to move
-            final_speed_multiplier *= LOW_WARMTH_SPEED_PENALTY;
-            log::debug!("Player {:?} is cold. Applying speed penalty.", sender_id);
+        if current_player.warmth < low_need_threshold {
+            effective_speed *= LOW_WARMTH_SPEED_PENALTY;
+            log::debug!("Player {:?} is cold. Applying speed penalty. New speed: {}", sender_id, effective_speed);
         }
+    } else {
+        log::warn!("StatThresholdsConfig not found for player {}. Using default behavior (no penalty applied from config).", sender_id);
     }
 
     // --- Calculate Target Velocity & Server Displacement ---
-    let target_speed = PLAYER_SPEED * final_speed_multiplier;
+    let target_speed = effective_speed;
     // Velocity is the normalized direction vector scaled by target speed
     let velocity_x = move_x * target_speed;
     let velocity_y = move_y * target_speed;

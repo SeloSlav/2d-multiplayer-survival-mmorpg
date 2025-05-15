@@ -31,7 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 export type CampfireProcessingSchedule = {
-  campfireIdForSchedule: bigint,
+  campfireId: bigint,
   scheduledAt: { tag: "Interval", value: TimeDuration } | { tag: "Time", value: Timestamp },
 };
 
@@ -45,7 +45,7 @@ export namespace CampfireProcessingSchedule {
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("campfireIdForSchedule", AlgebraicType.createU64Type()),
+      new ProductTypeElement("campfireId", AlgebraicType.createU64Type()),
       new ProductTypeElement("scheduledAt", AlgebraicType.createScheduleAtType()),
     ]);
   }

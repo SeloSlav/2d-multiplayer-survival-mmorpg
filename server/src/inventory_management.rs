@@ -1054,6 +1054,12 @@ pub(crate) fn handle_quick_move_to_container<C: ItemContainer>(
     container: &mut C,
     item_instance_id: u64,
 ) -> Result<(), String> {
+    log::info!(
+        "[InvManager QuickMoveToContainer] Attempting for container type: {:?}, container ID: {}, item ID: {}", 
+        container.get_container_type(), 
+        container.get_container_id(), 
+        item_instance_id
+    );
     let inventory_table = ctx.db.inventory_item();
     let item_def_table = ctx.db.item_definition();
     let sender_id = ctx.sender;

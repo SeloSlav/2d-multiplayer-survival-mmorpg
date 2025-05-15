@@ -50,6 +50,13 @@ pub struct SleepingBag {
     pub placed_by: Identity, // Who placed this sleeping bag
     pub placed_at: Timestamp, // When it was placed
     // Add future fields here (e.g., is_occupied, owner_identity for respawn)
+
+    // --- Destruction Fields ---
+    pub health: f32,
+    pub max_health: f32,
+    pub is_destroyed: bool,
+    pub destroyed_at: Option<Timestamp>,
+    pub last_hit_time: Option<Timestamp>,
 }
 
 /// --- Row-Level Security Filter ---
@@ -142,6 +149,12 @@ pub fn place_sleeping_bag(ctx: &ReducerContext, item_instance_id: u64, world_x: 
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: ctx.timestamp,
+        // --- Destruction Fields Initialization ---
+        health: 250.0,
+        max_health: 250.0,
+        is_destroyed: false,
+        destroyed_at: None,
+        last_hit_time: None,
     };
     sleeping_bags.insert(new_bag);
 
@@ -336,6 +349,10 @@ fn validate_sleeping_bag_interaction(
         .ok_or_else(|| "Player not found".to_string())?;
     let sleeping_bag = sleeping_bags.id().find(bag_id)
         .ok_or_else(|| format!("Sleeping Bag {} not found", bag_id))?;
+
+    if sleeping_bag.is_destroyed {
+        return Err(format!("Sleeping Bag {} is destroyed.", bag_id));
+    }
 
     // Check distance
     let dx = player.position_x - sleeping_bag.pos_x;

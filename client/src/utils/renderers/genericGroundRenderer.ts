@@ -2,10 +2,21 @@ import { imageManager } from './imageManager';
 import { drawShadow } from './shadowUtils';
 import { gameConfig } from '../../config/gameConfig';
 
+interface BaseEntity {
+    posX: number;
+    posY: number;
+    isDestroyed?: boolean; // Optional because not all entities that use this will be destructible
+    destroyed_at?: { microsSinceUnixEpoch: bigint } | null; // For destruction animation timing
+    health?: number; // Optional: For health bar
+    maxHealth?: number; // Optional: For health bar
+    lastHitTime?: { microsSinceUnixEpoch: bigint } | null; // Optional: For shake effect and health bar visibility
+    // Add other common fields if necessary, e.g., id, lastHitTime etc. if they become common
+}
+
 /**
  * Configuration for rendering a specific type of ground entity.
  */
-export interface GroundEntityConfig<T> {
+export interface GroundEntityConfig<T extends BaseEntity> {
     /**
      * Function to get the image source URL based on entity state.
      * Return null if no image should be drawn for this entity/state.
@@ -47,11 +58,52 @@ export interface GroundEntityConfig<T> {
      * @param nowMs Current timestamp.
      * @param baseDrawX Base calculated draw X.
      * @param baseDrawY Base calculated draw Y.
+     * @param cycleProgress Cycle progress (time-of-day dependent effects).
      * @returns Object with offsetX and offsetY to apply to the final drawImage call.
      */
-    applyEffects?: (ctx: CanvasRenderingContext2D, entity: T, nowMs: number, baseDrawX: number, baseDrawY: number) => 
+    applyEffects?: (
+        ctx: CanvasRenderingContext2D, 
+        entity: T, 
+        nowMs: number, 
+        baseDrawX: number, 
+        baseDrawY: number,
+        cycleProgress: number) => 
         { offsetX: number; offsetY: number };
     
+    /**
+     * Optional callback to draw a custom shadow on the ground before the entity image.
+     * This is for shadows that are separate shapes, not context effects on the image itself.
+     * It's called after ctx.save() and before applyEffects/drawImage.
+     */
+    drawCustomGroundShadow?: (
+        ctx: CanvasRenderingContext2D,
+        entity: T,
+        entityImage: HTMLImageElement,
+        entityPosX: number, 
+        entityPosY: number, 
+        imageDrawWidth: number,
+        imageDrawHeight: number,
+        cycleProgress: number
+    ) => void;
+
+    /**
+     * Optional callback to draw an overlay (like a health bar) on top of the entity image.
+     * It's called after drawImage and ctx.restore().
+     */
+    drawOverlay?: (
+        ctx: CanvasRenderingContext2D,
+        entity: T,
+        // The final draw coordinates and dimensions, including effects:
+        finalDrawX: number, 
+        finalDrawY: number, 
+        finalDrawWidth: number,
+        finalDrawHeight: number,
+        nowMs: number,
+        // Base draw coordinates BEFORE any effects (shake, etc.)
+        baseDrawX: number,
+        baseDrawY: number
+    ) => void;
+
     /**
      * Optional fallback fill style if image fails to load.
      * Defaults to 'grey'.
@@ -59,81 +111,94 @@ export interface GroundEntityConfig<T> {
     fallbackColor?: string;
 }
 
-interface RenderParams<T> {
+export interface RenderConfiguredGroundEntityParams<T extends BaseEntity> {
     ctx: CanvasRenderingContext2D;
     entity: T;
     config: GroundEntityConfig<T>;
     nowMs: number;
-    // Entity position properties expected (adjust if some entities use different names)
-    entityPosX: number; 
+    entityPosX: number;
     entityPosY: number;
+    cycleProgress: number;
+    onlyDrawShadow?: boolean;
+    skipDrawingShadow?: boolean;
 }
 
 /**
  * Generic function to render a ground-based entity using a configuration object.
  */
-export function renderConfiguredGroundEntity<T>({ 
+export function renderConfiguredGroundEntity<T extends BaseEntity>({ 
     ctx, 
     entity, 
     config, 
     nowMs,
     entityPosX, 
-    entityPosY 
-}: RenderParams<T>): void {
-    
+    entityPosY,
+    cycleProgress,
+    onlyDrawShadow,
+    skipDrawingShadow
+}: RenderConfiguredGroundEntityParams<T>): void {
     const imgSrc = config.getImageSource(entity);
-    if (!imgSrc) {
-        return; // Config says not to draw anything for this entity/state
+    if (!imgSrc && !entity.isDestroyed) { // Allow rendering overlay even if image source is null (e.g. for destroyed state)
+        return;
     }
+    const img = imgSrc ? imageManager.getImage(imgSrc) : null;
 
-    const img = imageManager.getImage(imgSrc);
+    if ((img && img.complete && img.naturalHeight !== 0) || (entity.isDestroyed && config.drawOverlay)) {
+        const { width: targetImgWidth, height: targetImgHeight } = img ? config.getTargetDimensions(img, entity) : {width: 0, height: 0};
+        const { drawX: baseDrawX, drawY: baseDrawY } = config.calculateDrawPosition(entity, targetImgWidth, targetImgHeight);
 
-    if (img) {
-        // Image is loaded and valid
-        const { width: drawWidth, height: drawHeight } = config.getTargetDimensions(img, entity);
-        const { drawX: baseDrawX, drawY: baseDrawY } = config.calculateDrawPosition(entity, drawWidth, drawHeight);
+        if (onlyDrawShadow) {
+            if (config.drawCustomGroundShadow && img) {
+                config.drawCustomGroundShadow(ctx, entity, img, entityPosX, entityPosY, targetImgWidth, targetImgHeight, cycleProgress);
+            }
+            return;
+        }
+
+        ctx.save();
+
+        if (config.drawCustomGroundShadow && img && !skipDrawingShadow) {
+            config.drawCustomGroundShadow(ctx, entity, img, entityPosX, entityPosY, targetImgWidth, targetImgHeight, cycleProgress);
+        }
 
         let effectOffsetX = 0;
         let effectOffsetY = 0;
         if (config.applyEffects) {
-            const effects = config.applyEffects(ctx, entity, nowMs, baseDrawX, baseDrawY);
-            effectOffsetX = effects.offsetX;
-            effectOffsetY = effects.offsetY;
+            const effectsResult = config.applyEffects(ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress);
+            effectOffsetX = effectsResult.offsetX;
+            effectOffsetY = effectsResult.offsetY;
+        }
+        
+        const finalDrawX = baseDrawX + effectOffsetX;
+        const finalDrawY = baseDrawY + effectOffsetY;
+
+        if (img && !entity.isDestroyed) { // Don't draw main image if destroyed
+            ctx.drawImage(
+                img, 
+                finalDrawX, 
+                finalDrawY, 
+                targetImgWidth, 
+                targetImgHeight
+            );
         }
 
-        // Draw Shadow (before applying visual effects like shake to the main image)
-        if (config.getShadowParams) {
-            const shadowParams = config.getShadowParams(entity, drawWidth, drawHeight);
-            if (shadowParams) {
-                drawShadow(
-                    ctx, 
-                    entityPosX + (shadowParams.offsetX ?? 0),
-                    entityPosY + (shadowParams.offsetY ?? 0),
-                    shadowParams.radiusX, 
-                    shadowParams.radiusY
-                );
-            }
+        ctx.restore(); // Restore before drawing overlay so overlay isn't affected by image effects
+
+        // Draw overlay if defined (e.g., health bar or destruction effect)
+        if (config.drawOverlay) {
+            // For destroyed state, calculate fallback dimensions if no image
+            const overlayWidth = img ? targetImgWidth : config.getTargetDimensions({naturalWidth: 64, naturalHeight: 64} as HTMLImageElement, entity).width; // Provide dummy image for dimensions
+            const overlayHeight = img ? targetImgHeight : config.getTargetDimensions({naturalWidth: 64, naturalHeight: 64} as HTMLImageElement, entity).height;
+            const overlayDrawX = img ? finalDrawX : entity.posX - overlayWidth / 2; // Recalculate if no img
+            const overlayDrawY = img ? finalDrawY : entity.posY - overlayHeight;    // Recalculate if no img
+            
+            config.drawOverlay(ctx, entity, overlayDrawX, overlayDrawY, overlayWidth, overlayHeight, nowMs, baseDrawX, baseDrawY);
         }
 
-        // Draw the main image
-        ctx.drawImage(
-            img, 
-            baseDrawX + effectOffsetX, 
-            baseDrawY + effectOffsetY, 
-            drawWidth, 
-            drawHeight
-        );
-
-    } else {
-        // Image not loaded, draw fallback
-        // Calculate dimensions using a placeholder or default logic if possible
-        // For simplicity, using fixed size fallback here. Config could provide fallback size too.
-        const fallbackWidth = gameConfig.tileSize * 0.8;
-        const fallbackHeight = gameConfig.tileSize * 0.8;
-        const fallbackX = entityPosX - fallbackWidth / 2;
-        const fallbackY = entityPosY - fallbackHeight / 2; 
-
-        ctx.fillStyle = config.fallbackColor || 'grey';
-        ctx.fillRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
+    } else if (config.fallbackColor && !entity.isDestroyed) {
+        const fallbackWidth = 32;
+        const fallbackHeight = 32;
+        const { drawX: baseDrawX, drawY: baseDrawY } = config.calculateDrawPosition(entity, fallbackWidth, fallbackHeight);
+        ctx.fillStyle = config.fallbackColor;
+        ctx.fillRect(baseDrawX, baseDrawY, fallbackWidth, fallbackHeight);
     }
 } 

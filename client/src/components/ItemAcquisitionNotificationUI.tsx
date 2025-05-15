@@ -1,0 +1,83 @@
+import React, { useEffect, useState } from 'react';
+import { NotificationItem } from '../types/notifications';
+import { itemIcons } from '../utils/itemIconUtils'; // Assuming you have this for item icons
+
+interface ItemAcquisitionNotificationUIProps {
+  notifications: NotificationItem[];
+}
+
+const MAX_NOTIFICATIONS = 5;
+const NOTIFICATION_TIMEOUT_MS = 3000; // Notifications stay for 3 seconds
+
+const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps> = ({ notifications }) => {
+  const [visibleNotifications, setVisibleNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    // Update visible notifications when the prop changes
+    // Display latest MAX_NOTIFICATIONS
+    setVisibleNotifications(notifications.slice(-MAX_NOTIFICATIONS));
+  }, [notifications]);
+
+  if (visibleNotifications.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '160px', // Adjusted: Was 140px, moved up by 20px
+      right: '15px',
+      display: 'flex',
+      flexDirection: 'column-reverse', // New items appear at the bottom and push others up
+      alignItems: 'flex-end',
+      zIndex: 100, // Ensure it's above other UI elements but below modals perhaps
+    }}>
+      {visibleNotifications.map((notif, index) => {
+        const isMostRecent = index === visibleNotifications.length - 1;
+        return (
+          <div
+            key={notif.id}
+            className="notification-item-fade-in-out" // CSS class for animation
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: isMostRecent ? 'rgba(40, 40, 55, 0.92)' : 'rgba(30, 30, 45, 0.9)', // Lighter for recent
+              color: 'white',
+              padding: '6px 10px',
+              borderRadius: '4px',
+              border: isMostRecent ? '1px solid #a0a0e0' : '1px solid #505070',
+              marginBottom: '5px',
+              boxShadow: isMostRecent ? '0 0 8px rgba(160, 160, 224, 0.7)' : '1px 1px 0px rgba(0,0,0,0.4)',
+              fontFamily: '"Press Start 2P", cursive',
+              fontSize: '11px',
+              minWidth: '180px',
+              transition: 'border 0.3s ease-out, box-shadow 0.3s ease-out', // Smooth transition for highlight
+            }}
+          >
+            <img 
+              src={itemIcons[notif.itemIcon] || itemIcons['unknown']} // Fallback to unknown icon
+              alt={notif.itemName}
+              style={{ width: '20px', height: '20px', marginRight: '8px', imageRendering: 'pixelated' }}
+            />
+            <span>{`${notif.quantityChange > 0 ? '+' : ''}${notif.quantityChange} ${notif.itemName}`}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// It's good practice to add some basic CSS for animations if you name a class like `notification-item-fade-in-out`
+// This could be in your global CSS file or injected via JavaScript if preferred.
+// For example:
+// @keyframes fadeInOut {
+//   0% { opacity: 0; transform: translateY(10px); }
+//   15% { opacity: 1; transform: translateY(0); }
+//   85% { opacity: 1; transform: translateY(0); }
+//   100% { opacity: 0; transform: translateY(-10px); }
+// }
+// .notification-item-fade-in-out {
+//   animation: fadeInOut ${NOTIFICATION_TIMEOUT_MS / 1000}s ease-in-out forwards;
+// }
+
+export default React.memo(ItemAcquisitionNotificationUI); 

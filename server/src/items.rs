@@ -25,6 +25,10 @@ use crate::player_inventory::find_first_empty_inventory_slot;
 use crate::models::{ItemLocation, EquipmentSlotType, TargetType}; // <<< UPDATED IMPORT
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
+use crate::campfire::CampfireClearer; 
+use crate::wooden_storage_box::WoodenStorageBoxClearer;
+use crate::player_corpse::PlayerCorpseClearer;
+use crate::stash::StashClearer; // Added StashClearer import
 
 // --- Item Enums and Structs ---
 
@@ -138,7 +142,7 @@ pub fn seed_items(ctx: &ReducerContext) -> Result<(), String> {
 // --- Inventory Management Reducers ---
 
 // Helper to find an item instance owned by the caller
-fn get_player_item(ctx: &ReducerContext, instance_id: u64) -> Result<InventoryItem, String> {
+pub(crate) fn get_player_item(ctx: &ReducerContext, instance_id: u64) -> Result<InventoryItem, String> {
     ctx.db
         .inventory_item().iter()
         .find(|i| i.instance_id == instance_id && i.location.is_player_bound() == Some(ctx.sender))
@@ -365,25 +369,38 @@ pub(crate) fn clear_specific_item_from_equipment_slots(ctx: &ReducerContext, pla
     }
 }
 
-// Checks all registered container types and removes the specified item instance if found.
-// This function delegates to specific container modules via the ContainerItemClearer trait.
+// Clears an item from any known container type that might hold it.
+// This is a broader cleanup function, typically called when an item is being
+// definitively removed from the game or its location becomes truly unknown.
 pub(crate) fn clear_item_from_any_container(ctx: &ReducerContext, item_instance_id: u64) {
-    // Delegate to container-specific clearing functions
-    // Each returns a boolean indicating if the item was found and cleared
-    
-    // Check wooden storage boxes
-    let found_in_boxes = crate::wooden_storage_box::WoodenStorageBoxClearer::clear_item(ctx, item_instance_id);
-    
-    // If not found in boxes, check campfires
-    if !found_in_boxes {
-        // Call the function from campfire module
-        let _found_in_campfire = crate::campfire::clear_item_from_campfire_fuel_slots(ctx, item_instance_id);
+    // Attempt to clear from Campfire fuel slots
+    if CampfireClearer::clear_item(ctx, item_instance_id) {
+        log::debug!("[ItemsClear] Item {} cleared from a campfire.", item_instance_id);
+        return; // Item found and handled
+    }
+
+    // Attempt to clear from WoodenStorageBox slots
+    if WoodenStorageBoxClearer::clear_item(ctx, item_instance_id) {
+        log::debug!("[ItemsClear] Item {} cleared from a wooden storage box.", item_instance_id);
+        return; // Item found and handled
+    }
+
+    // Attempt to clear from PlayerCorpse slots
+    if PlayerCorpseClearer::clear_item(ctx, item_instance_id) {
+        log::debug!("[ItemsClear] Item {} cleared from a player corpse.", item_instance_id);
+        return; // Item found and handled
     }
     
-    // Additional container types can be added here in the future:
-    // if !found_in_boxes && !found_in_campfire {
-    //     crate::some_container::SomeContainerClearer::clear_item(ctx, item_instance_id);
-    // }
+    // Attempt to clear from Stash slots
+    if StashClearer::clear_item(ctx, item_instance_id) {
+        log::debug!("[ItemsClear] Item {} cleared from a stash.", item_instance_id);
+        return; // Item found and handled
+    }
+
+    // If we reach here, the item was not found in any of the explicitly checked containers.
+    // The item's own `location` field might be stale or point to a player inventory/hotbar/equipment,
+    // which this function is not designed to clear directly.
+    log::debug!("[ItemsClear] Item {} was not found in any known clearable container types by clear_item_from_any_container.", item_instance_id);
 }
 
 // Clears an item from equipment OR container slots based on its state

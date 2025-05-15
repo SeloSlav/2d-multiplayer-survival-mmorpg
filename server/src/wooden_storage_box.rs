@@ -7,7 +7,7 @@
  *                                                                            *
  ******************************************************************************/
 
-use spacetimedb::{Identity, ReducerContext, SpacetimeType, Table};
+use spacetimedb::{Identity, ReducerContext, SpacetimeType, Table, Timestamp};
 use log;
 
 // --- Constants --- 
@@ -89,6 +89,12 @@ pub struct WoodenStorageBox {
     pub slot_def_id_16: Option<u64>,
     pub slot_instance_id_17: Option<u64>,
     pub slot_def_id_17: Option<u64>,
+
+    pub health: f32,
+    pub max_health: f32,
+    pub is_destroyed: bool,
+    pub destroyed_at: Option<Timestamp>,
+    pub last_hit_time: Option<Timestamp>,
 }
 
 /******************************************************************************
@@ -427,10 +433,14 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
         slot_instance_id_15: None, slot_def_id_15: None,
         slot_instance_id_16: None, slot_def_id_16: None,
         slot_instance_id_17: None, slot_def_id_17: None,
+        health: 750.0,
+        max_health: 750.0,
+        is_destroyed: false,
+        destroyed_at: None,
+        last_hit_time: None,
     };
     let inserted_box = boxes.insert(new_box);
-    log::info!("Player {:?} placed new Wooden Storage Box with ID {}.
-Location: {:?}", sender_id, inserted_box.id, item_to_place.location);
+    log::info!("Player {:?} placed new Wooden Storage Box with ID {}.\nLocation: {:?}", sender_id, inserted_box.id, item_to_place.location);
 
 
     // 5. Consume the item from player's inventory
@@ -734,6 +744,10 @@ fn validate_box_interaction(
 
     let player = players.identity().find(sender_id).ok_or_else(|| "Player not found".to_string())?;
     let storage_box = boxes.id().find(box_id).ok_or_else(|| format!("Storage Box {} not found", box_id))?;
+
+    if storage_box.is_destroyed {
+        return Err(format!("Storage Box {} is destroyed.", box_id));
+    }
 
     // Check distance between the interacting player and the box
     let dx = player.position_x - storage_box.pos_x;

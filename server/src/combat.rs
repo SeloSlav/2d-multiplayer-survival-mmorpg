@@ -40,6 +40,10 @@ use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnS
 use crate::inventory_management::ItemContainer;
 use crate::environment::calculate_chunk_index;
 use crate::player_corpse::create_corpse_for_player;
+use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait, campfire_processing_schedule as CampfireProcessingScheduleTableTrait};
+use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
+use crate::stash::{Stash, stash as StashTableTrait};
+use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 
 // --- Game Balance Constants ---
 /// Time in seconds before resources (trees, stones) respawn after being depleted
@@ -55,6 +59,10 @@ pub enum TargetId {
     Tree(u64),
     Stone(u64),
     Player(Identity),
+    Campfire(u32),
+    WoodenStorageBox(u32),
+    Stash(u32),
+    SleepingBag(u32),
 }
 
 /// Represents a potential target within attack range
@@ -187,6 +195,118 @@ pub fn find_targets_in_cone(
         }
     }
     
+    // Check campfires
+    for campfire_entity in ctx.db.campfire().iter() {
+        if campfire_entity.is_destroyed {
+            continue;
+        }
+        let dx = campfire_entity.pos_x - player.position_x;
+        let target_y = campfire_entity.pos_y - CAMPFIRE_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::Campfire,
+                    id: TargetId::Campfire(campfire_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+
+    // Check wooden storage boxes
+    for box_entity in ctx.db.wooden_storage_box().iter() {
+        if box_entity.is_destroyed {
+            continue;
+        }
+        let dx = box_entity.pos_x - player.position_x;
+        let target_y = box_entity.pos_y - BOX_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::WoodenStorageBox,
+                    id: TargetId::WoodenStorageBox(box_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+
+    // Check stashes
+    for stash_entity in ctx.db.stash().iter() {
+        if stash_entity.is_destroyed || stash_entity.is_hidden {
+            continue; // Skip destroyed or hidden stashes
+        }
+        // Treat stash as a point target for now, or use a very small radius if needed for cone
+        let dx = stash_entity.pos_x - player.position_x;
+        let dy = stash_entity.pos_y - player.position_y; // No Y-offset for point target
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::Stash,
+                    id: TargetId::Stash(stash_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+
+    // Check sleeping bags
+    for bag_entity in ctx.db.sleeping_bag().iter() {
+        if bag_entity.is_destroyed {
+            continue;
+        }
+        let dx = bag_entity.pos_x - player.position_x;
+        let target_y = bag_entity.pos_y - SLEEPING_BAG_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::SleepingBag,
+                    id: TargetId::SleepingBag(bag_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+    
     // Sort by distance (closest first)
     targets.sort_by(|a, b| a.distance_sq.partial_cmp(&b.distance_sq).unwrap());
     
@@ -278,6 +398,21 @@ pub fn calculate_damage_and_yield(
         yield_min = 0; // No yield from players
         yield_max = 0;
         // resource_name is already "None"
+    } else if target_type == TargetType::Campfire || target_type == TargetType::WoodenStorageBox {
+        // For structures, use PvP damage as a baseline if specific structure damage isn't defined.
+        // Ideally, we would add specific fields like `campfire_damage_min`, etc., to ItemDefinition.
+        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Example: Use PvP damage for now
+        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
+        yield_min = 0; // No resource yield from destroying structures directly
+        yield_max = 0;
+        resource_name = "None".to_string();
+    } else if target_type == TargetType::Stash || target_type == TargetType::SleepingBag {
+        // For stashes and sleeping bags, use PvP damage as a baseline.
+        damage_min = item_def.pvp_damage_min.unwrap_or(0);
+        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
+        yield_min = 0; // No resource yield
+        yield_max = 0;
+        resource_name = "None".to_string();
     } else if Some(target_type) == item_def.primary_target_type {
         // Target matches the item's primary target type
         damage_min = item_def.primary_target_damage_min.unwrap_or(0);
@@ -497,6 +632,283 @@ pub fn damage_player(
     })
 }
 
+/// Applies damage to a campfire and handles destruction/item scattering
+pub fn damage_campfire(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    campfire_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng // Added RNG for item scattering
+) -> Result<AttackResult, String> {
+    let mut campfires_table = ctx.db.campfire();
+    let mut campfire = campfires_table.id().find(campfire_id)
+        .ok_or_else(|| format!("Target campfire {} disappeared", campfire_id))?;
+
+    if campfire.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Campfire), resource_granted: None });
+    }
+
+    let old_health = campfire.health;
+    campfire.health = (campfire.health - damage).max(0.0);
+    campfire.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit Campfire {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, campfire_id, damage, old_health, campfire.health
+    );
+
+    if campfire.health <= 0.0 {
+        campfire.is_destroyed = true;
+        campfire.destroyed_at = Some(timestamp);
+        // Scatter items
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
+        for i in 0..crate::campfire::NUM_FUEL_SLOTS {
+            if let (Some(instance_id), Some(def_id)) = (campfire.get_slot_instance_id(i as u8), campfire.get_slot_def_id(i as u8)) {
+                if let Some(item) = ctx.db.inventory_item().instance_id().find(instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    // Delete the InventoryItem from the central table
+                    ctx.db.inventory_item().instance_id().delete(instance_id);
+                }
+                campfire.set_slot(i as u8, None, None); // Clear slot in campfire struct (though it's about to be deleted)
+            }
+        }
+
+        // Update the campfire one last time to ensure is_destroyed and destroyed_at are sent to client
+        campfires_table.id().update(campfire.clone()); 
+        // Then immediately delete the campfire entity itself
+        campfires_table.id().delete(campfire_id);
+
+        log::info!(
+            "Campfire {} destroyed by player {:?}. Dropping items.",
+            campfire_id, attacker_id
+        );
+
+        // Scatter collected items around the campfire's location
+        for (item_def_id, quantity) in items_to_drop {
+            // Spawn slightly offset from campfire center
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0; // Spread within +/- 20px
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0;
+            let drop_pos_x = campfire.pos_x + offset_x;
+            let drop_pos_y = campfire.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed campfire {}", quantity, item_def_id, campfire_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+
+    } else {
+        // Campfire still has health, just update it
+        campfires_table.id().update(campfire);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Campfire),
+        resource_granted: None,
+    })
+}
+
+/// Applies damage to a wooden storage box and handles destruction/item scattering
+pub fn damage_wooden_storage_box(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    box_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng // Added RNG for item scattering
+) -> Result<AttackResult, String> {
+    let mut boxes_table = ctx.db.wooden_storage_box();
+    let mut wooden_box = boxes_table.id().find(box_id)
+        .ok_or_else(|| format!("Target wooden storage box {} disappeared", box_id))?;
+
+    if wooden_box.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::WoodenStorageBox), resource_granted: None });
+    }
+
+    let old_health = wooden_box.health;
+    wooden_box.health = (wooden_box.health - damage).max(0.0);
+    wooden_box.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit WoodenStorageBox {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, box_id, damage, old_health, wooden_box.health
+    );
+
+    if wooden_box.health <= 0.0 {
+        wooden_box.is_destroyed = true;
+        wooden_box.destroyed_at = Some(timestamp);
+
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new();
+        for i in 0..crate::wooden_storage_box::NUM_BOX_SLOTS {
+            if let (Some(instance_id), Some(def_id)) = (wooden_box.get_slot_instance_id(i as u8), wooden_box.get_slot_def_id(i as u8)) {
+                if let Some(item) = ctx.db.inventory_item().instance_id().find(instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    ctx.db.inventory_item().instance_id().delete(instance_id);
+                }
+                wooden_box.set_slot(i as u8, None, None);
+            }
+        }
+        
+        // Update the box one last time to ensure is_destroyed and destroyed_at are sent to client
+        boxes_table.id().update(wooden_box.clone());
+        // Then immediately delete the box entity itself
+        boxes_table.id().delete(box_id);
+
+        log::info!(
+            "WoodenStorageBox {} destroyed by player {:?}. Dropping contents.",
+            box_id, attacker_id
+        );
+
+        for (item_def_id, quantity) in items_to_drop {
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 30.0; // Spread within +/- 30px
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 30.0;
+            let drop_pos_x = wooden_box.pos_x + offset_x;
+            let drop_pos_y = wooden_box.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed box {}", quantity, item_def_id, box_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+
+    } else {
+        // Box still has health, just update it
+        boxes_table.id().update(wooden_box);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::WoodenStorageBox),
+        resource_granted: None,
+    })
+}
+
+/// Applies damage to a stash and handles destruction/item scattering
+pub fn damage_stash(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    stash_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    let mut stashes_table = ctx.db.stash();
+    let mut stash = stashes_table.id().find(stash_id)
+        .ok_or_else(|| format!("Target stash {} disappeared", stash_id))?;
+
+    if stash.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Stash), resource_granted: None });
+    }
+    // Stashes might only be damageable if not hidden, or maybe always by owner?
+    // For now, let's assume they can be damaged if found (not hidden).
+    if stash.is_hidden {
+         return Ok(AttackResult { hit: false, target_type: Some(TargetType::Stash), resource_granted: None });
+    }
+
+    let old_health = stash.health;
+    stash.health = (stash.health - damage).max(0.0);
+    stash.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit Stash {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, stash_id, damage, old_health, stash.health
+    );
+
+    if stash.health <= 0.0 {
+        stash.is_destroyed = true;
+        stash.destroyed_at = Some(timestamp);
+
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new();
+        for i in 0..crate::stash::NUM_STASH_SLOTS { // Use NUM_STASH_SLOTS
+            if let (Some(instance_id), Some(def_id)) = (stash.get_slot_instance_id(i as u8), stash.get_slot_def_id(i as u8)) {
+                if let Some(item) = ctx.db.inventory_item().instance_id().find(instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    ctx.db.inventory_item().instance_id().delete(instance_id);
+                }
+                stash.set_slot(i as u8, None, None); // Clear slot in stash struct
+            }
+        }
+        
+        stashes_table.id().update(stash.clone());
+        stashes_table.id().delete(stash_id);
+
+        log::info!(
+            "Stash {} destroyed by player {:?}. Dropping contents.",
+            stash_id, attacker_id
+        );
+
+        for (item_def_id, quantity) in items_to_drop {
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 15.0; // Smaller spread for stash
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 15.0;
+            let drop_pos_x = stash.pos_x + offset_x;
+            let drop_pos_y = stash.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed stash {}", quantity, item_def_id, stash_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+    } else {
+        stashes_table.id().update(stash);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Stash),
+        resource_granted: None, 
+    })
+}
+
+/// Applies damage to a sleeping bag and handles destruction
+pub fn damage_sleeping_bag(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    bag_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    _rng: &mut impl Rng // RNG not needed as bags don't drop items
+) -> Result<AttackResult, String> {
+    let mut bags_table = ctx.db.sleeping_bag();
+    let mut bag = bags_table.id().find(bag_id)
+        .ok_or_else(|| format!("Target sleeping bag {} disappeared", bag_id))?;
+
+    if bag.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::SleepingBag), resource_granted: None });
+    }
+
+    let old_health = bag.health;
+    bag.health = (bag.health - damage).max(0.0);
+    bag.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit SleepingBag {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, bag_id, damage, old_health, bag.health
+    );
+
+    if bag.health <= 0.0 {
+        bag.is_destroyed = true;
+        bag.destroyed_at = Some(timestamp);
+        
+        bags_table.id().update(bag.clone()); 
+        bags_table.id().delete(bag_id);
+
+        log::info!(
+            "SleepingBag {} destroyed by player {:?}.",
+            bag_id, attacker_id
+        );
+    } else {
+        bags_table.id().update(bag);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::SleepingBag),
+        resource_granted: None, 
+    })
+}
+
 /// Processes an attack against a target
 ///
 /// Main entry point for weapon damage application. Handles different target types
@@ -520,6 +932,18 @@ pub fn process_attack(
         },
         TargetId::Player(player_id) => {
             damage_player(ctx, attacker_id, *player_id, damage, &item_def.name, timestamp)
-        }
+        },
+        TargetId::Campfire(campfire_id) => {
+            damage_campfire(ctx, attacker_id, *campfire_id, damage, timestamp, rng)
+        },
+        TargetId::WoodenStorageBox(box_id) => {
+            damage_wooden_storage_box(ctx, attacker_id, *box_id, damage, timestamp, rng)
+        },
+        TargetId::Stash(stash_id) => {
+            damage_stash(ctx, attacker_id, *stash_id, damage, timestamp, rng)
+        },
+        TargetId::SleepingBag(bag_id) => {
+            damage_sleeping_bag(ctx, attacker_id, *bag_id, damage, timestamp, rng)
+        },
     }
 } 

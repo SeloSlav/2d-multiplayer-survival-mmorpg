@@ -41,7 +41,8 @@ import {
     PlayerPin,
     ActiveConnection,
     SleepingBag as SpacetimeDBSleepingBag,
-    PlayerCorpse as SpacetimeDBPlayerCorpse
+    PlayerCorpse as SpacetimeDBPlayerCorpse,
+    Stash as SpacetimeDBStash
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -70,6 +71,7 @@ interface GameScreenProps {
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     playerPins: Map<string, PlayerPin>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
+    stashes: Map<string, SpacetimeDBStash>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -114,7 +116,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Destructure props for cleaner usage
     const {
         players, trees, stones, campfires, mushrooms, corns, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
-        playerPins, playerCorpses,
+        playerPins, playerCorpses, stashes,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -153,6 +155,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 sleepingBags={sleepingBags}
                 playerPins={playerPins}
                 playerCorpses={playerCorpses}
+                stashes={stashes}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}
@@ -198,6 +201,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 campfires={campfires}
                 woodenStorageBoxes={woodenStorageBoxes}
                 playerCorpses={playerCorpses}
+                stashes={stashes}
                 currentStorageBox={
                     interactingWith?.type === 'wooden_storage_box'
                         ? woodenStorageBoxes.get(interactingWith.id.toString()) || null
@@ -222,6 +226,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 cancelPlacement={cancelPlacement}
                 connection={connection}
                 campfires={campfires}
+                stashes={stashes}
             />
             <DayNightCycleTracker worldState={worldState} />
             <Chat 

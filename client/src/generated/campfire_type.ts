@@ -50,6 +50,11 @@ export type Campfire = {
   fuelDefId4: bigint | undefined,
   currentFuelDefId: bigint | undefined,
   remainingFuelBurnTimeSecs: number | undefined,
+  health: number,
+  maxHealth: number,
+  isDestroyed: boolean,
+  destroyedAt: Timestamp | undefined,
+  lastHitTime: Timestamp | undefined,
 };
 
 /**
@@ -81,6 +86,11 @@ export namespace Campfire {
       new ProductTypeElement("fuelDefId4", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("currentFuelDefId", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("remainingFuelBurnTimeSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("health", AlgebraicType.createF32Type()),
+      new ProductTypeElement("maxHealth", AlgebraicType.createF32Type()),
+      new ProductTypeElement("isDestroyed", AlgebraicType.createBoolType()),
+      new ProductTypeElement("destroyedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

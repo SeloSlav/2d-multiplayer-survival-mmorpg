@@ -58,6 +58,8 @@ import { DropItemFromCampfireSlotToWorld } from "./drop_item_from_campfire_slot_
 export { DropItemFromCampfireSlotToWorld };
 import { DropItemFromCorpseSlotToWorld } from "./drop_item_from_corpse_slot_to_world_reducer.ts";
 export { DropItemFromCorpseSlotToWorld };
+import { DropItemFromStashSlotToWorld } from "./drop_item_from_stash_slot_to_world_reducer.ts";
+export { DropItemFromStashSlotToWorld };
 import { EquipArmor } from "./equip_armor_reducer.ts";
 export { EquipArmor };
 import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
@@ -90,6 +92,8 @@ import { MoveItemFromBox } from "./move_item_from_box_reducer.ts";
 export { MoveItemFromBox };
 import { MoveItemFromCorpse } from "./move_item_from_corpse_reducer.ts";
 export { MoveItemFromCorpse };
+import { MoveItemFromStash } from "./move_item_from_stash_reducer.ts";
+export { MoveItemFromStash };
 import { MoveItemToBox } from "./move_item_to_box_reducer.ts";
 export { MoveItemToBox };
 import { MoveItemToCorpse } from "./move_item_to_corpse_reducer.ts";
@@ -98,10 +102,14 @@ import { MoveItemToHotbar } from "./move_item_to_hotbar_reducer.ts";
 export { MoveItemToHotbar };
 import { MoveItemToInventory } from "./move_item_to_inventory_reducer.ts";
 export { MoveItemToInventory };
+import { MoveItemToStash } from "./move_item_to_stash_reducer.ts";
+export { MoveItemToStash };
 import { MoveItemWithinBox } from "./move_item_within_box_reducer.ts";
 export { MoveItemWithinBox };
 import { MoveItemWithinCorpse } from "./move_item_within_corpse_reducer.ts";
 export { MoveItemWithinCorpse };
+import { MoveItemWithinStash } from "./move_item_within_stash_reducer.ts";
+export { MoveItemWithinStash };
 import { MoveToFirstAvailableHotbarSlot } from "./move_to_first_available_hotbar_slot_reducer.ts";
 export { MoveToFirstAvailableHotbarSlot };
 import { PickupDroppedItem } from "./pickup_dropped_item_reducer.ts";
@@ -112,6 +120,8 @@ import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
 import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
 export { PlaceSleepingBag };
+import { PlaceStash } from "./place_stash_reducer.ts";
+export { PlaceStash };
 import { PlaceWoodenStorageBox } from "./place_wooden_storage_box_reducer.ts";
 export { PlaceWoodenStorageBox };
 import { ProcessCampfireLogicScheduled } from "./process_campfire_logic_scheduled_reducer.ts";
@@ -126,12 +136,16 @@ import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
 export { QuickMoveFromBox };
 import { QuickMoveFromCorpse } from "./quick_move_from_corpse_reducer.ts";
 export { QuickMoveFromCorpse };
+import { QuickMoveFromStash } from "./quick_move_from_stash_reducer.ts";
+export { QuickMoveFromStash };
 import { QuickMoveToBox } from "./quick_move_to_box_reducer.ts";
 export { QuickMoveToBox };
 import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
 export { QuickMoveToCampfire };
 import { QuickMoveToCorpse } from "./quick_move_to_corpse_reducer.ts";
 export { QuickMoveToCorpse };
+import { QuickMoveToStash } from "./quick_move_to_stash_reducer.ts";
+export { QuickMoveToStash };
 import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
 import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
@@ -162,6 +176,8 @@ import { SplitAndDropItemFromCampfireSlotToWorld } from "./split_and_drop_item_f
 export { SplitAndDropItemFromCampfireSlotToWorld };
 import { SplitAndDropItemFromCorpseSlotToWorld } from "./split_and_drop_item_from_corpse_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromCorpseSlotToWorld };
+import { SplitAndDropItemFromStashSlotToWorld } from "./split_and_drop_item_from_stash_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromStashSlotToWorld };
 import { SplitAndMoveFromCampfire } from "./split_and_move_from_campfire_reducer.ts";
 export { SplitAndMoveFromCampfire };
 import { SplitStack } from "./split_stack_reducer.ts";
@@ -172,18 +188,24 @@ import { SplitStackFromCampfire } from "./split_stack_from_campfire_reducer.ts";
 export { SplitStackFromCampfire };
 import { SplitStackFromCorpse } from "./split_stack_from_corpse_reducer.ts";
 export { SplitStackFromCorpse };
+import { SplitStackFromStash } from "./split_stack_from_stash_reducer.ts";
+export { SplitStackFromStash };
 import { SplitStackIntoBox } from "./split_stack_into_box_reducer.ts";
 export { SplitStackIntoBox };
 import { SplitStackIntoCampfire } from "./split_stack_into_campfire_reducer.ts";
 export { SplitStackIntoCampfire };
 import { SplitStackIntoCorpse } from "./split_stack_into_corpse_reducer.ts";
 export { SplitStackIntoCorpse };
+import { SplitStackIntoStash } from "./split_stack_into_stash_reducer.ts";
+export { SplitStackIntoStash };
 import { SplitStackWithinBox } from "./split_stack_within_box_reducer.ts";
 export { SplitStackWithinBox };
 import { SplitStackWithinCampfire } from "./split_stack_within_campfire_reducer.ts";
 export { SplitStackWithinCampfire };
 import { SplitStackWithinCorpse } from "./split_stack_within_corpse_reducer.ts";
 export { SplitStackWithinCorpse };
+import { SplitStackWithinStash } from "./split_stack_within_stash_reducer.ts";
+export { SplitStackWithinStash };
 import { StartCrafting } from "./start_crafting_reducer.ts";
 export { StartCrafting };
 import { StartCraftingMultiple } from "./start_crafting_multiple_reducer.ts";
@@ -192,6 +214,8 @@ import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
+import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
+export { ToggleStashVisibility };
 import { ToggleTorch } from "./toggle_torch_reducer.ts";
 export { ToggleTorch };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
@@ -248,6 +272,10 @@ import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
 export { SleepingBagTableHandle };
+import { StashTableHandle } from "./stash_table.ts";
+export { StashTableHandle };
+import { StatThresholdsConfigTableHandle } from "./stat_thresholds_config_table.ts";
+export { StatThresholdsConfigTableHandle };
 import { StoneTableHandle } from "./stone_table.ts";
 export { StoneTableHandle };
 import { TreeTableHandle } from "./tree_table.ts";
@@ -326,6 +354,10 @@ import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
 import { SleepingBag } from "./sleeping_bag_type.ts";
 export { SleepingBag };
+import { Stash } from "./stash_type.ts";
+export { Stash };
+import { StatThresholdsConfig } from "./stat_thresholds_config_type.ts";
+export { StatThresholdsConfig };
 import { Stone } from "./stone_type.ts";
 export { Stone };
 import { TargetType } from "./target_type_type.ts";
@@ -361,7 +393,7 @@ const REMOTE_MODULE = {
     campfire_processing_schedule: {
       tableName: "campfire_processing_schedule",
       rowType: CampfireProcessingSchedule.getTypeScriptAlgebraicType(),
-      primaryKey: "campfireIdForSchedule",
+      primaryKey: "campfireId",
     },
     client_viewport: {
       tableName: "client_viewport",
@@ -458,6 +490,16 @@ const REMOTE_MODULE = {
       rowType: SleepingBag.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    stash: {
+      tableName: "stash",
+      rowType: Stash.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    stat_thresholds_config: {
+      tableName: "stat_thresholds_config",
+      rowType: StatThresholdsConfig.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     stone: {
       tableName: "stone",
       rowType: Stone.getTypeScriptAlgebraicType(),
@@ -532,6 +574,10 @@ const REMOTE_MODULE = {
       reducerName: "drop_item_from_corpse_slot_to_world",
       argsType: DropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    drop_item_from_stash_slot_to_world: {
+      reducerName: "drop_item_from_stash_slot_to_world",
+      argsType: DropItemFromStashSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     equip_armor: {
       reducerName: "equip_armor",
       argsType: EquipArmor.getTypeScriptAlgebraicType(),
@@ -596,6 +642,10 @@ const REMOTE_MODULE = {
       reducerName: "move_item_from_corpse",
       argsType: MoveItemFromCorpse.getTypeScriptAlgebraicType(),
     },
+    move_item_from_stash: {
+      reducerName: "move_item_from_stash",
+      argsType: MoveItemFromStash.getTypeScriptAlgebraicType(),
+    },
     move_item_to_box: {
       reducerName: "move_item_to_box",
       argsType: MoveItemToBox.getTypeScriptAlgebraicType(),
@@ -612,6 +662,10 @@ const REMOTE_MODULE = {
       reducerName: "move_item_to_inventory",
       argsType: MoveItemToInventory.getTypeScriptAlgebraicType(),
     },
+    move_item_to_stash: {
+      reducerName: "move_item_to_stash",
+      argsType: MoveItemToStash.getTypeScriptAlgebraicType(),
+    },
     move_item_within_box: {
       reducerName: "move_item_within_box",
       argsType: MoveItemWithinBox.getTypeScriptAlgebraicType(),
@@ -619,6 +673,10 @@ const REMOTE_MODULE = {
     move_item_within_corpse: {
       reducerName: "move_item_within_corpse",
       argsType: MoveItemWithinCorpse.getTypeScriptAlgebraicType(),
+    },
+    move_item_within_stash: {
+      reducerName: "move_item_within_stash",
+      argsType: MoveItemWithinStash.getTypeScriptAlgebraicType(),
     },
     move_to_first_available_hotbar_slot: {
       reducerName: "move_to_first_available_hotbar_slot",
@@ -639,6 +697,10 @@ const REMOTE_MODULE = {
     place_sleeping_bag: {
       reducerName: "place_sleeping_bag",
       argsType: PlaceSleepingBag.getTypeScriptAlgebraicType(),
+    },
+    place_stash: {
+      reducerName: "place_stash",
+      argsType: PlaceStash.getTypeScriptAlgebraicType(),
     },
     place_wooden_storage_box: {
       reducerName: "place_wooden_storage_box",
@@ -668,6 +730,10 @@ const REMOTE_MODULE = {
       reducerName: "quick_move_from_corpse",
       argsType: QuickMoveFromCorpse.getTypeScriptAlgebraicType(),
     },
+    quick_move_from_stash: {
+      reducerName: "quick_move_from_stash",
+      argsType: QuickMoveFromStash.getTypeScriptAlgebraicType(),
+    },
     quick_move_to_box: {
       reducerName: "quick_move_to_box",
       argsType: QuickMoveToBox.getTypeScriptAlgebraicType(),
@@ -679,6 +745,10 @@ const REMOTE_MODULE = {
     quick_move_to_corpse: {
       reducerName: "quick_move_to_corpse",
       argsType: QuickMoveToCorpse.getTypeScriptAlgebraicType(),
+    },
+    quick_move_to_stash: {
+      reducerName: "quick_move_to_stash",
+      argsType: QuickMoveToStash.getTypeScriptAlgebraicType(),
     },
     register_player: {
       reducerName: "register_player",
@@ -740,6 +810,10 @@ const REMOTE_MODULE = {
       reducerName: "split_and_drop_item_from_corpse_slot_to_world",
       argsType: SplitAndDropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    split_and_drop_item_from_stash_slot_to_world: {
+      reducerName: "split_and_drop_item_from_stash_slot_to_world",
+      argsType: SplitAndDropItemFromStashSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     split_and_move_from_campfire: {
       reducerName: "split_and_move_from_campfire",
       argsType: SplitAndMoveFromCampfire.getTypeScriptAlgebraicType(),
@@ -760,6 +834,10 @@ const REMOTE_MODULE = {
       reducerName: "split_stack_from_corpse",
       argsType: SplitStackFromCorpse.getTypeScriptAlgebraicType(),
     },
+    split_stack_from_stash: {
+      reducerName: "split_stack_from_stash",
+      argsType: SplitStackFromStash.getTypeScriptAlgebraicType(),
+    },
     split_stack_into_box: {
       reducerName: "split_stack_into_box",
       argsType: SplitStackIntoBox.getTypeScriptAlgebraicType(),
@@ -772,6 +850,10 @@ const REMOTE_MODULE = {
       reducerName: "split_stack_into_corpse",
       argsType: SplitStackIntoCorpse.getTypeScriptAlgebraicType(),
     },
+    split_stack_into_stash: {
+      reducerName: "split_stack_into_stash",
+      argsType: SplitStackIntoStash.getTypeScriptAlgebraicType(),
+    },
     split_stack_within_box: {
       reducerName: "split_stack_within_box",
       argsType: SplitStackWithinBox.getTypeScriptAlgebraicType(),
@@ -783,6 +865,10 @@ const REMOTE_MODULE = {
     split_stack_within_corpse: {
       reducerName: "split_stack_within_corpse",
       argsType: SplitStackWithinCorpse.getTypeScriptAlgebraicType(),
+    },
+    split_stack_within_stash: {
+      reducerName: "split_stack_within_stash",
+      argsType: SplitStackWithinStash.getTypeScriptAlgebraicType(),
     },
     start_crafting: {
       reducerName: "start_crafting",
@@ -799,6 +885,10 @@ const REMOTE_MODULE = {
     toggle_campfire_burning: {
       reducerName: "toggle_campfire_burning",
       argsType: ToggleCampfireBurning.getTypeScriptAlgebraicType(),
+    },
+    toggle_stash_visibility: {
+      reducerName: "toggle_stash_visibility",
+      argsType: ToggleStashVisibility.getTypeScriptAlgebraicType(),
     },
     toggle_torch: {
       reducerName: "toggle_torch",
@@ -856,6 +946,7 @@ export type Reducer = never
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
 | { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
 | { name: "DropItemFromCorpseSlotToWorld", args: DropItemFromCorpseSlotToWorld }
+| { name: "DropItemFromStashSlotToWorld", args: DropItemFromStashSlotToWorld }
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
@@ -872,17 +963,21 @@ export type Reducer = never
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
+| { name: "MoveItemFromStash", args: MoveItemFromStash }
 | { name: "MoveItemToBox", args: MoveItemToBox }
 | { name: "MoveItemToCorpse", args: MoveItemToCorpse }
 | { name: "MoveItemToHotbar", args: MoveItemToHotbar }
 | { name: "MoveItemToInventory", args: MoveItemToInventory }
+| { name: "MoveItemToStash", args: MoveItemToStash }
 | { name: "MoveItemWithinBox", args: MoveItemWithinBox }
 | { name: "MoveItemWithinCorpse", args: MoveItemWithinCorpse }
+| { name: "MoveItemWithinStash", args: MoveItemWithinStash }
 | { name: "MoveToFirstAvailableHotbarSlot", args: MoveToFirstAvailableHotbarSlot }
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
+| { name: "PlaceStash", args: PlaceStash }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
 | { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
@@ -890,9 +985,11 @@ export type Reducer = never
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
+| { name: "QuickMoveFromStash", args: QuickMoveFromStash }
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
+| { name: "QuickMoveToStash", args: QuickMoveToStash }
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
 | { name: "RespawnRandomly", args: RespawnRandomly }
@@ -908,21 +1005,26 @@ export type Reducer = never
 | { name: "SplitAndDropItemFromBoxSlotToWorld", args: SplitAndDropItemFromBoxSlotToWorld }
 | { name: "SplitAndDropItemFromCampfireSlotToWorld", args: SplitAndDropItemFromCampfireSlotToWorld }
 | { name: "SplitAndDropItemFromCorpseSlotToWorld", args: SplitAndDropItemFromCorpseSlotToWorld }
+| { name: "SplitAndDropItemFromStashSlotToWorld", args: SplitAndDropItemFromStashSlotToWorld }
 | { name: "SplitAndMoveFromCampfire", args: SplitAndMoveFromCampfire }
 | { name: "SplitStack", args: SplitStack }
 | { name: "SplitStackFromBox", args: SplitStackFromBox }
 | { name: "SplitStackFromCampfire", args: SplitStackFromCampfire }
 | { name: "SplitStackFromCorpse", args: SplitStackFromCorpse }
+| { name: "SplitStackFromStash", args: SplitStackFromStash }
 | { name: "SplitStackIntoBox", args: SplitStackIntoBox }
 | { name: "SplitStackIntoCampfire", args: SplitStackIntoCampfire }
 | { name: "SplitStackIntoCorpse", args: SplitStackIntoCorpse }
+| { name: "SplitStackIntoStash", args: SplitStackIntoStash }
 | { name: "SplitStackWithinBox", args: SplitStackWithinBox }
 | { name: "SplitStackWithinCampfire", args: SplitStackWithinCampfire }
 | { name: "SplitStackWithinCorpse", args: SplitStackWithinCorpse }
+| { name: "SplitStackWithinStash", args: SplitStackWithinStash }
 | { name: "StartCrafting", args: StartCrafting }
 | { name: "StartCraftingMultiple", args: StartCraftingMultiple }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
+| { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
 | { name: "UpdateViewport", args: UpdateViewport }
@@ -1130,6 +1232,22 @@ export class RemoteReducers {
 
   removeOnDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number) => void) {
     this.connection.offReducer("drop_item_from_corpse_slot_to_world", callback);
+  }
+
+  dropItemFromStashSlotToWorld(stashId: number, slotIndex: number) {
+    const __args = { stashId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromStashSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_stash_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromStashSlotToWorldFlags);
+  }
+
+  onDropItemFromStashSlotToWorld(callback: (ctx: ReducerEventContext, stashId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_stash_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromStashSlotToWorld(callback: (ctx: ReducerEventContext, stashId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_stash_slot_to_world", callback);
   }
 
   equipArmor(itemInstanceId: bigint) {
@@ -1368,6 +1486,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_from_corpse", callback);
   }
 
+  moveItemFromStash(stashId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { stashId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemFromStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_from_stash", __argsBuffer, this.setCallReducerFlags.moveItemFromStashFlags);
+  }
+
+  onMoveItemFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_from_stash", callback);
+  }
+
+  removeOnMoveItemFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_from_stash", callback);
+  }
+
   moveItemToBox(boxId: number, targetSlotIndex: number, itemInstanceId: bigint) {
     const __args = { boxId, targetSlotIndex, itemInstanceId };
     let __writer = new BinaryWriter(1024);
@@ -1432,6 +1566,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_to_inventory", callback);
   }
 
+  moveItemToStash(stashId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { stashId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_stash", __argsBuffer, this.setCallReducerFlags.moveItemToStashFlags);
+  }
+
+  onMoveItemToStash(callback: (ctx: ReducerEventContext, stashId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("move_item_to_stash", callback);
+  }
+
+  removeOnMoveItemToStash(callback: (ctx: ReducerEventContext, stashId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("move_item_to_stash", callback);
+  }
+
   moveItemWithinBox(boxId: number, sourceSlotIndex: number, targetSlotIndex: number) {
     const __args = { boxId, sourceSlotIndex, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -1462,6 +1612,22 @@ export class RemoteReducers {
 
   removeOnMoveItemWithinCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_item_within_corpse", callback);
+  }
+
+  moveItemWithinStash(stashId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { stashId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemWithinStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_within_stash", __argsBuffer, this.setCallReducerFlags.moveItemWithinStashFlags);
+  }
+
+  onMoveItemWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_within_stash", callback);
+  }
+
+  removeOnMoveItemWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_within_stash", callback);
   }
 
   moveToFirstAvailableHotbarSlot(itemInstanceId: bigint) {
@@ -1542,6 +1708,22 @@ export class RemoteReducers {
 
   removeOnPlaceSleepingBag(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_sleeping_bag", callback);
+  }
+
+  placeStash(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_stash", __argsBuffer, this.setCallReducerFlags.placeStashFlags);
+  }
+
+  onPlaceStash(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_stash", callback);
+  }
+
+  removeOnPlaceStash(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_stash", callback);
   }
 
   placeWoodenStorageBox(itemInstanceId: bigint, worldX: number, worldY: number) {
@@ -1656,6 +1838,22 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_from_corpse", callback);
   }
 
+  quickMoveFromStash(stashId: number, sourceSlotIndex: number) {
+    const __args = { stashId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveFromStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_from_stash", __argsBuffer, this.setCallReducerFlags.quickMoveFromStashFlags);
+  }
+
+  onQuickMoveFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_from_stash", callback);
+  }
+
+  removeOnQuickMoveFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_from_stash", callback);
+  }
+
   quickMoveToBox(boxId: number, itemInstanceId: bigint) {
     const __args = { boxId, itemInstanceId };
     let __writer = new BinaryWriter(1024);
@@ -1702,6 +1900,22 @@ export class RemoteReducers {
 
   removeOnQuickMoveToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("quick_move_to_corpse", callback);
+  }
+
+  quickMoveToStash(stashId: number, itemInstanceId: bigint) {
+    const __args = { stashId, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveToStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_to_stash", __argsBuffer, this.setCallReducerFlags.quickMoveToStashFlags);
+  }
+
+  onQuickMoveToStash(callback: (ctx: ReducerEventContext, stashId: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("quick_move_to_stash", callback);
+  }
+
+  removeOnQuickMoveToStash(callback: (ctx: ReducerEventContext, stashId: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("quick_move_to_stash", callback);
   }
 
   registerPlayer(username: string) {
@@ -1924,6 +2138,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_and_drop_item_from_corpse_slot_to_world", callback);
   }
 
+  splitAndDropItemFromStashSlotToWorld(stashId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { stashId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromStashSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_stash_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromStashSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromStashSlotToWorld(callback: (ctx: ReducerEventContext, stashId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_stash_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromStashSlotToWorld(callback: (ctx: ReducerEventContext, stashId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_stash_slot_to_world", callback);
+  }
+
   splitAndMoveFromCampfire(sourceCampfireId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { sourceCampfireId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -2004,6 +2234,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_stack_from_corpse", callback);
   }
 
+  splitStackFromStash(stashId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { stashId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackFromStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_from_stash", __argsBuffer, this.setCallReducerFlags.splitStackFromStashFlags);
+  }
+
+  onSplitStackFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_from_stash", callback);
+  }
+
+  removeOnSplitStackFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_from_stash", callback);
+  }
+
   splitStackIntoBox(boxId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) {
     const __args = { boxId, targetSlotIndex, sourceItemInstanceId, quantityToSplit };
     let __writer = new BinaryWriter(1024);
@@ -2052,6 +2298,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_stack_into_corpse", callback);
   }
 
+  splitStackIntoStash(stashId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) {
+    const __args = { stashId, targetSlotIndex, sourceItemInstanceId, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitStackIntoStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_into_stash", __argsBuffer, this.setCallReducerFlags.splitStackIntoStashFlags);
+  }
+
+  onSplitStackIntoStash(callback: (ctx: ReducerEventContext, stashId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_stack_into_stash", callback);
+  }
+
+  removeOnSplitStackIntoStash(callback: (ctx: ReducerEventContext, stashId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_stack_into_stash", callback);
+  }
+
   splitStackWithinBox(boxId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) {
     const __args = { boxId, sourceSlotIndex, targetSlotIndex, quantityToSplit };
     let __writer = new BinaryWriter(1024);
@@ -2098,6 +2360,22 @@ export class RemoteReducers {
 
   removeOnSplitStackWithinCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) => void) {
     this.connection.offReducer("split_stack_within_corpse", callback);
+  }
+
+  splitStackWithinStash(stashId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) {
+    const __args = { stashId, sourceSlotIndex, targetSlotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitStackWithinStash.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_within_stash", __argsBuffer, this.setCallReducerFlags.splitStackWithinStashFlags);
+  }
+
+  onSplitStackWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_stack_within_stash", callback);
+  }
+
+  removeOnSplitStackWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_stack_within_stash", callback);
   }
 
   startCrafting(recipeId: bigint) {
@@ -2162,6 +2440,22 @@ export class RemoteReducers {
 
   removeOnToggleCampfireBurning(callback: (ctx: ReducerEventContext, campfireId: number) => void) {
     this.connection.offReducer("toggle_campfire_burning", callback);
+  }
+
+  toggleStashVisibility(stashId: number) {
+    const __args = { stashId };
+    let __writer = new BinaryWriter(1024);
+    ToggleStashVisibility.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("toggle_stash_visibility", __argsBuffer, this.setCallReducerFlags.toggleStashVisibilityFlags);
+  }
+
+  onToggleStashVisibility(callback: (ctx: ReducerEventContext, stashId: number) => void) {
+    this.connection.onReducer("toggle_stash_visibility", callback);
+  }
+
+  removeOnToggleStashVisibility(callback: (ctx: ReducerEventContext, stashId: number) => void) {
+    this.connection.offReducer("toggle_stash_visibility", callback);
   }
 
   toggleTorch() {
@@ -2288,6 +2582,11 @@ export class SetReducerFlags {
     this.dropItemFromCorpseSlotToWorldFlags = flags;
   }
 
+  dropItemFromStashSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromStashSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromStashSlotToWorldFlags = flags;
+  }
+
   equipArmorFlags: CallReducerFlags = 'FullUpdate';
   equipArmor(flags: CallReducerFlags) {
     this.equipArmorFlags = flags;
@@ -2358,6 +2657,11 @@ export class SetReducerFlags {
     this.moveItemFromCorpseFlags = flags;
   }
 
+  moveItemFromStashFlags: CallReducerFlags = 'FullUpdate';
+  moveItemFromStash(flags: CallReducerFlags) {
+    this.moveItemFromStashFlags = flags;
+  }
+
   moveItemToBoxFlags: CallReducerFlags = 'FullUpdate';
   moveItemToBox(flags: CallReducerFlags) {
     this.moveItemToBoxFlags = flags;
@@ -2378,6 +2682,11 @@ export class SetReducerFlags {
     this.moveItemToInventoryFlags = flags;
   }
 
+  moveItemToStashFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToStash(flags: CallReducerFlags) {
+    this.moveItemToStashFlags = flags;
+  }
+
   moveItemWithinBoxFlags: CallReducerFlags = 'FullUpdate';
   moveItemWithinBox(flags: CallReducerFlags) {
     this.moveItemWithinBoxFlags = flags;
@@ -2386,6 +2695,11 @@ export class SetReducerFlags {
   moveItemWithinCorpseFlags: CallReducerFlags = 'FullUpdate';
   moveItemWithinCorpse(flags: CallReducerFlags) {
     this.moveItemWithinCorpseFlags = flags;
+  }
+
+  moveItemWithinStashFlags: CallReducerFlags = 'FullUpdate';
+  moveItemWithinStash(flags: CallReducerFlags) {
+    this.moveItemWithinStashFlags = flags;
   }
 
   moveToFirstAvailableHotbarSlotFlags: CallReducerFlags = 'FullUpdate';
@@ -2411,6 +2725,11 @@ export class SetReducerFlags {
   placeSleepingBagFlags: CallReducerFlags = 'FullUpdate';
   placeSleepingBag(flags: CallReducerFlags) {
     this.placeSleepingBagFlags = flags;
+  }
+
+  placeStashFlags: CallReducerFlags = 'FullUpdate';
+  placeStash(flags: CallReducerFlags) {
+    this.placeStashFlags = flags;
   }
 
   placeWoodenStorageBoxFlags: CallReducerFlags = 'FullUpdate';
@@ -2448,6 +2767,11 @@ export class SetReducerFlags {
     this.quickMoveFromCorpseFlags = flags;
   }
 
+  quickMoveFromStashFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveFromStash(flags: CallReducerFlags) {
+    this.quickMoveFromStashFlags = flags;
+  }
+
   quickMoveToBoxFlags: CallReducerFlags = 'FullUpdate';
   quickMoveToBox(flags: CallReducerFlags) {
     this.quickMoveToBoxFlags = flags;
@@ -2461,6 +2785,11 @@ export class SetReducerFlags {
   quickMoveToCorpseFlags: CallReducerFlags = 'FullUpdate';
   quickMoveToCorpse(flags: CallReducerFlags) {
     this.quickMoveToCorpseFlags = flags;
+  }
+
+  quickMoveToStashFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveToStash(flags: CallReducerFlags) {
+    this.quickMoveToStashFlags = flags;
   }
 
   registerPlayerFlags: CallReducerFlags = 'FullUpdate';
@@ -2538,6 +2867,11 @@ export class SetReducerFlags {
     this.splitAndDropItemFromCorpseSlotToWorldFlags = flags;
   }
 
+  splitAndDropItemFromStashSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromStashSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromStashSlotToWorldFlags = flags;
+  }
+
   splitAndMoveFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   splitAndMoveFromCampfire(flags: CallReducerFlags) {
     this.splitAndMoveFromCampfireFlags = flags;
@@ -2563,6 +2897,11 @@ export class SetReducerFlags {
     this.splitStackFromCorpseFlags = flags;
   }
 
+  splitStackFromStashFlags: CallReducerFlags = 'FullUpdate';
+  splitStackFromStash(flags: CallReducerFlags) {
+    this.splitStackFromStashFlags = flags;
+  }
+
   splitStackIntoBoxFlags: CallReducerFlags = 'FullUpdate';
   splitStackIntoBox(flags: CallReducerFlags) {
     this.splitStackIntoBoxFlags = flags;
@@ -2578,6 +2917,11 @@ export class SetReducerFlags {
     this.splitStackIntoCorpseFlags = flags;
   }
 
+  splitStackIntoStashFlags: CallReducerFlags = 'FullUpdate';
+  splitStackIntoStash(flags: CallReducerFlags) {
+    this.splitStackIntoStashFlags = flags;
+  }
+
   splitStackWithinBoxFlags: CallReducerFlags = 'FullUpdate';
   splitStackWithinBox(flags: CallReducerFlags) {
     this.splitStackWithinBoxFlags = flags;
@@ -2591,6 +2935,11 @@ export class SetReducerFlags {
   splitStackWithinCorpseFlags: CallReducerFlags = 'FullUpdate';
   splitStackWithinCorpse(flags: CallReducerFlags) {
     this.splitStackWithinCorpseFlags = flags;
+  }
+
+  splitStackWithinStashFlags: CallReducerFlags = 'FullUpdate';
+  splitStackWithinStash(flags: CallReducerFlags) {
+    this.splitStackWithinStashFlags = flags;
   }
 
   startCraftingFlags: CallReducerFlags = 'FullUpdate';
@@ -2611,6 +2960,11 @@ export class SetReducerFlags {
   toggleCampfireBurningFlags: CallReducerFlags = 'FullUpdate';
   toggleCampfireBurning(flags: CallReducerFlags) {
     this.toggleCampfireBurningFlags = flags;
+  }
+
+  toggleStashVisibilityFlags: CallReducerFlags = 'FullUpdate';
+  toggleStashVisibility(flags: CallReducerFlags) {
+    this.toggleStashVisibilityFlags = flags;
   }
 
   toggleTorchFlags: CallReducerFlags = 'FullUpdate';
@@ -2728,6 +3082,14 @@ export class RemoteTables {
 
   get sleepingBag(): SleepingBagTableHandle {
     return new SleepingBagTableHandle(this.connection.clientCache.getOrCreateTable<SleepingBag>(REMOTE_MODULE.tables.sleeping_bag));
+  }
+
+  get stash(): StashTableHandle {
+    return new StashTableHandle(this.connection.clientCache.getOrCreateTable<Stash>(REMOTE_MODULE.tables.stash));
+  }
+
+  get statThresholdsConfig(): StatThresholdsConfigTableHandle {
+    return new StatThresholdsConfigTableHandle(this.connection.clientCache.getOrCreateTable<StatThresholdsConfig>(REMOTE_MODULE.tables.stat_thresholds_config));
   }
 
   get stone(): StoneTableHandle {

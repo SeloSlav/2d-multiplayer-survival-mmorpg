@@ -1,9 +1,46 @@
 use spacetimedb::{Identity, ReducerContext, Table, Timestamp};
 use spacetimedb::spacetimedb_lib::ScheduleAt;
+use spacetimedb::table;
 use log;
 use std::time::Duration;
 
 use crate::inventory_management::ItemContainer;
+
+// --- StatThresholdsConfig Table Definition (Formerly GameConfig) ---
+pub const DEFAULT_LOW_NEED_THRESHOLD: f32 = 20.0;
+
+#[table(name = stat_thresholds_config, public)]
+#[derive(Clone, Debug)]
+pub struct StatThresholdsConfig {
+    #[primary_key]
+    pub id: u8, // Singleton table, ID will always be 0
+    pub low_need_threshold: f32,
+    // Add other global config values here in the future
+}
+
+pub fn init_stat_thresholds_config(ctx: &ReducerContext) -> Result<(), String> {
+    let config_table = ctx.db.stat_thresholds_config();
+    if config_table.iter().count() == 0 {
+        log::info!(
+            "Initializing StatThresholdsConfig table with default low_need_threshold: {}",
+            DEFAULT_LOW_NEED_THRESHOLD
+        );
+        match config_table.try_insert(StatThresholdsConfig {
+            id: 0,
+            low_need_threshold: DEFAULT_LOW_NEED_THRESHOLD,
+        }) {
+            Ok(_) => log::info!("StatThresholdsConfig table initialized in player_stats."),
+            Err(e) => {
+                log::error!("Failed to initialize StatThresholdsConfig table in player_stats: {}", e);
+                return Err(format!("Failed to init StatThresholdsConfig in player_stats: {}", e));
+            }
+        }
+    } else {
+        log::debug!("StatThresholdsConfig table already initialized (in player_stats).");
+    }
+    Ok(())
+}
+// --- End StatThresholdsConfig Table Definition ---
 
 // Define Constants locally
 const HUNGER_DRAIN_PER_SECOND: f32 = 100.0 / (30.0 * 60.0);
@@ -21,7 +58,6 @@ pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.6;
 // Add the constants moved from lib.rs and make them pub(crate)
 pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 1.5;
 pub(crate) const JUMP_COOLDOWN_MS: u64 = 500;
-pub(crate) const LOW_NEED_THRESHOLD: f32 = 20.0;
 pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.75;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 
@@ -90,6 +126,10 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
     let players = ctx.db.player();
     let world_states = ctx.db.world_state();
     let campfires = ctx.db.campfire();
+    let game_config_table = ctx.db.stat_thresholds_config();
+    let config = game_config_table.iter().next()
+        .ok_or_else(|| "StatThresholdsConfig not found. Critical error during stat processing.".to_string())?;
+    let low_need_threshold = config.low_need_threshold;
 
     let world_state = world_states.iter().next()
         .ok_or_else(|| "WorldState not found during stat processing".to_string())?;
@@ -165,17 +205,17 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let mut health_change_per_sec: f32 = 0.0;
         if new_thirst <= 0.0 {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_THIRST * HEALTH_LOSS_MULTIPLIER_AT_ZERO;
-        } else if new_thirst < LOW_NEED_THRESHOLD {
+        } else if new_thirst < low_need_threshold {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_THIRST;
         }
         if new_hunger <= 0.0 {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_HUNGER * HEALTH_LOSS_MULTIPLIER_AT_ZERO;
-        } else if new_hunger < LOW_NEED_THRESHOLD {
+        } else if new_hunger < low_need_threshold {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_HUNGER;
         }
         if new_warmth <= 0.0 {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_WARMTH * HEALTH_LOSS_MULTIPLIER_AT_ZERO;
-        } else if new_warmth < LOW_NEED_THRESHOLD {
+        } else if new_warmth < low_need_threshold {
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_WARMTH;
         }
 
@@ -183,7 +223,7 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         if health_change_per_sec == 0.0 &&
            new_hunger >= HEALTH_RECOVERY_THRESHOLD &&
            new_thirst >= HEALTH_RECOVERY_THRESHOLD &&
-           new_warmth >= LOW_NEED_THRESHOLD { // Must not be freezing
+           new_warmth >= low_need_threshold {
             health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
         }
 

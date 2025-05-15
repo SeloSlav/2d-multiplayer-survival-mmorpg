@@ -1,5 +1,6 @@
 import { Hemp } from '../../generated'; // Import generated Hemp type
 import hempImage from '../../assets/doodads/hemp.png'; // Direct import
+import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -25,19 +26,15 @@ const hempConfig: GroundEntityConfig<Hemp> = {
         drawY: entity.posY - drawHeight, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.3;
-        const shadowRadiusY = shadowRadiusX * 0.4;
-        const shadowOffsetY = -drawHeight * 0.1; // Adjust shadow position as needed
+    getShadowParams: undefined, // Remove old shadow
+
+    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
+        applyStandardDropShadow(ctx, { cycleProgress });
         return {
-            offsetX: 0, // Centered horizontally on entity.posX
-            offsetY: shadowOffsetY, // Offset vertically from entity.posY
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
+            offsetX: 0,
+            offsetY: 0,
         };
     },
-
-    applyEffects: undefined, // No specific effects for hemp currently
 
     fallbackColor: 'seagreen', // Fallback if image fails to load
 };
@@ -46,7 +43,7 @@ const hempConfig: GroundEntityConfig<Hemp> = {
 imageManager.preloadImage(hempImage);
 
 // Function to draw a single hemp plant using the generic renderer
-export function renderHemp(ctx: CanvasRenderingContext2D, hemp: Hemp, now_ms: number) {
+export function renderHemp(ctx: CanvasRenderingContext2D, hemp: Hemp, now_ms: number, cycleProgress: number) {
   renderConfiguredGroundEntity({
     ctx,
     entity: hemp,
@@ -54,5 +51,6 @@ export function renderHemp(ctx: CanvasRenderingContext2D, hemp: Hemp, now_ms: nu
     nowMs: now_ms, 
     entityPosX: hemp.posX,
     entityPosY: hemp.posY,
+    cycleProgress,
   });
 } 

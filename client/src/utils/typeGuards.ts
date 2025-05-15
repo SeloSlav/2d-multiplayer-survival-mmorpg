@@ -9,7 +9,8 @@ import {
   Corn as SpacetimeDBCorn,
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
-  PlayerCorpse as SpacetimeDBPlayerCorpse
+  PlayerCorpse as SpacetimeDBPlayerCorpse,
+  Stash as SpacetimeDBStash
 } from '../generated'; // Import necessary types
 
 // Type guard for Player
@@ -124,19 +125,11 @@ export function isSleepingBag(entity: any): entity is SpacetimeDBSleepingBag {
 
 // Type guard for PlayerCorpse
 export function isPlayerCorpse(entity: any): entity is SpacetimeDBPlayerCorpse {
-    // Check for properties specific to PlayerCorpse that differentiate it
-    // from other types with posX and posY.
-    return entity && 
-           typeof entity.posX === 'number' &&
-           typeof entity.posY === 'number' &&
-           typeof entity.originalPlayerIdentity !== 'undefined' && // Key differentiator
-           typeof entity.originalPlayerUsername === 'string' && // Another key differentiator
-           // Ensure it doesn't match other types
-           typeof entity.identity === 'undefined' && // Not a player
-           typeof entity.treeType === 'undefined' && // Not a tree
-           typeof entity.health === 'undefined' && // Not a stone (stones have health)
-           typeof entity.placedBy === 'undefined' && // Not placeable like campfire/box/bag
-           typeof entity.itemDefId === 'undefined' && // Not a dropped item
-           typeof entity.isBurning === 'undefined' && // Not a campfire
-           typeof entity.respawnAt === 'undefined'; // Not a mushroom/corn
+    return entity && typeof entity.ownerIdentity === 'object' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.despawnAt === 'bigint';
+}
+
+export function isStash(entity: any): entity is SpacetimeDBStash {
+    // Check for properties unique to Stash or common identifiable ones
+    // For example, `isHidden` and `ownerIdentity` might be good indicators.
+    return entity && typeof entity.ownerIdentity === 'object' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.isHidden === 'boolean';
 } 

@@ -88,6 +88,8 @@ export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Matc
 export const PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Matches server constant (64px)
 export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Matches server constant
 export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Reuse distance for now
+export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 24 * 24; // Sync with server's STASH_INTERACTION_DISTANCE_SQUARED
+export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 24 * 24; // For surfacing a hidden stash (Synced)
 
 export const HOLD_INTERACTION_DURATION_MS = 250;
 
@@ -125,3 +127,5 @@ export const baseKeyframes: Record<number, ColorPoint> = {
   // Use default peak midnight color as the base for 0.00/1.00
   1.00: defaultPeakMidnightColor,
 };
+
+// --- Stat Thresholds (must match server/player_stats.rs) ---

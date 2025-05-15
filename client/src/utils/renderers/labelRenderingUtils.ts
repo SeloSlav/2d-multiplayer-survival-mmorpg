@@ -6,7 +6,8 @@ import {
     ItemDefinition as SpacetimeDBItemDefinition,
     Corn as SpacetimeDBCorn,
     Hemp as SpacetimeDBHemp,
-    PlayerCorpse as SpacetimeDBPlayerCorpse
+    PlayerCorpse as SpacetimeDBPlayerCorpse,
+    Stash as SpacetimeDBStash
 } from '../../generated';
 import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../../config/gameConfig';
 
@@ -19,6 +20,7 @@ interface RenderLabelsParams {
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
+    stashes: Map<string, SpacetimeDBStash>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>; // Needed for dropped item names
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
@@ -28,6 +30,7 @@ interface RenderLabelsParams {
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
     closestInteractableCorpseId: bigint | null;
+    closestInteractableStashId: number | null;
 }
 
 const LABEL_FONT = '14px "Press Start 2P", cursive';
@@ -48,6 +51,7 @@ export function renderInteractionLabels({
     droppedItems,
     woodenStorageBoxes,
     playerCorpses,
+    stashes,
     itemDefinitions,
     closestInteractableMushroomId,
     closestInteractableCornId,
@@ -57,6 +61,7 @@ export function renderInteractionLabels({
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
     closestInteractableCorpseId,
+    closestInteractableStashId,
 }: RenderLabelsParams): void {
     ctx.save(); // Save context state before changing styles
 
@@ -148,6 +153,18 @@ export function renderInteractionLabels({
             const textX = corpse.posX;
             // Offset based on corpse height (using placeholder size for now)
             const textY = corpse.posY - (48 / 2) - 10; 
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Stash Label
+    if (closestInteractableStashId !== null) {
+        const stash = stashes.get(closestInteractableStashId.toString());
+        if (stash) {
+            const text = stash.isHidden ? "Hold E to Surface" : "Press E to Open / Hold to Hide";
+            const textX = stash.posX;
+            const textY = stash.posY - 30; // Offset above stash (adjust as needed)
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

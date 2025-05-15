@@ -16,7 +16,8 @@ import {
   Corn as SpacetimeDBCorn,
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
-  PlayerCorpse as SpacetimeDBPlayerCorpse
+  PlayerCorpse as SpacetimeDBPlayerCorpse,
+  Stash as SpacetimeDBStash
 } from '../generated';
 
 // --- Core Hooks ---
@@ -50,6 +51,7 @@ import { renderHemp } from '../utils/renderers/hempRenderingUtils';
 import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
+import { renderStash } from '../utils/renderers/stashRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -67,6 +69,9 @@ import {
     PLAYER_BOX_INTERACTION_DISTANCE_SQUARED
 } from '../config/gameConfig';
 
+// Define a placeholder height for Stash for indicator rendering
+const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
+
 // --- Prop Interface ---
 interface GameCanvasProps {
   players: Map<string, SpacetimeDBPlayer>;
@@ -80,6 +85,7 @@ interface GameCanvasProps {
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
   playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
+  stashes: Map<string, SpacetimeDBStash>;
   playerPins: Map<string, SpacetimeDBPlayerPin>;
   inventoryItems: Map<string, SpacetimeDBInventoryItem>;
   itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -121,6 +127,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   woodenStorageBoxes,
   sleepingBags,
   playerCorpses,
+  stashes,
   playerPins,
   inventoryItems,
   itemDefinitions,
@@ -199,15 +206,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
     closestInteractableCorpseId,
-  } = useInteractionFinder({ 
-      localPlayer, 
-      mushrooms, 
-      corns, 
-      hemps,
-      campfires, 
-      droppedItems, 
-      woodenStorageBoxes, 
-      playerCorpses
+    closestInteractableStashId,
+  } = useInteractionFinder({
+    localPlayer,
+    mushrooms,
+    corns,
+    hemps,
+    campfires,
+    droppedItems,
+    woodenStorageBoxes,
+    playerCorpses,
+    stashes,
   });
   const animationFrame = useAnimationCycle(150, 4);
   const { 
@@ -225,6 +234,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       isMinimapOpen, setIsMinimapOpen,
       onSetInteractingWith, isChatting,
       closestInteractableCorpseId,
+      closestInteractableStashId,
+      stashes,
       isSearchingCraftRecipes,
   });
 
@@ -247,6 +258,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCornsMap,
     visibleHempsMap,
     visiblePlayerCorpses,
+    visibleStashes,
     ySortedEntities
   } = useEntityFiltering(
     players,
@@ -260,6 +272,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     woodenStorageBoxes,
     sleepingBags,
     playerCorpses,
+    stashes,
     cameraOffsetX,
     cameraOffsetY,
     canvasSize.width,
@@ -271,6 +284,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Create Maps from Visible Entities (Using useMemo) ---
   const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
+  const visibleStashesMap = useMemo(() => new Map(visibleStashes.map(s => [s.id.toString(), s])), [visibleStashes]);
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
@@ -381,10 +395,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const currentWorldMouseY = worldMousePos.y;
     const currentCanvasWidth = canvasSize.width;
     const currentCanvasHeight = canvasSize.height;
+    
+    // Get current cycle progress for dynamic shadows
+    // Default to "noonish" (0.375) if worldState or cycleProgress is not yet available.
+    const currentCycleProgress = worldState?.cycleProgress ?? 0.375;
 
     // --- Rendering ---
     ctx.clearRect(0, 0, currentCanvasWidth, currentCanvasHeight);
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#000000'; // Should be black if no background, or ensure background draws over this
     ctx.fillRect(0, 0, currentCanvasWidth, currentCanvasHeight);
 
     ctx.save();
@@ -404,29 +422,33 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- Render Ground Items Individually --- 
     // Render Campfires
     visibleCampfires.forEach(campfire => {
-        renderCampfire(ctx, campfire, now_ms);
+        renderCampfire(ctx, campfire, now_ms, currentCycleProgress);
     });
     // Render Dropped Items
     visibleDroppedItems.forEach(item => {
         const itemDef = itemDefinitions.get(item.itemDefId.toString());
         // Use the new signature: ctx, item, itemDef, nowMs
-        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); 
+        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); // Dropped items don't have this shadow yet
     });
     // Render Mushrooms
     visibleMushrooms.forEach(mushroom => {
-        renderMushroom(ctx, mushroom, now_ms);
+        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress);
     });
     // Render Corn
     visibleCorns.forEach(corn => {
-        renderCorn(ctx, corn, now_ms);
+        renderCorn(ctx, corn, now_ms, currentCycleProgress);
     });
     // Render Hemp
     visibleHemps.forEach(hemp => {
-        renderHemp(ctx, hemp, now_ms);
+        renderHemp(ctx, hemp, now_ms, currentCycleProgress);
     });
     // Render Sleeping Bags
     visibleSleepingBags.forEach(sleepingBag => {
-        renderSleepingBag({ ctx, sleepingBag, nowMs: now_ms });
+        renderSleepingBag(ctx, sleepingBag, now_ms, currentCycleProgress);
+    });
+    // Render Stashes
+    visibleStashes.forEach(stash => {
+        renderStash(ctx, stash, now_ms, currentCycleProgress);
     });
     // --- End Ground Items --- 
 
@@ -446,6 +468,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         nowMs: now_ms,
         hoveredPlayerIds,
         onPlayerHover: handlePlayerHover,
+        cycleProgress: currentCycleProgress,
         renderPlayerCorpse: (props) => renderPlayerCorpse(props)
     });
     // --- End Y-Sorted Entities ---
@@ -466,6 +489,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
         playerCorpses: visiblePlayerCorpsesMap,
+        stashes: stashes,
         itemDefinitions,
         closestInteractableMushroomId, 
         closestInteractableCornId, 
@@ -475,6 +499,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         closestInteractableBoxId, 
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
+        closestInteractableStashId,
+        // cycleProgress: currentCycleProgress, // If labels also need dynamic behavior
     });
     renderPlacementPreview({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
@@ -503,19 +529,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- Post-Processing (Day/Night, Indicators, Lights, Minimap) ---
     // Day/Night mask overlay
-    if (overlayRgba !== 'transparent' && overlayRgba !== 'rgba(0,0,0,0.00)') {
+    if (overlayRgba !== 'transparent' && overlayRgba !== 'rgba(0,0,0,0.00)' && maskCanvas) {
          ctx.drawImage(maskCanvas, 0, 0);
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box', entityId: number, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
-        if (!isInView) return; // Don't draw indicator if entity isn't visible
-        if (interactionProgress && interactionProgress.targetId === entityId && interactionProgress.targetType === entityType) {
-            const screenX = entityPosX + cameraOffsetX;
-            const screenY = entityPosY + cameraOffsetY;
-            const interactionDuration = Date.now() - interactionProgress.startTime;
-            const progressPercent = Math.min(interactionDuration / HOLD_INTERACTION_DURATION_MS, 1);
-            drawInteractionIndicator(ctx, screenX, screenY - (entityHeight / 2) - 15, progressPercent);
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse', entityId: number | bigint, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+        if (!isInView || !interactionProgress) return; // Don't draw if not in view OR no interaction in progress
+        
+        const targetId = typeof entityId === 'bigint' ? BigInt(interactionProgress.targetId ?? 0) : Number(interactionProgress.targetId ?? 0);
+
+        if (interactionProgress.targetType === entityType && targetId === entityId) {
+            drawInteractionIndicator(
+                ctx,
+                entityPosX + cameraOffsetX,
+                entityPosY + cameraOffsetY - (entityHeight / 2) - 15,
+                Math.min(Math.max((Date.now() - interactionProgress.startTime) / HOLD_INTERACTION_DURATION_MS, 0), 1)
+            );
         }
     };
 
@@ -525,10 +555,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
     
     visibleBoxesMap.forEach((box: SpacetimeDBWoodenStorageBox) => { 
+      // For boxes, the indicator is only relevant if a hold action is in progress (e.g., picking up an empty box)
       if (interactionProgress && interactionProgress.targetId === box.id && interactionProgress.targetType === 'wooden_storage_box') { 
         drawIndicatorIfNeeded('wooden_storage_box', box.id, box.posX, box.posY, BOX_HEIGHT, true); 
       } 
     });
+
+    // Corrected: Iterate over the full 'stashes' map for drawing indicators for stashes
+    // The 'isInView' check within drawIndicatorIfNeeded can be enhanced if needed,
+    // but for interaction progress, if it's the target, we likely want to show it if player is close.
+    if (stashes instanceof Map) { // Ensure stashes is a Map
+        stashes.forEach((stash: SpacetimeDBStash) => {
+            // Check if this stash is the one currently being interacted with for a hold action
+            if (interactionProgress && interactionProgress.targetId === stash.id && interactionProgress.targetType === 'stash') {
+                // For a hidden stash being surfaced, we want to draw the indicator.
+                // The 'true' for isInView might need refinement if stashes can be off-screen 
+                // but still the closest interactable (though unlikely for a hold interaction).
+                // For now, assume if it's the interaction target, it's relevant to draw the indicator.
+                drawIndicatorIfNeeded('stash', stash.id, stash.posX, stash.posY, STASH_HEIGHT, true); 
+            }
+        });
+    }
 
     // Campfire Lights - Only draw for visible campfires
     ctx.save();
@@ -614,9 +661,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       isMinimapOpen, isMouseOverMinimap, minimapZoom,
       activeConnections,
       visiblePlayerCorpses,
+      visibleStashes,
       campfireParticles, 
       torchParticles,
       isSearchingCraftRecipes,
+      worldState?.cycleProgress, // Correct dependency for renderGame
   ]);
 
   const gameLoopCallback = useCallback(() => {

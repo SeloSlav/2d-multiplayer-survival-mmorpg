@@ -37,6 +37,11 @@ export type SleepingBag = {
   chunkIndex: number,
   placedBy: Identity,
   placedAt: Timestamp,
+  health: number,
+  maxHealth: number,
+  isDestroyed: boolean,
+  destroyedAt: Timestamp | undefined,
+  lastHitTime: Timestamp | undefined,
 };
 
 /**
@@ -55,6 +60,11 @@ export namespace SleepingBag {
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("placedBy", AlgebraicType.createIdentityType()),
       new ProductTypeElement("placedAt", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("health", AlgebraicType.createF32Type()),
+      new ProductTypeElement("maxHealth", AlgebraicType.createF32Type()),
+      new ProductTypeElement("isDestroyed", AlgebraicType.createBoolType()),
+      new ProductTypeElement("destroyedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

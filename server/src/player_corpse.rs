@@ -198,6 +198,46 @@ impl ItemContainer for PlayerCorpse {
     }
 }
 
+/// --- Helper struct to implement the ContainerItemClearer trait for PlayerCorpse ---
+pub struct PlayerCorpseClearer;
+
+impl ContainerItemClearer for PlayerCorpseClearer {
+    fn clear_item(ctx: &ReducerContext, item_instance_id: u64) -> bool {
+        let mut corpses = ctx.db.player_corpse();
+        let inventory_items = ctx.db.inventory_item();
+        let mut corpse_updated = false;
+        let mut corpse_to_update_opt: Option<PlayerCorpse> = None;
+
+        for current_corpse_candidate in corpses.iter() {
+            let mut temp_corpse = current_corpse_candidate.clone();
+            let mut found_in_this_corpse = false;
+
+            for i in 0..temp_corpse.num_slots() as u8 {
+                if temp_corpse.get_slot_instance_id(i) == Some(item_instance_id) {
+                    log::debug!("[PlayerCorpseClearer] Found item {} in corpse {} slot {}. Clearing slot.", item_instance_id, temp_corpse.id, i);
+                    temp_corpse.set_slot(i, None, None);
+                    found_in_this_corpse = true;
+                    corpse_to_update_opt = Some(temp_corpse.clone());
+                    break;
+                }
+            }
+
+            if found_in_this_corpse {
+                if let Some(mut item_to_update_location) = inventory_items.instance_id().find(item_instance_id) {
+                    item_to_update_location.location = ItemLocation::Unknown;
+                    inventory_items.instance_id().update(item_to_update_location);
+                }
+                corpse_updated = true;
+                break;
+            }
+        }
+        if let Some(corpse_to_commit) = corpse_to_update_opt {
+            corpses.id().update(corpse_to_commit);
+        }
+        corpse_updated
+    }
+}
+
 impl PlayerCorpse {
     /// Finds the first available (empty) slot index in the corpse.
     /// Returns None if all slots are occupied.

@@ -4,6 +4,8 @@ import mannaAshImage from '../../assets/doodads/manna_ash.png';
 import downyOakImage from '../../assets/doodads/downy_oak.png';
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
+import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
+import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -62,19 +64,25 @@ const treeConfig: GroundEntityConfig<Tree> = {
         drawY: entity.posY - drawHeight, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.4;
-        const shadowRadiusY = shadowRadiusX * 0.5;
-        const shadowOffsetY = -drawHeight * 0.05; // Push shadow up slightly
-        return {
-            offsetX: 0, // Centered horizontally on entity.posX
-            offsetY: shadowOffsetY, // Offset vertically from entity.posY
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
-        };
+    getShadowParams: undefined, // No longer using this for trees
+
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage,
+            entityCenterX: entityPosX,
+            entityBaseY: entityPosY,
+            imageDrawWidth,
+            imageDrawHeight,
+            cycleProgress,
+            maxStretchFactor: 1.8,
+            minStretchFactor: 0.15,
+            shadowBlur: 2,
+            pivotYOffset: 25
+        });
     },
 
-    applyEffects: (ctx, entity, nowMs, _baseDrawX, _baseDrawY) => {
+    applyEffects: (ctx, entity, nowMs, _baseDrawX, _baseDrawY, _cycleProgress) => { // cycleProgress not needed here now
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;
 
@@ -103,7 +111,14 @@ imageManager.preloadImage(downyOakImage);
 // TODO: Preload other variants if added
 
 // Refactored rendering function
-export function renderTree(ctx: CanvasRenderingContext2D, tree: Tree, now_ms: number) {
+export function renderTree(
+    ctx: CanvasRenderingContext2D, 
+    tree: Tree, 
+    now_ms: number, 
+    cycleProgress: number,
+    onlyDrawShadow?: boolean, // New flag
+    skipDrawingShadow?: boolean // New flag
+) {
     renderConfiguredGroundEntity({
         ctx,
         entity: tree,
@@ -111,5 +126,8 @@ export function renderTree(ctx: CanvasRenderingContext2D, tree: Tree, now_ms: nu
         nowMs: now_ms,
         entityPosX: tree.posX,
         entityPosY: tree.posY,
+        cycleProgress,
+        onlyDrawShadow,    // Pass flag
+        skipDrawingShadow  // Pass flag
     });
 }

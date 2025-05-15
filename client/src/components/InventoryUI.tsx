@@ -28,6 +28,7 @@ import {
     Recipe,
     CraftingQueueItem,
     PlayerCorpse,
+    Stash as SpacetimeDBStash,
     // Import the generated types for ItemLocation variants
     ItemLocation,
     InventoryLocationData, // Assuming this is the type for ItemLocation.Inventory.value
@@ -59,6 +60,7 @@ interface InventoryUIProps {
     campfires: Map<string, SpacetimeDBCampfire>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>; // <<< ADDED Prop Definition
     playerCorpses: Map<string, PlayerCorpse>; // <<< ADD prop definition for corpses
+    stashes: Map<string, SpacetimeDBStash>; // <<< ADDED stashes prop
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null; // <<< ADDED Prop Definition
     // NEW: Add Generic Placement Props
     startPlacement: (itemInfo: PlacementItemInfo) => void;
@@ -108,6 +110,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     campfires,
     woodenStorageBoxes,
     playerCorpses,
+    stashes,
     currentStorageBox,
     cancelPlacement,
     placementInfo, // Read isPlacing state from this
@@ -171,6 +174,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const currentBoxId = currentInteraction?.type === 'wooden_storage_box' ? Number(currentInteraction.id) : null;
         const currentCampfireId = currentInteraction?.type === 'campfire' ? Number(currentInteraction.id) : null;
         const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
+        const currentStashId = currentInteraction?.type === 'stash' ? Number(currentInteraction.id) : null;
 
         // --- PRIORITY 1: Open Corpse ---
         if (currentCorpseId !== null) {
@@ -195,7 +199,24 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             }
             return; // Action handled
         } 
-        // --- PRIORITY 3: Open Campfire --- 
+        // --- PRIORITY 3: Open Stash ---
+        else if (currentStashId !== null) {
+            const stashEntity = stashes.get(currentStashId.toString());
+            if (stashEntity && !stashEntity.isHidden) {
+                try {
+                    console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
+                    connection.reducers.quickMoveToStash(currentStashId, itemInstanceId);
+                } catch (e: any) {
+                    console.error(`[Inv CtxMenu Inv->Stash] Error quick moving item ${itemInstanceId} to stash ${currentStashId}:`, e);
+                    // TODO: setUiError
+                }
+            } else {
+                console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} is hidden. Cannot quick move.`);
+                // Optionally set a UI error here to inform the player
+            }
+            return; // Action handled (or intentionally not handled if hidden)
+        }
+        // --- PRIORITY 4: Open Campfire --- 
         else if (currentCampfireId !== null) {
             try { 
                 // console.log(`[Inv CtxMenu Inv->Campfire] Campfire ${currentCampfireId} open. Calling quickMoveToCampfire for item ${itemInstanceId}`);
@@ -217,7 +238,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 try { connection.reducers.moveToFirstAvailableHotbarSlot(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Hotbar]", e); /* TODO: setUiError */ }
             }
         }
-    }, [connection, interactionTarget]);
+    }, [connection, interactionTarget, stashes]);
 
     // --- Render --- 
     return (
@@ -293,12 +314,14 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     inventoryItems={inventoryItems}
                     itemDefinitions={itemDefinitions}
                     campfires={campfires}
-                        woodenStorageBoxes={woodenStorageBoxes}
-                        playerCorpses={playerCorpses}
+                    woodenStorageBoxes={woodenStorageBoxes}
+                    playerCorpses={playerCorpses}
+                    stashes={stashes}
                     currentStorageBox={currentStorageBox}
                     connection={connection}
                     onItemDragStart={onItemDragStart}
                     onItemDrop={onItemDrop}
+                    playerId={playerIdentity ? playerIdentity.toHexString() : null}
                 />
                 ) : (
                     // Otherwise, show the crafting UI

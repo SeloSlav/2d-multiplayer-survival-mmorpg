@@ -18,6 +18,7 @@ export interface SpacetimeTableStates {
     activeEquipments: Map<string, SpacetimeDB.ActiveEquipment>;
     droppedItems: Map<string, SpacetimeDB.DroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>;
+    stashes: Map<string, SpacetimeDB.Stash>;
     recipes: Map<string, SpacetimeDB.Recipe>;
     craftingQueueItems: Map<string, SpacetimeDB.CraftingQueueItem>;
     messages: Map<string, SpacetimeDB.Message>;
@@ -65,6 +66,7 @@ export const useSpacetimeTables = ({
     const [activeConnections, setActiveConnections] = useState<Map<string, SpacetimeDB.ActiveConnection>>(() => new Map());
     const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(() => new Map());
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
+    const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -278,6 +280,18 @@ export const useSpacetimeTables = ({
             const handlePlayerCorpseDelete = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
                 setPlayerCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
             };
+            const handleStashInsert = (ctx: any, stash: SpacetimeDB.Stash) => {
+                setStashes(prev => new Map(prev).set(stash.id.toString(), stash));
+                if (connection.identity && stash.placedBy.isEqual(connection.identity)) {
+                    cancelPlacementRef.current();
+                }
+            };
+            const handleStashUpdate = (ctx: any, oldStash: SpacetimeDB.Stash, newStash: SpacetimeDB.Stash) => {
+                setStashes(prev => new Map(prev).set(newStash.id.toString(), newStash));
+            };
+            const handleStashDelete = (ctx: any, stash: SpacetimeDB.Stash) => {
+                setStashes(prev => { const newMap = new Map(prev); newMap.delete(stash.id.toString()); return newMap; });
+            };
              // --- End Callback Definitions ---
 
             // --- Register Callbacks ---
@@ -306,6 +320,9 @@ export const useSpacetimeTables = ({
             connection.db.playerCorpse.onInsert(handlePlayerCorpseInsert);
             connection.db.playerCorpse.onUpdate(handlePlayerCorpseUpdate);
             connection.db.playerCorpse.onDelete(handlePlayerCorpseDelete);
+            connection.db.stash.onInsert(handleStashInsert);
+            connection.db.stash.onUpdate(handleStashUpdate);
+            connection.db.stash.onDelete(handleStashDelete);
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -350,6 +367,9 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial PLAYER_CORPSE subscription error:", err))
                     .subscribe('SELECT * FROM player_corpse'),
+                 connection.subscriptionBuilder() // Added Stash subscription
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial STASH subscription error:", err))
+                    .subscribe('SELECT * FROM stash'),
             ];
             nonSpatialHandlesRef.current = currentInitialSubs;
         }
@@ -486,6 +506,7 @@ export const useSpacetimeTables = ({
                  setActiveConnections(new Map());
                  setSleepingBags(new Map());
                  setPlayerCorpses(new Map());
+                 setStashes(new Map());
              }
         };
 
@@ -514,5 +535,6 @@ export const useSpacetimeTables = ({
         activeConnections,
         sleepingBags,
         playerCorpses,
+        stashes,
     };
 }; 

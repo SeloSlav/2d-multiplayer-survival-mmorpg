@@ -58,22 +58,22 @@ export class CampfireProcessingScheduleTableHandle {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `campfire_id_for_schedule` unique index on the table `campfire_processing_schedule`,
+   * Access to the `campfire_id` unique index on the table `campfire_processing_schedule`,
    * which allows point queries on the field of the same name
-   * via the [`CampfireProcessingScheduleCampfireIdForScheduleUnique.find`] method.
+   * via the [`CampfireProcessingScheduleCampfireIdUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.campfireProcessingSchedule.campfire_id_for_schedule().find(...)`.
+   * like `ctx.db.campfireProcessingSchedule.campfire_id().find(...)`.
    *
-   * Get a handle on the `campfire_id_for_schedule` unique index on the table `campfire_processing_schedule`.
+   * Get a handle on the `campfire_id` unique index on the table `campfire_processing_schedule`.
    */
-  campfire_id_for_schedule = {
-    // Find the subscribed row whose `campfire_id_for_schedule` column value is equal to `col_val`,
+  campfire_id = {
+    // Find the subscribed row whose `campfire_id` column value is equal to `col_val`,
     // if such a row is present in the client cache.
     find: (col_val: bigint): CampfireProcessingSchedule | undefined => {
       for (let row of this.tableCache.iter()) {
-        if (deepEqual(row.campfire_id_for_schedule, col_val)) {
+        if (deepEqual(row.campfire_id, col_val)) {
           return row;
         }
       }

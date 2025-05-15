@@ -76,6 +76,11 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeSleepingBag(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx needs a handleSleepingBagInsert callback to cancel placement on success
           break;
+        case 'Stash':
+          // console.log(`[PlacementManager] Calling placeStash reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeStash(placementInfo.instanceId, worldX, worldY);
+          // Assume App.tsx will need a handleStashInsert callback to cancel placement on success
+          break;
         // case 'Storage Box':
         //   console.log(`[PlacementManager] Calling placeStorageBox reducer.`);
         //   connection.reducers.placeStorageBox(worldX, worldY);

@@ -1,5 +1,6 @@
 import { Corn } from '../../generated'; // Import generated Corn type
 import cornImage from '../../assets/doodads/corn_stalk.png'; // Direct import
+import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -25,19 +26,15 @@ const cornConfig: GroundEntityConfig<Corn> = {
         drawY: entity.posY - drawHeight, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.3;
-        const shadowRadiusY = shadowRadiusX * 0.4;
-        const shadowOffsetY = -drawHeight * 0.05; // Push shadow up slightly
+    getShadowParams: undefined, // Remove old shadow
+
+    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
+        applyStandardDropShadow(ctx, { cycleProgress });
         return {
-            offsetX: 0, // Centered horizontally on entity.posX
-            offsetY: shadowOffsetY, // Offset vertically from entity.posY
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
+            offsetX: 0,
+            offsetY: 0,
         };
     },
-
-    applyEffects: undefined, // No specific effects for corn currently
 
     fallbackColor: 'yellowgreen', // Fallback if image fails to load
 };
@@ -46,7 +43,7 @@ const cornConfig: GroundEntityConfig<Corn> = {
 imageManager.preloadImage(cornImage);
 
 // Function to draw a single corn plant using the generic renderer
-export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: number) {
+export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: number, cycleProgress: number) {
   renderConfiguredGroundEntity({
     ctx,
     entity: corn,
@@ -54,5 +51,6 @@ export function renderCorn(ctx: CanvasRenderingContext2D, corn: Corn, now_ms: nu
     nowMs: now_ms, // Pass now_ms
     entityPosX: corn.posX,
     entityPosY: corn.posY,
+    cycleProgress,
   });
 } 

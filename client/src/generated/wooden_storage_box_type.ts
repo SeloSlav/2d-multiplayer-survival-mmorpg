@@ -72,6 +72,11 @@ export type WoodenStorageBox = {
   slotDefId16: bigint | undefined,
   slotInstanceId17: bigint | undefined,
   slotDefId17: bigint | undefined,
+  health: number,
+  maxHealth: number,
+  isDestroyed: boolean,
+  destroyedAt: Timestamp | undefined,
+  lastHitTime: Timestamp | undefined,
 };
 
 /**
@@ -125,6 +130,11 @@ export namespace WoodenStorageBox {
       new ProductTypeElement("slotDefId16", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotInstanceId17", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("slotDefId17", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("health", AlgebraicType.createF32Type()),
+      new ProductTypeElement("maxHealth", AlgebraicType.createF32Type()),
+      new ProductTypeElement("isDestroyed", AlgebraicType.createBoolType()),
+      new ProductTypeElement("destroyedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 
