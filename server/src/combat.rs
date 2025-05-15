@@ -19,8 +19,13 @@ use log;
 // Core game types
 use crate::Player;
 use crate::PLAYER_RADIUS;
+use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX};
 use crate::items::{ItemDefinition, ItemCategory};
 use crate::models::TargetType;
+use crate::spatial_grid;
+use crate::tree;
+use crate::stone;
+use crate::wooden_storage_box;
 
 // Collision constants
 use crate::tree::{TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
@@ -579,13 +584,16 @@ pub fn damage_player(
     let inventory_items_table = ctx.db.inventory_item();
     let player_corpse_table = ctx.db.player_corpse();
     let player_corpse_schedule_table = ctx.db.player_corpse_despawn_schedule();
+    let trees_table = ctx.db.tree();
+    let stones_table = ctx.db.stone();
+    let wooden_storage_boxes_table = ctx.db.wooden_storage_box();
 
     let attacker_player_opt = players.identity().find(&attacker_id);
     let mut target_player = players.identity().find(&target_id)
         .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
 
-    // --- BEGIN KNOCKBACK LOGIC ---
-    if let Some(attacker_player) = attacker_player_opt {
+    // --- BEGIN KNOCKBACK LOGIC (for target) ---
+    if let Some(ref attacker_player) = attacker_player_opt { // MODIFIED: Changed to `ref attacker_player` to borrow
         // Only apply knockback if the target is currently alive and was hit by another player
         if !target_player.is_dead && attacker_player.identity != target_player.identity {
             let dx = target_player.position_x - attacker_player.position_x;
@@ -601,10 +609,283 @@ pub fn damage_player(
 
                 log::debug!("Player {:?} knocked back by ({:.1}, {:.1}) from attacker {:?}",
                          target_id, norm_dx * PVP_KNOCKBACK_DISTANCE, norm_dy * PVP_KNOCKBACK_DISTANCE, attacker_id);
+
+                // --- BEGIN COLLISION RESOLUTION FOR KNOCKBACK ---
+                let mut resolved_x = target_player.position_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
+                let mut resolved_y = target_player.position_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+
+                let mut grid = spatial_grid::SpatialGrid::new();
+                // Populate grid with relevant entities (players, trees, stones, boxes)
+                // Note: This reuses some logic from lib.rs update_player_position
+                // We only need players, trees, stones, and boxes for knockback collision.
+                for p_other in players.iter() {
+                    if p_other.identity != target_id && !p_other.is_dead { // Exclude self and dead players
+                        grid.add_entity(spatial_grid::EntityType::Player(p_other.identity), p_other.position_x, p_other.position_y);
+                    }
+                }
+                for tree_entity in trees_table.iter() {
+                    if tree_entity.health > 0 {
+                        grid.add_entity(spatial_grid::EntityType::Tree(tree_entity.id), tree_entity.pos_x, tree_entity.pos_y - TREE_COLLISION_Y_OFFSET);
+                    }
+                }
+                for stone_entity in stones_table.iter() {
+                    if stone_entity.health > 0 {
+                        grid.add_entity(spatial_grid::EntityType::Stone(stone_entity.id), stone_entity.pos_x, stone_entity.pos_y - STONE_COLLISION_Y_OFFSET);
+                    }
+                }
+                for box_entity in wooden_storage_boxes_table.iter() {
+                     if !box_entity.is_destroyed {
+                        grid.add_entity(spatial_grid::EntityType::WoodenStorageBox(box_entity.id), box_entity.pos_x, box_entity.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
+                    }
+                }
+
+
+                let resolution_iterations = 5;
+                let epsilon = 0.01;
+
+                for _iter in 0..resolution_iterations {
+                    let mut overlap_found_in_iter = false;
+                    let nearby_entities_resolve = grid.get_entities_in_range(resolved_x, resolved_y);
+
+                    for entity in &nearby_entities_resolve {
+                        match entity {
+                            spatial_grid::EntityType::Player(other_identity) => {
+                                // We already filter out self and dead players when populating the grid
+                                if let Some(other_player_data) = players.identity().find(other_identity) {
+                                     let odx = resolved_x - other_player_data.position_x;
+                                     let ody = resolved_y - other_player_data.position_y;
+                                     let odist_sq = odx * odx + ody * ody;
+                                     let min_dist_players = PLAYER_RADIUS * 2.0;
+                                     let min_dist_sq_players = min_dist_players * min_dist_players;
+                                     if odist_sq < min_dist_sq_players && odist_sq > 0.0 {
+                                         overlap_found_in_iter = true;
+                                         let odistance = odist_sq.sqrt();
+                                         let ooverlap = min_dist_players - odistance;
+                                         let push_amount = (ooverlap / 2.0) + epsilon;
+                                         resolved_x += (odx / odistance) * push_amount;
+                                         resolved_y += (ody / odistance) * push_amount;
+                                     }
+                                }
+                            },
+                            spatial_grid::EntityType::Tree(tree_id_ref) => {
+                                if let Some(tree_data) = trees_table.id().find(tree_id_ref) {
+                                    // Tree collision logic from lib.rs
+                                    let tree_collision_y_val = tree_data.pos_y - TREE_COLLISION_Y_OFFSET;
+                                    let tdx = resolved_x - tree_data.pos_x;
+                                    let tdy = resolved_y - tree_collision_y_val;
+                                    let tdist_sq = tdx * tdx + tdy * tdy;
+                                    let min_dist_tree = PLAYER_RADIUS + tree::TREE_TRUNK_RADIUS;
+                                    let min_dist_sq_tree = min_dist_tree * min_dist_tree;
+                                    if tdist_sq < min_dist_sq_tree && tdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let tdistance = tdist_sq.sqrt();
+                                        let toverlap = (min_dist_tree - tdistance) + epsilon;
+                                        resolved_x += (tdx / tdistance) * toverlap;
+                                        resolved_y += (tdy / tdistance) * toverlap;
+                                    }
+                                }
+                            },
+                            spatial_grid::EntityType::Stone(stone_id_ref) => {
+                                if let Some(stone_data) = stones_table.id().find(stone_id_ref) {
+                                    // Stone collision logic from lib.rs
+                                    let stone_collision_y_val = stone_data.pos_y - STONE_COLLISION_Y_OFFSET;
+                                    let sdx = resolved_x - stone_data.pos_x;
+                                    let sdy = resolved_y - stone_collision_y_val;
+                                    let sdist_sq = sdx * sdx + sdy * sdy;
+                                    let min_dist_stone = PLAYER_RADIUS + stone::STONE_RADIUS;
+                                    let min_dist_sq_stone = min_dist_stone * min_dist_stone;
+                                    if sdist_sq < min_dist_sq_stone && sdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let sdistance = sdist_sq.sqrt();
+                                        let soverlap = (min_dist_stone - sdistance) + epsilon;
+                                        resolved_x += (sdx / sdistance) * soverlap;
+                                        resolved_y += (sdy / sdistance) * soverlap;
+                                    }
+                                }
+                            },
+                            spatial_grid::EntityType::WoodenStorageBox(box_id_ref) => {
+                                if let Some(box_data) = wooden_storage_boxes_table.id().find(box_id_ref) {
+                                    let box_collision_y_val = box_data.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET;
+                                    let bdx = resolved_x - box_data.pos_x;
+                                    let bdy = resolved_y - box_collision_y_val;
+                                    let bdist_sq = bdx*bdx + bdy*bdy;
+                                    let min_dist_box = PLAYER_RADIUS + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
+                                    let min_dist_sq_box = min_dist_box * min_dist_box;
+                                    if bdist_sq < min_dist_sq_box && bdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let bdistance = bdist_sq.sqrt();
+                                        let boverlap = (min_dist_box - bdistance) + epsilon;
+                                        resolved_x += (bdx / bdistance) * boverlap;
+                                        resolved_y += (bdy / bdistance) * boverlap;
+                                    }
+                                }
+                            },
+                            _ => {} // Ignore other entity types for knockback collision
+                        }
+                    }
+
+                    resolved_x = resolved_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
+                    resolved_y = resolved_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+
+                    if !overlap_found_in_iter {
+                        break;
+                    }
+                }
+                target_player.position_x = resolved_x;
+                target_player.position_y = resolved_y;
+                log::debug!("Player {:?} final knockback position after collision: ({:.1}, {:.1})",
+                         target_id, target_player.position_x, target_player.position_y);
+                // --- END COLLISION RESOLUTION FOR KNOCKBACK ---
             }
         }
     }
     // --- END KNOCKBACK LOGIC ---
+
+    // --- BEGIN ATTACKER RECOIL LOGIC ---
+    if let Some(mut attacker_player_data) = attacker_player_opt {
+        // Check if attacker is not the target and is alive (should always be true for an attack)
+        if attacker_player_data.identity != target_player.identity && !attacker_player_data.is_dead {
+            let recoil_dx = attacker_player_data.position_x - target_player.position_x; // Vector from target to attacker
+            let recoil_dy = attacker_player_data.position_y - target_player.position_y; // Vector from target to attacker
+            let recoil_distance_mag = (recoil_dx * recoil_dx + recoil_dy * recoil_dy).sqrt();
+
+            if recoil_distance_mag > 0.0 {
+                let norm_recoil_dx = recoil_dx / recoil_distance_mag;
+                let norm_recoil_dy = recoil_dy / recoil_distance_mag;
+                let attacker_recoil_amount = PVP_KNOCKBACK_DISTANCE / 3.0; // Attacker recoils less
+
+                attacker_player_data.position_x += norm_recoil_dx * attacker_recoil_amount;
+                attacker_player_data.position_y += norm_recoil_dy * attacker_recoil_amount;
+
+                log::debug!("Attacker {:?} recoiled by ({:.1}, {:.1}) after hitting {:?}",
+                         attacker_id, norm_recoil_dx * attacker_recoil_amount, norm_recoil_dy * attacker_recoil_amount, target_id);
+
+                // --- COLLISION RESOLUTION FOR ATTACKER RECOIL ---
+                let mut resolved_attacker_x = attacker_player_data.position_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
+                let mut resolved_attacker_y = attacker_player_data.position_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+
+                let mut attacker_grid = spatial_grid::SpatialGrid::new();
+                // Populate grid (excluding the attacker itself and the target, as target's position is already being updated)
+                for p_other in players.iter() {
+                    if p_other.identity != attacker_id && p_other.identity != target_id && !p_other.is_dead {
+                        attacker_grid.add_entity(spatial_grid::EntityType::Player(p_other.identity), p_other.position_x, p_other.position_y);
+                    }
+                }
+                for tree_entity in trees_table.iter() {
+                    if tree_entity.health > 0 {
+                        attacker_grid.add_entity(spatial_grid::EntityType::Tree(tree_entity.id), tree_entity.pos_x, tree_entity.pos_y - TREE_COLLISION_Y_OFFSET);
+                    }
+                }
+                for stone_entity in stones_table.iter() {
+                    if stone_entity.health > 0 {
+                        attacker_grid.add_entity(spatial_grid::EntityType::Stone(stone_entity.id), stone_entity.pos_x, stone_entity.pos_y - STONE_COLLISION_Y_OFFSET);
+                    }
+                }
+                for box_entity in wooden_storage_boxes_table.iter() {
+                    if !box_entity.is_destroyed {
+                        attacker_grid.add_entity(spatial_grid::EntityType::WoodenStorageBox(box_entity.id), box_entity.pos_x, box_entity.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
+                    }
+                }
+
+                let resolution_iterations = 5;
+                let epsilon = 0.01;
+
+                for _iter in 0..resolution_iterations {
+                    let mut overlap_found_in_iter = false;
+                    let nearby_entities_resolve = attacker_grid.get_entities_in_range(resolved_attacker_x, resolved_attacker_y);
+
+                    for entity in &nearby_entities_resolve {
+                        match entity {
+                            spatial_grid::EntityType::Player(other_identity) => {
+                                if let Some(other_player_data) = players.identity().find(other_identity) {
+                                     let odx = resolved_attacker_x - other_player_data.position_x;
+                                     let ody = resolved_attacker_y - other_player_data.position_y;
+                                     let odist_sq = odx * odx + ody * ody;
+                                     let min_dist_players = PLAYER_RADIUS * 2.0;
+                                     let min_dist_sq_players = min_dist_players * min_dist_players;
+                                     if odist_sq < min_dist_sq_players && odist_sq > 0.0 {
+                                         overlap_found_in_iter = true;
+                                         let odistance = odist_sq.sqrt();
+                                         let ooverlap = min_dist_players - odistance;
+                                         let push_amount = (ooverlap / 2.0) + epsilon;
+                                         resolved_attacker_x += (odx / odistance) * push_amount;
+                                         resolved_attacker_y += (ody / odistance) * push_amount;
+                                     }
+                                }
+                            },
+                            spatial_grid::EntityType::Tree(tree_id_ref) => {
+                                if let Some(tree_data) = trees_table.id().find(tree_id_ref) {
+                                    let tree_collision_y_val = tree_data.pos_y - TREE_COLLISION_Y_OFFSET;
+                                    let tdx = resolved_attacker_x - tree_data.pos_x;
+                                    let tdy = resolved_attacker_y - tree_collision_y_val;
+                                    let tdist_sq = tdx * tdx + tdy * tdy;
+                                    let min_dist_tree = PLAYER_RADIUS + tree::TREE_TRUNK_RADIUS;
+                                    let min_dist_sq_tree = min_dist_tree * min_dist_tree;
+                                    if tdist_sq < min_dist_sq_tree && tdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let tdistance = tdist_sq.sqrt();
+                                        let toverlap = (min_dist_tree - tdistance) + epsilon;
+                                        resolved_attacker_x += (tdx / tdistance) * toverlap;
+                                        resolved_attacker_y += (tdy / tdistance) * toverlap;
+                                    }
+                                }
+                            },
+                            spatial_grid::EntityType::Stone(stone_id_ref) => {
+                                if let Some(stone_data) = stones_table.id().find(stone_id_ref) {
+                                    let stone_collision_y_val = stone_data.pos_y - STONE_COLLISION_Y_OFFSET;
+                                    let sdx = resolved_attacker_x - stone_data.pos_x;
+                                    let sdy = resolved_attacker_y - stone_collision_y_val;
+                                    let sdist_sq = sdx * sdx + sdy * sdy;
+                                    let min_dist_stone = PLAYER_RADIUS + stone::STONE_RADIUS;
+                                    let min_dist_sq_stone = min_dist_stone * min_dist_stone;
+                                    if sdist_sq < min_dist_sq_stone && sdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let sdistance = sdist_sq.sqrt();
+                                        let soverlap = (min_dist_stone - sdistance) + epsilon;
+                                        resolved_attacker_x += (sdx / sdistance) * soverlap;
+                                        resolved_attacker_y += (sdy / sdistance) * soverlap;
+                                    }
+                                }
+                            },
+                            spatial_grid::EntityType::WoodenStorageBox(box_id_ref) => {
+                                if let Some(box_data) = wooden_storage_boxes_table.id().find(box_id_ref) {
+                                    let box_collision_y_val = box_data.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET;
+                                    let bdx = resolved_attacker_x - box_data.pos_x;
+                                    let bdy = resolved_attacker_y - box_collision_y_val;
+                                    let bdist_sq = bdx*bdx + bdy*bdy;
+                                    let min_dist_box = PLAYER_RADIUS + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
+                                    let min_dist_sq_box = min_dist_box * min_dist_box;
+                                    if bdist_sq < min_dist_sq_box && bdist_sq > 0.0 {
+                                        overlap_found_in_iter = true;
+                                        let bdistance = bdist_sq.sqrt();
+                                        let boverlap = (min_dist_box - bdistance) + epsilon;
+                                        resolved_attacker_x += (bdx / bdistance) * boverlap;
+                                        resolved_attacker_y += (bdy / bdistance) * boverlap;
+                                    }
+                                }
+                            },
+                            _ => {} 
+                        }
+                    }
+
+                    resolved_attacker_x = resolved_attacker_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
+                    resolved_attacker_y = resolved_attacker_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+
+                    if !overlap_found_in_iter {
+                        break;
+                    }
+                }
+                attacker_player_data.position_x = resolved_attacker_x;
+                attacker_player_data.position_y = resolved_attacker_y;
+                attacker_player_data.last_update = timestamp; // Update attacker's timestamp
+                players.identity().update(attacker_player_data);
+                log::debug!("Attacker {:?} final recoil position after collision: ({:.1}, {:.1})",
+                         attacker_id, resolved_attacker_x, resolved_attacker_y);
+                // --- END COLLISION RESOLUTION FOR ATTACKER RECOIL ---
+            }
+        }
+    }
+    // --- END ATTACKER RECOIL LOGIC ---
 
     let old_health = target_player.health;
     let new_health = (target_player.health - damage).max(0.0);

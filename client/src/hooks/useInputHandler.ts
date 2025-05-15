@@ -48,6 +48,7 @@ interface UseInputHandlerProps {
 interface InputHandlerState {
     // State needed for rendering or other components
     interactionProgress: InteractionProgressState | null;
+    isActivelyHolding: boolean;
     isSprinting: boolean; // Expose current sprint state if needed elsewhere
     currentJumpOffsetY: number; // <<< ADDED
     // Function to be called each frame by the game loop
@@ -99,6 +100,7 @@ export const useInputHandler = ({
     const eKeyDownTimestampRef = useRef<number>(0);
     const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
     const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
+    const [isActivelyHolding, setIsActivelyHolding] = useState<boolean>(false);
     const [currentJumpOffsetY, setCurrentJumpOffsetY] = useState<number>(0); // <<< ADDED
 
     // Refs for dependencies to avoid re-running effect too often
@@ -137,9 +139,10 @@ export const useInputHandler = ({
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
              isEHeldDownRef.current = false;
-             if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
+             if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
              eKeyHoldTimerRef.current = null;
              setInteractionProgress(null);
+             setIsActivelyHolding(false);
         }
     }, [localPlayer?.isDead, setSprinting]); // Depend on death state and the reducer callback
 
@@ -288,12 +291,13 @@ export const useInputHandler = ({
                         eKeyDownTimestampRef.current = Date.now();
 
                         setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
+                        setIsActivelyHolding(true);
                         
                         console.log(`[Stash E-Down] setInteractionProgress CALLED. interactionProgress in this closure:`, interactionProgress);
                         
                         if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
                         eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current && connectionRef.current?.reducers && closestIdsRef.current.stash === currentClosestStashId) {
+                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestStashId !== null) {
                                 try {
                                     connectionRef.current.reducers.toggleStashVisibility(Number(currentClosestStashId));
                                 } catch (error) {
@@ -301,6 +305,7 @@ export const useInputHandler = ({
                                 }
                             }
                             setInteractionProgress(null); 
+                            setIsActivelyHolding(false);
                             isEHeldDownRef.current = false; 
                             if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
                             eKeyHoldTimerRef.current = null; 
@@ -349,6 +354,7 @@ export const useInputHandler = ({
                     eKeyDownTimestampRef.current = Date.now();
                     if (closest.boxEmpty) { 
                         setInteractionProgress({ targetId: closest.box, targetType: 'wooden_storage_box', startTime: Date.now() });
+                        setIsActivelyHolding(true);
                         if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = setTimeout(() => {
                             if (isEHeldDownRef.current) {
@@ -360,6 +366,7 @@ export const useInputHandler = ({
                                 }
                             }
                             setInteractionProgress(null); 
+                            setIsActivelyHolding(false);
                             isEHeldDownRef.current = false; 
                             if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                             eKeyHoldTimerRef.current = null;
@@ -372,6 +379,7 @@ export const useInputHandler = ({
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
                     setInteractionProgress({ targetId: closest.campfire, targetType: 'campfire', startTime: Date.now() });
+                    setIsActivelyHolding(true);
                     if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                     eKeyHoldTimerRef.current = setTimeout(() => {
                         if (isEHeldDownRef.current) {
@@ -383,6 +391,7 @@ export const useInputHandler = ({
                             }
                         }
                         setInteractionProgress(null); 
+                        setIsActivelyHolding(false);
                         isEHeldDownRef.current = false; 
                         if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = null;
@@ -426,18 +435,20 @@ export const useInputHandler = ({
                         eKeyDownTimestampRef.current = Date.now();
                         isEHeldDownRef.current = true;
                         setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
+                        setIsActivelyHolding(true);
                         // console.log(`[InputHandler E-Press] Starting HOLD for stash: ${currentClosestStashId}`);
 
                         eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current && connectionRef.current?.reducers && closestIdsRef.current.stash !== null) {
+                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestStashId !== null) {
                                 // console.log(`[InputHandler E-Hold COMPLETED] Toggling visibility for stash: ${closestIdsRef.current.stash}`);
                                 try {
-                                    connectionRef.current.reducers.toggleStashVisibility(Number(closestIdsRef.current.stash));
+                                    connectionRef.current.reducers.toggleStashVisibility(Number(currentClosestStashId));
                                 } catch (error) {
                                     console.error("[InputHandler] Error calling toggleStashVisibility:", error);
                                 }
                             }
                             setInteractionProgress(null);
+                            setIsActivelyHolding(false);
                             isEHeldDownRef.current = false; // Reset hold state after action or if key was released
                         }, HOLD_INTERACTION_DURATION_MS);
                         return; // Hold initiated or visible stash opened, interaction handled
@@ -482,6 +493,9 @@ export const useInputHandler = ({
                         setInteractionProgress(null);
                         // console.log(`[InputHandler E-KeyUp] Cleared interactionProgress because E hold ended.`);
                     }
+
+                    // Also ensure isActivelyHolding is false if E key is up and was part of a hold
+                    setIsActivelyHolding(false);
 
                     // Check if it was a TAP action (released before hold duration)
                     if (holdDuration < HOLD_INTERACTION_DURATION_MS) {
@@ -708,6 +722,7 @@ export const useInputHandler = ({
     // --- Return State & Actions ---
     return {
         interactionProgress,
+        isActivelyHolding,
         isSprinting: isSprintingRef.current, // Return the ref's current value
         currentJumpOffsetY, // <<< ADDED
         processInputsAndActions,

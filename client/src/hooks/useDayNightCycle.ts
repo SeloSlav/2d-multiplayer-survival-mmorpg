@@ -6,10 +6,11 @@ import {
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
-import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_HEIGHT } from '../config/gameConfig';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_HEIGHT, CAMPFIRE_FLICKER_AMOUNT } from '../config/gameConfig';
 
 // Define TORCH_LIGHT_RADIUS_BASE locally
 const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; // Slightly smaller than campfire
+const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7; // Added for torch flicker
 
 // Define time constants based on server's logic (world_state.rs)
 const DAY_DURATION_MINUTES = 270.0 / 60.0;  // 4.5 minutes
@@ -199,14 +200,17 @@ export function useDayNightCycle({
             if (itemDef && itemDef.name === "Torch" && player.isTorchLit) {
                 const lightScreenX = player.positionX + cameraOffsetX;
                 const lightScreenY = player.positionY + cameraOffsetY;
-                const lightRadius = TORCH_LIGHT_RADIUS_BASE;
+                // const lightRadius = TORCH_LIGHT_RADIUS_BASE; // Old line
 
-                const maskGradient = maskCtx.createRadialGradient(lightScreenX, lightScreenY, lightRadius * 0.1, lightScreenX, lightScreenY, lightRadius);
+                const flicker = (Math.random() - 0.5) * 2 * TORCH_FLICKER_AMOUNT;
+                const currentLightRadius = Math.max(0, TORCH_LIGHT_RADIUS_BASE + flicker);
+
+                const maskGradient = maskCtx.createRadialGradient(lightScreenX, lightScreenY, currentLightRadius * 0.1, lightScreenX, lightScreenY, currentLightRadius);
                 maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
                 maskGradient.addColorStop(1, 'rgba(0,0,0,0)');
                 maskCtx.fillStyle = maskGradient;
                 maskCtx.beginPath();
-                maskCtx.arc(lightScreenX, lightScreenY, lightRadius, 0, Math.PI * 2);
+                maskCtx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
                 maskCtx.fill();
             }
         });

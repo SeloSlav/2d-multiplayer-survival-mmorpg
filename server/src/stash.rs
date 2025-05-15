@@ -301,10 +301,6 @@ pub fn toggle_stash_visibility(ctx: &ReducerContext, stash_id: u32) -> Result<()
         log::info!("Player {} surfaced stash {}.", sender_id, stash_id);
     } else {
         // Trying to HIDE the stash
-        // Only placed_by or last_surfaced_by can hide it
-        if stash.placed_by != sender_id && stash.last_surfaced_by != Some(sender_id) {
-            return Err("You cannot hide this stash.".to_string());
-        }
         let (_player, _stash_validated) = validate_basic_stash_interaction(ctx, stash_id, STASH_INTERACTION_DISTANCE_SQUARED)
             .map_err(|e| format!("Cannot hide stash: {}", e))?; // Normal interaction distance
 

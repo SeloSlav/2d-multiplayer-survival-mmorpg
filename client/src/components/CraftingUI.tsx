@@ -42,6 +42,7 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [craftQuantities, setCraftQuantities] = useState<Map<string, number>>(new Map()); // State for quantity input
     const [searchTerm, setSearchTerm] = useState(''); // State for the search term
+    const [craftedRecipeIdsThisSession, setCraftedRecipeIdsThisSession] = useState<Set<string>>(new Set()); // New state
 
     // Timer to update queue times
     useEffect(() => {
@@ -96,6 +97,8 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             if (quantity > 0) { // Ensure quantity is positive
                 // Call the new reducer
                 connection.reducers.startCraftingMultiple(recipeId, quantity);
+                // Optimistically add to crafted this session
+                setCraftedRecipeIdsThisSession(prev => new Set(prev).add(recipeId.toString()));
             } else {
                 console.warn("Attempted to craft with quantity 0 or less.");
             }
@@ -148,7 +151,7 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                 return false;
             }
         }
-        return true;
+        return recipe.ingredients.length > 0; // Also ensure there are ingredients
     };
 
     // --- Search Handler ---
@@ -159,7 +162,30 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
     // Filter recipes based on search term
     const filteredRecipes = useMemo(() => {
         if (!searchTerm.trim()) {
-            return Array.from(recipes.values());
+            // If no search term, sort all recipes
+            return Array.from(recipes.values()).sort((a, b) => {
+                const canCraftA = canCraft(a);
+                const canCraftB = canCraft(b);
+                const notCraftedThisSessionA = !craftedRecipeIdsThisSession.has(a.recipeId.toString());
+                const notCraftedThisSessionB = !craftedRecipeIdsThisSession.has(b.recipeId.toString());
+
+                // Priority 1: Craftable items
+                if (canCraftA && !canCraftB) return -1;
+                if (!canCraftA && canCraftB) return 1;
+
+                if (canCraftA && canCraftB) {
+                    // Priority 2: Within craftable, "new" (not crafted this session) items first
+                    if (notCraftedThisSessionA && !notCraftedThisSessionB) return -1;
+                    if (!notCraftedThisSessionA && notCraftedThisSessionB) return 1;
+                }
+
+                // Fallback: Alphabetical by output item name
+                const outputDefA = itemDefinitions.get(a.outputItemDefId.toString());
+                const outputDefB = itemDefinitions.get(b.outputItemDefId.toString());
+                const nameA = outputDefA?.name.toLowerCase() || '';
+                const nameB = outputDefB?.name.toLowerCase() || '';
+                return nameA.localeCompare(nameB);
+            });
         }
         const lowerSearchTerm = searchTerm.toLowerCase();
         return Array.from(recipes.values()).filter(recipe => {
@@ -175,8 +201,30 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             }
             // TODO: Add search by description if item definitions get a description field
             return false;
+        }).sort((a, b) => {
+            const canCraftA = canCraft(a);
+            const canCraftB = canCraft(b);
+            const notCraftedThisSessionA = !craftedRecipeIdsThisSession.has(a.recipeId.toString());
+            const notCraftedThisSessionB = !craftedRecipeIdsThisSession.has(b.recipeId.toString());
+
+            // Priority 1: Craftable items
+            if (canCraftA && !canCraftB) return -1;
+            if (!canCraftA && canCraftB) return 1;
+
+            if (canCraftA && canCraftB) {
+                // Priority 2: Within craftable, "new" (not crafted this session) items first
+                if (notCraftedThisSessionA && !notCraftedThisSessionB) return -1;
+                if (!notCraftedThisSessionA && notCraftedThisSessionB) return 1;
+            }
+
+            // Fallback: Alphabetical by output item name
+            const outputDefA = itemDefinitions.get(a.outputItemDefId.toString());
+            const outputDefB = itemDefinitions.get(b.outputItemDefId.toString());
+            const nameA = outputDefA?.name.toLowerCase() || '';
+            const nameB = outputDefB?.name.toLowerCase() || '';
+            return nameA.localeCompare(nameB);
         });
-    }, [recipes, itemDefinitions, searchTerm]);
+    }, [recipes, itemDefinitions, searchTerm, playerInventoryResources, craftedRecipeIdsThisSession]);
 
     return (
         <div className={styles.rightPane}> {/* Use existing right pane style */}

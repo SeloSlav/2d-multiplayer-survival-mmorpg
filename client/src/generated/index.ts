@@ -300,6 +300,8 @@ import { ContainerLocationData } from "./container_location_data_type.ts";
 export { ContainerLocationData };
 import { ContainerType } from "./container_type_type.ts";
 export { ContainerType };
+import { CookingProgress } from "./cooking_progress_type.ts";
+export { CookingProgress };
 import { Corn } from "./corn_type.ts";
 export { Corn };
 import { CostIngredient } from "./cost_ingredient_type.ts";

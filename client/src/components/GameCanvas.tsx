@@ -223,6 +223,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const animationFrame = useAnimationCycle(150, 4);
   const { 
     interactionProgress, 
+    isActivelyHolding,
     processInputsAndActions,
     currentJumpOffsetY
   } = useInputHandler({
@@ -492,7 +493,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
         playerCorpses: visiblePlayerCorpsesMap,
-        stashes: visibleStashesMap,
+        stashes: stashes,
         sleepingBags: visibleSleepingBagsMap,
         players: players,
         itemDefinitions,
@@ -512,25 +513,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         worldMouseY: currentWorldMouseY, isPlacementTooFar, placementError,
     });
 
-    // --- Render Torch Light (if active) ---
-    /*
-    if (_localTorchLightParams) {
-        const lightScreenX = _localTorchLightParams.centerX + cameraOffsetX;
-        const lightScreenY = _localTorchLightParams.centerY + cameraOffsetY;
-        const flicker = (Math.random() - 0.5) * 2 * _localTorchLightParams.flickerAmount;
-        const currentLightRadius = Math.max(0, _localTorchLightParams.radius + flicker);
-        const lightGradient = ctx.createRadialGradient(lightScreenX, lightScreenY, 0, lightScreenX, lightScreenY, currentLightRadius);
-        lightGradient.addColorStop(0, _localTorchLightParams.innerColor);
-        lightGradient.addColorStop(1, _localTorchLightParams.outerColor);
-        ctx.fillStyle = lightGradient;
-        ctx.beginPath();
-        ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    */
-    // --- End Torch Light ---
-
-    ctx.restore();
+    ctx.restore(); // This is the restore from translate(cameraOffsetX, cameraOffsetY)
 
     // --- Post-Processing (Day/Night, Indicators, Lights, Minimap) ---
     // Day/Night mask overlay
@@ -540,17 +523,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Interaction indicators - Draw only for visible entities that are interactable
     const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse', entityId: number | bigint, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
-        if (!isInView || !interactionProgress) return; // Don't draw if not in view OR no interaction in progress
+        // If interactionProgress is null (meaning no interaction is even being tracked by the state object),
+        // or if the entity is not in view, do nothing.
+        if (!isInView || !interactionProgress) {
+            return;
+        }
         
         const targetId = typeof entityId === 'bigint' ? BigInt(interactionProgress.targetId ?? 0) : Number(interactionProgress.targetId ?? 0);
 
+        // Check if the current entity being processed is the target of the (potentially stale) interactionProgress object.
         if (interactionProgress.targetType === entityType && targetId === entityId) {
-            drawInteractionIndicator(
-                ctx,
-                entityPosX + cameraOffsetX,
-                entityPosY + cameraOffsetY - (entityHeight / 2) - 15,
-                Math.min(Math.max((Date.now() - interactionProgress.startTime) / HOLD_INTERACTION_DURATION_MS, 0), 1)
-            );
+            
+            // IMPORTANT: Only draw the indicator if the hold is *currently active* (isActivelyHolding is true).
+            // If isActivelyHolding is false, it means the hold was just released/cancelled.
+            // In this case, we don't draw anything for this entity, not even the background circle.
+            // The indicator will completely disappear once interactionProgress becomes null in the next state update.
+            if (isActivelyHolding) {
+                const currentProgress = Math.min(Math.max((Date.now() - interactionProgress.startTime) / HOLD_INTERACTION_DURATION_MS, 0), 1);
+                drawInteractionIndicator(
+                    ctx,
+                    entityPosX + cameraOffsetX,
+                    entityPosY + cameraOffsetY - (entityHeight / 2) - 15,
+                    currentProgress
+                );
+            }
         }
     };
 
@@ -608,7 +604,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 newLightScreenY,    // New shifted screen Y for gradient
                 currentLightRadius
             );
-            lightGradient.addColorStop(0.3, CAMPFIRE_LIGHT_INNER_COLOR); // Changed from 0.4 to 0.7
+            lightGradient.addColorStop(0.30, CAMPFIRE_LIGHT_INNER_COLOR);
             lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
             ctx.fillStyle = lightGradient;
             ctx.beginPath();
@@ -622,6 +618,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ctx.fill();
         }
     });
+
+    // --- Render Torch Light (if active) ---
+    if (_localTorchLightParams) {
+        const lightScreenX = _localTorchLightParams.centerX + cameraOffsetX;
+        const lightScreenY = _localTorchLightParams.centerY + cameraOffsetY;
+        const flicker = (Math.random() - 0.5) * 2 * _localTorchLightParams.flickerAmount;
+        const currentLightRadius = Math.max(0, _localTorchLightParams.radius + flicker);
+        const lightGradient = ctx.createRadialGradient(lightScreenX, lightScreenY, 0, lightScreenX, lightScreenY, currentLightRadius);
+        lightGradient.addColorStop(0, _localTorchLightParams.innerColor);
+        lightGradient.addColorStop(1, _localTorchLightParams.outerColor);
+        ctx.fillStyle = lightGradient;
+        ctx.beginPath();
+        ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // --- End Torch Light ---
+
     ctx.restore();
 
     // Re-added Minimap drawing call

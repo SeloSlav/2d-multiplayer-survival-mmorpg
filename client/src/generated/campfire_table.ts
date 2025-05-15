@@ -31,6 +31,8 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { Campfire } from "./campfire_type";
+import { CookingProgress as __CookingProgress } from "./cooking_progress_type";
+
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**

@@ -632,6 +632,11 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         is_destroyed: false,
         destroyed_at: None,
         last_hit_time: None, // Initialize last_hit_time
+        slot_0_cooking_progress: None,
+        slot_1_cooking_progress: None,
+        slot_2_cooking_progress: None,
+        slot_3_cooking_progress: None,
+        slot_4_cooking_progress: None,
     };
     let inserted_campfire = campfires.try_insert(new_campfire_data_without_fuel_ids)
         .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;

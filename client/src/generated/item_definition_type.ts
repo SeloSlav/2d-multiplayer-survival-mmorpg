@@ -68,6 +68,8 @@ export type ItemDefinition = {
   consumableThirstQuenched: number | undefined,
   consumableStaminaGain: number | undefined,
   consumableDurationSecs: number | undefined,
+  cookTimeSecs: number | undefined,
+  cookedItemDefName: string | undefined,
 };
 
 /**
@@ -112,6 +114,8 @@ export namespace ItemDefinition {
       new ProductTypeElement("consumableThirstQuenched", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
       new ProductTypeElement("consumableStaminaGain", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
       new ProductTypeElement("consumableDurationSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("cookTimeSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("cookedItemDefName", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
     ]);
   }
 

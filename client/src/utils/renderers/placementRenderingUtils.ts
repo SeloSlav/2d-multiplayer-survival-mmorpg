@@ -4,6 +4,8 @@ import {
     CAMPFIRE_HEIGHT_PREVIEW,
     SLEEPING_BAG_WIDTH, // Import Sleeping Bag dimensions
     SLEEPING_BAG_HEIGHT, // Import Sleeping Bag dimensions
+    STASH_WIDTH, // Import Stash dimensions
+    STASH_HEIGHT, // Import Stash dimensions
 } from '../../config/gameConfig';
 
 interface RenderPlacementPreviewParams {
@@ -45,6 +47,9 @@ export function renderPlacementPreview({
     } else if (placementInfo.iconAssetName === 'sleeping_bag.png') {
         drawWidth = SLEEPING_BAG_WIDTH; 
         drawHeight = SLEEPING_BAG_HEIGHT;
+    } else if (placementInfo.iconAssetName === 'stash.png') {
+        drawWidth = STASH_WIDTH;
+        drawHeight = STASH_HEIGHT;
     }
 
     ctx.save();

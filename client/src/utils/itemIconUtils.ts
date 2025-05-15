@@ -29,6 +29,10 @@ import torchFlameIcon from '../assets/items/torch_on.png';
 import charcoalIcon from '../assets/items/charcoal.png';
 import spearIcon from '../assets/items/spear.png';
 import stashIcon from '../assets/items/stash.png';
+import cookedMushroomIcon from '../assets/items/cooked_mushroom.png';
+import burntMushroomIcon from '../assets/items/burnt_mushroom.png';
+import cookedCornIcon from '../assets/items/cooked_corn.png';
+import burntCornIcon from '../assets/items/burnt_corn.png';
 // We don't import the missing ones (hood, boots, etc.)
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
@@ -59,6 +63,10 @@ const iconMap: { [key: string]: string | undefined } = {
   'charcoal.png': charcoalIcon,
   'spear.png': spearIcon,
   'stash.png': stashIcon,
+  'cooked_mushroom.png': cookedMushroomIcon,
+  'burnt_mushroom.png': burntMushroomIcon,
+  'cooked_corn.png': cookedCornIcon,
+  'burnt_corn.png': burntCornIcon,
   // Add mappings for existing icons only
 };
 

@@ -95,6 +95,8 @@ pub struct ItemDefinition {
     pub consumable_thirst_quenched: Option<f32>,
     pub consumable_stamina_gain: Option<f32>,
     pub consumable_duration_secs: Option<f32>, // For effects over time, 0 or None for instant
+    pub cook_time_secs: Option<f32>, // ADDED
+    pub cooked_item_def_name: Option<String>, // ADDED
 }
 
 // --- Inventory Table ---

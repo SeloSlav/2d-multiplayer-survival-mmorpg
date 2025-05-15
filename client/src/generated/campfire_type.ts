@@ -30,6 +30,8 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
+import { CookingProgress as __CookingProgress } from "./cooking_progress_type";
+
 export type Campfire = {
   id: number,
   posX: number,
@@ -55,6 +57,11 @@ export type Campfire = {
   isDestroyed: boolean,
   destroyedAt: Timestamp | undefined,
   lastHitTime: Timestamp | undefined,
+  slot0CookingProgress: __CookingProgress | undefined,
+  slot1CookingProgress: __CookingProgress | undefined,
+  slot2CookingProgress: __CookingProgress | undefined,
+  slot3CookingProgress: __CookingProgress | undefined,
+  slot4CookingProgress: __CookingProgress | undefined,
 };
 
 /**
@@ -91,6 +98,11 @@ export namespace Campfire {
       new ProductTypeElement("isDestroyed", AlgebraicType.createBoolType()),
       new ProductTypeElement("destroyedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("slot0CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("slot1CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("slot2CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("slot3CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
+      new ProductTypeElement("slot4CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
     ]);
   }
 
