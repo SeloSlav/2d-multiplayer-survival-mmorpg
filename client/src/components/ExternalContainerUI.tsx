@@ -232,8 +232,14 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
         if (!isCampfireInteraction || !currentCampfire) return true;
-        if (currentCampfire.isBurning) return false;
-        return !fuelItems.some(item => item && item.definition.name === 'Wood' && item.instance.quantity > 0);
+        if (currentCampfire.isBurning) return false; // If already burning, can extinguish
+        // If not burning, check for any valid fuel (has fuelBurnDurationSecs > 0)
+        return !fuelItems.some(item => 
+            item && 
+            item.definition.fuelBurnDurationSecs !== undefined && 
+            item.definition.fuelBurnDurationSecs > 0 && 
+            item.instance.quantity > 0
+        );
     }, [isCampfireInteraction, currentCampfire, fuelItems]);
 
     // --- Render Logic ---
@@ -309,7 +315,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     ? styles.extinguishButton
                                     : styles.lightFireButton
                             }`}
-                            title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Wood > 0" : ""}
+                            title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Fuel > 0" : ""}
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
