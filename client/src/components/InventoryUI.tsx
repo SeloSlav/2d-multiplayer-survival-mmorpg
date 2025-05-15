@@ -7,7 +7,7 @@
  * Typically rendered conditionally by PlayerUI when inventory is opened or a container is interacted with.
  */
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef } from 'react';
 import styles from './InventoryUI.module.css';
 // Import Custom Components
 import DraggableItem from './DraggableItem';
@@ -106,20 +106,46 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     activeEquipments,
     onItemDragStart,
     onItemDrop,
+    draggedItemInfo,
     interactionTarget,
     campfires,
     woodenStorageBoxes,
     playerCorpses,
     stashes,
     currentStorageBox,
+    startPlacement,
     cancelPlacement,
-    placementInfo, // Read isPlacing state from this
-    // ADD: Destructure crafting props
+    placementInfo,
     recipes,
     craftingQueueItems,
     onCraftingSearchFocusChange,
 }) => {
     const isPlacingItem = placementInfo !== null;
+    const prevInteractionTargetRef = useRef<typeof interactionTarget | undefined>(undefined);
+
+    // Memoized handleClose to ensure stability if its dependencies are stable.
+    const handleClose = useCallback(() => {
+        if (isPlacingItem) {
+            cancelPlacement();
+        }
+        onClose();
+    }, [isPlacingItem, cancelPlacement, onClose]);
+
+    useEffect(() => {
+        console.log('[InventoryUI Effect] Current interactionTarget:', interactionTarget);
+        console.log('[InventoryUI Effect] Previous interactionTarget from ref:', prevInteractionTargetRef.current);
+
+        // If there was a defined interactionTarget in the previous render,
+        // and now there isn't (interactionTarget is null or undefined),
+        // it means the player has moved away or the target is no longer valid.
+        // In this case, automatically close the inventory.
+        if (prevInteractionTargetRef.current && !interactionTarget) {
+            console.log('[InventoryUI] Interaction target lost, auto-closing inventory. Calling handleClose.');
+            handleClose();
+        }
+        // Update the ref to the current value for the next render cycle.
+        prevInteractionTargetRef.current = interactionTarget;
+    }, [interactionTarget, handleClose]);
 
     // --- Derived State & Data Preparation --- 
 
@@ -156,14 +182,6 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     }, [playerIdentity, inventoryItems, itemDefinitions]);
 
     // --- Callbacks & Handlers ---
-    const handleClose = useCallback(() => {
-        if (isPlacingItem) {
-            // console.log("[InventoryUI] Closing panel, cancelling placement mode.");
-            cancelPlacement();
-        }
-        onClose();
-    }, [isPlacingItem, cancelPlacement, onClose]);
-
     const handleInventoryItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
         event.preventDefault();
         if (!connection?.reducers || !itemInfo) return;

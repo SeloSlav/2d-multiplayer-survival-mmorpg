@@ -40,6 +40,15 @@ const VIEWPORT_BUFFER = 1200; // Increased buffer (was 600) to create larger "ch
 const VIEWPORT_UPDATE_THRESHOLD_SQ = (VIEWPORT_WIDTH / 2) ** 2; // Increased threshold (was WIDTH/4), so updates happen less frequently
 const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) to reduce update frequency
 
+// Import interaction distance constants
+import {
+    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED,
+    PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
+    PLAYER_STASH_INTERACTION_DISTANCE_SQUARED,
+    PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED, // Added for player corpse
+    // Add other relevant interaction distances if new interactable container types are added
+} from './config/gameConfig'; // Assuming these are defined in your config
+
 function AppContent() {
     // --- Auth Hook ---
     const { 
@@ -234,6 +243,72 @@ function AppContent() {
          // Maybe add logic here if registration fails?
          // Currently, errors are shown via connectionError or uiError
     }, [localPlayerRegistered, isRegistering]);
+
+    // --- Effect to automatically clear interactionTarget if player moves too far ---
+    useEffect(() => {
+        const player = localPlayerRef.current;
+        if (!player || !interactingWith) {
+            // No player or not interacting with anything, so nothing to check.
+            return;
+        }
+
+        let entityPosition: { x: number, y: number } | null = null;
+        let interactionDistanceSquared: number | null = null;
+
+        switch (interactingWith.type) {
+            case 'wooden_storage_box':
+                const box = woodenStorageBoxes.get(interactingWith.id.toString());
+                if (box) {
+                    entityPosition = { x: box.posX, y: box.posY };
+                    interactionDistanceSquared = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED;
+                }
+                break;
+            case 'campfire':
+                const campfire = campfires.get(interactingWith.id.toString());
+                if (campfire) {
+                    entityPosition = { x: campfire.posX, y: campfire.posY };
+                    interactionDistanceSquared = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
+                }
+                break;
+            case 'stash':
+                const stash = stashes.get(interactingWith.id.toString());
+                if (stash) {
+                    entityPosition = { x: stash.posX, y: stash.posY };
+                    interactionDistanceSquared = PLAYER_STASH_INTERACTION_DISTANCE_SQUARED;
+                }
+                break;
+            case 'player_corpse': // Added case for player_corpse
+                // Player corpse ID is typically a bigint
+                const corpse = playerCorpses.get(interactingWith.id.toString());
+                if (corpse) {
+                    entityPosition = { x: corpse.posX, y: corpse.posY };
+                    interactionDistanceSquared = PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED;
+                }
+                break;
+            default:
+                // Unknown interaction type, or type not handled for auto-closing.
+                return;
+        }
+
+        if (entityPosition && interactionDistanceSquared !== null) {
+            const dx = player.positionX - entityPosition.x;
+            const dy = player.positionY - entityPosition.y;
+            const currentDistSq = dx * dx + dy * dy;
+
+            if (currentDistSq > interactionDistanceSquared) {
+                // console.log(`[AppContent] Player moved too far from ${interactingWith.type} (ID: ${interactingWith.id}). Clearing interaction.`);
+                handleSetInteractingWith(null);
+            }
+        }
+    }, [
+        interactingWith, 
+        players, // Depends on localPlayer, which comes from players map
+        woodenStorageBoxes, 
+        campfires, 
+        stashes, 
+        playerCorpses, // Add playerCorpses to dependency array
+        handleSetInteractingWith
+    ]); // Add other entity maps to dependency array if new cases are added
 
     // --- Determine overall loading state ---
     // Loading if either Auth is loading OR SpacetimeDB connection is loading
