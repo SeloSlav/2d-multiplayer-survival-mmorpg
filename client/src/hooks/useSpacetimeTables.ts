@@ -27,6 +27,7 @@ export interface SpacetimeTableStates {
     activeConnections: Map<string, SpacetimeDB.ActiveConnection>;
     sleepingBags: Map<string, SpacetimeDB.SleepingBag>;
     playerCorpses: Map<string, SpacetimeDB.PlayerCorpse>;
+    activeConsumableEffects: Map<string, SpacetimeDB.ActiveConsumableEffect>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
 }
 
@@ -69,6 +70,7 @@ export const useSpacetimeTables = ({
     const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(() => new Map());
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
+    const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -105,7 +107,7 @@ export const useSpacetimeTables = ({
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
         if (connection && !callbacksRegisteredRef.current) {
-            // console.log("[useSpacetimeTables] Connection available. Registering callbacks & initial subs..."); // Log combined action
+            console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
              
@@ -348,8 +350,21 @@ export const useSpacetimeTables = ({
             const handleStashDelete = (ctx: any, stash: SpacetimeDB.Stash) => {
                 setStashes(prev => { const newMap = new Map(prev); newMap.delete(stash.id.toString()); return newMap; });
             };
-             // --- End Callback Definitions ---
-
+            
+            // --- ActiveConsumableEffect Subscriptions ---
+            const handleActiveConsumableEffectInsert = (ctx: any, effect: SpacetimeDB.ActiveConsumableEffect) => {
+                console.log("[useSpacetimeTables] handleActiveConsumableEffectInsert CALLED, effect:", effect);
+                setActiveConsumableEffects(prev => new Map(prev).set(effect.effectId.toString(), effect));
+            };
+            const handleActiveConsumableEffectUpdate = (ctx: any, oldEffect: SpacetimeDB.ActiveConsumableEffect, newEffect: SpacetimeDB.ActiveConsumableEffect) => {
+                console.log("[useSpacetimeTables] handleActiveConsumableEffectUpdate CALLED, newEffect:", newEffect);
+                setActiveConsumableEffects(prev => new Map(prev).set(newEffect.effectId.toString(), newEffect));
+            };
+            const handleActiveConsumableEffectDelete = (ctx: any, effect: SpacetimeDB.ActiveConsumableEffect) => {
+                console.log("[useSpacetimeTables] handleActiveConsumableEffectDelete CALLED, effect:", effect);
+                setActiveConsumableEffects(prev => { const newMap = new Map(prev); newMap.delete(effect.effectId.toString()); return newMap; });
+            };
+            
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -380,6 +395,10 @@ export const useSpacetimeTables = ({
             connection.db.stash.onInsert(handleStashInsert);
             connection.db.stash.onUpdate(handleStashUpdate);
             connection.db.stash.onDelete(handleStashDelete);
+            console.log("[useSpacetimeTables] Attempting to register ActiveConsumableEffect callbacks."); // ADDED LOG
+            connection.db.activeConsumableEffect.onInsert(handleActiveConsumableEffectInsert);
+            connection.db.activeConsumableEffect.onUpdate(handleActiveConsumableEffectUpdate);
+            connection.db.activeConsumableEffect.onDelete(handleActiveConsumableEffectDelete);
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -427,7 +446,12 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder() // Added Stash subscription
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial STASH subscription error:", err))
                     .subscribe('SELECT * FROM stash'),
+                 connection.subscriptionBuilder() // Added for ActiveConsumableEffect
+                    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
+                    .onError((err) => console.error("[useSpacetimeTables] Subscription for 'active_consumable_effect' ERROR:", err))
+                    .subscribe('SELECT * FROM active_consumable_effect'),
             ];
+            console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
         }
 
@@ -567,6 +591,7 @@ export const useSpacetimeTables = ({
                  setSleepingBags(new Map());
                  setPlayerCorpses(new Map());
                  setStashes(new Map());
+                 setActiveConsumableEffects(new Map());
              }
         };
 
@@ -597,5 +622,6 @@ export const useSpacetimeTables = ({
         sleepingBags,
         playerCorpses,
         stashes,
+        activeConsumableEffects,
     };
 }; 

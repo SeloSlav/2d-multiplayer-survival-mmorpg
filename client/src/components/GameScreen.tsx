@@ -43,7 +43,8 @@ import {
     ActiveConnection,
     SleepingBag as SpacetimeDBSleepingBag,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
-    Stash as SpacetimeDBStash
+    Stash as SpacetimeDBStash,
+    ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -55,7 +56,7 @@ import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
 // Import other necessary imports
 import { useInteractionManager } from '../hooks/useInteractionManager';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Define props required by GameScreen and its children
 interface GameScreenProps {
@@ -82,6 +83,7 @@ interface GameScreenProps {
     craftingQueueItems: Map<string, SpacetimeDBCraftingQueueItem>;
     messages: Map<string, SpacetimeDBMessage>;
     activeConnections: Map<string, ActiveConnection> | undefined;
+    activeConsumableEffects: Map<string, SpacetimeDBActiveConsumableEffect>;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -115,6 +117,9 @@ interface GameScreenProps {
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
+    // ADD THIS LOG AT THE VERY BEGINNING OF THE COMPONENT
+    console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
+
     // Destructure props for cleaner usage
     const {
         players, trees, stones, campfires, mushrooms, corns, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
@@ -130,8 +135,14 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         isMinimapOpen,
         setIsMinimapOpen,
         isChatting,
-        setIsChatting
+        setIsChatting,
+        activeConsumableEffects,
     } = props;
+
+    // You can also add a useEffect here if the above doesn't show up
+    useEffect(() => {
+        console.log("[GameScreen.tsx] activeConsumableEffects prop after destructuring:", activeConsumableEffects);
+    }, [activeConsumableEffects]);
 
     // Find local player for viewport calculations
     const localPlayer = localPlayerId ? players.get(localPlayerId) : undefined;
@@ -215,6 +226,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 placementInfo={placementInfo}
                 connection={connection}
                 activeEquipments={activeEquipments}
+                activeConsumableEffects={activeConsumableEffects}
                 onCraftingSearchFocusChange={setIsCraftingSearchFocused}
             />
             <Hotbar

@@ -105,12 +105,18 @@ function AppContent() {
       activeConnections, // <<< Destructure here
       sleepingBags, // ADD destructuring
       playerCorpses, // <<< ADD playerCorpses destructuring
-      stashes // <<< ADD stashes destructuring
+      stashes, // <<< ADD stashes destructuring
+      activeConsumableEffects // <<< ADD activeConsumableEffects destructuring
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
         viewport: currentViewport, 
     });
+
+    // ADD THIS LOG
+    useEffect(() => {
+        console.log("[App.tsx] activeConsumableEffects from useSpacetimeTables:", activeConsumableEffects);
+    }, [activeConsumableEffects]);
 
     // --- Refs for Cross-Hook/Component Communication --- 
     // Ref for Placement cancellation needed by useSpacetimeTables callbacks
@@ -360,6 +366,8 @@ function AppContent() {
             {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
                 (() => { // Use an IIFE to allow logging before returning GameScreen
                     // console.log("[AppContent] About to render GameScreen. hemps variable:", hemps);
+                    // ADD THIS LOG
+                    console.log("[App.tsx] Passing activeConsumableEffects to GameScreen:", activeConsumableEffects);
                     return (
                         <GameScreen 
                             players={players}
@@ -404,6 +412,7 @@ function AppContent() {
                             isChatting={isChatting}
                             setIsChatting={setIsChatting}
                             messages={messages}
+                            activeConsumableEffects={activeConsumableEffects}
                         />
                     );
                 })()

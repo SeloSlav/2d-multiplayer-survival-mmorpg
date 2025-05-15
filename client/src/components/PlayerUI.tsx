@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -23,13 +23,19 @@ interface StatusBarProps {
   maxValue: number;
   barColor: string;
   glow?: boolean; // If true, show glow/pulse effect
+  hasActiveEffect?: boolean; // Added for timed effects
 }
 
 // --- LOW NEED THRESHOLD (matches server logic for stat penalties/health loss) ---
 // const LOW_NEED_THRESHOLD = 20.0; // If thirst/hunger/warmth < this, special effects kick in
 
-const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, barColor, glow }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, barColor, glow, hasActiveEffect }) => {
   const percentage = Math.max(0, Math.min(100, (value / maxValue) * 100));
+
+  // Add console log for debugging
+  if (hasActiveEffect) {
+    console.log(`[PlayerUI] StatusBar '${label}' hasActiveEffect: true`);
+  }
 
   // Inline keyframes for pulse animation (self-contained)
   // Only inject once per page
@@ -46,7 +52,50 @@ const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, bar
       `;
       document.head.appendChild(style);
     }
-  }, [glow, barColor]);
+    
+    // Keyframes for diagonal stripes animation
+    if (hasActiveEffect && !document.getElementById('status-bar-regen-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'status-bar-regen-keyframes';
+        style.innerHTML = `
+          @keyframes statusBarRegenAnimation {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 0; } /* Horizontal movement for 20px pattern */
+          }
+        `;
+        document.head.appendChild(style);
+    }
+  }, [glow, barColor, hasActiveEffect]);
+
+  const filledBarStyle: React.CSSProperties = {
+    height: '100%',
+    width: `${percentage}%`,
+    backgroundColor: barColor,
+    transition: 'box-shadow 0.2s, transform 0.2s, width 0.3s ease-in-out',
+    boxShadow: glow ? `0 0 16px 6px ${barColor}` : undefined,
+    animation: glow ? 'statusBarGlowPulse 1.2s infinite' : undefined,
+    zIndex: 1,
+    position: 'relative', 
+    overflow: 'hidden', 
+  };
+
+  const activeEffectOverlayStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    backgroundImage: `repeating-linear-gradient(
+        -45deg, /* Keeping diagonal for a more dynamic look */
+        rgba(255, 100, 100, 0.7), /* Lighter semi-transparent red */
+        rgba(255, 100, 100, 0.7) 10px,
+        rgba(180, 50, 50, 0.7) 10px, /* Darker semi-transparent red */
+        rgba(180, 50, 50, 0.7) 20px
+    )`,
+    // backgroundSize: '30px 30px', // Not strictly needed with this repeating-linear-gradient 
+    animation: 'statusBarRegenAnimation 0.8s linear infinite', // Re-enabled and faster
+    zIndex: 2, 
+  };
 
   return (
     <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center' }}>
@@ -58,16 +107,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, bar
           borderRadius: '2px',
           overflow: 'hidden',
           border: '1px solid #333',
+          position: 'relative', 
         }}>
-          <div style={{
-            height: '100%',
-            width: `${percentage}%`,
-            backgroundColor: barColor,
-            transition: 'box-shadow 0.2s, transform 0.2s',
-            boxShadow: glow ? `0 0 16px 6px ${barColor}` : undefined,
-            animation: glow ? 'statusBarGlowPulse 1.2s infinite' : undefined,
-            zIndex: 1,
-          }}></div>
+          <div style={filledBarStyle}>
+            {hasActiveEffect && <div style={activeEffectOverlayStyle}></div>}
+          </div>
         </div>
       </div>
       <span style={{ marginLeft: '5px', fontSize: '10px', minWidth: '30px', textAlign: 'right' }}>
@@ -87,6 +131,7 @@ interface PlayerUIProps {
   onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void;
   draggedItemInfo: DraggedItemInfo | null;
   activeEquipments: Map<string, ActiveEquipment>;
+  activeConsumableEffects: Map<string, ActiveConsumableEffect>;
   campfires: Map<string, SpacetimeDBCampfire>;
   onSetInteractingWith: (target: InteractionTarget) => void;
   interactingWith: InteractionTarget;
@@ -112,6 +157,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     onItemDrop,
     draggedItemInfo,
     activeEquipments,
+    activeConsumableEffects,
     campfires,
     onSetInteractingWith,
     interactingWith,
@@ -135,6 +181,41 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     const MAX_NOTIFICATIONS_DISPLAYED = 5;
     // --- END NEW STATE ---
     
+    // Add console log for activeConsumableEffects
+    useEffect(() => {
+        if (activeConsumableEffects && activeConsumableEffects.size > 0) {
+            console.log('[PlayerUI] activeConsumableEffects:', activeConsumableEffects);
+        }
+    }, [activeConsumableEffects]);
+
+    // Determine if there's an active health regen effect for the local player
+    const isHealthHealingOverTime = React.useMemo(() => {
+        if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
+        
+        const localPlayerIdHex = localPlayer.identity.toHexString();
+        console.log(`[PlayerUI] Checking active effects for player: ${localPlayerIdHex}`);
+
+        let foundMatch = false;
+        activeConsumableEffects.forEach((effect, key) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+            
+            console.log(`[PlayerUI] Effect ID ${key}: player ID matches: ${effectPlayerIdHex === localPlayerIdHex}, type tag: ${effectTypeTag}`);
+
+            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'HealthRegen') {
+                console.log(`[PlayerUI] Found matching HealthRegen effect:`, effect);
+                foundMatch = true;
+            }
+        });
+
+        return foundMatch;
+    }, [localPlayer, activeConsumableEffects]);
+
+    // Add console log for isHealthHealingOverTime
+    useEffect(() => {
+        console.log('[PlayerUI] isHealthHealingOverTime:', isHealthHealingOverTime);
+    }, [isHealthHealingOverTime]);
+
     useEffect(() => {
         if (!identity) {
             setLocalPlayer(null);
@@ -406,7 +487,14 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 zIndex: 50, // Keep below inventory/overlay
             }}>
                 {/* Status Bars mapping */}
-                <StatusBar label="HP" icon="❤️" value={localPlayer.health} maxValue={100} barColor="#ff4040" />
+                <StatusBar 
+                    label="HP" 
+                    icon="❤️" 
+                    value={localPlayer.health} 
+                    maxValue={100} 
+                    barColor="#ff4040" 
+                    hasActiveEffect={isHealthHealingOverTime}
+                />
                 <StatusBar label="SP" icon="⚡" value={localPlayer.stamina} maxValue={100} barColor="#40ff40" />
                 {/*
                   Glow/pulse effect for Thirst, Hunger, Warmth when below LOW_NEED_THRESHOLD (20.0),

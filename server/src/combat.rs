@@ -49,7 +49,7 @@ use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
-
+use crate::active_effects; // Added for cancelling health regen
 // --- Game Balance Constants ---
 /// Time in seconds before resources (trees, stones) respawn after being depleted
 pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
@@ -892,6 +892,10 @@ pub fn damage_player(
     target_player.health = new_health;
     target_player.last_hit_time = Some(timestamp);
     
+    // === ADDED: Cancel any active health regen effects ===
+    active_effects::cancel_health_regen_effects(ctx, target_id);
+    // ====================================================
+
     log::info!("Player {:?} hit Player {:?} with {} for {:.1} damage. Health: {:.1} -> {:.1}",
            attacker_id, target_id, item_name, damage, old_health, new_health);
     
