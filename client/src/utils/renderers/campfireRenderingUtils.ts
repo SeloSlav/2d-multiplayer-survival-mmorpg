@@ -13,9 +13,7 @@ const SHAKE_INTENSITY_PX = 8; // Slightly less intense shake for campfires
 const HEALTH_BAR_WIDTH = 50;
 const HEALTH_BAR_HEIGHT = 6;
 const HEALTH_BAR_Y_OFFSET = 10; // Offset above the campfire image
-const SHARD_COUNT = 5;
-const SHARD_SIZE = 15;
-const SHARD_SPREAD_RADIUS = 40;
+const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Added for fade effect
 
 // --- Define Configuration ---
 const campfireConfig: GroundEntityConfig<Campfire> = {
@@ -70,25 +68,37 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
             return;
         }
 
-        // Health bar logic (only if not destroyed and health is less than max)
-        if (entity.health >= entity.maxHealth) {
-            return;
+        const health = entity.health ?? 0;
+        const maxHealth = entity.maxHealth ?? 1;
+
+        // Health bar logic: only if not destroyed, health < maxHealth, and recently hit
+        if (health < maxHealth && entity.lastHitTime) {
+            const lastHitTimeMs = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
+            const elapsedSinceHit = nowMs - lastHitTimeMs;
+
+            if (elapsedSinceHit < HEALTH_BAR_VISIBLE_DURATION_MS) {
+                const healthPercentage = Math.max(0, health / maxHealth);
+                const barOuterX = finalDrawX + (finalDrawWidth - HEALTH_BAR_WIDTH) / 2;
+                const barOuterY = finalDrawY - HEALTH_BAR_Y_OFFSET - HEALTH_BAR_HEIGHT;
+
+                // Fade effect for the health bar
+                const timeSinceLastHitRatio = elapsedSinceHit / HEALTH_BAR_VISIBLE_DURATION_MS;
+                const opacity = Math.max(0, 1 - Math.pow(timeSinceLastHitRatio, 2)); // Fade out faster at the end
+
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.5 * opacity})`;
+                ctx.fillRect(barOuterX, barOuterY, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
+
+                const healthBarInnerWidth = HEALTH_BAR_WIDTH * healthPercentage;
+                const r = Math.floor(255 * (1 - healthPercentage));
+                const g = Math.floor(255 * healthPercentage);
+                ctx.fillStyle = `rgba(${r}, ${g}, 0, ${opacity})`;
+                ctx.fillRect(barOuterX, barOuterY, healthBarInnerWidth, HEALTH_BAR_HEIGHT);
+
+                ctx.strokeStyle = `rgba(0, 0, 0, ${0.7 * opacity})`;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barOuterX, barOuterY, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
+            }
         }
-
-        const healthPercentage = entity.health / entity.maxHealth;
-        const barOuterX = finalDrawX + (finalDrawWidth - HEALTH_BAR_WIDTH) / 2;
-        const barOuterY = finalDrawY - HEALTH_BAR_Y_OFFSET - HEALTH_BAR_HEIGHT;
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(barOuterX, barOuterY, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
-
-        const healthBarInnerWidth = HEALTH_BAR_WIDTH * healthPercentage;
-        ctx.fillStyle = healthPercentage > 0.6 ? 'green' : healthPercentage > 0.3 ? 'orange' : 'red';
-        ctx.fillRect(barOuterX, barOuterY, healthBarInnerWidth, HEALTH_BAR_HEIGHT);
-
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barOuterX, barOuterY, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
     },
 
     fallbackColor: '#663300', // Dark brown fallback

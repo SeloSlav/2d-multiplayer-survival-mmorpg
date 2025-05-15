@@ -6,7 +6,7 @@ import { imageManager } from './imageManager';
 
 // --- Constants ---
 export const SLEEPING_BAG_WIDTH = 64; // Adjust as needed
-export const SLEEPING_BAG_HEIGHT = 32; // Adjust as needed
+export const SLEEPING_BAG_HEIGHT = 64; // Adjust as needed
 const SHAKE_DURATION_MS = 150;
 const SHAKE_INTENSITY_PX = 6;
 const HEALTH_BAR_WIDTH = 50;
@@ -22,14 +22,16 @@ const sleepingBagConfig: GroundEntityConfig<SleepingBag> = {
         return sleepingBagImageSrc;
     },
 
-    getTargetDimensions: (_img, _entity) => ({
-        width: SLEEPING_BAG_WIDTH,
-        height: SLEEPING_BAG_HEIGHT,
-    }),
+    getTargetDimensions: (img, _entity) => {
+        const aspectRatio = img.naturalWidth / img.naturalHeight;
+        const targetHeight = SLEEPING_BAG_HEIGHT; // Use the defined height
+        const targetWidth = targetHeight * aspectRatio;
+        return { width: targetWidth, height: targetHeight };
+    },
 
     calculateDrawPosition: (entity, drawWidth, drawHeight) => ({
         drawX: entity.posX - drawWidth / 2,
-        drawY: entity.posY - drawHeight, // Anchor to bottom center
+        drawY: entity.posY - drawHeight, // Anchor to bottom center (like campfire)
     }),
 
     getShadowParams: undefined,

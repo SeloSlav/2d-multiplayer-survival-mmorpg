@@ -124,7 +124,7 @@ export const renderPlayer = (
   let shakeX = 0;
   let shakeY = 0;
   // --- MODIFIED: Check passed isOnline flag ---
-  if (!player.isDead && isOnline && player.lastHitTime) {
+  if (!player.isDead && player.lastHitTime) {
   // --- END MODIFICATION ---
     const lastHitMs = Number(player.lastHitTime.microsSinceUnixEpoch / 1000n);
     const elapsedSinceHit = nowMs - lastHitMs;

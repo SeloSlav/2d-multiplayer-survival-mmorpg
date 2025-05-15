@@ -207,6 +207,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isClosestInteractableBoxEmpty,
     closestInteractableCorpseId,
     closestInteractableStashId,
+    closestInteractableSleepingBagId,
   } = useInteractionFinder({
     localPlayer,
     mushrooms,
@@ -217,6 +218,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
+    sleepingBags,
   });
   const animationFrame = useAnimationCycle(150, 4);
   const { 
@@ -285,6 +287,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- Create Maps from Visible Entities (Using useMemo) ---
   const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
   const visibleStashesMap = useMemo(() => new Map(visibleStashes.map(s => [s.id.toString(), s])), [visibleStashes]);
+  const visibleSleepingBagsMap = useMemo(() => new Map(visibleSleepingBags.map(s => [s.id.toString(), s])), [visibleSleepingBags]);
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
@@ -489,7 +492,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         droppedItems: visibleDroppedItemsMap,
         woodenStorageBoxes: visibleBoxesMap,
         playerCorpses: visiblePlayerCorpsesMap,
-        stashes: stashes,
+        stashes: visibleStashesMap,
+        sleepingBags: visibleSleepingBagsMap,
+        players: players,
         itemDefinitions,
         closestInteractableMushroomId, 
         closestInteractableCornId, 
@@ -500,7 +505,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
         closestInteractableStashId,
-        // cycleProgress: currentCycleProgress, // If labels also need dynamic behavior
+        closestInteractableSleepingBagId,
     });
     renderPlacementPreview({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
@@ -662,6 +667,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       activeConnections,
       visiblePlayerCorpses,
       visibleStashes,
+      visibleSleepingBagsMap,
       campfireParticles, 
       torchParticles,
       isSearchingCraftRecipes,

@@ -1,6 +1,4 @@
 import { imageManager } from './imageManager';
-import { drawShadow } from './shadowUtils';
-import { gameConfig } from '../../config/gameConfig';
 
 interface BaseEntity {
     posX: number;

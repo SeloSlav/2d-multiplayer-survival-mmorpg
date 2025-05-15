@@ -8,27 +8,15 @@ import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroun
 import { applyStandardDropShadow } from './shadowUtils';
 import { imageManager } from './imageManager';
 
-// Define sprite dimensions for the stash
-// const STASH_SPRITE_WIDTH = 48; // No longer needed with generic renderer
-// const STASH_SPRITE_HEIGHT = 48; // No longer needed with generic renderer
-
 // --- Constants ---
 export const STASH_WIDTH = 48; // Adjust as needed
-export const STASH_HEIGHT = 32; // Adjust as needed
+export const STASH_HEIGHT = 48; // Adjust as needed
 const SHAKE_DURATION_MS = 150;
 const SHAKE_INTENSITY_PX = 7;
 const HEALTH_BAR_WIDTH = 40;
 const HEALTH_BAR_HEIGHT = 5;
 const HEALTH_BAR_Y_OFFSET = 6;
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Health bar stays visible for 3 seconds after last hit
-
-// interface RenderStashProps { // No longer needed
-//     ctx: CanvasRenderingContext2D;
-//     stash: Stash;
-//     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
-// }
-
-// REMOVED OLD renderStash function
 
 const stashConfig: GroundEntityConfig<Stash> = {
     getImageSource: (entity) => {
@@ -38,14 +26,16 @@ const stashConfig: GroundEntityConfig<Stash> = {
         return stashImageSrc;
     },
 
-    getTargetDimensions: (_img, _entity) => ({
-        width: STASH_WIDTH,
-        height: STASH_HEIGHT,
-    }),
+    getTargetDimensions: (img, _entity) => {
+        const aspectRatio = img.naturalWidth / img.naturalHeight;
+        const targetHeight = STASH_HEIGHT; // Use the defined height
+        const targetWidth = targetHeight * aspectRatio;
+        return { width: targetWidth, height: targetHeight };
+    },
 
     calculateDrawPosition: (entity, drawWidth, drawHeight) => ({
         drawX: entity.posX - drawWidth / 2,
-        drawY: entity.posY - drawHeight, // Anchor to bottom center
+        drawY: entity.posY - drawHeight, // Anchor to bottom center (like campfire)
     }),
 
     getShadowParams: undefined, // No special shadow for stash, can use default from applyEffects

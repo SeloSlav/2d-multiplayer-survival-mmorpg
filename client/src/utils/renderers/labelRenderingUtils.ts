@@ -7,9 +7,11 @@ import {
     Corn as SpacetimeDBCorn,
     Hemp as SpacetimeDBHemp,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
-    Stash as SpacetimeDBStash
+    Stash as SpacetimeDBStash,
+    SleepingBag as SpacetimeDBSleepingBag,
+    Player as SpacetimeDBPlayer
 } from '../../generated';
-import { CAMPFIRE_HEIGHT, BOX_HEIGHT } from '../../config/gameConfig';
+import { CAMPFIRE_HEIGHT, BOX_HEIGHT, SLEEPING_BAG_HEIGHT } from '../../config/gameConfig';
 
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
@@ -21,7 +23,9 @@ interface RenderLabelsParams {
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
-    itemDefinitions: Map<string, SpacetimeDBItemDefinition>; // Needed for dropped item names
+    sleepingBags: Map<string, SpacetimeDBSleepingBag>;
+    players: Map<string, SpacetimeDBPlayer>;
+    itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
     closestInteractableHempId: bigint | null;
@@ -31,6 +35,7 @@ interface RenderLabelsParams {
     isClosestInteractableBoxEmpty: boolean;
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null;
+    closestInteractableSleepingBagId: number | null;
 }
 
 const LABEL_FONT = '14px "Press Start 2P", cursive';
@@ -52,6 +57,8 @@ export function renderInteractionLabels({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
+    sleepingBags,
+    players,
     itemDefinitions,
     closestInteractableMushroomId,
     closestInteractableCornId,
@@ -62,6 +69,7 @@ export function renderInteractionLabels({
     isClosestInteractableBoxEmpty,
     closestInteractableCorpseId,
     closestInteractableStashId,
+    closestInteractableSleepingBagId,
 }: RenderLabelsParams): void {
     ctx.save(); // Save context state before changing styles
 
@@ -165,6 +173,21 @@ export function renderInteractionLabels({
             const text = stash.isHidden ? "Hold E to Surface" : "Press E to Open / Hold to Hide";
             const textX = stash.posX;
             const textY = stash.posY - 30; // Offset above stash (adjust as needed)
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Sleeping Bag Label
+    if (closestInteractableSleepingBagId !== null) {
+        const sleepingBag = sleepingBags.get(closestInteractableSleepingBagId.toString());
+        if (sleepingBag) {
+            const ownerPlayer = players.get(sleepingBag.placedBy.toHexString());
+            const ownerName = ownerPlayer ? ownerPlayer.username : "Someone";
+            const text = `${ownerName}'s Sleeping Bag`;
+            const textX = sleepingBag.posX;
+            // Adjust Y offset as needed, similar to campfire or box
+            const textY = sleepingBag.posY - (SLEEPING_BAG_HEIGHT / 2) - 50;
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }
