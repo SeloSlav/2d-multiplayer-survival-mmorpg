@@ -10,6 +10,7 @@ import {
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   SleepingBag as SpacetimeDBSleepingBag,
   Corn as SpacetimeDBCorn,
+  Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash
@@ -19,7 +20,8 @@ import {
   isSleepingBag,
   isCorn,
   isHemp,
-  isStash
+  isStash,
+  isPumpkin
 } from '../utils/typeGuards';
 
 interface ViewportBounds {
@@ -39,18 +41,20 @@ interface EntityFilteringResult {
   visibleWoodenStorageBoxes: SpacetimeDBWoodenStorageBox[];
   visibleSleepingBags: SpacetimeDBSleepingBag[];
   visibleCorns: SpacetimeDBCorn[];
+  visiblePumpkins: SpacetimeDBPumpkin[];
   visibleHemps: SpacetimeDBHemp[];
   visibleMushroomsMap: Map<string, SpacetimeDBMushroom>;
   visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
   visibleDroppedItemsMap: Map<string, SpacetimeDBDroppedItem>;
   visibleBoxesMap: Map<string, SpacetimeDBWoodenStorageBox>;
   visibleCornsMap: Map<string, SpacetimeDBCorn>;
+  visiblePumpkinsMap: Map<string, SpacetimeDBPumpkin>;
   visibleHempsMap: Map<string, SpacetimeDBHemp>;
   visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
   visiblePlayerCorpsesMap: Map<string, SpacetimeDBPlayerCorpse>;
   visibleStashes: SpacetimeDBStash[];
   visibleStashesMap: Map<string, SpacetimeDBStash>;
-  groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn | SpacetimeDBHemp)[];
+  groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn | SpacetimeDBPumpkin | SpacetimeDBHemp)[];
   ySortedEntities: YSortedEntityType[];
 }
 
@@ -73,6 +77,7 @@ export function useEntityFiltering(
   campfires: Map<string, SpacetimeDBCampfire>,
   mushrooms: Map<string, SpacetimeDBMushroom>,
   corns: Map<string, SpacetimeDBCorn>,
+  pumpkins: Map<string, SpacetimeDBPumpkin>,
   hemps: Map<string, SpacetimeDBHemp>,
   droppedItems: Map<string, SpacetimeDBDroppedItem>,
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>,
@@ -146,6 +151,11 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 32;
       height = 48;
+    } else if (isPumpkin(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 48;
+      height = 48;
     } else if (isHemp(entity)) {
       x = entity.posX;
       y = entity.posY;
@@ -189,6 +199,14 @@ export function useEntityFiltering(
       (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
     ) : [],
     [corns, isEntityInView, viewBounds]
+  );
+
+  const visiblePumpkins = useMemo(() => 
+    // Check source map
+    pumpkins ? Array.from(pumpkins.values()).filter(e => 
+      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
+    ) : [],
+    [pumpkins, isEntityInView, viewBounds]
   );
 
   const visibleDroppedItems = useMemo(() => 
@@ -287,6 +305,11 @@ export function useEntityFiltering(
     [visibleCorns]
   );
 
+  const visiblePumpkinsMap = useMemo(() => 
+    new Map(visiblePumpkins.map(p => [p.id.toString(), p])), 
+    [visiblePumpkins]
+  );
+
   const visibleHempsMap = useMemo(() => 
     new Map(visibleHemps.map(h => [h.id.toString(), h])), 
     [visibleHemps]
@@ -302,7 +325,8 @@ export function useEntityFiltering(
     ...visibleSleepingBags,
     ...visibleCorns,
     ...visibleHemps,
-  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns, visibleHemps]);
+    ...visiblePumpkins,
+  ], [visibleDroppedItems, visibleCampfires, visibleSleepingBags, visibleCorns, visibleHemps, visiblePumpkins]);
 
   // Y-sorted entities with sorting and correct type structure
   const ySortedEntities = useMemo(() => {
@@ -332,6 +356,7 @@ export function useEntityFiltering(
   return {
     visibleMushrooms,
     visibleCorns,
+    visiblePumpkins,
     visibleHemps,
     visibleDroppedItems,
     visibleCampfires,
@@ -347,6 +372,7 @@ export function useEntityFiltering(
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visiblePumpkinsMap,
     visibleHempsMap,
     visiblePlayerCorpsesMap,
     visibleStashesMap,

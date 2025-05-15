@@ -33,6 +33,9 @@ import cookedMushroomIcon from '../assets/items/cooked_mushroom.png';
 import burntMushroomIcon from '../assets/items/burnt_mushroom.png';
 import cookedCornIcon from '../assets/items/cooked_corn.png';
 import burntCornIcon from '../assets/items/burnt_corn.png';
+import pumpkinIcon from '../assets/items/pumpkin.png';
+import cookedPumpkinIcon from '../assets/items/cooked_pumpkin.png';
+import burntPumpkinIcon from '../assets/items/burnt_pumpkin.png';
 // We don't import the missing ones (hood, boots, etc.)
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
@@ -67,6 +70,9 @@ const iconMap: { [key: string]: string | undefined } = {
   'burnt_mushroom.png': burntMushroomIcon,
   'cooked_corn.png': cookedCornIcon,
   'burnt_corn.png': burntCornIcon,
+  'pumpkin.png': pumpkinIcon,
+  'cooked_pumpkin.png': cookedPumpkinIcon,
+  'burnt_pumpkin.png': burntPumpkinIcon,
   // Add mappings for existing icons only
 };
 

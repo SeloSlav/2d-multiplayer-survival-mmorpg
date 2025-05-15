@@ -1,0 +1,1 @@
+EffectType: spacetimedb::Serialize

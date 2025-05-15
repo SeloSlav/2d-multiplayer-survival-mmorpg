@@ -14,6 +14,7 @@ import {
   PlayerPin as SpacetimeDBPlayerPin,
   ActiveConnection,
   Corn as SpacetimeDBCorn,
+  Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
@@ -47,6 +48,7 @@ import { drawMinimapOntoCanvas } from './Minimap';
 import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
 import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
 import { renderCorn } from '../utils/renderers/cornRenderingUtils';
+import { renderPumpkin } from '../utils/renderers/pumpkinRenderingUtils';
 import { renderHemp } from '../utils/renderers/hempRenderingUtils';
 import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
@@ -80,6 +82,7 @@ interface GameCanvasProps {
   campfires: Map<string, SpacetimeDBCampfire>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
   corns: Map<string, SpacetimeDBCorn>;
+  pumpkins: Map<string, SpacetimeDBPumpkin>;
   hemps: Map<string, SpacetimeDBHemp>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -122,6 +125,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   campfires,
   mushrooms,
   corns,
+  pumpkins,
   hemps,
   droppedItems,
   woodenStorageBoxes,
@@ -164,16 +168,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return players.get(localPlayerId);
   }, [players, localPlayerId]);
 
-  // [DIAGNOSTIC LOG]
-  // if (localPlayerId) {
-  //   const currentLocalPlayer = players.get(localPlayerId);
-  //   const currentEquipment = activeEquipments.get(localPlayerId);
-  //   console.log(
-  //     `[GameCanvas Render] Player: ${localPlayerId}, isTorchLit: ${currentLocalPlayer?.isTorchLit}, Icon: ${currentEquipment?.iconAssetName}`
-  //   );
-  // }
-  // [END DIAGNOSTIC LOG]
-
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
   const { heroImageRef, grassImageRef, itemImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
@@ -200,6 +194,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractablePumpkinId,
     closestInteractableHempId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
@@ -212,6 +207,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     localPlayer,
     mushrooms,
     corns,
+    pumpkins,
     hemps,
     campfires,
     droppedItems,
@@ -230,7 +226,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, itemDefinitions,
       placementInfo, placementActions, worldMousePos,
-      closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId,
+      closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId,
       closestInteractableCampfireId, closestInteractableDroppedItemId,
       closestInteractableBoxId, isClosestInteractableBoxEmpty, 
       woodenStorageBoxes,
@@ -251,6 +247,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSleepingBags,
     visibleMushrooms,
     visibleCorns,
+    visiblePumpkins,
     visibleHemps,
     visibleDroppedItems,
     visibleCampfires,
@@ -259,6 +256,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visiblePumpkinsMap,
     visibleHempsMap,
     visiblePlayerCorpses,
     visibleStashes,
@@ -270,6 +268,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     campfires,
     mushrooms,
     corns,
+    pumpkins,
     hemps,
     droppedItems,
     woodenStorageBoxes,
@@ -442,6 +441,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCorns.forEach(corn => {
         renderCorn(ctx, corn, now_ms, currentCycleProgress);
     });
+    // Render Pumpkins
+    visiblePumpkins.forEach(pumpkin => {
+        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress);
+    });
     // Render Hemp
     visibleHemps.forEach(hemp => {
         renderHemp(ctx, hemp, now_ms, currentCycleProgress);
@@ -488,6 +491,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx,
         mushrooms: visibleMushroomsMap,
         corns: visibleCornsMap,
+        pumpkins: visiblePumpkinsMap,
         hemps: visibleHempsMap,
         campfires: visibleCampfiresMap,
         droppedItems: visibleDroppedItemsMap,
@@ -499,6 +503,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemDefinitions,
         closestInteractableMushroomId, 
         closestInteractableCornId, 
+        closestInteractablePumpkinId,
         closestInteractableHempId,
         closestInteractableCampfireId,
         closestInteractableDroppedItemId, 
@@ -666,14 +671,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [
       // Dependencies
-      visibleMushrooms, visibleCorns, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
-      ySortedEntities, visibleMushroomsMap, visibleCornsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
+      visibleMushrooms, visibleCorns, visiblePumpkins, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
+      ySortedEntities, visibleMushroomsMap, visibleCornsMap, visiblePumpkinsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
       players, itemDefinitions, trees, stones, 
       worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
       itemImagesRef, heroImageRef, grassImageRef, cameraOffsetX, cameraOffsetY,
       canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
       animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
-      closestInteractableMushroomId, closestInteractableCornId, closestInteractableCampfireId,
+      closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableCampfireId,
       closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
       isMinimapOpen, isMouseOverMinimap, minimapZoom,

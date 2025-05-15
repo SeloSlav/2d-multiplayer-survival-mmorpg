@@ -11,7 +11,6 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import React from 'react';
 
 // Components
 import LoginScreen from './components/LoginScreen';
@@ -97,7 +96,7 @@ function AppContent() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, stones, campfires, mushrooms, corns, hemps,
+      players, trees, stones, campfires, mushrooms, corns, pumpkins, hemps,
       itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
@@ -370,6 +369,7 @@ function AppContent() {
                             mushrooms={mushrooms}
                             hemps={hemps}
                             corns={corns}
+                            pumpkins={pumpkins}
                             droppedItems={droppedItems}
                             woodenStorageBoxes={woodenStorageBoxes}
                             sleepingBags={sleepingBags}

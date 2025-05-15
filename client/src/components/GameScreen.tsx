@@ -28,6 +28,7 @@ import {
     Mushroom as SpacetimeDBMushroom,
     Hemp as SpacetimeDBHemp,
     Corn as SpacetimeDBCorn,
+    Pumpkin as SpacetimeDBPumpkin,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     InventoryItem as SpacetimeDBInventoryItem,
@@ -66,6 +67,7 @@ interface GameScreenProps {
     mushrooms: Map<string, SpacetimeDBMushroom>;
     hemps: Map<string, SpacetimeDBHemp>;
     corns: Map<string, SpacetimeDBCorn>;
+    pumpkins: Map<string, SpacetimeDBPumpkin>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
@@ -115,7 +117,7 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, mushrooms, corns, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
+        players, trees, stones, campfires, mushrooms, corns, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
@@ -150,6 +152,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 mushrooms={mushrooms}
                 hemps={hemps}
                 corns={corns}
+                pumpkins={pumpkins}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
                 sleepingBags={sleepingBags}

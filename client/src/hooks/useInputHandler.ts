@@ -24,6 +24,7 @@ interface UseInputHandlerProps {
     // Closest interactables (passed in for now)
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
@@ -73,6 +74,7 @@ export const useInputHandler = ({
     worldMousePos,
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractablePumpkinId,
     closestInteractableHempId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
@@ -111,6 +113,7 @@ export const useInputHandler = ({
     const closestIdsRef = useRef({
         mushroom: null as bigint | null,
         corn: null as bigint | null,
+        pumpkin: null as bigint | null,
         hemp: null as bigint | null,
         campfire: null as number | null,
         droppedItem: null as bigint | null,
@@ -155,6 +158,7 @@ export const useInputHandler = ({
         closestIdsRef.current = {
             mushroom: closestInteractableMushroomId,
             corn: closestInteractableCornId,
+            pumpkin: closestInteractablePumpkinId,
             hemp: closestInteractableHempId,
             campfire: closestInteractableCampfireId,
             droppedItem: closestInteractableDroppedItemId,
@@ -165,7 +169,8 @@ export const useInputHandler = ({
         };
     }, [
         closestInteractableMushroomId, 
-        closestInteractableCornId, 
+        closestInteractableCornId,
+        closestInteractablePumpkinId,
         closestInteractableHempId,
         closestInteractableCampfireId, 
         closestInteractableDroppedItemId, 
@@ -278,8 +283,6 @@ export const useInputHandler = ({
                 const closest = closestIdsRef.current;
                 const currentStashes = stashesRef.current;
                 const currentClosestStashId = closest.stash;
-                
-                // console.log(`[Input E Down] Closest IDs: M=${closest.mushroom}, Co=${closest.corn}, H=${closest.hemp}, Ca=${closest.campfire}, D=${closest.droppedItem}, B=${closest.box}(${closest.boxEmpty}), Corpse=${closest.corpse}, Stash=${currentClosestStashId}`);
 
                 // --- Stash Interaction ---
                 if (currentClosestStashId !== null && currentStashes) {
@@ -336,6 +339,14 @@ export const useInputHandler = ({
                         currentConnection.reducers.interactWithCorn(closest.corn);
                     } catch (err) {
                         console.error("Error calling interactWithCorn reducer:", err);
+                    }
+                    return; 
+                }
+                if (closest.pumpkin !== null) {
+                    try {
+                        currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
+                    } catch (err) {
+                        console.error("Error calling interactWithPumpkin reducer:", err);
                     }
                     return; 
                 }
@@ -713,7 +724,7 @@ export const useInputHandler = ({
     }, [
         isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractableHempId, 
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
         isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY,
         isChatting, isSearchingCraftRecipes, setSprinting // Added isChatting, isSearchingCraftRecipes, setSprinting

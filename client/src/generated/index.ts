@@ -78,6 +78,8 @@ import { InteractWithHemp } from "./interact_with_hemp_reducer.ts";
 export { InteractWithHemp };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
+import { InteractWithPumpkin } from "./interact_with_pumpkin_reducer.ts";
+export { InteractWithPumpkin };
 import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
 export { InteractWithSleepingBag };
 import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
@@ -124,6 +126,8 @@ import { PlaceStash } from "./place_stash_reducer.ts";
 export { PlaceStash };
 import { PlaceWoodenStorageBox } from "./place_wooden_storage_box_reducer.ts";
 export { PlaceWoodenStorageBox };
+import { ProcessActiveConsumableEffectsTick } from "./process_active_consumable_effects_tick_reducer.ts";
+export { ProcessActiveConsumableEffectsTick };
 import { ProcessCampfireLogicScheduled } from "./process_campfire_logic_scheduled_reducer.ts";
 export { ProcessCampfireLogicScheduled };
 import { ProcessCorpseDespawn } from "./process_corpse_despawn_reducer.ts";
@@ -228,6 +232,8 @@ export { UseEquippedItem };
 // Import and reexport all table handle types
 import { ActiveConnectionTableHandle } from "./active_connection_table.ts";
 export { ActiveConnectionTableHandle };
+import { ActiveConsumableEffectTableHandle } from "./active_consumable_effect_table.ts";
+export { ActiveConsumableEffectTableHandle };
 import { ActiveEquipmentTableHandle } from "./active_equipment_table.ts";
 export { ActiveEquipmentTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
@@ -268,6 +274,10 @@ import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
+import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
+export { ProcessEffectsScheduleTableHandle };
+import { PumpkinTableHandle } from "./pumpkin_table.ts";
+export { PumpkinTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
@@ -288,6 +298,8 @@ export { WorldStateTableHandle };
 // Import and reexport all types
 import { ActiveConnection } from "./active_connection_type.ts";
 export { ActiveConnection };
+import { ActiveConsumableEffect } from "./active_consumable_effect_type.ts";
+export { ActiveConsumableEffect };
 import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
 import { Campfire } from "./campfire_type.ts";
@@ -316,6 +328,8 @@ import { DroppedItemDespawnSchedule } from "./dropped_item_despawn_schedule_type
 export { DroppedItemDespawnSchedule };
 import { DroppedLocationData } from "./dropped_location_data_type.ts";
 export { DroppedLocationData };
+import { EffectType } from "./effect_type_type.ts";
+export { EffectType };
 import { EquipmentSlotType } from "./equipment_slot_type_type.ts";
 export { EquipmentSlotType };
 import { EquippedLocationData } from "./equipped_location_data_type.ts";
@@ -350,6 +364,10 @@ import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
 export { PlayerStatSchedule };
+import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
+export { ProcessEffectsSchedule };
+import { Pumpkin } from "./pumpkin_type.ts";
+export { Pumpkin };
 import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
@@ -381,6 +399,11 @@ const REMOTE_MODULE = {
       tableName: "active_connection",
       rowType: ActiveConnection.getTypeScriptAlgebraicType(),
       primaryKey: "identity",
+    },
+    active_consumable_effect: {
+      tableName: "active_consumable_effect",
+      rowType: ActiveConsumableEffect.getTypeScriptAlgebraicType(),
+      primaryKey: "effectId",
     },
     active_equipment: {
       tableName: "active_equipment",
@@ -480,6 +503,16 @@ const REMOTE_MODULE = {
     player_stat_schedule: {
       tableName: "player_stat_schedule",
       rowType: PlayerStatSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    process_effects_schedule: {
+      tableName: "process_effects_schedule",
+      rowType: ProcessEffectsSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "jobId",
+    },
+    pumpkin: {
+      tableName: "pumpkin",
+      rowType: Pumpkin.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     recipe: {
@@ -616,6 +649,10 @@ const REMOTE_MODULE = {
       reducerName: "interact_with_mushroom",
       argsType: InteractWithMushroom.getTypeScriptAlgebraicType(),
     },
+    interact_with_pumpkin: {
+      reducerName: "interact_with_pumpkin",
+      argsType: InteractWithPumpkin.getTypeScriptAlgebraicType(),
+    },
     interact_with_sleeping_bag: {
       reducerName: "interact_with_sleeping_bag",
       argsType: InteractWithSleepingBag.getTypeScriptAlgebraicType(),
@@ -707,6 +744,10 @@ const REMOTE_MODULE = {
     place_wooden_storage_box: {
       reducerName: "place_wooden_storage_box",
       argsType: PlaceWoodenStorageBox.getTypeScriptAlgebraicType(),
+    },
+    process_active_consumable_effects_tick: {
+      reducerName: "process_active_consumable_effects_tick",
+      argsType: ProcessActiveConsumableEffectsTick.getTypeScriptAlgebraicType(),
     },
     process_campfire_logic_scheduled: {
       reducerName: "process_campfire_logic_scheduled",
@@ -958,6 +999,7 @@ export type Reducer = never
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithHemp", args: InteractWithHemp }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
+| { name: "InteractWithPumpkin", args: InteractWithPumpkin }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
@@ -981,6 +1023,7 @@ export type Reducer = never
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceStash", args: PlaceStash }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
+| { name: "ProcessActiveConsumableEffectsTick", args: ProcessActiveConsumableEffectsTick }
 | { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
@@ -1380,6 +1423,22 @@ export class RemoteReducers {
     this.connection.offReducer("interact_with_mushroom", callback);
   }
 
+  interactWithPumpkin(pumpkinId: bigint) {
+    const __args = { pumpkinId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithPumpkin.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_pumpkin", __argsBuffer, this.setCallReducerFlags.interactWithPumpkinFlags);
+  }
+
+  onInteractWithPumpkin(callback: (ctx: ReducerEventContext, pumpkinId: bigint) => void) {
+    this.connection.onReducer("interact_with_pumpkin", callback);
+  }
+
+  removeOnInteractWithPumpkin(callback: (ctx: ReducerEventContext, pumpkinId: bigint) => void) {
+    this.connection.offReducer("interact_with_pumpkin", callback);
+  }
+
   interactWithSleepingBag(bagId: number) {
     const __args = { bagId };
     let __writer = new BinaryWriter(1024);
@@ -1742,6 +1801,22 @@ export class RemoteReducers {
 
   removeOnPlaceWoodenStorageBox(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_wooden_storage_box", callback);
+  }
+
+  processActiveConsumableEffectsTick(args: ProcessEffectsSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    ProcessActiveConsumableEffectsTick.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_active_consumable_effects_tick", __argsBuffer, this.setCallReducerFlags.processActiveConsumableEffectsTickFlags);
+  }
+
+  onProcessActiveConsumableEffectsTick(callback: (ctx: ReducerEventContext, args: ProcessEffectsSchedule) => void) {
+    this.connection.onReducer("process_active_consumable_effects_tick", callback);
+  }
+
+  removeOnProcessActiveConsumableEffectsTick(callback: (ctx: ReducerEventContext, args: ProcessEffectsSchedule) => void) {
+    this.connection.offReducer("process_active_consumable_effects_tick", callback);
   }
 
   processCampfireLogicScheduled(scheduleArgs: CampfireProcessingSchedule) {
@@ -2624,6 +2699,11 @@ export class SetReducerFlags {
     this.interactWithMushroomFlags = flags;
   }
 
+  interactWithPumpkinFlags: CallReducerFlags = 'FullUpdate';
+  interactWithPumpkin(flags: CallReducerFlags) {
+    this.interactWithPumpkinFlags = flags;
+  }
+
   interactWithSleepingBagFlags: CallReducerFlags = 'FullUpdate';
   interactWithSleepingBag(flags: CallReducerFlags) {
     this.interactWithSleepingBagFlags = flags;
@@ -2737,6 +2817,11 @@ export class SetReducerFlags {
   placeWoodenStorageBoxFlags: CallReducerFlags = 'FullUpdate';
   placeWoodenStorageBox(flags: CallReducerFlags) {
     this.placeWoodenStorageBoxFlags = flags;
+  }
+
+  processActiveConsumableEffectsTickFlags: CallReducerFlags = 'FullUpdate';
+  processActiveConsumableEffectsTick(flags: CallReducerFlags) {
+    this.processActiveConsumableEffectsTickFlags = flags;
   }
 
   processCampfireLogicScheduledFlags: CallReducerFlags = 'FullUpdate';
@@ -2998,6 +3083,10 @@ export class RemoteTables {
     return new ActiveConnectionTableHandle(this.connection.clientCache.getOrCreateTable<ActiveConnection>(REMOTE_MODULE.tables.active_connection));
   }
 
+  get activeConsumableEffect(): ActiveConsumableEffectTableHandle {
+    return new ActiveConsumableEffectTableHandle(this.connection.clientCache.getOrCreateTable<ActiveConsumableEffect>(REMOTE_MODULE.tables.active_consumable_effect));
+  }
+
   get activeEquipment(): ActiveEquipmentTableHandle {
     return new ActiveEquipmentTableHandle(this.connection.clientCache.getOrCreateTable<ActiveEquipment>(REMOTE_MODULE.tables.active_equipment));
   }
@@ -3076,6 +3165,14 @@ export class RemoteTables {
 
   get playerStatSchedule(): PlayerStatScheduleTableHandle {
     return new PlayerStatScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStatSchedule>(REMOTE_MODULE.tables.player_stat_schedule));
+  }
+
+  get processEffectsSchedule(): ProcessEffectsScheduleTableHandle {
+    return new ProcessEffectsScheduleTableHandle(this.connection.clientCache.getOrCreateTable<ProcessEffectsSchedule>(REMOTE_MODULE.tables.process_effects_schedule));
+  }
+
+  get pumpkin(): PumpkinTableHandle {
+    return new PumpkinTableHandle(this.connection.clientCache.getOrCreateTable<Pumpkin>(REMOTE_MODULE.tables.pumpkin));
   }
 
   get recipe(): RecipeTableHandle {

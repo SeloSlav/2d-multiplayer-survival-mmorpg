@@ -9,7 +9,8 @@ import {
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
-    Player as SpacetimeDBPlayer
+    Player as SpacetimeDBPlayer,
+    Pumpkin as SpacetimeDBPumpkin
 } from '../../generated';
 import { CAMPFIRE_HEIGHT, BOX_HEIGHT, SLEEPING_BAG_HEIGHT } from '../../config/gameConfig';
 
@@ -17,6 +18,7 @@ interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     corns: Map<string, SpacetimeDBCorn>;
+    pumpkins: Map<string, SpacetimeDBPumpkin>;
     hemps: Map<string, SpacetimeDBHemp>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -28,6 +30,7 @@ interface RenderLabelsParams {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
@@ -51,6 +54,7 @@ export function renderInteractionLabels({
     ctx,
     mushrooms,
     corns,
+    pumpkins,
     hemps,
     campfires,
     droppedItems,
@@ -64,6 +68,7 @@ export function renderInteractionLabels({
     closestInteractableCornId,
     closestInteractableHempId,
     closestInteractableCampfireId,
+    closestInteractablePumpkinId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
@@ -98,6 +103,18 @@ export function renderInteractionLabels({
             const text = "Press E to Harvest";
             const textX = corn.posX;
             const textY = corn.posY - 70; // Slightly higher offset for corn
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Pumpkin Label
+    if (closestInteractablePumpkinId !== null) {
+        const pumpkin = pumpkins.get(closestInteractablePumpkinId.toString());
+        if (pumpkin) {
+            const text = "Press E to Harvest";
+            const textX = pumpkin.posX;
+            const textY = pumpkin.posY - 70;
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

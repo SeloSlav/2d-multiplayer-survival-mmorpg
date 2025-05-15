@@ -7,6 +7,7 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   Corn as SpacetimeDBCorn,
+  Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
@@ -68,6 +69,20 @@ export function isCorn(entity: any): entity is SpacetimeDBCorn {
            typeof entity.itemDefId === 'undefined'
            ;
     
+    return result;
+}
+
+// Type guard for Pumpkin
+export function isPumpkin(entity: any): entity is SpacetimeDBPumpkin {
+    const result = entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' &&
+           typeof entity.chunk_index === 'number' &&
+           (entity.respawn_at === null || entity.respawn_at instanceof Date || typeof entity.respawn_at === 'undefined') &&
+           typeof entity.growth_stage === 'undefined'
+           ;
+
     return result;
 }
 

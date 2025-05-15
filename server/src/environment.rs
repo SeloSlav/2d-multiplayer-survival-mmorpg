@@ -24,12 +24,14 @@ use crate::stone;
 use crate::mushroom;
 use crate::corn;
 use crate::hemp;
+use crate::pumpkin;
 
 // Import table traits needed for ctx.db access
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::mushroom::mushroom as MushroomTableTrait;
 use crate::corn::corn as CornTableTrait;
+use crate::pumpkin::pumpkin as PumpkinTableTrait;
 use crate::hemp::hemp as HempTableTrait;
 
 // Import utils helpers and macro
@@ -70,9 +72,10 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let stones = ctx.db.stone();
     let mushrooms = ctx.db.mushroom();
     let corns = ctx.db.corn();
+    let pumpkins = ctx.db.pumpkin();
     let hemps = ctx.db.hemp();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || hemps.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 {
         log::info!(
             "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}). Skipping.",
             trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count()
@@ -80,7 +83,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, hemp)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -96,6 +99,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_mushroom_attempts = target_mushroom_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
     let target_corn_count = (total_tiles as f32 * crate::corn::CORN_DENSITY_PERCENT) as u32;
     let max_corn_attempts = target_corn_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+    let target_pumpkin_count = (total_tiles as f32 * crate::pumpkin::PUMPKIN_DENSITY_PERCENT) as u32;
+    let max_pumpkin_attempts = target_pumpkin_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_hemp_count = (total_tiles as f32 * crate::hemp::HEMP_DENSITY_PERCENT) as u32;
     let max_hemp_attempts = target_hemp_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
 
@@ -104,7 +109,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Mushrooms: {}, Max Attempts: {}", target_mushroom_count, max_mushroom_attempts);
     log::info!("Target Corns: {}, Max Attempts: {}", target_corn_count, max_corn_attempts);
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
-
+    log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -115,6 +120,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_stone_positions = Vec::<(f32, f32)>::new();
     let mut spawned_mushroom_positions = Vec::<(f32, f32)>::new();
     let mut spawned_corn_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
 
     let mut spawned_tree_count = 0;
@@ -127,6 +133,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut corn_attempts = 0;
     let mut spawned_hemp_count = 0;
     let mut hemp_attempts = 0;
+    let mut spawned_pumpkin_count = 0;
+    let mut pumpkin_attempts = 0;
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -316,6 +324,49 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_corn_count, target_corn_count, corn_attempts
     );
 
+    // --- Seed Pumpkins --- Use helper function ---
+    log::info!("Seeding Pumpkins...");
+    let pumpkin_noise_threshold = 0.75; // Specific threshold for pumpkins
+    while spawned_pumpkin_count < target_pumpkin_count && pumpkin_attempts < max_pumpkin_attempts {
+        pumpkin_attempts += 1;
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_pumpkin_positions,
+            &spawned_tree_positions,
+            &spawned_stone_positions,
+            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+            &fbm,
+            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
+            pumpkin_noise_threshold,
+            crate::pumpkin::MIN_PUMPKIN_DISTANCE_SQ,
+            crate::pumpkin::MIN_PUMPKIN_TREE_DISTANCE_SQ,
+            crate::pumpkin::MIN_PUMPKIN_STONE_DISTANCE_SQ,
+            |pos_x, pos_y, _extra: ()| {
+                // Calculate chunk index for the pumpkin
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                crate::pumpkin::Pumpkin {
+                    id: 0,
+                    pos_x,
+                    pos_y,
+                    chunk_index: chunk_idx,
+                    respawn_at: None,
+                }
+            },
+            (),
+            pumpkins,
+        ) {
+            Ok(true) => spawned_pumpkin_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} pumpkins (target: {}, attempts: {}).",
+        spawned_pumpkin_count, target_pumpkin_count, pumpkin_attempts
+    );
+
     // --- Seed Hemp --- Use helper function ---
     log::info!("Seeding Hemp...");
     let hemp_noise_threshold = 0.68; // Specific threshold for hemp (adjust as needed)
@@ -416,6 +467,18 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |_c: &crate::corn::Corn| true, // Filter: Always check corn if respawn_at is set (handled internally by macro)
         |c: &mut crate::corn::Corn| {
             c.respawn_at = None;
+        }
+    );
+
+    // Respawn Pumpkins
+    check_and_respawn_resource!(
+        ctx,
+        pumpkin,
+        crate::pumpkin::Pumpkin,
+        "Pumpkin",
+        |_p: &crate::pumpkin::Pumpkin| true, // Filter: Always check pumpkins if respawn_at is set (handled internally by macro)
+        |p: &mut crate::pumpkin::Pumpkin| {
+            p.respawn_at = None;
         }
     );
 

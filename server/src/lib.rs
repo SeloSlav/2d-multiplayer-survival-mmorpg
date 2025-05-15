@@ -45,6 +45,8 @@ mod models; // <<< ADDED
 mod cooking; // <<< ADDED: For generic cooking logic
 mod hemp; // Added for Hemp resource
 mod stash; // Added Stash module
+pub mod pumpkin;
+pub mod active_effects; // Added for timed consumable effects
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
@@ -181,7 +183,9 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     // ADD: Initialize the global tick schedule
     crate::global_tick::init_global_tick_schedule(ctx)?;
     // <<< UPDATED: Initialize StatThresholdsConfig table >>>
-    crate::player_stats::init_stat_thresholds_config(ctx)?; 
+    crate::player_stats::init_stat_thresholds_config(ctx)?;
+    // ADD: Initialize active effects processing schedule
+    crate::active_effects::schedule_effect_processing(ctx)?;
 
     log::info!("Module initialization complete.");
     Ok(())

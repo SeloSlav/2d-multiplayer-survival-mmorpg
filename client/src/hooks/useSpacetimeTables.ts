@@ -11,6 +11,7 @@ export interface SpacetimeTableStates {
     campfires: Map<string, SpacetimeDB.Campfire>;
     mushrooms: Map<string, SpacetimeDB.Mushroom>;
     corns: Map<string, SpacetimeDB.Corn>;
+    pumpkins: Map<string, SpacetimeDB.Pumpkin>;
     hemps: Map<string, SpacetimeDB.Hemp>;
     itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
     inventoryItems: Map<string, SpacetimeDB.InventoryItem>;
@@ -51,6 +52,7 @@ export const useSpacetimeTables = ({
     const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
     const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(() => new Map());
     const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(() => new Map());
+    const [pumpkins, setPumpkins] = useState<Map<string, SpacetimeDB.Pumpkin>>(() => new Map());
     const [hemps, setHemps] = useState<Map<string, SpacetimeDB.Hemp>>(() => new Map());
     const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(() => new Map());
     const [inventoryItems, setInventoryItems] = useState<Map<string, SpacetimeDB.InventoryItem>>(() => new Map());
@@ -106,7 +108,9 @@ export const useSpacetimeTables = ({
             // console.log("[useSpacetimeTables] Connection available. Registering callbacks & initial subs..."); // Log combined action
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
-             const handlePlayerInsert = (ctx: any, player: SpacetimeDB.Player) => {
+             
+            // --- Player Subscriptions ---
+            const handlePlayerInsert = (ctx: any, player: SpacetimeDB.Player) => {
                  // console.log('[useSpacetimeTables] handlePlayerInsert CALLED for:', player.username, player.identity.toHexString()); // Use identity
                  // Use identity.toHexString() as the key
                  setPlayers(prev => new Map(prev).set(player.identity.toHexString(), player)); 
@@ -141,6 +145,8 @@ export const useSpacetimeTables = ({
                     }
                 }
             };
+            
+            // --- Tree Subscriptions ---
             const handleTreeInsert = (ctx: any, tree: SpacetimeDB.Tree) => setTrees(prev => new Map(prev).set(tree.id.toString(), tree));
             const handleTreeUpdate = (ctx: any, oldTree: SpacetimeDB.Tree, newTree: SpacetimeDB.Tree) => {
                 const changed = oldTree.posX !== newTree.posX ||
@@ -154,6 +160,8 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleTreeDelete = (ctx: any, tree: SpacetimeDB.Tree) => setTrees(prev => { const newMap = new Map(prev); newMap.delete(tree.id.toString()); return newMap; });
+            
+            // --- Stone Subscriptions ---
             const handleStoneInsert = (ctx: any, stone: SpacetimeDB.Stone) => setStones(prev => new Map(prev).set(stone.id.toString(), stone));
             const handleStoneUpdate = (ctx: any, oldStone: SpacetimeDB.Stone, newStone: SpacetimeDB.Stone) => {
                 const changed = oldStone.posX !== newStone.posX ||
@@ -166,6 +174,8 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleStoneDelete = (ctx: any, stone: SpacetimeDB.Stone) => setStones(prev => { const newMap = new Map(prev); newMap.delete(stone.id.toString()); return newMap; });
+            
+            // --- Campfire Subscriptions ---
             const handleCampfireInsert = (ctx: any, campfire: SpacetimeDB.Campfire) => {
                 setCampfires(prev => new Map(prev).set(campfire.id.toString(), campfire));
                 if (connection.identity && campfire.placedBy.isEqual(connection.identity)) {
@@ -174,21 +184,31 @@ export const useSpacetimeTables = ({
             };
             const handleCampfireUpdate = (ctx: any, oldFire: SpacetimeDB.Campfire, newFire: SpacetimeDB.Campfire) => setCampfires(prev => new Map(prev).set(newFire.id.toString(), newFire));
             const handleCampfireDelete = (ctx: any, campfire: SpacetimeDB.Campfire) => setCampfires(prev => { const newMap = new Map(prev); newMap.delete(campfire.id.toString()); return newMap; });
+            
+            // --- Item Definition Subscriptions ---
             const handleItemDefInsert = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => new Map(prev).set(itemDef.id.toString(), itemDef));
             const handleItemDefUpdate = (ctx: any, oldDef: SpacetimeDB.ItemDefinition, newDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => new Map(prev).set(newDef.id.toString(), newDef));
             const handleItemDefDelete = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => { const newMap = new Map(prev); newMap.delete(itemDef.id.toString()); return newMap; });
+            
+            // --- Inventory Subscriptions ---
             const handleInventoryInsert = (ctx: any, invItem: SpacetimeDB.InventoryItem) => setInventoryItems(prev => new Map(prev).set(invItem.instanceId.toString(), invItem));
             const handleInventoryUpdate = (ctx: any, oldItem: SpacetimeDB.InventoryItem, newItem: SpacetimeDB.InventoryItem) => setInventoryItems(prev => new Map(prev).set(newItem.instanceId.toString(), newItem));
             const handleInventoryDelete = (ctx: any, invItem: SpacetimeDB.InventoryItem) => setInventoryItems(prev => { const newMap = new Map(prev); newMap.delete(invItem.instanceId.toString()); return newMap; });
+            
+            // --- World State Subscriptions ---
             const handleWorldStateInsert = (ctx: any, state: SpacetimeDB.WorldState) => setWorldState(state);
             const handleWorldStateUpdate = (ctx: any, oldState: SpacetimeDB.WorldState, newState: SpacetimeDB.WorldState) => {
                 const significantChange = oldState.timeOfDay !== newState.timeOfDay || oldState.isFullMoon !== newState.isFullMoon || oldState.cycleCount !== newState.cycleCount;
                 if (significantChange) setWorldState(newState);
             };
             const handleWorldStateDelete = (ctx: any, state: SpacetimeDB.WorldState) => setWorldState(null);
+            
+            // --- Active Equipment Subscriptions ---
             const handleActiveEquipmentInsert = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => new Map(prev).set(equip.playerIdentity.toHexString(), equip));
             const handleActiveEquipmentUpdate = (ctx: any, oldEquip: SpacetimeDB.ActiveEquipment, newEquip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => new Map(prev).set(newEquip.playerIdentity.toHexString(), newEquip));
             const handleActiveEquipmentDelete = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => { const newMap = new Map(prev); newMap.delete(equip.playerIdentity.toHexString()); return newMap; });
+            
+            // --- Mushroom Subscriptions ---
             const handleMushroomInsert = (ctx: any, mushroom: SpacetimeDB.Mushroom) => setMushrooms(prev => new Map(prev).set(mushroom.id.toString(), mushroom));
             const handleMushroomUpdate = (ctx: any, oldMushroom: SpacetimeDB.Mushroom, newMushroom: SpacetimeDB.Mushroom) => {
                 const changed = oldMushroom.posX !== newMushroom.posX ||
@@ -199,6 +219,8 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleMushroomDelete = (ctx: any, mushroom: SpacetimeDB.Mushroom) => setMushrooms(prev => { const newMap = new Map(prev); newMap.delete(mushroom.id.toString()); return newMap; });
+
+            // --- Corn Subscriptions ---
             const handleCornInsert = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => new Map(prev).set(corn.id.toString(), corn));
             const handleCornUpdate = (ctx: any, oldCorn: SpacetimeDB.Corn, newCorn: SpacetimeDB.Corn) => {
                 const changed = oldCorn.posX !== newCorn.posX ||
@@ -209,6 +231,20 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleCornDelete = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => { const newMap = new Map(prev); newMap.delete(corn.id.toString()); return newMap; });
+            
+            // --- Pumpkin Subscriptions ---
+            const handlePumpkinInsert = (ctx: any, pumpkin: SpacetimeDB.Pumpkin) => setPumpkins(prev => new Map(prev).set(pumpkin.id.toString(), pumpkin));
+            const handlePumpkinUpdate = (ctx: any, oldPumpkin: SpacetimeDB.Pumpkin, newPumpkin: SpacetimeDB.Pumpkin) => {
+                const changed = oldPumpkin.posX !== newPumpkin.posX ||
+                                oldPumpkin.posY !== newPumpkin.posY ||
+                                oldPumpkin.respawnAt !== newPumpkin.respawnAt;
+                if (changed) {
+                    setPumpkins(prev => new Map(prev).set(newPumpkin.id.toString(), newPumpkin));
+                }
+            };
+            const handlePumpkinDelete = (ctx: any, pumpkin: SpacetimeDB.Pumpkin) => setPumpkins(prev => { const newMap = new Map(prev); newMap.delete(pumpkin.id.toString()); return newMap; });
+
+            // --- Hemp Subscriptions ---
             const handleHempInsert = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => new Map(prev).set(hemp.id.toString(), hemp));
             const handleHempUpdate = (ctx: any, oldHemp: SpacetimeDB.Hemp, newHemp: SpacetimeDB.Hemp) => {
                 const changed = oldHemp.posX !== newHemp.posX ||
@@ -219,9 +255,13 @@ export const useSpacetimeTables = ({
                 }
             };
             const handleHempDelete = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => { const newMap = new Map(prev); newMap.delete(hemp.id.toString()); return newMap; });
+            
+            // --- Dropped Item Subscriptions ---
             const handleDroppedItemInsert = (ctx: any, item: SpacetimeDB.DroppedItem) => setDroppedItems(prev => new Map(prev).set(item.id.toString(), item));
             const handleDroppedItemUpdate = (ctx: any, oldItem: SpacetimeDB.DroppedItem, newItem: SpacetimeDB.DroppedItem) => setDroppedItems(prev => new Map(prev).set(newItem.id.toString(), newItem));
             const handleDroppedItemDelete = (ctx: any, item: SpacetimeDB.DroppedItem) => setDroppedItems(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
+            
+            // --- Wooden Storage Box Subscriptions ---
             const handleWoodenStorageBoxInsert = (ctx: any, box: SpacetimeDB.WoodenStorageBox) => {
                 setWoodenStorageBoxes(prev => new Map(prev).set(box.id.toString(), box));
                 if (connection.identity && box.placedBy.isEqual(connection.identity)) {
@@ -230,18 +270,28 @@ export const useSpacetimeTables = ({
             };
             const handleWoodenStorageBoxUpdate = (ctx: any, oldBox: SpacetimeDB.WoodenStorageBox, newBox: SpacetimeDB.WoodenStorageBox) => setWoodenStorageBoxes(prev => new Map(prev).set(newBox.id.toString(), newBox));
             const handleWoodenStorageBoxDelete = (ctx: any, box: SpacetimeDB.WoodenStorageBox) => setWoodenStorageBoxes(prev => { const newMap = new Map(prev); newMap.delete(box.id.toString()); return newMap; });
+            
+            // --- Recipe Subscriptions ---
             const handleRecipeInsert = (ctx: any, recipe: SpacetimeDB.Recipe) => setRecipes(prev => new Map(prev).set(recipe.recipeId.toString(), recipe));
             const handleRecipeUpdate = (ctx: any, oldRecipe: SpacetimeDB.Recipe, newRecipe: SpacetimeDB.Recipe) => setRecipes(prev => new Map(prev).set(newRecipe.recipeId.toString(), newRecipe));
             const handleRecipeDelete = (ctx: any, recipe: SpacetimeDB.Recipe) => setRecipes(prev => { const newMap = new Map(prev); newMap.delete(recipe.recipeId.toString()); return newMap; });
+            
+            // --- Crafting Queue Subscriptions ---
             const handleCraftingQueueInsert = (ctx: any, queueItem: SpacetimeDB.CraftingQueueItem) => setCraftingQueueItems(prev => new Map(prev).set(queueItem.queueItemId.toString(), queueItem));
             const handleCraftingQueueUpdate = (ctx: any, oldItem: SpacetimeDB.CraftingQueueItem, newItem: SpacetimeDB.CraftingQueueItem) => setCraftingQueueItems(prev => new Map(prev).set(newItem.queueItemId.toString(), newItem));
             const handleCraftingQueueDelete = (ctx: any, queueItem: SpacetimeDB.CraftingQueueItem) => setCraftingQueueItems(prev => { const newMap = new Map(prev); newMap.delete(queueItem.queueItemId.toString()); return newMap; });
+            
+            // --- Message Subscriptions ---
             const handleMessageInsert = (ctx: any, msg: SpacetimeDB.Message) => setMessages(prev => new Map(prev).set(msg.id.toString(), msg));
             const handleMessageUpdate = (ctx: any, oldMsg: SpacetimeDB.Message, newMsg: SpacetimeDB.Message) => setMessages(prev => new Map(prev).set(newMsg.id.toString(), newMsg));
             const handleMessageDelete = (ctx: any, msg: SpacetimeDB.Message) => setMessages(prev => { const newMap = new Map(prev); newMap.delete(msg.id.toString()); return newMap; });
+            
+            // --- Player Pin Subscriptions ---
             const handlePlayerPinInsert = (ctx: any, pin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => new Map(prev).set(pin.playerId.toHexString(), pin));
             const handlePlayerPinUpdate = (ctx: any, oldPin: SpacetimeDB.PlayerPin, newPin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => new Map(prev).set(newPin.playerId.toHexString(), newPin));
             const handlePlayerPinDelete = (ctx: any, pin: SpacetimeDB.PlayerPin) => setPlayerPins(prev => { const newMap = new Map(prev); newMap.delete(pin.playerId.toHexString()); return newMap; });
+            
+            // --- Active Connection Subscriptions ---
             const handleActiveConnectionInsert = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
                 console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
                 setActiveConnections(prev => {
@@ -259,6 +309,8 @@ export const useSpacetimeTables = ({
                     return newMap;
                 });
             };
+
+            // --- Sleeping Bag Subscriptions ---
             const handleSleepingBagInsert = (ctx: any, bag: SpacetimeDB.SleepingBag) => {
                 setSleepingBags(prev => new Map(prev).set(bag.id.toString(), bag));
                 if (connection.identity && bag.placedBy.isEqual(connection.identity)) {
@@ -271,6 +323,8 @@ export const useSpacetimeTables = ({
             const handleSleepingBagDelete = (ctx: any, bag: SpacetimeDB.SleepingBag) => {
                 setSleepingBags(prev => { const newMap = new Map(prev); newMap.delete(bag.id.toString()); return newMap; });
             };
+
+            // --- Player Corpse Subscriptions ---
             const handlePlayerCorpseInsert = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
                 setPlayerCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
             };
@@ -280,6 +334,8 @@ export const useSpacetimeTables = ({
             const handlePlayerCorpseDelete = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
                 setPlayerCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
             };
+
+            // --- Stash Subscriptions ---
             const handleStashInsert = (ctx: any, stash: SpacetimeDB.Stash) => {
                 setStashes(prev => new Map(prev).set(stash.id.toString(), stash));
                 if (connection.identity && stash.placedBy.isEqual(connection.identity)) {
@@ -305,6 +361,7 @@ export const useSpacetimeTables = ({
             connection.db.activeEquipment.onInsert(handleActiveEquipmentInsert); connection.db.activeEquipment.onUpdate(handleActiveEquipmentUpdate); connection.db.activeEquipment.onDelete(handleActiveEquipmentDelete);
             connection.db.mushroom.onInsert(handleMushroomInsert); connection.db.mushroom.onUpdate(handleMushroomUpdate); connection.db.mushroom.onDelete(handleMushroomDelete);
             connection.db.corn.onInsert(handleCornInsert); connection.db.corn.onUpdate(handleCornUpdate); connection.db.corn.onDelete(handleCornDelete);
+            connection.db.pumpkin.onInsert(handlePumpkinInsert); connection.db.pumpkin.onUpdate(handlePumpkinUpdate); connection.db.pumpkin.onDelete(handlePumpkinDelete);
             connection.db.hemp.onInsert(handleHempInsert); connection.db.hemp.onUpdate(handleHempUpdate); connection.db.hemp.onDelete(handleHempDelete);
             connection.db.droppedItem.onInsert(handleDroppedItemInsert); connection.db.droppedItem.onUpdate(handleDroppedItemUpdate); connection.db.droppedItem.onDelete(handleDroppedItemDelete);
             connection.db.woodenStorageBox.onInsert(handleWoodenStorageBoxInsert); connection.db.woodenStorageBox.onUpdate(handleWoodenStorageBoxUpdate); connection.db.woodenStorageBox.onDelete(handleWoodenStorageBoxDelete);
@@ -432,6 +489,9 @@ export const useSpacetimeTables = ({
                             // Corn
                             const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
+                            // Pumpkin
+                            const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
                             // Hemp
                             const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
@@ -520,6 +580,7 @@ export const useSpacetimeTables = ({
         campfires,
         mushrooms,
         corns,
+        pumpkins,
         hemps,
         itemDefinitions,
         inventoryItems,
