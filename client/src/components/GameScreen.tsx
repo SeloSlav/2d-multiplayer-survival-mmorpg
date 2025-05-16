@@ -118,7 +118,7 @@ interface GameScreenProps {
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
     // ADD THIS LOG AT THE VERY BEGINNING OF THE COMPONENT
-    console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
+    // console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
 
     // Destructure props for cleaner usage
     const {
@@ -141,7 +141,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     // You can also add a useEffect here if the above doesn't show up
     useEffect(() => {
-        console.log("[GameScreen.tsx] activeConsumableEffects prop after destructuring:", activeConsumableEffects);
+        // console.log("[GameScreen.tsx] activeConsumableEffects prop after destructuring:", activeConsumableEffects);
     }, [activeConsumableEffects]);
 
     // Find local player for viewport calculations
@@ -231,6 +231,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             />
             <Hotbar
                 playerIdentity={playerIdentity}
+                localPlayer={localPlayer || null}
                 itemDefinitions={itemDefinitions}
                 inventoryItems={inventoryItems}
                 onItemDragStart={onItemDragStart}

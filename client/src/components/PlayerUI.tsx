@@ -32,11 +32,6 @@ interface StatusBarProps {
 const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, barColor, glow, hasActiveEffect }) => {
   const percentage = Math.max(0, Math.min(100, (value / maxValue) * 100));
 
-  // Add console log for debugging
-  if (hasActiveEffect) {
-    console.log(`[PlayerUI] StatusBar '${label}' hasActiveEffect: true`);
-  }
-
   // Inline keyframes for pulse animation (self-contained)
   // Only inject once per page
   React.useEffect(() => {
@@ -181,41 +176,29 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     const FADE_OUT_ANIMATION_DURATION = 500; // ms for fade-out animation
     const MAX_NOTIFICATIONS_DISPLAYED = 5;
     // --- END NEW STATE ---
-    
-    // Add console log for activeConsumableEffects
-    useEffect(() => {
-        if (activeConsumableEffects && activeConsumableEffects.size > 0) {
-            console.log('[PlayerUI] activeConsumableEffects:', activeConsumableEffects);
-        }
-    }, [activeConsumableEffects]);
 
     // Determine if there's an active health regen effect for the local player
     const isHealthHealingOverTime = React.useMemo(() => {
         if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
         
         const localPlayerIdHex = localPlayer.identity.toHexString();
-        console.log(`[PlayerUI] Checking active effects for player: ${localPlayerIdHex}`);
+        // console.log(`[PlayerUI] Checking active effects for player: ${localPlayerIdHex}`);
 
         let foundMatch = false;
         activeConsumableEffects.forEach((effect, key) => {
             const effectPlayerIdHex = effect.playerId.toHexString();
             const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
             
-            console.log(`[PlayerUI] Effect ID ${key}: player ID matches: ${effectPlayerIdHex === localPlayerIdHex}, type tag: ${effectTypeTag}`);
+            // console.log(`[PlayerUI] Effect ID ${key}: player ID matches: ${effectPlayerIdHex === localPlayerIdHex}, type tag: ${effectTypeTag}`);
 
             if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'HealthRegen') {
-                console.log(`[PlayerUI] Found matching HealthRegen effect:`, effect);
+                // console.log(`[PlayerUI] Found matching HealthRegen effect:`, effect);
                 foundMatch = true;
             }
         });
 
         return foundMatch;
     }, [localPlayer, activeConsumableEffects]);
-
-    // Add console log for isHealthHealingOverTime
-    useEffect(() => {
-        console.log('[PlayerUI] isHealthHealingOverTime:', isHealthHealingOverTime);
-    }, [isHealthHealingOverTime]);
 
     useEffect(() => {
         if (!identity) {
@@ -561,6 +544,25 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     onCraftingSearchFocusChange={onCraftingSearchFocusChange}
                  />
              )}
+
+            {/* Hotbar Area */}
+            {!placementInfo && (
+                <Hotbar
+                    playerIdentity={identity}
+                    localPlayer={localPlayer}
+                    itemDefinitions={itemDefinitions}
+                    inventoryItems={inventoryItems}
+                    connection={connection}
+                    onItemDragStart={onItemDragStart}
+                    onItemDrop={onItemDrop}
+                    draggedItemInfo={draggedItemInfo}
+                    interactingWith={interactingWith}
+                    campfires={campfires}
+                    stashes={stashes}
+                    startPlacement={startPlacement}
+                    cancelPlacement={cancelPlacement}
+                />
+            )}
 
             {/* Drag Overlay is removed - ghost handled by DraggableItem */}
        </>

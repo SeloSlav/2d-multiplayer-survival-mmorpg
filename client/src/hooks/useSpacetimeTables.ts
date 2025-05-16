@@ -353,15 +353,15 @@ export const useSpacetimeTables = ({
             
             // --- ActiveConsumableEffect Subscriptions ---
             const handleActiveConsumableEffectInsert = (ctx: any, effect: SpacetimeDB.ActiveConsumableEffect) => {
-                console.log("[useSpacetimeTables] handleActiveConsumableEffectInsert CALLED, effect:", effect);
+                // console.log("[useSpacetimeTables] handleActiveConsumableEffectInsert CALLED, effect:", effect);
                 setActiveConsumableEffects(prev => new Map(prev).set(effect.effectId.toString(), effect));
             };
             const handleActiveConsumableEffectUpdate = (ctx: any, oldEffect: SpacetimeDB.ActiveConsumableEffect, newEffect: SpacetimeDB.ActiveConsumableEffect) => {
-                console.log("[useSpacetimeTables] handleActiveConsumableEffectUpdate CALLED, newEffect:", newEffect);
+                // console.log("[useSpacetimeTables] handleActiveConsumableEffectUpdate CALLED, newEffect:", newEffect);
                 setActiveConsumableEffects(prev => new Map(prev).set(newEffect.effectId.toString(), newEffect));
             };
             const handleActiveConsumableEffectDelete = (ctx: any, effect: SpacetimeDB.ActiveConsumableEffect) => {
-                console.log("[useSpacetimeTables] handleActiveConsumableEffectDelete CALLED, effect:", effect);
+                // console.log("[useSpacetimeTables] handleActiveConsumableEffectDelete CALLED, effect:", effect);
                 setActiveConsumableEffects(prev => { const newMap = new Map(prev); newMap.delete(effect.effectId.toString()); return newMap; });
             };
             

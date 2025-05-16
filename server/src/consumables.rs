@@ -17,6 +17,7 @@ use crate::active_effects::{ActiveConsumableEffect, EffectType, active_consumabl
 // --- Max Stat Value ---
 const MAX_STAT_VALUE: f32 = 100.0; // Max value for health, hunger, thirst
 const MIN_STAT_VALUE: f32 = 0.0;   // Min value for stats like health
+const CONSUMPTION_COOLDOWN_MICROS: u64 = 1_000_000; // 1 second cooldown
 
 #[spacetimedb::reducer]
 pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
@@ -27,6 +28,21 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let active_effects_table = ctx.db.active_consumable_effect();
 
     log::info!("[ConsumeItem] Player {:?} attempting to consume item instance {}", sender_id, item_instance_id);
+
+    // 0. Get the player and check cooldown
+    let mut player_to_update = players_table.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found to apply consumable effects.".to_string())?;
+
+    if let Some(last_consumed_ts) = player_to_update.last_consumed_at {
+        let cooldown_duration = TimeDuration::from_micros(CONSUMPTION_COOLDOWN_MICROS as i64);
+        if ctx.timestamp < last_consumed_ts + cooldown_duration {
+            log::warn!(
+                "[ConsumeItem] Player {:?} attempted to consume too quickly. Last consumed: {:?}, current: {:?}", 
+                sender_id, last_consumed_ts, ctx.timestamp
+            );
+            return Err("You are consuming items too quickly.".to_string());
+        }
+    }
 
     // 1. Get the InventoryItem being consumed
     let mut item_to_consume = inventory.instance_id().find(item_instance_id)
@@ -57,8 +73,8 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     }
 
     // 5. Find the player to apply effects to
-    let mut player_to_update = players_table.identity().find(&sender_id)
-        .ok_or_else(|| "Player not found to apply consumable effects.".to_string())?;
+    // let mut player_to_update = players_table.identity().find(&sender_id)
+    //     .ok_or_else(|| "Player not found to apply consumable effects.".to_string())?;
 
     // 6. Apply Effects (Based on ItemDefinition fields)
     let mut stat_changed_instantly = false;
@@ -150,10 +166,12 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
         inventory.instance_id().update(item_to_consume);
     }
 
-    // 8. Update Player state only if stats changed
-    if stat_changed_instantly {
-         players_table.identity().update(player_to_update);
-    }
+    // 8. Update Player state
+    player_to_update.last_consumed_at = Some(ctx.timestamp); // Update last consumed time
+    // Update Player state only if stats changed or cooldown was updated (always update now)
+    // if stat_changed_instantly { // Old condition
+    players_table.identity().update(player_to_update);
+    // }
 
     Ok(())
 }

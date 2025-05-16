@@ -51,7 +51,7 @@ pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 1.0;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_THIRST: f32 = 0.5;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_HUNGER: f32 = 0.4;
 pub(crate) const HEALTH_LOSS_MULTIPLIER_AT_ZERO: f32 = 2.0;
-pub(crate) const HEALTH_RECOVERY_THRESHOLD: f32 = 80.0;
+pub(crate) const HEALTH_RECOVERY_THRESHOLD: f32 = 51.0;
 pub(crate) const HEALTH_RECOVERY_PER_SEC: f32 = 1.0;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.6;
 
@@ -220,10 +220,11 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         }
 
         // Health recovery only if needs are met and not taking damage
-        if health_change_per_sec == 0.0 &&
+        if health_change_per_sec == 0.0 && // No damage from needs
+           player.health >= HEALTH_RECOVERY_THRESHOLD && // ADDED: Only regen if health is already high
            new_hunger >= HEALTH_RECOVERY_THRESHOLD &&
            new_thirst >= HEALTH_RECOVERY_THRESHOLD &&
-           new_warmth >= low_need_threshold {
+           new_warmth >= low_need_threshold { // Ensure warmth is also at a decent level (using low_need_threshold for now)
             health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
         }
 

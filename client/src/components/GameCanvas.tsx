@@ -54,6 +54,7 @@ import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
 import { renderStash } from '../utils/renderers/stashRenderingUtils';
+import { renderPlayerTorchLight } from '../utils/renderers/lightRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -73,6 +74,13 @@ import {
 
 // Define a placeholder height for Stash for indicator rendering
 const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
+
+// Define specific torch light properties, or reuse campfire ones
+// These constants are now duplicated from useTorchLight.ts, consider centralizing if used in more places.
+const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; 
+const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7;
+const TORCH_LIGHT_INNER_COLOR = CAMPFIRE_LIGHT_INNER_COLOR;
+const TORCH_LIGHT_OUTER_COLOR = CAMPFIRE_LIGHT_OUTER_COLOR;
 
 // --- Prop Interface ---
 interface GameCanvasProps {
@@ -649,20 +657,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         }
     });
 
-    // --- Render Torch Light (if active) ---
-    if (_localTorchLightParams) {
-        const lightScreenX = _localTorchLightParams.centerX + cameraOffsetX;
-        const lightScreenY = _localTorchLightParams.centerY + cameraOffsetY;
-        const flicker = (Math.random() - 0.5) * 2 * _localTorchLightParams.flickerAmount;
-        const currentLightRadius = Math.max(0, _localTorchLightParams.radius + flicker);
-        const lightGradient = ctx.createRadialGradient(lightScreenX, lightScreenY, 0, lightScreenX, lightScreenY, currentLightRadius);
-        lightGradient.addColorStop(0, _localTorchLightParams.innerColor);
-        lightGradient.addColorStop(1, _localTorchLightParams.outerColor);
-        ctx.fillStyle = lightGradient;
-        ctx.beginPath();
-        ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
-        ctx.fill();
-    }
+    // --- Render Torch Light for ALL players (Local and Remote) ---
+    players.forEach(player => {
+      renderPlayerTorchLight({
+        ctx,
+        player,
+        activeEquipments,
+        itemDefinitions,
+        cameraOffsetX,
+        cameraOffsetY,
+      });
+    });
     // --- End Torch Light ---
 
     ctx.restore();

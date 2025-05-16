@@ -50,6 +50,8 @@ use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLL
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::active_effects; // Added for cancelling health regen
+use crate::active_effects::{ActiveConsumableEffect, EffectType}; // Added for Bleed effect
+use crate::active_effects::active_consumable_effect as ActiveConsumableEffectTableTrait; // Added for Bleed effect table access
 // --- Game Balance Constants ---
 /// Time in seconds before resources (trees, stones) respawn after being depleted
 pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
@@ -895,6 +897,36 @@ pub fn damage_player(
     // === ADDED: Cancel any active health regen effects ===
     active_effects::cancel_health_regen_effects(ctx, target_id);
     // ====================================================
+
+    // --- ADDED: Apply Bleed effect if hit by a Spear ---
+    if item_name == "Wooden Spear" {
+        log::info!("[DamagePlayer] Spear hit! Applying Bleed to {:?}.", target_id);
+
+        // Bleed effect: 60 damage over 10 seconds (6 DPS) - INCREASED FOR TESTING
+        let bleed_total_damage = 60.0;
+        let bleed_duration_seconds: u64 = 10;
+        let tick_interval_micros: u64 = 1_000_000; // 1 second
+
+        // Check if a bleed effect from the same item_def_id (or 0 if generic spear bleed)
+        let bleed_effect = ActiveConsumableEffect {
+            effect_id: 0, // Auto-incremented
+            player_id: target_id,
+            item_def_id: 0, // 0 for status effects not directly from consuming an item, or pass spear item_def_id if preferred
+            started_at: timestamp,
+            ends_at: timestamp + TimeDuration::from_micros(bleed_duration_seconds as i64 * 1_000_000),
+            total_amount: Some(bleed_total_damage),
+            amount_applied_so_far: Some(0.0),
+            effect_type: EffectType::Bleed,
+            tick_interval_micros,
+            next_tick_at: timestamp + TimeDuration::from_micros(tick_interval_micros as i64), // Start ticking after 1 second
+        };
+
+        match ctx.db.active_consumable_effect().try_insert(bleed_effect) {
+            Ok(_) => log::info!("Applied Bleed effect to Player {:?} from Spear hit.", target_id),
+            Err(e) => log::error!("Failed to apply Bleed effect to Player {:?}: {:?}", target_id, e),
+        }
+    }
+    // --- END Bleed effect ---
 
     log::info!("Player {:?} hit Player {:?} with {} for {:.1} damage. Health: {:.1} -> {:.1}",
            attacker_id, target_id, item_name, damage, old_health, new_health);

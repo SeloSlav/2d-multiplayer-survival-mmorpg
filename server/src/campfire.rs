@@ -30,6 +30,10 @@
  use crate::environment::calculate_chunk_index; // Assuming helper is here or in utils
  use crate::dropped_item::create_dropped_item_entity; // For dropping charcoal
  
+ // --- ADDED: Import for active effects ---
+ use crate::active_effects::{ActiveConsumableEffect, EffectType};
+ use crate::active_effects::active_consumable_effect as ActiveConsumableEffectTableTrait; // Added trait import
+ 
  // --- Constants ---
  // Collision constants
  pub(crate) const CAMPFIRE_COLLISION_RADIUS: f32 = 18.0;
@@ -53,6 +57,14 @@
  const FUEL_CHECK_INTERVAL_SECS: u64 = 1;
  pub const CAMPFIRE_PROCESS_INTERVAL_SECS: u64 = 1; // How often to run the main logic when burning
  const CHARCOAL_PRODUCTION_CHANCE: u8 = 75; // 75% chance
+ 
+ // --- ADDED: Campfire Damage Constants ---
+ const CAMPFIRE_DAMAGE_CENTER_Y_OFFSET: f32 = 35.0; // Adjusts the perceived center of the damage radius upwards - INCREASED
+ const CAMPFIRE_DAMAGE_RADIUS: f32 = 35.0; // Players within this radius of the campfire center might take damage - INCREASED by 20%
+ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 1225.0; // 35.0 * 35.0
+ const CAMPFIRE_DAMAGE_PER_TICK: f32 = 5.0; // How much damage is applied per tick
+ const CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS: u64 = 1; // Duration of the damage effect (short, effectively one tick)
+ const CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS: u64 = 0; // MODIFIED: Apply damage every process tick if player is present
  
  /// --- Campfire Data Structure ---
  /// Represents a campfire in the game world with position, owner, burning state,
@@ -94,6 +106,7 @@
      pub slot_2_cooking_progress: Option<CookingProgress>,
      pub slot_3_cooking_progress: Option<CookingProgress>,
      pub slot_4_cooking_progress: Option<CookingProgress>,
+     pub last_damage_application_time: Option<Timestamp>, // ADDED: For damage cooldown
  }
  
  // ADD NEW Schedule Table for per-campfire processing
@@ -442,6 +455,9 @@
      let mut inventory_items_table = ctx.db.inventory_item();
      let item_definition_table = ctx.db.item_definition(); // Keep this if fuel logic or charcoal needs it.
  
+     // Get a mutable handle to the active_consumable_effect table
+     let mut active_effects_table = ctx.db.active_consumable_effect();
+ 
      let mut campfire = match campfires_table.id().find(campfire_id) {
          Some(cf) => cf,
          None => {
@@ -460,8 +476,67 @@
      let mut made_changes_to_campfire_struct = false;
      let mut produced_charcoal_and_modified_campfire_struct = false; // For charcoal logic
  
+     let current_time = ctx.timestamp;
+     log::trace!("[CampfireProcess {}] Current time: {:?}", campfire_id, current_time);
+ 
      if campfire.is_burning {
+         log::debug!("[CampfireProcess {}] Is BURNING.", campfire_id);
          let time_increment = CAMPFIRE_PROCESS_INTERVAL_SECS as f32;
+ 
+         // --- ADDED: Campfire Damage Logic ---
+         let damage_cooldown_duration = TimeDuration::from_micros(CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS as i64 * 1_000_000);
+         log::trace!("[CampfireProcess {}] Damage cooldown duration: {:?}", campfire_id, damage_cooldown_duration);
+         log::trace!("[CampfireProcess {}] Last damage application time: {:?}", campfire_id, campfire.last_damage_application_time);
+ 
+         let can_apply_damage = campfire.last_damage_application_time.map_or(true, |last_time| {
+             current_time >= last_time + damage_cooldown_duration
+         });
+         log::debug!("[CampfireProcess {}] Can apply damage this tick: {}", campfire_id, can_apply_damage);
+ 
+         if can_apply_damage {
+             // --- MODIFIED: Update cooldown time immediately upon damage attempt ---
+             campfire.last_damage_application_time = Some(current_time);
+             made_changes_to_campfire_struct = true;
+             log::debug!("[CampfireProcess {}] Damage application attempt at {:?}. Updated last_damage_application_time.", campfire_id, current_time);
+             // --- END MODIFICATION ---
+
+             let mut applied_damage_this_tick = false;
+             for player_entity in ctx.db.player().iter() {
+                 if player_entity.is_dead { continue; } // Skip dead players
+                 let dx = player_entity.position_x - campfire.pos_x;
+                 let dy = player_entity.position_y - (campfire.pos_y - CAMPFIRE_DAMAGE_CENTER_Y_OFFSET);
+                 let dist_sq = dx * dx + dy * dy;
+ 
+                 log::trace!("[CampfireProcess {}] Checking player {:?} at ({:.1}, {:.1}). Campfire at ({:.1}, {:.1}, effective Y for damage: {:.1}). DistSq: {:.1}, DamageRadiusSq: {:.1}",
+                     campfire_id, player_entity.identity, player_entity.position_x, player_entity.position_y,
+                     campfire.pos_x, campfire.pos_y, (campfire.pos_y - CAMPFIRE_DAMAGE_CENTER_Y_OFFSET), dist_sq, CAMPFIRE_DAMAGE_RADIUS_SQUARED);
+ 
+                 if dist_sq < CAMPFIRE_DAMAGE_RADIUS_SQUARED {
+                     log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Attempting to apply damage effect.", campfire_id, player_entity.identity);
+                     let damage_effect = ActiveConsumableEffect {
+                         effect_id: 0, // Auto-incremented by the table
+                         player_id: player_entity.identity,
+                         item_def_id: 0, // 0 for environmental/non-item effects
+                         started_at: current_time,
+                         ends_at: current_time + TimeDuration::from_micros(CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS as i64 * 1_000_000),
+                         total_amount: Some(CAMPFIRE_DAMAGE_PER_TICK),
+                         amount_applied_so_far: Some(0.0),
+                         effect_type: EffectType::Damage,
+                         tick_interval_micros: CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS * 1_000_000,
+                         next_tick_at: current_time, // Apply immediately
+                     };
+                     match active_effects_table.try_insert(damage_effect) {
+                         Ok(_) => {
+                             log::info!("[CampfireProcess {}] Successfully INSERTED damage effect for player {:?}", campfire_id, player_entity.identity);
+                             applied_damage_this_tick = true; // Mark that we attempted to apply damage
+                         }
+                         Err(e) => {
+                             log::error!("[CampfireProcess {}] FAILED to insert damage effect for player {:?}: {:?}", campfire_id, player_entity.identity, e);
+                         }
+                     }
+                 }
+             }
+         }
  
          // --- COOKING LOGIC (now delegated) ---
          let active_fuel_instance_id_for_cooking_check = campfire.current_fuel_def_id.and_then(|fuel_def_id| {
@@ -571,6 +646,7 @@
          }
      } else { // campfire.is_burning is false
          log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed for fuel/cooking.", campfire.id);
+         log::debug!("[CampfireProcess {}] Is NOT burning. Skipping damage and fuel/cooking.", campfire_id);
      }
  
      if made_changes_to_campfire_struct || produced_charcoal_and_modified_campfire_struct {

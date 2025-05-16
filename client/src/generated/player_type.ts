@@ -51,6 +51,7 @@ export type Player = {
   lastHitTime: Timestamp | undefined,
   isOnline: boolean,
   isTorchLit: boolean,
+  lastConsumedAt: Timestamp | undefined,
 };
 
 /**
@@ -83,6 +84,7 @@ export namespace Player {
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("isOnline", AlgebraicType.createBoolType()),
       new ProductTypeElement("isTorchLit", AlgebraicType.createBoolType()),
+      new ProductTypeElement("lastConsumedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

@@ -141,6 +141,7 @@ pub struct Player {
     pub last_hit_time: Option<Timestamp>,
     pub is_online: bool, // <<< ADDED
     pub is_torch_lit: bool, // <<< ADDED: Tracks if the player's torch is currently lit
+    pub last_consumed_at: Option<Timestamp>, // <<< ADDED: Tracks when a player last consumed an item
 }
 
 // --- NEW: Define ActiveConnection Table --- 
@@ -475,6 +476,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         last_hit_time: None,
         is_online: true, // <<< Keep this for BRAND NEW players
         is_torch_lit: false, // Initialize to false
+        last_consumed_at: None, // Initialize last_consumed_at
     };
 
     // Insert the new player
@@ -611,19 +613,16 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
 
     // --- 5a. Insert Campfire Entity first to get its ID ---
     // The campfire entity is created with initial fuel data directly
-    let new_campfire_data_without_fuel_ids = Campfire {
+    let new_campfire = Campfire {
         id: 0, // Auto-incremented
         pos_x: world_x,
         pos_y: world_y,
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: current_time,
-        is_burning: true, // Start burning by default
-        // Let the scheduled processor handle these initially
-        current_fuel_def_id: None, 
-        remaining_fuel_burn_time_secs: None, 
-        fuel_instance_id_0: None, 
-        fuel_def_id_0: None,      
+        is_burning: false,
+        fuel_instance_id_0: None,
+        fuel_def_id_0: None,
         fuel_instance_id_1: None,
         fuel_def_id_1: None,
         fuel_instance_id_2: None,
@@ -632,18 +631,21 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_def_id_3: None,
         fuel_instance_id_4: None,
         fuel_def_id_4: None,
-        health: 250.0, // Initial health for Campfire
-        max_health: 250.0, // Max health for Campfire
+        current_fuel_def_id: None,
+        remaining_fuel_burn_time_secs: None,
+        health: 100.0, // Example initial health
+        max_health: 100.0, // Example max health
         is_destroyed: false,
         destroyed_at: None,
-        last_hit_time: None, // Initialize last_hit_time
+        last_hit_time: None,
         slot_0_cooking_progress: None,
         slot_1_cooking_progress: None,
         slot_2_cooking_progress: None,
         slot_3_cooking_progress: None,
         slot_4_cooking_progress: None,
+        last_damage_application_time: None, // Initialize the new field
     };
-    let inserted_campfire = campfires.try_insert(new_campfire_data_without_fuel_ids)
+    let inserted_campfire = campfires.try_insert(new_campfire.clone())
         .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;
     let new_campfire_id = inserted_campfire.id; 
 
@@ -670,7 +672,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     campfire_to_update.fuel_instance_id_0 = Some(fuel_instance_id);
     campfire_to_update.fuel_def_id_0 = Some(wood_def_id);
     // DO NOT set current_fuel_def_id or remaining_fuel_burn_time_secs here.
-    // is_burning is already true from new_campfire_data_without_fuel_ids.
+    // is_burning is already false from new_campfire.
     // The scheduled process_campfire_logic_scheduled will pick it up.
     
     let is_burning_for_log = campfire_to_update.is_burning; // Capture before move

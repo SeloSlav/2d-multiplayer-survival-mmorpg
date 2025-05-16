@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash } from '../generated';
-import { Identity } from '@clockworklabs/spacetimedb-sdk';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash, Player } from '../generated';
+import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
 
 // Import Custom Components
 import DraggableItem from './DraggableItem';
 import DroppableSlot from './DroppableSlot';
 
 // Import shared types
-import { PopulatedItem } from './InventoryUI'; // Assuming PopulatedItem is exported from InventoryUI
-import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes'; // Updated import location
+import { PopulatedItem } from './InventoryUI';
+import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 import { PlacementItemInfo } from '../hooks/usePlacementManager';
 
 // Style constants similar to PlayerUI
@@ -19,10 +19,13 @@ const UI_FONT_FAMILY = '"Press Start 2P", cursive';
 const SLOT_SIZE = 60; // Size of each hotbar slot in pixels
 const SLOT_MARGIN = 6;
 const SELECTED_BORDER_COLOR = '#ffffff';
+const CONSUMPTION_COOLDOWN_MICROS = 1_000_000; // 1 second, matches server
+const CLIENT_ANIMATION_DURATION_MS = CONSUMPTION_COOLDOWN_MICROS / 1000; // Duration for client animation
 
 // Update HotbarProps
 interface HotbarProps {
   playerIdentity: Identity | null;
+  localPlayer: Player | null;
   itemDefinitions: Map<string, ItemDefinition>;
   inventoryItems: Map<string, InventoryItem>;
   connection: DbConnection | null;
@@ -39,6 +42,7 @@ interface HotbarProps {
 // --- Hotbar Component ---
 const Hotbar: React.FC<HotbarProps> = ({
     playerIdentity,
+    localPlayer,
     itemDefinitions,
     inventoryItems,
     connection,
@@ -49,18 +53,80 @@ const Hotbar: React.FC<HotbarProps> = ({
     startPlacement,
     cancelPlacement,
 }) => {
-  // console.log("Hotbar Props:", { playerIdentity, itemDefinitions, inventoryItems }); // Log received props
-  const [selectedSlot, setSelectedSlot] = useState<number>(0); // 0-indexed (0-5)
+  console.log('[Hotbar] Rendering. CLIENT_ANIMATION_DURATION_MS:', CLIENT_ANIMATION_DURATION_MS); // Added log
+  const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  const [isVisualCooldownActive, setIsVisualCooldownActive] = useState<boolean>(false);
+  const [visualCooldownStartTime, setVisualCooldownStartTime] = useState<number | null>(null);
+  const [animationProgress, setAnimationProgress] = useState<number>(0);
+  const visualCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const numSlots = 6;
 
-  // Updated findItemForSlot to return PopulatedItem, wrapped in useCallback
+  // Cleanup refs on unmount
+  useEffect(() => {
+    return () => {
+      if (visualCooldownTimeoutRef.current) {
+        clearTimeout(visualCooldownTimeoutRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  // Dedicated effect for the cooldown animation progress
+  useEffect(() => {
+    if (isVisualCooldownActive && visualCooldownStartTime !== null) {
+      console.log('[Hotbar Animation] Starting animation loop. visualCooldownStartTime:', visualCooldownStartTime); // Added log
+      const animate = () => {
+        if (visualCooldownStartTime === null) { // Guard against null startTime
+            console.log('[Hotbar Animation] animate: visualCooldownStartTime is null, stopping.');
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            setIsVisualCooldownActive(false);
+            setAnimationProgress(0);
+            return;
+        }
+        const elapsedTimeMs = Date.now() - visualCooldownStartTime;
+        const currentProgress = Math.min(1, elapsedTimeMs / CLIENT_ANIMATION_DURATION_MS);
+        console.log(`[Hotbar Animation] animate: elapsedTimeMs=${elapsedTimeMs}, currentProgress=${currentProgress.toFixed(3)}`); // Added log
+        setAnimationProgress(currentProgress);
+
+        if (currentProgress < 1) {
+          animationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          // Animation finished
+          console.log('[Hotbar Animation] Animation loop finished. Progress reached 1.'); // Added log
+          setIsVisualCooldownActive(false);
+          setVisualCooldownStartTime(null);
+          setAnimationProgress(0); // Ensure progress is reset
+        }
+      };
+      animationFrameRef.current = requestAnimationFrame(animate);
+    } else {
+      // Ensure animation stops if not active
+      console.log('[Hotbar Animation] Effect: Cooldown not active or startTime is null. Cancelling animation frame if any.'); // Added log
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (animationProgress !== 0) { // Only set if it's not already 0 to avoid potential loop
+        // setAnimationProgress(0); // Reset progress if cooldown becomes inactive -- This might be redundant if a new animation starts immediately
+      }
+    }
+
+    return () => {
+      console.log('[Hotbar Animation] Effect cleanup. Cancelling animation frame:', animationFrameRef.current); // Added log
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [isVisualCooldownActive, visualCooldownStartTime]);
+
   const findItemForSlot = useCallback((slotIndex: number): PopulatedItem | null => {
     if (!playerIdentity) return null;
-    // Use props directly inside useCallback dependencies
-    for (const itemInstance of inventoryItems.values()) { 
-      // Check if the item is in a Hotbar location
+    for (const itemInstance of inventoryItems.values()) {
       if (itemInstance.location.tag === 'Hotbar') {
-        // Access the Hotbar-specific data using the imported type
         const hotbarData = itemInstance.location.value as HotbarLocationData;
         if (hotbarData.ownerId.isEqual(playerIdentity) && hotbarData.slotIndex === slotIndex) {
           const definition = itemDefinitions.get(itemInstance.itemDefId.toString());
@@ -71,142 +137,129 @@ const Hotbar: React.FC<HotbarProps> = ({
       }
     }
     return null;
-  }, [playerIdentity, inventoryItems, itemDefinitions]); // Dependencies for useCallback
+  }, [playerIdentity, inventoryItems, itemDefinitions]);
 
-  // Define handleKeyDown with useCallback
+  const triggerClientCooldownAnimation = useCallback(() => {
+    if (isVisualCooldownActive) {
+      console.log('[Hotbar] triggerClientCooldownAnimation called, but visual cooldown is ALREADY ACTIVE. Ignoring call.');
+      return; // Do not restart if already active
+    }
+    console.log('[Hotbar] triggerClientCooldownAnimation called. Setting visual cooldown active.'); // Modified log
+    setIsVisualCooldownActive(true);
+    setVisualCooldownStartTime(Date.now());
+    setAnimationProgress(0); // Start progress from 0
+
+    if (visualCooldownTimeoutRef.current) {
+      clearTimeout(visualCooldownTimeoutRef.current);
+    }
+    visualCooldownTimeoutRef.current = setTimeout(() => {
+      console.log('[Hotbar] Visual cooldown timeout in triggerClientCooldownAnimation completed. Resetting visual cooldown.'); // Modified log
+      setIsVisualCooldownActive(false);
+      setVisualCooldownStartTime(null);
+      // setAnimationProgress(0); // Handled by useEffect or animation completion
+    }, CLIENT_ANIMATION_DURATION_MS);
+  }, [isVisualCooldownActive]); // Added isVisualCooldownActive to dependency array
+
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const inventoryPanel = document.querySelector('.inventoryPanel');
     if (inventoryPanel) return;
     const keyNum = parseInt(event.key);
     if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= numSlots) {
       const newSlotIndex = keyNum - 1;
-      setSelectedSlot(newSlotIndex); // Select the slot regardless of action
-
+      setSelectedSlot(newSlotIndex);
       const itemInNewSlot = findItemForSlot(newSlotIndex);
-      if (!connection?.reducers) {
-          console.warn("No connection/reducers for keydown action");
-          return;
-      }
-      
-      // --- Determine Action Based on Item in Slot --- 
+      if (!connection?.reducers) return;
       if (itemInNewSlot) {
           const categoryTag = itemInNewSlot.definition.category.tag;
-          const name = itemInNewSlot.definition.name;
           const instanceId = BigInt(itemInNewSlot.instance.instanceId);
-
           if (categoryTag === 'Consumable') {
-              // console.log(`Hotbar Key ${keyNum}: Consuming item instance ${instanceId} (${name})`);
-              cancelPlacement(); // Cancel placement if consuming
+              cancelPlacement();
               try {
                   connection.reducers.consumeItem(instanceId);
-              } catch (err) { 
-                  console.error(`[Hotbar KeyDown] Error consuming item ${instanceId}:`, err);
-              }
-              // No equip/unequip needed after consuming
+                  triggerClientCooldownAnimation();
+              } catch (err) { console.error(`[Hotbar KeyDown] Error consuming item ${instanceId}:`, err); }
           } else if (categoryTag === 'Armor') {
-              // console.log(`Hotbar Key ${keyNum}: Equipping ARMOR instance ${instanceId} (${name})`);
               cancelPlacement();
               try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
           } else if (categoryTag === 'Placeable') {
-              // console.log(`Hotbar Key ${keyNum}: Starting placement for ${name}.`);
               const placementInfo: PlacementItemInfo = {
                   itemDefId: BigInt(itemInNewSlot.definition.id),
-                  itemName: name,
+                  itemName: itemInNewSlot.definition.name,
                   iconAssetName: itemInNewSlot.definition.iconAssetName,
                   instanceId: BigInt(itemInNewSlot.instance.instanceId)
               };
               startPlacement(placementInfo);
               try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
           } else if (itemInNewSlot.definition.isEquippable) {
-              // console.log(`Hotbar Key ${keyNum}: Equipping item instance ${instanceId} (${name})`);
               cancelPlacement();
               try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
           } else {
-              // Item exists but isn't consumable, armor, campfire, or equippable - treat as selecting non-actionable (unequip current)
-              // console.log(`Hotbar Key ${keyNum}: Selected non-actionable item (${name}), unequipping.`);
               cancelPlacement();
               try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
           }
       } else {
-          // Slot is empty - Unequip current item
-          // console.log(`Hotbar Key ${keyNum}: Slot empty, unequipping.`);
           cancelPlacement();
           try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       }
     }
-  }, [numSlots, findItemForSlot, connection, cancelPlacement, startPlacement, playerIdentity]);
+  }, [numSlots, findItemForSlot, connection, cancelPlacement, startPlacement, playerIdentity, triggerClientCooldownAnimation]);
 
-  // Effect for handling hotbar interaction (keyboard only now)
   useEffect(() => {
-    // Add the memoized listener
     window.addEventListener('keydown', handleKeyDown);
-
-    // Remove the memoized listener on cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-    // Only depend on the memoized handler function
   }, [handleKeyDown]);
 
-  // --- Click Handler for Slots --- 
   const handleSlotClick = (index: number) => {
       setSelectedSlot(index);
       const clickedItem = findItemForSlot(index);
-      if (!connection?.reducers || !clickedItem) { // Check for item early
-         if (!clickedItem) {
-             // console.log(`Hotbar Click: Slot ${index + 1} empty, unequipping.`);
-             cancelPlacement(); // Cancel placement if slot empty
-             try { if (playerIdentity) connection?.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+      if (!connection?.reducers) {
+        if (!clickedItem && playerIdentity) {
+             cancelPlacement();
+             try { connection?.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
          }
          return; 
       }
-
-      // Check item category
+      if (!clickedItem) { 
+        if (playerIdentity) {
+            cancelPlacement();
+            try { connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+        }
+        return;
+      }
       const categoryTag = clickedItem.definition.category.tag;
-      const name = clickedItem.definition.name;
       const instanceId = BigInt(clickedItem.instance.instanceId);
-
       if (categoryTag === 'Consumable') {
-          // console.log(`Hotbar Click: Consuming item instance ${instanceId} (${name}) in slot ${index + 1}`);
-          cancelPlacement(); // Should not be placing and consuming
+          cancelPlacement();
           try {
               connection.reducers.consumeItem(instanceId);
-          } catch (err) {
-              console.error(`Error consuming item ${instanceId}:`, err);
-          }
+              triggerClientCooldownAnimation();
+          } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
       } else if (categoryTag === 'Armor') {
-          // console.log(`Hotbar Click: Equipping ARMOR instance ${instanceId} (${name}) in slot ${index + 1}`);
           cancelPlacement();
           try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
       } else if (categoryTag === 'Placeable') {
-          // console.log(`Hotbar Click: Starting placement for ${name} (Slot ${index + 1}).`);
           const placementInfo: PlacementItemInfo = {
               itemDefId: BigInt(clickedItem.definition.id),
-              itemName: name,
+              itemName: clickedItem.definition.name,
               iconAssetName: clickedItem.definition.iconAssetName,
               instanceId: BigInt(clickedItem.instance.instanceId)
           };
           startPlacement(placementInfo);
           try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       } else if (clickedItem.definition.isEquippable) {
-          // console.log(`Hotbar Click: Equipping item instance ${instanceId} (${name}) in slot ${index + 1}`);
           cancelPlacement();
           try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
       } else {
-          // Default: If not consumable, armor, campfire, or equippable, treat as selecting non-actionable item (unequip current hand item)
-          // console.log(`Hotbar Click: Slot ${index + 1} contains non-actionable item (${name}), unequipping.`);
           cancelPlacement();
           try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
       }
   };
 
-  // --- Context Menu Handler for Hotbar Items ---
   const handleHotbarItemContextMenu = (event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
       event.preventDefault();
       event.stopPropagation();
-      // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${itemInfo.instance.hotbarSlot}`);
-      // Update to use location for slot identification if necessary, or remove if PopulatedItem now gets slot from findItemForSlot correctly
-      // If itemInfo.instance.location.tag === 'Hotbar', then use itemInfo.instance.location.value.slot_index
       if (itemInfo.instance.location.tag === 'Hotbar') {
         const hotbarData = itemInfo.instance.location.value as HotbarLocationData;
         console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${hotbarData.slotIndex}`);
@@ -215,87 +268,64 @@ const Hotbar: React.FC<HotbarProps> = ({
       }
 
       if (!connection?.reducers) return;
-
       const itemInstanceId = BigInt(itemInfo.instance.instanceId);
 
-      // --- REORDERED LOGIC: Prioritize Open Containers --- 
-
-      // 1. Check if interacting with a storage box
       if (interactingWith?.type === 'wooden_storage_box') {
-          const boxIdNum = Number(interactingWith.id); // Box ID is u32, safe to Number
-          // console.log(`[Hotbar ContextMenu Hotbar->Box] Box ${boxIdNum} open. Calling quick_move_to_box for item ${itemInstanceId}`);
+          const boxIdNum = Number(interactingWith.id);
           try {
               connection.reducers.quickMoveToBox(boxIdNum, itemInstanceId);
           } catch (error: any) {
               console.error("[Hotbar ContextMenu Hotbar->Box] Failed to call quickMoveToBox reducer:", error);
-              // TODO: Show user feedback? (e.g., "Box full")
           }
-          return; // Action handled
+          return;
       } 
-      // 2. Else, check if interacting with campfire
       else if (interactingWith?.type === 'campfire') {
           const campfireIdNum = Number(interactingWith.id);
-          // console.log(`[Hotbar ContextMenu Hotbar->Campfire] Campfire ${campfireIdNum} open. Calling quick_move_to_campfire for item ${itemInstanceId}`);
            try {
                connection.reducers.quickMoveToCampfire(campfireIdNum, itemInstanceId);
            } catch (error: any) {
                console.error("[Hotbar ContextMenu Hotbar->Campfire] Failed to call quickMoveToCampfire reducer:", error);
            }
-           return; // Action handled
+           return;
       } 
-      // --- ADD THIS --- 
       else if (interactingWith?.type === 'player_corpse') {
-           const corpseId = Number(interactingWith.id); // Assuming corpse ID fits in number
-            // console.log(`[Hotbar ContextMenu Hotbar->Corpse] Corpse ${corpseId} open. Calling quickMoveToCorpse for item ${itemInstanceId}`);
+           const corpseId = Number(interactingWith.id);
            try {
                connection.reducers.quickMoveToCorpse(corpseId, itemInstanceId);
            } catch (error: any) {
                console.error("[Hotbar ContextMenu Hotbar->Corpse] Failed to call quickMoveToCorpse reducer:", error);
-               // TODO: Show user feedback?
            }
-           return; // Action handled
+           return;
       } else if (interactingWith?.type === 'stash') {
-          const stashId = Number(interactingWith.id); // Stash ID is u32 (entity_id from server), safe to Number
+          const stashId = Number(interactingWith.id);
           const currentStash = stashes.get(interactingWith.id.toString());
-
           if (currentStash && !currentStash.isHidden) {
-            // console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
             try {
                 connection.reducers.quickMoveToStash(stashId, itemInstanceId);
             } catch (error: any) {
                 console.error("[Hotbar ContextMenu Hotbar->Stash] Failed to call quickMoveToStash reducer:", error);
-                // TODO: Show user feedback? (e.g., "Stash full")
             }
           } else {
             console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} is hidden or not found. Cannot quick move.`);
-            // Optionally, provide feedback to the user that the stash is hidden
           }
-          return; // Action handled
+          return;
       }
-      // --- END ADDITION ---
-      // 3. Else (no container open), check if it's armor to equip
       else {
           const isArmor = itemInfo.definition.category.tag === 'Armor';
           const hasEquipSlot = itemInfo.definition.equipmentSlotType !== null && itemInfo.definition.equipmentSlotType !== undefined;
           
           if (isArmor && hasEquipSlot) {
-              // console.log(`[Hotbar ContextMenu Equip] No container open. Item is Armor. Calling equip_armor for item ${itemInstanceId}`);
                try {
-                   // Hotbar already has a specific equipArmor reducer call, let's keep it for now
                    connection.reducers.equipArmorFromInventory(itemInstanceId);
                } catch (error: any) {
                    console.error("[Hotbar ContextMenu Equip] Failed to call equipArmorFromInventory reducer:", error);
               }
-              return; // Action handled
+              return;
           }
       }
-
-      // 4. Default: If not handled above, do nothing for now
-      // console.log("[Hotbar ContextMenu] No specific interaction context or non-armor item. Default action (none).");
   };
 
-  // console.log(`[Hotbar Render] selectedSlot is: ${selectedSlot}`);
-
+  console.log('[Hotbar] Render: animationProgress state:', animationProgress.toFixed(3)); // Added log
   return (
     <div style={{
       position: 'fixed',
@@ -309,7 +339,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       border: `1px solid ${UI_BORDER_COLOR}`,
       boxShadow: UI_SHADOW,
       fontFamily: UI_FONT_FAMILY,
-      zIndex: 100, // Ensure hotbar can be dropped onto
+      zIndex: 100,
     }}>
       {Array.from({ length: numSlots }).map((_, index) => {
         const populatedItem = findItemForSlot(index);
@@ -320,10 +350,9 @@ const Hotbar: React.FC<HotbarProps> = ({
             key={`hotbar-${index}`}
             slotInfo={currentSlotInfo}
             onItemDrop={onItemDrop}
-            // Use a generic slot style class if available, or rely on inline style
-            className={undefined} // Example: styles.slot if imported
+            className={undefined}
             onClick={() => handleSlotClick(index)}
-            style={{ // Apply Hotbar specific layout/border styles here
+            style={{
                 position: 'relative',
                 display: 'flex',
                 justifyContent: 'center',
@@ -338,25 +367,37 @@ const Hotbar: React.FC<HotbarProps> = ({
                 boxSizing: 'border-box',
                 cursor: 'pointer',
             }}
-            isDraggingOver={false} // TODO: Logic needed
+            isDraggingOver={false}
           >
-            {/* Slot Number */}
             <span
-                style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)', userSelect: 'none', pointerEvents: 'none'}}
+                style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)', userSelect: 'none', pointerEvents: 'none', zIndex: 3 }}
             >
               {index + 1}
             </span>
 
-            {/* Render Draggable Item if present */}
             {populatedItem && (
                 <DraggableItem
                     item={populatedItem}
                     sourceSlot={currentSlotInfo}
                     onItemDragStart={onItemDragStart}
                     onItemDrop={onItemDrop}
-                    // Pass the NEW hotbar-specific context menu handler
                     onContextMenu={(event) => handleHotbarItemContextMenu(event, populatedItem)}
                  />
+            )}
+            {/* Cooldown Overlay - Robust Animation Logic */}
+            {populatedItem && populatedItem.definition.category.tag === 'Consumable' && isVisualCooldownActive && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '0px',
+                  left: '0px',
+                  width: '100%',
+                  height: `${animationProgress * 100}%`,
+                  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                  borderRadius: '2px',
+                  zIndex: 2,
+                  pointerEvents: 'none',
+                  // transition: 'height 0.05s linear', // REMOVED: CSS transition conflicts with requestAnimationFrame
+                }}></div>
             )}
           </DroppableSlot>
         );
@@ -365,4 +406,4 @@ const Hotbar: React.FC<HotbarProps> = ({
   );
 };
 
-export default React.memo(Hotbar); 
+export default React.memo(Hotbar);
