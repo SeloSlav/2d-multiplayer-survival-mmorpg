@@ -36,7 +36,7 @@ interface GameConnectionProviderProps {
 export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ children }) => {
     // Get the spacetimeToken obtained from the auth-server by AuthContext
     // We don't need authIsLoading or authError here anymore for the connection logic itself
-    const { spacetimeToken } = useAuth(); 
+    const { spacetimeToken, invalidateCurrentToken } = useAuth(); 
     const [connection, setConnection] = useState<DbConnection | null>(null);
     const [dbIdentity, setDbIdentity] = useState<SpacetimeDBIdentity | null>(null);
     const [isConnected, setIsConnected] = useState<boolean>(false); // Tracks SpacetimeDB connection status
@@ -95,7 +95,13 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     setIsConnected(false);
                     setIsConnecting(false);
                     if (err) {
-                        setConnectionError(`SpacetimeDB Disconnected: ${err.message || 'Unknown reason'}`);
+                        const errorMessage = err.message || 'Unknown reason';
+                        setConnectionError(`SpacetimeDB Disconnected: ${errorMessage}`);
+                        // If disconnect error indicates an auth issue, invalidate the token.
+                        if (errorMessage.includes("401") || errorMessage.toLowerCase().includes("unauthorized")) {
+                            console.warn("[GameConn LOG] onDisconnect: Error suggests auth issue, invalidating token.");
+                            invalidateCurrentToken();
+                        }
                     } else {
                         setConnectionError(null); 
                     }
@@ -108,6 +114,9 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     setIsConnected(false);
                     setIsConnecting(false); 
                     setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
+                    // Directly invalidate token on connection error, as this is a common symptom of bad token
+                    console.warn("[GameConn LOG] onConnectError: Invalidating token due to connection failure.");
+                    invalidateCurrentToken(); 
                 })
                 .build();
         } catch (err: any) { 
@@ -126,7 +135,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
              }
         };
     // Reverted dependency array to simpler version, only depends on the token
-    }, [spacetimeToken]); 
+    }, [spacetimeToken, invalidateCurrentToken]); 
 
     // Player registration function (can safely use state variable)
     const registerPlayer = useCallback((username: string) => {

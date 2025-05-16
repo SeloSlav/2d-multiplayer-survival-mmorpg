@@ -84,7 +84,6 @@ const stashConfig: GroundEntityConfig<Stash> = {
                 const timeSinceLastHitRatio = elapsedSinceHit / HEALTH_BAR_VISIBLE_DURATION_MS;
                 const opacity = Math.max(0, 1 - Math.pow(timeSinceLastHitRatio, 2)); // Fade out faster at the end
 
-
                 ctx.fillStyle = `rgba(0, 0, 0, ${0.5 * opacity})`;
                 ctx.fillRect(barOuterX, barOuterY, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
 

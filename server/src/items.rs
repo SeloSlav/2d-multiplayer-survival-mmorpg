@@ -85,6 +85,10 @@ pub struct ItemDefinition {
     pub pvp_damage_min: Option<u32>,
     pub pvp_damage_max: Option<u32>,
 
+    pub bleed_damage_per_tick: Option<f32>, // ADDED
+    pub bleed_duration_seconds: Option<f32>, // ADDED
+    pub bleed_tick_interval_seconds: Option<f32>, // ADDED
+
     pub crafting_cost: Option<Vec<CostIngredient>>, // MODIFIED HERE
     pub crafting_output_quantity: Option<u32>,      // How many items this recipe produces
     pub crafting_time_secs: Option<u32>,            // Time in seconds to craft

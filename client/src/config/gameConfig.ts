@@ -134,3 +134,13 @@ export const baseKeyframes: Record<number, ColorPoint> = {
 };
 
 // --- Stat Thresholds (must match server/player_stats.rs) ---
+export const MAX_STAT_VALUE = 100;
+export const MIN_STAT_VALUE = 0;
+
+// --- ADDED: Campfire Damage Logic Constants (from server/src/campfire.rs) ---
+export const SERVER_CAMPFIRE_DAMAGE_RADIUS = 30.0;
+export const SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET = 25.0; // Upwards offset from campfire.posY
+// --- END ADDED ---
+
+// UI related constants
+// ... existing code ...

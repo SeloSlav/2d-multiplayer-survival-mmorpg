@@ -49,9 +49,8 @@ use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
-use crate::active_effects; // Added for cancelling health regen
-use crate::active_effects::{ActiveConsumableEffect, EffectType}; // Added for Bleed effect
-use crate::active_effects::active_consumable_effect as ActiveConsumableEffectTableTrait; // Added for Bleed effect table access
+use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
+use crate::consumables::MAX_STAT_VALUE;
 // --- Game Balance Constants ---
 /// Time in seconds before resources (trees, stones) respawn after being depleted
 pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
@@ -577,10 +576,13 @@ pub fn damage_player(
     attacker_id: Identity, 
     target_id: Identity, 
     damage: f32, 
-    item_name: &str,
+    item_def: &ItemDefinition,
     timestamp: Timestamp
 ) -> Result<AttackResult, String> {
-    log::debug!("Attempting to damage player {:?} from attacker {:?} with item {}", target_id, attacker_id, item_name);
+    log::debug!(
+        "Attempting to damage player {:?} from attacker {:?} with item {}", 
+        target_id, attacker_id, item_def.name
+    );
     let players = ctx.db.player();
     let active_equipment_table = ctx.db.active_equipment();
     let inventory_items_table = ctx.db.inventory_item();
@@ -594,349 +596,116 @@ pub fn damage_player(
     let mut target_player = players.identity().find(&target_id)
         .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
 
-    // --- BEGIN KNOCKBACK LOGIC (for target) ---
-    if let Some(ref attacker_player) = attacker_player_opt { // MODIFIED: Changed to `ref attacker_player` to borrow
-        // Only apply knockback if the target is currently alive and was hit by another player
-        if !target_player.is_dead && attacker_player.identity != target_player.identity {
-            let dx = target_player.position_x - attacker_player.position_x;
-            let dy = target_player.position_y - attacker_player.position_y;
-            let distance = (dx * dx + dy * dy).sqrt();
-
-            if distance > 0.0 { // Avoid division by zero and self-knockback issues
-                let norm_dx = dx / distance;
-                let norm_dy = dy / distance;
-
-                target_player.position_x += norm_dx * PVP_KNOCKBACK_DISTANCE;
-                target_player.position_y += norm_dy * PVP_KNOCKBACK_DISTANCE;
-
-                log::debug!("Player {:?} knocked back by ({:.1}, {:.1}) from attacker {:?}",
-                         target_id, norm_dx * PVP_KNOCKBACK_DISTANCE, norm_dy * PVP_KNOCKBACK_DISTANCE, attacker_id);
-
-                // --- BEGIN COLLISION RESOLUTION FOR KNOCKBACK ---
-                let mut resolved_x = target_player.position_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                let mut resolved_y = target_player.position_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
-
-                let mut grid = spatial_grid::SpatialGrid::new();
-                // Populate grid with relevant entities (players, trees, stones, boxes)
-                // Note: This reuses some logic from lib.rs update_player_position
-                // We only need players, trees, stones, and boxes for knockback collision.
-                for p_other in players.iter() {
-                    if p_other.identity != target_id && !p_other.is_dead { // Exclude self and dead players
-                        grid.add_entity(spatial_grid::EntityType::Player(p_other.identity), p_other.position_x, p_other.position_y);
-                    }
-                }
-                for tree_entity in trees_table.iter() {
-                    if tree_entity.health > 0 {
-                        grid.add_entity(spatial_grid::EntityType::Tree(tree_entity.id), tree_entity.pos_x, tree_entity.pos_y - TREE_COLLISION_Y_OFFSET);
-                    }
-                }
-                for stone_entity in stones_table.iter() {
-                    if stone_entity.health > 0 {
-                        grid.add_entity(spatial_grid::EntityType::Stone(stone_entity.id), stone_entity.pos_x, stone_entity.pos_y - STONE_COLLISION_Y_OFFSET);
-                    }
-                }
-                for box_entity in wooden_storage_boxes_table.iter() {
-                     if !box_entity.is_destroyed {
-                        grid.add_entity(spatial_grid::EntityType::WoodenStorageBox(box_entity.id), box_entity.pos_x, box_entity.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
-                    }
-                }
-
-
-                let resolution_iterations = 5;
-                let epsilon = 0.01;
-
-                for _iter in 0..resolution_iterations {
-                    let mut overlap_found_in_iter = false;
-                    let nearby_entities_resolve = grid.get_entities_in_range(resolved_x, resolved_y);
-
-                    for entity in &nearby_entities_resolve {
-                        match entity {
-                            spatial_grid::EntityType::Player(other_identity) => {
-                                // We already filter out self and dead players when populating the grid
-                                if let Some(other_player_data) = players.identity().find(other_identity) {
-                                     let odx = resolved_x - other_player_data.position_x;
-                                     let ody = resolved_y - other_player_data.position_y;
-                                     let odist_sq = odx * odx + ody * ody;
-                                     let min_dist_players = PLAYER_RADIUS * 2.0;
-                                     let min_dist_sq_players = min_dist_players * min_dist_players;
-                                     if odist_sq < min_dist_sq_players && odist_sq > 0.0 {
-                                         overlap_found_in_iter = true;
-                                         let odistance = odist_sq.sqrt();
-                                         let ooverlap = min_dist_players - odistance;
-                                         let push_amount = (ooverlap / 2.0) + epsilon;
-                                         resolved_x += (odx / odistance) * push_amount;
-                                         resolved_y += (ody / odistance) * push_amount;
-                                     }
-                                }
-                            },
-                            spatial_grid::EntityType::Tree(tree_id_ref) => {
-                                if let Some(tree_data) = trees_table.id().find(tree_id_ref) {
-                                    // Tree collision logic from lib.rs
-                                    let tree_collision_y_val = tree_data.pos_y - TREE_COLLISION_Y_OFFSET;
-                                    let tdx = resolved_x - tree_data.pos_x;
-                                    let tdy = resolved_y - tree_collision_y_val;
-                                    let tdist_sq = tdx * tdx + tdy * tdy;
-                                    let min_dist_tree = PLAYER_RADIUS + tree::TREE_TRUNK_RADIUS;
-                                    let min_dist_sq_tree = min_dist_tree * min_dist_tree;
-                                    if tdist_sq < min_dist_sq_tree && tdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let tdistance = tdist_sq.sqrt();
-                                        let toverlap = (min_dist_tree - tdistance) + epsilon;
-                                        resolved_x += (tdx / tdistance) * toverlap;
-                                        resolved_y += (tdy / tdistance) * toverlap;
-                                    }
-                                }
-                            },
-                            spatial_grid::EntityType::Stone(stone_id_ref) => {
-                                if let Some(stone_data) = stones_table.id().find(stone_id_ref) {
-                                    // Stone collision logic from lib.rs
-                                    let stone_collision_y_val = stone_data.pos_y - STONE_COLLISION_Y_OFFSET;
-                                    let sdx = resolved_x - stone_data.pos_x;
-                                    let sdy = resolved_y - stone_collision_y_val;
-                                    let sdist_sq = sdx * sdx + sdy * sdy;
-                                    let min_dist_stone = PLAYER_RADIUS + stone::STONE_RADIUS;
-                                    let min_dist_sq_stone = min_dist_stone * min_dist_stone;
-                                    if sdist_sq < min_dist_sq_stone && sdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let sdistance = sdist_sq.sqrt();
-                                        let soverlap = (min_dist_stone - sdistance) + epsilon;
-                                        resolved_x += (sdx / sdistance) * soverlap;
-                                        resolved_y += (sdy / sdistance) * soverlap;
-                                    }
-                                }
-                            },
-                            spatial_grid::EntityType::WoodenStorageBox(box_id_ref) => {
-                                if let Some(box_data) = wooden_storage_boxes_table.id().find(box_id_ref) {
-                                    let box_collision_y_val = box_data.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET;
-                                    let bdx = resolved_x - box_data.pos_x;
-                                    let bdy = resolved_y - box_collision_y_val;
-                                    let bdist_sq = bdx*bdx + bdy*bdy;
-                                    let min_dist_box = PLAYER_RADIUS + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
-                                    let min_dist_sq_box = min_dist_box * min_dist_box;
-                                    if bdist_sq < min_dist_sq_box && bdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let bdistance = bdist_sq.sqrt();
-                                        let boverlap = (min_dist_box - bdistance) + epsilon;
-                                        resolved_x += (bdx / bdistance) * boverlap;
-                                        resolved_y += (bdy / bdistance) * boverlap;
-                                    }
-                                }
-                            },
-                            _ => {} // Ignore other entity types for knockback collision
-                        }
-                    }
-
-                    resolved_x = resolved_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                    resolved_y = resolved_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
-
-                    if !overlap_found_in_iter {
-                        break;
-                    }
-                }
-                target_player.position_x = resolved_x;
-                target_player.position_y = resolved_y;
-                log::debug!("Player {:?} final knockback position after collision: ({:.1}, {:.1})",
-                         target_id, target_player.position_x, target_player.position_y);
-                // --- END COLLISION RESOLUTION FOR KNOCKBACK ---
-            }
-        }
+    if target_player.is_dead {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Player), resource_granted: None });
     }
-    // --- END KNOCKBACK LOGIC ---
-
-    // --- BEGIN ATTACKER RECOIL LOGIC ---
-    if let Some(mut attacker_player_data) = attacker_player_opt {
-        // Check if attacker is not the target and is alive (should always be true for an attack)
-        if attacker_player_data.identity != target_player.identity && !attacker_player_data.is_dead {
-            let recoil_dx = attacker_player_data.position_x - target_player.position_x; // Vector from target to attacker
-            let recoil_dy = attacker_player_data.position_y - target_player.position_y; // Vector from target to attacker
-            let recoil_distance_mag = (recoil_dx * recoil_dx + recoil_dy * recoil_dy).sqrt();
-
-            if recoil_distance_mag > 0.0 {
-                let norm_recoil_dx = recoil_dx / recoil_distance_mag;
-                let norm_recoil_dy = recoil_dy / recoil_distance_mag;
-                let attacker_recoil_amount = PVP_KNOCKBACK_DISTANCE / 3.0; // Attacker recoils less
-
-                attacker_player_data.position_x += norm_recoil_dx * attacker_recoil_amount;
-                attacker_player_data.position_y += norm_recoil_dy * attacker_recoil_amount;
-
-                log::debug!("Attacker {:?} recoiled by ({:.1}, {:.1}) after hitting {:?}",
-                         attacker_id, norm_recoil_dx * attacker_recoil_amount, norm_recoil_dy * attacker_recoil_amount, target_id);
-
-                // --- COLLISION RESOLUTION FOR ATTACKER RECOIL ---
-                let mut resolved_attacker_x = attacker_player_data.position_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                let mut resolved_attacker_y = attacker_player_data.position_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
-
-                let mut attacker_grid = spatial_grid::SpatialGrid::new();
-                // Populate grid (excluding the attacker itself and the target, as target's position is already being updated)
-                for p_other in players.iter() {
-                    if p_other.identity != attacker_id && p_other.identity != target_id && !p_other.is_dead {
-                        attacker_grid.add_entity(spatial_grid::EntityType::Player(p_other.identity), p_other.position_x, p_other.position_y);
-                    }
-                }
-                for tree_entity in trees_table.iter() {
-                    if tree_entity.health > 0 {
-                        attacker_grid.add_entity(spatial_grid::EntityType::Tree(tree_entity.id), tree_entity.pos_x, tree_entity.pos_y - TREE_COLLISION_Y_OFFSET);
-                    }
-                }
-                for stone_entity in stones_table.iter() {
-                    if stone_entity.health > 0 {
-                        attacker_grid.add_entity(spatial_grid::EntityType::Stone(stone_entity.id), stone_entity.pos_x, stone_entity.pos_y - STONE_COLLISION_Y_OFFSET);
-                    }
-                }
-                for box_entity in wooden_storage_boxes_table.iter() {
-                    if !box_entity.is_destroyed {
-                        attacker_grid.add_entity(spatial_grid::EntityType::WoodenStorageBox(box_entity.id), box_entity.pos_x, box_entity.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET);
-                    }
-                }
-
-                let resolution_iterations = 5;
-                let epsilon = 0.01;
-
-                for _iter in 0..resolution_iterations {
-                    let mut overlap_found_in_iter = false;
-                    let nearby_entities_resolve = attacker_grid.get_entities_in_range(resolved_attacker_x, resolved_attacker_y);
-
-                    for entity in &nearby_entities_resolve {
-                        match entity {
-                            spatial_grid::EntityType::Player(other_identity) => {
-                                if let Some(other_player_data) = players.identity().find(other_identity) {
-                                     let odx = resolved_attacker_x - other_player_data.position_x;
-                                     let ody = resolved_attacker_y - other_player_data.position_y;
-                                     let odist_sq = odx * odx + ody * ody;
-                                     let min_dist_players = PLAYER_RADIUS * 2.0;
-                                     let min_dist_sq_players = min_dist_players * min_dist_players;
-                                     if odist_sq < min_dist_sq_players && odist_sq > 0.0 {
-                                         overlap_found_in_iter = true;
-                                         let odistance = odist_sq.sqrt();
-                                         let ooverlap = min_dist_players - odistance;
-                                         let push_amount = (ooverlap / 2.0) + epsilon;
-                                         resolved_attacker_x += (odx / odistance) * push_amount;
-                                         resolved_attacker_y += (ody / odistance) * push_amount;
-                                     }
-                                }
-                            },
-                            spatial_grid::EntityType::Tree(tree_id_ref) => {
-                                if let Some(tree_data) = trees_table.id().find(tree_id_ref) {
-                                    let tree_collision_y_val = tree_data.pos_y - TREE_COLLISION_Y_OFFSET;
-                                    let tdx = resolved_attacker_x - tree_data.pos_x;
-                                    let tdy = resolved_attacker_y - tree_collision_y_val;
-                                    let tdist_sq = tdx * tdx + tdy * tdy;
-                                    let min_dist_tree = PLAYER_RADIUS + tree::TREE_TRUNK_RADIUS;
-                                    let min_dist_sq_tree = min_dist_tree * min_dist_tree;
-                                    if tdist_sq < min_dist_sq_tree && tdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let tdistance = tdist_sq.sqrt();
-                                        let toverlap = (min_dist_tree - tdistance) + epsilon;
-                                        resolved_attacker_x += (tdx / tdistance) * toverlap;
-                                        resolved_attacker_y += (tdy / tdistance) * toverlap;
-                                    }
-                                }
-                            },
-                            spatial_grid::EntityType::Stone(stone_id_ref) => {
-                                if let Some(stone_data) = stones_table.id().find(stone_id_ref) {
-                                    let stone_collision_y_val = stone_data.pos_y - STONE_COLLISION_Y_OFFSET;
-                                    let sdx = resolved_attacker_x - stone_data.pos_x;
-                                    let sdy = resolved_attacker_y - stone_collision_y_val;
-                                    let sdist_sq = sdx * sdx + sdy * sdy;
-                                    let min_dist_stone = PLAYER_RADIUS + stone::STONE_RADIUS;
-                                    let min_dist_sq_stone = min_dist_stone * min_dist_stone;
-                                    if sdist_sq < min_dist_sq_stone && sdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let sdistance = sdist_sq.sqrt();
-                                        let soverlap = (min_dist_stone - sdistance) + epsilon;
-                                        resolved_attacker_x += (sdx / sdistance) * soverlap;
-                                        resolved_attacker_y += (sdy / sdistance) * soverlap;
-                                    }
-                                }
-                            },
-                            spatial_grid::EntityType::WoodenStorageBox(box_id_ref) => {
-                                if let Some(box_data) = wooden_storage_boxes_table.id().find(box_id_ref) {
-                                    let box_collision_y_val = box_data.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET;
-                                    let bdx = resolved_attacker_x - box_data.pos_x;
-                                    let bdy = resolved_attacker_y - box_collision_y_val;
-                                    let bdist_sq = bdx*bdx + bdy*bdy;
-                                    let min_dist_box = PLAYER_RADIUS + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
-                                    let min_dist_sq_box = min_dist_box * min_dist_box;
-                                    if bdist_sq < min_dist_sq_box && bdist_sq > 0.0 {
-                                        overlap_found_in_iter = true;
-                                        let bdistance = bdist_sq.sqrt();
-                                        let boverlap = (min_dist_box - bdistance) + epsilon;
-                                        resolved_attacker_x += (bdx / bdistance) * boverlap;
-                                        resolved_attacker_y += (bdy / bdistance) * boverlap;
-                                    }
-                                }
-                            },
-                            _ => {} 
-                        }
-                    }
-
-                    resolved_attacker_x = resolved_attacker_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                    resolved_attacker_y = resolved_attacker_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
-
-                    if !overlap_found_in_iter {
-                        break;
-                    }
-                }
-                attacker_player_data.position_x = resolved_attacker_x;
-                attacker_player_data.position_y = resolved_attacker_y;
-                attacker_player_data.last_update = timestamp; // Update attacker's timestamp
-                players.identity().update(attacker_player_data);
-                log::debug!("Attacker {:?} final recoil position after collision: ({:.1}, {:.1})",
-                         attacker_id, resolved_attacker_x, resolved_attacker_y);
-                // --- END COLLISION RESOLUTION FOR ATTACKER RECOIL ---
-            }
-        }
-    }
-    // --- END ATTACKER RECOIL LOGIC ---
 
     let old_health = target_player.health;
-    let new_health = (target_player.health - damage).max(0.0);
-    target_player.health = new_health;
-    target_player.last_hit_time = Some(timestamp);
-    
-    // === ADDED: Cancel any active health regen effects ===
-    active_effects::cancel_health_regen_effects(ctx, target_id);
-    // ====================================================
+    target_player.health = (target_player.health - damage).clamp(0.0, MAX_STAT_VALUE);
+    let actual_damage = old_health - target_player.health;
 
-    // --- ADDED: Apply Bleed effect if hit by a Spear ---
-    if item_name == "Wooden Spear" {
-        log::info!("[DamagePlayer] Spear hit! Applying Bleed to {:?}.", target_id);
+    if actual_damage > 0.0 {
+        target_player.last_update = timestamp;       // Existing: For general row update detection
+        target_player.last_hit_time = Some(timestamp); // For client-side hit effects
 
-        // Bleed effect: 60 damage over 10 seconds (6 DPS) - INCREASED FOR TESTING
-        let bleed_total_damage = 60.0;
-        let bleed_duration_seconds: u64 = 10;
-        let tick_interval_micros: u64 = 1_000_000; // 1 second
+        // --- APPLY KNOCKBACK to target_player ---
+        if let Some(mut attacker) = attacker_player_opt.clone() { // Clone attacker_player_opt to get a mutable attacker if needed
+            let dx_target_from_attacker = target_player.position_x - attacker.position_x;
+            let dy_target_from_attacker = target_player.position_y - attacker.position_y;
+            let distance = (dx_target_from_attacker*dx_target_from_attacker + dy_target_from_attacker*dy_target_from_attacker).sqrt();
 
-        // Check if a bleed effect from the same item_def_id (or 0 if generic spear bleed)
-        let bleed_effect = ActiveConsumableEffect {
-            effect_id: 0, // Auto-incremented
-            player_id: target_id,
-            item_def_id: 0, // 0 for status effects not directly from consuming an item, or pass spear item_def_id if preferred
-            started_at: timestamp,
-            ends_at: timestamp + TimeDuration::from_micros(bleed_duration_seconds as i64 * 1_000_000),
-            total_amount: Some(bleed_total_damage),
-            amount_applied_so_far: Some(0.0),
-            effect_type: EffectType::Bleed,
-            tick_interval_micros,
-            next_tick_at: timestamp + TimeDuration::from_micros(tick_interval_micros as i64), // Start ticking after 1 second
-        };
+            if distance > 0.0 { // Avoid division by zero
+                // Knockback for Target
+                let knockback_dx_target = (dx_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
+                let knockback_dy_target = (dy_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
+                target_player.position_x = (target_player.position_x + knockback_dx_target).clamp(0.0, WORLD_WIDTH_PX as f32);
+                target_player.position_y = (target_player.position_y + knockback_dy_target).clamp(0.0, WORLD_HEIGHT_PX as f32);
+                log::debug!("Applied knockback to target player {:?}: new pos ({:.1}, {:.1})", 
+                    target_id, target_player.position_x, target_player.position_y);
 
-        match ctx.db.active_consumable_effect().try_insert(bleed_effect) {
-            Ok(_) => log::info!("Applied Bleed effect to Player {:?} from Spear hit.", target_id),
-            Err(e) => log::error!("Failed to apply Bleed effect to Player {:?}: {:?}", target_id, e),
+                // Knockback for Attacker (recoil)
+                let attacker_recoil_distance = PVP_KNOCKBACK_DISTANCE / 3.0;
+                let knockback_dx_attacker = (-dx_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
+                let knockback_dy_attacker = (-dy_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
+                
+                attacker.position_x = (attacker.position_x + knockback_dx_attacker).clamp(0.0, WORLD_WIDTH_PX as f32);
+                attacker.position_y = (attacker.position_y + knockback_dy_attacker).clamp(0.0, WORLD_HEIGHT_PX as f32);
+                attacker.last_update = timestamp; // Update attacker's timestamp as their position changed
+                // attacker.last_hit_time = Some(timestamp); // Optional: if attacker taking hit should also flash/shake, though usually not for self-recoil.
+                players.identity().update(attacker.clone()); // Update attacker player in DB
+                 log::debug!("Applied recoil to attacking player {:?}: new pos ({:.1}, {:.1})", 
+                    attacker_id, attacker.position_x, attacker.position_y);
+            }
         }
+        // --- END KNOCKBACK ---
     }
-    // --- END Bleed effect ---
 
-    log::info!("Player {:?} hit Player {:?} with {} for {:.1} damage. Health: {:.1} -> {:.1}",
-           attacker_id, target_id, item_name, damage, old_health, new_health);
-    
-    if new_health <= 0.0 && !target_player.is_dead {
-        log::info!("Player {} ({:?}) died from combat (Attacker: {:?}, Health: {:.1}).",
-                 target_player.username, target_id, attacker_id, new_health);
+    log::info!(
+        "Player {:?} damaged Player {:?} for {:.2} (raw: {:.2}) with {}. Health: {:.2} -> {:.2}",
+        attacker_id, target_id, actual_damage, damage, item_def.name, old_health, target_player.health
+    );
+
+    // Log the item_name and item_def_id being checked for bleed application
+    // let item_def_id_for_bleed_check = ctx.db.item_definition().iter().find(|def| def.name == item_name).map_or(0, |def| def.id);
+    log::info!("[BleedCheck] Item used: '{}' (Def ID: {}). Checking if it should apply bleed based on its definition.", item_def.name, item_def.id);
+
+    // Apply bleed effect if the weapon has bleed damage defined in its properties
+    if let (Some(dmg_per_tick), Some(duration_sec), Some(interval_sec)) = (
+        item_def.bleed_damage_per_tick, 
+        item_def.bleed_duration_seconds, 
+        item_def.bleed_tick_interval_seconds
+    ) {
+        if dmg_per_tick > 0.0 && duration_sec > 0.0 && interval_sec > 0.0 {
+            log::info!("[BleedCheck] Item '{}' has bleed properties. Attempting to apply bleed.", item_def.name);
+            
+            let total_ticks = (duration_sec / interval_sec).floor();
+            let bleed_total_damage = dmg_per_tick * total_ticks;
+
+            let time_until_next_tick = TimeDuration::from_micros((interval_sec * 1_000_000.0) as i64);
+
+            let bleed_effect = ActiveConsumableEffect {
+                effect_id: 0, 
+                player_id: target_id,
+                item_def_id: item_def.id, // Store the ID of the item causing the bleed
+                consuming_item_instance_id: None, 
+                started_at: timestamp,
+                ends_at: timestamp + TimeDuration::from_micros((duration_sec * 1_000_000.0) as i64),
+                total_amount: Some(bleed_total_damage), // Total potential damage
+                amount_applied_so_far: Some(0.0),
+                effect_type: EffectType::Bleed,
+                tick_interval_micros: (interval_sec * 1_000_000.0) as u64,
+                next_tick_at: timestamp + time_until_next_tick,
+            };
+            match ctx.db.active_consumable_effect().try_insert(bleed_effect) {
+                Ok(inserted_effect) => {
+                    log::info!(
+                        "Successfully applied bleed effect with ID {} to player {:?} from item '{}'",
+                        inserted_effect.effect_id, 
+                        target_id,
+                        item_def.name
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to apply bleed effect to player {:?} from item '{}': {:?}", target_id, item_def.name, e);
+                }
+            }
+        } else {
+            log::info!("[BleedCheck] Item '{}' has bleed properties, but one or more are zero. Not applying bleed.", item_def.name);
+        }
+    } else {
+        log::info!("[BleedCheck] Item '{}' does not have all necessary bleed properties defined. Not applying bleed.", item_def.name);
+    }
+
+    // INTERRUPT BANDAGE IF DAMAGED
+    active_effects::cancel_bandage_burst_effects(ctx, target_id);
+
+    if target_player.health <= 0.0 && !target_player.is_dead {
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
-        target_player.last_update = timestamp;
+        // Ensure last_update and last_hit_time are set on death, 
+        // even if actual_damage was somehow <= 0 but health became <=0 (e.g. rounding or effect)
+        target_player.last_update = timestamp; 
+        target_player.last_hit_time = Some(timestamp);
 
         match crate::active_equipment::clear_active_item_reducer(ctx, target_player.identity) {
             Ok(_) => log::info!("[PlayerDeath] Active item cleared for dying player {}", target_player.identity),
@@ -962,7 +731,9 @@ pub fn damage_player(
         players.identity().update(target_player.clone());
         log::info!("Player {:?} marked as dead.", target_id);
 
-    } else if new_health > 0.0 {
+    } else if target_player.health > 0.0 {
+        // The `if actual_damage > 0.0` block above handles setting last_update and last_hit_time.
+        // We only need to call update here.
         players.identity().update(target_player);
     }
 
@@ -1272,7 +1043,7 @@ pub fn process_attack(
             damage_stone(ctx, attacker_id, *stone_id, damage, yield_amount, &resource_name, timestamp)
         },
         TargetId::Player(player_id) => {
-            damage_player(ctx, attacker_id, *player_id, damage, &item_def.name, timestamp)
+            damage_player(ctx, attacker_id, *player_id, damage, item_def, timestamp)
         },
         TargetId::Campfire(campfire_id) => {
             damage_campfire(ctx, attacker_id, *campfire_id, damage, timestamp, rng)

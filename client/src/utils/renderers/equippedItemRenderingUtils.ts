@@ -1,4 +1,4 @@
-import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition } from '../../generated';
+import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 
 // --- Constants (copied from GameCanvas for now, consider moving to config) ---
@@ -9,6 +9,11 @@ const SLASH_LINE_WIDTH = 4;
 const PLAYER_HIT_SHAKE_DURATION_MS = 200; // Copied from renderingUtils.ts
 const PLAYER_HIT_SHAKE_AMOUNT_PX = 3;   // Copied from renderingUtils.ts
 
+// --- Bandage Animation Constants ---
+const BANDAGING_ANIMATION_DURATION_MS = 5000; // Duration of the bandaging animation (MATCHES SERVER: 5 seconds)
+const BANDAGING_MAX_ROTATION_RAD = Math.PI / 12; // Max rotation angle (e.g., 15 degrees)
+const BANDAGING_WOBBLES = 20; // Number of full back-and-forth wobbles (10 * 2 for twice as fast)
+
 // --- Helper Function for Rendering Equipped Item ---
 export const renderEquippedItem = (
   ctx: CanvasRenderingContext2D,
@@ -18,7 +23,9 @@ export const renderEquippedItem = (
   itemImgFromCaller: HTMLImageElement,
   now_ms: number,
   jumpOffset: number,
-  itemImages: Map<string, HTMLImageElement>
+  itemImages: Map<string, HTMLImageElement>,
+  activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
+  localPlayerId?: string
 ) => {
   // --- Calculate Shake Offset (Only if alive) ---
   let shakeX = 0;
@@ -191,13 +198,11 @@ export const renderEquippedItem = (
           }
           // `rotation` (which is spearRotation) is already set for the spear's pointing direction from earlier logic.
       } else {
-          // Original swing animation for other items - rotation is dynamic here
-          currentAngle = Math.sin(swingProgress * Math.PI) * SWING_ANGLE_MAX_RAD;
-          if (player.direction === 'right' || player.direction === 'up') {
-            rotation = currentAngle; 
-          } else {
-            rotation = -currentAngle; 
-          }
+          // Swing animation for other items. 
+          // currentAngle will be negative or zero, representing a CCW swing if positive was CW (and backwards).
+          currentAngle = -(Math.sin(swingProgress * Math.PI) * SWING_ANGLE_MAX_RAD);
+          // The 'rotation' variable is used for the slash arc. It should match the item's swing direction.
+          rotation = currentAngle; 
       }
   }
   
@@ -217,25 +222,72 @@ export const renderEquippedItem = (
   }
   // --- End Image Resolution ---
 
-  // Apply transformations
-  ctx.save();
+  ctx.save(); // Overall item rendering context save (applies to pivot translation and general orientation)
   ctx.translate(pivotX, pivotY); 
-  ctx.rotate(rotation); // For spear, this is spearRotation. For others, it's dynamic swing or 0.
 
-  // Apply scaling (flipping)
+  // Apply general orientation/scaling based on player direction (and spear specifics)
   if (itemDef.name === "Wooden Spear") {
+    ctx.rotate(rotation); // `rotation` is pre-calculated spearRotation
     ctx.scale(spearScaleX, spearScaleY);
   } else {
-    // Revert to original flip logic for non-spear items
+    // Non-spear items might have a different base orientation/flip before animation
+    // Ensure this scale doesn't affect bandage animation logic if it's drawn separately with its own save/restore
     if (player.direction === 'right' || player.direction === 'up') {
-       ctx.scale(-1, 1); // Original: Flip horizontally
+       if (itemDef.name !== "Bandage") { // Don't apply this generic flip if it's a bandage that will handle its own drawing
+            ctx.scale(-1, 1); 
+       }
     }
-    // If not (right or up), no scale is applied for other items (original behavior)
   }
 
-  // Draw image centered at the (potentially additionally translated and rotated) pivot point
-  ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight);
-  ctx.restore();
+  // --- BANDAGE ANIMATION & DRAWING --- 
+  let bandageDrawnWithAnimation = false;
+  let bandagingStartTimeMs: number | null = null;
+
+  if (localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
+    for (const effect of activeConsumableEffects.values()) {
+      if (effect.playerId.toHexString() === localPlayerId && effect.effectType.tag === "BandageBurst") {
+        bandagingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        break;
+      }
+    }
+  }
+
+  if (itemDef.name === "Bandage" && bandagingStartTimeMs !== null) {
+    const elapsedBandagingTime = now_ms - bandagingStartTimeMs;
+    if (elapsedBandagingTime >= 0 && elapsedBandagingTime < BANDAGING_ANIMATION_DURATION_MS) {
+      const animationProgress = elapsedBandagingTime / BANDAGING_ANIMATION_DURATION_MS;
+      const bandagingRotation = Math.sin(animationProgress * Math.PI * BANDAGING_WOBBLES * 2) * BANDAGING_MAX_ROTATION_RAD;
+      
+      ctx.save(); // Save for bandage specific animation transforms
+      // Bandage rotation is applied here. Pivot is already at item center due to prior ctx.translate(pivotX, pivotY)
+      // and items are drawn relative to -itemWidth/2, -itemHeight/2.
+      ctx.rotate(bandagingRotation); // Apply the wobble
+      ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight); // Draw centered & rotated bandage
+      ctx.restore(); // Restore from bandage specific animation
+      bandageDrawnWithAnimation = true;
+    }
+  }
+  // --- END BANDAGE ANIMATION & DRAWING --- 
+
+  // --- REGULAR ITEM DRAWING (AND SWING FOR NON-SPEAR/NON-BANDAGE-ANIMATING) --- 
+  if (!bandageDrawnWithAnimation) {
+    ctx.save(); // Save for regular item drawing / swing
+    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Bandage") {
+      // Apply dynamic swing rotation for non-spear, non-bandage items
+      // `rotation` here is the dynamic swing angle from earlier logic (currentAngle)
+      // This needs to be the `rotation` variable that holds currentAngle for non-spears.
+      // The outer `rotation` variable is pre-set for spears and might be 0 for others initially.
+      // Let's assume `currentAngle` is the correct variable for dynamic swing here.
+      ctx.rotate(currentAngle); // `currentAngle` should be 0 if not swinging
+    }
+    // If it's a spear, its main rotation is already applied outside this block.
+    // If it's a bandage that didn't animate, it will be drawn with no additional rotation here.
+    
+    ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight); // Draw centered
+    ctx.restore(); // Restore from regular item drawing / swing
+  }
+
+  ctx.restore(); // Restore overall item rendering context (matches the first ctx.save() in this block)
 
   // --- Draw Attack Visual Effect --- 
   if (isSwinging) { 
@@ -292,4 +344,5 @@ export const renderEquippedItem = (
     }
   }
   // --- End Attack Visual Effect ---
+
 }; 

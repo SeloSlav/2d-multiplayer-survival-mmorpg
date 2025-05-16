@@ -517,6 +517,7 @@
                          effect_id: 0, // Auto-incremented by the table
                          player_id: player_entity.identity,
                          item_def_id: 0, // 0 for environmental/non-item effects
+                         consuming_item_instance_id: None, // Added: Campfire damage doesn't consume an item instance
                          started_at: current_time,
                          ends_at: current_time + TimeDuration::from_micros(CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS as i64 * 1_000_000),
                          total_amount: Some(CAMPFIRE_DAMAGE_PER_TICK),

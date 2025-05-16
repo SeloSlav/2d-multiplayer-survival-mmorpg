@@ -54,6 +54,8 @@ interface EntityFilteringResult {
   visiblePlayerCorpsesMap: Map<string, SpacetimeDBPlayerCorpse>;
   visibleStashes: SpacetimeDBStash[];
   visibleStashesMap: Map<string, SpacetimeDBStash>;
+  visibleSleepingBagsMap: Map<string, SpacetimeDBSleepingBag>;
+  visibleTreesMap: Map<string, SpacetimeDBTree>;
   groundItems: (SpacetimeDBMushroom | SpacetimeDBDroppedItem | SpacetimeDBCampfire | SpacetimeDBSleepingBag | SpacetimeDBCorn | SpacetimeDBPumpkin | SpacetimeDBHemp)[];
   ySortedEntities: YSortedEntityType[];
 }
@@ -315,8 +317,23 @@ export function useEntityFiltering(
     [visibleHemps]
   );
 
-  const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
+  const visiblePlayerCorpsesMap = useMemo(() => {
+    const map = new Map<string, SpacetimeDBPlayerCorpse>();
+    visiblePlayerCorpses.forEach(e => map.set(e.id.toString(), e));
+    return map;
+  }, [visiblePlayerCorpses]);
+
   const visibleStashesMap = useMemo(() => new Map(visibleStashes.map(s => [s.id.toString(), s])), [visibleStashes]);
+  const visibleSleepingBagsMap = useMemo(() => 
+    new Map(visibleSleepingBags.map(s => [s.id.toString(), s])), 
+    [visibleSleepingBags]
+  );
+
+  const visibleTreesMap = useMemo(() => {
+    const map = new Map<string, SpacetimeDBTree>();
+    visibleTrees.forEach(e => map.set(e.id.toString(), e));
+    return map;
+  }, [visibleTrees]);
 
   // Group entities for rendering
   const groundItems = useMemo(() => [
@@ -376,6 +393,8 @@ export function useEntityFiltering(
     visibleHempsMap,
     visiblePlayerCorpsesMap,
     visibleStashesMap,
+    visibleSleepingBagsMap,
+    visibleTreesMap,
     groundItems,
     ySortedEntities
   };

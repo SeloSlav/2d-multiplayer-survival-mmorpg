@@ -217,7 +217,25 @@ export const useInputHandler = ({
 
         const currentEquipments = activeEquipmentsRef.current;
         const localEquipment = currentEquipments?.get(localPlayerId);
-        if (!localEquipment || localEquipment.equippedItemDefId === null) {
+        if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
+            // If no item equipped (or instance ID is null for some reason), still allow unarmed swing
+            const nowUnarmed = Date.now();
+            if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
+            if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
+            try {
+                currentConnection.reducers.useEquippedItem(); // Unarmed/default action
+                lastClientSwingAttemptRef.current = nowUnarmed;
+            } catch (err) { 
+                console.error("[AttemptSwing Unarmed] Error calling useEquippedItem reducer:", err);
+            }
+            return;
+        }
+
+        // Check if the equipped item is a Bandage
+        const itemDef = itemDefinitionsRef.current?.get(String(localEquipment.equippedItemDefId));
+        if (itemDef && itemDef.name === "Bandage") {
+            // If Bandage is equipped, left-click (which calls attemptSwing) should NOT use/swing.
+            console.log("[AttemptSwing] Bandage equipped, preventing use via attemptSwing (left-click).");
             return;
         }
 
@@ -233,7 +251,7 @@ export const useInputHandler = ({
             return;
         }
 
-        // Attempt the swing
+        // Attempt the swing for non-bandage items
         try {
             currentConnection.reducers.useEquippedItem();
             lastClientSwingAttemptRef.current = now;
@@ -563,43 +581,93 @@ export const useInputHandler = ({
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
-            // MODIFIED: Block if player is dead, chatting, searching, or button isn't left
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0) return;
-            const currentWorldMouse = worldMousePosRefInternal.current;
-            if (placementInfo && currentWorldMouse.x !== null && currentWorldMouse.y !== null) {
-                 placementActionsRef.current?.attemptPlacement(currentWorldMouse.x, currentWorldMouse.y);
-                 return;
+            if (isPlayerDead) return; // No actions if dead
+
+            const now = Date.now();
+            if (now - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) {
+                // console.log("Swing cooldown active");
+                return;
             }
-            // If not placing, maybe handle other clicks later?
+
+            if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
+                placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
+                return; // Don't swing if placing
+            }
+
+            // If an interaction hold was just completed via click (rather than E key release), don't also swing.
+            if (isActivelyHolding) {
+                return;
+            }
+
+            // Prevent swinging if a UI element was clicked (e.g., a button over the canvas)
+            if (event.target !== canvasRef.current) {
+                // console.log("Clicked on a UI element, not swinging.");
+                return;
+            }
+
+            const localPlayerEquipment = activeEquipmentsRef.current?.get(localPlayerId || "");
+            if (localPlayerEquipment && localPlayerEquipment.equippedItemInstanceId) {
+                const itemDefId = localPlayerEquipment.equippedItemDefId;
+                const itemDef = itemDefinitionsRef.current?.get(String(itemDefId));
+
+                if (itemDef && itemDef.name === "Bandage") {
+                    // If Bandage is equipped, left-click should NOT use/swing.
+                    console.log("[InputHandler] Bandage equipped, left-click does not trigger useEquippedItem.");
+                } else {
+                    // For any other equipped item, proceed with useEquippedItem
+                    connectionRef.current?.reducers.useEquippedItem();
+                    lastClientSwingAttemptRef.current = now;
+                    // console.log("Attempting to use equipped item via click.");
+                }
+            } else {
+                 // No item equipped, or no equipment record, still allow "use" for unarmed / default action
+                connectionRef.current?.reducers.useEquippedItem();
+                lastClientSwingAttemptRef.current = now;
+                // console.log("Attempting to use (unarmed) via click.");
+            }
         };
 
         // --- Context Menu for Placement Cancellation ---
         const handleContextMenu = (event: MouseEvent) => {
-            if (placementInfo) {
-                event.preventDefault();
-                placementActionsRef.current?.cancelPlacement();
-            } else {
-                 event.preventDefault(); // Prevent default context menu even when not placing
-                 const currentConnection = connectionRef.current;
-                 const player = localPlayerRef.current;
-                 const equipments = activeEquipmentsRef.current;
-                 const definitions = itemDefinitionsRef.current; // Use the ref
+            if (isPlayerDead) return; // No actions if dead
+            // Prevent default browser context menu
+            event.preventDefault(); 
 
-                 if (currentConnection?.reducers && player && !player.isDead && equipments && definitions) { // Added !player.isDead check
-                    const localPlayerEquipment = equipments.get(player.identity.toHexString());
-                    if (localPlayerEquipment && localPlayerEquipment.equippedItemDefId) {
-                        const itemDef = definitions.get(localPlayerEquipment.equippedItemDefId.toString());
-                        if (itemDef && itemDef.name === "Torch") {
-                            try {
-                                currentConnection.reducers.toggleTorch();
-                                // console.log("[InputHandler] Called toggleTorch reducer for Torch."); // Keep for debugging if desired
-                            } catch (err) {
-                                console.error("[InputHandler] Error calling toggleTorch reducer:", err);
-                            }
+            const localPlayerEquipment = activeEquipmentsRef.current?.get(localPlayerId || "");
+            if (localPlayerEquipment && localPlayerEquipment.equippedItemInstanceId) {
+                const itemDefId = localPlayerEquipment.equippedItemDefId;
+                const itemDef = itemDefinitionsRef.current?.get(String(itemDefId));
+
+                if (itemDef && itemDef.name === "Bandage") {
+                    // If Bandage is equipped, right-click should trigger useEquippedItem
+                    const now = Date.now();
+                    if (now - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) {
+                        return;
+                    }
+                    if (connectionRef.current?.reducers) {
+                        connectionRef.current.reducers.useEquippedItem();
+                        lastClientSwingAttemptRef.current = now;
+                        console.log("[InputHandler] Used Bandage via right-click.");
+                    }
+                    return; // Bandage used, no further context menu logic needed
+                } else if (itemDef && itemDef.name === "Torch") {
+                    // If Torch is equipped, right-click should toggle it
+                    if (connectionRef.current?.reducers) {
+                        try {
+                            connectionRef.current.reducers.toggleTorch();
+                            console.log("[InputHandler] Toggled Torch via right-click.");
+                        } catch (err) {
+                            console.error("[InputHandler] Error calling toggleTorch reducer:", err);
                         }
                     }
-                 }
+                    return; // Torch toggled, no further context menu logic needed
+                }
             }
+            
+            // If not a bandage or torch, or no item equipped, or other conditions, 
+            // you might have other right-click logic here in the future.
+            // For now, it does nothing further.
+            // console.log("Context menu triggered, no specific action for equipped item or unhandled.");
         };
 
         // --- Wheel for Placement Cancellation (optional) ---

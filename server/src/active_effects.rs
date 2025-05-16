@@ -3,6 +3,7 @@ use spacetimedb::{table, Identity, Timestamp, ReducerContext, Table, ScheduleAt,
 use crate::Player; // For the struct
 use crate::player; // For the table trait
 use crate::items::{ItemDefinition, item_definition as ItemDefinitionTableTrait}; // To check item properties
+use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait}; // Added for item consumption
 use log;
 
 const MAX_STAT_VALUE: f32 = 100.0;
@@ -15,7 +16,8 @@ pub struct ActiveConsumableEffect {
     #[auto_inc]
     pub effect_id: u64,
     pub player_id: Identity,
-    pub item_def_id: u64, 
+    pub item_def_id: u64, // Identifies the type of item that caused the effect (e.g., Bandage def ID)
+    pub consuming_item_instance_id: Option<u64>, // Instance ID of the item being consumed (e.g., specific Bandage stack)
     pub started_at: Timestamp,
     pub ends_at: Timestamp,
     
@@ -32,6 +34,7 @@ pub enum EffectType {
     HealthRegen,
     Damage,
     Bleed,
+    BandageBurst,
     // Potentially HungerRegen, ThirstRegen, StaminaRegen in future
 }
 
@@ -66,6 +69,8 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
     let current_time = ctx.timestamp;
     let mut effects_to_remove = Vec::new();
     let mut player_updates = std::collections::HashMap::<Identity, Player>::new();
+    // A temporary Vec to store effects that need item consumption to avoid borrowing issues with ctx.db
+    let mut effects_requiring_consumption: Vec<(u64, Identity, EffectType, Option<f32>)> = Vec::new();
 
     for effect_row in ctx.db.active_consumable_effect().iter() {
         let effect = effect_row.clone(); // Clone to work with
@@ -108,7 +113,31 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             }
             effect_ended = true; // Environmental damage is always one-shot and then removed
         }
-        // --- Handle Progressive Effects (HealthRegen, Bleed, item-based Damage) ---
+        // --- Handle BandageBurst (Delayed Burst Heal) ---
+        else if effect.effect_type == EffectType::BandageBurst {
+            if let Some(burst_heal_amount) = effect.total_amount {
+                if current_time >= effect.ends_at { // Timer finished
+                    log::trace!("[EffectTick] BANDAGE_BURST Player {:?}: Effect ended. Applying burst heal: {:.2}. Old health: {:.2}", 
+                        effect.player_id, burst_heal_amount, old_health);
+                    player_to_update.health = (player_to_update.health + burst_heal_amount).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                    current_effect_applied_so_far = burst_heal_amount; // Mark as fully applied for consistency in logging/consumption
+                    log::trace!("[EffectTick] BANDAGE_BURST Player {:?}: Health now {:.2}", effect.player_id, player_to_update.health);
+                    if (player_to_update.health - old_health).abs() > f32::EPSILON {
+                        player_effect_applied_this_iteration = true;
+                    }
+                    effect_ended = true;
+                } else {
+                    // Timer still running for BandageBurst, do nothing to health, don't end yet.
+                    log::trace!("[EffectTick] BANDAGE_BURST Player {:?}: Timer active, ends_at: {:?}, current_time: {:?}", 
+                        effect.player_id, effect.ends_at, current_time);
+                    // Effect does not end here, amount_applied_so_far is not incremented yet.
+                }
+            } else {
+                log::warn!("[EffectTick] BandageBurst effect_id {} for player {:?} is missing total_amount. Removing effect.", effect.effect_id, effect.player_id);
+                effect_ended = true; // End if no total_amount
+            }
+        }
+        // --- Handle Other Progressive Effects (HealthRegen, Bleed, item-based Damage) ---
         else if let Some(total_amount_val) = effect.total_amount {
             let total_duration_micros = effect.ends_at.to_micros_since_unix_epoch().saturating_sub(effect.started_at.to_micros_since_unix_epoch());
 
@@ -144,6 +173,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             log::trace!("[EffectTick] {:?} Post-Damage for Player {:?}: Health now {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health);
                         }
+                        EffectType::BandageBurst => {
+                            // No healing per tick for BandageBurst, healing is applied only when the effect ends.
+                            // This arm handles the per-tick calculation, so it should be 0 here.
+                            amount_this_tick = 0.0; 
+                        }
                     }
 
                     if (player_to_update.health - old_health).abs() > f32::EPSILON {
@@ -169,6 +203,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         if player_effect_applied_this_iteration {
             let health_was_reduced = player_to_update.health < old_health;
 
+            player_to_update.last_update = current_time;
             player_updates.insert(effect.player_id, player_to_update.clone());
             log::trace!("[EffectTick] Player {:?} stat change recorded from effect_id {} (Type: {:?}). Old health: {:.2}, New health for player_updates map: {:.2}. Applied this tick (approx): {:.2}, Total Applied for effect: {:.2}",
                 effect.player_id, effect.effect_id, effect.effect_type, old_health, player_to_update.health,
@@ -189,6 +224,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                 effect.effect_id, effect.effect_type, effect.player_id, current_effect_applied_so_far,
                 if current_time >= effect.ends_at { "duration" } else if effect.effect_type == EffectType::Damage && effect.item_def_id == 0 { "environmental one-shot" } else { "amount applied" }
             );
+
+            // If the effect had an associated item instance to consume, mark it for consumption
+            if let Some(item_instance_id_to_consume) = effect.consuming_item_instance_id {
+                effects_requiring_consumption.push((item_instance_id_to_consume, effect.player_id, effect.effect_type.clone(), Some(current_effect_applied_so_far)));
+            }
         } else {
             // Update the effect in the DB with the new applied_so_far and next_tick_at
             let mut updated_effect_for_db = effect; // 'effect' is already a clone of effect_row
@@ -202,6 +242,31 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
     for (player_id, player) in player_updates {
         ctx.db.player().identity().update(player); // This 'player' has the final health after all effects for them this tick
         log::debug!("[EffectTick] Final update for player {:?} applied to DB.", player_id);
+    }
+
+    // --- Consume items for effects that ended and had a consuming_item_instance_id ---
+    for (item_instance_id, player_id, effect_type, amount_applied) in effects_requiring_consumption {
+        if let Some(mut inventory_item) = ctx.db.inventory_item().instance_id().find(&item_instance_id) {
+            log::info!("[ItemConsumption] Attempting to consume item_instance_id: {} for player {:?} after {:?} effect (applied: {:?}). Current quantity: {}", 
+                item_instance_id, player_id, effect_type, amount_applied.unwrap_or(0.0), inventory_item.quantity);
+            
+            if inventory_item.quantity > 0 {
+                inventory_item.quantity -= 1;
+            }
+
+            if inventory_item.quantity == 0 {
+                ctx.db.inventory_item().instance_id().delete(&item_instance_id);
+                log::info!("[ItemConsumption] Consumed and deleted item_instance_id: {} (quantity became 0) for player {:?}.", 
+                    item_instance_id, player_id);
+            } else {
+                ctx.db.inventory_item().instance_id().update(inventory_item.clone());
+                 log::info!("[ItemConsumption] Consumed item_instance_id: {}, new quantity: {} for player {:?}.", 
+                    item_instance_id, inventory_item.quantity, player_id);
+            }
+        } else {
+            log::warn!("[ItemConsumption] Could not find InventoryItem with instance_id: {} to consume for player {:?} after {:?} effect.", 
+                item_instance_id, player_id, effect_type);
+        }
     }
 
     // --- Remove all effects that have ended ---
@@ -220,5 +285,27 @@ pub fn cancel_health_regen_effects(ctx: &ReducerContext, player_id: Identity) {
     for effect_id in effects_to_cancel {
         ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
         log::info!("Cancelled health regen effect {} for player {:?} due to damage.", effect_id, player_id);
+    }
+}
+
+pub fn cancel_bleed_effects(ctx: &ReducerContext, player_id: Identity) {
+    let mut effects_to_cancel = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter().filter(|e| e.player_id == player_id && e.effect_type == EffectType::Bleed) {
+        effects_to_cancel.push(effect.effect_id);
+    }
+    for effect_id in effects_to_cancel {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+        log::info!("Cancelled bleed effect {} for player {:?} (e.g., by bandage).", effect_id, player_id);
+    }
+}
+
+pub fn cancel_bandage_burst_effects(ctx: &ReducerContext, player_id: Identity) {
+    let mut effects_to_cancel = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter().filter(|e| e.player_id == player_id && e.effect_type == EffectType::BandageBurst) {
+        effects_to_cancel.push(effect.effect_id);
+    }
+    for effect_id in effects_to_cancel {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+        log::info!("Cancelled BandageBurst effect {} for player {:?} (e.g., due to damage or interruption).", effect_id, player_id);
     }
 } 

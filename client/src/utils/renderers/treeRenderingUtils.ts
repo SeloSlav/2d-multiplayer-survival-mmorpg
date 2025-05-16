@@ -78,7 +78,7 @@ const treeConfig: GroundEntityConfig<Tree> = {
             maxStretchFactor: 1.8,
             minStretchFactor: 0.15,
             shadowBlur: 2,
-            pivotYOffset: 25
+            pivotYOffset: 15
         });
     },
 

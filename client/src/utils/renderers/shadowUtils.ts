@@ -68,31 +68,31 @@ export function applyStandardDropShadow(
   if (cycleProgress < 0.05) { // Dawn (0.0 - 0.05)
     const t = cycleProgress / 0.05;
     alphaMultiplier = lerp(minNightAlpha, maxDayAlpha, t);
-    currentOffsetX = lerp(-12, -4, t); // Longer shadow from East, shortening
+    currentOffsetX = lerp(12, 4, t); // Flipped from -12, -4
     currentOffsetY = lerp(4, 2, t);    // Starts a bit further, moves closer
     currentBlur = lerp(sunriseSunsetBlur, defaultDayBlur, t);
   } else if (cycleProgress < 0.40) { // Morning to Pre-Noon (0.05 - 0.40)
     const t = (cycleProgress - 0.05) / (0.40 - 0.05);
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = lerp(-8, 0, t);  // Shadow from East-ish, moving to center
+    currentOffsetX = lerp(8, 0, t);  // Flipped from -8, 0
     currentOffsetY = lerp(3, 1, t);   // Shortening significantly
     currentBlur = defaultDayBlur;
   } else if (cycleProgress < 0.50) { // Noon-ish (0.40 - 0.50)
     // Shadow directly underneath or very slightly offset, shortest and sharper
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = 0; // Directly underneath or slightly offset
+    currentOffsetX = 0; // Directly underneath or slightly offset - Remains 0
     currentOffsetY = 1;   // Shortest
     currentBlur = noonBlur;
   } else if (cycleProgress < 0.70) { // Afternoon (0.50 - 0.70)
     const t = (cycleProgress - 0.50) / (0.70 - 0.50);
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = lerp(0, 8, t);   // Shadow moving to West-ish, lengthening
+    currentOffsetX = lerp(0, -8, t);   // Flipped from 0, 8
     currentOffsetY = lerp(1, 3, t);   // Lengthening
     currentBlur = defaultDayBlur;
   } else if (cycleProgress < 0.75) { // Dusk (0.70 - 0.75)
     const t = (cycleProgress - 0.70) / 0.05;
     alphaMultiplier = lerp(maxDayAlpha, minNightAlpha, t);
-    currentOffsetX = lerp(4, 12, t);   // Longer shadow to West
+    currentOffsetX = lerp(-4, -12, t);   // Flipped from 4, 12
     currentOffsetY = lerp(2, 4, t);
     currentBlur = lerp(defaultDayBlur, sunriseSunsetBlur, t);
   } else { // Night (0.75 - 1.0)
@@ -226,7 +226,7 @@ export function drawDynamicGroundShadow({
   ctx.translate(entityCenterX, entityBaseY - pivotYOffset);
 
   // Apply vertical flip for reflection effect
-  ctx.scale(1, -1);
+  ctx.scale(-1, -1);
 
   // Apply transformations for skew and stretch
   ctx.transform(1, skewX, 0, currentStretch, 0, 0);

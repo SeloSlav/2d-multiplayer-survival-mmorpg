@@ -22,6 +22,11 @@ use crate::combat::{
     find_targets_in_cone, find_best_target, process_attack
 };
 
+// Consumable and active effects imports
+use crate::consumables::MAX_STAT_VALUE;
+use crate::consumables::apply_item_effects_and_consume;
+use crate::active_effects::{ActiveConsumableEffect, EffectType, cancel_bleed_effects, cancel_health_regen_effects, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bandage_burst_effects};
+
 // Collision constants
 use crate::tree::{TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
 use crate::stone::{STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
@@ -80,6 +85,9 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     let item_defs = ctx.db.item_definition();
     let active_equipments = ctx.db.active_equipment();
     let mut players_table = ctx.db.player(); // Get a mutable reference for player updates
+
+    // Cancel any ongoing BandageBurst effect before equipping a new item or re-equipping.
+    cancel_bandage_burst_effects(ctx, sender_id);
 
     let item_to_make_active = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Inventory item with instance ID {} not found.", item_instance_id))?;
@@ -187,6 +195,9 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
     let item_defs = ctx.db.item_definition(); // For checking item name
     let mut players_table = ctx.db.player(); // For updating player state
 
+    // Cancel any ongoing BandageBurst effect when clearing the active item.
+    cancel_bandage_burst_effects(ctx, player_identity);
+
     if let Some(mut equipment) = active_equipments.player_identity().find(player_identity) {
         // Store old item def ID before clearing for torch check
         let old_item_def_id_opt = equipment.equipped_item_def_id;
@@ -238,21 +249,66 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let now_ms = (now_micros / 1000) as u64;
 
     let active_equipments = ctx.db.active_equipment();
-    let players = ctx.db.player();
+    let players_table = ctx.db.player(); // Renamed for clarity
     let item_defs = ctx.db.item_definition();
 
     // Get RNG from context
     let mut rng = rand::rngs::StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to create RNG: {}",e))?;
 
-    let player = players.identity().find(sender_id)
+    let player = players_table.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
-    let mut current_equipment = active_equipments.player_identity().find(sender_id)
+    let current_equipment = active_equipments.player_identity().find(sender_id)
         .ok_or_else(|| "No active equipment record found.".to_string())?;
 
+    let equipped_item_instance_id = current_equipment.equipped_item_instance_id
+        .ok_or_else(|| "No item instance ID in active equipment to use.".to_string())?;
     let item_def_id = current_equipment.equipped_item_def_id
-        .ok_or_else(|| "No item equipped to use.".to_string())?;
+        .ok_or_else(|| "No item definition ID in active equipment to use.".to_string())?;
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
+
+    // --- BEGIN BANDAGE HANDLING ---
+    if item_def.name == "Bandage" {
+        log::info!("[UseEquippedItem] Player {:?} is using an equipped Bandage (Instance: {}, Def: {}).", 
+            sender_id, equipped_item_instance_id, item_def.id);
+
+        // Check for existing active BandageBurst effect from ANY bandage item to prevent stacking this specific effect type.
+        let has_active_bandage_burst_effect = ctx.db.active_consumable_effect().iter().any(|effect| {
+            effect.player_id == sender_id && 
+            effect.effect_type == EffectType::BandageBurst 
+            // We don't need to check effect.item_def_id == item_def.id here, 
+            // as we just want to prevent any BandageBurst from stacking, regardless of specific bandage type if we had multiple.
+        });
+
+        if has_active_bandage_burst_effect {
+            log::warn!("[UseEquippedItem] Player {:?} tried to use Bandage while another BandageBurst effect is already active.", sender_id);
+            return Err("You are already applying a bandage.".to_string());
+        }
+
+        // Player state is needed for apply_item_effects_and_consume (though it won't change health directly for BandageBurst)
+        // and for last_consumed_at update.
+        let mut player_stats = players_table.identity().find(sender_id)
+            .ok_or_else(|| "Player not found for bandage use".to_string())?;
+        
+        // This will create the BandageBurst effect. Item is NOT consumed here.
+        match apply_item_effects_and_consume(ctx, sender_id, &item_def, equipped_item_instance_id, &mut player_stats) {
+            Ok(_) => {
+                // Update player for last_consumed_at (which is set by apply_item_effects_and_consume)
+                players_table.identity().update(player_stats); 
+                
+                log::info!("[UseEquippedItem] BandageBurst effect initiated for player {:?} with bandage instance {}.", 
+                    sender_id, equipped_item_instance_id);
+                // No change to current_equipment is needed here as item is not consumed yet and bandaging_start_time_ms is removed.
+                // The active_equipments table also doesn't need an update here just for using a bandage.
+            },
+            Err(e) => {
+                log::error!("[UseEquippedItem] Failed to apply bandage effects for player {:?}: {}", sender_id, e);
+                return Err(format!("Failed to apply bandage effects: {}", e));
+            }
+        }
+        return Ok(()); // Bandage handling complete
+    }
+    // --- END BANDAGE HANDLING ---
 
     // Default values for attack cone
     let mut actual_attack_range = PLAYER_RADIUS * 4.0;
@@ -266,10 +322,12 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
         log::debug!("Wooden Spear detected: Using custom range {:.1}, angle {:.1}", actual_attack_range, actual_attack_angle_degrees);
     }
 
-    current_equipment.swing_start_time_ms = now_ms;
-    active_equipments.player_identity().update(current_equipment.clone());
-    log::debug!("Player {:?} started using item '{}' (ID: {}). Effective range: {:.1}, angle: {:.1}",
-             sender_id, item_def.name, item_def_id, actual_attack_range, actual_attack_angle_degrees);
+    let mut current_equipment_mut = current_equipment.clone(); // Clone to modify for swing time
+    current_equipment_mut.swing_start_time_ms = now_ms;
+    active_equipments.player_identity().update(current_equipment_mut); // Update with new swing time
+
+    log::debug!("[UseEquippedItem] Player {:?} started using non-bandage item '{}' (ID: {}). Swing time set.",
+             sender_id, item_def.name, item_def_id);
     
     let targets = find_targets_in_cone(ctx, &player, actual_attack_range, actual_attack_angle_degrees);
     

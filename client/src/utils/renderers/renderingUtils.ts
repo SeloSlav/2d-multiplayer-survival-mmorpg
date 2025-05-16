@@ -10,7 +10,8 @@ import {
     Stash as SpacetimeDBStash,
     DroppedItem as SpacetimeDBDroppedItem,
     Campfire as SpacetimeDBCampfire,
-    PlayerCorpse
+    PlayerCorpse,
+    ActiveConsumableEffect
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 // Import individual rendering functions
@@ -31,10 +32,12 @@ interface RenderYSortedEntitiesProps {
     lastPositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
+    activeConsumableEffects: Map<string, ActiveConsumableEffect>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
     worldMouseX: number | null;
     worldMouseY: number | null;
+    localPlayerId?: string;
     animationFrame: number;
     nowMs: number;
     hoveredPlayerIds: Set<string>;
@@ -58,10 +61,12 @@ export const renderYSortedEntities = ({
     lastPositionsRef,
     activeConnections,
     activeEquipments,
+    activeConsumableEffects,
     itemDefinitions,
     itemImagesRef,
     worldMouseX,
     worldMouseY,
+    localPlayerId,
     animationFrame,
     nowMs,
     hoveredPlayerIds,
@@ -115,16 +120,23 @@ export const renderYSortedEntities = ({
 
             if (player.direction === 'left' || player.direction === 'up') {
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
               if (heroImg) {
                 renderPlayer(
                         ctx, player, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
-                  animationFrame, nowMs, jumpOffset, 
-                  isPersistentlyHovered
+                  animationFrame, 
+                  nowMs, 
+                  jumpOffset,
+                  isPersistentlyHovered,
+                  activeConsumableEffects,
+                  localPlayerId
                 );
+              }
+              if (canRenderItem && equipment) {
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
            } else {
               if (heroImg) {
@@ -132,12 +144,16 @@ export const renderYSortedEntities = ({
                         ctx, player, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
-                  animationFrame, nowMs, jumpOffset, 
-                  isPersistentlyHovered
+                  animationFrame, 
+                  nowMs, 
+                  jumpOffset,
+                  isPersistentlyHovered,
+                  activeConsumableEffects,
+                  localPlayerId
                 );
               }
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
            }
         } else if (type === 'tree') {
@@ -163,15 +179,28 @@ export const renderYSortedEntities = ({
 
     // Second Pass: Render ONLY the dynamic ground shadows for trees and stones.
     // These will be drawn on top of the entities rendered in the first pass.
+    // MODIFIED: Tree shadows are now drawn in GameCanvas.tsx *before* this function runs.
+    // So, this pass will now only handle stone shadows (and other entities if they get a similar treatment).
     ySortedEntities.forEach(({ type, entity }) => {
         if (type === 'tree') {
-            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, true, false);
+            // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
         } else if (type === 'stone') {
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
         } else if (type === 'wooden_storage_box') {
             // No shadow-only pass needed for wooden_storage_box as it uses applyStandardDropShadow
             // renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress, true, false);
+        } else if (type === 'player_corpse') {
+            renderCorpse({ 
+                ctx, 
+                corpse: entity as SpacetimeDBPlayerCorpse, 
+                nowMs, 
+                itemImagesRef
+            });
+        } else if (type === 'player') {
+            // Players are fully rendered in the first pass, including their shadows.
+            // No action needed for players in this second (shadow-only) pass.
+        } else {
+            console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }
-        // Other entity types are ignored in this pass
     });
 }; 

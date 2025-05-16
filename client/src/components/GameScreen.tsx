@@ -189,6 +189,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isChatting={isChatting}
                 messages={messages}
                 isSearchingCraftRecipes={isCraftingSearchFocused}
+                activeConsumableEffects={activeConsumableEffects}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

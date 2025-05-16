@@ -3,6 +3,7 @@ import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, C
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
+import StatusBar from './StatusBar';
 import { itemIcons } from '../utils/itemIconUtils';
 // Import drag/drop types from shared file
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
@@ -14,107 +15,6 @@ import { InteractionTarget } from '../hooks/useInteractionManager';
 import { NotificationItem } from '../types/notifications';
 import ItemAcquisitionNotificationUI from './ItemAcquisitionNotificationUI';
 // --- END NEW IMPORTS ---
-
-// Define the StatusBar component inline for simplicity
-interface StatusBarProps {
-  label: string;
-  icon: string; // Placeholder for icon, e.g., emoji or text
-  value: number;
-  maxValue: number;
-  barColor: string;
-  glow?: boolean; // If true, show glow/pulse effect
-  hasActiveEffect?: boolean; // Added for timed effects
-}
-
-// --- LOW NEED THRESHOLD (matches server logic for stat penalties/health loss) ---
-// const LOW_NEED_THRESHOLD = 20.0; // If thirst/hunger/warmth < this, special effects kick in
-
-const StatusBar: React.FC<StatusBarProps> = ({ label, icon, value, maxValue, barColor, glow, hasActiveEffect }) => {
-  const percentage = Math.max(0, Math.min(100, (value / maxValue) * 100));
-
-  // Inline keyframes for pulse animation (self-contained)
-  // Only inject once per page
-  React.useEffect(() => {
-    if (glow && !document.getElementById('status-bar-glow-keyframes')) {
-      const style = document.createElement('style');
-      style.id = 'status-bar-glow-keyframes';
-      style.innerHTML = `
-        @keyframes statusBarGlowPulse {
-          0% { box-shadow: 0 0 8px 2px rgba(255,255,255,0.25), 0 0 0 0 ${barColor}; transform: scale(1); }
-          50% { box-shadow: 0 0 16px 6px ${barColor}, 0 0 0 0 ${barColor}; transform: scale(1.04); }
-          100% { box-shadow: 0 0 8px 2px rgba(255,255,255,0.25), 0 0 0 0 ${barColor}; transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Keyframes for diagonal stripes animation
-    if (hasActiveEffect && !document.getElementById('status-bar-regen-keyframes')) {
-        const style = document.createElement('style');
-        style.id = 'status-bar-regen-keyframes';
-        style.innerHTML = `
-          @keyframes statusBarRegenAnimation {
-            0% { background-position: 0 0; }
-            100% { background-position: 20px 0; } /* Horizontal movement for 20px pattern */
-          }
-        `;
-        document.head.appendChild(style);
-    }
-  }, [glow, barColor, hasActiveEffect]);
-
-  const filledBarStyle: React.CSSProperties = {
-    height: '100%',
-    width: `${percentage}%`,
-    backgroundColor: barColor,
-    transition: 'box-shadow 0.2s, transform 0.2s, width 0.3s ease-in-out',
-    boxShadow: glow ? `0 0 16px 6px ${barColor}` : undefined,
-    animation: glow ? 'statusBarGlowPulse 1.2s infinite' : undefined,
-    zIndex: 1,
-    position: 'relative', 
-    overflow: 'hidden', 
-  };
-
-  const activeEffectOverlayStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundImage: `repeating-linear-gradient(
-        -45deg, /* Keeping diagonal for a more dynamic look */
-        rgba(255, 100, 100, 0.7), /* Lighter semi-transparent red */
-        rgba(255, 100, 100, 0.7) 10px,
-        rgba(180, 50, 50, 0.7) 10px, /* Darker semi-transparent red */
-        rgba(180, 50, 50, 0.7) 20px
-    )`,
-    // backgroundSize: '30px 30px', // Not strictly needed with this repeating-linear-gradient 
-    animation: 'statusBarRegenAnimation 0.8s linear infinite', // Re-enabled and faster
-    zIndex: 2, 
-  };
-
-  return (
-    <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center' }}>
-      <span style={{ marginRight: '5px', minWidth: '18px', textAlign: 'center', fontSize: '14px' }}>{icon}</span>
-      <div style={{ flexGrow: 1 }}>
-        <div style={{
-          height: '8px',
-          backgroundColor: '#555',
-          borderRadius: '2px',
-          overflow: 'hidden',
-          border: '1px solid #333',
-          position: 'relative', 
-        }}>
-          <div style={filledBarStyle}>
-            {hasActiveEffect && <div style={activeEffectOverlayStyle}></div>}
-          </div>
-        </div>
-      </div>
-      <span style={{ marginLeft: '5px', fontSize: '10px', minWidth: '30px', textAlign: 'right' }}>
-        {value.toFixed(0)}
-      </span>
-    </div>
-  );
-};
 
 interface PlayerUIProps {
   identity: Identity | null;
@@ -198,6 +98,43 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         });
 
         return foundMatch;
+    }, [localPlayer, activeConsumableEffects]);
+
+    // Determine if there's an active bleed effect for the local player
+    const isPlayerBleeding = React.useMemo(() => {
+        if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
+
+        const localPlayerIdHex = localPlayer.identity.toHexString();
+        let foundMatch = false;
+        activeConsumableEffects.forEach((effect) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+
+            // console.log(`[PlayerUI - isPlayerBleeding] Checking effect: PlayerID=${effectPlayerIdHex}, LocalPlayerID=${localPlayerIdHex}, EffectTypeTag='${effectTypeTag}'`);
+
+            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'Bleed') {
+                foundMatch = true;
+                // console.log("[PlayerUI - isPlayerBleeding] Bleed effect FOUND for local player.");
+            }
+        });
+        return foundMatch;
+    }, [localPlayer, activeConsumableEffects]);
+
+    // Determine if there's an active BandageBurst effect and its potential heal amount
+    const pendingBandageHealAmount = React.useMemo(() => {
+        if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return 0;
+
+        const localPlayerIdHex = localPlayer.identity.toHexString();
+        let potentialHeal = 0;
+        activeConsumableEffects.forEach((effect) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+
+            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') {
+                potentialHeal = effect.totalAmount || 0; // Use totalAmount from the effect
+            }
+        });
+        return potentialHeal;
     }, [localPlayer, activeConsumableEffects]);
 
     useEffect(() => {
@@ -506,6 +443,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     maxValue={100} 
                     barColor="#ff4040" 
                     hasActiveEffect={isHealthHealingOverTime}
+                    hasBleedEffect={isPlayerBleeding}
+                    pendingHealAmount={pendingBandageHealAmount}
                 />
                 <StatusBar label="SP" icon="⚡" value={localPlayer.stamina} maxValue={100} barColor="#40ff40" />
                 {/*

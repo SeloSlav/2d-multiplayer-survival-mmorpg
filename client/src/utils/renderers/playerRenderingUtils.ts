@@ -1,4 +1,4 @@
-import { Player as SpacetimeDBPlayer } from '../../generated';
+import { Player as SpacetimeDBPlayer, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 import { drawShadow } from './shadowUtils';
 
@@ -54,7 +54,8 @@ const PLAYER_NAME_FONT = '12px "Press Start 2P", cursive';
 export const getSpriteCoordinates = (
   player: SpacetimeDBPlayer,
   isMoving: boolean,
-  currentAnimationFrame: number
+  currentAnimationFrame: number,
+  isUsingItem: boolean
 ): { sx: number, sy: number } => {
   let spriteRow = 2; // Default Down
   switch (player.direction) {
@@ -64,7 +65,11 @@ export const getSpriteCoordinates = (
     case 'left':  spriteRow = 3; break;
     default:      spriteRow = 2; break;
   }
-  const frameIndex = isMoving ? currentAnimationFrame : IDLE_FRAME_INDEX;
+  let frameIndex = isMoving ? currentAnimationFrame : IDLE_FRAME_INDEX;
+  if (isUsingItem) {
+    // Simple 2-frame rocking animation using frame 0 and 1 of the current direction row
+    frameIndex = currentAnimationFrame % 2; 
+  }
   const sx = frameIndex * gameConfig.spriteWidth;
   const sy = spriteRow * gameConfig.spriteHeight;
   return { sx, sy };
@@ -134,7 +139,8 @@ export const renderPlayer = (
   nowMs: number,
   jumpOffsetY: number = 0,
   shouldShowLabel: boolean = false,
-  currentlyHovered: boolean = false
+  activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
+  localPlayerId?: string
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -214,7 +220,17 @@ export const renderPlayer = (
 
   // --- End Knockback Interpolation Logic ---
 
-  const { sx, sy } = getSpriteCoordinates(player, isMoving, currentAnimationFrame);
+  let isUsingItem = false;
+  if (localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
+    for (const effect of activeConsumableEffects.values()) {
+      if (effect.playerId.toHexString() === localPlayerId && effect.effectType.tag === "BandageBurst") { 
+        isUsingItem = true;
+        break;
+      }
+    }
+  }
+
+  const { sx, sy } = getSpriteCoordinates(player, isMoving, currentAnimationFrame, isUsingItem);
   
   // --- Calculate Shake Offset (Only if alive and online) ---
   let shakeX = 0;

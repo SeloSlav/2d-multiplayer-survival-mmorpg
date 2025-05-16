@@ -2,6 +2,7 @@ import { DroppedItem as SpacetimeDBDroppedItem, ItemDefinition as SpacetimeDBIte
 import burlapSackImage from '../../assets/doodads/burlap_sack.png'; // Import the sack image
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager'; 
+import { applyStandardDropShadow } from './shadowUtils'; // Added import
 
 // --- Constants --- 
 const DRAW_WIDTH = 48;
@@ -23,19 +24,14 @@ const droppedItemConfig: GroundEntityConfig<SpacetimeDBDroppedItem & { itemDef?:
         drawY: entity.posY - drawHeight / 2, 
     }),
 
-    getShadowParams: (entity, drawWidth, drawHeight) => {
-        const shadowRadiusX = drawWidth * 0.4;
-        const shadowRadiusY = shadowRadiusX * 0.6;
-        const shadowOffsetY = drawHeight * 0.3; 
-        return {
-            offsetX: 0, 
-            offsetY: shadowOffsetY,
-            radiusX: shadowRadiusX,
-            radiusY: shadowRadiusY,
-        };
-    },
+    getShadowParams: undefined, // Removed to use applyEffects for shadow
 
-    applyEffects: undefined,
+    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
+        // Apply shadow
+        applyStandardDropShadow(ctx, { cycleProgress, blur: 3, offsetY: 2 });
+        // No other effects for now, so return default offsets
+        return { offsetX: 0, offsetY: 0 };
+    },
 
     fallbackColor: '#A0522D', // Brown fallback for sack
 };
@@ -49,6 +45,7 @@ interface RenderDroppedItemParamsNew {
     item: SpacetimeDBDroppedItem;
     itemDef: SpacetimeDBItemDefinition | undefined;
     nowMs: number; // Keep nowMs for consistency, even if unused
+    cycleProgress: number; // Added for shadow
 }
 
 // --- Rendering Function (Refactored) ---
@@ -57,6 +54,7 @@ export function renderDroppedItem({
     item,
     itemDef,
     nowMs,
+    cycleProgress, // Added
 }: RenderDroppedItemParamsNew): void {
     // Combine item and itemDef for the generic renderer config
     const entityWithDef = { ...item, itemDef };
@@ -68,5 +66,6 @@ export function renderDroppedItem({
         nowMs, 
         entityPosX: item.posX,
         entityPosY: item.posY,
+        cycleProgress, // Added
     });
 } 

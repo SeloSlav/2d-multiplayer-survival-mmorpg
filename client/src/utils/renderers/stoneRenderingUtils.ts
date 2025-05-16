@@ -44,7 +44,7 @@ const stoneConfig: GroundEntityConfig<Stone> = {
             maxStretchFactor: 0.8, // Specific to stones
             minStretchFactor: 0.1,  // Specific to stones
             shadowBlur: 2,
-            pivotYOffset: 30 // Added pivot offset for stones
+            pivotYOffset: 20 // Added pivot offset for stones
         });
     },
 

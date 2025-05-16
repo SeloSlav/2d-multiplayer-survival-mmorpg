@@ -18,7 +18,8 @@ import {
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
-  Stash as SpacetimeDBStash
+  Stash as SpacetimeDBStash,
+  ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
 } from '../generated';
 
 // --- Core Hooks ---
@@ -35,7 +36,6 @@ import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
-import { useTorchLight } from '../hooks/useTorchLight';
 import { useTorchParticles } from '../hooks/useTorchParticles';
 
 // --- Rendering Utilities ---
@@ -54,7 +54,8 @@ import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
 import { renderStash } from '../utils/renderers/stashRenderingUtils';
-import { renderPlayerTorchLight } from '../utils/renderers/lightRenderingUtils';
+import { renderPlayerTorchLight, renderCampfireLight } from '../utils/renderers/lightRenderingUtils';
+import { renderTree } from '../utils/renderers/treeRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -62,25 +63,16 @@ import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import {
     gameConfig,
-    CAMPFIRE_LIGHT_RADIUS_BASE,
-    CAMPFIRE_FLICKER_AMOUNT,
     HOLD_INTERACTION_DURATION_MS,
     CAMPFIRE_HEIGHT,
     BOX_HEIGHT,
-    CAMPFIRE_LIGHT_INNER_COLOR,
-    CAMPFIRE_LIGHT_OUTER_COLOR,
-    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED
+    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED,
+    SERVER_CAMPFIRE_DAMAGE_RADIUS,
+    SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET,
 } from '../config/gameConfig';
 
 // Define a placeholder height for Stash for indicator rendering
 const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
-
-// Define specific torch light properties, or reuse campfire ones
-// These constants are now duplicated from useTorchLight.ts, consider centralizing if used in more places.
-const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; 
-const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7;
-const TORCH_LIGHT_INNER_COLOR = CAMPFIRE_LIGHT_INNER_COLOR;
-const TORCH_LIGHT_OUTER_COLOR = CAMPFIRE_LIGHT_OUTER_COLOR;
 
 // --- Prop Interface ---
 interface GameCanvasProps {
@@ -100,6 +92,7 @@ interface GameCanvasProps {
   playerPins: Map<string, SpacetimeDBPlayerPin>;
   inventoryItems: Map<string, SpacetimeDBInventoryItem>;
   itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
+  activeConsumableEffects: Map<string, SpacetimeDBActiveConsumableEffect>;
   worldState: SpacetimeDBWorldState | null;
   activeConnections: Map<string, ActiveConnection> | undefined;
   localPlayerId?: string;
@@ -143,6 +136,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   playerPins,
   inventoryItems,
   itemDefinitions,
+  activeConsumableEffects,
   worldState,
   localPlayerId,
   connection,
@@ -166,6 +160,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastPositionsRef = useRef<Map<string, {x: number, y: number}>>(new Map());
   const placementActionsRef = useRef(placementActions);
+  const prevPlayerHealthRef = useRef<number | undefined>(undefined);
+  const [damagingCampfireIds, setDamagingCampfireIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     placementActionsRef.current = placementActions;
   }, [placementActions]);
@@ -179,15 +175,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
   const { heroImageRef, grassImageRef, itemImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
-
-  // Call useTorchLight for local player specific effects (like a very subtle local glow perhaps, if still needed)
-  // Its output is NOT for the day/night cycle mask anymore, and also not directly for multi-player particles.
-  const _localTorchLightParams = useTorchLight({
-    localPlayer,
-    activeEquipments,
-    itemDefinitions,
-    localPlayerId,
-  });
 
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({ 
     worldState, 
@@ -248,10 +235,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Use Entity Filtering Hook ---
   const {
-    visiblePlayers,
-    visibleTrees,
-    visibleStones,
-    visibleWoodenStorageBoxes,
     visibleSleepingBags,
     visibleMushrooms,
     visibleCorns,
@@ -268,6 +251,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleHempsMap,
     visiblePlayerCorpses,
     visibleStashes,
+    visiblePlayerCorpsesMap,
+    visibleStashesMap,
+    visibleSleepingBagsMap,
+    visibleTrees,
+    visibleTreesMap,
     ySortedEntities
   } = useEntityFiltering(
     players,
@@ -292,11 +280,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- UI State ---
   const { hoveredPlayerIds, handlePlayerHover } = usePlayerHover();
 
-  // --- Create Maps from Visible Entities (Using useMemo) ---
-  const visiblePlayerCorpsesMap = useMemo(() => new Map(visiblePlayerCorpses.map(c => [c.id.toString(), c])), [visiblePlayerCorpses]);
-  const visibleStashesMap = useMemo(() => new Map(visibleStashes.map(s => [s.id.toString(), s])), [visibleStashes]);
-  const visibleSleepingBagsMap = useMemo(() => new Map(visibleSleepingBags.map(s => [s.id.toString(), s])), [visibleSleepingBags]);
-
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
       canvasRef,
@@ -308,37 +291,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       canvasSize,
   });
 
-  // --- Derived State ---
-  // Removed respawnTimestampMs calculation as respawn_at is removed
-  // const respawnTimestampMs = useMemo(() => {
-  //   if (localPlayer?.isDead && localPlayer.respawnAt) {
-  //     return Number(localPlayer.respawnAt.microsSinceUnixEpoch / 1000n);
-  //   }
-  //   return 0;
-  // }, [localPlayer?.isDead, localPlayer?.respawnAt]);
-
-  // --- Handle respawn ---
-  const handleRespawnRequest = useCallback(() => {
-    if (!connection?.reducers) {
-      console.error("Connection or reducers not available for respawn request.");
-      return;
-    }
-    try {
-      connection.reducers.requestRespawn();
-    } catch (err) {
-      console.error("Error calling requestRespawn reducer:", err);
-    }
-  }, [connection]);
-
   // --- Should show death screen ---
   // Show death screen only based on isDead flag now
   const shouldShowDeathScreen = !!(localPlayer?.isDead && connection);
   
   // Set cursor style based on placement
   const cursorStyle = placementInfo ? 'cell' : 'crosshair';
-
-  // Derived state for player dead status
-  const localPlayerIsDead = useMemo(() => localPlayer?.isDead ?? false, [localPlayer]);
 
   // --- Effects ---
   useEffect(() => {
@@ -360,9 +318,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [deltaTime, setDeltaTime] = useState<number>(0);
 
   // Use the new hook for campfire particles
-  const campfireParticles = useCampfireParticles({ 
-      visibleCampfiresMap: visibleCampfiresMap || new Map(), 
-      deltaTime 
+  const campfireParticles = useCampfireParticles({
+    visibleCampfiresMap,
+    deltaTime,
+    damagingCampfireIds,
   });
   const torchParticles = useTorchParticles({
     players,
@@ -381,13 +340,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const screenY = Math.floor(p.y); 
         const size = Math.max(1, Math.floor(p.size)); 
 
+        // --- ADDED: Debugging for smoke burst particles ---
+        if (p.type === 'smoke' && p.color === "#000000") { // Check if it's a black smoke burst particle
+            console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
+        }
+        // --- END ADDED ---
+
         ctx.globalAlpha = p.alpha;
 
         if (p.type === 'fire' && p.color) {
             ctx.fillStyle = p.color;
             ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
         } else if (p.type === 'smoke') {
+            // Regular smoke still uses the default light grey
             ctx.fillStyle = `rgba(160, 160, 160, 1)`; 
+            ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
+        } else if (p.type === 'smoke_burst' && p.color) { // MODIFIED: Added condition for 'smoke_burst'
+            ctx.fillStyle = p.color; // This will be black (#000000)
             ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
         }
     });
@@ -453,6 +422,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleMushrooms.forEach(mushroom => {
         renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
     });
+    // --- BEGIN ADDED: Render Tree Shadows ---
+    if (visibleTrees) {
+      visibleTrees.forEach(tree => {
+        renderTree(ctx, tree, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
+      });
+    }
+    // --- END ADDED: Render Tree Shadows ---
     // TODO: Add other ground items like mushrooms, crops here if they get custom dynamic shadows
 
     // Second pass: Draw the actual entities for ground items
@@ -464,7 +440,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleDroppedItems.forEach(item => {
         const itemDef = itemDefinitions.get(item.itemDefId.toString());
         // Use the new signature: ctx, item, itemDef, nowMs
-        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms }); 
+        renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms, cycleProgress: currentCycleProgress }); 
     });
     // Render Mushrooms
     visibleMushrooms.forEach(mushroom => {
@@ -500,10 +476,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         lastPositionsRef,
         activeConnections,
         activeEquipments,
+        activeConsumableEffects,
         itemDefinitions,
         itemImagesRef,
         worldMouseX: currentWorldMouseX,
         worldMouseY: currentWorldMouseY,
+        localPlayerId: localPlayerId,
         animationFrame,
         nowMs: now_ms,
         hoveredPlayerIds,
@@ -620,41 +598,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     visibleCampfiresMap.forEach((fire: SpacetimeDBCampfire) => {
-        if (fire.isBurning) {
-            const lightScreenX = fire.posX + cameraOffsetX;
-            
-            // Calculate the visual center of the campfire sprite in world Y
-            const visualCenterWorldY = fire.posY - (CAMPFIRE_HEIGHT / 2);
-            // Shift this center up by 10% of the campfire's height for a slight upward offset
-            const gradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0.0);
-            // Convert the new world Y center to screen coordinates for drawing
-            const newLightScreenY = gradientCenterWorldY + cameraOffsetY;
-
-            const flicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
-            // Increase the radius by 100% (double size)
-            const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 2.0;
-            
-            const lightGradient = ctx.createRadialGradient(
-                lightScreenX,       // Screen X for gradient
-                newLightScreenY,    // New shifted screen Y for gradient
-                0,                  // Inner radius
-                lightScreenX,       // Screen X for gradient
-                newLightScreenY,    // New shifted screen Y for gradient
-                currentLightRadius
-            );
-            lightGradient.addColorStop(0.30, CAMPFIRE_LIGHT_INNER_COLOR);
-            lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
-            ctx.fillStyle = lightGradient;
-            ctx.beginPath();
-            ctx.arc(
-                lightScreenX,       // Screen X for arc
-                newLightScreenY,    // New shifted screen Y for arc
-                currentLightRadius, 
-                0, 
-                Math.PI * 2
-            );
-            ctx.fill();
-        }
+      renderCampfireLight({
+        ctx,
+        campfire: fire,
+        cameraOffsetX,
+        cameraOffsetY,
+      });
     });
 
     // --- Render Torch Light for ALL players (Local and Remote) ---
@@ -713,13 +662,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
       isMinimapOpen, isMouseOverMinimap, minimapZoom,
       activeConnections,
+      activeConsumableEffects,
       visiblePlayerCorpses,
       visibleStashes,
-      visibleSleepingBagsMap,
+      visibleSleepingBags,
       campfireParticles, 
       torchParticles,
       isSearchingCraftRecipes,
       worldState?.cycleProgress, // Correct dependency for renderGame
+      visibleTrees, // Added to dependency array
+      visibleTreesMap, // Added to dependency array
   ]);
 
   const gameLoopCallback = useCallback(() => {
@@ -765,6 +717,51 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       cancelPlacement: placementActions.cancelPlacement,
       viewport: worldViewport, // Pass calculated viewport (can be null)
   });
+
+  // --- Logic to detect player damage from campfires and trigger effects ---
+  useEffect(() => {
+    if (localPlayer && visibleCampfiresMap) {
+      const currentHealth = localPlayer.health;
+      const prevHealth = prevPlayerHealthRef.current;
+
+      if (prevHealth !== undefined) { // Only proceed if prevHealth is initialized
+        if (currentHealth < prevHealth) { // Health decreased
+          const newlyDamagingIds = new Set<string>();
+          visibleCampfiresMap.forEach((campfire, id) => {
+            if (campfire.isBurning && !campfire.isDestroyed) {
+              const dx = localPlayer.positionX - campfire.posX;
+              const effectiveCampfireY = campfire.posY - SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET;
+              const dy = localPlayer.positionY - effectiveCampfireY;
+              const distSq = dx * dx + dy * dy;
+              const damageRadiusSq = SERVER_CAMPFIRE_DAMAGE_RADIUS * SERVER_CAMPFIRE_DAMAGE_RADIUS;
+
+              if (distSq < damageRadiusSq) {
+                newlyDamagingIds.add(id.toString());
+                console.log(`[GameCanvas] Player took damage near burning campfire ${id}. Health: ${prevHealth} -> ${currentHealth}`);
+              }
+            }
+          });
+          // Set the IDs if any were found, otherwise, this will be an empty set if health decreased but not by a known campfire.
+          setDamagingCampfireIds(newlyDamagingIds); 
+        } else { 
+          // Health did not decrease (or increased / stayed same). Clear any damaging IDs from previous tick.
+          if (damagingCampfireIds.size > 0) {
+            setDamagingCampfireIds(new Set());
+          }
+        }
+      }
+      prevPlayerHealthRef.current = currentHealth; // Always update prevHealth
+    } else {
+      // No localPlayer or no visibleCampfiresMap
+      if (damagingCampfireIds.size > 0) { // Clear if there are lingering IDs
+        setDamagingCampfireIds(new Set());
+      }
+      if (!localPlayer) { // If player becomes null (e.g. disconnect), reset prevHealth
+        prevPlayerHealthRef.current = undefined;
+      }
+    }
+  }, [localPlayer, visibleCampfiresMap]); // Dependencies: localPlayer (for health) and campfires map
+  // Note: damagingCampfireIds is NOT in this dependency array. We set it, we don't react to its changes here.
 
   return (
     <>

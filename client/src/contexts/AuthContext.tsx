@@ -31,6 +31,7 @@ interface AuthContextType {
   loginRedirect: () => Promise<void>; // Function to start login flow
   logout: () => Promise<void>;        // Function to logout
   handleRedirectCallback: () => Promise<void>; // Function to process callback
+  invalidateCurrentToken: () => void; // New function to invalidate token
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   loginRedirect: async () => { console.warn("AuthContext not initialized"); },
   logout: async () => { console.warn("AuthContext not initialized"); },
   handleRedirectCallback: async () => { console.warn("AuthContext not initialized"); },
+  invalidateCurrentToken: () => { console.warn("AuthContext not initialized"); },
 });
 
 interface AuthProviderProps {
@@ -306,6 +308,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
        }
   };
 
+  const invalidateCurrentToken = useCallback(() => {
+    console.warn("[AuthContext LOG] Current token is being invalidated, likely due to rejection by a service (e.g., SpacetimeDB).");
+    const oldToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN); // Check if a token existed
+    clearTokens(); // This sets spacetimeToken to null, userProfile to null, and updates isAuthenticated via derivation
+
+    if (oldToken) {
+        setAuthError("Your session token was rejected or has expired. Please log in again.");
+    } else {
+        // Optionally, set a different error or no error if no token was present to invalidate
+        // For now, let's assume invalidating a non-existent token is not an error from AuthContext's perspective,
+        // or it could be logged if it's unexpected.
+        console.warn("[AuthContext LOG] invalidateCurrentToken called, but no token was present in storage.");
+    }
+    setIsLoading(false); // Ensure UI is not stuck in loading state
+  }, [setAuthError, setIsLoading]); // clearTokens is stable as it's defined in the same scope and its own dependencies (setters) are stable
+
   // --- Effect for Initial Load / Handling Redirect ---
   useEffect(() => {
     // Only handle redirect OR set initial user profile
@@ -350,7 +368,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         authError,
         loginRedirect,
         logout,
-        handleRedirectCallback
+        handleRedirectCallback,
+        invalidateCurrentToken
       }}
     >
       {children}
