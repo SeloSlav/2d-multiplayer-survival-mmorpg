@@ -121,7 +121,7 @@ pub fn apply_item_effects_and_consume(
                         cancel_health_regen_effects(ctx, player_id); 
                         // It might be wise to also explicitly cancel any existing BandageBurst here if a player tries to use another bandage while one is active.
                         // For now, let's assume one bandage at a time. A dedicated cancel_bandage_burst_effects could be called too.
-                        crate::active_effects::cancel_bleed_effects(ctx, player_id); // Bandages still cancel bleed
+                        // crate::active_effects::cancel_bleed_effects(ctx, player_id); // Bandages still cancel bleed - REMOVED, handled by BandageBurst effect completion
                         
                         log::info!("[EffectsHelper] Player {:?} using Bandage. Creating BandageBurst effect.", player_id);
                         apply_timed_effect_for_helper(ctx, player_id, item_def, item_instance_id, EffectType::BandageBurst, total_bandage_heal, duration_secs, 1.0)?;

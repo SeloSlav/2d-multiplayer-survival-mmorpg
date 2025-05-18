@@ -71,6 +71,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
     let mut player_updates = std::collections::HashMap::<Identity, Player>::new();
     // A temporary Vec to store effects that need item consumption to avoid borrowing issues with ctx.db
     let mut effects_requiring_consumption: Vec<(u64, Identity, EffectType, Option<f32>)> = Vec::new();
+    let mut player_ids_who_took_external_damage_this_tick = std::collections::HashSet::<Identity>::new(); // Renamed for clarity
 
     for effect_row in ctx.db.active_consumable_effect().iter() {
         let effect = effect_row.clone(); // Clone to work with
@@ -98,20 +99,20 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
 
         // --- Handle Environmental Damage (One-Shot) ---
         if effect.effect_type == EffectType::Damage && effect.item_def_id == 0 {
-            if let Some(damage_to_apply) = effect.total_amount { // For environmental, total_amount is the one-shot damage
+            if let Some(damage_to_apply) = effect.total_amount {
                 log::trace!("[EffectTick] ENV_DAMAGE Pre-Damage for Player {:?}: Health {:.2}, DamageThisTick {:.2}",
                     effect.player_id, player_to_update.health, damage_to_apply);
+                let health_before_env_damage = player_to_update.health;
                 player_to_update.health = (player_to_update.health - damage_to_apply).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
                 log::trace!("[EffectTick] ENV_DAMAGE Post-Damage for Player {:?}: Health now {:.2}",
                     effect.player_id, player_to_update.health);
 
-                if (player_to_update.health - old_health).abs() > f32::EPSILON {
+                if player_to_update.health < health_before_env_damage {
                     player_effect_applied_this_iteration = true;
+                    player_ids_who_took_external_damage_this_tick.insert(effect.player_id); // Environmental damage is external
                 }
-                // Environmental effect applies its full amount in one go, so conceptually `applied_so_far` becomes `total_amount`
-                // current_effect_applied_so_far = damage_to_apply; // Not strictly needed as it's removed, but for consistency if logged
             }
-            effect_ended = true; // Environmental damage is always one-shot and then removed
+            effect_ended = true;
         }
         // --- Handle BandageBurst (Delayed Burst Heal) ---
         else if effect.effect_type == EffectType::BandageBurst {
@@ -126,6 +127,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         player_effect_applied_this_iteration = true;
                     }
                     effect_ended = true;
+
+                    // If BandageBurst completes successfully, cancel bleed effects for this player.
+                    if player_effect_applied_this_iteration { // Ensure health was actually applied
+                        log::info!("[EffectTick] BandageBurst completed for player {:?}. Attempting to cancel bleed effects.", effect.player_id);
+                        cancel_bleed_effects(ctx, effect.player_id);
+                    }
                 } else {
                     // Timer still running for BandageBurst, do nothing to health, don't end yet.
                     log::trace!("[EffectTick] BANDAGE_BURST Player {:?}: Timer active, ends_at: {:?}, current_time: {:?}", 
@@ -184,6 +191,14 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         player_effect_applied_this_iteration = true;
                     }
                     current_effect_applied_so_far += amount_this_tick; // Increment amount applied *for this effect*
+
+                    // If this effect was a damaging one and health was reduced, mark player for potential BandageBurst cancellation
+                    // Only item-based direct Damage (not Bleed itself) counts as external for interrupting bandages.
+                    if player_effect_applied_this_iteration && effect.effect_type == EffectType::Damage && effect.item_def_id != 0 {
+                        if player_to_update.health < old_health {
+                             player_ids_who_took_external_damage_this_tick.insert(effect.player_id);
+                        }
+                    }
                 } else {
                     log::trace!("[EffectTick] Effect {} for player {:?}: amount_this_tick was 0 or less. Applied so far: {:.2}/{:.2}",
                         effect.effect_id, effect.player_id, current_effect_applied_so_far, total_amount_val);
@@ -212,8 +227,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             );
 
             // If health was reduced by a damaging effect, cancel any active HealthRegen effects for that player.
+            // This check is now implicitly handled by player_ids_who_took_external_damage_this_tick below,
+            // but we'll keep the direct health_was_reduced check for HealthRegen for clarity specific to it.
             if health_was_reduced && (effect.effect_type == EffectType::Damage || effect.effect_type == EffectType::Bleed) {
                 cancel_health_regen_effects(ctx, effect.player_id);
+                // Note: BandageBurst cancellation due to taking damage is handled after iterating all effects using player_ids_who_took_external_damage_this_tick
             }
         }
 
@@ -244,6 +262,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         log::debug!("[EffectTick] Final update for player {:?} applied to DB.", player_id);
     }
 
+    // --- Cancel BandageBurst effects for players who took EXTERNALLY sourced damage this tick ---
+    for player_id_damaged in player_ids_who_took_external_damage_this_tick {
+        log::debug!("[EffectTick] Player {:?} took external damage this tick. Cancelling their BandageBurst effects.", player_id_damaged);
+        cancel_bandage_burst_effects(ctx, player_id_damaged);
+    }
+    
     // --- Consume items for effects that ended and had a consuming_item_instance_id ---
     for (item_instance_id, player_id, effect_type, amount_applied) in effects_requiring_consumption {
         if let Some(mut inventory_item) = ctx.db.inventory_item().instance_id().find(&item_instance_id) {
