@@ -10,9 +10,9 @@ use crate::items::InventoryItem;
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
 
 // --- Constants ---
-const DAY_DURATION_SECONDS: f32 = 270.0; // 4.5 minutes
-const NIGHT_DURATION_SECONDS: f32 = 90.0;  // 1.5 minutes
-const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 360 seconds = 6 minutes total
+const DAY_DURATION_SECONDS: f32 = 2700.0; // 45 minutes
+const NIGHT_DURATION_SECONDS: f32 = 900.0;  // 15 minutes
+const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // Now 60 seconds total
 
 // Full moon occurs roughly every 3 cycles (adjust as needed)
 const FULL_MOON_CYCLE_INTERVAL: u32 = 3;
@@ -30,10 +30,12 @@ pub(crate) const WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK: f32 = 1.5;
 #[derive(Clone, Debug, PartialEq, spacetimedb::SpacetimeType)]
 pub enum TimeOfDay {
     Dawn,    // Transition from night to day
+    TwilightMorning, // Purple hue after dawn
     Morning, // Early day
     Noon,    // Midday, brightest
     Afternoon, // Late day
     Dusk,    // Transition from day to night
+    TwilightEvening, // Purple hue after dusk
     Night,   // Darkest part
     Midnight, // Middle of the night
 }
@@ -115,13 +117,15 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         // Determine the new TimeOfDay based on new_progress
         // Day is now 0.0 to 0.75, Night is 0.75 to 1.0
         let new_time_of_day = match new_progress {
-            p if p < 0.05 => TimeOfDay::Dawn,     // First ~6.7% of daytime (0.0 - 0.05)
-            p if p < 0.30 => TimeOfDay::Morning,   // Next ~33.3% of daytime (0.05 - 0.30)
-            p if p < 0.45 => TimeOfDay::Noon,      // Middle ~20% of daytime (0.30 - 0.45)
-            p if p < 0.70 => TimeOfDay::Afternoon, // Next ~33.3% of daytime (0.45 - 0.70)
-            p if p < 0.75 => TimeOfDay::Dusk,      // Last ~6.7% of daytime (0.70 - 0.75)
-            p if p < 0.90 => TimeOfDay::Night,     // First 60% of nighttime (0.75 - 0.90)
-            _             => TimeOfDay::Midnight, // Last 40% of nighttime (0.90 - 1.0), also default
+            p if p < 0.04 => TimeOfDay::Dawn,     // Orange (0.0 - 0.04)
+            p if p < 0.08 => TimeOfDay::TwilightMorning, // Purple (0.04 - 0.08)
+            p if p < 0.30 => TimeOfDay::Morning,   // Yellow (0.08 - 0.30)
+            p if p < 0.45 => TimeOfDay::Noon,      // Bright Yellow (0.30 - 0.45)
+            p if p < 0.67 => TimeOfDay::Afternoon, // Yellow (0.45 - 0.67)
+            p if p < 0.71 => TimeOfDay::Dusk,      // Orange (0.67 - 0.71)
+            p if p < 0.75 => TimeOfDay::TwilightEvening, // Purple (0.71 - 0.75)
+            p if p < 0.90 => TimeOfDay::Night,     // Dark Blue (0.75 - 0.90)
+            _             => TimeOfDay::Midnight, // Very Dark Blue/Black (0.90 - 1.0), also default
         };
 
         // Assign the calculated new values to the world_state object

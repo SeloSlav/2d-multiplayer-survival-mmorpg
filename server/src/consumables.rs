@@ -67,6 +67,33 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
 
     // Update player table after effects are applied and item consumed
     players_table.identity().update(player_to_update);
+    
+    // For instant-effect items (no duration), handle consumption immediately.
+    // Check if this item has no duration or a duration <= 0
+    let has_instant_effect = item_def.consumable_duration_secs.map_or(true, |d| d <= 0.0);
+    
+    if has_instant_effect {
+        // Consume the item directly here since no timed effect will handle it
+        let mut item_to_consume = ctx.db.inventory_item().instance_id().find(item_instance_id)
+            .ok_or_else(|| format!("Item instance {} suddenly disappeared.", item_instance_id))?;
+            
+        // Decrease quantity
+        if item_to_consume.quantity > 0 {
+            item_to_consume.quantity -= 1;
+        }
+        
+        // Remove item if quantity is 0
+        if item_to_consume.quantity == 0 {
+            ctx.db.inventory_item().instance_id().delete(&item_instance_id);
+            log::info!("[ConsumeItem] Instantly consumed and deleted item_instance_id: {} for player {:?}.", 
+                item_instance_id, sender_id);
+        } else {
+            // Update with decreased quantity
+            ctx.db.inventory_item().instance_id().update(item_to_consume.clone());
+            log::info!("[ConsumeItem] Instantly consumed item_instance_id: {}, new quantity: {} for player {:?}.", 
+                item_instance_id, item_to_consume.quantity, sender_id);
+        }
+    }
 
     Ok(())
 }

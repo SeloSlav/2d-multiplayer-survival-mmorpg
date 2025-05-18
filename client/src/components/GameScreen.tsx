@@ -44,7 +44,8 @@ import {
     SleepingBag as SpacetimeDBSleepingBag,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
-    ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
+    ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
+    Cloud as SpacetimeDBCloud
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -63,6 +64,7 @@ interface GameScreenProps {
     // Core Game State (from useSpacetimeTables)
     players: Map<string, SpacetimeDBPlayer>;
     trees: Map<string, SpacetimeDBTree>;
+    clouds: Map<string, SpacetimeDBCloud>;
     stones: Map<string, SpacetimeDBStone>;
     campfires: Map<string, SpacetimeDBCampfire>;
     mushrooms: Map<string, SpacetimeDBMushroom>;
@@ -137,6 +139,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         isChatting,
         setIsChatting,
         activeConsumableEffects,
+        clouds,
     } = props;
 
     // You can also add a useEffect here if the above doesn't show up
@@ -158,6 +161,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             <GameCanvas
                 players={players}
                 trees={trees}
+                clouds={clouds}
                 stones={stones}
                 campfires={campfires}
                 mushrooms={mushrooms}

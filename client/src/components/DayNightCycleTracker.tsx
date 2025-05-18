@@ -16,7 +16,9 @@ const COLORS = {
   dusk: '#ff7e45',
   night: '#3b4a78',
   midnight: '#1a1a40',
-  fullMoon: '#e6e6fa'
+  fullMoon: '#e6e6fa',
+  twilightMorning: '#c8a2c8', // Lilac/light purple for morning twilight
+  twilightEvening: '#8a2be2'  // Blue-violet for evening twilight
 };
 
 interface DayNightCycleTrackerProps {
@@ -30,10 +32,12 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
   const getTimeIcon = (timeOfDay: TimeOfDay) => {
     switch (timeOfDay.tag) {
       case 'Dawn': return '🌅';
+      case 'TwilightMorning': return '✨'; // Sparkles for morning twilight
       case 'Morning': return '🌄';
       case 'Noon': return '☀️';
       case 'Afternoon': return '🌤️';
       case 'Dusk': return '🌇';
+      case 'TwilightEvening': return '🔮'; // Crystal ball for evening twilight
       case 'Night': return worldState.isFullMoon ? '🌕' : '🌙';
       case 'Midnight': return worldState.isFullMoon ? '🌕' : '🌑';
       default: return '⏱️';
@@ -44,10 +48,12 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
   const getBackgroundGradient = () => {
     const colorMap: Record<string, string> = {
       Dawn: COLORS.dawn,
+      TwilightMorning: COLORS.twilightMorning,
       Morning: COLORS.morning,
       Noon: COLORS.noon,
       Afternoon: COLORS.afternoon,
       Dusk: COLORS.dusk,
+      TwilightEvening: COLORS.twilightEvening,
       Night: worldState.isFullMoon ? COLORS.fullMoon : COLORS.night,
       Midnight: worldState.isFullMoon ? COLORS.fullMoon : COLORS.midnight
     };
@@ -56,10 +62,12 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
     return `linear-gradient(to right, 
       ${COLORS.midnight}, 
       ${COLORS.dawn}, 
+      ${COLORS.twilightMorning}, 
       ${COLORS.morning}, 
       ${COLORS.noon}, 
       ${COLORS.afternoon}, 
       ${COLORS.dusk}, 
+      ${COLORS.twilightEvening}, 
       ${COLORS.night}, 
       ${COLORS.midnight})`;
   };
@@ -91,25 +99,29 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
       width: '220px',
       fontSize: '10px',
     }}>
-      {/* Cycle counter */}
+      {/* Cycle counter - REMOVED */}
+      {/* 
       <div style={{ marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
         <span>Cycle: {worldState.cycleCount}</span>
         <span>{isFullMoonNight ? '🌕 Full Moon' : ''}</span>
       </div>
+      */}
 
-      {/* Time of day indicator */}
-      <div style={{ 
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        marginBottom: '6px'
-      }}>
-        <span style={{
-          fontSize: '14px',
-          marginRight: '5px'
-        }}>{timeIcon}</span>
-        <span>{timeLabel}</span>
-      </div>
+      {/* Display Full Moon status if applicable, otherwise just a small margin or nothing - REMOVED */}
+      {/* 
+      {isFullMoonNight ? (
+        <div style={{ marginBottom: '6px', textAlign: 'center' }}>
+          <span>🌕 Full Moon</span>
+        </div>
+      ) : (
+        <div style={{ marginBottom: '6px' }}></div> // Keeps spacing consistent if no full moon text
+      )}
+      */}
+
+      {/* Time of day indicator - REMOVED */}
+      {/*
+      <div style={{ marginBottom: '6px' }}></div>
+      */}
       
       {/* Progress bar */}
       <div style={{
@@ -143,7 +155,8 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
         }}></div>
       </div>
       
-      {/* Simple time markers */}
+      {/* Simple time markers - REMOVED */}
+      {/* 
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -155,6 +168,7 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
         <span>Noon</span>
         <span>Midnight</span>
       </div>
+      */}
     </div>
   );
 };

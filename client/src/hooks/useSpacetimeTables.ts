@@ -29,6 +29,7 @@ export interface SpacetimeTableStates {
     playerCorpses: Map<string, SpacetimeDB.PlayerCorpse>;
     activeConsumableEffects: Map<string, SpacetimeDB.ActiveConsumableEffect>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
+    clouds: Map<string, SpacetimeDB.Cloud>; // <<< ADDED clouds to interface
 }
 
 // Define the props the hook accepts
@@ -71,6 +72,7 @@ export const useSpacetimeTables = ({
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
     const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
+    const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map()); // <<< ADDED clouds state
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -365,6 +367,20 @@ export const useSpacetimeTables = ({
                 setActiveConsumableEffects(prev => { const newMap = new Map(prev); newMap.delete(effect.effectId.toString()); return newMap; });
             };
             
+            // --- Cloud Subscriptions ---
+            const handleCloudInsert = (ctx: any, cloud: SpacetimeDB.Cloud) => {
+                // console.log("[useSpacetimeTables] handleCloudInsert CALLED with cloud:", cloud); // ADDED LOG
+                setClouds(prev => new Map(prev).set(cloud.id.toString(), cloud));
+            };
+            const handleCloudUpdate = (ctx: any, oldCloud: SpacetimeDB.Cloud, newCloud: SpacetimeDB.Cloud) => {
+                // console.log("[useSpacetimeTables] handleCloudUpdate CALLED with newCloud:", newCloud); // ADDED LOG
+                setClouds(prev => new Map(prev).set(newCloud.id.toString(), newCloud));
+            };
+            const handleCloudDelete = (ctx: any, cloud: SpacetimeDB.Cloud) => {
+                // console.log("[useSpacetimeTables] handleCloudDelete CALLED for cloud ID:", cloud.id.toString()); // ADDED LOG
+                setClouds(prev => { const newMap = new Map(prev); newMap.delete(cloud.id.toString()); return newMap; });
+            };
+            
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -399,6 +415,12 @@ export const useSpacetimeTables = ({
             connection.db.activeConsumableEffect.onInsert(handleActiveConsumableEffectInsert);
             connection.db.activeConsumableEffect.onUpdate(handleActiveConsumableEffectUpdate);
             connection.db.activeConsumableEffect.onDelete(handleActiveConsumableEffectDelete);
+            
+            // Register Cloud callbacks
+            connection.db.cloud.onInsert(handleCloudInsert);
+            connection.db.cloud.onUpdate(handleCloudUpdate);
+            connection.db.cloud.onDelete(handleCloudDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -450,6 +472,10 @@ export const useSpacetimeTables = ({
                     .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'active_consumable_effect' ERROR:", err))
                     .subscribe('SELECT * FROM active_consumable_effect'),
+                 // connection.subscriptionBuilder() // Specific Cloud subscription with logging
+                 //    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'cloud' APPLIED."))
+                 //    .onError((errorContext) => console.error("[useSpacetimeTables] Subscription for 'cloud' Full Error Context:", errorContext)) // Log the entire context object
+                 //    .subscribe('SELECT * FROM cloud'),
             ];
             console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -532,6 +558,10 @@ export const useSpacetimeTables = ({
                             // const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
                             // newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
 
+                            // Cloud (Spatial Subscription)
+                            const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
+
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
                             console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
@@ -592,6 +622,7 @@ export const useSpacetimeTables = ({
                  setPlayerCorpses(new Map());
                  setStashes(new Map());
                  setActiveConsumableEffects(new Map());
+                 setClouds(new Map()); // <<< ADDED: Reset clouds state
              }
         };
 
@@ -623,5 +654,6 @@ export const useSpacetimeTables = ({
         playerCorpses,
         stashes,
         activeConsumableEffects,
+        clouds, // <<< ADDED: Return clouds state
     };
 }; 

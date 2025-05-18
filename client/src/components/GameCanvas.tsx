@@ -19,6 +19,8 @@ import {
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
+  Cloud as SpacetimeDBCloud,
+  CloudShapeType as SpacetimeDBCloudShapeType,
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
 } from '../generated';
 
@@ -37,6 +39,7 @@ import { useEntityFiltering } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
 import { useTorchParticles } from '../hooks/useTorchParticles';
+import { useCloudInterpolation, InterpolatedCloudData } from '../hooks/useCloudInterpolation';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -56,13 +59,13 @@ import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtil
 import { renderStash } from '../utils/renderers/stashRenderingUtils';
 import { renderPlayerTorchLight, renderCampfireLight } from '../utils/renderers/lightRenderingUtils';
 import { renderTree } from '../utils/renderers/treeRenderingUtils';
-
+import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import {
-    gameConfig,
+    gameConfig, TILE_SIZE,
     HOLD_INTERACTION_DURATION_MS,
     CAMPFIRE_HEIGHT,
     BOX_HEIGHT,
@@ -78,6 +81,7 @@ const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired in
 interface GameCanvasProps {
   players: Map<string, SpacetimeDBPlayer>;
   trees: Map<string, SpacetimeDBTree>;
+  clouds: Map<string, SpacetimeDBCloud>;
   stones: Map<string, SpacetimeDBStone>;
   campfires: Map<string, SpacetimeDBCampfire>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
@@ -122,6 +126,7 @@ interface GameCanvasProps {
 const GameCanvas: React.FC<GameCanvasProps> = ({
   players,
   trees,
+  clouds,
   stones,
   campfires,
   mushrooms,
@@ -156,6 +161,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isSearchingCraftRecipes,
 }) => {
 
+  // console.log("Cloud data in GameCanvas:", Array.from(clouds?.values() || []));
+
   // --- Refs ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastPositionsRef = useRef<Map<string, {x: number, y: number}>>(new Map());
@@ -173,7 +180,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [players, localPlayerId]);
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
-  const { heroImageRef, grassImageRef, itemImagesRef } = useAssetLoader();
+  const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({ 
@@ -317,6 +324,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const lastFrameTimeRef = useRef<number>(performance.now());
   const [deltaTime, setDeltaTime] = useState<number>(0);
 
+  // --- Use Cloud Interpolation Hook --- (NEW)
+  const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime });
+
   // Use the new hook for campfire particles
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
@@ -431,6 +441,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- END ADDED: Render Tree Shadows ---
     // TODO: Add other ground items like mushrooms, crops here if they get custom dynamic shadows
 
+    // --- Render Clouds on Canvas --- (MOVED HERE)
+    // Clouds are rendered after all world entities and particles,
+    // but before world-anchored UI like labels.
+    // The context (ctx) should still be translated by cameraOffset at this point.
+    if (clouds && clouds.size > 0 && cloudImagesRef.current) {
+      renderCloudsDirectly({ 
+        ctx, 
+        clouds: interpolatedClouds,
+        cloudImages: cloudImagesRef.current,
+        worldScale: 1, // Use a scale of 1 for clouds
+        cameraOffsetX, // Pass camera offsets so clouds move with the world view
+        cameraOffsetY  
+      });
+    }
+    // --- End Render Clouds on Canvas ---
+
     // Second pass: Draw the actual entities for ground items
     // Render Campfires (actual image, skip shadow as it's already drawn if burning)
     visibleCampfires.forEach(campfire => {
@@ -528,6 +554,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
         worldMouseY: currentWorldMouseY, isPlacementTooFar, placementError,
     });
+
+    // --- Render Clouds on Canvas --- (NEW POSITION)
+    // Clouds are rendered after all other world-anchored entities and UI,
+    // so they appear on top of everything in the world space.
+    if (clouds && clouds.size > 0 && cloudImagesRef.current) {
+      renderCloudsDirectly({
+        ctx,
+        clouds: interpolatedClouds,
+        cloudImages: cloudImagesRef.current,
+        worldScale: 1,
+        cameraOffsetX, 
+        cameraOffsetY
+      });
+    }
+    // --- End Render Clouds on Canvas ---
 
     ctx.restore(); // This is the restore from translate(cameraOffsetX, cameraOffsetY)
 
@@ -654,7 +695,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ySortedEntities, visibleMushroomsMap, visibleCornsMap, visiblePumpkinsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
       players, itemDefinitions, trees, stones, 
       worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
-      itemImagesRef, heroImageRef, grassImageRef, cameraOffsetX, cameraOffsetY,
+      itemImagesRef, heroImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
       canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
       animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
       closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableCampfireId,
@@ -668,6 +709,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visibleSleepingBags,
       campfireParticles, 
       torchParticles,
+      interpolatedClouds,
       isSearchingCraftRecipes,
       worldState?.cycleProgress, // Correct dependency for renderGame
       visibleTrees, // Added to dependency array
@@ -764,7 +806,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Note: damagingCampfireIds is NOT in this dependency array. We set it, we don't react to its changes here.
 
   return (
-    <>
+    <div style={{ position: 'relative', width: canvasSize.width, height: canvasSize.height, overflow: 'hidden' }}>
+      <canvas
+        ref={canvasRef}
+        id="game-canvas"
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={{ position: 'absolute', left: 0, top: 0, cursor: cursorStyle }}
+        onContextMenu={(e) => {
+            if (placementInfo) {
+                 e.preventDefault();
+            }
+        }}
+      />
       {shouldShowDeathScreen && (
         <DeathScreen
           // Remove respawnAt prop, add others later
@@ -784,20 +838,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
         />
       )}
-
-      <canvas
-        ref={canvasRef}
-        id="game-canvas"
-        width={canvasSize.width}
-        height={canvasSize.height}
-        style={{ cursor: cursorStyle }}
-        onContextMenu={(e) => {
-            if (placementInfo) {
-                 e.preventDefault();
-            }
-        }}
-      />
-    </>
+    </div>
   );
 };
 

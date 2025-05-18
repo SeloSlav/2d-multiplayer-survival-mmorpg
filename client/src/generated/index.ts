@@ -222,6 +222,8 @@ import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
 export { ToggleStashVisibility };
 import { ToggleTorch } from "./toggle_torch_reducer.ts";
 export { ToggleTorch };
+import { UpdateCloudPositions } from "./update_cloud_positions_reducer.ts";
+export { UpdateCloudPositions };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
@@ -242,6 +244,10 @@ import { CampfireProcessingScheduleTableHandle } from "./campfire_processing_sch
 export { CampfireProcessingScheduleTableHandle };
 import { ClientViewportTableHandle } from "./client_viewport_table.ts";
 export { ClientViewportTableHandle };
+import { CloudTableHandle } from "./cloud_table.ts";
+export { CloudTableHandle };
+import { CloudUpdateScheduleTableHandle } from "./cloud_update_schedule_table.ts";
+export { CloudUpdateScheduleTableHandle };
 import { CornTableHandle } from "./corn_table.ts";
 export { CornTableHandle };
 import { CraftingFinishScheduleTableHandle } from "./crafting_finish_schedule_table.ts";
@@ -308,6 +314,12 @@ import { CampfireProcessingSchedule } from "./campfire_processing_schedule_type.
 export { CampfireProcessingSchedule };
 import { ClientViewport } from "./client_viewport_type.ts";
 export { ClientViewport };
+import { Cloud } from "./cloud_type.ts";
+export { Cloud };
+import { CloudShapeType } from "./cloud_shape_type_type.ts";
+export { CloudShapeType };
+import { CloudUpdateSchedule } from "./cloud_update_schedule_type.ts";
+export { CloudUpdateSchedule };
 import { ContainerLocationData } from "./container_location_data_type.ts";
 export { ContainerLocationData };
 import { ContainerType } from "./container_type_type.ts";
@@ -424,6 +436,16 @@ const REMOTE_MODULE = {
       tableName: "client_viewport",
       rowType: ClientViewport.getTypeScriptAlgebraicType(),
       primaryKey: "clientIdentity",
+    },
+    cloud: {
+      tableName: "cloud",
+      rowType: Cloud.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    cloud_update_schedule: {
+      tableName: "cloud_update_schedule",
+      rowType: CloudUpdateSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
     },
     corn: {
       tableName: "corn",
@@ -937,6 +959,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_torch",
       argsType: ToggleTorch.getTypeScriptAlgebraicType(),
     },
+    update_cloud_positions: {
+      reducerName: "update_cloud_positions",
+      argsType: UpdateCloudPositions.getTypeScriptAlgebraicType(),
+    },
     update_player_position: {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
@@ -1071,6 +1097,7 @@ export type Reducer = never
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
+| { name: "UpdateCloudPositions", args: UpdateCloudPositions }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
@@ -2547,6 +2574,22 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_torch", callback);
   }
 
+  updateCloudPositions(scheduleArgs: CloudUpdateSchedule) {
+    const __args = { scheduleArgs };
+    let __writer = new BinaryWriter(1024);
+    UpdateCloudPositions.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_cloud_positions", __argsBuffer, this.setCallReducerFlags.updateCloudPositionsFlags);
+  }
+
+  onUpdateCloudPositions(callback: (ctx: ReducerEventContext, scheduleArgs: CloudUpdateSchedule) => void) {
+    this.connection.onReducer("update_cloud_positions", callback);
+  }
+
+  removeOnUpdateCloudPositions(callback: (ctx: ReducerEventContext, scheduleArgs: CloudUpdateSchedule) => void) {
+    this.connection.offReducer("update_cloud_positions", callback);
+  }
+
   updatePlayerPosition(moveX: number, moveY: number) {
     const __args = { moveX, moveY };
     let __writer = new BinaryWriter(1024);
@@ -3059,6 +3102,11 @@ export class SetReducerFlags {
     this.toggleTorchFlags = flags;
   }
 
+  updateCloudPositionsFlags: CallReducerFlags = 'FullUpdate';
+  updateCloudPositions(flags: CallReducerFlags) {
+    this.updateCloudPositionsFlags = flags;
+  }
+
   updatePlayerPositionFlags: CallReducerFlags = 'FullUpdate';
   updatePlayerPosition(flags: CallReducerFlags) {
     this.updatePlayerPositionFlags = flags;
@@ -3101,6 +3149,14 @@ export class RemoteTables {
 
   get clientViewport(): ClientViewportTableHandle {
     return new ClientViewportTableHandle(this.connection.clientCache.getOrCreateTable<ClientViewport>(REMOTE_MODULE.tables.client_viewport));
+  }
+
+  get cloud(): CloudTableHandle {
+    return new CloudTableHandle(this.connection.clientCache.getOrCreateTable<Cloud>(REMOTE_MODULE.tables.cloud));
+  }
+
+  get cloudUpdateSchedule(): CloudUpdateScheduleTableHandle {
+    return new CloudUpdateScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CloudUpdateSchedule>(REMOTE_MODULE.tables.cloud_update_schedule));
   }
 
   get corn(): CornTableHandle {

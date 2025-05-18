@@ -132,15 +132,15 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     }, [isPlacingItem, cancelPlacement, onClose]);
 
     useEffect(() => {
-        console.log('[InventoryUI Effect] Current interactionTarget:', interactionTarget);
-        console.log('[InventoryUI Effect] Previous interactionTarget from ref:', prevInteractionTargetRef.current);
+        // console.log('[InventoryUI Effect] Current interactionTarget:', interactionTarget);
+        // console.log('[InventoryUI Effect] Previous interactionTarget from ref:', prevInteractionTargetRef.current);
 
         // If there was a defined interactionTarget in the previous render,
         // and now there isn't (interactionTarget is null or undefined),
         // it means the player has moved away or the target is no longer valid.
         // In this case, automatically close the inventory.
         if (prevInteractionTargetRef.current && !interactionTarget) {
-            console.log('[InventoryUI] Interaction target lost, auto-closing inventory. Calling handleClose.');
+            // console.log('[InventoryUI] Interaction target lost, auto-closing inventory. Calling handleClose.');
             handleClose();
         }
         // Update the ref to the current value for the next render cycle.

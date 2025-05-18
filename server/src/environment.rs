@@ -25,6 +25,7 @@ use crate::mushroom;
 use crate::corn;
 use crate::hemp;
 use crate::pumpkin;
+use crate::cloud;
 
 // Import table traits needed for ctx.db access
 use crate::tree::tree as TreeTableTrait;
@@ -33,6 +34,11 @@ use crate::mushroom::mushroom as MushroomTableTrait;
 use crate::corn::corn as CornTableTrait;
 use crate::pumpkin::pumpkin as PumpkinTableTrait;
 use crate::hemp::hemp as HempTableTrait;
+use crate::items::ItemDefinition;
+use crate::cloud::{Cloud, CloudShapeType, CloudUpdateSchedule};
+use crate::utils::*;
+use crate::cloud::cloud as CloudTableTrait;
+use crate::cloud::cloud_update_schedule as CloudUpdateScheduleTableTrait;
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -49,6 +55,8 @@ use log;
 pub const CHUNK_SIZE_TILES: u32 = 20;
 // World width in chunks
 pub const WORLD_WIDTH_CHUNKS: u32 = (WORLD_WIDTH_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;
+// Size of a chunk in pixels
+pub const CHUNK_SIZE_PX: f32 = CHUNK_SIZE_TILES as f32 * TILE_SIZE_PX as f32;
 
 // --- Helper function to calculate chunk index ---
 pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
@@ -74,16 +82,17 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let corns = ctx.db.corn();
     let pumpkins = ctx.db.pumpkin();
     let hemps = ctx.db.hemp();
+    let clouds = ctx.db.cloud();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}, Pumpkins: {}, Clouds: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -104,12 +113,24 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_hemp_count = (total_tiles as f32 * crate::hemp::HEMP_DENSITY_PERCENT) as u32;
     let max_hemp_attempts = target_hemp_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
 
+    // Cloud seeding parameters
+    const CLOUD_DENSITY_PERCENT: f32 = 0.005; // Example: 0.5% of tiles might have a cloud center
+    const MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR: u32 = 3;
+    let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
+    let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
+
+    // Cloud drift parameters
+    const CLOUD_BASE_DRIFT_X: f32 = 4.0; // Base speed in pixels per second (e.g., gentle eastward drift) - Doubled
+    const CLOUD_BASE_DRIFT_Y: f32 = 1.0; // Doubled
+    const CLOUD_DRIFT_VARIATION: f32 = 1.0; // Max variation from base speed
+
     log::info!("Target Trees: {}, Max Attempts: {}", target_tree_count, max_tree_attempts);
     log::info!("Target Stones: {}, Max Attempts: {}", target_stone_count, max_stone_attempts);
     log::info!("Target Mushrooms: {}, Max Attempts: {}", target_mushroom_count, max_mushroom_attempts);
     log::info!("Target Corns: {}, Max Attempts: {}", target_corn_count, max_corn_attempts);
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
+    log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -122,6 +143,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_corn_positions = Vec::<(f32, f32)>::new();
     let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -135,6 +157,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut hemp_attempts = 0;
     let mut spawned_pumpkin_count = 0;
     let mut pumpkin_attempts = 0;
+    let mut spawned_cloud_count = 0;
+    let mut cloud_attempts = 0;
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -408,6 +432,106 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_hemp_count, target_hemp_count, hemp_attempts
     );
 
+    // --- Seed Clouds ---
+    log::info!("Seeding Clouds...");
+    // Use WORLD_WIDTH_PX and WORLD_HEIGHT_PX from crate root (lib.rs)
+    let world_width_px = crate::WORLD_WIDTH_PX;
+    let world_height_px = crate::WORLD_HEIGHT_PX;
+
+    while spawned_cloud_count < target_cloud_count && cloud_attempts < max_cloud_attempts {
+        cloud_attempts += 1;
+
+        let pos_x = rng.gen_range(0.0..world_width_px);
+        let pos_y = rng.gen_range(0.0..world_height_px);
+        
+        // Basic check to avoid too many clouds in the exact same spot, though less critical.
+        let mut too_close = false;
+        for &(other_x, other_y) in &spawned_cloud_positions {
+            let dx = pos_x - other_x;
+            let dy = pos_y - other_y;
+            // Using a generic minimum distance, e.g., 100px. Adjust as needed.
+            if (dx * dx + dy * dy) < (100.0 * 100.0) { 
+                too_close = true;
+                break;
+            }
+        }
+        if too_close {
+            continue; // Try another position
+        }
+
+        // Use the existing calculate_chunk_index function from this module
+        let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+
+        let shape_roll = rng.gen_range(0..5); // Corrected to 0..5 for 5 types
+        let shape = match shape_roll {
+            0 => crate::cloud::CloudShapeType::CloudImage1,
+            1 => crate::cloud::CloudShapeType::CloudImage2,
+            2 => crate::cloud::CloudShapeType::CloudImage3,
+            3 => crate::cloud::CloudShapeType::CloudImage4,
+            _ => crate::cloud::CloudShapeType::CloudImage5, // Default to CloudImage5
+        };
+
+        let base_width = rng.gen_range(200.0..600.0); 
+        let width_variation_factor = rng.gen_range(0.7..1.3);
+        let height_variation_factor = rng.gen_range(0.5..1.0); // Can be different from width factor for variety
+
+        // Simplified width and height assignment, removing problematic match statements
+        let width = base_width * width_variation_factor;
+        let height = base_width * height_variation_factor; // Height based on base_width and its own factor
+        
+        let rotation_degrees = rng.gen_range(0.0..360.0);
+        let base_opacity = rng.gen_range(0.08..0.25); 
+        let blur_strength = rng.gen_range(10.0..30.0); 
+
+        let new_cloud = crate::cloud::Cloud {
+            id: 0, // auto_inc
+            pos_x,
+            pos_y,
+            chunk_index: chunk_idx,
+            shape,
+            width,
+            height,
+            rotation_degrees,
+            base_opacity,
+            blur_strength,
+            // --- Initialize new drift fields ---
+            drift_speed_x: CLOUD_BASE_DRIFT_X + rng.gen_range(-CLOUD_DRIFT_VARIATION..CLOUD_DRIFT_VARIATION),
+            drift_speed_y: CLOUD_BASE_DRIFT_Y + rng.gen_range(-CLOUD_DRIFT_VARIATION..CLOUD_DRIFT_VARIATION),
+        };
+
+        match ctx.db.cloud().try_insert(new_cloud) {
+            Ok(inserted_cloud) => {
+                spawned_cloud_positions.push((pos_x, pos_y));
+                spawned_cloud_count += 1;
+                log::info!("Inserted cloud id: {} at ({:.1}, {:.1}), chunk: {}", inserted_cloud.id, pos_x, pos_y, chunk_idx);
+            }
+            Err(e) => {
+                log::warn!("Failed to insert cloud (attempt {}): {}. Skipping this cloud.", cloud_attempts, e);
+            }
+        }
+    }
+    log::info!(
+        "Finished seeding {} clouds (target: {}, attempts: {}).",
+        spawned_cloud_count, target_cloud_count, cloud_attempts
+    );
+    // --- End Seed Clouds ---
+
+    // --- Schedule initial cloud update --- (NEW)
+    if spawned_cloud_count > 0 {
+        log::info!("Scheduling initial cloud position update.");
+        let update_interval_seconds = 5.0; // How often to update cloud positions
+        match ctx.db.cloud_update_schedule().try_insert(CloudUpdateSchedule {
+            schedule_id: 0, // auto_inc
+            scheduled_at: spacetimedb::TimeDuration::from_micros((update_interval_seconds * 1_000_000.0) as i64).into(),
+            delta_time_seconds: update_interval_seconds,
+        }) {
+            Ok(_) => log::info!("Cloud update successfully scheduled every {} seconds.", update_interval_seconds),
+            Err(e) => log::error!("Failed to schedule cloud update: {}", e),
+        }
+    }
+    // --- End Schedule initial cloud update ---
+
+
     log::info!("Environment seeding complete.");
     Ok(())
 }
@@ -493,6 +617,10 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
             h.respawn_at = None;
         }
     );
+
+    // Note: Clouds are static for now, so no respawn logic needed in check_resource_respawns.
+    // If they were to drift or change, a similar `check_and_respawn_resource!` or a dedicated
+    // scheduled reducer would be needed here or in `cloud.rs`.
 
     Ok(())
 }

@@ -37,8 +37,10 @@ pub const MIN_HEMP_DISTANCE_SQ: f32 = 35.0 * 35.0;
 pub const MIN_HEMP_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0;
 /// Minimum distance from stones for better distribution
 pub const MIN_HEMP_STONE_DISTANCE_SQ: f32 = 20.0 * 20.0; 
-/// Respawn time for hemp plants
-pub const HEMP_RESPAWN_TIME_SECS: u64 = 240; // 4 minutes
+
+// NEW Respawn Time Constants for Hemp
+pub const MIN_HEMP_RESPAWN_TIME_SECS: u64 = 300; // 5 minutes
+pub const MAX_HEMP_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
 
 // --- Hemp Yield Constants ---
 const HEMP_PRIMARY_YIELD_ITEM_NAME: &str = "Plant Fiber"; // CHANGED from "Cloth"
@@ -98,17 +100,16 @@ pub fn interact_with_hemp(ctx: &ReducerContext, hemp_id: u64) -> Result<(), Stri
         ctx,
         sender_id,
         HEMP_PRIMARY_YIELD_ITEM_NAME,
-        primary_yield_amount, // Use the calculated ranged amount
+        primary_yield_amount, 
         HEMP_SECONDARY_YIELD_ITEM_NAME,
         HEMP_SECONDARY_YIELD_MIN_AMOUNT,
         HEMP_SECONDARY_YIELD_MAX_AMOUNT,
         HEMP_SECONDARY_YIELD_CHANCE,
         &mut ctx.rng().clone(),
-        hemp_id, // Pass resource_id for logging
-        hemp_plant.pos_x(), // Pass pos_x for logging
-        hemp_plant.pos_y(), // Pass pos_y for logging
-        |respawn_timestamp: Timestamp| {
-            // Re-fetch the plant to get a mutable reference for update
+        hemp_id,
+        hemp_plant.pos_x(),
+        hemp_plant.pos_y(),
+        |respawn_timestamp: Timestamp| -> Result<(), String> {
             if let Some(mut plant_to_update) = ctx.db.hemp().id().find(hemp_id) {
                 plant_to_update.set_respawn_at(Some(respawn_timestamp));
                 ctx.db.hemp().id().update(plant_to_update);
@@ -116,7 +117,9 @@ pub fn interact_with_hemp(ctx: &ReducerContext, hemp_id: u64) -> Result<(), Stri
             } else {
                 Err(format!("Hemp plant {} disappeared before respawn scheduling.", hemp_id))
             }
-        }
+        },
+        MIN_HEMP_RESPAWN_TIME_SECS,
+        MAX_HEMP_RESPAWN_TIME_SECS
     )?;
 
     // Log statement is now handled within collect_resource_and_schedule_respawn

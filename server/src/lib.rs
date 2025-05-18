@@ -47,6 +47,7 @@ mod hemp; // Added for Hemp resource
 mod stash; // Added Stash module
 pub mod pumpkin;
 pub mod active_effects; // Added for timed consumable effects
+mod cloud; // Add the new cloud module
 
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;

@@ -38,8 +38,10 @@ pub const MIN_CORN_DISTANCE_SQ: f32 = 40.0 * 40.0; // Min distance between corn 
 pub const MIN_CORN_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0; // Min distance from trees squared
 /// Minimum distance from stones for better distribution
 pub const MIN_CORN_STONE_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance from stones squared
-/// Minimum respawn time for corn plants
-pub const CORN_RESPAWN_TIME_SECS: u64 = 180; // 3 minutes (adjust as needed)
+
+// NEW Respawn Time Constants for Corn
+pub const MIN_CORN_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
+pub const MAX_CORN_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
 
 // --- Corn Yield Constants ---
 const CORN_PRIMARY_YIELD_ITEM_NAME: &str = "Corn";
@@ -116,12 +118,12 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
         CORN_SECONDARY_YIELD_MIN_AMOUNT,
         CORN_SECONDARY_YIELD_MAX_AMOUNT,
         CORN_SECONDARY_YIELD_CHANCE,
-        &mut ctx.rng().clone(), // Pass a mutable clone of the RNG from context
-        corn.id, // Pass resource_id for logging
-        corn.pos_x, // Pass pos_x for logging
-        corn.pos_y, // Pass pos_y for logging
+        &mut ctx.rng().clone(), // rng
+        corn.id,                // _resource_id_for_log
+        corn.pos_x,             // _resource_pos_x_for_log
+        corn.pos_y,             // _resource_pos_y_for_log
+        // update_resource_fn (closure)
         |respawn_time| -> Result<(), String> {
-            // This closure handles the corn-specific update logic
             if let Some(mut corn_to_update) = ctx.db.corn().id().find(corn.id) {
                 corn_to_update.respawn_at = Some(respawn_time);
                 ctx.db.corn().id().update(corn_to_update);
@@ -129,7 +131,9 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
             } else {
                 Err(format!("Corn {} disappeared before respawn scheduling.", corn.id))
             }
-        }
+        },
+        MIN_CORN_RESPAWN_TIME_SECS,     // min_respawn_secs
+        MAX_CORN_RESPAWN_TIME_SECS      // max_respawn_secs
     )?;
 
     // Log statement is now handled within collect_resource_and_schedule_respawn

@@ -17,8 +17,8 @@ use log;
 use rand::{Rng, SeedableRng};
 
 // Combat system imports
+use crate::combat::{RESPAWN_TIME_MS};
 use crate::combat::{
-    RESOURCE_RESPAWN_DURATION_SECS, RESPAWN_TIME_MS,
     find_targets_in_cone, find_best_target, process_attack
 };
 
@@ -37,12 +37,16 @@ use crate::PLAYER_RADIUS;
 use crate::items::{InventoryItem, ItemDefinition, ItemCategory, add_item_to_player_inventory};
 
 // Table trait imports for database access
-use crate::tree::tree as TreeTableTrait;
-use crate::stone::stone as StoneTableTrait;
+// use crate::tree::tree as TreeTableTrait; // Assuming not used, or handle similarly if error appears
+// use crate::stone::stone as StoneTableTrait; // Assuming not used, or handle similarly if error appears
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
-use crate::player as PlayerTableTrait;
+// REMOVE: use crate::player::player as PlayerTableTrait; // This was likely the source of E0658 and confusion for E0599
+// Correct way to allow `ctx.db.player()` is usually by having the table struct in scope
+// or ensuring the module `crate::player` itself provides the necessary accessors via generated code.
+// No explicit `PlayerTableTrait` import is typically needed for `ctx.db.player()` if `Player` table is defined.
 use crate::active_equipment as ActiveEquipmentTableTrait;
+use crate::player; // Added to bring Player table accessors into scope
 
 // Models imports
 use crate::models::{ItemLocation, EquipmentSlotType};

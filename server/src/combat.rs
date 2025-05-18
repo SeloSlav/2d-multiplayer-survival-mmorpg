@@ -51,9 +51,10 @@ use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
 use crate::consumables::MAX_STAT_VALUE;
+// Import the new respawn time constants
+use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS};
+use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS};
 // --- Game Balance Constants ---
-/// Time in seconds before resources (trees, stones) respawn after being depleted
-pub const RESOURCE_RESPAWN_DURATION_SECS: u64 = 300; // 5 minutes
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
 /// Distance player is knocked back in PvP
@@ -492,7 +493,8 @@ pub fn damage_tree(
     damage: f32,
     yield_amount: u32,
     resource_name_to_grant: &str,
-    timestamp: Timestamp
+    timestamp: Timestamp,
+    rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
     let mut tree = ctx.db.tree().id().find(tree_id)
         .ok_or_else(|| "Target tree disappeared".to_string())?;
@@ -512,7 +514,13 @@ pub fn damage_tree(
     
     if tree.health == 0 {
         log::info!("Tree {} destroyed by Player {:?}. Scheduling respawn.", tree_id, attacker_id);
-        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
+        // Calculate random respawn time for trees
+        let respawn_duration_secs = if MIN_TREE_RESPAWN_TIME_SECS >= MAX_TREE_RESPAWN_TIME_SECS {
+            MIN_TREE_RESPAWN_TIME_SECS
+        } else {
+            rng.gen_range(MIN_TREE_RESPAWN_TIME_SECS..=MAX_TREE_RESPAWN_TIME_SECS)
+        };
+        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(respawn_duration_secs));
         tree.respawn_at = Some(respawn_time);
     }
     
@@ -535,7 +543,8 @@ pub fn damage_stone(
     damage: f32,
     yield_amount: u32,
     resource_name_to_grant: &str,
-    timestamp: Timestamp
+    timestamp: Timestamp,
+    rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
     let mut stone = ctx.db.stone().id().find(stone_id)
         .ok_or_else(|| "Target stone disappeared".to_string())?;
@@ -555,7 +564,13 @@ pub fn damage_stone(
     
     if stone.health == 0 {
         log::info!("Stone {} depleted by Player {:?}. Scheduling respawn.", stone_id, attacker_id);
-        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
+        // Calculate random respawn time for stones
+        let respawn_duration_secs = if MIN_STONE_RESPAWN_TIME_SECS >= MAX_STONE_RESPAWN_TIME_SECS {
+            MIN_STONE_RESPAWN_TIME_SECS
+        } else {
+            rng.gen_range(MIN_STONE_RESPAWN_TIME_SECS..=MAX_STONE_RESPAWN_TIME_SECS)
+        };
+        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(respawn_duration_secs));
         stone.respawn_at = Some(respawn_time);
     }
     
@@ -1034,13 +1049,13 @@ pub fn process_attack(
     rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
     let (damage, yield_amount, resource_name) = calculate_damage_and_yield(item_def, target.target_type, rng);
-    
+
     match &target.id {
         TargetId::Tree(tree_id) => {
-            damage_tree(ctx, attacker_id, *tree_id, damage, yield_amount, &resource_name, timestamp)
+            damage_tree(ctx, attacker_id, *tree_id, damage, yield_amount, &resource_name, timestamp, rng)
         },
         TargetId::Stone(stone_id) => {
-            damage_stone(ctx, attacker_id, *stone_id, damage, yield_amount, &resource_name, timestamp)
+            damage_stone(ctx, attacker_id, *stone_id, damage, yield_amount, &resource_name, timestamp, rng)
         },
         TargetId::Player(player_id) => {
             damage_player(ctx, attacker_id, *player_id, damage, item_def, timestamp)

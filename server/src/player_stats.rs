@@ -159,14 +159,20 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let new_thirst = (player.thirst - (elapsed_seconds * THIRST_DRAIN_PER_SECOND)).max(0.0);
 
         // Calculate Warmth
-        let mut warmth_change_per_sec: f32 = 0.0;
-        let drain_multiplier = match world_state.time_of_day {
-            TimeOfDay::Morning | TimeOfDay::Noon | TimeOfDay::Afternoon => 0.0,
-            TimeOfDay::Dawn | TimeOfDay::Dusk => WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK,
-            TimeOfDay::Night => WARMTH_DRAIN_MULTIPLIER_NIGHT * 1.25,
-            TimeOfDay::Midnight => WARMTH_DRAIN_MULTIPLIER_MIDNIGHT * 1.33,
+        // NEW WARMTH LOGIC: Base warmth change per second based on TimeOfDay
+        let base_warmth_change_per_sec = match world_state.time_of_day {
+            TimeOfDay::Midnight => -2.0,
+            TimeOfDay::Night => -1.5,
+            TimeOfDay::TwilightEvening => -0.5,
+            TimeOfDay::Dusk => 0.0,
+            TimeOfDay::Afternoon => 1.0, 
+            TimeOfDay::Noon => 2.0,
+            TimeOfDay::Morning => 1.0,
+            TimeOfDay::TwilightMorning => 0.5,
+            TimeOfDay::Dawn => 0.0,
         };
-        warmth_change_per_sec -= BASE_WARMTH_DRAIN_PER_SECOND * drain_multiplier;
+
+        let mut total_warmth_change_per_sec = base_warmth_change_per_sec;
 
         for fire in campfires.iter() {
             // Only gain warmth from burning campfires
@@ -174,12 +180,12 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                 let dx = player.position_x - fire.pos_x;
                 let dy = player.position_y - fire.pos_y;
                 if (dx * dx + dy * dy) < WARMTH_RADIUS_SQUARED {
-                    warmth_change_per_sec += WARMTH_PER_SECOND;
+                    total_warmth_change_per_sec += WARMTH_PER_SECOND;
                     log::trace!("Player {:?} gaining warmth from campfire {}", player_id, fire.id);
                 }
             }
         }
-        let new_warmth = (player.warmth + (warmth_change_per_sec * elapsed_seconds))
+        let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);
 
         // Calculate Stamina (Drain happens first if sprinting+moving, then recovery if not sprinting)

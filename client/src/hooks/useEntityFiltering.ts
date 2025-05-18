@@ -60,9 +60,6 @@ interface EntityFilteringResult {
   ySortedEntities: YSortedEntityType[];
 }
 
-// Configuration (Consider moving to a config file if shared)
-const ENTITY_RENDER_PADDING = 100; // Extra space around the viewport to render entities
-
 // Define a unified entity type for sorting
 export type YSortedEntityType =
   | { type: 'player'; entity: SpacetimeDBPlayer }

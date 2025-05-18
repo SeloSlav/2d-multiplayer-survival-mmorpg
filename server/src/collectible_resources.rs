@@ -16,7 +16,7 @@ use spacetimedb::{table, reducer, ReducerContext, Identity, Timestamp, Table, lo
 use rand::Rng;
 
 // Resource respawn timing (shared by all collectible resources)
-pub use crate::combat::RESOURCE_RESPAWN_DURATION_SECS;
+// REMOVED: pub use crate::combat::RESOURCE_RESPAWN_DURATION_SECS;
 
 // Table trait imports for database access
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
@@ -77,7 +77,10 @@ pub fn collect_resource_and_schedule_respawn<F>(
     _resource_id_for_log: u64,
     _resource_pos_x_for_log: f32,
     _resource_pos_y_for_log: f32,
-    update_resource_fn: F
+    update_resource_fn: F,
+    // NEW PARAMETERS for variable respawn times
+    min_respawn_secs: u64,
+    max_respawn_secs: u64
 ) -> Result<(), String> 
 where 
     F: FnOnce(Timestamp) -> Result<(), String>
@@ -123,8 +126,13 @@ where
         }
     }
 
-    // Calculate respawn time
-    let respawn_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(RESOURCE_RESPAWN_DURATION_SECS));
+    // Calculate respawn time using new min/max parameters
+    let actual_respawn_secs = if min_respawn_secs >= max_respawn_secs {
+        min_respawn_secs // If min >= max, or if they are equal, use min
+    } else {
+        rng.gen_range(min_respawn_secs..=max_respawn_secs)
+    };
+    let respawn_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(actual_respawn_secs));
     
     // Update the resource (delegate to resource-specific implementation)
     update_resource_fn(respawn_time)?;

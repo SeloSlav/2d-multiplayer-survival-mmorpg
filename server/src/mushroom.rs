@@ -44,6 +44,11 @@ pub(crate) const MIN_MUSHROOM_TREE_DISTANCE_SQ: f32 = MIN_MUSHROOM_TREE_DISTANCE
 pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_PX: f32 = 80.0;
 pub(crate) const MIN_MUSHROOM_STONE_DISTANCE_SQ: f32 = MIN_MUSHROOM_STONE_DISTANCE_PX * MIN_MUSHROOM_STONE_DISTANCE_PX;
 
+// NEW Respawn Time Constants for Mushrooms
+pub(crate) const MIN_MUSHROOM_RESPAWN_TIME_SECS: u64 = 300; // 5 minutes
+pub(crate) const MAX_MUSHROOM_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
+// OLD: pub const MUSHROOM_RESPAWN_TIME_SECS: u64 = 120; // 2 minutes (Example: if there was an old one)
+
 // --- Mushroom Yield Constants ---
 const MUSHROOM_PRIMARY_YIELD_ITEM_NAME: &str = "Mushroom";
 const MUSHROOM_PRIMARY_YIELD_AMOUNT: u32 = 1;
@@ -120,12 +125,12 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
         MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT,
         MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT,
         MUSHROOM_SECONDARY_YIELD_CHANCE,
-        &mut ctx.rng().clone(), // Pass a mutable clone of the RNG from context
-        mushroom_id, // Pass resource_id for logging
-        mushroom.pos_x, // Pass pos_x for logging
-        mushroom.pos_y, // Pass pos_y for logging
+        &mut ctx.rng().clone(), // rng
+        mushroom_id,            // _resource_id_for_log
+        mushroom.pos_x,         // _resource_pos_x_for_log
+        mushroom.pos_y,         // _resource_pos_y_for_log
+        // update_resource_fn (closure)
         |respawn_time| -> Result<(), String> {
-            // This closure handles the mushroom-specific update logic
             if let Some(mut mushroom_to_update) = ctx.db.mushroom().id().find(mushroom_id) {
                 mushroom_to_update.respawn_at = Some(respawn_time);
                 ctx.db.mushroom().id().update(mushroom_to_update);
@@ -133,6 +138,8 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
             } else {
                 Err(format!("Mushroom {} disappeared before respawn scheduling.", mushroom_id))
             }
-        }
+        },
+        MIN_MUSHROOM_RESPAWN_TIME_SECS, // min_respawn_secs
+        MAX_MUSHROOM_RESPAWN_TIME_SECS  // max_respawn_secs
     )
 } 

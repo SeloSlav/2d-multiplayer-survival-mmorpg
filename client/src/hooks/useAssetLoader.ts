@@ -6,6 +6,13 @@ import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/Items/burlap_sack.png';
 
+// Import cloud image paths
+import cloud1Texture from '../assets/environment/clouds/cloud1.png';
+import cloud2Texture from '../assets/environment/clouds/cloud2.png';
+import cloud3Texture from '../assets/environment/clouds/cloud3.png';
+import cloud4Texture from '../assets/environment/clouds/cloud4.png';
+import cloud5Texture from '../assets/environment/clouds/cloud5.png';
+
 // Define the hook's return type for clarity
 interface AssetLoaderResult {
   heroImageRef: React.RefObject<HTMLImageElement | null>;
@@ -13,6 +20,7 @@ interface AssetLoaderResult {
   campfireImageRef: React.RefObject<HTMLImageElement | null>;
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
   burlapSackImageRef: React.RefObject<HTMLImageElement | null>;
+  cloudImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
   isLoadingAssets: boolean;
 }
 
@@ -24,88 +32,53 @@ export function useAssetLoader(): AssetLoaderResult {
   const grassImageRef = useRef<HTMLImageElement | null>(null);
   const campfireImageRef = useRef<HTMLImageElement | null>(null);
   const burlapSackImageRef = useRef<HTMLImageElement | null>(null);
-  // Ref for the map that will store item icons (populated externally)
   const itemImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const cloudImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 4; // hero, grass, campfire sprite, burlap sack
+    const totalStaticAssets = 4 + 5;
     let allStaticLoaded = false;
 
     const checkLoadingComplete = () => {
       if (!allStaticLoaded && loadedCount === totalStaticAssets) {
         allStaticLoaded = true;
-        // console.log('Essential static assets loaded.');
-        setIsLoadingAssets(false); // Set loading to false only when hero, grass, campfire, and burlap sack are done
+        setIsLoadingAssets(false);
       }
     };
 
+    const loadImage = (src: string, ref?: React.MutableRefObject<HTMLImageElement | null>, mapRef?: React.MutableRefObject<Map<string, HTMLImageElement>>, mapKey?: string) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        if (ref) ref.current = img;
+        if (mapRef && mapKey) mapRef.current.set(mapKey, img);
+        loadedCount++;
+        checkLoadingComplete();
+      };
+      img.onerror = () => {
+        console.error(`Failed to load image: ${mapKey || src}`);
+        loadedCount++; 
+        checkLoadingComplete();
+      };
+    };
+
     // --- Load Static Images --- 
+    loadImage(heroSpriteSheet, heroImageRef);
+    loadImage(grassTexture, grassImageRef);
+    loadImage(campfireSprite, campfireImageRef);
+    loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
 
-    // Load Hero
-    const heroImg = new Image();
-    heroImg.src = heroSpriteSheet;
-    heroImg.onload = () => {
-      heroImageRef.current = heroImg;
-      // console.log('Hero spritesheet loaded by hook.');
-      loadedCount++;
-      checkLoadingComplete();
-    };
-    heroImg.onerror = () => {
-      console.error('Failed to load hero spritesheet.');
-      loadedCount++; // Count as loaded (failed) to not block forever
-      checkLoadingComplete();
-    };
-
-    // Load Grass
-    const grassImg = new Image();
-    grassImg.src = grassTexture;
-    grassImg.onload = () => {
-       grassImageRef.current = grassImg;
-       // console.log('Grass texture loaded by hook.');
-       loadedCount++;
-       checkLoadingComplete();
-    };
-    grassImg.onerror = () => {
-       console.error('Failed to load grass texture.');
-       loadedCount++;
-       checkLoadingComplete();
-    };
-
-    // Load Campfire sprite (for placement preview)
-    const fireImg = new Image();
-    fireImg.src = campfireSprite;
-    fireImg.onload = () => {
-       campfireImageRef.current = fireImg;
-       // console.log('Campfire sprite loaded by hook.');
-       loadedCount++;
-       checkLoadingComplete();
-    };
-    fireImg.onerror = () => {
-      console.error('Failed to load campfire sprite.');
-      loadedCount++;
-      checkLoadingComplete();
-    };
-
-    // Load Burlap Sack
-    const sackImg = new Image();
-    sackImg.src = burlapSackUrl;
-    sackImg.onload = () => {
-      burlapSackImageRef.current = sackImg;
-      itemImagesRef.current.set('burlap_sack.png', sackImg);
-      loadedCount++;
-      checkLoadingComplete();
-    };
-    sackImg.onerror = () => {
-      console.error('Failed to load burlap sack image.');
-      loadedCount++;
-      checkLoadingComplete();
-    };
+    // Load Cloud Images
+    loadImage(cloud1Texture, undefined, cloudImagesRef, 'cloud1.png');
+    loadImage(cloud2Texture, undefined, cloudImagesRef, 'cloud2.png');
+    loadImage(cloud3Texture, undefined, cloudImagesRef, 'cloud3.png');
+    loadImage(cloud4Texture, undefined, cloudImagesRef, 'cloud4.png');
+    loadImage(cloud5Texture, undefined, cloudImagesRef, 'cloud5.png');
 
     // --- Preload Entity Sprites (Fire-and-forget) ---
     // These don't block the main isLoadingAssets state
     try {
-    
         // console.log('Entity preloading initiated by hook.');
     } catch (error) {
         console.error("Error during entity preloading:", error);
@@ -119,7 +92,8 @@ export function useAssetLoader(): AssetLoaderResult {
     grassImageRef,
     campfireImageRef,
     burlapSackImageRef,
-    itemImagesRef, // Provide the ref for item icons
+    itemImagesRef, 
+    cloudImagesRef,
     isLoadingAssets,
   };
 } 

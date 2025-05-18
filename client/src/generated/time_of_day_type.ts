@@ -36,10 +36,12 @@ export namespace TimeOfDay {
   // One type is generated per variant and will be used in the `value` field of
   // the tagged union.
   export type Dawn = { tag: "Dawn" };
+  export type TwilightMorning = { tag: "TwilightMorning" };
   export type Morning = { tag: "Morning" };
   export type Noon = { tag: "Noon" };
   export type Afternoon = { tag: "Afternoon" };
   export type Dusk = { tag: "Dusk" };
+  export type TwilightEvening = { tag: "TwilightEvening" };
   export type Night = { tag: "Night" };
   export type Midnight = { tag: "Midnight" };
 
@@ -50,20 +52,24 @@ export namespace TimeOfDay {
   // assert!(foo.value === 42);
   // ```
   export const Dawn = { tag: "Dawn" };
+  export const TwilightMorning = { tag: "TwilightMorning" };
   export const Morning = { tag: "Morning" };
   export const Noon = { tag: "Noon" };
   export const Afternoon = { tag: "Afternoon" };
   export const Dusk = { tag: "Dusk" };
+  export const TwilightEvening = { tag: "TwilightEvening" };
   export const Night = { tag: "Night" };
   export const Midnight = { tag: "Midnight" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
       new SumTypeVariant("Dawn", AlgebraicType.createProductType([])),
+      new SumTypeVariant("TwilightMorning", AlgebraicType.createProductType([])),
       new SumTypeVariant("Morning", AlgebraicType.createProductType([])),
       new SumTypeVariant("Noon", AlgebraicType.createProductType([])),
       new SumTypeVariant("Afternoon", AlgebraicType.createProductType([])),
       new SumTypeVariant("Dusk", AlgebraicType.createProductType([])),
+      new SumTypeVariant("TwilightEvening", AlgebraicType.createProductType([])),
       new SumTypeVariant("Night", AlgebraicType.createProductType([])),
       new SumTypeVariant("Midnight", AlgebraicType.createProductType([])),
     ]);
@@ -80,7 +86,7 @@ export namespace TimeOfDay {
 }
 
 // The tagged union or sum type for the algebraic type `TimeOfDay`.
-export type TimeOfDay = TimeOfDay.Dawn | TimeOfDay.Morning | TimeOfDay.Noon | TimeOfDay.Afternoon | TimeOfDay.Dusk | TimeOfDay.Night | TimeOfDay.Midnight;
+export type TimeOfDay = TimeOfDay.Dawn | TimeOfDay.TwilightMorning | TimeOfDay.Morning | TimeOfDay.Noon | TimeOfDay.Afternoon | TimeOfDay.Dusk | TimeOfDay.TwilightEvening | TimeOfDay.Night | TimeOfDay.Midnight;
 
 export default TimeOfDay;
 

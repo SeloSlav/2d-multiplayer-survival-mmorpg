@@ -38,8 +38,10 @@ pub const MIN_PUMPKIN_DISTANCE_SQ: f32 = 40.0 * 40.0; // Min distance between pu
 pub const MIN_PUMPKIN_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0; // Min distance from trees squared
 /// Minimum distance from stones for better distribution
 pub const MIN_PUMPKIN_STONE_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance from stones squared
-/// Minimum respawn time for pumpkin plants
-pub const PUMPKIN_RESPAWN_TIME_SECS: u64 = 180; // 3 minutes (adjust as needed)
+
+// NEW Respawn Time Constants for Pumpkins
+pub const MIN_PUMPKIN_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
+pub const MAX_PUMPKIN_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
 
 // --- Pumpkin Yield Constants ---
 const PUMPKIN_PRIMARY_YIELD_ITEM_NAME: &str = "Pumpkin";
@@ -116,12 +118,12 @@ pub fn interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64) -> Result<()
         PUMPKIN_SECONDARY_YIELD_MIN_AMOUNT,
         PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT,
         PUMPKIN_SECONDARY_YIELD_CHANCE,
-        &mut ctx.rng().clone(), // Pass a mutable clone of the RNG from context
-        pumpkin.id, // Pass resource_id for logging
-        pumpkin.pos_x, // Pass pos_x for logging
-        pumpkin.pos_y, // Pass pos_y for logging
+        &mut ctx.rng().clone(), // rng
+        pumpkin.id,             // _resource_id_for_log
+        pumpkin.pos_x,          // _resource_pos_x_for_log
+        pumpkin.pos_y,          // _resource_pos_y_for_log
+        // update_resource_fn (closure)
         |respawn_time| -> Result<(), String> {
-            // This closure handles the pumpkin-specific update logic
             if let Some(mut pumpkin_to_update) = ctx.db.pumpkin().id().find(pumpkin.id) {
                 pumpkin_to_update.respawn_at = Some(respawn_time);
                 ctx.db.pumpkin().id().update(pumpkin_to_update);
@@ -129,7 +131,9 @@ pub fn interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64) -> Result<()
             } else {
                 Err(format!("Pumpkin {} disappeared before respawn scheduling.", pumpkin.id))
             }
-        }
+        },
+        MIN_PUMPKIN_RESPAWN_TIME_SECS,  // min_respawn_secs
+        MAX_PUMPKIN_RESPAWN_TIME_SECS   // max_respawn_secs
     )?;
 
     // Log statement is now handled within collect_resource_and_schedule_respawn
