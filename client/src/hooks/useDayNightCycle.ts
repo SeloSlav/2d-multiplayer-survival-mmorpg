@@ -6,20 +6,38 @@ import {
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
-import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_HEIGHT, CAMPFIRE_FLICKER_AMOUNT } from '../config/gameConfig';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT } from '../utils/renderers/lightRenderingUtils';
+import { CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils';
+
+export interface ColorPoint {
+  r: number; g: number; b: number; a: number;
+}
+
+// Default night: Dark, desaturated blue/grey
+export const defaultPeakMidnightColor: ColorPoint = { r: 15, g: 20, b: 30, a: 0.92 };
+export const defaultTransitionNightColor: ColorPoint = { r: 40, g: 50, b: 70, a: 0.75 };
+
+// Full Moon night: Brighter, cooler grey/blue, less saturated
+export const fullMoonPeakMidnightColor: ColorPoint =    { r: 90, g: 110, b: 130, a: 0.48 };
+export const fullMoonTransitionNightColor: ColorPoint = { r: 75, g: 100, b: 125, a: 0.58 };
+
+// Base keyframes
+export const baseKeyframes: Record<number, ColorPoint> = {
+  0.00: defaultPeakMidnightColor,
+  0.20: defaultTransitionNightColor,
+  0.35: { r: 255, g: 180, b: 120, a: 0.25 },
+  0.50: { r: 0, g: 0, b: 0, a: 0.0 },
+  0.65: { r: 255, g: 210, b: 150, a: 0.15 },
+  0.75: { r: 255, g: 150, b: 100, a: 0.35 },
+  0.85: { r: 80, g: 70, b: 90, a: 0.60 },
+  0.95: defaultTransitionNightColor,
+  1.00: defaultPeakMidnightColor,
+};
+// --- END ADDED Day/Night Cycle Constants ---
 
 // Define TORCH_LIGHT_RADIUS_BASE locally
 const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; // Slightly smaller than campfire
 const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7; // Added for torch flicker
-
-// Define time constants based on server's logic (world_state.rs)
-const DAY_DURATION_MINUTES = 45.0;  // 45 minutes
-const NIGHT_DURATION_MINUTES = 15.0; // 15 minutes
-const TOTAL_CYCLE_MINUTES = DAY_DURATION_MINUTES + NIGHT_DURATION_MINUTES; // Now 60 minutes
-
-// Client-side interpretation for visual transitions
-const SUNRISE_START_HOUR = 6;
-const SUNSET_START_HOUR = 18;
 
 // Define RGB colors for overlay tints - NEW KEYFRAME APPROACH
 interface ColorAlphaKeyframe {
@@ -33,8 +51,8 @@ const DAY_COLOR_CONFIG = { rgb: [0, 0, 0] as [number, number, number], alpha: 0.
 
 const REGULAR_CYCLE_KEYFRAMES: ColorAlphaKeyframe[] = [
   // Midnight to Pre-Dawn
-  { progress: 0.0,  rgb: [10, 15, 35],    alpha: 0.92 },   // Deepest Midnight (Dark Desaturated Indigo)
-  { progress: 0.02, rgb: [15, 20, 45],    alpha: 0.90 },   // Late Midnight (Slightly less intense)
+  { progress: 0.0,  rgb: [0, 0, 1],    alpha: 0.99 },   // Deepest Midnight (Dark Desaturated Indigo)
+  { progress: 0.02, rgb: [0, 0, 1],    alpha: 0.99 },   // Late Midnight (Slightly less intense)
 
   // Dawn (Server: 0.0 - 0.04, Client visual stretch: 0.02 - 0.07)
   { progress: 0.035,rgb: [30, 25, 65],    alpha: 0.85 },   // Faint Blues/Purples emerge
@@ -64,11 +82,11 @@ const REGULAR_CYCLE_KEYFRAMES: ColorAlphaKeyframe[] = [
   // Twilight Evening (Server: 0.71 - 0.75, Client visual stretch: 0.72 - 0.81)
   { progress: 0.75, rgb: [150, 70, 100],  alpha: 0.65 },   // Civil Dusk (Purples/Pinks return)
   { progress: 0.78, rgb: [80, 50, 90],    alpha: 0.80 },   // Nautical Dusk (Deepening Blues/Purples)
-  { progress: 0.81, rgb: [40, 30, 70],    alpha: 0.88 },   // Astronomical Dusk
+  { progress: 0.81, rgb: [5, 5, 10],    alpha: 0.96 },   // Astronomical Dusk
 
   // Night to Midnight (Server: Night 0.75 - 0.90, Midnight 0.90 - 1.0, Client visual stretch: 0.81 - 1.0)
-  { progress: 0.90, rgb: [20, 25, 55],    alpha: 0.90 },   // Early Night (Dark Blue/Indigo)
-  { progress: 1.0,  rgb: [10, 15, 35],    alpha: 0.92 },   // Deepest Midnight (Loop to start)
+  { progress: 0.90, rgb: [0, 0, 2],    alpha: 0.98 },   // Early Night (Dark Blue/Indigo)
+  { progress: 1.0,  rgb: [0, 0, 1],    alpha: 0.99 },   // Deepest Midnight (Loop to start)
 ];
 
 const FULL_MOON_NIGHT_KEYFRAMES: ColorAlphaKeyframe[] = [
@@ -110,33 +128,6 @@ const FULL_MOON_NIGHT_KEYFRAMES: ColorAlphaKeyframe[] = [
   { progress: 0.90, rgb: [135, 155, 195], alpha: 0.39 },   // Early Night (Silvery Blue)
   { progress: 1.0,  rgb: [130, 150, 190], alpha: 0.40 },   // Lighter Midnight (Loop to start)
 ];
-
-// Converts cycle_progress (0.0-1.0) to game hours and isDay status
-function getGameTimeFromCycleProgress(cycleProgress: number): { hours: number; minutes: number; isDay: boolean; cycleProgress: number } {
-    const totalMinutesInCycle = TOTAL_CYCLE_MINUTES;
-    const currentMinuteInCycle = cycleProgress * totalMinutesInCycle;
-
-    let hours: number;
-    let minutes: number = Math.floor(currentMinuteInCycle % 60);
-    let isDay: boolean;
-
-    const dayHourSpan = SUNSET_START_HOUR - SUNRISE_START_HOUR; // e.g., 12 hours
-    const nightHourSpan = 24 - dayHourSpan; // e.g., 12 hours
-
-    if (currentMinuteInCycle < DAY_DURATION_MINUTES) {
-        isDay = true;
-        const progressThroughDay = currentMinuteInCycle / DAY_DURATION_MINUTES;
-        hours = SUNRISE_START_HOUR + Math.floor(progressThroughDay * dayHourSpan);
-        minutes = Math.floor((progressThroughDay * dayHourSpan * 60) % 60);
-    } else {
-        isDay = false;
-        const progressThroughNight = (currentMinuteInCycle - DAY_DURATION_MINUTES) / NIGHT_DURATION_MINUTES;
-        hours = (SUNSET_START_HOUR + Math.floor(progressThroughNight * nightHourSpan)) % 24;
-        minutes = Math.floor((progressThroughNight * nightHourSpan * 60) % 60);
-    }
-
-    return { hours, minutes, isDay, cycleProgress };
-}
 
 // Server's full moon cycle interval
 const SERVER_FULL_MOON_INTERVAL = 3;

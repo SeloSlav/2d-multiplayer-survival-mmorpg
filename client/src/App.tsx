@@ -39,14 +39,12 @@ const VIEWPORT_BUFFER = 1200; // Increased buffer (was 600) to create larger "ch
 const VIEWPORT_UPDATE_THRESHOLD_SQ = (VIEWPORT_WIDTH / 2) ** 2; // Increased threshold (was WIDTH/4), so updates happen less frequently
 const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) to reduce update frequency
 
-// Import interaction distance constants
-import {
-    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED,
-    PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
-    PLAYER_STASH_INTERACTION_DISTANCE_SQUARED,
-    PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED, // Added for player corpse
-    // Add other relevant interaction distances if new interactable container types are added
-} from './config/gameConfig'; // Assuming these are defined in your config
+// Import interaction distance constants directly from their respective rendering utility files
+import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/woodenStorageBoxRenderingUtils';
+import { PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/campfireRenderingUtils';
+import { PLAYER_STASH_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/stashRenderingUtils';
+import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/playerCorpseRenderingUtils';
+// Add other relevant interaction distances if new interactable container types are added
 
 function AppContent() {
     // --- Auth Hook ---

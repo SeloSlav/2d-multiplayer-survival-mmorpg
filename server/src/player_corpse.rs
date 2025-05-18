@@ -677,9 +677,43 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
     };
 
     // --- 4. Schedule Despawn --- 
-    let despawn_time = ctx.timestamp + Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS);
-    log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {} at {:?}.", player_id, new_corpse_id, despawn_time);
+    // Retrieve the newly created corpse to check if it has items
+    let corpse_for_despawn_check = match player_corpse_table.id().find(new_corpse_id) {
+        Some(c) => c,
+        None => {
+            log::error!("[CorpseCreate:{:?}] Critical error: Corpse {} not found immediately after creation for despawn scheduling.", player_id, new_corpse_id);
+            return Err(format!("Corpse {} not found after creation", new_corpse_id));
+        }
+    };
+
+    let mut has_items = false;
+    for i in 0..corpse_for_despawn_check.num_slots() as u8 {
+        if corpse_for_despawn_check.get_slot_instance_id(i).is_some() {
+            has_items = true;
+            break;
+        }
+    }
+
+    let despawn_duration_seconds = if has_items {
+        log::info!("[CorpseCreate:{:?}] Corpse {} has items. Setting despawn to 40 minutes.", player_id, new_corpse_id);
+        2400 // 40 minutes
+    } else {
+        log::info!("[CorpseCreate:{:?}] Corpse {} is empty. Setting despawn to 5 minutes.", player_id, new_corpse_id);
+        CORPSE_DESPAWN_DURATION_SECONDS // Use existing 5-minute constant for empty
+    };
+
+    let despawn_time = ctx.timestamp + Duration::from_secs(despawn_duration_seconds);
+    log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {} at {:?}. Duration: {}s", player_id, new_corpse_id, despawn_time, despawn_duration_seconds);
     
+    // Update the corpse entity with the correct despawn_scheduled_at time
+    if let Some(mut corpse_to_update) = player_corpse_table.id().find(new_corpse_id) {
+        corpse_to_update.despawn_scheduled_at = despawn_time;
+        player_corpse_table.id().update(corpse_to_update);
+    } else {
+        // This case should have been caught by corpse_for_despawn_check already
+        log::error!("[CorpseCreate:{:?}] Failed to find corpse {} to update its despawn_scheduled_at time.", player_id, new_corpse_id);
+    }
+
     // Insert panics on failure, so if it doesn't panic, it succeeded.
     // The error from TryInsertError would be SpacetimeDB specific, not a string directly.
     // If a string error message is desired, try_insert should be used and mapped.

@@ -28,36 +28,8 @@ interface DayNightCycleTrackerProps {
 const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState }) => {
   if (!worldState) return null;
 
-  // Helper function to get icon based on time of day
-  const getTimeIcon = (timeOfDay: TimeOfDay) => {
-    switch (timeOfDay.tag) {
-      case 'Dawn': return '🌅';
-      case 'TwilightMorning': return '✨'; // Sparkles for morning twilight
-      case 'Morning': return '🌄';
-      case 'Noon': return '☀️';
-      case 'Afternoon': return '🌤️';
-      case 'Dusk': return '🌇';
-      case 'TwilightEvening': return '🔮'; // Crystal ball for evening twilight
-      case 'Night': return worldState.isFullMoon ? '🌕' : '🌙';
-      case 'Midnight': return worldState.isFullMoon ? '🌕' : '🌑';
-      default: return '⏱️';
-    }
-  };
-
   // Helper function to get background gradient based on time of day
   const getBackgroundGradient = () => {
-    const colorMap: Record<string, string> = {
-      Dawn: COLORS.dawn,
-      TwilightMorning: COLORS.twilightMorning,
-      Morning: COLORS.morning,
-      Noon: COLORS.noon,
-      Afternoon: COLORS.afternoon,
-      Dusk: COLORS.dusk,
-      TwilightEvening: COLORS.twilightEvening,
-      Night: worldState.isFullMoon ? COLORS.fullMoon : COLORS.night,
-      Midnight: worldState.isFullMoon ? COLORS.fullMoon : COLORS.midnight
-    };
-
     // Create a gradient representing the day/night cycle
     return `linear-gradient(to right, 
       ${COLORS.midnight}, 
@@ -75,14 +47,6 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
   // Calculate dial position based on cycle progress (0-1)
   const dialPosition = `${worldState.cycleProgress * 100}%`;
 
-  // Get label and icon for current time
-  const timeIcon = getTimeIcon(worldState.timeOfDay);
-  const timeLabel = worldState.timeOfDay.tag;
-  
-  // Determine if it's a full moon night
-  const isFullMoonNight = worldState.isFullMoon && 
-    (worldState.timeOfDay.tag === 'Night' || worldState.timeOfDay.tag === 'Midnight');
-
   return (
     <div style={{
       position: 'fixed',
@@ -99,30 +63,6 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
       width: '220px',
       fontSize: '10px',
     }}>
-      {/* Cycle counter - REMOVED */}
-      {/* 
-      <div style={{ marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Cycle: {worldState.cycleCount}</span>
-        <span>{isFullMoonNight ? '🌕 Full Moon' : ''}</span>
-      </div>
-      */}
-
-      {/* Display Full Moon status if applicable, otherwise just a small margin or nothing - REMOVED */}
-      {/* 
-      {isFullMoonNight ? (
-        <div style={{ marginBottom: '6px', textAlign: 'center' }}>
-          <span>🌕 Full Moon</span>
-        </div>
-      ) : (
-        <div style={{ marginBottom: '6px' }}></div> // Keeps spacing consistent if no full moon text
-      )}
-      */}
-
-      {/* Time of day indicator - REMOVED */}
-      {/*
-      <div style={{ marginBottom: '6px' }}></div>
-      */}
-      
       {/* Progress bar */}
       <div style={{
         position: 'relative',
@@ -154,21 +94,6 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
           boxShadow: '0 0 3px 1px rgba(255,255,255,0.8)',
         }}></div>
       </div>
-      
-      {/* Simple time markers - REMOVED */}
-      {/* 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginTop: '2px',
-        fontSize: '8px',
-        color: '#ccc',
-      }}>
-        <span>Midnight</span>
-        <span>Noon</span>
-        <span>Midnight</span>
-      </div>
-      */}
     </div>
   );
 };

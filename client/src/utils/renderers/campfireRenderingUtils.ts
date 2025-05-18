@@ -4,10 +4,30 @@ import campfireOffImage from '../../assets/doodads/campfire_off.png'; // Direct 
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { drawDynamicGroundShadow, applyStandardDropShadow } from './shadowUtils'; // Added applyStandardDropShadow back
 import { imageManager } from './imageManager'; // Import image manager
+import { Campfire as SpacetimeDBCampfire, Player as SpacetimeDBPlayer } from '../../generated';
 
-// --- Constants ---
+// --- Constants directly used by this module or exported ---
 export const CAMPFIRE_WIDTH = 64;
 export const CAMPFIRE_HEIGHT = 64;
+export const CAMPFIRE_WIDTH_PREVIEW = 64; // Added for preview components
+export const CAMPFIRE_HEIGHT_PREVIEW = 64; // Added for preview components
+// Offset for rendering to align with server-side collision/damage zones
+// Keep the original render offset as server code has been updated to match visual
+export const CAMPFIRE_RENDER_Y_OFFSET = 10; // Visual offset from entity's base Y
+
+// Campfire interaction distance (player <-> campfire)
+export const PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // New radius: 96px
+
+// Constants for server-side damage logic
+export const SERVER_CAMPFIRE_DAMAGE_RADIUS = 25.0;
+export const SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET = 0.0;
+
+// Particle emission points relative to the campfire's visual center (posY - (HEIGHT/2) - RENDER_Y_OFFSET)
+// These describe where particles START. Positive Y is UP from visual center.
+const FIRE_EMISSION_VISUAL_CENTER_Y_OFFSET = CAMPFIRE_HEIGHT * 0.35; 
+const SMOKE_EMISSION_VISUAL_CENTER_Y_OFFSET = CAMPFIRE_HEIGHT * 0.4;
+
+// --- Other Local Constants (not directly tied to gameConfig for debug rendering) ---
 const SHAKE_DURATION_MS = 150; // How long the shake effect lasts
 const SHAKE_INTENSITY_PX = 8; // Slightly less intense shake for campfires
 const HEALTH_BAR_WIDTH = 50;
@@ -32,8 +52,9 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
 
     calculateDrawPosition: (entity, drawWidth, drawHeight) => ({
         // Top-left corner for image drawing, originating from entity's base Y
+        // Apply Y offset to better align with collision area
         drawX: entity.posX - drawWidth / 2,
-        drawY: entity.posY - drawHeight,
+        drawY: entity.posY - drawHeight - CAMPFIRE_RENDER_Y_OFFSET,
     }),
 
     getShadowParams: undefined,

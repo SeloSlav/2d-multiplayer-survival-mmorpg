@@ -28,17 +28,23 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
   React.useEffect(() => {
     // Glow Pulse Keyframes
-    if (glow && !document.getElementById('status-bar-glow-keyframes')) {
-      const style = document.createElement('style');
-      style.id = 'status-bar-glow-keyframes';
-      style.innerHTML = `
-        @keyframes statusBarGlowPulse {
-          0% { box-shadow: 0 0 8px 2px rgba(255,255,255,0.25), 0 0 0 0 ${barColor}; transform: scale(1); }
-          50% { box-shadow: 0 0 16px 6px ${barColor}, 0 0 0 0 ${barColor}; transform: scale(1.04); }
-          100% { box-shadow: 0 0 8px 2px rgba(255,255,255,0.25), 0 0 0 0 ${barColor}; transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(style);
+    if (glow) {
+      const sanitizedBarColorForId = barColor.replace(/[^a-zA-Z0-9]/g, '');
+      const keyframeName = `statusBarGlowPulse_${sanitizedBarColorForId}`;
+      const barColorWithAlpha = barColor.startsWith('#') ? `${barColor}AA` : barColor; // Add AA for ~66% alpha if hex
+
+      if (!document.getElementById(keyframeName)) {
+        const style = document.createElement('style');
+        style.id = keyframeName;
+        style.innerHTML = `
+          @keyframes ${keyframeName} {
+            0%   { box-shadow: 0 0 8px 2px ${barColorWithAlpha}, 0 0 0 0 ${barColorWithAlpha}; transform: scale(1); }
+            50%  { box-shadow: 0 0 16px 6px ${barColor}, 0 0 0 0 ${barColor}; transform: scale(1.04); }
+            100% { box-shadow: 0 0 8px 2px ${barColorWithAlpha}, 0 0 0 0 ${barColorWithAlpha}; transform: scale(1); }
+          }
+        `;
+        document.head.appendChild(style);
+      }
     }
     
     // Regen/Healing Animation Keyframes
@@ -74,7 +80,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
     backgroundColor: barColor,
     transition: 'box-shadow 0.2s, transform 0.2s, width 0.3s ease-in-out',
     boxShadow: glow ? `0 0 16px 6px ${barColor}` : undefined,
-    animation: glow ? 'statusBarGlowPulse 1.2s infinite' : undefined,
+    animation: glow ? `statusBarGlowPulse_${barColor.replace(/[^a-zA-Z0-9]/g, '')} 1.2s infinite` : undefined,
     zIndex: 1,
     position: 'relative', 
     overflow: 'hidden', 

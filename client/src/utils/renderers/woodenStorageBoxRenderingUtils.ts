@@ -7,6 +7,7 @@ import { imageManager } from './imageManager'; // Import image manager
 // --- Constants --- (Keep exportable if used elsewhere)
 export const BOX_WIDTH = 64; 
 export const BOX_HEIGHT = 64;
+export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Added interaction distance
 const SHAKE_DURATION_MS = 150; 
 const SHAKE_INTENSITY_PX = 10; // Make boxes shake a bit more
 const HEALTH_BAR_WIDTH = 50;

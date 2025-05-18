@@ -445,6 +445,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     hasActiveEffect={isHealthHealingOverTime}
                     hasBleedEffect={isPlayerBleeding}
                     pendingHealAmount={pendingBandageHealAmount}
+                    glow={localPlayer.health < lowNeedThreshold}
                 />
                 <StatusBar label="SP" icon="⚡" value={localPlayer.stamina} maxValue={100} barColor="#40ff40" />
                 {/*

@@ -36,17 +36,17 @@
  
  // --- Constants ---
  // Collision constants
- pub(crate) const CAMPFIRE_COLLISION_RADIUS: f32 = 18.0;
- pub(crate) const CAMPFIRE_COLLISION_Y_OFFSET: f32 = 10.0;
- pub(crate) const PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 = 
-     (super::PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS) * (super::PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS);
- pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 = 
-     (CAMPFIRE_COLLISION_RADIUS * 2.0) * (CAMPFIRE_COLLISION_RADIUS * 2.0);
+ pub(crate) const CAMPFIRE_COLLISION_RADIUS: f32 = 20.0; // Increased from 12.0 to better match visual size
+pub(crate) const CAMPFIRE_COLLISION_Y_OFFSET: f32 = 0.0; // Changed from 25.0 to center on visual sprite
+pub(crate) const PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 = 
+    (super::PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS) * (super::PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS);
+pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 = 
+    (CAMPFIRE_COLLISION_RADIUS * 2.0) * (CAMPFIRE_COLLISION_RADIUS * 2.0);
  
  // Interaction constants
- pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE: f32 = 64.0;
+ pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE: f32 = 96.0; // New radius: 96px
  pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED: f32 = 
-     PLAYER_CAMPFIRE_INTERACTION_DISTANCE * PLAYER_CAMPFIRE_INTERACTION_DISTANCE;
+    PLAYER_CAMPFIRE_INTERACTION_DISTANCE * PLAYER_CAMPFIRE_INTERACTION_DISTANCE; // 96.0 * 96.0
  
  // Warmth and fuel constants
  pub(crate) const WARMTH_RADIUS: f32 = 150.0;
@@ -59,9 +59,9 @@
  const CHARCOAL_PRODUCTION_CHANCE: u8 = 75; // 75% chance
  
  // --- ADDED: Campfire Damage Constants ---
- const CAMPFIRE_DAMAGE_CENTER_Y_OFFSET: f32 = 35.0; // Adjusts the perceived center of the damage radius upwards - INCREASED
- const CAMPFIRE_DAMAGE_RADIUS: f32 = 35.0; // Players within this radius of the campfire center might take damage - INCREASED by 20%
- const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 1225.0; // 35.0 * 35.0
+const CAMPFIRE_DAMAGE_CENTER_Y_OFFSET: f32 = 0.0; // Changed from 30.0 to center with visual sprite
+const CAMPFIRE_DAMAGE_RADIUS: f32 = 25.0; // Kept the same damage radius
+const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
  const CAMPFIRE_DAMAGE_PER_TICK: f32 = 5.0; // How much damage is applied per tick
  const CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS: u64 = 1; // Duration of the damage effect (short, effectively one tick)
  const CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS: u64 = 0; // MODIFIED: Apply damage every process tick if player is present
@@ -503,13 +503,18 @@
              let mut applied_damage_this_tick = false;
              for player_entity in ctx.db.player().iter() {
                  if player_entity.is_dead { continue; } // Skip dead players
+                 
+                 // UPDATED: Use the same visual center offset for damage calculations
+                 // This ensures damage is applied based on the visual fire location the player sees
+                 const VISUAL_CENTER_Y_OFFSET: f32 = 42.0;
+                 
                  let dx = player_entity.position_x - campfire.pos_x;
-                 let dy = player_entity.position_y - (campfire.pos_y - CAMPFIRE_DAMAGE_CENTER_Y_OFFSET);
+                 let dy = player_entity.position_y - (campfire.pos_y - VISUAL_CENTER_Y_OFFSET);
                  let dist_sq = dx * dx + dy * dy;
  
                  log::trace!("[CampfireProcess {}] Checking player {:?} at ({:.1}, {:.1}). Campfire at ({:.1}, {:.1}, effective Y for damage: {:.1}). DistSq: {:.1}, DamageRadiusSq: {:.1}",
                      campfire_id, player_entity.identity, player_entity.position_x, player_entity.position_y,
-                     campfire.pos_x, campfire.pos_y, (campfire.pos_y - CAMPFIRE_DAMAGE_CENTER_Y_OFFSET), dist_sq, CAMPFIRE_DAMAGE_RADIUS_SQUARED);
+                     campfire.pos_x, campfire.pos_y, (campfire.pos_y - VISUAL_CENTER_Y_OFFSET), dist_sq, CAMPFIRE_DAMAGE_RADIUS_SQUARED);
  
                  if dist_sq < CAMPFIRE_DAMAGE_RADIUS_SQUARED {
                      log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Attempting to apply damage effect.", campfire_id, player_entity.identity);
@@ -876,17 +881,23 @@
      let sender_id = ctx.sender;
      let players = ctx.db.player();
      let campfires = ctx.db.campfire();
- 
+
      let player = players.identity().find(sender_id)
          .ok_or_else(|| "Player not found".to_string())?;
      let campfire = campfires.id().find(campfire_id)
          .ok_or_else(|| format!("Campfire {} not found", campfire_id))?;
- 
-     // Check distance between the interacting player and the campfire
+
+     // OPTIMIZED: Check distance between player and campfire's visual center
+     // Since the visual campfire is rendered with its center offset from the base position,
+     // we need to adjust the y-coordinate to match where the player sees the campfire
+     // Using CAMPFIRE_HEIGHT constant from client (64px) divided by 2 plus CAMPFIRE_RENDER_Y_OFFSET (10px)
+     // Total offset is roughly 32 + 10 = 42px upward from base position
+     const VISUAL_CENTER_Y_OFFSET: f32 = 42.0;
+     
      let dx = player.position_x - campfire.pos_x;
-     let dy = player.position_y - campfire.pos_y;
+     let dy = player.position_y - (campfire.pos_y - VISUAL_CENTER_Y_OFFSET);
      let dist_sq = dx * dx + dy * dy;
- 
+
      if dist_sq > PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED {
          return Err("Too far away from campfire".to_string());
      }

@@ -1,12 +1,8 @@
 import { PlacementItemInfo } from '../../hooks/usePlacementManager';
-import { 
-    CAMPFIRE_WIDTH_PREVIEW, 
-    CAMPFIRE_HEIGHT_PREVIEW,
-    SLEEPING_BAG_WIDTH, // Import Sleeping Bag dimensions
-    SLEEPING_BAG_HEIGHT, // Import Sleeping Bag dimensions
-    STASH_WIDTH, // Import Stash dimensions
-    STASH_HEIGHT, // Import Stash dimensions
-} from '../../config/gameConfig';
+// Import dimensions directly from their respective rendering utility files
+import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from './campfireRenderingUtils';
+import { SLEEPING_BAG_WIDTH, SLEEPING_BAG_HEIGHT } from './sleepingBagRenderingUtils';
+import { STASH_WIDTH, STASH_HEIGHT } from './stashRenderingUtils';
 
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
@@ -42,6 +38,7 @@ export function renderPlacementPreview({
 
     if (placementInfo.iconAssetName === 'wooden_storage_box.png') {
         // Assuming box preview uses same dimensions as campfire for now
+        // TODO: If wooden_storage_box has its own preview dimensions, import them
         drawWidth = CAMPFIRE_WIDTH_PREVIEW; 
         drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
     } else if (placementInfo.iconAssetName === 'sleeping_bag.png') {

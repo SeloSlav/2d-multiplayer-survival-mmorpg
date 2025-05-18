@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire } from '../generated'; // Corrected import
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -19,6 +19,9 @@ interface DeathScreenProps {
   campfires: Map<string, Campfire>; // Use corrected type
   playerPin: PlayerPin | null;
   sleepingBagImage?: HTMLImageElement | null;
+  // Add new props for death marker
+  localPlayerCorpse?: SpacetimeDBPlayerCorpse | null;
+  deathMarkerImage?: HTMLImageElement | null | undefined;
 }
 
 const DeathScreen: React.FC<DeathScreenProps> = ({
@@ -32,6 +35,9 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   campfires,
   playerPin,
   sleepingBagImage,
+  // Destructure new props
+  localPlayerCorpse,
+  deathMarkerImage,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: MINIMAP_DIMENSIONS.width, height: MINIMAP_DIMENSIONS.height });
@@ -104,6 +110,9 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       isDeathScreen: true,
       ownedSleepingBagIds,
       sleepingBagImage,
+      // Pass death marker props through
+      localPlayerCorpse,
+      deathMarkerImage,
     });
 
     // Draw hover effect (simple circle) - This is illustrative
@@ -129,6 +138,8 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     players, trees, stones, sleepingBags, ownedSleepingBagIds, hoveredBagId,
     canvasSize.width, canvasSize.height, localPlayer, localPlayerIdentity, minimapZoom, viewCenterOffset, sleepingBagImage,
     campfires,
+    localPlayerCorpse,
+    deathMarkerImage,
   ]);
 
   // --- Click Handler for Minimap Canvas ---

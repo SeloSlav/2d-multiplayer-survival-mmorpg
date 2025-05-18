@@ -47,7 +47,7 @@ const PICKUP_RADIUS: f32 = 64.0; // How close the player needs to be to pick up 
 const PICKUP_RADIUS_SQUARED: f32 = PICKUP_RADIUS * PICKUP_RADIUS;
 pub(crate) const DROP_OFFSET: f32 = 40.0; // How far in front of the player to drop the item
 // Ensure constant is i64
-const DROPPED_ITEM_DESPAWN_DURATION_SECS: i64 = 1800; // 30 minutes
+const DROPPED_ITEM_DESPAWN_DURATION_SECS: i64 = 300; // 5 minutes
 const DESPAWN_CHECK_INTERVAL_SECS: u64 = 60; // Check every 1 minute
 
 // --- Reducers ---

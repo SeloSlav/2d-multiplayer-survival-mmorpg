@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse } from '../generated';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -44,6 +44,12 @@ const GRID_LINE_COLOR = 'rgba(200, 200, 200, 0.3)';
 const GRID_TEXT_COLOR = 'rgba(255, 255, 255, 0.5)';
 const GRID_TEXT_FONT = '10px Arial';
 
+// Death Marker Constants (New)
+const DEATH_MARKER_ICON_SIZE = 24;
+const DEATH_MARKER_BORDER_WIDTH = 2;
+const DEATH_MARKER_BORDER_COLOR = '#FFFFFF'; // White border, same as regular bags
+const DEATH_MARKER_BG_COLOR = 'rgba(139, 0, 0, 0.5)'; // Dark red, semi-transparent
+
 // Props required for drawing the minimap
 interface MinimapProps {
   ctx: CanvasRenderingContext2D;
@@ -65,6 +71,9 @@ interface MinimapProps {
   ownedSleepingBagIds?: Set<number>; // Set of owned sleeping bag IDs
   onSelectSleepingBag?: (bagId: number) => void; // Callback for clicking an owned bag (logic outside)
   sleepingBagImage?: HTMLImageElement | null; // Image asset for icons
+  // --- New props for Death Marker ---
+  localPlayerCorpse?: SpacetimeDBCorpse | null; // Local player's last death corpse
+  deathMarkerImage?: HTMLImageElement | null; // Image asset for death marker
 }
 
 /**
@@ -90,6 +99,9 @@ export function drawMinimapOntoCanvas({
   ownedSleepingBagIds = new Set(),
   onSelectSleepingBag, // Callback is optional, only needed if interactive
   sleepingBagImage = null, // Default to null
+  // Destructure new death marker props
+  localPlayerCorpse = null,
+  deathMarkerImage = null,
 }: MinimapProps) {
   const minimapWidth = MINIMAP_WIDTH;
   const minimapHeight = MINIMAP_HEIGHT;
@@ -255,6 +267,52 @@ export function drawMinimapOntoCanvas({
     }
   }
   // --- End Grid Drawing ---
+
+  // --- Draw Death Marker ---
+  console.log('[Minimap] Checking for death marker. Corpse:', localPlayerCorpse, 'Image:', deathMarkerImage);
+  if (localPlayerCorpse && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
+    console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.');
+    const screenCoords = worldToMinimap(localPlayerCorpse.posX, localPlayerCorpse.posY);
+    console.log('[Minimap] Death marker screenCoords:', screenCoords, 'Corpse Pos:', localPlayerCorpse.posX, localPlayerCorpse.posY);
+    if (screenCoords) {
+      console.log('[Minimap] Drawing death marker at:', screenCoords);
+      const iconRadius = DEATH_MARKER_ICON_SIZE / 2;
+      const iconDiameter = DEATH_MARKER_ICON_SIZE;
+      const cx = screenCoords.x;
+      const cy = screenCoords.y;
+
+      ctx.save(); // Save before clipping/drawing
+
+      // 1. Draw background circle (optional, for better visibility or style)
+      ctx.fillStyle = DEATH_MARKER_BG_COLOR;
+      ctx.beginPath();
+      ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 2. Clip to circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+      ctx.clip();
+
+      // 3. Draw image centered in the circle
+      ctx.drawImage(
+        deathMarkerImage,
+        cx - iconRadius, // Adjust x to center
+        cy - iconRadius, // Adjust y to center
+        iconDiameter,    // Draw at icon size
+        iconDiameter
+      );
+      
+      ctx.restore(); // Restore context after drawing image (removes clip)
+
+      // 4. Draw border around the circle
+      ctx.strokeStyle = DEATH_MARKER_BORDER_COLOR;
+      ctx.lineWidth = DEATH_MARKER_BORDER_WIDTH;
+      ctx.beginPath();
+      ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
 
   // --- Draw Trees ---
   ctx.fillStyle = TREE_DOT_COLOR;

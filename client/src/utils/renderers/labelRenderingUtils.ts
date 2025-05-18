@@ -12,7 +12,20 @@ import {
     Player as SpacetimeDBPlayer,
     Pumpkin as SpacetimeDBPumpkin
 } from '../../generated';
-import { CAMPFIRE_HEIGHT, BOX_HEIGHT, SLEEPING_BAG_HEIGHT } from '../../config/gameConfig';
+
+// Import visual heights from useInteractionFinder.ts
+import {
+    MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION,
+    CORN_VISUAL_HEIGHT_FOR_INTERACTION,
+    HEMP_VISUAL_HEIGHT_FOR_INTERACTION,
+    PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION
+} from '../../hooks/useInteractionFinder';
+
+import { CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './campfireRenderingUtils';
+import { BOX_HEIGHT } from './woodenStorageBoxRenderingUtils';
+
+// Define Sleeping Bag dimensions locally for label positioning
+const SLEEPING_BAG_HEIGHT = 64;
 
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
@@ -89,8 +102,9 @@ export function renderInteractionLabels({
         const mushroom = mushrooms.get(closestInteractableMushroomId.toString());
         if (mushroom) {
             const text = "Press E to Collect";
+            const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = mushroom.posX;
-            const textY = mushroom.posY - 60; // Offset above mushroom
+            const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }
@@ -101,8 +115,9 @@ export function renderInteractionLabels({
         const corn = corns.get(closestInteractableCornId.toString());
         if (corn) {
             const text = "Press E to Harvest";
+            const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = corn.posX;
-            const textY = corn.posY - 70; // Slightly higher offset for corn
+            const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }
@@ -113,8 +128,9 @@ export function renderInteractionLabels({
         const pumpkin = pumpkins.get(closestInteractablePumpkinId.toString());
         if (pumpkin) {
             const text = "Press E to Harvest";
+            const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = pumpkin.posX;
-            const textY = pumpkin.posY - 70;
+            const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }
@@ -125,8 +141,9 @@ export function renderInteractionLabels({
         const hemp = hemps.get(closestInteractableHempId.toString());
         if (hemp) {
             const text = "Press E to Harvest";
+            const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = hemp.posX;
-            const textY = hemp.posY - 70;
+            const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }
@@ -151,8 +168,11 @@ export function renderInteractionLabels({
         const fire = campfires.get(closestInteractableCampfireId.toString());
         if (fire) {
             const text = "Press E to Open";
-            const textX = fire.posX;
-            const textY = fire.posY - (CAMPFIRE_HEIGHT / 2) - 10; // Offset above campfire sprite
+            const visualCenterX = fire.posX;
+            const visualCenterY = fire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+            
+            const textX = visualCenterX;
+            const textY = visualCenterY - 50; // Offset above the visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

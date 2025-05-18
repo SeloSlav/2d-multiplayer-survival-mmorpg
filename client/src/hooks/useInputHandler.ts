@@ -6,8 +6,12 @@ import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig'; // <<< ADDED IMPORT
 
+// Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
+// If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
+// If it was missing, this adds it.
+export const HOLD_INTERACTION_DURATION_MS = 250;
+
 // --- Constants (Copied from GameCanvas) ---
-const HOLD_INTERACTION_DURATION_MS = 250;
 const SWING_COOLDOWN_MS = 500;
 
 // --- Hook Props Interface ---

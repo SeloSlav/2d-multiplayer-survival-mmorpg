@@ -20,7 +20,6 @@ import {
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
   Cloud as SpacetimeDBCloud,
-  CloudShapeType as SpacetimeDBCloudShapeType,
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
 } from '../generated';
 
@@ -64,15 +63,14 @@ import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
+import { HOLD_INTERACTION_DURATION_MS } from '../hooks/useInputHandler';
 import {
-    gameConfig, TILE_SIZE,
-    HOLD_INTERACTION_DURATION_MS,
-    CAMPFIRE_HEIGHT,
-    BOX_HEIGHT,
-    PLAYER_BOX_INTERACTION_DISTANCE_SQUARED,
-    SERVER_CAMPFIRE_DAMAGE_RADIUS,
-    SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET,
-} from '../config/gameConfig';
+    CAMPFIRE_HEIGHT, 
+    SERVER_CAMPFIRE_DAMAGE_RADIUS, 
+    SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET
+} from '../utils/renderers/campfireRenderingUtils';
+import { BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
+import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from '../hooks/useInteractionFinder';
 
 // Define a placeholder height for Stash for indicator rendering
 const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
@@ -183,6 +181,45 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
+  // Lift deathMarkerImg definition here
+  const deathMarkerImg = useMemo(() => itemImagesRef.current?.get('death_marker.png'), [itemImagesRef]);
+
+  // Lift currentLocalPlayerCorpse calculation here
+  const currentLocalPlayerCorpse = useMemo(() => {
+    if (localPlayerId && playerCorpses instanceof Map && localPlayer && localPlayer.identity) {
+      let latestTimeMicros: bigint = BigInt(-1);
+      let foundCorpse: SpacetimeDBPlayerCorpse | null = null;
+
+      playerCorpses.forEach(corpse => {
+        if (corpse.playerIdentity.isEqual(localPlayer.identity)) {
+          try {
+            const corpseTimeMicros = (corpse.deathTime as any).__timestamp_micros_since_unix_epoch__;
+            if (typeof corpseTimeMicros === 'bigint') {
+              if (corpseTimeMicros > latestTimeMicros) {
+                latestTimeMicros = corpseTimeMicros;
+                foundCorpse = corpse;
+              }
+            } else {
+              console.error(`[GameCanvas] Corpse ID ${corpse.id} deathTime.__timestamp_micros_since_unix_epoch__ was not a bigint. Actual type: ${typeof corpseTimeMicros}, value: ${corpseTimeMicros}. Timestamp structure:`, corpse.deathTime);
+            }
+          } catch (e) {
+            console.error(`[GameCanvas] Error processing deathTime for corpse ID ${corpse.id}:`, e, "Full timestamp object:", corpse.deathTime);
+          }
+        }
+      });
+
+      if (foundCorpse) {
+        console.log(`[GameCanvas] Latest corpse for local player ${localPlayer.username} is ID ${(foundCorpse as SpacetimeDBPlayerCorpse).id} with time ${latestTimeMicros}`);
+      } else {
+        console.log(`[GameCanvas] No corpse found for local player ${localPlayer.username} after checking all corpses.`);
+      }
+      return foundCorpse;
+    } else {
+      console.log('[GameCanvas] Corpse finding skipped due to missing dependencies.');
+      return null;
+    }
+  }, [localPlayerId, playerCorpses, localPlayer]);
+  
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({ 
     worldState, 
     campfires, 
@@ -390,6 +427,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Default to "noonish" (0.375) if worldState or cycleProgress is not yet available.
     const currentCycleProgress = worldState?.cycleProgress ?? 0.375;
 
+    // --- ADD THESE LOGS for basic renderGame entry check ---
+    // console.log(
+    //     `[GameCanvas renderGame ENTRY] localPlayerId: ${localPlayerId}, ` +
+    //     `playerCorpses type: ${typeof playerCorpses}, isMap: ${playerCorpses instanceof Map}, size: ${playerCorpses?.size}, ` +
+    //     `localPlayer defined: ${!!localPlayer}, localPlayer.identity defined: ${!!localPlayer?.identity}`
+    // );
+    // --- END ADDED LOGS ---
+
     // --- Rendering ---
     ctx.clearRect(0, 0, currentCanvasWidth, currentCanvasHeight);
     ctx.fillStyle = '#000000'; // Should be black if no background, or ensure background draws over this
@@ -513,7 +558,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         hoveredPlayerIds,
         onPlayerHover: handlePlayerHover,
         cycleProgress: currentCycleProgress,
-        renderPlayerCorpse: (props) => renderPlayerCorpse(props)
+        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress})
     });
     // --- End Y-Sorted Entities ---
 
@@ -686,7 +731,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             canvasHeight: currentCanvasHeight, 
             isMouseOverMinimap, // Pass hover state
             zoomLevel: minimapZoom, // Pass zoom level
-            sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png') // Pass image for regular map too
+            sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'), // Pass image for regular map too
+            // --- Pass Death Marker Props ---
+            localPlayerCorpse: currentLocalPlayerCorpse, // Pass the found corpse
+            deathMarkerImage: deathMarkerImg,      // Pass the loaded image
         });
     }
   }, [
@@ -714,6 +762,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       worldState?.cycleProgress, // Correct dependency for renderGame
       visibleTrees, // Added to dependency array
       visibleTreesMap, // Added to dependency array
+      playerCorpses,
   ]);
 
   const gameLoopCallback = useCallback(() => {
@@ -819,6 +868,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }
         }}
       />
+      
       {shouldShowDeathScreen && (
         <DeathScreen
           // Remove respawnAt prop, add others later
@@ -836,6 +886,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           campfires={campfires}
           playerPin={localPlayerPin}
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
+          // Pass the identified corpse and its image for the death screen minimap
+          localPlayerCorpse={currentLocalPlayerCorpse} // Pass the found corpse
+          deathMarkerImage={deathMarkerImg}      // Pass the loaded image
         />
       )}
     </div>

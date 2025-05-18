@@ -11,6 +11,7 @@ import { imageManager } from './imageManager';
 // --- Constants ---
 export const STASH_WIDTH = 48; // Adjust as needed
 export const STASH_HEIGHT = 48; // Adjust as needed
+export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Added interaction distance
 const SHAKE_DURATION_MS = 150;
 const SHAKE_INTENSITY_PX = 7;
 const HEALTH_BAR_WIDTH = 40;

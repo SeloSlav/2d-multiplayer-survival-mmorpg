@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Campfire as SpacetimeDBCampfire } from '../generated';
-import { CAMPFIRE_HEIGHT } from '../config/gameConfig';
+import { CAMPFIRE_RENDER_Y_OFFSET, CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils';
 
 // --- Particle System Types and Constants ---
 export interface Particle {
@@ -46,6 +46,12 @@ const SMOKE_LINGER_DURATION_MS = 2500; // How long smoke continues after fire is
 const SMOKE_BURST_PARTICLE_COUNT = 75;
 const SMOKE_BURST_COLOR = "#000000";
 // --- END ADDED ---
+
+// --- Define constants for particle emitter positions relative to visual campfire center ---
+// These values are measured as offsets from the visual center, not the entity base position
+// Positive Y values move up from the center, negative values move down from the center
+const FIRE_EMISSION_CENTER_Y_OFFSET = CAMPFIRE_HEIGHT * -0.30; // 35% up from center of visual bounds
+const SMOKE_EMISSION_CENTER_Y_OFFSET = CAMPFIRE_HEIGHT * 0.15; // 40% up from center of visual bounds
 
 interface UseCampfireParticlesProps {
     visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
@@ -147,10 +153,16 @@ export function useCampfireParticles({
                     }
                     prevBurningStatesRef.current.set(campfireId, isCurrentlyBurning);
 
-                    const emissionPointX = campfire.posX;
-                    // Use user's preferred fire Y-offset from their local changes
-                    const fireVisualCenterY = campfire.posY - CAMPFIRE_HEIGHT * 0.85; 
-                    const smokeVisualCenterY = campfire.posY - CAMPFIRE_HEIGHT * 0.40; 
+                    // OPTIMIZATION: Calculate the visual center of the campfire for particle emission
+                    const visualCenterX = campfire.posX;
+                    const visualCenterY = campfire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+                    
+                    // Calculate emission points based on visual center
+                    const fireEmissionX = visualCenterX;
+                    const fireEmissionY = visualCenterY + FIRE_EMISSION_CENTER_Y_OFFSET;
+                    
+                    const smokeEmissionX = visualCenterX;
+                    const smokeEmissionY = visualCenterY + SMOKE_EMISSION_CENTER_Y_OFFSET;
 
                     if (generateFireThisFrame) {
                         let fireAcc = fireEmissionAccumulatorRef.current.get(campfireId) || 0;
@@ -160,8 +172,8 @@ export function useCampfireParticles({
                             const lifetime = PARTICLE_FIRE_LIFETIME_MIN + Math.random() * (PARTICLE_FIRE_LIFETIME_MAX - PARTICLE_FIRE_LIFETIME_MIN);
                             newGeneratedParticles.push({
                                 id: `fire_${now}_${Math.random()}`, type: 'fire',
-                                x: emissionPointX + (Math.random() - 0.5) * 5, 
-                                y: fireVisualCenterY + (Math.random() - 0.5) * 5, 
+                                x: fireEmissionX + (Math.random() - 0.5) * 8, 
+                                y: fireEmissionY + (Math.random() - 0.5) * 5, 
                                 vx: (Math.random() - 0.5) * PARTICLE_FIRE_SPEED_X_SPREAD,
                                 vy: PARTICLE_FIRE_SPEED_Y_MIN + Math.random() * (PARTICLE_FIRE_SPEED_Y_MAX - PARTICLE_FIRE_SPEED_Y_MIN),
                                 spawnTime: now, initialLifetime: lifetime, lifetime,
@@ -183,8 +195,8 @@ export function useCampfireParticles({
                             const lifetime = PARTICLE_SMOKE_LIFETIME_MIN + Math.random() * (PARTICLE_SMOKE_LIFETIME_MAX - PARTICLE_SMOKE_LIFETIME_MIN);
                             newGeneratedParticles.push({
                                 id: `smoke_${now}_${Math.random()}`, type: 'smoke',
-                                x: emissionPointX + (Math.random() - 0.5) * 8, 
-                                y: smokeVisualCenterY + (Math.random() - 0.5) * 8,
+                                x: smokeEmissionX + (Math.random() - 0.5) * 8, 
+                                y: smokeEmissionY + (Math.random() - 0.5) * 8,
                                 vx: (Math.random() - 0.5) * PARTICLE_SMOKE_SPEED_X_SPREAD,
                                 vy: PARTICLE_SMOKE_SPEED_Y_MIN + Math.random() * (PARTICLE_SMOKE_SPEED_Y_MAX - PARTICLE_SMOKE_SPEED_Y_MIN),
                                 spawnTime: now, initialLifetime: lifetime, lifetime,
@@ -197,7 +209,7 @@ export function useCampfireParticles({
                         smokeEmissionAccumulatorRef.current.set(campfireId, 0);
                     }
 
-                    // --- ADDED: Smoke Burst Logic ---
+                    // --- Smoke Burst Logic ---
                     if (damagingCampfireIds && damagingCampfireIds.has(campfireId)) {
                         // Only generate burst if this campfire hasn't been processed for the current damage event
                         if (!processedBurstCampfireIdsRef.current.has(campfireId)) {
@@ -207,8 +219,8 @@ export function useCampfireParticles({
                                 newGeneratedParticles.push({
                                     id: `smokeburst_${campfireId}_${now}_${i}_${Math.random()}`,
                                     type: 'smoke_burst',
-                                    x: emissionPointX + (Math.random() - 0.5) * 30,
-                                    y: smokeVisualCenterY + (Math.random() - 0.5) * 30,
+                                    x: visualCenterX + (Math.random() - 0.5) * 30,
+                                    y: visualCenterY + (Math.random() - 0.5) * 30,
                                     vx: (Math.random() - 0.5) * PARTICLE_SMOKE_SPEED_X_SPREAD * 1.8,
                                     vy: (PARTICLE_SMOKE_SPEED_Y_MIN + Math.random() * (PARTICLE_SMOKE_SPEED_Y_MAX - PARTICLE_SMOKE_SPEED_Y_MIN)) * 0.5,
                                     spawnTime: now, initialLifetime: lifetime, lifetime,
@@ -220,7 +232,6 @@ export function useCampfireParticles({
                             processedBurstCampfireIdsRef.current.add(campfireId); // Mark as processed for this event AFTER generating
                         }
                     }
-                    // --- END ADDED ---
                 });
             }
 
@@ -241,7 +252,7 @@ export function useCampfireParticles({
 
             return [...updatedAndActiveParticles, ...newGeneratedParticles];
         });
-    }, [visibleCampfiresMap, deltaTime, damagingCampfireIds]); // MODIFIED: Added damagingCampfireIds to dependency array
+    }, [visibleCampfiresMap, deltaTime, damagingCampfireIds]);
 
     return particles;
 } 

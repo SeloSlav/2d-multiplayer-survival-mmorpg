@@ -209,8 +209,11 @@ pub fn find_targets_in_cone(
         if campfire_entity.is_destroyed {
             continue;
         }
+        // OPTIMIZED: Use visual center for combat targeting
+        const VISUAL_CENTER_Y_OFFSET: f32 = 42.0; // (CAMPFIRE_HEIGHT / 2) + CAMPFIRE_RENDER_Y_OFFSET = 32 + 10 = 42
+
         let dx = campfire_entity.pos_x - player.position_x;
-        let target_y = campfire_entity.pos_y - CAMPFIRE_COLLISION_Y_OFFSET;
+        let target_y = campfire_entity.pos_y - VISUAL_CENTER_Y_OFFSET; // Calculate Y based on visual center
         let dy = target_y - player.position_y;
         let dist_sq = dx * dx + dy * dy;
 

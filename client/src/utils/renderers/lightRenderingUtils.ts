@@ -1,12 +1,12 @@
 import { Player as SpacetimeDBPlayer, ItemDefinition as SpacetimeDBItemDefinition, ActiveEquipment as SpacetimeDBActiveEquipment } from '../../generated';
-import {
-    CAMPFIRE_LIGHT_RADIUS_BASE,
-    CAMPFIRE_FLICKER_AMOUNT,
-    CAMPFIRE_LIGHT_INNER_COLOR,
-    CAMPFIRE_LIGHT_OUTER_COLOR,
-} from '../../config/gameConfig';
 
-// --- Torch Light Constants ---
+// --- Campfire Light Constants (defined locally now) ---
+export const CAMPFIRE_LIGHT_RADIUS_BASE = 150;
+export const CAMPFIRE_FLICKER_AMOUNT = 5; // Max pixels radius will change by
+export const CAMPFIRE_LIGHT_INNER_COLOR = 'rgba(255, 180, 80, 0.35)'; // Warmer orange/yellow, slightly more opaque
+export const CAMPFIRE_LIGHT_OUTER_COLOR = 'rgba(255, 100, 0, 0.0)';  // Fade to transparent orange
+
+// --- Torch Light Constants (derived from new local Campfire constants) ---
 export const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8;
 export const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7;
 export const TORCH_LIGHT_INNER_COLOR = CAMPFIRE_LIGHT_INNER_COLOR;
@@ -76,14 +76,10 @@ interface RenderCampfireLightProps {
     cameraOffsetY: number;
 }
 
-// Constants like CAMPFIRE_HEIGHT are expected to be imported or available in gameConfig
-// For now, let's assume CAMPFIRE_FLICKER_AMOUNT, CAMPFIRE_LIGHT_RADIUS_BASE, 
-// CAMPFIRE_LIGHT_INNER_COLOR, CAMPFIRE_LIGHT_OUTER_COLOR are correctly imported from gameConfig within this file.
-// We might need to import CAMPFIRE_HEIGHT from gameConfig as well, or pass it if it varies.
-// For simplicity, I'll assume gameConfig provides it or it's a fixed value known here.
-// Let's re-import them here for clarity for this function, though they are already file-level imports.
-import { CAMPFIRE_HEIGHT, CAMPFIRE_FLICKER_AMOUNT as CF_FLICKER_AMOUNT, CAMPFIRE_LIGHT_RADIUS_BASE as CF_RADIUS_BASE, CAMPFIRE_LIGHT_INNER_COLOR as CF_INNER_COLOR, CAMPFIRE_LIGHT_OUTER_COLOR as CF_OUTER_COLOR } from '../../config/gameConfig';
 import { Campfire as SpacetimeDBCampfire } from '../../generated';
+
+// Import the CAMPFIRE_RENDER_Y_OFFSET and CAMPFIRE_HEIGHT for proper alignment
+import { CAMPFIRE_RENDER_Y_OFFSET, CAMPFIRE_HEIGHT } from '../renderers/campfireRenderingUtils';
 
 export const renderCampfireLight = ({
     ctx,
@@ -95,23 +91,26 @@ export const renderCampfireLight = ({
         return; // Not burning, no light
     }
 
-    const lightScreenX = campfire.posX + cameraOffsetX;
-    const visualCenterWorldY = campfire.posY - (CAMPFIRE_HEIGHT / 2);
-    const gradientCenterWorldY = visualCenterWorldY - (CAMPFIRE_HEIGHT * 0.0);
-    const newLightScreenY = gradientCenterWorldY + cameraOffsetY;
+    const visualCenterX = campfire.posX;
+    const visualCenterY = campfire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+    
+    const lightScreenX = visualCenterX + cameraOffsetX;
+    const lightScreenY = visualCenterY + cameraOffsetY;
 
-    const flicker = (Math.random() - 0.5) * 2 * CF_FLICKER_AMOUNT;
-    const currentLightRadius = Math.max(0, CF_RADIUS_BASE + flicker) * 2.0;
+    // Use locally defined constants directly
+    const flicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
+    const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 2.0;
 
     const lightGradient = ctx.createRadialGradient(
-        lightScreenX, newLightScreenY, 0,             // Inner circle (center, radius)
-        lightScreenX, newLightScreenY, currentLightRadius // Outer circle (center, radius)
+        lightScreenX, lightScreenY, 0,
+        lightScreenX, lightScreenY, currentLightRadius
     );
-    lightGradient.addColorStop(0.30, CF_INNER_COLOR);
-    lightGradient.addColorStop(1, CF_OUTER_COLOR);
+    // Use locally defined constants directly
+    lightGradient.addColorStop(0.30, CAMPFIRE_LIGHT_INNER_COLOR);
+    lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
 
     ctx.fillStyle = lightGradient;
     ctx.beginPath();
-    ctx.arc(lightScreenX, newLightScreenY, currentLightRadius, 0, Math.PI * 2);
+    ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
     ctx.fill();
-}; 
+};
