@@ -543,7 +543,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         hoveredPlayerIds,
         onPlayerHover: handlePlayerHover,
         cycleProgress: currentCycleProgress,
-        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress})
+        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
     });
     // --- End Y-Sorted Entities ---
 

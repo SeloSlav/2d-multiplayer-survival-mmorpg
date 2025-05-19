@@ -59,6 +59,7 @@ interface RenderYSortedEntitiesProps {
         corpse: SpacetimeDBPlayerCorpse; 
         nowMs: number; 
         itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+        heroImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
 }
 
@@ -132,41 +133,41 @@ export const renderYSortedEntities = ({
             // Determine rendering order based on player direction
             if (player.direction === 'up' || player.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
-                if (canRenderItem && equipment) {
+              if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
-                }
-                if (heroImg) {
-                    renderPlayer(
-                        ctx, player, heroImg, isOnline,
-                        isPlayerMoving,
+              }
+              if (heroImg) {
+                renderPlayer(
+                        ctx, player, heroImg, isOnline, 
+                        isPlayerMoving, 
                         currentlyHovered,
-                        animationFrame,
-                        nowMs,
-                        jumpOffset,
-                        isPersistentlyHovered,
-                        activeConsumableEffects,
-                        localPlayerId
-                    );
-                }
+                  animationFrame, 
+                  nowMs, 
+                  jumpOffset,
+                  isPersistentlyHovered,
+                  activeConsumableEffects,
+                  localPlayerId
+                );
+              }
             } else { // This covers 'down' or 'right'
                 // For DOWN or RIGHT, item should be rendered ABOVE the player
-                if (heroImg) {
-                    renderPlayer(
-                        ctx, player, heroImg, isOnline,
-                        isPlayerMoving,
+              if (heroImg) {
+                renderPlayer(
+                        ctx, player, heroImg, isOnline, 
+                        isPlayerMoving, 
                         currentlyHovered,
-                        animationFrame,
-                        nowMs,
-                        jumpOffset,
-                        isPersistentlyHovered,
-                        activeConsumableEffects,
-                        localPlayerId
-                    );
-                }
-                if (canRenderItem && equipment) {
+                  animationFrame, 
+                  nowMs, 
+                  jumpOffset,
+                  isPersistentlyHovered,
+                  activeConsumableEffects,
+                  localPlayerId
+                );
+              }
+              if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
-                }
-            }
+              }
+           }
         } else if (type === 'tree') {
             // Render tree, skip its dynamic shadow in this pass
             renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, true);
@@ -197,7 +198,8 @@ export const renderYSortedEntities = ({
                 ctx, 
                 corpse: entity as SpacetimeDBPlayerCorpse, 
                 nowMs, 
-                itemImagesRef
+                itemImagesRef,
+                heroImageRef
             });
         } else {
             console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);

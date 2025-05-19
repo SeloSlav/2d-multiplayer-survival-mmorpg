@@ -3,7 +3,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { drawShadow } from './shadowUtils';
 
 // --- Constants --- 
-const IDLE_FRAME_INDEX = 1; // Second frame is idle
+export const IDLE_FRAME_INDEX = 1; // Second frame is idle
 const PLAYER_SHAKE_DURATION_MS = 200; // How long the shake lasts
 const PLAYER_SHAKE_AMOUNT_PX = 3;   // Max pixels to offset
 // Defined here as it depends on spriteWidth from config
@@ -140,7 +140,8 @@ export const renderPlayer = (
   jumpOffsetY: number = 0,
   shouldShowLabel: boolean = false,
   activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
-  localPlayerId?: string
+  localPlayerId?: string,
+  isCorpse?: boolean // New flag for corpse rendering
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -150,8 +151,8 @@ export const renderPlayer = (
   // ... (removed name tag code) ...
   // ctx.restore();
 
-  // --- Hide player if dead ---
-  if (player.isDead) {
+  // --- Hide player if dead (unless it's a corpse being rendered) ---
+  if (!isCorpse && player.isDead) {
     // console.log(`Skipping render for dead player: ${player.username}`);
     // Clean up visual state if player is dead
     if (player.identity) {
@@ -160,68 +161,66 @@ export const renderPlayer = (
     return; // Don't render anything if dead
   }
 
-  // --- Knockback Interpolation Logic ---
-  const identityHex = player.identity.toHexString();
-  let visualState = playerVisualKnockbackState.get(identityHex);
+  // --- Knockback Interpolation Logic (Skip for corpses) ---
+  let currentDisplayX: number = player.positionX;
+  let currentDisplayY: number = player.positionY;
+  let visualState = playerVisualKnockbackState.get(player.identity.toHexString());
 
-  const serverX = player.positionX;
-  const serverY = player.positionY;
-  const serverLastHitMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
+  if (!isCorpse) {
+    const serverX = player.positionX;
+    const serverY = player.positionY;
+    const serverLastHitMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
 
-  let currentDisplayX: number;
-  let currentDisplayY: number;
-
-  if (!visualState) {
-    visualState = {
-      displayX: serverX, displayY: serverY,
-      serverX, serverY,
-      lastHitTimeMicros: serverLastHitMicros,
-      interpolationSourceX: serverX, interpolationSourceY: serverY,
-      interpolationTargetX: serverX, interpolationTargetY: serverY,
-      interpolationStartTime: 0,
-    };
-    playerVisualKnockbackState.set(identityHex, visualState);
-    currentDisplayX = serverX;
-    currentDisplayY = serverY;
-  } else {
-    // Detect new hit from server
-    if (serverLastHitMicros > visualState.lastHitTimeMicros) {
-      // Start new interpolation
-      visualState.interpolationSourceX = visualState.displayX; // Start from current visual position
-      visualState.interpolationSourceY = visualState.displayY;
-      visualState.interpolationTargetX = serverX; // Target is the new server position
-      visualState.interpolationTargetY = serverY;
-      visualState.interpolationStartTime = nowMs;
-      visualState.lastHitTimeMicros = serverLastHitMicros;
-    }
-
-    // If currently interpolating
-    if (visualState.interpolationStartTime > 0 && nowMs < visualState.interpolationStartTime + KNOCKBACK_INTERPOLATION_DURATION_MS) {
-      const elapsed = nowMs - visualState.interpolationStartTime;
-      const t = Math.min(1, elapsed / KNOCKBACK_INTERPOLATION_DURATION_MS);
-      currentDisplayX = lerp(visualState.interpolationSourceX, visualState.interpolationTargetX, t);
-      currentDisplayY = lerp(visualState.interpolationSourceY, visualState.interpolationTargetY, t);
-    } else {
-      // Not interpolating or interpolation finished, snap to server position
+    if (!visualState) {
+      visualState = {
+        displayX: serverX, displayY: serverY,
+        serverX, serverY,
+        lastHitTimeMicros: serverLastHitMicros,
+        interpolationSourceX: serverX, interpolationSourceY: serverY,
+        interpolationTargetX: serverX, interpolationTargetY: serverY,
+        interpolationStartTime: 0,
+      };
+      playerVisualKnockbackState.set(player.identity.toHexString(), visualState);
       currentDisplayX = serverX;
       currentDisplayY = serverY;
-      if (visualState.interpolationStartTime > 0) { // If it was interpolating, mark as finished
-        visualState.interpolationStartTime = 0; 
+    } else {
+      if (serverLastHitMicros > visualState.lastHitTimeMicros) {
+        visualState.interpolationSourceX = visualState.displayX;
+        visualState.interpolationSourceY = visualState.displayY;
+        visualState.interpolationTargetX = serverX;
+        visualState.interpolationTargetY = serverY;
+        visualState.interpolationStartTime = nowMs;
+        visualState.lastHitTimeMicros = serverLastHitMicros;
+      }
+
+      if (visualState.interpolationStartTime > 0 && nowMs < visualState.interpolationStartTime + KNOCKBACK_INTERPOLATION_DURATION_MS) {
+        const elapsed = nowMs - visualState.interpolationStartTime;
+        const t = Math.min(1, elapsed / KNOCKBACK_INTERPOLATION_DURATION_MS);
+        currentDisplayX = lerp(visualState.interpolationSourceX, visualState.interpolationTargetX, t);
+        currentDisplayY = lerp(visualState.interpolationSourceY, visualState.interpolationTargetY, t);
+      } else {
+        currentDisplayX = serverX;
+        currentDisplayY = serverY;
+        if (visualState.interpolationStartTime > 0) {
+          visualState.interpolationStartTime = 0;
+        }
       }
     }
+    visualState.displayX = currentDisplayX;
+    visualState.displayY = currentDisplayY;
+    visualState.serverX = serverX;
+    visualState.serverY = serverY;
+  } else { // For corpses, use direct position and clear any existing visual state
+    currentDisplayX = player.positionX;
+    currentDisplayY = player.positionY;
+    if (visualState) {
+        playerVisualKnockbackState.delete(player.identity.toHexString());
+    }
   }
-  
-  // Update visual state for next frame's reference
-  visualState.displayX = currentDisplayX;
-  visualState.displayY = currentDisplayY;
-  visualState.serverX = serverX; // Always track the latest server position
-  visualState.serverY = serverY;
-  // visualState.lastHitTimeMicros is updated when a new hit is detected.
-
   // --- End Knockback Interpolation Logic ---
 
   let isUsingItem = false;
-  if (localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
+  if (!isCorpse && localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
     for (const effect of activeConsumableEffects.values()) {
       if (effect.playerId.toHexString() === localPlayerId && effect.effectType.tag === "BandageBurst") { 
         isUsingItem = true;
@@ -230,14 +229,15 @@ export const renderPlayer = (
     }
   }
 
-  const { sx, sy } = getSpriteCoordinates(player, isMoving, currentAnimationFrame, isUsingItem);
+  const finalIsMoving = isCorpse ? false : isMoving;
+  const finalAnimationFrame = isCorpse ? IDLE_FRAME_INDEX : currentAnimationFrame;
+
+  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem);
   
-  // --- Calculate Shake Offset (Only if alive and online) ---
+  // --- Calculate Shake Offset (Skip for corpses) ---
   let shakeX = 0;
   let shakeY = 0;
-  // --- MODIFIED: Check passed isOnline flag ---
-  if (!player.isDead && player.lastHitTime) {
-  // --- END MODIFICATION ---
+  if (!isCorpse && !player.isDead && player.lastHitTime) {
     const lastHitMs = Number(player.lastHitTime.microsSinceUnixEpoch / 1000n);
     const elapsedSinceHit = nowMs - lastHitMs;
     if (elapsedSinceHit >= 0 && elapsedSinceHit < PLAYER_SHAKE_DURATION_MS) {
@@ -249,51 +249,49 @@ export const renderPlayer = (
 
   const drawWidth = gameConfig.spriteWidth * 2;
   const drawHeight = gameConfig.spriteHeight * 2;
-  const spriteBaseX = currentDisplayX - drawWidth / 2 + shakeX; // MODIFIED: Use currentDisplayX
-  const spriteBaseY = currentDisplayY - drawHeight / 2 + shakeY; // MODIFIED: Use currentDisplayY
-  const spriteDrawY = spriteBaseY - jumpOffsetY;
+  const spriteBaseX = currentDisplayX - drawWidth / 2 + shakeX;
+  const spriteBaseY = currentDisplayY - drawHeight / 2 + shakeY;
+  const finalJumpOffsetY = isCorpse ? 0 : jumpOffsetY;
+  const spriteDrawY = spriteBaseY - finalJumpOffsetY;
 
-  // --- Determine if flashing (based on knockback interpolation start time) ---
-  const isFlashing = visualState.interpolationStartTime > 0 &&
+  // --- Determine if flashing (Skip for corpses) ---
+  const isFlashing = !isCorpse && visualState && visualState.interpolationStartTime > 0 &&
                      nowMs < visualState.interpolationStartTime + PLAYER_HIT_FLASH_DURATION_MS;
   // --- End Determine if flashing ---
 
   // Define shadow base offset here to be used by both online/offline
   const shadowBaseYOffset = drawHeight * 0.4; 
+  const finalIsOnline = isCorpse ? false : isOnline;
 
-  // --- Draw Offline Shadow --- 
-  if (!isOnline) {
-      // Use base shadow parameters consistent with online shadow
+  // --- Draw Offline Shadow (or Corpse Shadow) --- 
+  if (!finalIsOnline) { // This covers corpses (finalIsOnline = false) and offline players
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       drawShadow(
           ctx,
-          currentDisplayX, // MODIFIED: Use currentDisplayX
-          currentDisplayY + drawHeight * 0.1, // MODIFIED: Use currentDisplayY
-          shadowBaseRadiusX, // Consistent base radius X
-          shadowBaseRadiusY  // Consistent base radius Y
+          currentDisplayX, 
+          currentDisplayY + drawHeight * 0.1, 
+          shadowBaseRadiusX, 
+          shadowBaseRadiusY  
       );
   }
   // --- End Shadow ---
 
-  // --- Draw Shadow (Only if alive and online) ---
-  if (!player.isDead && isOnline) {
+  // --- Draw Shadow (Only if alive and online, and not a corpse) ---
+  if (!isCorpse && !player.isDead && finalIsOnline) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 
-      const shadowYOffsetFromJump = jumpOffsetY * (shadowMaxJumpOffset / playerRadius); 
-      // const shadowBaseYOffset = drawHeight * 0.4; // Already defined above
-      const jumpProgress = Math.min(1, jumpOffsetY / playerRadius); 
+      const shadowYOffsetFromJump = finalJumpOffsetY * (shadowMaxJumpOffset / playerRadius); 
+      const jumpProgress = Math.min(1, finalJumpOffsetY / playerRadius); 
       const shadowScale = 1.0 - jumpProgress * 0.4; 
-      // const shadowOpacity = 0.5 - jumpProgress * 0.3; // drawShadow handles opacity
 
-      // Use the imported drawShadow function
       drawShadow(
         ctx, 
-        currentDisplayX, // MODIFIED: Use currentDisplayX
-        currentDisplayY + shadowBaseYOffset + shadowYOffsetFromJump, // MODIFIED: Use currentDisplayY
-        shadowBaseRadiusX * shadowScale, // Scaled Radius X
-        shadowBaseRadiusY * shadowScale  // Scaled Radius Y
+        currentDisplayX, 
+        currentDisplayY + shadowBaseYOffset + shadowYOffsetFromJump, 
+        shadowBaseRadiusX * shadowScale, 
+        shadowBaseRadiusY * shadowScale  
       );
   }
   // --- End Draw Shadow ---
@@ -332,7 +330,7 @@ export const renderPlayer = (
     // --- End Prepare sprite on offscreen canvas ---
 
     // Apply rotation if player is offline (or dead, though dead players are skipped earlier)
-    if (!isOnline) { 
+    if (!finalIsOnline) { 
       let rotationAngleRad = 0;
       switch (player.direction) {
         case 'up':    
@@ -364,12 +362,12 @@ export const renderPlayer = (
   }
   // --- End Draw Sprite ---
 
-  if (!player.isDead) {
+  if (!isCorpse && !player.isDead) {
     // Restore the logic using both hover and shouldShowLabel
     const showingDueToCurrentHover = isHovered; // Use the direct hover state
     const showingDueToPersistentState = shouldShowLabel; // Restore persistent state check
     const willShowLabel = showingDueToCurrentHover || showingDueToPersistentState;
     
-    drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, isOnline, willShowLabel); // MODIFIED: Pass currentDisplayX + shakeX for name tag centering
+    drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, finalIsOnline, willShowLabel); 
   }
 }; 

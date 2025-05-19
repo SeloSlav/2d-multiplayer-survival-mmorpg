@@ -1,5 +1,9 @@
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
+import { Player as SpacetimeDBPlayer } from '../../generated/player_type';
 import { applyStandardDropShadow } from './shadowUtils';
+import { renderPlayer, IDLE_FRAME_INDEX } from './playerRenderingUtils';
+import { gameConfig } from '../../config/gameConfig';
+import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
 
 interface RenderPlayerCorpseProps {
   ctx: CanvasRenderingContext2D;
@@ -7,19 +11,13 @@ interface RenderPlayerCorpseProps {
   nowMs: number;
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
   cycleProgress: number;
+  heroImageRef: React.RefObject<HTMLImageElement | null>;
 }
 
-const CORPSE_WIDTH = 48;
-const CORPSE_HEIGHT = 48;
-const CORPSE_COLOR = '#888888'; // Grey placeholder color
-const CORPSE_OUTLINE_COLOR = '#444444';
-const CORPSE_IMAGE_NAME = 'burlap_sack.png';
-
-export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Added interaction distance
+export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 
 /**
- * Renders a player corpse entity onto the canvas.
- * Uses burlap_sack.png if available, otherwise a placeholder rectangle.
+ * Renders a player corpse entity onto the canvas using player sprite logic.
  */
 export function renderPlayerCorpse({
   ctx,
@@ -27,28 +25,56 @@ export function renderPlayerCorpse({
   nowMs,
   itemImagesRef,
   cycleProgress,
+  heroImageRef,
 }: RenderPlayerCorpseProps): void {
-  const x = corpse.posX - CORPSE_WIDTH / 2;
-  const y = corpse.posY - CORPSE_HEIGHT / 2;
-
-  const corpseImage = itemImagesRef.current?.get(CORPSE_IMAGE_NAME);
-
-  ctx.save();
-
-  applyStandardDropShadow(ctx, { cycleProgress, blur: 3, offsetY: 2 });
-
-  if (corpseImage && corpseImage.complete && corpseImage.naturalHeight !== 0) {
-    // Draw the image
-    ctx.drawImage(corpseImage, x, y, CORPSE_WIDTH, CORPSE_HEIGHT);
-  } else {
-    // Draw placeholder rectangle
-    ctx.fillStyle = CORPSE_COLOR;
-    ctx.fillRect(x, y, CORPSE_WIDTH, CORPSE_HEIGHT);
-
-    // Optional: Add an outline
-    ctx.strokeStyle = CORPSE_OUTLINE_COLOR;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, CORPSE_WIDTH, CORPSE_HEIGHT);
+  
+  const heroImg = heroImageRef.current;
+  if (!heroImg) {
+    console.warn("[renderPlayerCorpse] Hero image not loaded, cannot render corpse sprite.");
+    return;
   }
-  ctx.restore();
+
+  // Revert to using __timestamp_micros_since_unix_epoch__ as per the linter error
+  const defaultTimestamp: Timestamp = { __timestamp_micros_since_unix_epoch__: 0n } as Timestamp;
+  // Added a cast to Timestamp to satisfy the type if it has other non-data properties or methods.
+
+  const mockPlayerForCorpse: SpacetimeDBPlayer = {
+    identity: corpse.playerIdentity as Identity,
+    username: corpse.username,
+    positionX: corpse.posX,
+    positionY: corpse.posY,
+    direction: 'up',
+    color: '#CCCCCC',
+    health: 0,
+    isDead: true,
+    lastHitTime: undefined,
+    jumpStartTimeMs: 0n,
+    isSprinting: false,
+    hunger: 0,
+    thirst: 0,
+    stamina: 0,
+    lastUpdate: defaultTimestamp,
+    lastStatUpdate: defaultTimestamp,
+    warmth: 0,
+    deathTimestamp: corpse.deathTime,
+    isOnline: false,
+    isTorchLit: false,
+    lastConsumedAt: defaultTimestamp,
+  };
+
+  renderPlayer(
+    ctx,
+    mockPlayerForCorpse,
+    heroImg,
+    false,
+    false,
+    false,
+    IDLE_FRAME_INDEX,
+    nowMs,
+    0,
+    false,
+    undefined,
+    undefined,
+    true
+  );
 } 
