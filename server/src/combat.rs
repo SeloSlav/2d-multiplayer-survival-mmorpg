@@ -618,14 +618,18 @@ pub fn damage_player(
         return Ok(AttackResult { hit: false, target_type: Some(TargetType::Player), resource_granted: None });
     }
 
+    // A "hit" has occurred. Set last_hit_time immediately for client visuals.
+    target_player.last_hit_time = Some(timestamp);
+    target_player.last_update = timestamp; // Also update for general change detection.
+
     let old_health = target_player.health;
     target_player.health = (target_player.health - damage).clamp(0.0, MAX_STAT_VALUE);
     let actual_damage = old_health - target_player.health;
 
+    // Knockback should apply if there was a hit, but let's keep it tied to actual_damage as per original intent
+    // unless specified otherwise. If actual_damage is 0, this block won't run.
     if actual_damage > 0.0 {
-        target_player.last_update = timestamp;       // Existing: For general row update detection
-        target_player.last_hit_time = Some(timestamp); // For client-side hit effects
-
+        // target_player.last_update and target_player.last_hit_time already set above.
         // --- APPLY KNOCKBACK to target_player ---
         if let Some(mut attacker) = attacker_player_opt.clone() { // Clone attacker_player_opt to get a mutable attacker if needed
             let dx_target_from_attacker = target_player.position_x - attacker.position_x;
@@ -723,10 +727,9 @@ pub fn damage_player(
     if target_player.health <= 0.0 && !target_player.is_dead {
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
-        // Ensure last_update and last_hit_time are set on death, 
-        // even if actual_damage was somehow <= 0 but health became <=0 (e.g. rounding or effect)
-        target_player.last_update = timestamp; 
-        target_player.last_hit_time = Some(timestamp);
+        // last_update and last_hit_time are already set from the initial hit registration.
+        // No need to set them again here unless there's a specific reason for death to override.
+        // Keeping them as set at the start of the hit interaction is consistent.
 
         match crate::active_equipment::clear_active_item_reducer(ctx, target_player.identity) {
             Ok(_) => log::info!("[PlayerDeath] Active item cleared for dying player {}", target_player.identity),
@@ -753,8 +756,8 @@ pub fn damage_player(
         log::info!("Player {:?} marked as dead.", target_id);
 
     } else if target_player.health > 0.0 {
-        // The `if actual_damage > 0.0` block above handles setting last_update and last_hit_time.
-        // We only need to call update here.
+        // Player is alive. last_hit_time and last_update were set at the beginning.
+        // Simply update the player state with new health etc.
         players.identity().update(target_player);
     }
 

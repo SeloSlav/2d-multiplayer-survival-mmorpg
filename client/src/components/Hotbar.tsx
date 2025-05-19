@@ -181,6 +181,70 @@ const Hotbar: React.FC<HotbarProps> = ({
     }
   }, [localPlayer?.lastConsumedAt, selectedSlot, findItemForSlot, triggerClientCooldownAnimation]); // Corrected field name in dependency
 
+  const activateHotbarSlot = useCallback((slotIndex: number, isMouseWheelScroll: boolean = false) => {
+    const itemInSlot = findItemForSlot(slotIndex);
+    if (!connection?.reducers) {
+      if (!itemInSlot && playerIdentity) {
+        cancelPlacement();
+        try { connection?.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+      }
+      return;
+    }
+
+    if (!itemInSlot) {
+      if (playerIdentity) {
+        cancelPlacement();
+        try { connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+      }
+      return;
+    }
+
+    const categoryTag = itemInSlot.definition.category.tag;
+    const instanceId = BigInt(itemInSlot.instance.instanceId);
+
+    if (categoryTag === 'Consumable') {
+      cancelPlacement(); // Always cancel placement if activating a consumable slot
+      // Always clear any active item when selecting a consumable
+      if (playerIdentity) {
+        try { connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer when selecting consumable:", err); }
+      }
+
+      if (!isMouseWheelScroll) { // Only consume if not a mouse wheel scroll
+        try {
+          connection.reducers.consumeItem(instanceId);
+          triggerClientCooldownAnimation();
+        } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
+      }
+      // If it is a mouse wheel scroll, the item is selected, but not consumed.
+      // The rest of the logic in this function will determine if any other active item needs clearing.
+    } else if (categoryTag === 'Armor') {
+      cancelPlacement();
+      try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
+    } else if (categoryTag === 'Placeable') {
+      const placementInfoData: PlacementItemInfo = {
+        itemDefId: BigInt(itemInSlot.definition.id),
+        itemName: itemInSlot.definition.name,
+        iconAssetName: itemInSlot.definition.iconAssetName,
+        instanceId: BigInt(itemInSlot.instance.instanceId)
+      };
+      startPlacement(placementInfoData);
+      // It's generally good practice to clear active item if starting placement,
+      // unless the placement system specifically relies on it being active.
+      // For now, let's assume placement implies it's the "active" intent.
+      // If you still want to explicitly clear:
+      // try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+    } else if (itemInSlot.definition.isEquippable) {
+      cancelPlacement();
+      try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
+    } else {
+      // If item is not consumable, armor, placeable, or equippable,
+      // it implies it's not directly "activatable" by selecting its hotbar slot.
+      // Default behavior might be to clear any previously active item.
+      cancelPlacement();
+      try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+    }
+  }, [findItemForSlot, connection, playerIdentity, cancelPlacement, startPlacement, triggerClientCooldownAnimation]);
+
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const inventoryPanel = document.querySelector('.inventoryPanel');
     if (inventoryPanel) return;
@@ -196,42 +260,9 @@ const Hotbar: React.FC<HotbarProps> = ({
     if (keyNum !== -1 && keyNum >= 1 && keyNum <= numSlots) {
       const newSlotIndex = keyNum - 1;
       setSelectedSlot(newSlotIndex);
-      const itemInNewSlot = findItemForSlot(newSlotIndex);
-      if (!connection?.reducers) return;
-      if (itemInNewSlot) {
-          const categoryTag = itemInNewSlot.definition.category.tag;
-          const instanceId = BigInt(itemInNewSlot.instance.instanceId);
-          if (categoryTag === 'Consumable') {
-              cancelPlacement();
-              try {
-                  connection.reducers.consumeItem(instanceId);
-                  triggerClientCooldownAnimation();
-              } catch (err) { console.error(`[Hotbar KeyDown] Error consuming item ${instanceId}:`, err); }
-          } else if (categoryTag === 'Armor') {
-              cancelPlacement();
-              try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
-          } else if (categoryTag === 'Placeable') {
-              const placementInfo: PlacementItemInfo = {
-                  itemDefId: BigInt(itemInNewSlot.definition.id),
-                  itemName: itemInNewSlot.definition.name,
-                  iconAssetName: itemInNewSlot.definition.iconAssetName,
-                  instanceId: BigInt(itemInNewSlot.instance.instanceId)
-              };
-              startPlacement(placementInfo);
-              try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-          } else if (itemInNewSlot.definition.isEquippable) {
-              cancelPlacement();
-              try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
-          } else {
-              cancelPlacement();
-              try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-          }
-      } else {
-          cancelPlacement();
-          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-      }
+      activateHotbarSlot(newSlotIndex);
     }
-  }, [numSlots, findItemForSlot, connection, cancelPlacement, startPlacement, playerIdentity, triggerClientCooldownAnimation]);
+  }, [numSlots, activateHotbarSlot]); // Updated dependencies
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -242,48 +273,7 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   const handleSlotClick = (index: number) => {
       setSelectedSlot(index);
-      const clickedItem = findItemForSlot(index);
-      if (!connection?.reducers) {
-        if (!clickedItem && playerIdentity) {
-             cancelPlacement();
-             try { connection?.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-         }
-         return; 
-      }
-      if (!clickedItem) { 
-        if (playerIdentity) {
-            cancelPlacement();
-            try { connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-        }
-        return;
-      }
-      const categoryTag = clickedItem.definition.category.tag;
-      const instanceId = BigInt(clickedItem.instance.instanceId);
-      if (categoryTag === 'Consumable') {
-          cancelPlacement();
-          try {
-              connection.reducers.consumeItem(instanceId);
-              triggerClientCooldownAnimation();
-          } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
-      } else if (categoryTag === 'Armor') {
-          cancelPlacement();
-          try { connection.reducers.equipArmorFromInventory(instanceId); } catch (err) { console.error("Error equipArmorFromInventory:", err); }
-      } else if (categoryTag === 'Placeable') {
-          const placementInfo: PlacementItemInfo = {
-              itemDefId: BigInt(clickedItem.definition.id),
-              itemName: clickedItem.definition.name,
-              iconAssetName: clickedItem.definition.iconAssetName,
-              instanceId: BigInt(clickedItem.instance.instanceId)
-          };
-          startPlacement(placementInfo);
-          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-      } else if (clickedItem.definition.isEquippable) {
-          cancelPlacement();
-          try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }
-      } else {
-          cancelPlacement();
-          try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
-      }
+      activateHotbarSlot(index);
   };
 
   const handleHotbarItemContextMenu = (event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
@@ -355,6 +345,41 @@ const Hotbar: React.FC<HotbarProps> = ({
   };
 
   // console.log('[Hotbar] Render: animationProgress state:', animationProgress.toFixed(3)); // Added log
+
+  // Added handleWheel and updated useEffect for listeners
+  const handleWheel = useCallback((event: WheelEvent) => {
+    const inventoryPanel = document.querySelector('.inventoryPanel');
+    // Also check if chat input is focused or other UI elements that might use wheel scroll
+    const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
+    const craftSearchIsFocused = document.activeElement?.id === 'craftSearchInput'; // Example ID
+
+    if (inventoryPanel || chatInputIsFocused || craftSearchIsFocused || event.deltaY === 0) {
+      return; // Don't interfere if inventory/chat/search is open, or no vertical scroll
+    }
+
+    event.preventDefault(); // Prevent page scrolling
+
+    setSelectedSlot(prevSlot => {
+      let newSlot;
+      if (event.deltaY < 0) { // Scroll up
+        newSlot = (prevSlot - 1 + numSlots) % numSlots;
+      } else { // Scroll down
+        newSlot = (prevSlot + 1) % numSlots;
+      }
+      activateHotbarSlot(newSlot, true); // Activate the item in the new slot, pass true for isMouseWheelScroll
+      return newSlot;
+    });
+  }, [numSlots, activateHotbarSlot]); // activateHotbarSlot is a dependency
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('wheel', handleWheel, { passive: false }); // Add wheel listener, not passive
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleKeyDown, handleWheel]); // Add handleWheel to dependencies
+
   return (
     <div style={{
       position: 'fixed',

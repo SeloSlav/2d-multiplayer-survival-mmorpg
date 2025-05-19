@@ -171,6 +171,11 @@ export const renderPlayer = (
     const serverY = player.positionY;
     const serverLastHitMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
 
+    // @ts-ignore - Conditional logging for debugging
+    if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
+      console.log(`[PlayerRenderDebug] Player: ${player.username}, serverLastHitMicros: ${serverLastHitMicros}, visualState before:`, visualState ? { ...visualState } : null);
+    }
+
     if (!visualState) {
       visualState = {
         displayX: serverX, displayY: serverY,
@@ -183,8 +188,16 @@ export const renderPlayer = (
       playerVisualKnockbackState.set(player.identity.toHexString(), visualState);
       currentDisplayX = serverX;
       currentDisplayY = serverY;
+      // @ts-ignore
+      if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
+        console.log(`[PlayerRenderDebug] Initialized visualState. Current display: (${currentDisplayX}, ${currentDisplayY})`);
+      }
     } else {
       if (serverLastHitMicros > visualState.lastHitTimeMicros) {
+        // @ts-ignore
+        if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
+          console.log(`[PlayerRenderDebug] New hit DETECTED for ${player.username}! serverLastHitMicros (${serverLastHitMicros}) > visualState.lastHitTimeMicros (${visualState.lastHitTimeMicros}). Setting interpolationStartTime to ${nowMs}.`);
+        }
         visualState.interpolationSourceX = visualState.displayX;
         visualState.interpolationSourceY = visualState.displayY;
         visualState.interpolationTargetX = serverX;
@@ -258,6 +271,11 @@ export const renderPlayer = (
   const isFlashing = !isCorpse && visualState && visualState.interpolationStartTime > 0 &&
                      nowMs < visualState.interpolationStartTime + PLAYER_HIT_FLASH_DURATION_MS;
   // --- End Determine if flashing ---
+
+  // @ts-ignore
+  if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit && visualState) {
+    console.log(`[PlayerRenderDebug] ${player.username} - isFlashing: ${isFlashing}, interpolationStartTime: ${visualState.interpolationStartTime}, nowMs: ${nowMs}, flashEndsAt: ${visualState.interpolationStartTime + PLAYER_HIT_FLASH_DURATION_MS}`);
+  }
 
   // Define shadow base offset here to be used by both online/offline
   const shadowBaseYOffset = drawHeight * 0.4; 
