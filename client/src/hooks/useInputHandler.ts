@@ -109,6 +109,11 @@ export const useInputHandler = ({
     const [isActivelyHolding, setIsActivelyHolding] = useState<boolean>(false);
     const [currentJumpOffsetY, setCurrentJumpOffsetY] = useState<number>(0); // <<< ADDED
 
+    // Refs for auto-walk state
+    const isAutoWalkingRef = useRef<boolean>(false);
+    const autoWalkDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+    const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 }); // Default to facing down
+
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
     const connectionRef = useRef(connection);
@@ -289,7 +294,57 @@ export const useInputHandler = ({
                 return;
             }
 
-            keysPressed.current.add(key);
+            // Handle 'q' for auto-walk
+            if (key === 'q' && !event.repeat) {
+                if (isAutoWalkingRef.current) {
+                    isAutoWalkingRef.current = false;
+                    // console.log("[InputHandler Q] Auto-walk stopped.");
+                } else {
+                    isAutoWalkingRef.current = true;
+                    autoWalkDirectionRef.current = lastMovementDirectionRef.current; // Start with the last known direction
+                    // console.log(`[InputHandler Q] Auto-walk started with direction: dx=${autoWalkDirectionRef.current.dx}, dy=${autoWalkDirectionRef.current.dy}`);
+                }
+                return; // 'q' is handled
+            }
+
+            // Handle WASD/Arrow keys for redirecting auto-walk or manual movement
+            const isMovementKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
+
+            if (isMovementKey && isAutoWalkingRef.current) {
+                // If auto-walking, these keys now *redirect* the auto-walk.
+                // We need to calculate the new direction based on *all currently pressed* movement keys.
+                // To do this, temporarily add the current key to keysPressed, calculate direction, then remove it if it wasn't a sustained press.
+                // However, a simpler approach for now: if a movement key is pressed while auto-walking, just update the direction.
+                // This means tapping a new direction key will change auto-walk direction.
+                
+                // First, update keysPressed *before* calculating direction for redirection
+                if (!event.repeat) { // Only add if it's a new press, not a hold-over from before auto-walk started
+                    keysPressed.current.add(key);
+                }
+
+                const currentDx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                                  (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+                const currentDy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                                  (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+
+                if (currentDx !== 0 || currentDy !== 0) {
+                    autoWalkDirectionRef.current = { dx: currentDx, dy: currentDy };
+                    lastMovementDirectionRef.current = { dx: currentDx, dy: currentDy }; // Also update last actual movement
+                    // console.log(`[InputHandler WASD] Auto-walk redirected to: dx=${currentDx}, dy=${currentDy}`);
+                }
+                // Do NOT add to keysPressed.current here in the main flow if auto-walking,
+                // as processInputsAndActions will use autoWalkDirectionRef.
+                // However, we *do* want keysPressed to reflect the current state for this calculation.
+                // The `keysPressed.current.add(key)` above handles this temporarily.
+                // We need to ensure keys are removed on keyUp if they were only for redirection.
+                return; // Movement key handled for redirection
+            }
+            
+            // If not auto-walking or not a movement key, add to keysPressed as normal
+            // (unless it was 'q' which is already returned)
+            if (!event.repeat) { // Only add non-repeated keys. Movement keys during auto-walk are handled above.
+                keysPressed.current.add(key);
+            }
 
             // Jump
             if (key === ' ' && !event.repeat) {
@@ -502,7 +557,16 @@ export const useInputHandler = ({
                     setSprinting(false); 
                 }
             }
-            keysPressed.current.delete(key);
+            // keysPressed.current.delete(key);
+            // If auto-walking, and the released key was a movement key, it might have been added to keysPressed.current
+            // temporarily for direction calculation. Ensure it's removed so it doesn't stick.
+            const isMovementKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
+            if (isAutoWalkingRef.current && isMovementKey) {
+                keysPressed.current.delete(key);
+            } else if (!isAutoWalkingRef.current) {
+                // If not auto-walking, normal removal from keysPressed.
+                keysPressed.current.delete(key);
+            }
 
             // Interaction key ('e') up
             if (key === 'e') {
@@ -735,12 +799,22 @@ export const useInputHandler = ({
                 eKeyHoldTimerRef.current = null;
             }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes]);
 
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
         const currentConnection = connectionRef.current;
         const player = localPlayerRef.current; // Get the current player state
+
+        // --- Add extensive logging here ---
+        /*
+        console.log("[ProcessInputs] Tick. AutoWalking:", isAutoWalkingRef.current, 
+                    "Direction:", autoWalkDirectionRef.current,
+                    "Player:", !!player, 
+                    "Dead:", player?.isDead, 
+                    "Chatting:", isChatting, 
+                    "SearchingRecipes:", isSearchingCraftRecipes);
+        */
 
         // MODIFIED: Do nothing if player is dead, or if chatting/searching
         if (!player || player.isDead || isChatting || isSearchingCraftRecipes) {
@@ -779,13 +853,24 @@ export const useInputHandler = ({
 
         // Placement rotation
         // Process movement - This block is now effectively guarded by the check above
-        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                   (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                   (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+        if (isAutoWalkingRef.current) {
+            // Auto-walking: use the stored direction
+            const { dx: autoDx, dy: autoDy } = autoWalkDirectionRef.current;
+            if (autoDx !== 0 || autoDy !== 0) { // Ensure there's a direction to move in
+                updatePlayerPosition(autoDx, autoDy);
+                // Also update lastMovementDirectionRef if auto-walking is being redirected by new input (handled in keyDown)
+            }
+        } else {
+            // Manual movement: use keysPressed
+            const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                       (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+            const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                       (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
 
-        if (dx !== 0 || dy !== 0) {
-            updatePlayerPosition(dx, dy);
+            if (dx !== 0 || dy !== 0) {
+                updatePlayerPosition(dx, dy);
+                lastMovementDirectionRef.current = { dx, dy }; // Update last movement direction during manual control
+            }
         }
 
         // Handle continuous swing check
