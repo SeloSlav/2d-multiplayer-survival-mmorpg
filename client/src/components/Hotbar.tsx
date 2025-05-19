@@ -184,8 +184,16 @@ const Hotbar: React.FC<HotbarProps> = ({
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const inventoryPanel = document.querySelector('.inventoryPanel');
     if (inventoryPanel) return;
-    const keyNum = parseInt(event.key);
-    if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= numSlots) {
+
+    // Use event.code to reliably detect number keys regardless of Shift state
+    let keyNum = -1;
+    if (event.code.startsWith('Digit')) {
+      keyNum = parseInt(event.code.substring(5)); // "Digit1" -> 1
+    } else if (event.code.startsWith('Numpad')) {
+      keyNum = parseInt(event.code.substring(6)); // "Numpad1" -> 1
+    }
+
+    if (keyNum !== -1 && keyNum >= 1 && keyNum <= numSlots) {
       const newSlotIndex = keyNum - 1;
       setSelectedSlot(newSlotIndex);
       const itemInNewSlot = findItemForSlot(newSlotIndex);
