@@ -52,6 +52,7 @@ export type Player = {
   isOnline: boolean,
   isTorchLit: boolean,
   lastConsumedAt: Timestamp | undefined,
+  isCrouching: boolean,
 };
 
 /**
@@ -85,6 +86,7 @@ export namespace Player {
       new ProductTypeElement("isOnline", AlgebraicType.createBoolType()),
       new ProductTypeElement("isTorchLit", AlgebraicType.createBoolType()),
       new ProductTypeElement("lastConsumedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("isCrouching", AlgebraicType.createBoolType()),
     ]);
   }
 

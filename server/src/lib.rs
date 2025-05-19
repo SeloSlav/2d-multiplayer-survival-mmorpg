@@ -143,6 +143,7 @@ pub struct Player {
     pub is_online: bool, // <<< ADDED
     pub is_torch_lit: bool, // <<< ADDED: Tracks if the player's torch is currently lit
     pub last_consumed_at: Option<Timestamp>, // <<< ADDED: Tracks when a player last consumed an item
+    pub is_crouching: bool, // RENAMED: For crouching speed control
 }
 
 // --- NEW: Define ActiveConnection Table --- 
@@ -478,6 +479,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         is_online: true, // <<< Keep this for BRAND NEW players
         is_torch_lit: false, // Initialize to false
         last_consumed_at: None, // Initialize last_consumed_at
+        is_crouching: false, // Initialize is_crouching
     };
 
     // Insert the new player
@@ -781,6 +783,12 @@ pub fn update_player_position(
     // --- Calculate Final Speed Multiplier based on Current Stats ---
     let mut final_speed_multiplier = base_speed_multiplier;
     // Use current player stats read at the beginning of the reducer
+
+    // Apply fine movement speed reduction if active
+    if current_player.is_crouching {
+        final_speed_multiplier *= 0.5; // Reduce speed by 50%
+        log::trace!("Player {:?} crouching active. Speed multiplier adjusted to: {}", sender_id, final_speed_multiplier);
+    }
 
     // --- <<< UPDATED: Read LOW_NEED_THRESHOLD from StatThresholdsConfig table >>> ---
     let stat_thresholds_config_table = ctx.db.stat_thresholds_config(); // <<< CORRECT: Use the direct table accessor
@@ -1413,3 +1421,29 @@ pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {
         None => Err("No item equipped to toggle.".to_string()),
     }
 }
+
+// --- NEW: Reducer to Toggle Crouching Speed ---
+#[spacetimedb::reducer]
+pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+
+    if let Some(mut player) = players.identity().find(&sender_id) {
+        player.is_crouching = !player.is_crouching;
+        player.last_update = ctx.timestamp; // Update timestamp when crouching state changes
+        
+        // Store the state for logging before moving the player struct
+        let crouching_active_for_log = player.is_crouching;
+
+        players.identity().update(player); // player is moved here
+        
+        log::info!(
+            "Player {:?} toggled crouching. Active: {}",
+            sender_id, crouching_active_for_log // Use the stored value for logging
+        );
+        Ok(())
+    } else {
+        Err("Player not found".to_string())
+    }
+}
+// --- END NEW Reducer ---

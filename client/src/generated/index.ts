@@ -218,6 +218,8 @@ import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
+import { ToggleCrouch } from "./toggle_crouch_reducer.ts";
+export { ToggleCrouch };
 import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
 export { ToggleStashVisibility };
 import { ToggleTorch } from "./toggle_torch_reducer.ts";
@@ -951,6 +953,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_campfire_burning",
       argsType: ToggleCampfireBurning.getTypeScriptAlgebraicType(),
     },
+    toggle_crouch: {
+      reducerName: "toggle_crouch",
+      argsType: ToggleCrouch.getTypeScriptAlgebraicType(),
+    },
     toggle_stash_visibility: {
       reducerName: "toggle_stash_visibility",
       argsType: ToggleStashVisibility.getTypeScriptAlgebraicType(),
@@ -1095,6 +1101,7 @@ export type Reducer = never
 | { name: "StartCraftingMultiple", args: StartCraftingMultiple }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
+| { name: "ToggleCrouch", args: ToggleCrouch }
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
@@ -2546,6 +2553,18 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_campfire_burning", callback);
   }
 
+  toggleCrouch() {
+    this.connection.callReducer("toggle_crouch", new Uint8Array(0), this.setCallReducerFlags.toggleCrouchFlags);
+  }
+
+  onToggleCrouch(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("toggle_crouch", callback);
+  }
+
+  removeOnToggleCrouch(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("toggle_crouch", callback);
+  }
+
   toggleStashVisibility(stashId: number) {
     const __args = { stashId };
     let __writer = new BinaryWriter(1024);
@@ -3090,6 +3109,11 @@ export class SetReducerFlags {
   toggleCampfireBurningFlags: CallReducerFlags = 'FullUpdate';
   toggleCampfireBurning(flags: CallReducerFlags) {
     this.toggleCampfireBurningFlags = flags;
+  }
+
+  toggleCrouchFlags: CallReducerFlags = 'FullUpdate';
+  toggleCrouch(flags: CallReducerFlags) {
+    this.toggleCrouchFlags = flags;
   }
 
   toggleStashVisibilityFlags: CallReducerFlags = 'FullUpdate';

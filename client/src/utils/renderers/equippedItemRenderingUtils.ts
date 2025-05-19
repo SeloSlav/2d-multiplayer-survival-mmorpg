@@ -62,7 +62,7 @@ export const renderEquippedItem = (
   const handOffsetX = gameConfig.spriteWidth * 0.2; 
   const handOffsetY = gameConfig.spriteHeight * 0.05;
 
-  if (itemDef.name === "Wooden Spear") {
+  if (itemDef.name === "Wooden Spear" || itemDef.name === "Stone Spear") {
     // Base rotations to make spear point in player's direction
     // (assuming spear asset points horizontally to the right by default)
     switch (player.direction) {
@@ -183,7 +183,7 @@ export const renderEquippedItem = (
       isSwinging = true; 
       const swingProgress = elapsedSwingTime / SWING_DURATION_MS;
       
-      if (itemDef.name === "Wooden Spear") {
+      if (itemDef.name === "Wooden Spear" || itemDef.name === "Stone Spear") {
           isSpearThrusting = true;
           const SPEAR_MAX_THRUST_EXTENSION = (itemDef as any).attackRange || 100; 
           thrustDistance = Math.sin(swingProgress * Math.PI) * SPEAR_MAX_THRUST_EXTENSION;
@@ -226,7 +226,7 @@ export const renderEquippedItem = (
   ctx.translate(pivotX, pivotY); 
 
   // Apply general orientation/scaling based on player direction (and spear specifics)
-  if (itemDef.name === "Wooden Spear") {
+  if (itemDef.name === "Wooden Spear" || itemDef.name === "Stone Spear") {
     ctx.rotate(rotation); // `rotation` is pre-calculated spearRotation
     ctx.scale(spearScaleX, spearScaleY);
   } else {
@@ -272,7 +272,7 @@ export const renderEquippedItem = (
   // --- REGULAR ITEM DRAWING (AND SWING FOR NON-SPEAR/NON-BANDAGE-ANIMATING) --- 
   if (!bandageDrawnWithAnimation) {
     ctx.save(); // Save for regular item drawing / swing
-    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Bandage") {
+    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage") {
       // Apply dynamic swing rotation for non-spear, non-bandage items
       // `rotation` here is the dynamic swing angle from earlier logic (currentAngle)
       // This needs to be the `rotation` variable that holds currentAngle for non-spears.
@@ -291,7 +291,7 @@ export const renderEquippedItem = (
 
   // --- Draw Attack Visual Effect --- 
   if (isSwinging) { 
-    if (itemDef.name === "Wooden Spear") {
+    if (itemDef.name === "Wooden Spear" || itemDef.name === "Stone Spear") {
         // Draw a "thrust line" effect for the spear
         ctx.save();
         try {

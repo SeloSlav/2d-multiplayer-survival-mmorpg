@@ -1,8 +1,6 @@
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { Player as SpacetimeDBPlayer } from '../../generated/player_type';
-import { applyStandardDropShadow } from './shadowUtils';
 import { renderPlayer, IDLE_FRAME_INDEX } from './playerRenderingUtils';
-import { gameConfig } from '../../config/gameConfig';
 import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
 
 interface RenderPlayerCorpseProps {
@@ -60,6 +58,7 @@ export function renderPlayerCorpse({
     isOnline: false,
     isTorchLit: false,
     lastConsumedAt: defaultTimestamp,
+    isCrouching: false,
   };
 
   renderPlayer(

@@ -294,6 +294,20 @@ export const useInputHandler = ({
                 return;
             }
 
+            // Handle 'Insert' for fine movement toggle
+            if (key === 'c' && !event.repeat) {
+                const currentConnection = connectionRef.current;
+                if (currentConnection?.reducers) {
+                    try {
+                        currentConnection.reducers.toggleCrouch();
+                        // console.log("[InputHandler Insert] Called toggleCrouch reducer.");
+                    } catch (err) {
+                        console.error("[InputHandler Insert] Error calling toggleCrouch reducer:", err);
+                    }
+                }
+                return; // 'Insert' is handled, don't process further
+            }
+
             // Handle 'q' for auto-walk
             if (key === 'q' && !event.repeat) {
                 if (isAutoWalkingRef.current) {

@@ -674,7 +674,10 @@ pub fn damage_player(
         item_def.bleed_tick_interval_seconds
     ) {
         if dmg_per_tick > 0.0 && duration_sec > 0.0 && interval_sec > 0.0 {
-            log::info!("[BleedCheck] Item '{}' has bleed properties. Attempting to apply bleed.", item_def.name);
+            log::info!(
+                "[BleedCheck] Item '{}' (Def ID: {}) has positive bleed properties (Dmg: {}, Dur: {}, Int: {}). Attempting to apply bleed effect to player {:?}.", 
+                item_def.name, item_def.id, dmg_per_tick, duration_sec, interval_sec, target_id
+            );
             
             let total_ticks = (duration_sec / interval_sec).floor();
             let bleed_total_damage = dmg_per_tick * total_ticks;

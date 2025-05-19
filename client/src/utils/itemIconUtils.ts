@@ -38,6 +38,7 @@ import cookedPumpkinIcon from '../assets/items/cooked_pumpkin.png';
 import burntPumpkinIcon from '../assets/items/burnt_pumpkin.png';
 import combatLadleIcon from '../assets/items/combat_ladle.png';
 import deathMarkerIcon from '../assets/items/death_marker.png';
+import stoneSpearIcon from '../assets/items/stone_spear.png';
 // We don't import the missing ones (hood, boots, etc.)
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
@@ -77,6 +78,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'burnt_pumpkin.png': burntPumpkinIcon,
   'combat_ladle.png': combatLadleIcon,
   'death_marker.png': deathMarkerIcon,
+  'stone_spear.png': stoneSpearIcon,
   // Add mappings for existing icons only
 };
 
