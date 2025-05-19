@@ -49,8 +49,8 @@ pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 =
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE * PLAYER_CAMPFIRE_INTERACTION_DISTANCE; // 96.0 * 96.0
  
  // Warmth and fuel constants
- pub(crate) const WARMTH_RADIUS: f32 = 150.0;
- pub(crate) const WARMTH_RADIUS_SQUARED: f32 = WARMTH_RADIUS * WARMTH_RADIUS;
+ pub(crate) const WARMTH_RADIUS: f32 = 300.0; // Doubled from 150.0
+ pub(crate) const WARMTH_RADIUS_SQUARED: f32 = WARMTH_RADIUS * WARMTH_RADIUS; // Updated to 300.0 * 300.0 = 90000.0
  pub(crate) const WARMTH_PER_SECOND: f32 = 5.0;
  pub(crate) const FUEL_CONSUME_INTERVAL_SECS: u64 = 5;
  pub const NUM_FUEL_SLOTS: usize = 5;

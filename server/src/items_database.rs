@@ -522,7 +522,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Cloth".to_string(), quantity: 25 }
+                CostIngredient { item_name: "Cloth".to_string(), quantity: 5 }
             ]),
             crafting_output_quantity: Some(1),
             crafting_time_secs: Some(10),
@@ -604,7 +604,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Cloth".to_string(), quantity: 50 }
+                CostIngredient { item_name: "Cloth".to_string(), quantity: 25 }
             ]),
             crafting_output_quantity: Some(1),
             crafting_time_secs: Some(15),

@@ -209,13 +209,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
 
       if (foundCorpse) {
-        console.log(`[GameCanvas] Latest corpse for local player ${localPlayer.username} is ID ${(foundCorpse as SpacetimeDBPlayerCorpse).id} with time ${latestTimeMicros}`);
+        // console.log(`[GameCanvas] Latest corpse for local player ${localPlayer.username} is ID ${(foundCorpse as SpacetimeDBPlayerCorpse).id} with time ${latestTimeMicros}`);
       } else {
-        console.log(`[GameCanvas] No corpse found for local player ${localPlayer.username} after checking all corpses.`);
+        // console.log(`[GameCanvas] No corpse found for local player ${localPlayer.username} after checking all corpses.`);
       }
       return foundCorpse;
     } else {
-      console.log('[GameCanvas] Corpse finding skipped due to missing dependencies.');
+      // console.log('[GameCanvas] Corpse finding skipped due to missing dependencies.');
       return null;
     }
   }, [localPlayerId, playerCorpses, localPlayer]);
@@ -465,14 +465,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visiblePumpkins.forEach(pumpkin => {
         renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
     });
-    // Render Corn Shadows
-    visibleCorns.forEach(corn => {
-        renderCorn(ctx, corn, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
-    });
-    // Render Hemp Shadows
-    visibleHemps.forEach(hemp => {
-        renderHemp(ctx, hemp, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
-    });
     // Render Mushroom Shadows - RE-ADDED
     visibleMushrooms.forEach(mushroom => {
         renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
@@ -504,39 +496,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Second pass: Draw the actual entities for ground items
     // Render Campfires (actual image, skip shadow as it's already drawn if burning)
-    visibleCampfires.forEach(campfire => {
-        renderCampfire(ctx, campfire, now_ms, currentCycleProgress, false /* onlyDrawShadow */, !campfire.isBurning /* skip if burning, as dynamic shadow was drawn */);
-    });
+    /*visibleCampfires.forEach(campfire => {
+        renderCampfire(ctx, campfire, now_ms, currentCycleProgress, false, !campfire.isBurning );
+    });*/
     // Render Dropped Items
     visibleDroppedItems.forEach(item => {
         const itemDef = itemDefinitions.get(item.itemDefId.toString());
-        // Use the new signature: ctx, item, itemDef, nowMs
         renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms, cycleProgress: currentCycleProgress }); 
     });
     // Render Mushrooms
-    visibleMushrooms.forEach(mushroom => {
-        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, false, true); // Flags re-added
-    });
-    // Render Corn
-    visibleCorns.forEach(corn => {
-        renderCorn(ctx, corn, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
-    });
+    /*visibleMushrooms.forEach(mushroom => {
+        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, false, true);
+    });*/
+    // Render Corn - Already removed
     // Render Pumpkins
-    visiblePumpkins.forEach(pumpkin => {
-        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
-    });
-    // Render Hemp
-    visibleHemps.forEach(hemp => {
-        renderHemp(ctx, hemp, now_ms, currentCycleProgress, false /* onlyDrawShadow */, true /* skipDrawingShadow */);
-    });
+    /*visiblePumpkins.forEach(pumpkin => {
+        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, false, true );
+    });*/
+    // Render Hemp - Already removed
     // Render Sleeping Bags
     visibleSleepingBags.forEach(sleepingBag => {
         renderSleepingBag(ctx, sleepingBag, now_ms, currentCycleProgress);
     });
-    // Render Stashes
-    visibleStashes.forEach(stash => {
+    // Render Stashes (Remove direct rendering as it's now y-sorted)
+    /*visibleStashes.forEach(stash => {
         renderStash(ctx, stash, now_ms, currentCycleProgress);
-    });
+    });*/
     // --- End Ground Items --- 
 
     // --- Render Y-Sorted Entities --- (Keep this logic)

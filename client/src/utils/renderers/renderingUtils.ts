@@ -10,8 +10,11 @@ import {
     Stash as SpacetimeDBStash,
     DroppedItem as SpacetimeDBDroppedItem,
     Campfire as SpacetimeDBCampfire,
-    PlayerCorpse,
-    ActiveConsumableEffect
+    ActiveConsumableEffect,
+    Corn as SpacetimeDBCorn,
+    Hemp as SpacetimeDBHemp,
+    Mushroom as SpacetimeDBMushroom,
+    Pumpkin as SpacetimeDBPumpkin,
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 // Import individual rendering functions
@@ -21,6 +24,14 @@ import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
+// Import Corn and Hemp renderers
+import { renderCorn } from './cornRenderingUtils';
+import { renderHemp } from './hempRenderingUtils';
+import { renderCampfire } from './campfireRenderingUtils';
+import { renderDroppedItem } from './droppedItemRenderingUtils';
+import { renderMushroom } from './mushroomRenderingUtils';
+import { renderPumpkin } from './pumpkinRenderingUtils';
+import { renderStash } from './stashRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -118,50 +129,66 @@ export const renderYSortedEntities = ({
            }
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
 
-            if (player.direction === 'left' || player.direction === 'up') {
-              if (canRenderItem && equipment) {
+            // Determine rendering order based on player direction
+            if (player.direction === 'up' || player.direction === 'left') {
+                // For UP or LEFT, item should be rendered BENEATH the player
+                if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
-              }
-              if (heroImg) {
-                renderPlayer(
-                        ctx, player, heroImg, isOnline, 
-                        isPlayerMoving, 
+                }
+                if (heroImg) {
+                    renderPlayer(
+                        ctx, player, heroImg, isOnline,
+                        isPlayerMoving,
                         currentlyHovered,
-                  animationFrame, 
-                  nowMs, 
-                  jumpOffset,
-                  isPersistentlyHovered,
-                  activeConsumableEffects,
-                  localPlayerId
-                );
-              }
-              if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
-              }
-           } else {
-              if (heroImg) {
-                renderPlayer(
-                        ctx, player, heroImg, isOnline, 
-                        isPlayerMoving, 
+                        animationFrame,
+                        nowMs,
+                        jumpOffset,
+                        isPersistentlyHovered,
+                        activeConsumableEffects,
+                        localPlayerId
+                    );
+                }
+            } else { // This covers 'down' or 'right'
+                // For DOWN or RIGHT, item should be rendered ABOVE the player
+                if (heroImg) {
+                    renderPlayer(
+                        ctx, player, heroImg, isOnline,
+                        isPlayerMoving,
                         currentlyHovered,
-                  animationFrame, 
-                  nowMs, 
-                  jumpOffset,
-                  isPersistentlyHovered,
-                  activeConsumableEffects,
-                  localPlayerId
-                );
-              }
-              if (canRenderItem && equipment) {
+                        animationFrame,
+                        nowMs,
+                        jumpOffset,
+                        isPersistentlyHovered,
+                        activeConsumableEffects,
+                        localPlayerId
+                    );
+                }
+                if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
-              }
-           }
+                }
+            }
         } else if (type === 'tree') {
             // Render tree, skip its dynamic shadow in this pass
             renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, true);
         } else if (type === 'stone') {
             // Render stone, skip its dynamic shadow in this pass
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, true);
+        } else if (type === 'corn') {
+            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, false, true);
+        } else if (type === 'hemp') {
+            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress, false, true);
+        } else if (type === 'campfire') {
+            renderCampfire(ctx, entity as SpacetimeDBCampfire, nowMs, cycleProgress);
+        } else if (type === 'dropped_item') {
+            const droppedItem = entity as SpacetimeDBDroppedItem;
+            const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
+            renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
+        } else if (type === 'mushroom') {
+            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress);
+        } else if (type === 'pumpkin') {
+            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress);
+        } else if (type === 'stash') {
+            renderStash(ctx, entity as SpacetimeDBStash, nowMs, cycleProgress);
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
             renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress);
@@ -186,16 +213,26 @@ export const renderYSortedEntities = ({
             // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
         } else if (type === 'stone') {
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
+        } else if (type === 'corn') {
+            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, true, false);
+        } else if (type === 'hemp') {
+            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress, true, false);
+        } else if (type === 'campfire') {
+            // Campfires handle their own shadows, no separate pass needed here generally
+        } else if (type === 'dropped_item') {
+            // Dropped items handle their own shadows
+        } else if (type === 'mushroom') {
+            // Mushrooms handle their own shadows
+        } else if (type === 'pumpkin') {
+            // Pumpkins handle their own shadows
+        } else if (type === 'stash') {
+            // Stashes handle their own shadows within their main render function
         } else if (type === 'wooden_storage_box') {
             // No shadow-only pass needed for wooden_storage_box as it uses applyStandardDropShadow
-            // renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress, true, false);
         } else if (type === 'player_corpse') {
-            renderCorpse({ 
-                ctx, 
-                corpse: entity as SpacetimeDBPlayerCorpse, 
-                nowMs, 
-                itemImagesRef
-            });
+            // Player corpses are fully rendered in the first pass.
+            // Their shadows (if any, like applyStandardDropShadow) are part of that initial render.
+            // Do not re-render here.
         } else if (type === 'player') {
             // Players are fully rendered in the first pass, including their shadows.
             // No action needed for players in this second (shadow-only) pass.

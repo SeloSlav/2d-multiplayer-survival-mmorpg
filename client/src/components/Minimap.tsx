@@ -269,13 +269,13 @@ export function drawMinimapOntoCanvas({
   // --- End Grid Drawing ---
 
   // --- Draw Death Marker ---
-  console.log('[Minimap] Checking for death marker. Corpse:', localPlayerCorpse, 'Image:', deathMarkerImage);
+  // console.log('[Minimap] Checking for death marker. Corpse:', localPlayerCorpse, 'Image:', deathMarkerImage);
   if (localPlayerCorpse && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
     console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.');
     const screenCoords = worldToMinimap(localPlayerCorpse.posX, localPlayerCorpse.posY);
-    console.log('[Minimap] Death marker screenCoords:', screenCoords, 'Corpse Pos:', localPlayerCorpse.posX, localPlayerCorpse.posY);
+    // console.log('[Minimap] Death marker screenCoords:', screenCoords, 'Corpse Pos:', localPlayerCorpse.posX, localPlayerCorpse.posY);
     if (screenCoords) {
-      console.log('[Minimap] Drawing death marker at:', screenCoords);
+      // console.log('[Minimap] Drawing death marker at:', screenCoords);
       const iconRadius = DEATH_MARKER_ICON_SIZE / 2;
       const iconDiameter = DEATH_MARKER_ICON_SIZE;
       const cx = screenCoords.x;
