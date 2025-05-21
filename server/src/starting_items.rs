@@ -29,15 +29,27 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stone Hatchet", 1, Some(5u8), None),
         
         // Starting materials in Inventory (Slots 0-23 typically)
-        // ("Wood", 600, None, Some(12u16)), 
-        // ("Wood", 500, None, Some(13u16)), 
-        // ("Stone", 500, None, Some(14u16)),
+        ("Cloth", 100, None, Some(0u16)),
+        ("Bone Arrow", 50, None, Some(1u16)),
+        ("Animal Fat", 1, None, Some(3u16)),
+        ("Bone", 1, None, Some(4u16)),
+        ("Bone Club", 1, None, Some(5u16)),
+        ("Bone Knife", 1, None, Some(6u16)),
+        ("Human Skull", 1, None, Some(7u16)),
+        ("Wooden Arrow", 50, None, Some(8u16)),
         ("Stash", 1, None, Some(12u16)),
         ("Stone Pickaxe", 1, None, Some(14u16)),
         ("Mushroom", 20, None, Some(15u16)),
         ("Cooked Mushroom", 20, None, Some(16u16)),
         ("Corn", 20, None, Some(17u16)),
         ("Bandage", 10, None, Some(18u16)),
+        ("Wood", 600, None, Some(19u16)), 
+        ("Wood", 500, None, Some(20u16)), 
+        ("Stone", 500, None, Some(21u16)),
+        ("Hunting Bow", 1, None, Some(22u16)),
+        ("Bone Fragments", 100, None, Some(23u16)),
+
+        
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

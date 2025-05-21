@@ -40,7 +40,15 @@ import combatLadleIcon from '../assets/items/combat_ladle.png';
 import deathMarkerIcon from '../assets/items/death_marker.png';
 import stoneSpearIcon from '../assets/items/stone_spear.png';
 import burlapCapeIcon from '../assets/items/burlap_cape.png';
-// We don't import the missing ones (hood, boots, etc.)
+import woodenArrowIcon from '../assets/items/wooden_arrow.png';
+import boneArrowIcon from '../assets/items/bone_arrow.png';
+import huntingBowIcon from '../assets/items/bow.png'; 
+import boneFragmentsIcon from '../assets/items/bone_fragments.png';
+import boneClubIcon from '../assets/items/bone_club.png';
+import boneKnifeIcon from '../assets/items/bone_knife.png';
+import skullIcon from '../assets/items/skull.png';
+import animalFatIcon from '../assets/items/animal_fat.png';
+import boneIcon from '../assets/items/bone.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -81,7 +89,15 @@ const iconMap: { [key: string]: string | undefined } = {
   'death_marker.png': deathMarkerIcon,
   'stone_spear.png': stoneSpearIcon,
   'burlap_cape.png': burlapCapeIcon,
-  // Add mappings for existing icons only
+  'wooden_arrow.png': woodenArrowIcon,
+  'bone_arrow.png': boneArrowIcon,
+  'bow.png': huntingBowIcon,
+  'bone_fragments.png': boneFragmentsIcon,
+  'bone_club.png': boneClubIcon,
+  'bone_knife.png': boneKnifeIcon,
+  'skull.png': skullIcon,
+  'animal_fat.png': animalFatIcon,
+  'bone.png': boneIcon,
 };
 
 // Export a function that provides the fallback logic

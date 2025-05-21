@@ -96,4 +96,5 @@ pub enum TargetType {
     WoodenStorageBox,
     Stash,
     SleepingBag,
+    Animal, // Added for animal targets
 }

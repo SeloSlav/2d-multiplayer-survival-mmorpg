@@ -73,7 +73,7 @@ cd server/
 # Optional: Clean previous DB state if needed
 # spacetime delete vibe-survival-game
 spacetime publish vibe-survival-game
-spacetime generate --lang typescript --out-dir ../client/src/generated
+spacetime spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
 cd ..
 ```
 
@@ -91,7 +91,7 @@ npm run dev
     1.  `(Optional but Recommended)` `spacetime delete vibe-survival-game` (Run *before* publish to prevent schema conflicts).
     2.  `cd server`
     3.  `spacetime publish vibe-survival-game`
-    4.  `spacetime generate --lang typescript --out-dir ../client/src/generated`
+    4.  `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .`
     5.  `cd ..`
 
 ## 🗺️ Roadmap
@@ -373,7 +373,7 @@ This guide assumes you have installed the prerequisites: Node.js v22+, Rust, and
 ## 🔧 Troubleshooting Local Setup
 
 *   **`Cannot find module './generated'` error in client:**
-    *   Ensure you ran `spacetime generate --lang typescript --out-dir ../client/src/generated` from the `server` directory *after* the last `spacetime publish` was **successful**. Check the publish output for errors.
+    *   Ensure you ran `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` from the `server` directory *after* the last `spacetime publish` was **successful**. Check the publish output for errors.
     *   Make sure the `client/src/generated` folder was actually created and contains `.ts` files, including `index.ts`.
     *   Restart the Vite dev server (`npm run dev`). Sometimes Vite needs a restart after significant file changes.
 *   **Client connects but game doesn't load / players don't appear:**
@@ -399,7 +399,7 @@ This guide assumes you have installed the prerequisites: Node.js v22+, Rust, and
     *   Modify Rust code (add features, fix bugs).
     *   **If schema changes (tables, reducer signatures):**
         1.  Run `spacetime publish vibe-survival-game` (from `server/`).
-        2.  Run `spacetime generate --lang typescript --out-dir ../client/src/generated` (from `server/`).
+        2.  Run `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` (from `server/`).
     *   **If only logic changes (no schema impact):**
         1.  Run `spacetime publish vibe-survival-game` (from `server/`). (Generate is not strictly needed but doesn't hurt).
 2.  **Client Development (`client/src`)**:
