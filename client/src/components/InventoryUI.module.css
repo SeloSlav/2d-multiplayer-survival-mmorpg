@@ -573,4 +573,464 @@
   outline: none; /* Remove default focus outline */
   border-color: #7799dd; /* Highlight border on focus - matches Max button */
   box-shadow: 0 0 0 2px rgba(119, 153, 221, 0.3); /* Subtle glow on focus */
+}
+
+.equipmentSlot {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center the slot and label horizontally */
+}
+
+.slotLabel {
+    font-size: 0.75rem; /* Small text */
+    color: #ccc; /* Light grey color for the text */
+    margin-top: 4px; /* Space between slot and label */
+    text-align: center;
+}
+
+.inventoryGrid,
+.equipmentGrid,
+.hotbarGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(4, auto);
+  gap: 4px; /* <<< Ensure gap is unified */
+  margin-top: 0;
+  padding: 0;
+  max-width: 388px; 
+  width: 100%; 
+}
+
+/* Ensure Inventory grid doesn't have extra top margin */
+.middlePane .inventoryGrid {
+    margin-top: 0; /* Explicitly set for inventory grid */
+}
+
+/* Ensure Equipment grid doesn't have extra top margin */
+.leftPane .equipmentGrid {
+     margin-top: 0; /* Explicitly set for equipment grid */
+}
+
+/* Ensure Equipment grid doesn't have extra top margin */
+.leftPane .equipmentGrid {
+     margin-top: 0; /* Explicitly set for equipment grid */
+}
+
+/* Crafting Section (Right Pane) - 5 Columns */
+.craftingHeader {
+    justify-content: space-between;
+    margin-bottom: 0px;
+}
+
+.craftableItemsSection {
+    height: 250px; /* Adjust height as needed */
+    margin-bottom: 15px;
+    /* overflow-y: auto; Already added via class */
+    border: 1px solid #555; /* Add border for clarity */
+    border-radius: 3px;
+    padding: 5px;
+    background-color: rgba(0,0,0, 0.1); /* Slightly darker background */
+}
+
+.craftableItemsGrid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr); /* Changed from 5 */
+    gap: 4px; 
+    max-width: 404px; /* Updated: (6 * 64px) + (5 * 4px) = 404px */
+    width: 100%; /* Allow shrinking if needed */
+    margin-top: 0px; /* Add small top margin since container padding is gone */
+}
+
+.craftingQueueSection {
+    height: 220px; /* Increased height from 150px */
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 5px;
+    background-color: rgba(0,0,0, 0.1);
+    /* Add flex properties to allow inner list to grow and scroll */
+    display: flex;
+    flex-direction: column;
+}
+
+.queueTitle {
+    text-align: center;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: #ccc;
+    flex-shrink: 0; /* Prevent title from shrinking */
+}
+
+.craftingQueueList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto; /* Scroll if needed */
+    flex-grow: 1; /* Allow list to take remaining space */
+    min-height: 0; /* Important for flex-grow + overflow */
+    padding-right: 5px; /* Space for scrollbar */
+}
+
+.queueItem {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    padding: 4px;
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.queueItemSlot {
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.queueItemName {
+    flex-grow: 1;
+    font-size: 10px;
+    color: #ddd;
+    margin-right: 5px;
+}
+
+.cancelButton {
+    background-color: #a44;
+    color: white;
+    border: 1px solid #833;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    line-height: 18px; /* Adjust for vertical centering */
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    margin-left: auto; /* Push to the right */
+    flex-shrink: 0;
+}
+
+.cancelButton:hover {
+    background-color: #c55;
+}
+
+/* <<< ADDED: Styles for Campfire Button >>> */
+.interactionButton {
+    margin-top: 10px;
+    padding: 8px 15px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    color: #eee; /* Default text color */
+    font-family: inherit; /* Use panel font */
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.interactionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #444; /* Keep a distinct disabled background */
+  color: #888;
+}
+
+/* Specific styles for campfire actions */
+.lightFireButton {
+  background-color: #e67e22; /* Orange for "Light Fire" */
+  border-color: #d35400;
+}
+
+.lightFireButton:not(:disabled):hover {
+  background-color: #f39c12; /* Lighter orange on hover */
+}
+
+.extinguishButton {
+  background-color: #c0392b; /* Muted red for "Extinguish" */
+  border-color: #a93226;
+}
+
+.extinguishButton:not(:disabled):hover {
+  background-color: #e74c3c; /* Slightly brighter red on hover */
+}
+
+/* Ensure disabled styles take precedence if needed, though opacity handles most cases */
+.lightFireButton:disabled,
+.extinguishButton:disabled {
+   background-color: #444; /* Override specific colors when disabled */
+   border-color: #555;
+}
+
+/* <<< END ADDED >>> */
+
+.emptyQueueText {
+    text-align: center;
+    color: #888;
+    font-size: 10px;
+    margin-top: 10px;
+}
+
+/* General Styles */
+.sectionTitle {
+  color: #f0e68c;
+  margin-bottom: 10px; /* Adjust as needed for spacing below title */
+  text-align: center;
+  font-size: 1.1em; 
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 0; /* Remove potential top margin */
+}
+
+.slot {
+  width: 64px; /* Keep standard size */
+  height: 64px;
+  /* Match PlayerUI/Hotbar Style more closely */
+  background-color: rgba(0, 0, 0, 0.6); /* Darker background */
+  border: 1px solid #777; /* Lighter border */
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.slot:hover {
+    border-color: #aaa; /* Highlight on hover */
+}
+
+/* Custom Scrollbar Styles */
+.craftableItemsSection::-webkit-scrollbar,
+.craftingQueueList::-webkit-scrollbar {
+  width: 8px; /* Width of the vertical scrollbar */
+}
+
+.craftableItemsSection::-webkit-scrollbar-track,
+.craftingQueueList::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3); /* Dark track background */
+  border-radius: 4px;
+}
+
+.craftableItemsSection::-webkit-scrollbar-thumb,
+.craftingQueueList::-webkit-scrollbar-thumb {
+  background-color: rgba(160, 160, 192, 0.5); /* Semi-transparent thumb, matching border color */
+  border-radius: 4px;
+  border: 1px solid rgba(40, 40, 60, 0.8); /* Border similar to panel background */
+}
+
+.craftableItemsSection::-webkit-scrollbar-thumb:hover,
+.craftingQueueList::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(180, 180, 210, 0.7); /* Slightly lighter on hover */
+}
+
+/* Class for scrollable areas */
+.scrollableSection {
+  overflow-y: auto;
+  scrollbar-width: thin; /* For Firefox */
+  scrollbar-color: #888 #333; /* For Firefox */
+}
+
+/* Style scrollbar for Webkit browsers */
+.scrollableSection::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollableSection::-webkit-scrollbar-track {
+  background: #333;
+  border-radius: 4px;
+}
+.scrollableSection::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+  border: 2px solid #333;
+}
+.scrollableSection::-webkit-scrollbar-thumb:hover {
+  background-color: #aaa;
+}
+
+/* Recipe List Styles */
+.craftableItemsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Space between recipe rows */
+}
+
+.craftingRecipeRow {
+  display: flex;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  gap: 10px; /* Space between icon, details, button */
+}
+
+.recipeOutputIcon {
+  width: 48px; /* Match slot size? */
+  height: 48px;
+  flex-shrink: 0; /* Prevent icon from shrinking */
+  background-color: rgba(0,0,0,0.2);
+  border: 1px solid #555;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recipeDetails {
+  flex-grow: 1; /* Take remaining space */
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.recipeName {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #eee;
+}
+
+.recipeIngredients {
+  margin-bottom: 4px;
+}
+
+.recipeTime {
+  font-size: 9px;
+  color: #aaa;
+}
+
+/* New styles for crafting controls area */
+.craftingControls {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Space between input, max button, and craft button */
+  margin-left: auto; /* Push this group to the right */
+}
+
+.quantityInput {
+  width: 45px; /* Adjust width as needed */
+  padding: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  background-color: rgba(0,0,0,0.3);
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 3px;
+  /* Remove spinner arrows for a cleaner look in some browsers */
+  -moz-appearance: textfield; /* Firefox */
+}
+
+.quantityInput::-webkit-outer-spin-button,
+.quantityInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0; /* Safari */
+}
+
+.maxButton {
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 10px; /* Slightly smaller than craft button */
+  cursor: pointer;
+  border: 1px solid #777; /* Lighter border than craft button */
+  background-color: #6688cc; /* A distinct blue color */
+  color: white;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.maxButton:hover {
+  background-color: #7799dd;
+}
+
+.maxButton:disabled { /* If we ever disable it, though not currently planned */
+  background-color: #555;
+  border-color: #444;
+  color: #999;
+  cursor: not-allowed;
+}
+
+/* Style for the new Cancel All Queue button */
+.cancelAllButton {
+  padding: 8px 12px; /* Slightly more padding for a larger button */
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid #a03030; /* Darker red border */
+  background-color: #c04040; /* Reddish background */
+  color: white;
+  border-radius: 4px; /* Match other buttons */
+  transition: background-color 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 10px; /* Space above it */
+  align-self: center; /* Center it if the parent is a flex container with cross-axis alignment */
+  width: fit-content; /* Adjust width to content */
+}
+
+.cancelAllButton:hover {
+  background-color: #d05050; /* Lighter red on hover */
+}
+
+/* Disabled state if ever needed */
+.cancelAllButton:disabled {
+  background-color: #777;
+  border-color: #666;
+  color: #bbb;
+  cursor: not-allowed;
+}
+
+.craftButton {
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  border: 1px solid #888;
+  background-color: #5a5;
+  color: white;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+  white-space: nowrap; /* Prevent button text wrapping */
+}
+
+.craftButton:hover {
+  background-color: #6b6;
+}
+
+.craftButton:disabled {
+  background-color: #666;
+  border-color: #555;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+/* Styles for Crafting Search Bar */
+.craftingSearchBarContainer {
+  margin-bottom: 10px; /* Space below the search bar */
+  padding: 0 5px; /* Slight horizontal padding to align with content below if needed */
+}
+
+.craftingSearchInput {
+  width: 100%; /* Make input take full width of its container */
+  padding: 8px 10px;
+  font-family: inherit; /* Use panel font */
+  font-size: 11px;
+  background-color: rgba(0, 0, 0, 0.3); /* Dark background */
+  color: #eee; /* Light text */
+  border: 1px solid #555; /* Border similar to other elements */
+  border-radius: 3px;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.craftingSearchInput::placeholder {
+  color: #888; /* Lighter placeholder text */
+  opacity: 1; /* Ensure placeholder is fully visible */
+}
+
+.craftingSearchInput:focus {
+  outline: none; /* Remove default focus outline */
+  border-color: #7799dd; /* Highlight border on focus - matches Max button */
+  box-shadow: 0 0 0 2px rgba(119, 153, 221, 0.3); /* Subtle glow on focus */
 } 

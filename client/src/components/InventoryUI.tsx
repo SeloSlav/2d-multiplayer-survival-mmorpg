@@ -271,23 +271,26 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                         const item = itemsByEquipSlot.get(slotInfo.name);
                         const currentSlotInfo: DragSourceSlotInfo = { type: 'equipment', index: slotInfo.name };
                         return (
-                            <DroppableSlot
-                                key={`equip-${slotInfo.name}`}
-                                slotInfo={currentSlotInfo}
-                                onItemDrop={onItemDrop}
-                                className={styles.slot}
-                                isDraggingOver={false} // Add state if needed
-                            >
-                                {item && (
-                                    <DraggableItem
-                                        item={item}
-                                        sourceSlot={currentSlotInfo}
-                                        onItemDragStart={onItemDragStart}
-                                        onItemDrop={onItemDrop}
-                                        // No context menu needed for equipped items? Or move back to inv?
-                                    />
-                                )}
-                            </DroppableSlot>
+                            <div className={styles.equipmentSlot}>
+                                <DroppableSlot
+                                    key={`equip-${slotInfo.name}`}
+                                    slotInfo={currentSlotInfo}
+                                    onItemDrop={onItemDrop}
+                                    className={styles.slot}
+                                    isDraggingOver={false} // Add state if needed
+                                >
+                                    {item && (
+                                        <DraggableItem
+                                            item={item}
+                                            sourceSlot={currentSlotInfo}
+                                            onItemDragStart={onItemDragStart}
+                                            onItemDrop={onItemDrop}
+                                            // No context menu needed for equipped items? Or move back to inv?
+                                        />
+                                    )}
+                                </DroppableSlot>
+                                <div className={styles.slotLabel}>{slotInfo.name}</div>
+                            </div>
                         );
                     })}
                 </div>
