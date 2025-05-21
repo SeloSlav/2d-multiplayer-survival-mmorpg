@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse } from '../generated'; // Corrected import
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -11,7 +11,7 @@ interface DeathScreenProps {
   // Add new props
   onRespawnRandomly: () => void;
   onRespawnAtBag: (bagId: number) => void;
-  localPlayerIdentity?: string; // Keep as string for now
+  localPlayerIdentity: string | null;
   sleepingBags: Map<number, SleepingBag>;
   players: Map<string, SpacetimeDBPlayer>;
   trees: Map<string, Tree>;
@@ -21,7 +21,8 @@ interface DeathScreenProps {
   sleepingBagImage?: HTMLImageElement | null;
   // Add new props for death marker
   localPlayerCorpse?: SpacetimeDBPlayerCorpse | null;
-  deathMarkerImage?: HTMLImageElement | null | undefined;
+  deathMarkerImage?: HTMLImageElement | null;
+  worldState: WorldState | null; // <-- Fix type here
 }
 
 const DeathScreen: React.FC<DeathScreenProps> = ({
@@ -38,6 +39,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   // Destructure new props
   localPlayerCorpse,
   deathMarkerImage,
+  worldState, // <-- Correct type
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: MINIMAP_DIMENSIONS.width, height: MINIMAP_DIMENSIONS.height });
@@ -99,7 +101,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       campfires,
       sleepingBags,
       localPlayer: undefined, // Explicitly pass undefined for localPlayer
-      localPlayerId: localPlayerIdentity,
+      localPlayerId: localPlayerIdentity ?? undefined,
       playerPin: null, // No player pin needed when dead/world centered
       canvasWidth: canvasSize.width,
       canvasHeight: canvasSize.height,
@@ -113,6 +115,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       // Pass death marker props through
       localPlayerCorpse,
       deathMarkerImage,
+      worldState, // <-- Pass worldState for time of day
     });
 
     // Draw hover effect (simple circle) - This is illustrative
@@ -140,6 +143,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     campfires,
     localPlayerCorpse,
     deathMarkerImage,
+    worldState,
   ]);
 
   // --- Click Handler for Minimap Canvas ---

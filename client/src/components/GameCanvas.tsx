@@ -743,6 +743,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             // --- Pass Death Marker Props ---
             localPlayerCorpse: currentLocalPlayerCorpse, // Pass the found corpse
             deathMarkerImage: deathMarkerImg,      // Pass the loaded image
+            worldState, // <-- Pass worldState for time of day
         });
     }
   }, [
@@ -883,10 +884,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           // Remove respawnAt prop, add others later
           // respawnAt={respawnTimestampMs}
           // onRespawn={handleRespawnRequest} // We'll wire new callbacks later
-          // Dummy props for now, replace in next step
           onRespawnRandomly={() => { console.log("Respawn Randomly Clicked"); connection?.reducers?.respawnRandomly(); }}
           onRespawnAtBag={(bagId) => { console.log("Respawn At Bag Clicked:", bagId); connection?.reducers?.respawnAtSleepingBag(bagId); }}
-          localPlayerIdentity={localPlayerId}
+          localPlayerIdentity={localPlayerId ?? null}
           sleepingBags={sleepingBagsById} // Pass converted map
           // Pass other required props for minimap rendering within death screen
           players={players}
@@ -898,6 +898,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           // Pass the identified corpse and its image for the death screen minimap
           localPlayerCorpse={currentLocalPlayerCorpse} // Pass the found corpse
           deathMarkerImage={deathMarkerImg}      // Pass the loaded image
+          worldState={worldState}
         />
       )}
     </div>

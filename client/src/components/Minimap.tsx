@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState } from '../generated';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -50,6 +50,16 @@ const DEATH_MARKER_BORDER_WIDTH = 2;
 const DEATH_MARKER_BORDER_COLOR = '#FFFFFF'; // White border, same as regular bags
 const DEATH_MARKER_BG_COLOR = 'rgba(139, 0, 0, 0.5)'; // Dark red, semi-transparent
 
+// Add helper to check if it's night/evening
+function isNightTimeOfDay(tag: string): boolean {
+  return (
+    tag === 'Dusk' ||
+    tag === 'TwilightEvening' ||
+    tag === 'Night' ||
+    tag === 'Midnight'
+  );
+}
+
 // Props required for drawing the minimap
 interface MinimapProps {
   ctx: CanvasRenderingContext2D;
@@ -74,6 +84,7 @@ interface MinimapProps {
   // --- New props for Death Marker ---
   localPlayerCorpse?: SpacetimeDBCorpse | null; // Local player's last death corpse
   deathMarkerImage?: HTMLImageElement | null; // Image asset for death marker
+  worldState: WorldState | null; // <-- Add this
 }
 
 /**
@@ -102,6 +113,7 @@ export function drawMinimapOntoCanvas({
   // Destructure new death marker props
   localPlayerCorpse = null,
   deathMarkerImage = null,
+  worldState, // <-- Add this
 }: MinimapProps) {
   const minimapWidth = MINIMAP_WIDTH;
   const minimapHeight = MINIMAP_HEIGHT;
@@ -156,6 +168,10 @@ export function drawMinimapOntoCanvas({
       return null; // Off the minimap at current zoom/pan
     }
   };
+
+  // Determine if it's night/evening for minimap light rendering
+  const timeOfDayTag = worldState?.timeOfDay?.tag;
+  const showNightLights = timeOfDayTag ? isNightTimeOfDay(timeOfDayTag) : false;
 
   // --- Apply Retro Styling --- 
   ctx.save(); // Save context before applying shadow/styles
@@ -343,40 +359,44 @@ export function drawMinimapOntoCanvas({
   });
 
   // --- Draw Campfires ---
-  ctx.fillStyle = CAMPFIRE_DOT_COLOR;
-  campfires.forEach(campfire => {
-    // Only draw burning campfires
-    if (campfire.isBurning) {
-      const screenCoords = worldToMinimap(campfire.posX, campfire.posY);
-      if (screenCoords) {
-        ctx.fillRect(
-          screenCoords.x - LIT_ENTITY_DOT_SIZE / 2,
-          screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
-          LIT_ENTITY_DOT_SIZE,
-          LIT_ENTITY_DOT_SIZE
-        );
+  if (showNightLights) {
+    ctx.fillStyle = CAMPFIRE_DOT_COLOR;
+    campfires.forEach(campfire => {
+      // Only draw burning campfires
+      if (campfire.isBurning) {
+        const screenCoords = worldToMinimap(campfire.posX, campfire.posY);
+        if (screenCoords) {
+          ctx.fillRect(
+            screenCoords.x - LIT_ENTITY_DOT_SIZE / 2,
+            screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
+            LIT_ENTITY_DOT_SIZE,
+            LIT_ENTITY_DOT_SIZE
+          );
+        }
       }
-    }
-  });
+    });
+  }
 
   // --- Draw Remote Players with Torch ON ---
-  players.forEach((player, playerId) => {
-    if (localPlayerId && playerId === localPlayerId) {
-      return; // Skip local player, handled separately
-    }
-    if (player.isTorchLit) {
-      const screenCoords = worldToMinimap(player.positionX, player.positionY);
-      if (screenCoords) {
-        ctx.fillStyle = CAMPFIRE_DOT_COLOR; // Use shared color
-        ctx.fillRect(
-          screenCoords.x - LIT_ENTITY_DOT_SIZE / 2, // Use shared larger size
-          screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
-          LIT_ENTITY_DOT_SIZE,
-          LIT_ENTITY_DOT_SIZE
-        );
+  if (showNightLights) {
+    players.forEach((player, playerId) => {
+      if (localPlayerId && playerId === localPlayerId) {
+        return; // Skip local player, handled separately
       }
-    }
-  });
+      if (player.isTorchLit) {
+        const screenCoords = worldToMinimap(player.positionX, player.positionY);
+        if (screenCoords) {
+          ctx.fillStyle = CAMPFIRE_DOT_COLOR; // Use shared color
+          ctx.fillRect(
+            screenCoords.x - LIT_ENTITY_DOT_SIZE / 2, // Use shared larger size
+            screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
+            LIT_ENTITY_DOT_SIZE,
+            LIT_ENTITY_DOT_SIZE
+          );
+        }
+      }
+    });
+  }
 
   // --- Draw Sleeping Bags ---
   // Filter bags belonging to the local player before drawing
