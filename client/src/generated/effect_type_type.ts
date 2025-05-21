@@ -36,7 +36,7 @@ export namespace EffectType {
   // One type is generated per variant and will be used in the `value` field of
   // the tagged union.
   export type HealthRegen = { tag: "HealthRegen" };
-  export type Damage = { tag: "Damage" };
+  export type Burn = { tag: "Burn" };
   export type Bleed = { tag: "Bleed" };
   export type BandageBurst = { tag: "BandageBurst" };
 
@@ -47,14 +47,14 @@ export namespace EffectType {
   // assert!(foo.value === 42);
   // ```
   export const HealthRegen = { tag: "HealthRegen" };
-  export const Damage = { tag: "Damage" };
+  export const Burn = { tag: "Burn" };
   export const Bleed = { tag: "Bleed" };
   export const BandageBurst = { tag: "BandageBurst" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
       new SumTypeVariant("HealthRegen", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Damage", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Burn", AlgebraicType.createProductType([])),
       new SumTypeVariant("Bleed", AlgebraicType.createProductType([])),
       new SumTypeVariant("BandageBurst", AlgebraicType.createProductType([])),
     ]);
@@ -71,7 +71,7 @@ export namespace EffectType {
 }
 
 // The tagged union or sum type for the algebraic type `EffectType`.
-export type EffectType = EffectType.HealthRegen | EffectType.Damage | EffectType.Bleed | EffectType.BandageBurst;
+export type EffectType = EffectType.HealthRegen | EffectType.Burn | EffectType.Bleed | EffectType.BandageBurst;
 
 export default EffectType;
 

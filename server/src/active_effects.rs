@@ -32,7 +32,7 @@ pub struct ActiveConsumableEffect {
 #[derive(SpacetimeType, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum EffectType {
     HealthRegen,
-    Damage,
+    Burn,
     Bleed,
     BandageBurst,
     // Potentially HungerRegen, ThirstRegen, StaminaRegen in future
@@ -98,13 +98,13 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         let mut current_effect_applied_so_far = effect.amount_applied_so_far.unwrap_or(0.0);
 
         // --- Handle Environmental Damage (One-Shot) ---
-        if effect.effect_type == EffectType::Damage && effect.item_def_id == 0 {
+        if effect.effect_type == EffectType::Burn && effect.item_def_id == 0 {
             if let Some(damage_to_apply) = effect.total_amount {
-                log::trace!("[EffectTick] ENV_DAMAGE Pre-Damage for Player {:?}: Health {:.2}, DamageThisTick {:.2}",
+                log::trace!("[EffectTick] ENV_BURN Pre-Damage for Player {:?}: Health {:.2}, DamageThisTick {:.2}",
                     effect.player_id, player_to_update.health, damage_to_apply);
                 let health_before_env_damage = player_to_update.health;
                 player_to_update.health = (player_to_update.health - damage_to_apply).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
-                log::trace!("[EffectTick] ENV_DAMAGE Post-Damage for Player {:?}: Health now {:.2}",
+                log::trace!("[EffectTick] ENV_BURN Post-Damage for Player {:?}: Health now {:.2}",
                     effect.player_id, player_to_update.health);
 
                 if player_to_update.health < health_before_env_damage {
@@ -173,7 +173,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             log::trace!("[EffectTick] HEALTH_REGEN Post-Regen for Player {:?}: Health now {:.2}",
                                 effect.player_id, player_to_update.health);
                         }
-                        EffectType::Bleed | EffectType::Damage => { // Item-based Damage falls here too
+                        EffectType::Bleed | EffectType::Burn => {
                             log::trace!("[EffectTick] {:?} Pre-Damage for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health, amount_this_tick);
                             player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
@@ -194,7 +194,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
 
                     // If this effect was a damaging one and health was reduced, mark player for potential BandageBurst cancellation
                     // Only item-based direct Damage (not Bleed itself) counts as external for interrupting bandages.
-                    if player_effect_applied_this_iteration && effect.effect_type == EffectType::Damage && effect.item_def_id != 0 {
+                    if player_effect_applied_this_iteration && effect.effect_type == EffectType::Burn && effect.item_def_id != 0 {
                         if player_to_update.health < old_health {
                              player_ids_who_took_external_damage_this_tick.insert(effect.player_id);
                         }
@@ -222,14 +222,14 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             player_updates.insert(effect.player_id, player_to_update.clone());
             log::trace!("[EffectTick] Player {:?} stat change recorded from effect_id {} (Type: {:?}). Old health: {:.2}, New health for player_updates map: {:.2}. Applied this tick (approx): {:.2}, Total Applied for effect: {:.2}",
                 effect.player_id, effect.effect_id, effect.effect_type, old_health, player_to_update.health,
-                if effect.effect_type == EffectType::Damage && effect.item_def_id == 0 { effect.total_amount.unwrap_or(0.0) } else { (current_effect_applied_so_far - effect.amount_applied_so_far.unwrap_or(0.0)).abs() },
+                if effect.effect_type == EffectType::Burn && effect.item_def_id == 0 { effect.total_amount.unwrap_or(0.0) } else { (current_effect_applied_so_far - effect.amount_applied_so_far.unwrap_or(0.0)).abs() },
                 current_effect_applied_so_far
             );
 
             // If health was reduced by a damaging effect, cancel any active HealthRegen effects for that player.
             // This check is now implicitly handled by player_ids_who_took_external_damage_this_tick below,
             // but we'll keep the direct health_was_reduced check for HealthRegen for clarity specific to it.
-            if health_was_reduced && (effect.effect_type == EffectType::Damage || effect.effect_type == EffectType::Bleed) {
+            if health_was_reduced && (effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Bleed) {
                 cancel_health_regen_effects(ctx, effect.player_id);
                 // Note: BandageBurst cancellation due to taking damage is handled after iterating all effects using player_ids_who_took_external_damage_this_tick
             }
@@ -240,7 +240,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             effects_to_remove.push(effect.effect_id);
             log::debug!("[EffectTick] Effect {} (Type: {:?}) for player {:?} ended. Applied so far: {:.2}. Reason: {}",
                 effect.effect_id, effect.effect_type, effect.player_id, current_effect_applied_so_far,
-                if current_time >= effect.ends_at { "duration" } else if effect.effect_type == EffectType::Damage && effect.item_def_id == 0 { "environmental one-shot" } else { "amount applied" }
+                if current_time >= effect.ends_at { "duration" } else if effect.effect_type == EffectType::Burn && effect.item_def_id == 0 { "environmental one-shot" } else { "amount applied" }
             );
 
             // If the effect had an associated item instance to consume, mark it for consumption

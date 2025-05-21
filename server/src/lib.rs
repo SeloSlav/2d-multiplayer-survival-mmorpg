@@ -659,7 +659,8 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: current_time,
-        is_burning: false,
+        is_burning: false, // Campfires start unlit
+        // Initialize all fuel slots to None
         fuel_instance_id_0: None,
         fuel_def_id_0: None,
         fuel_instance_id_1: None,
@@ -670,19 +671,21 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_def_id_3: None,
         fuel_instance_id_4: None,
         fuel_def_id_4: None,
-        current_fuel_def_id: None,
+        current_fuel_def_id: None, 
         remaining_fuel_burn_time_secs: None,
         health: 100.0, // Example initial health
         max_health: 100.0, // Example max health
         is_destroyed: false,
         destroyed_at: None,
         last_hit_time: None,
+        // Initialize cooking progress to None
         slot_0_cooking_progress: None,
         slot_1_cooking_progress: None,
         slot_2_cooking_progress: None,
         slot_3_cooking_progress: None,
         slot_4_cooking_progress: None,
-        last_damage_application_time: None, // Initialize the new field
+        last_damage_application_time: None,
+        is_player_in_hot_zone: false, // Initialize new field
     };
     let inserted_campfire = campfires.try_insert(new_campfire.clone())
         .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;

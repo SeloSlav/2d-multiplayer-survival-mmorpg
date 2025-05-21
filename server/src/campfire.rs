@@ -60,8 +60,8 @@ pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 =
  
  // --- ADDED: Campfire Damage Constants ---
 const CAMPFIRE_DAMAGE_CENTER_Y_OFFSET: f32 = 0.0; // Changed from 30.0 to center with visual sprite
-const CAMPFIRE_DAMAGE_RADIUS: f32 = 25.0; // Kept the same damage radius
-const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
+const CAMPFIRE_DAMAGE_RADIUS: f32 = 50.0; // Increased damage radius
+const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  const CAMPFIRE_DAMAGE_PER_TICK: f32 = 5.0; // How much damage is applied per tick
  const CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS: u64 = 1; // Duration of the damage effect (short, effectively one tick)
  const CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS: u64 = 0; // MODIFIED: Apply damage every process tick if player is present
@@ -107,6 +107,7 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
      pub slot_3_cooking_progress: Option<CookingProgress>,
      pub slot_4_cooking_progress: Option<CookingProgress>,
      pub last_damage_application_time: Option<Timestamp>, // ADDED: For damage cooldown
+     pub is_player_in_hot_zone: bool, // ADDED: True if any player is in the damage radius
  }
  
  // ADD NEW Schedule Table for per-campfire processing
@@ -476,6 +477,12 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
      let mut made_changes_to_campfire_struct = false;
      let mut produced_charcoal_and_modified_campfire_struct = false; // For charcoal logic
  
+     // Reset is_player_in_hot_zone at the beginning of each tick for this campfire
+     if campfire.is_player_in_hot_zone { // Only change if it was true, to minimize DB writes if it's already false
+         campfire.is_player_in_hot_zone = false;
+         made_changes_to_campfire_struct = true;
+     }
+ 
      let current_time = ctx.timestamp;
      log::trace!("[CampfireProcess {}] Current time: {:?}", campfire_id, current_time);
  
@@ -496,14 +503,17 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
          if can_apply_damage {
              // --- MODIFIED: Update cooldown time immediately upon damage attempt ---
              campfire.last_damage_application_time = Some(current_time);
-             made_changes_to_campfire_struct = true;
+             // This change is now handled by the made_changes_to_campfire_struct flag later
              log::debug!("[CampfireProcess {}] Damage application attempt at {:?}. Updated last_damage_application_time.", campfire_id, current_time);
              // --- END MODIFICATION ---
 
              let mut applied_damage_this_tick = false;
+             let mut a_player_is_in_hot_zone_this_tick = false; // Track if any player is in the zone this tick
+
              for player_entity in ctx.db.player().iter() {
                  if player_entity.is_dead { continue; } // Skip dead players
                  
+                 // Check if player is in hot zone (for setting the flag, separate from damage application logic)
                  // UPDATED: Use the same visual center offset for damage calculations
                  // This ensures damage is applied based on the visual fire location the player sees
                  const VISUAL_CENTER_Y_OFFSET: f32 = 42.0;
@@ -511,12 +521,11 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
                  let dx = player_entity.position_x - campfire.pos_x;
                  let dy = player_entity.position_y - (campfire.pos_y - VISUAL_CENTER_Y_OFFSET);
                  let dist_sq = dx * dx + dy * dy;
- 
-                 log::trace!("[CampfireProcess {}] Checking player {:?} at ({:.1}, {:.1}). Campfire at ({:.1}, {:.1}, effective Y for damage: {:.1}). DistSq: {:.1}, DamageRadiusSq: {:.1}",
-                     campfire_id, player_entity.identity, player_entity.position_x, player_entity.position_y,
-                     campfire.pos_x, campfire.pos_y, (campfire.pos_y - VISUAL_CENTER_Y_OFFSET), dist_sq, CAMPFIRE_DAMAGE_RADIUS_SQUARED);
- 
+
                  if dist_sq < CAMPFIRE_DAMAGE_RADIUS_SQUARED {
+                     a_player_is_in_hot_zone_this_tick = true; // A player is in the zone
+
+                     // Proceed with damage effect application as before
                      log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Attempting to apply damage effect.", campfire_id, player_entity.identity);
                      let damage_effect = ActiveConsumableEffect {
                          effect_id: 0, // Auto-incremented by the table
@@ -527,20 +536,38 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 625.0; // 25.0 * 25.0
                          ends_at: current_time + TimeDuration::from_micros(CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS as i64 * 1_000_000),
                          total_amount: Some(CAMPFIRE_DAMAGE_PER_TICK),
                          amount_applied_so_far: Some(0.0),
-                         effect_type: EffectType::Damage,
+                         effect_type: EffectType::Burn, // CHANGED from Damage to Burn
                          tick_interval_micros: CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS * 1_000_000,
                          next_tick_at: current_time, // Apply immediately
                      };
                      match active_effects_table.try_insert(damage_effect) {
                          Ok(_) => {
-                             log::info!("[CampfireProcess {}] Successfully INSERTED damage effect for player {:?}", campfire_id, player_entity.identity);
+                             log::info!("[CampfireProcess {}] Successfully INSERTED burn effect for player {:?}", campfire_id, player_entity.identity);
                              applied_damage_this_tick = true; // Mark that we attempted to apply damage
                          }
                          Err(e) => {
-                             log::error!("[CampfireProcess {}] FAILED to insert damage effect for player {:?}: {:?}", campfire_id, player_entity.identity, e);
+                             log::error!("[CampfireProcess {}] FAILED to insert burn effect for player {:?}: {:?}", campfire_id, player_entity.identity, e);
                          }
                      }
                  }
+             }
+
+             // After checking all players, if any were in the hot zone, update the campfire state
+             if a_player_is_in_hot_zone_this_tick && !campfire.is_player_in_hot_zone {
+                 campfire.is_player_in_hot_zone = true;
+                 made_changes_to_campfire_struct = true;
+                 log::debug!("[CampfireProcess {}] Player detected in hot zone. Set is_player_in_hot_zone to true.", campfire_id);
+             } else if !a_player_is_in_hot_zone_this_tick && campfire.is_player_in_hot_zone {
+                 // This case is handled by the reset at the beginning of the tick.
+                 // campfire.is_player_in_hot_zone = false;
+                 // made_changes_to_campfire_struct = true;
+                 log::debug!("[CampfireProcess {}] No players in hot zone this tick. is_player_in_hot_zone is now false (was reset or already false).", campfire_id);
+             }
+
+             if applied_damage_this_tick { // If damage was applied, update the last_damage_application_time
+                 campfire.last_damage_application_time = Some(current_time);
+                 made_changes_to_campfire_struct = true;
+                 log::debug!("[CampfireProcess {}] Damage applied this tick. Updated last_damage_application_time.", campfire_id);
              }
          }
  

@@ -63,6 +63,7 @@ export type Campfire = {
   slot3CookingProgress: __CookingProgress | undefined,
   slot4CookingProgress: __CookingProgress | undefined,
   lastDamageApplicationTime: Timestamp | undefined,
+  isPlayerInHotZone: boolean,
 };
 
 /**
@@ -105,6 +106,7 @@ export namespace Campfire {
       new ProductTypeElement("slot3CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
       new ProductTypeElement("slot4CookingProgress", AlgebraicType.createOptionType(__CookingProgress.getTypeScriptAlgebraicType())),
       new ProductTypeElement("lastDamageApplicationTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("isPlayerInHotZone", AlgebraicType.createBoolType()),
     ]);
   }
 
