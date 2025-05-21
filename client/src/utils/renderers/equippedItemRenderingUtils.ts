@@ -243,9 +243,9 @@ export const renderEquippedItem = (
   let bandageDrawnWithAnimation = false;
   let bandagingStartTimeMs: number | null = null;
 
-  if (localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
+  if (activeConsumableEffects && player.identity) {
     for (const effect of activeConsumableEffects.values()) {
-      if (effect.playerId.toHexString() === localPlayerId && effect.effectType.tag === "BandageBurst") {
+      if (effect.playerId.toHexString() === player.identity.toHexString() && effect.effectType.tag === "BandageBurst") {
         bandagingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
         break;
       }

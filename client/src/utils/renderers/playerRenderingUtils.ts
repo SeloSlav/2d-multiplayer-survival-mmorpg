@@ -233,9 +233,9 @@ export const renderPlayer = (
   // --- End Knockback Interpolation Logic ---
 
   let isUsingItem = false;
-  if (!isCorpse && localPlayerId && player.identity.toHexString() === localPlayerId && activeConsumableEffects) {
+  if (!isCorpse && activeConsumableEffects) {
     for (const effect of activeConsumableEffects.values()) {
-      if (effect.playerId.toHexString() === localPlayerId && effect.effectType.tag === "BandageBurst") { 
+      if (player.identity && effect.playerId.toHexString() === player.identity.toHexString() && effect.effectType.tag === "BandageBurst") { 
         isUsingItem = true;
         break;
       }
