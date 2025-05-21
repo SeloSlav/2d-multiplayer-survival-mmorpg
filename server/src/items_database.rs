@@ -42,6 +42,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -81,6 +83,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -120,6 +124,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -161,6 +167,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -200,6 +208,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
 
         // --- TOOLS ---
@@ -244,6 +254,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -285,6 +297,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -327,6 +341,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -368,6 +384,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -409,6 +427,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: Some(1.0),
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -451,6 +471,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -493,6 +515,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: Some(1.0),
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
 
         // --- PLACEABLES ---
@@ -537,6 +561,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -578,6 +604,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -619,6 +647,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -660,6 +690,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
 
         // --- ARMOR (CLOTH SET) ---
@@ -703,6 +735,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.2),
         },
         ItemDefinition {
             id: 0,
@@ -744,6 +778,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.2),
         },
         ItemDefinition {
             id: 0,
@@ -785,6 +821,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.2),
         },
         ItemDefinition {
             id: 0,
@@ -826,6 +864,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.2),
         },
         ItemDefinition {
             id: 0,
@@ -867,6 +907,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.2),
         },
         ItemDefinition {
             id: 0,
@@ -909,6 +951,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: Some(0.01),
+            warmth_bonus: Some(0.1),
         },
         
         // --- CONSUMABLES (Rebalanced and New) ---
@@ -950,6 +994,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(20.0), 
             cooked_item_def_name: Some("Cooked Mushroom".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -989,6 +1035,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(30.0), 
             cooked_item_def_name: Some("Burnt Mushroom".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1028,6 +1076,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1067,6 +1117,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(25.0),
             cooked_item_def_name: Some("Cooked Corn".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1106,6 +1158,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(35.0), 
             cooked_item_def_name: Some("Burnt Corn".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1145,6 +1199,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1184,6 +1240,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(60.0), 
             cooked_item_def_name: Some("Cooked Pumpkin".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1223,6 +1281,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: Some(45.0), 
             cooked_item_def_name: Some("Burnt Pumpkin".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
@@ -1262,17 +1322,19 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
         ItemDefinition {
             id: 0,
             name: "Bandage".to_string(),
             description: "A simple bandage to patch up wounds. Stops bleeding and restores some health.".to_string(), 
-            category: ItemCategory::Tool, // Changed from Consumable
+            category: ItemCategory::Tool,
             icon_asset_name: "bandage.png".to_string(),
             is_stackable: true,
             stack_size: 10,
-            is_equippable: true, // Ensure this is true
-            equipment_slot_type: None, // Tools typically don't have a specific slot unless they are armor
+            is_equippable: true,
+            equipment_slot_type: None,
             fuel_burn_duration_secs: None,
             primary_target_damage_min: None,
             primary_target_damage_max: None,
@@ -1301,6 +1363,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_tick_interval_seconds: None,
             cook_time_secs: None,
             cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
         },
     ];
 

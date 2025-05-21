@@ -27,9 +27,10 @@ use crate::tree;
 use crate::stone;
 use crate::wooden_storage_box;
 
-// Collision constants
-use crate::tree::{TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
-use crate::stone::{STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
+// Specific constants needed
+use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
+use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS, STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
+use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 
 // Table trait imports for database access
 use crate::tree::tree as TreeTableTrait;
@@ -39,21 +40,24 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::dropped_item;
-use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, CORPSE_DESPAWN_DURATION_SECONDS, NUM_CORPSE_SLOTS};
+use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, CORPSE_DESPAWN_DURATION_SECONDS, NUM_CORPSE_SLOTS, create_corpse_for_player};
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait;
 use crate::inventory_management::ItemContainer;
 use crate::environment::calculate_chunk_index;
-use crate::player_corpse::create_corpse_for_player;
 use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait, campfire_processing_schedule as CampfireProcessingScheduleTableTrait};
-use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
 use crate::consumables::MAX_STAT_VALUE;
-// Import the new respawn time constants
-use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS};
-use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS};
+// Import the armor module
+use crate::armor;
+// Player inventory imports (commented out previously, keeping them commented if unresolved)
+// use crate::player_inventory::{drop_all_inventory_on_death, drop_all_equipped_armor_on_death};
+// Import the player stats module
+use crate::player_stats;
+// Import the utils module
+use crate::utils::get_distance_squared;
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -612,59 +616,87 @@ pub fn damage_player(
 
     let attacker_player_opt = players.identity().find(&attacker_id);
     let mut target_player = players.identity().find(&target_id)
-        .ok_or_else(|| format!("Target player {:?} not found", target_id))?;
+        .ok_or_else(|| format!("Target player {:?} not found for damage.", target_id))?;
 
     if target_player.is_dead {
+        log::debug!("Target player {:?} is already dead. No damage applied.", target_id);
         return Ok(AttackResult { hit: false, target_type: Some(TargetType::Player), resource_granted: None });
     }
 
+    let mut final_damage = damage; // Start with the damage passed in (already calculated from weapon stats)
+
+    // <<< APPLY ARMOR RESISTANCE >>>
+    let resistance = armor::calculate_total_damage_resistance(ctx, target_id);
+    if resistance > 0.0 {
+        let damage_reduction = final_damage * resistance;
+        let resisted_damage = final_damage - damage_reduction;
+        
+        log::info!(
+            "Player {:?} attacking Player {:?}. Initial Damage: {:.2}, Resistance: {:.2} ({:.0}%), Final Damage after resistance: {:.2}",
+            attacker_id, target_id, 
+            final_damage, // Log the damage before resistance
+            resistance,
+            resistance * 100.0,
+            resisted_damage.max(0.0)
+        );
+        final_damage = resisted_damage.max(0.0); // Damage cannot be negative
+    } else {
+        log::info!(
+            "Player {:?} attacking Player {:?}. Initial Damage: {:.2} (No resistance). Final Damage: {:.2}",
+            attacker_id, target_id, 
+            final_damage, 
+            final_damage
+        );
+    }
+    // <<< END APPLY ARMOR RESISTANCE >>>
+
     // A "hit" has occurred. Set last_hit_time immediately for client visuals.
     target_player.last_hit_time = Some(timestamp);
-    target_player.last_update = timestamp; // Also update for general change detection.
 
     let old_health = target_player.health;
-    target_player.health = (target_player.health - damage).clamp(0.0, MAX_STAT_VALUE);
-    let actual_damage = old_health - target_player.health;
+    target_player.health = (target_player.health - final_damage).clamp(0.0, MAX_STAT_VALUE);
+    // let actual_damage_applied = old_health - target_player.health; // This is essentially final_damage clamped by remaining health
 
-    // Knockback should apply if there was a hit, but let's keep it tied to actual_damage as per original intent
-    // unless specified otherwise. If actual_damage is 0, this block won't run.
-    if actual_damage > 0.0 {
-        // target_player.last_update and target_player.last_hit_time already set above.
-        // --- APPLY KNOCKBACK to target_player ---
+    // --- APPLY KNOCKBACK and update timestamp if damage was dealt ---
+    if final_damage > 0.0 { // Only apply knockback and update timestamp if actual damage occurred
+        target_player.last_update = timestamp; // Update target's timestamp due to health change and potential knockback
+
         if let Some(mut attacker) = attacker_player_opt.clone() { // Clone attacker_player_opt to get a mutable attacker if needed
             let dx_target_from_attacker = target_player.position_x - attacker.position_x;
             let dy_target_from_attacker = target_player.position_y - attacker.position_y;
-            let distance = (dx_target_from_attacker*dx_target_from_attacker + dy_target_from_attacker*dy_target_from_attacker).sqrt();
+            let distance_sq = dx_target_from_attacker * dx_target_from_attacker + dy_target_from_attacker * dy_target_from_attacker;
 
-            if distance > 0.0 { // Avoid division by zero
+            if distance_sq > 0.001 { // Avoid division by zero or tiny distances
+                let distance = distance_sq.sqrt();
                 // Knockback for Target
                 let knockback_dx_target = (dx_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
                 let knockback_dy_target = (dy_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
-                target_player.position_x = (target_player.position_x + knockback_dx_target).clamp(0.0, WORLD_WIDTH_PX as f32);
-                target_player.position_y = (target_player.position_y + knockback_dy_target).clamp(0.0, WORLD_HEIGHT_PX as f32);
+                target_player.position_x = (target_player.position_x + knockback_dx_target).clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
+                target_player.position_y = (target_player.position_y + knockback_dy_target).clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
                 log::debug!("Applied knockback to target player {:?}: new pos ({:.1}, {:.1})", 
                     target_id, target_player.position_x, target_player.position_y);
 
                 // Knockback for Attacker (recoil)
-                let attacker_recoil_distance = PVP_KNOCKBACK_DISTANCE / 3.0;
+                let attacker_recoil_distance = PVP_KNOCKBACK_DISTANCE / 3.0; // Example: attacker recoils less
                 let knockback_dx_attacker = (-dx_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
                 let knockback_dy_attacker = (-dy_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
                 
-                attacker.position_x = (attacker.position_x + knockback_dx_attacker).clamp(0.0, WORLD_WIDTH_PX as f32);
-                attacker.position_y = (attacker.position_y + knockback_dy_attacker).clamp(0.0, WORLD_HEIGHT_PX as f32);
+                attacker.position_x = (attacker.position_x + knockback_dx_attacker).clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
+                attacker.position_y = (attacker.position_y + knockback_dy_attacker).clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
                 attacker.last_update = timestamp; // Update attacker's timestamp as their position changed
-                // attacker.last_hit_time = Some(timestamp); // Optional: if attacker taking hit should also flash/shake, though usually not for self-recoil.
                 players.identity().update(attacker.clone()); // Update attacker player in DB
                  log::debug!("Applied recoil to attacking player {:?}: new pos ({:.1}, {:.1})", 
                     attacker_id, attacker.position_x, attacker.position_y);
             }
         }
-        // --- END KNOCKBACK ---
     }
+    // --- END KNOCKBACK ---
+
+    let killed = target_player.health <= 0.0;
 
     log::info!(
         "Player {:?} damaged Player {:?} for {:.2} (raw: {:.2}) with {}. Health: {:.2} -> {:.2}",
-        attacker_id, target_id, actual_damage, damage, item_def.name, old_health, target_player.health
+        attacker_id, target_id, final_damage, damage, item_def.name, target_player.health + final_damage, target_player.health
     );
 
     // Log the item_name and item_def_id being checked for bleed application
@@ -724,7 +756,7 @@ pub fn damage_player(
     // INTERRUPT BANDAGE IF DAMAGED
     active_effects::cancel_bandage_burst_effects(ctx, target_id);
 
-    if target_player.health <= 0.0 && !target_player.is_dead {
+    if killed {
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
         // last_update and last_hit_time are already set from the initial hit registration.

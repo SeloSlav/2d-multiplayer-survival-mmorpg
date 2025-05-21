@@ -310,16 +310,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const invalidateCurrentToken = useCallback(() => {
     console.warn("[AuthContext LOG] Current token is being invalidated, likely due to rejection by a service (e.g., SpacetimeDB).");
-    const oldToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN); // Check if a token existed
+    // Read the token BEFORE clearing it
+    const tokenExistedPriorToInvalidation = !!localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
+    
     clearTokens(); // This sets spacetimeToken to null, userProfile to null, and updates isAuthenticated via derivation
 
-    if (oldToken) {
-        setAuthError("Your session token was rejected or has expired. Please log in again.");
+    // Set error only if a token actually existed and was just cleared by this invalidation call.
+    if (tokenExistedPriorToInvalidation) {
+        setAuthError("Your session was rejected or has expired.");
     } else {
         // Optionally, set a different error or no error if no token was present to invalidate
         // For now, let's assume invalidating a non-existent token is not an error from AuthContext's perspective,
         // or it could be logged if it's unexpected.
-        console.warn("[AuthContext LOG] invalidateCurrentToken called, but no token was present in storage.");
+        console.warn("[AuthContext LOG] invalidateCurrentToken called, but no token was present in storage to invalidate (or was cleared just before check). No authError set by this path unless one already existed.");
     }
     setIsLoading(false); // Ensure UI is not stuck in loading state
   }, [setAuthError, setIsLoading]); // clearTokens is stable as it's defined in the same scope and its own dependencies (setters) are stable

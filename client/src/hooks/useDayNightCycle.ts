@@ -14,7 +14,7 @@ export interface ColorPoint {
 }
 
 // Default night: Dark, desaturated blue/grey
-export const defaultPeakMidnightColor: ColorPoint = { r: 15, g: 20, b: 30, a: 0.92 };
+export const defaultPeakMidnightColor: ColorPoint = { r: 0, g: 0, b: 0, a: 1.0 };
 export const defaultTransitionNightColor: ColorPoint = { r: 40, g: 50, b: 70, a: 0.75 };
 
 // Full Moon night: Brighter, cooler grey/blue, less saturated

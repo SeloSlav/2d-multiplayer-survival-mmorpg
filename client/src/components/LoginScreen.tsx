@@ -75,12 +75,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     // Handle button click: Trigger OpenAuth login or join game
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setLocalError(null); // Clear previous local errors
 
         if (!isAuthenticated) {
             // If not authenticated, start the OpenAuth login flow
             await loginRedirect(); 
         } else {
             // If authenticated, check if it's a new or existing player
+
+            // CRITICAL CHECK: If authenticated but an authError exists, do not proceed.
+            // This typically means a token was rejected, and invalidateCurrentToken should have
+            // set isAuthenticated to false. If not, this is a safeguard.
+            if (authError) {
+                console.warn("[LoginScreen] Attempted to join game while authError is present. Aborting. Error:", authError);
+                // The authError is already displayed. The user should likely re-authenticate.
+                // Disabling the button (see below) also helps prevent this.
+                return;
+            }
+            
             if (loggedInPlayer) {
                 // Existing player: Join directly, pass null for username
                  handleJoinGame(null); 
@@ -131,12 +143,47 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>2D Survival Multiplayer</h2>
                 
                 {/* Display based on authentication and player existence */}
-                {isAuthenticated && (
+                {authIsLoading ? (
+                    <p>Loading...</p>
+                ) : authError ? (
+                    <>
+                        <p style={{
+                            color: 'red',
+                            marginTop: '15px',
+                            fontSize: '12px',
+                            padding: '8px',
+                            backgroundColor: 'rgba(255,0,0,0.1)',
+                            borderRadius: '4px',
+                            marginBottom: '20px',
+                        }}>
+                            {authError}<br />
+                            Please try signing out and signing in again.
+                        </p>
+                        <button
+                            onClick={logout}
+                            disabled={authIsLoading} // Though authIsLoading is false here, keep for consistency
+                            style={{
+                                padding: '10px 20px',
+                                border: `1px solid ${UI_BORDER_COLOR}`,
+                                backgroundColor: UI_BUTTON_COLOR,
+                                color: 'white',
+                                fontFamily: UI_FONT_FAMILY,
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                boxShadow: UI_SHADOW,
+                                width: '100%',
+                                marginBottom: '15px',
+                            }}
+                        >
+                            Sign Out
+                        </button>
+                    </>
+                ) : isAuthenticated ? (
                     loggedInPlayer ? (
                         // Existing Player: Show welcome message
                         <p style={{
-                             marginBottom: '20px',
-                             fontSize: '14px' 
+                            marginBottom: '20px',
+                            fontSize: '14px'
                         }}>
                             Welcome back, {loggedInPlayer.username}!
                         </p>
@@ -149,8 +196,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             value={inputUsername}
                             onChange={(e) => setInputUsername(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            disabled={authIsLoading}
-                            style={{ 
+                            // disabled is implicitly handled by not rendering if authError
+                            style={{
                                 padding: '10px',
                                 marginBottom: '15px',
                                 border: `1px solid ${UI_BORDER_COLOR}`,
@@ -164,58 +211,59 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             }}
                         />
                     )
-                )}
+                ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
-                {/* Combined Login/Join Button */}
-                <form onSubmit={handleSubmit}> 
-                    <button 
-                        type="submit"
-                        disabled={authIsLoading}
-                        style={{ 
-                            padding: '10px 20px',
-                            border: `1px solid ${UI_BORDER_COLOR}`,
-                            backgroundColor: authIsLoading ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
-                            color: authIsLoading ? '#aaa' : 'white',
-                            fontFamily: UI_FONT_FAMILY,
-                            fontSize: '14px',
-                            cursor: authIsLoading ? 'not-allowed' : 'pointer', 
-                            boxShadow: UI_SHADOW,
-                            width: '100%',
-                            marginBottom: '15px',
-                        }}
-                    >
-                        {authIsLoading ? 'Loading...' : (
-                            isAuthenticated ? 'Join Game' : 'Sign In / Sign Up'
-                        )}
-                    </button>
-                </form>
+                {/* Render Login/Join button only if not loading and no authError */}
+                {!authIsLoading && !authError && (
+                    <form onSubmit={handleSubmit}>
+                        <button
+                            type="submit"
+                            // disabled logic from previous step is still relevant if this form is shown
+                            disabled={isAuthenticated && !!authError} //This condition is less likely to be met now due to parent check
+                            style={{
+                                padding: '10px 20px',
+                                border: `1px solid ${UI_BORDER_COLOR}`,
+                                backgroundColor: (isAuthenticated && !!authError) ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
+                                color: (isAuthenticated && !!authError) ? '#aaa' : 'white',
+                                fontFamily: UI_FONT_FAMILY,
+                                fontSize: '14px',
+                                cursor: (isAuthenticated && !!authError) ? 'not-allowed' : 'pointer',
+                                boxShadow: UI_SHADOW,
+                                width: '100%',
+                                marginBottom: '15px',
+                            }}
+                        >
+                            {isAuthenticated ? 'Join Game' : 'Sign In / Sign Up'}
+                        </button>
+                    </form>
+                )}
                 
-                {/* Error Messages */}
-                {(localError || authError) && (
-                    <p style={{ 
-                        color: 'red', 
+                {/* Local Error Messages (e.g., for username validation) - show if not authError */}
+                {localError && !authError && (
+                    <p style={{
+                        color: 'red',
                         marginTop: '15px',
                         fontSize: '12px',
                         padding: '8px',
                         backgroundColor: 'rgba(255,0,0,0.1)',
                         borderRadius: '4px',
                     }}>
-                        {localError || authError} 
+                        {localError}
                     </p>
                 )}
                 
-                {/* Logout Section (Only if authenticated) */}
-                {isAuthenticated && (
+                {/* Logout Section (Only if authenticated and no authError) */}
+                {isAuthenticated && !authError && (
                     <div style={{ marginTop: '20px' }}>
-                         {userProfile && (
+                        {userProfile && (
                             <span style={{ fontSize: '10px', color: '#ccc', display: 'block', marginBottom: '8px' }}>
                                 (ID: {userProfile.userId})
                             </span>
-                         )}
+                        )}
                         <button
-                            onClick={logout} 
-                            disabled={authIsLoading} 
-                            style={{ 
+                            onClick={logout}
+                            disabled={authIsLoading} // authIsLoading is false here, but good for consistency
+                            style={{
                                 padding: '5px 10px',
                                 fontSize: '10px',
                                 background: '#444',

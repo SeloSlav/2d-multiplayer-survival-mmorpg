@@ -82,6 +82,7 @@ use crate::items::inventory_item as InventoryItemTableTrait; // <<< ADDED
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // <<< ADDED
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait; // <<< ADDED
 use crate::items::item_definition as ItemDefinitionTableTrait; // <<< ADDED missing import
+use crate::armor; // <<< ADDED for warmth bonus
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
 
@@ -185,6 +186,22 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                 }
             }
         }
+
+        // <<< ADD WARMTH BONUS FROM ARMOR >>>
+        let armor_warmth_bonus_per_interval = armor::calculate_total_warmth_bonus(ctx, player_id);
+        // Assuming PLAYER_STAT_UPDATE_INTERVAL_SECS is the interval length in seconds for this stat processing.
+        // If the bonus is defined as points per second, it can be added directly.
+        // If it's meant as points per processing interval, then we divide by the interval.
+        // For simplicity, let's assume warmth_bonus in ItemDefinition is points per second.
+        if armor_warmth_bonus_per_interval > 0.0 {
+            total_warmth_change_per_sec += armor_warmth_bonus_per_interval; 
+            log::trace!(
+                "Player {:?} gaining {:.2} warmth/sec from armor bonus.", 
+                player_id, armor_warmth_bonus_per_interval
+            );
+        }
+        // <<< END WARMTH BONUS FROM ARMOR >>>
+
         let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);
 

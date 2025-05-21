@@ -99,8 +99,10 @@ pub struct ItemDefinition {
     pub consumable_thirst_quenched: Option<f32>,
     pub consumable_stamina_gain: Option<f32>,
     pub consumable_duration_secs: Option<f32>, // For effects over time, 0 or None for instant
-    pub cook_time_secs: Option<f32>, // ADDED
-    pub cooked_item_def_name: Option<String>, // ADDED
+    pub cook_time_secs: Option<f32>,           // Time to cook this item if it's cookable
+    pub cooked_item_def_name: Option<String>, // Name of the ItemDefinition this item cooks into
+    pub damage_resistance: Option<f32>, // <<< ADDED: e.g., 0.05 for 5% damage reduction
+    pub warmth_bonus: Option<f32>,      // <<< ADDED: e.g., 0.2 warmth points per effect interval
 }
 
 // --- Inventory Table ---
