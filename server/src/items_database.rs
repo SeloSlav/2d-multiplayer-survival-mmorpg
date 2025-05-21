@@ -416,8 +416,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             secondary_target_yield_max: Some(3),
             secondary_target_type: Some(TargetType::Stone),
             secondary_yield_resource_name: Some("Stone".to_string()),
-            pvp_damage_min: Some(20),
-            pvp_damage_max: Some(30),
+            pvp_damage_min: Some(25),
+            pvp_damage_max: Some(25),
             crafting_cost: Some(vec![
                 CostIngredient { item_name: "Bone Fragments".to_string(), quantity: 125 },
                 CostIngredient { item_name: "Plant Fiber".to_string(), quantity: 10 },
@@ -437,7 +437,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: None,
-            attack_interval_secs: Some(1.5),
+            attack_interval_secs: Some(0.8),
         },
         ItemDefinition {
             id: 0,
@@ -483,7 +483,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: None,
-            attack_interval_secs: Some(0.8),
+            attack_interval_secs: Some(0.5),
         },
 
         // --- TOOLS ---

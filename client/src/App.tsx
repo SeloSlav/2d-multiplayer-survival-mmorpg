@@ -357,10 +357,8 @@ function AppContent() {
             
             {/* If authenticated AND registered/game ready */}
             {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
-                (() => { // Use an IIFE to allow logging before returning GameScreen
-                    // console.log("[AppContent] About to render GameScreen. hemps variable:", hemps);
-                    // ADD THIS LOG
-                    // console.log("[App.tsx] Passing activeConsumableEffects to GameScreen:", activeConsumableEffects);
+                (() => { 
+                    const localPlayerIdentityHex = dbIdentity ? dbIdentity.toHexString() : undefined;
                     return (
                         <GameScreen 
                             players={players}
@@ -384,8 +382,8 @@ function AppContent() {
                             activeConnections={activeConnections}
                             recipes={recipes}
                             craftingQueueItems={craftingQueueItems}
-                            localPlayerId={dbIdentity?.toHexString() ?? undefined} // Use derived SpacetimeDB ID
-                            playerIdentity={dbIdentity} // Pass derived SpacetimeDB Identity
+                            localPlayerId={localPlayerIdentityHex} // Pass the hex string here
+                            playerIdentity={dbIdentity} 
                             connection={connection}
                             placementInfo={placementInfo}
                             placementActions={placementActions}

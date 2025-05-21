@@ -278,12 +278,16 @@ import { PlayerCorpseTableHandle } from "./player_corpse_table.ts";
 export { PlayerCorpseTableHandle };
 import { PlayerCorpseDespawnScheduleTableHandle } from "./player_corpse_despawn_schedule_table.ts";
 export { PlayerCorpseDespawnScheduleTableHandle };
+import { PlayerKillCommandCooldownTableHandle } from "./player_kill_command_cooldown_table.ts";
+export { PlayerKillCommandCooldownTableHandle };
 import { PlayerLastAttackTimestampTableHandle } from "./player_last_attack_timestamp_table.ts";
 export { PlayerLastAttackTimestampTableHandle };
 import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
+import { PrivateMessageTableHandle } from "./private_message_table.ts";
+export { PrivateMessageTableHandle };
 import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
 export { ProcessEffectsScheduleTableHandle };
 import { PumpkinTableHandle } from "./pumpkin_table.ts";
@@ -376,12 +380,16 @@ import { PlayerCorpse } from "./player_corpse_type.ts";
 export { PlayerCorpse };
 import { PlayerCorpseDespawnSchedule } from "./player_corpse_despawn_schedule_type.ts";
 export { PlayerCorpseDespawnSchedule };
+import { PlayerKillCommandCooldown } from "./player_kill_command_cooldown_type.ts";
+export { PlayerKillCommandCooldown };
 import { PlayerLastAttackTimestamp } from "./player_last_attack_timestamp_type.ts";
 export { PlayerLastAttackTimestamp };
 import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
 export { PlayerStatSchedule };
+import { PrivateMessage } from "./private_message_type.ts";
+export { PrivateMessage };
 import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
 export { ProcessEffectsSchedule };
 import { Pumpkin } from "./pumpkin_type.ts";
@@ -523,6 +531,11 @@ const REMOTE_MODULE = {
       rowType: PlayerCorpseDespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "corpseId",
     },
+    player_kill_command_cooldown: {
+      tableName: "player_kill_command_cooldown",
+      rowType: PlayerKillCommandCooldown.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
+    },
     player_last_attack_timestamp: {
       tableName: "player_last_attack_timestamp",
       rowType: PlayerLastAttackTimestamp.getTypeScriptAlgebraicType(),
@@ -536,6 +549,11 @@ const REMOTE_MODULE = {
     player_stat_schedule: {
       tableName: "player_stat_schedule",
       rowType: PlayerStatSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    private_message: {
+      tableName: "private_message",
+      rowType: PrivateMessage.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     process_effects_schedule: {
@@ -3248,6 +3266,10 @@ export class RemoteTables {
     return new PlayerCorpseDespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerCorpseDespawnSchedule>(REMOTE_MODULE.tables.player_corpse_despawn_schedule));
   }
 
+  get playerKillCommandCooldown(): PlayerKillCommandCooldownTableHandle {
+    return new PlayerKillCommandCooldownTableHandle(this.connection.clientCache.getOrCreateTable<PlayerKillCommandCooldown>(REMOTE_MODULE.tables.player_kill_command_cooldown));
+  }
+
   get playerLastAttackTimestamp(): PlayerLastAttackTimestampTableHandle {
     return new PlayerLastAttackTimestampTableHandle(this.connection.clientCache.getOrCreateTable<PlayerLastAttackTimestamp>(REMOTE_MODULE.tables.player_last_attack_timestamp));
   }
@@ -3258,6 +3280,10 @@ export class RemoteTables {
 
   get playerStatSchedule(): PlayerStatScheduleTableHandle {
     return new PlayerStatScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStatSchedule>(REMOTE_MODULE.tables.player_stat_schedule));
+  }
+
+  get privateMessage(): PrivateMessageTableHandle {
+    return new PrivateMessageTableHandle(this.connection.clientCache.getOrCreateTable<PrivateMessage>(REMOTE_MODULE.tables.private_message));
   }
 
   get processEffectsSchedule(): ProcessEffectsScheduleTableHandle {

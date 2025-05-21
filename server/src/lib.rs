@@ -50,6 +50,31 @@ pub mod active_effects; // Added for timed consumable effects
 mod cloud; // Add the new cloud module
 mod armor; // <<< ADDED armor module
 
+// Define a constant for the /kill command cooldown (e.g., 5 minutes)
+pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
+
+// Table to store the last time a player used the /kill command
+#[spacetimedb::table(name = player_kill_command_cooldown)]
+#[derive(Clone, Debug)]
+pub struct PlayerKillCommandCooldown {
+    #[primary_key]
+    player_id: Identity,
+    last_kill_command_at: Timestamp,
+}
+
+// Table for private system messages to individual players
+#[spacetimedb::table(name = private_message, public)] // Public so client can subscribe with filter
+#[derive(Clone, Debug)]
+pub struct PrivateMessage {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub recipient_identity: Identity, // The player who should see this message
+    pub sender_display_name: String,  // e.g., "SYSTEM"
+    pub text: String,
+    pub sent: Timestamp,
+}
+
 // Re-export chat types and reducers for use in other modules
 pub use chat::Message;
 

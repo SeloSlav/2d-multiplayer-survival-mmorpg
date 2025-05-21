@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
@@ -79,6 +79,9 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     const FADE_OUT_ANIMATION_DURATION = 500; // ms for fade-out animation
     const MAX_NOTIFICATIONS_DISPLAYED = 5;
     // --- END NEW STATE ---
+
+    // Reference to store the previous state of inventory items for comparison
+    const prevInventoryRef = useRef<Map<string, InventoryItem>>(new Map());
 
     // Determine if there's an active health regen effect for the local player
     const isHealthHealingOverTime = React.useMemo(() => {
@@ -244,88 +247,62 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     }, [itemDefinitions, connection, identity]);
     // --- END NEW HELPER ---
 
-    // --- NEW: EFFECT FOR INVENTORY ITEM CHANGES (ACQUISITION NOTIFICATIONS) ---
+    // --- REVISED: EFFECT FOR INVENTORY ITEM CHANGES (ACQUISITION NOTIFICATIONS) ---
     useEffect(() => {
-        if (!connection || !identity || !itemDefinitions) return;
+        if (!connection || !identity || !itemDefinitions || !inventoryItems) return;
 
-        const localPlayerIdentityHex = identity.toHexString();
+        const localPlayerIdHex = identity.toHexString();
+        const currentInventorySnapshot = new Map(inventoryItems);
 
-        const handleItemInsert = (ctx: any, newItem: InventoryItem) => {
-            let isPlayerItem = false;
-            if (newItem.location.tag === 'Inventory' && newItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isPlayerItem = true;
-            } else if (newItem.location.tag === 'Hotbar' && newItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isPlayerItem = true;
+        const currentTotals = new Map<string, number>(); // itemDefId_str -> quantity
+        const previousTotals = new Map<string, number>(); // itemDefId_str -> quantity
+
+        // Calculate current totals for player from the live inventoryItems prop
+        currentInventorySnapshot.forEach(item => {
+            if ((item.location.tag === 'Inventory' || item.location.tag === 'Hotbar') && item.location.value.ownerId.toHexString() === localPlayerIdHex) {
+                const defId = item.itemDefId.toString();
+                currentTotals.set(defId, (currentTotals.get(defId) || 0) + item.quantity);
             }
-            
-            if (isPlayerItem) {
-                // For inserts, we assume it's a new item to the player's direct possession.
-                // This covers harvesting, crafting outputs directly to inventory, picking up world drops.
-                // It might also catch items moved from a container if the container management deletes
-                // the old item and inserts a new one (less common, usually it's an update).
-                addAcquisitionNotification(newItem.itemDefId, newItem.quantity);
-            }
-        };
+        });
 
-        const handleItemUpdate = (ctx: any, oldItem: InventoryItem, newItem: InventoryItem) => {
-            let isNewItemPlayerOwned = false;
-            let isOldItemPlayerOwned = false;
-            let newItemPlayerLocationType: 'Inventory' | 'Hotbar' | null = null;
-
-            if (newItem.location.tag === 'Inventory' && newItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isNewItemPlayerOwned = true;
-                newItemPlayerLocationType = 'Inventory';
-            } else if (newItem.location.tag === 'Hotbar' && newItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isNewItemPlayerOwned = true;
-                newItemPlayerLocationType = 'Hotbar';
+        // Calculate previous totals for player from the stored ref
+        prevInventoryRef.current.forEach(item => {
+            if ((item.location.tag === 'Inventory' || item.location.tag === 'Hotbar') && item.location.value.ownerId.toHexString() === localPlayerIdHex) {
+                const defId = item.itemDefId.toString();
+                previousTotals.set(defId, (previousTotals.get(defId) || 0) + item.quantity);
             }
+        });
 
-            if (oldItem.location.tag === 'Inventory' && oldItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isOldItemPlayerOwned = true;
-            } else if (oldItem.location.tag === 'Hotbar' && oldItem.location.value.ownerId.toHexString() === localPlayerIdentityHex) {
-                isOldItemPlayerOwned = true;
-            }
-            
-            // Scenario 1: Item quantity increased in player's inventory/hotbar (stacking)
-            if (isNewItemPlayerOwned && isOldItemPlayerOwned && 
-                newItem.itemDefId === oldItem.itemDefId && 
-                newItem.location.tag === oldItem.location.tag && // Ensure it's the same slot type
-                newItem.quantity > oldItem.quantity) {
-                const quantityChange = newItem.quantity - oldItem.quantity;
-                addAcquisitionNotification(newItem.itemDefId, quantityChange);
-            } 
-            // Scenario 2: Item moved into player's inventory/hotbar
-            else if (isNewItemPlayerOwned && newItemPlayerLocationType) {
-                // Check the OLD location. If it was a container, DO NOT notify.
-                const oldLocationTag = oldItem.location.tag;
-                if (oldLocationTag === 'Container') {
-                    // Further check the containerType if it's a generic container
-                    const containerData = oldItem.location.value as any; // Cast to any to access containerType, or use specific generated type if known
-                    if (containerData.containerType?.tag === 'Campfire' || 
-                        containerData.containerType?.tag === 'WoodenStorageBox' || 
-                        containerData.containerType?.tag === 'PlayerCorpse') {
-                        // Item came from one of these specific container types, so don't notify.
-                        // console.log('Item moved from specific container, no notification', oldItem, newItem);
-                        return;
-                    }
-                }
-                // If it wasn't in player possession before OR it came from a non-container location (e.g. Dropped, Unknown, or different player)
-                // then it's a new acquisition for the player's direct inventory.
-                if (!isOldItemPlayerOwned || (oldLocationTag !== 'Inventory' && oldLocationTag !== 'Hotbar' && oldLocationTag !== 'Container')) {
-                    addAcquisitionNotification(newItem.itemDefId, newItem.quantity);
+        // Find net gains and trigger notifications
+        currentTotals.forEach((currentQty, defIdStr) => {
+            const prevQty = previousTotals.get(defIdStr) || 0;
+            const netChange = currentQty - prevQty;
+
+            if (netChange > 0) {
+                // Ensure itemDefId is valid before trying to parse and use it
+                const itemDef = itemDefinitions.get(defIdStr);
+                if (itemDef) {
+                    addAcquisitionNotification(itemDef.id, netChange);
+                } else {
+                    console.warn(`[PlayerUI] Notification: Item definition not found for ID ${defIdStr} during net change calculation.`);
                 }
             }
-        };
-        
-        connection.db.inventoryItem.onInsert(handleItemInsert);
-        connection.db.inventoryItem.onUpdate(handleItemUpdate);
+        });
 
-        return () => {
-            connection.db.inventoryItem.removeOnInsert(handleItemInsert);
-            connection.db.inventoryItem.removeOnUpdate(handleItemUpdate);
-        };
-    }, [connection, identity, itemDefinitions, addAcquisitionNotification]);
-    // --- END NEW EFFECT ---
+        // Update the ref to the current snapshot for the next render/change detection
+        prevInventoryRef.current = currentInventorySnapshot;
+
+        // Note: The onInsert and onUpdate handlers for inventoryItem are no longer responsible
+        // for triggering acquisition notifications directly. If they are still needed for other
+        // side effects, they can be kept, otherwise they could be removed or simplified.
+        // For this specific bug fix, we are moving the notification logic out of them.
+
+        // Example: If you had specific logic in onInsert/onUpdate beyond notifications,
+        // that would remain or be handled separately.
+        // For now, we assume their primary role for *acquisition notifications* is superseded.
+
+    }, [inventoryItems, identity, itemDefinitions, connection, addAcquisitionNotification]); // Added connection to deps
+    // --- END REVISED EFFECT ---
 
     // Effect for inventory toggle keybind
     useEffect(() => {

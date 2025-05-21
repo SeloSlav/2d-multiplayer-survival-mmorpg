@@ -655,34 +655,37 @@ fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> R
     Ok(inserted_corpse.id)
 }
 
-pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> Result<u32, String> {
-    let player_id = dead_player.identity;
-    log::info!("[PlayerDeath] Creating corpse for player {} at ({}, {})", dead_player.username, dead_player.position_x, dead_player.position_y);
+/// --- Main public function to create a corpse and transfer items ---
+/// This is intended to be called when a player dies.
+pub fn create_player_corpse(ctx: &ReducerContext, dead_player_id: Identity, death_x: f32, death_y: f32, dead_player_username: &str) -> Result<(), String> {
+    log::info!(
+        "Creating corpse for player {} ({:?}) at ({:.1}, {:.1}).",
+        dead_player_username, dead_player_id, death_x, death_y
+    );
 
-    let inventory_table = ctx.db.inventory_item();
-    let player_corpse_table = ctx.db.player_corpse();
+    let player_table = ctx.db.player();
     let corpse_schedules = ctx.db.player_corpse_despawn_schedule();
     let item_defs_table = ctx.db.item_definition(); // <<< ADDED: Need item definitions
 
     // Clear player's active equipped item (tool/weapon in hand) first
-    match crate::active_equipment::clear_active_item_reducer(ctx, dead_player.identity) {
-        Ok(_) => log::info!("[PlayerDeath] Active item cleared for player {}", dead_player.identity),
-        Err(e) => log::error!("[PlayerDeath] Failed to clear active item for player {}: {}", dead_player.identity, e),
+    match crate::active_equipment::clear_active_item_reducer(ctx, dead_player_id) {
+        Ok(_) => log::info!("[PlayerDeath] Active item cleared for player {}", dead_player_id),
+        Err(e) => log::error!("[PlayerDeath] Failed to clear active item for player {}: {}", dead_player_id, e),
     }
 
     // The transfer_inventory_to_corpse function should handle un-equipping armor and moving it.
     // So, explicit calls to clear_all_equipped_armor_from_player are likely redundant here.
 
-    let new_corpse_id = match transfer_inventory_to_corpse(ctx, dead_player) {
+    let new_corpse_id = match transfer_inventory_to_corpse(ctx, &player_table.identity().find(dead_player_id).ok_or_else(|| format!("Player {} not found", dead_player_id))?) {
         Ok(id) => id,
         Err(e) => return Err(e),
     };
 
     // --- 4. Schedule Despawn (Dynamically based on corpse contents) --- 
-    let corpse_for_despawn_check = match player_corpse_table.id().find(new_corpse_id) {
+    let corpse_for_despawn_check = match ctx.db.player_corpse().id().find(new_corpse_id) {
         Some(c) => c,
         None => {
-            log::error!("[CorpseCreate:{:?}] Critical error: Corpse {} not found immediately after creation for despawn scheduling.", player_id, new_corpse_id);
+            log::error!("[CorpseCreate:{:?}] Critical error: Corpse {} not found immediately after creation for despawn scheduling.", dead_player_id, new_corpse_id);
             return Err(format!("Corpse {} not found after creation", new_corpse_id));
         }
     };
@@ -705,23 +708,23 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
     }
 
     let despawn_duration_seconds = if corpse_has_items_with_respawn_time {
-        log::info!("[CorpseCreate:{:?}] Corpse {} has items with respawn times. Max respawn time: {}s.", player_id, new_corpse_id, max_respawn_time_seconds);
+        log::info!("[CorpseCreate:{:?}] Corpse {} has items with respawn times. Max respawn time: {}s.", dead_player_id, new_corpse_id, max_respawn_time_seconds);
         max_respawn_time_seconds 
     } else {
-        log::info!("[CorpseCreate:{:?}] Corpse {} is empty or items have no respawn time. Using default: {}s.", player_id, new_corpse_id, DEFAULT_CORPSE_DESPAWN_SECONDS);
+        log::info!("[CorpseCreate:{:?}] Corpse {} is empty or items have no respawn time. Using default: {}s.", dead_player_id, new_corpse_id, DEFAULT_CORPSE_DESPAWN_SECONDS);
         DEFAULT_CORPSE_DESPAWN_SECONDS
     };
 
     let despawn_time = ctx.timestamp + Duration::from_secs(despawn_duration_seconds);
-    log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {} at {:?}. Duration: {}s", player_id, new_corpse_id, despawn_time, despawn_duration_seconds);
+    log::debug!("[CorpseCreate:{:?}] Scheduling despawn for corpse {} at {:?}. Duration: {}s", dead_player_id, new_corpse_id, despawn_time, despawn_duration_seconds);
     
     // Update the corpse entity with the correct despawn_scheduled_at time
-    if let Some(mut corpse_to_update) = player_corpse_table.id().find(new_corpse_id) {
+    if let Some(mut corpse_to_update) = ctx.db.player_corpse().id().find(new_corpse_id) {
         corpse_to_update.despawn_scheduled_at = despawn_time;
-        player_corpse_table.id().update(corpse_to_update);
+        ctx.db.player_corpse().id().update(corpse_to_update);
     } else {
         // This case should have been caught by corpse_for_despawn_check already
-        log::error!("[CorpseCreate:{:?}] Failed to find corpse {} to update its despawn_scheduled_at time.", player_id, new_corpse_id);
+        log::error!("[CorpseCreate:{:?}] Failed to find corpse {} to update its despawn_scheduled_at time.", dead_player_id, new_corpse_id);
     }
 
     // Insert panics on failure, so if it doesn't panic, it succeeded.
@@ -733,5 +736,5 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
         scheduled_at: despawn_time.into(),
     });
 
-    Ok(new_corpse_id)
+    Ok(())
 } 

@@ -263,9 +263,9 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             player.death_timestamp = Some(ctx.timestamp); // Set death timestamp
 
             // --- <<< CHANGED: Call refactored corpse creation function >>> ---
-            match player_corpse::create_corpse_for_player(ctx, &player) {
-                Ok(corpse_id) => {
-                    log::info!("Successfully created corpse {} via stats decay for player {:?}", corpse_id, player_id);
+            match player_corpse::create_player_corpse(ctx, player_id, player.position_x, player.position_y, &player.username) {
+                Ok(_) => {
+                    log::info!("Successfully created corpse via stats decay for player {:?}", player_id);
                     // If player was holding an item, it should be unequipped (returned to inventory or dropped)
                     if let Some(player_state) = ctx.db.player().identity().find(&player_id) {
                         if player_state.health == 0.0 {

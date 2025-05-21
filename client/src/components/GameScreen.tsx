@@ -260,6 +260,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 players={players}
                 isChatting={isChatting}
                 setIsChatting={setIsChatting}
+                localPlayerIdentity={localPlayerId}
             />
         </div>
     );

@@ -39,7 +39,7 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::dropped_item;
-use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE_SLOTS, create_corpse_for_player};
+use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE_SLOTS, create_player_corpse};
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait;
 use crate::inventory_management::ItemContainer;
@@ -794,9 +794,9 @@ pub fn damage_player(
             Err(e) => log::error!("[PlayerDeath] Failed to clear active item for dying player {}: {}", target_player.identity, e),
         }
 
-        match create_corpse_for_player(ctx, &target_player) {
-            Ok(corpse_id) => {
-                log::info!("Successfully created corpse {} via combat death for player {:?}", corpse_id, target_id);
+        match create_player_corpse(ctx, target_player.identity, target_player.position_x, target_player.position_y, &target_player.username) {
+            Ok(_) => {
+                log::info!("Successfully created corpse via combat death for player {:?}", target_id);
                 if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&target_id) {
                     if active_equip.equipped_item_instance_id.is_some() {
                         match crate::active_equipment::clear_active_item_reducer(ctx, target_id) {
