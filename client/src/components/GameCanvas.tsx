@@ -529,25 +529,44 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- End Ground Items --- 
 
     // --- Render Y-Sorted Entities --- (Keep this logic)
-    renderYSortedEntities({
-        ctx,
-        ySortedEntities,
-        heroImageRef,
-        lastPositionsRef,
-        activeConnections,
-        activeEquipments,
-        activeConsumableEffects,
-        itemDefinitions,
-        itemImagesRef,
-        worldMouseX: currentWorldMouseX,
-        worldMouseY: currentWorldMouseY,
-        localPlayerId: localPlayerId,
-        animationFrame,
-        nowMs: now_ms,
-        hoveredPlayerIds,
-        onPlayerHover: handlePlayerHover,
-        cycleProgress: currentCycleProgress,
-        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
+    ySortedEntities.forEach(({ type, entity }) => {
+        if (type === 'player') {
+            const player = entity as SpacetimeDBPlayer;
+            const playerId = player.identity.toHexString();
+
+            // ##### ADD LOGGING HERE #####
+            if (localPlayerId && playerId === localPlayerId) {
+              console.log(`[GameCanvas] Rendering local player ${player.username} (ID: ${playerId}). ` +
+                          `isDead: ${player.isDead}, ` +
+                          `lastHitTime: ${player.lastHitTime ? player.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+            }
+            // ##########################
+
+           const lastPos = lastPositionsRef.current.get(playerId);
+           const lastPosX = lastPos?.x || 0;
+           const lastPosY = lastPos?.y || 0;
+
+           renderYSortedEntities({
+               ctx,
+               ySortedEntities,
+               heroImageRef,
+               lastPositionsRef,
+               activeConnections,
+               activeEquipments,
+               activeConsumableEffects,
+               itemDefinitions,
+               itemImagesRef,
+               worldMouseX: currentWorldMouseX,
+               worldMouseY: currentWorldMouseY,
+               localPlayerId: localPlayerId,
+               animationFrame,
+               nowMs: now_ms,
+               hoveredPlayerIds,
+               onPlayerHover: handlePlayerHover,
+               cycleProgress: currentCycleProgress,
+               renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
+           });
+        }
     });
     // --- End Y-Sorted Entities ---
 

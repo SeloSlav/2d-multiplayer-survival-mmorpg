@@ -232,7 +232,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       // unless the placement system specifically relies on it being active.
       // For now, let's assume placement implies it's the "active" intent.
       // If you still want to explicitly clear:
-      // try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer:", err); }
+      try { if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); } catch (err) { console.error("Error clearActiveItemReducer when selecting placeable:", err); }
     } else if (itemInSlot.definition.isEquippable) {
       cancelPlacement();
       try { connection.reducers.setActiveItemReducer(instanceId); } catch (err) { console.error("Error setActiveItemReducer:", err); }

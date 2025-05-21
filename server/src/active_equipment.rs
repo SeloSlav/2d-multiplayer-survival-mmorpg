@@ -47,6 +47,8 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 // No explicit `PlayerTableTrait` import is typically needed for `ctx.db.player()` if `Player` table is defined.
 use crate::active_equipment as ActiveEquipmentTableTrait;
 use crate::player; // Added to bring Player table accessors into scope
+use crate::PlayerLastAttackTimestamp; // Import the new table
+use crate::player_last_attack_timestamp as PlayerLastAttackTimestampTableTrait; // Import the trait for the new table
 
 // Models imports
 use crate::models::{ItemLocation, EquipmentSlotType};
@@ -255,6 +257,7 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let active_equipments = ctx.db.active_equipment();
     let players_table = ctx.db.player(); // Renamed for clarity
     let item_defs = ctx.db.item_definition();
+    let player_last_attack_timestamps = ctx.db.player_last_attack_timestamp(); // Get handle to new table
 
     // Get RNG from context
     let mut rng = rand::rngs::StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to create RNG: {}",e))?;
@@ -270,6 +273,26 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
         .ok_or_else(|| "No item definition ID in active equipment to use.".to_string())?;
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
+
+    // --- BEGIN ATTACK SPEED CHECK ---
+    if let Some(attack_interval_seconds) = item_def.attack_interval_secs {
+        if attack_interval_seconds > 0.0 { // Only check if interval is positive
+            let attack_interval_micros_u64 = (attack_interval_seconds * 1_000_000.0) as u64;
+            if let Some(last_attack_record) = player_last_attack_timestamps.player_id().find(&sender_id) {
+                let time_since_last_attack_micros_u64 = now_micros.saturating_sub(last_attack_record.last_attack_timestamp.to_micros_since_unix_epoch());
+                // Attempting to satisfy the compiler's expectation of i64 for comparison
+                if (time_since_last_attack_micros_u64 as i64) < attack_interval_micros_u64.try_into().unwrap() {
+                    log::debug!(
+                        "Player {:?} attack with {} (Def ID: {}) too soon. Last attack: {} us ago, interval: {} us.",
+                        sender_id, item_def.name, item_def_id, time_since_last_attack_micros_u64, attack_interval_micros_u64
+                    );
+                    return Err("Attacking too quickly.".to_string());
+                }
+            }
+            // If no record exists, or if enough time has passed, allow attack and update/insert timestamp later.
+        }
+    }
+    // --- END ATTACK SPEED CHECK ---
 
     // --- BEGIN BANDAGE HANDLING ---
     if item_def.name == "Bandage" {
@@ -329,6 +352,21 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let mut current_equipment_mut = current_equipment.clone(); // Clone to modify for swing time
     current_equipment_mut.swing_start_time_ms = now_ms;
     active_equipments.player_identity().update(current_equipment_mut); // Update with new swing time
+
+    // --- UPDATE LAST ATTACK TIMESTAMP ---
+    if item_def.attack_interval_secs.is_some() && item_def.attack_interval_secs.unwrap_or(0.0) > 0.0 {
+        let new_last_attack_record = PlayerLastAttackTimestamp {
+            player_id: sender_id,
+            last_attack_timestamp: now_ts,
+        };
+        if player_last_attack_timestamps.player_id().find(&sender_id).is_some() {
+            player_last_attack_timestamps.player_id().update(new_last_attack_record);
+        } else {
+            player_last_attack_timestamps.insert(new_last_attack_record);
+        }
+        log::debug!("Player {:?} updated last attack timestamp for item {}", sender_id, item_def.name);
+    }
+    // --- END UPDATE LAST ATTACK TIMESTAMP ---
 
     log::debug!("[UseEquippedItem] Player {:?} started using non-bandage item '{}' (ID: {}). Swing time set.",
              sender_id, item_def.name, item_def_id);

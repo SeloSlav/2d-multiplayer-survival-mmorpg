@@ -45,6 +45,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -87,6 +88,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -129,6 +131,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -173,6 +176,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -215,6 +219,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
 
         // --- TOOLS ---
@@ -262,6 +267,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(600),
+            attack_interval_secs: Some(0.8),
         },
         ItemDefinition {
             id: 0,
@@ -306,6 +312,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: Some(1.0),
         },
         ItemDefinition {
             id: 0,
@@ -351,6 +358,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(600),
+            attack_interval_secs: Some(1.2),
         },
         ItemDefinition {
             id: 0,
@@ -395,6 +403,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: Some(0.7),
         },
         ItemDefinition {
             id: 0,
@@ -439,6 +448,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: Some(1.5),
         },
         ItemDefinition {
             id: 0,
@@ -484,6 +494,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
+            attack_interval_secs: Some(0.5),
         },
         ItemDefinition {
             id: 0,
@@ -529,6 +540,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(420),
+            attack_interval_secs: Some(1.3),
         },
 
         // --- PLACEABLES ---
@@ -576,6 +588,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -583,8 +596,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             description: "A small, concealable stash for hiding items. Fewer slots than a box, but can be hidden.".to_string(),
             category: ItemCategory::Placeable,
             icon_asset_name: "stash.png".to_string(),
-            is_stackable: true,
-            stack_size: 5,
+            is_stackable: false,
+            stack_size: 1,
             is_equippable: false,
             equipment_slot_type: None,
             fuel_burn_duration_secs: None,
@@ -620,6 +633,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -664,6 +678,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -708,6 +723,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
 
         // --- ARMOR (CLOTH SET) ---
@@ -754,6 +770,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -798,6 +815,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -842,6 +860,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -886,6 +905,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -930,6 +950,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -975,6 +996,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.1),
             respawn_time_seconds: Some(420),
+            attack_interval_secs: None,
         },
         
         // --- CONSUMABLES (Rebalanced and New) ---
@@ -1019,6 +1041,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(180),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1061,6 +1084,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(240),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1103,6 +1127,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(60),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1145,6 +1170,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(180),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1187,6 +1213,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(240),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1229,6 +1256,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(60),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1271,6 +1299,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1313,6 +1342,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(360),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1355,6 +1385,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(60),
+            attack_interval_secs: None,
         },
         ItemDefinition {
             id: 0,
@@ -1384,7 +1415,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: Some(vec![CostIngredient { item_name: "Cloth".to_string(), quantity: 2 }]),
             crafting_output_quantity: Some(1),
             crafting_time_secs: Some(3), 
-            consumable_health_gain: Some(15.0), 
+            consumable_health_gain: Some(25.0), 
             consumable_hunger_satiated: None,
             consumable_thirst_quenched: None,
             consumable_stamina_gain: None,
@@ -1397,6 +1428,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
+            attack_interval_secs: None,
         },
     ];
 

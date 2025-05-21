@@ -1,4 +1,4 @@
-import { Player as SpacetimeDBPlayer, ActiveConsumableEffect, EffectType } from '../../generated';
+import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 import { drawShadow } from './shadowUtils';
 
@@ -6,31 +6,25 @@ import { drawShadow } from './shadowUtils';
 export const IDLE_FRAME_INDEX = 1; // Second frame is idle
 const PLAYER_SHAKE_DURATION_MS = 200; // How long the shake lasts
 const PLAYER_SHAKE_AMOUNT_PX = 3;   // Max pixels to offset
+const PLAYER_HIT_FLASH_DURATION_MS = 100; // Duration of the white flash on hit
+
 // Defined here as it depends on spriteWidth from config
 const playerRadius = gameConfig.spriteWidth / 2;
 
 // --- NEW: Knockback Interpolation Constants and State ---
 const KNOCKBACK_INTERPOLATION_DURATION_MS = 150; // Duration of the smooth knockback visual
-const PLAYER_HIT_FLASH_DURATION_MS = 100; // Duration of the white flash on hit
 
 interface PlayerVisualKnockbackState {
-  // Current visual position (result of last frame's interpolation)
   displayX: number;
   displayY: number;
-
-  // Last known server position (used to detect changes)
   serverX: number;
   serverY: number;
-
-  // Last known server hit time (to detect new hits)
-  lastHitTimeMicros: bigint;
-
-  // Interpolation state
+  lastHitTimeMicros: bigint; // Still used to detect *new* hit events for starting interpolation
   interpolationSourceX: number;
   interpolationSourceY: number;
   interpolationTargetX: number;
   interpolationTargetY: number;
-  interpolationStartTime: number; // ms, 0 if not interpolating
+  interpolationStartTime: number; 
 }
 
 const playerVisualKnockbackState = new Map<string, PlayerVisualKnockbackState>();
@@ -67,7 +61,6 @@ export const getSpriteCoordinates = (
   }
   let frameIndex = isMoving ? currentAnimationFrame : IDLE_FRAME_INDEX;
   if (isUsingItem) {
-    // Simple 2-frame rocking animation using frame 0 and 1 of the current direction row
     frameIndex = currentAnimationFrame % 2; 
   }
   const sx = frameIndex * gameConfig.spriteWidth;
@@ -81,7 +74,6 @@ export const isPlayerHovered = (
   worldMouseY: number | null,
   player: SpacetimeDBPlayer
 ): boolean => {
-  // Skip hover detection if mouse coordinates are null
   if (worldMouseX === null || worldMouseY === null) return false;
   
   const hoverDX = worldMouseX - player.positionX;
@@ -153,81 +145,82 @@ export const renderPlayer = (
 
   // --- Hide player if dead (unless it's a corpse being rendered) ---
   if (!isCorpse && player.isDead) {
-    // console.log(`Skipping render for dead player: ${player.username}`);
-    // Clean up visual state if player is dead
     if (player.identity) {
-        playerVisualKnockbackState.delete(player.identity.toHexString());
+        const playerHexIdForDelete = player.identity.toHexString();
+        if (playerVisualKnockbackState.has(playerHexIdForDelete)) {
+            // Removed log
+            playerVisualKnockbackState.delete(playerHexIdForDelete);
+        }
     }
-    return; // Don't render anything if dead
+    return; 
   }
 
-  // --- Knockback Interpolation Logic (Skip for corpses) ---
   let currentDisplayX: number = player.positionX;
   let currentDisplayY: number = player.positionY;
-  let visualState = playerVisualKnockbackState.get(player.identity.toHexString());
+  const playerHexId = player.identity.toHexString();
+  let visualState = playerVisualKnockbackState.get(playerHexId);
+
+  const serverX = player.positionX;
+  const serverY = player.positionY;
+  const serverLastHitTimePropMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
+  const serverLastHitTimeMs = serverLastHitTimePropMicros > 0n ? Number(serverLastHitTimePropMicros / 1000n) : 0;
+  const elapsedSinceServerHitMs = serverLastHitTimeMs > 0 ? (nowMs - serverLastHitTimeMs) : Infinity;
 
   if (!isCorpse) {
-    const serverX = player.positionX;
-    const serverY = player.positionY;
-    const serverLastHitMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
-
-    // @ts-ignore - Conditional logging for debugging
-    if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
-      console.log(`[PlayerRenderDebug] Player: ${player.username}, serverLastHitMicros: ${serverLastHitMicros}, visualState before:`, visualState ? { ...visualState } : null);
-    }
-
     if (!visualState) {
       visualState = {
         displayX: serverX, displayY: serverY,
         serverX, serverY,
-        lastHitTimeMicros: serverLastHitMicros,
+        lastHitTimeMicros: serverLastHitTimePropMicros, // Initialize with current server hit time
         interpolationSourceX: serverX, interpolationSourceY: serverY,
-        interpolationTargetX: serverX, interpolationTargetY: serverY,
+        interpolationTargetX: serverX, interpolationTargetY: serverY, 
         interpolationStartTime: 0,
       };
-      playerVisualKnockbackState.set(player.identity.toHexString(), visualState);
-      currentDisplayX = serverX;
-      currentDisplayY = serverY;
-      // @ts-ignore
-      if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
-        console.log(`[PlayerRenderDebug] Initialized visualState. Current display: (${currentDisplayX}, ${currentDisplayY})`);
-      }
+      playerVisualKnockbackState.set(playerHexId, visualState);
     } else {
-      if (serverLastHitMicros > visualState.lastHitTimeMicros) {
-        // @ts-ignore
-        if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit) {
-          console.log(`[PlayerRenderDebug] New hit DETECTED for ${player.username}! serverLastHitMicros (${serverLastHitMicros}) > visualState.lastHitTimeMicros (${visualState.lastHitTimeMicros}). Setting interpolationStartTime to ${nowMs}.`);
-        }
+      // Update visualState.lastHitTimeMicros only if a NEWER hit comes from the server
+      // This is important for triggering interpolation on a new hit.
+      if (serverLastHitTimePropMicros > visualState.lastHitTimeMicros) {
         visualState.interpolationSourceX = visualState.displayX;
         visualState.interpolationSourceY = visualState.displayY;
         visualState.interpolationTargetX = serverX;
         visualState.interpolationTargetY = serverY;
         visualState.interpolationStartTime = nowMs;
-        visualState.lastHitTimeMicros = serverLastHitMicros;
+        visualState.lastHitTimeMicros = serverLastHitTimePropMicros; // Update to the newest hit time
       }
-
-      if (visualState.interpolationStartTime > 0 && nowMs < visualState.interpolationStartTime + KNOCKBACK_INTERPOLATION_DURATION_MS) {
+      // If player respawned (isDead became false, and server lastHitTime is null/0),
+      // ensure visualState.lastHitTimeMicros is also 0 to allow the next actual hit to trigger interpolation.
+      else if (!player.isDead && serverLastHitTimePropMicros === 0n && visualState.lastHitTimeMicros !== 0n) {
+        visualState.lastHitTimeMicros = 0n;
+        // No interpolation start here, just reset for next hit detection
+      }
+    }
+    
+    // Positional Interpolation logic based on visualState.interpolationStartTime
+    if (visualState.interpolationStartTime > 0 && nowMs < visualState.interpolationStartTime + KNOCKBACK_INTERPOLATION_DURATION_MS) {
         const elapsed = nowMs - visualState.interpolationStartTime;
         const t = Math.min(1, elapsed / KNOCKBACK_INTERPOLATION_DURATION_MS);
         currentDisplayX = lerp(visualState.interpolationSourceX, visualState.interpolationTargetX, t);
         currentDisplayY = lerp(visualState.interpolationSourceY, visualState.interpolationTargetY, t);
-      } else {
+    } else {
         currentDisplayX = serverX;
         currentDisplayY = serverY;
-        if (visualState.interpolationStartTime > 0) {
-          visualState.interpolationStartTime = 0;
+        if (visualState.interpolationStartTime > 0) { 
+            // Removed log
+            visualState.interpolationStartTime = 0;
         }
-      }
     }
-    visualState.displayX = currentDisplayX;
+    
+    visualState.displayX = currentDisplayX; 
     visualState.displayY = currentDisplayY;
-    visualState.serverX = serverX;
+    visualState.serverX = serverX; 
     visualState.serverY = serverY;
-  } else { // For corpses, use direct position and clear any existing visual state
+
+  } else { // Logic for corpses (no interpolation, direct position)
     currentDisplayX = player.positionX;
     currentDisplayY = player.positionY;
-    if (visualState) {
-        playerVisualKnockbackState.delete(player.identity.toHexString());
+    if (visualState) { // If a corpse is rendered, ensure any old visualState is cleared
+        playerVisualKnockbackState.delete(playerHexId);
     }
   }
   // --- End Knockback Interpolation Logic ---
@@ -247,18 +240,13 @@ export const renderPlayer = (
 
   const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem);
   
-  // --- Calculate Shake Offset (Skip for corpses) ---
+  // Shake Logic (directly uses elapsedSinceServerHitMs)
   let shakeX = 0;
   let shakeY = 0;
-  if (!isCorpse && !player.isDead && player.lastHitTime) {
-    const lastHitMs = Number(player.lastHitTime.microsSinceUnixEpoch / 1000n);
-    const elapsedSinceHit = nowMs - lastHitMs;
-    if (elapsedSinceHit >= 0 && elapsedSinceHit < PLAYER_SHAKE_DURATION_MS) {
-      shakeX = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
-      shakeY = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
-    }
+  if (!isCorpse && !player.isDead && elapsedSinceServerHitMs < PLAYER_SHAKE_DURATION_MS) {
+    shakeX = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
+    shakeY = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
   }
-  // --- End Shake Offset ---
 
   const drawWidth = gameConfig.spriteWidth * 2;
   const drawHeight = gameConfig.spriteHeight * 2;
@@ -267,15 +255,8 @@ export const renderPlayer = (
   const finalJumpOffsetY = isCorpse ? 0 : jumpOffsetY;
   const spriteDrawY = spriteBaseY - finalJumpOffsetY;
 
-  // --- Determine if flashing (Skip for corpses) ---
-  const isFlashing = !isCorpse && visualState && visualState.interpolationStartTime > 0 &&
-                     nowMs < visualState.interpolationStartTime + PLAYER_HIT_FLASH_DURATION_MS;
-  // --- End Determine if flashing ---
-
-  // @ts-ignore
-  if (window.enablePlayerHitDebugging && player.identity.toHexString() === window.debugPlayerIdForHit && visualState) {
-    console.log(`[PlayerRenderDebug] ${player.username} - isFlashing: ${isFlashing}, interpolationStartTime: ${visualState.interpolationStartTime}, nowMs: ${nowMs}, flashEndsAt: ${visualState.interpolationStartTime + PLAYER_HIT_FLASH_DURATION_MS}`);
-  }
+  // Flash Logic (directly uses elapsedSinceServerHitMs)
+  const isFlashing = !isCorpse && !player.isDead && elapsedSinceServerHitMs < PLAYER_HIT_FLASH_DURATION_MS;
 
   // Define shadow base offset here to be used by both online/offline
   const shadowBaseYOffset = drawHeight * 0.4; 
@@ -333,13 +314,13 @@ export const renderPlayer = (
         0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
       );
 
-      // Apply white flash if active by tinting the offscreen canvas content
       if (isFlashing) {
-        offscreenCtx.globalCompositeOperation = 'source-in'; // Key for tinting with original alpha
-        offscreenCtx.fillStyle = 'rgba(255, 255, 255, 0.85)'; // Flash color
+        offscreenCtx.globalCompositeOperation = 'source-in';
+        offscreenCtx.fillStyle = 'rgba(255, 255, 255, 0.85)'; 
         offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-        offscreenCtx.globalCompositeOperation = 'source-over'; // Reset for next use
+        offscreenCtx.globalCompositeOperation = 'source-over';
       }
+
     } else if (!heroImg) {
       // console.warn("heroImg is null, cannot draw player sprite.");
       // Fallback or skip drawing if heroImg is not loaded - though asset loader should handle this.

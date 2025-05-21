@@ -335,7 +335,7 @@ function AppContent() {
                     color: 'white',
                     fontFamily: '"Press Start 2P", cursive'
                 }}>
-                    {authLoading ? 'Authenticating...' : 'Connecting to SpacetimeDB...'}
+                    {authLoading ? 'Authenticating...' : 'Connecting to Server...'}
                 </div>
             )}
 

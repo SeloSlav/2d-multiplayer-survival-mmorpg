@@ -22,7 +22,6 @@ use crate::PLAYER_RADIUS;
 use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX};
 use crate::items::{ItemDefinition, ItemCategory};
 use crate::models::TargetType;
-use crate::spatial_grid;
 use crate::tree;
 use crate::stone;
 use crate::wooden_storage_box;
@@ -655,10 +654,10 @@ pub fn damage_player(
 
     let old_health = target_player.health;
     target_player.health = (target_player.health - final_damage).clamp(0.0, MAX_STAT_VALUE);
-    // let actual_damage_applied = old_health - target_player.health; // This is essentially final_damage clamped by remaining health
+    let actual_damage_applied = old_health - target_player.health; // This is essentially final_damage clamped by remaining health
 
     // --- APPLY KNOCKBACK and update timestamp if damage was dealt ---
-    if final_damage > 0.0 { // Only apply knockback and update timestamp if actual damage occurred
+    if actual_damage_applied > 0.0 { // Only apply knockback and update timestamp if actual damage occurred
         target_player.last_update = timestamp; // Update target's timestamp due to health change and potential knockback
 
         if let Some(mut attacker) = attacker_player_opt.clone() { // Clone attacker_player_opt to get a mutable attacker if needed
@@ -671,8 +670,22 @@ pub fn damage_player(
                 // Knockback for Target
                 let knockback_dx_target = (dx_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
                 let knockback_dy_target = (dy_target_from_attacker / distance) * PVP_KNOCKBACK_DISTANCE;
-                target_player.position_x = (target_player.position_x + knockback_dx_target).clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
-                target_player.position_y = (target_player.position_y + knockback_dy_target).clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                
+                let current_target_x = target_player.position_x;
+                let current_target_y = target_player.position_y;
+                let proposed_target_x = current_target_x + knockback_dx_target;
+                let proposed_target_y = current_target_y + knockback_dy_target;
+
+                let (final_target_x, final_target_y) = resolve_knockback_collision(
+                    ctx,
+                    target_player.identity,
+                    current_target_x,
+                    current_target_y,
+                    proposed_target_x,
+                    proposed_target_y,
+                );
+                target_player.position_x = final_target_x;
+                target_player.position_y = final_target_y;
                 log::debug!("Applied knockback to target player {:?}: new pos ({:.1}, {:.1})", 
                     target_id, target_player.position_x, target_player.position_y);
 
@@ -681,8 +694,21 @@ pub fn damage_player(
                 let knockback_dx_attacker = (-dx_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
                 let knockback_dy_attacker = (-dy_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
                 
-                attacker.position_x = (attacker.position_x + knockback_dx_attacker).clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
-                attacker.position_y = (attacker.position_y + knockback_dy_attacker).clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                let current_attacker_x = attacker.position_x;
+                let current_attacker_y = attacker.position_y;
+                let proposed_attacker_x = current_attacker_x + knockback_dx_attacker;
+                let proposed_attacker_y = current_attacker_y + knockback_dy_attacker;
+
+                let (final_attacker_x, final_attacker_y) = resolve_knockback_collision(
+                    ctx,
+                    attacker.identity,
+                    current_attacker_x,
+                    current_attacker_y,
+                    proposed_attacker_x,
+                    proposed_attacker_y,
+                );
+                attacker.position_x = final_attacker_x;
+                attacker.position_y = final_attacker_y;
                 attacker.last_update = timestamp; // Update attacker's timestamp as their position changed
                 players.identity().update(attacker.clone()); // Update attacker player in DB
                  log::debug!("Applied recoil to attacking player {:?}: new pos ({:.1}, {:.1})", 
@@ -696,7 +722,7 @@ pub fn damage_player(
 
     log::info!(
         "Player {:?} damaged Player {:?} for {:.2} (raw: {:.2}) with {}. Health: {:.2} -> {:.2}",
-        attacker_id, target_id, final_damage, damage, item_def.name, target_player.health + final_damage, target_player.health
+        attacker_id, target_id, actual_damage_applied, damage, item_def.name, old_health, target_player.health
     );
 
     // Log the item_name and item_def_id being checked for bleed application
@@ -1114,4 +1140,107 @@ pub fn process_attack(
             damage_sleeping_bag(ctx, attacker_id, *bag_id, damage, timestamp, rng)
         },
     }
+}
+
+// --- NEW Helper function for knockback collision resolution ---
+fn resolve_knockback_collision(
+    ctx: &ReducerContext,
+    colliding_player_id: Identity, // The player being knocked back
+    current_x: f32,
+    current_y: f32,
+    mut proposed_x: f32,
+    mut proposed_y: f32,
+) -> (f32, f32) {
+    // 1. Clamp to world boundaries first
+    proposed_x = proposed_x.clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
+    proposed_y = proposed_y.clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
+
+    // Check against other players
+    for other_player in ctx.db.player().iter() {
+        if other_player.identity == colliding_player_id || other_player.is_dead {
+            continue;
+        }
+        let dx = proposed_x - other_player.position_x;
+        let dy = proposed_y - other_player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+        // Collision if distance is less than sum of radii (PLAYER_RADIUS * 2)
+        if dist_sq < (PLAYER_RADIUS * 2.0 * PLAYER_RADIUS * 2.0) { 
+            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Player ID {:?} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, other_player.identity, proposed_x, proposed_y);
+            return (current_x, current_y); // Revert to original position
+        }
+    }
+
+    // Check against trees
+    for tree in ctx.db.tree().iter() {
+        if tree.health == 0 { continue; } 
+        let tree_collision_center_y = tree.pos_y - TREE_COLLISION_Y_OFFSET;
+        let dx = proposed_x - tree.pos_x;
+        let dy = proposed_y - tree_collision_center_y;
+        if (dx * dx + dy * dy) < PLAYER_TREE_COLLISION_DISTANCE_SQUARED {
+            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Tree ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, tree.id, proposed_x, proposed_y);
+            return (current_x, current_y);
+        }
+    }
+    
+    // Check against stones
+    for stone in ctx.db.stone().iter() {
+        if stone.health == 0 { continue; }
+        let stone_collision_center_y = stone.pos_y - STONE_COLLISION_Y_OFFSET;
+        let dx = proposed_x - stone.pos_x;
+        let dy = proposed_y - stone_collision_center_y;
+        if (dx * dx + dy * dy) < PLAYER_STONE_COLLISION_DISTANCE_SQUARED {
+            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Stone ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, stone.id, proposed_x, proposed_y);
+            return (current_x, current_y);
+        }
+    }
+
+    // Check against WoodenStorageBoxes
+    for box_entity in ctx.db.wooden_storage_box().iter() {
+        if box_entity.is_destroyed { continue; }
+        let box_collision_center_y = box_entity.pos_y - BOX_COLLISION_Y_OFFSET;
+        let dx = proposed_x - box_entity.pos_x;
+        let dy = proposed_y - box_collision_center_y;
+        let player_box_collision_dist_sq = (PLAYER_RADIUS + BOX_COLLISION_RADIUS) * (PLAYER_RADIUS + BOX_COLLISION_RADIUS);
+        if (dx * dx + dy * dy) < player_box_collision_dist_sq {
+            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Box ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, box_entity.id, proposed_x, proposed_y);
+            return (current_x, current_y);
+        }
+    }
+    
+    // Check against Campfires
+    for campfire in ctx.db.campfire().iter() {
+        if campfire.is_destroyed { continue; }
+        let campfire_collision_center_y = campfire.pos_y - CAMPFIRE_COLLISION_Y_OFFSET;
+        let dx = proposed_x - campfire.pos_x;
+        let dy = proposed_y - campfire_collision_center_y;
+        let player_campfire_collision_dist_sq = (PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS) * (PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS);
+        if (dx * dx + dy * dy) < player_campfire_collision_dist_sq {
+            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Campfire ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, campfire.id, proposed_x, proposed_y);
+            return (current_x, current_y);
+        }
+    }
+
+    // Check against SleepingBags
+    for bag in ctx.db.sleeping_bag().iter() {
+        if bag.is_destroyed { continue; }
+        let bag_collision_center_y = bag.pos_y - SLEEPING_BAG_COLLISION_Y_OFFSET;
+        let dx = proposed_x - bag.pos_x;
+        let dy = proposed_y - bag_collision_center_y;
+        let player_bag_collision_dist_sq = (PLAYER_RADIUS + SLEEPING_BAG_COLLISION_RADIUS) * (PLAYER_RADIUS + SLEEPING_BAG_COLLISION_RADIUS);
+        if (dx * dx + dy * dy) < player_bag_collision_dist_sq {
+             log::debug!("[KnockbackCollision] Player ID {:?} would collide with SleepingBag ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
+                       colliding_player_id, bag.id, proposed_x, proposed_y);
+            return (current_x, current_y);
+        }
+    }
+    
+    // Note: Stashes are typically not solid. Add collision check if their behavior changes.
+
+    // If no collisions, return the (boundary-clamped) proposed position
+    (proposed_x, proposed_y)
 } 

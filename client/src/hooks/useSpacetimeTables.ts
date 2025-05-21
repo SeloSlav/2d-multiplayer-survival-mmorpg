@@ -127,16 +127,49 @@ export const useSpacetimeTables = ({
                  }
              };
             const handlePlayerUpdate = (ctx: any, oldPlayer: SpacetimeDB.Player, newPlayer: SpacetimeDB.Player) => {
+                const playerHexId = newPlayer.identity.toHexString();
+                
+                // Log newPlayer's lastHitTime when a respawn might be happening
+                if (oldPlayer.isDead && !newPlayer.isDead) {
+                    console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
+                    console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                    // console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
+                }
+
                 const EPSILON = 0.01;
                 const posChanged = Math.abs(oldPlayer.positionX - newPlayer.positionX) > EPSILON || Math.abs(oldPlayer.positionY - newPlayer.positionY) > EPSILON;
+                
+                // Explicitly check if lastHitTime has changed
+                const oldLastHitTimeMicros = oldPlayer.lastHitTime ? oldPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : null;
+                const newLastHitTimeMicros = newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : null;
+                const lastHitTimeChanged = oldLastHitTimeMicros !== newLastHitTimeMicros;
+
                 const statsChanged = Math.round(oldPlayer.health) !== Math.round(newPlayer.health) || Math.round(oldPlayer.stamina) !== Math.round(newPlayer.stamina) || Math.round(oldPlayer.hunger) !== Math.round(newPlayer.hunger) || Math.round(oldPlayer.thirst) !== Math.round(newPlayer.thirst) || Math.round(oldPlayer.warmth) !== Math.round(newPlayer.warmth);
                 const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead || oldPlayer.isTorchLit !== newPlayer.isTorchLit;
                 const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
-                const usernameChanged = oldPlayer.username !== newPlayer.username; // Added for completeness
-                const colorChanged = oldPlayer.color !== newPlayer.color; // Added for completeness
+                const usernameChanged = oldPlayer.username !== newPlayer.username;
+                const colorChanged = oldPlayer.color !== newPlayer.color;
 
-                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged) {
-                    setPlayers(prev => new Map(prev).set(newPlayer.identity.toHexString(), newPlayer));
+                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged || lastHitTimeChanged) { 
+                    if (lastHitTimeChanged) {
+                         console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
+                    }
+                    if (oldPlayer.isDead && !newPlayer.isDead && lastHitTimeChanged) {
+                        console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
+                    } else if (oldPlayer.isDead && !newPlayer.isDead && !lastHitTimeChanged) {
+                        // This case should ideally not happen if server sends null for last_hit_time on respawn and SDK passes it through.
+                        console.warn(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} BUT lastHitTime DID NOT CHANGE. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. This might be an issue.`);
+                    }
+
+                    setPlayers(prev => {
+                        const newMap = new Map(prev);
+                        newMap.set(playerHexId, newPlayer); // Use playerHexId here
+                        // Optional: Log details of what's being set
+                        // if (oldPlayer.isDead && !newPlayer.isDead) {
+                        //     console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                        // }
+                        return newMap;
+                    });
                 }
             };
             const handlePlayerDelete = (ctx: any, deletedPlayer: SpacetimeDB.Player) => {

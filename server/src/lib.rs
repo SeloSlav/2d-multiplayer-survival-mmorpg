@@ -74,6 +74,7 @@ use crate::crafting::Recipe as RecipeTableTrait;
 use crate::crafting_queue::CraftingQueueItem as CraftingQueueItemTableTrait;
 use crate::crafting_queue::CraftingFinishSchedule as CraftingFinishScheduleTableTrait;
 use crate::global_tick::GlobalTickSchedule as GlobalTickScheduleTableTrait;
+use crate::PlayerLastAttackTimestamp as PlayerLastAttackTimestampTableTrait; // Import for the new table
 
 // Import constants needed from player_stats
 use crate::player_stats::{
@@ -145,6 +146,15 @@ pub struct Player {
     pub is_torch_lit: bool, // <<< ADDED: Tracks if the player's torch is currently lit
     pub last_consumed_at: Option<Timestamp>, // <<< ADDED: Tracks when a player last consumed an item
     pub is_crouching: bool, // RENAMED: For crouching speed control
+}
+
+// Table to store the last attack timestamp for each player
+#[spacetimedb::table(name = player_last_attack_timestamp)]
+#[derive(Clone, Debug)]
+pub struct PlayerLastAttackTimestamp {
+    #[primary_key]
+    player_id: Identity,
+    last_attack_timestamp: Timestamp,
 }
 
 // --- NEW: Define ActiveConnection Table --- 

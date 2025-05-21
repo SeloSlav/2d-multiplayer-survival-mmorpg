@@ -693,9 +693,10 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
     for i in 0..corpse_for_despawn_check.num_slots() as u8 {
         if let Some(item_def_id_in_corpse) = corpse_for_despawn_check.get_slot_def_id(i) {
             if let Some(item_def) = item_defs_table.id().find(item_def_id_in_corpse) {
-                if let Some(respawn_time) = item_def.respawn_time_seconds {
-                    if respawn_time > max_respawn_time_seconds {
-                        max_respawn_time_seconds = respawn_time;
+                if let Some(respawn_time_u32) = item_def.respawn_time_seconds {
+                    let respawn_time_u64 = respawn_time_u32 as u64; // Cast to u64
+                    if respawn_time_u64 > max_respawn_time_seconds {
+                        max_respawn_time_seconds = respawn_time_u64;
                     }
                     corpse_has_items_with_respawn_time = true;
                 }

@@ -36,6 +36,9 @@ import { renderStash } from './stashRenderingUtils';
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
 
+// Module-level cache for debug logging
+const playerDebugStateCache = new Map<string, { prevIsDead: boolean, prevLastHitTime: string | null }>();
+
 interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
     ySortedEntities: YSortedEntityType[];
@@ -93,6 +96,29 @@ export const renderYSortedEntities = ({
         if (type === 'player') {
             const player = entity as SpacetimeDBPlayer;
             const playerId = player.identity.toHexString();
+
+            // ##### ADD LOGGING HERE #####
+            if (localPlayerId && playerId === localPlayerId) {
+              const currentIsDead = player.isDead;
+              const currentLastHitTimeEpoch = player.lastHitTime ? player.lastHitTime.__timestamp_micros_since_unix_epoch__.toString() : null;
+
+              const cachedState = playerDebugStateCache.get(playerId);
+              const prevIsDead = cachedState?.prevIsDead;
+              const prevLastHitTimeEpoch = cachedState?.prevLastHitTime;
+
+              if (currentIsDead !== prevIsDead || 
+                  (!currentIsDead && currentLastHitTimeEpoch !== prevLastHitTimeEpoch)) {
+                console.log(`[renderingUtils] LocalPlayer State Change: ${player.username} (ID: ${playerId}). ` +
+                            `isDead: ${currentIsDead} (was: ${prevIsDead}), ` +
+                            `lastHitTime: ${currentLastHitTimeEpoch} (was: ${prevLastHitTimeEpoch})`);
+                playerDebugStateCache.set(playerId, { 
+                  prevIsDead: currentIsDead, 
+                  prevLastHitTime: currentLastHitTimeEpoch 
+                });
+              }
+            }
+            // ##########################
+
            const lastPos = lastPositionsRef.current.get(playerId);
            let isPlayerMoving = false;
            if (lastPos) {

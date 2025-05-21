@@ -22,7 +22,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
     let starting_inv_items = [
         // Hotbar (Slots 0-5)
         ("Torch", 1, Some(0u8), None), 
-        ("Bandage", 10, Some(1u8), None), 
+        ("Sleeping Bag", 10, Some(1u8), None), 
         ("Wooden Spear", 1, Some(2u8), None),
         ("Wooden Storage Box", 1, Some(3u8), None), 
         ("Camp Fire", 1, Some(4u8), None),
@@ -37,7 +37,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Mushroom", 20, None, Some(15u16)),
         ("Cooked Mushroom", 20, None, Some(16u16)),
         ("Corn", 20, None, Some(17u16)),
-        ("Sleeping Bag", 10, None, Some(18u16)),
+        ("Bandage", 10, None, Some(18u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

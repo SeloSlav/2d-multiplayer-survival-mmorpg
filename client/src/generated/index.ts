@@ -278,6 +278,8 @@ import { PlayerCorpseTableHandle } from "./player_corpse_table.ts";
 export { PlayerCorpseTableHandle };
 import { PlayerCorpseDespawnScheduleTableHandle } from "./player_corpse_despawn_schedule_table.ts";
 export { PlayerCorpseDespawnScheduleTableHandle };
+import { PlayerLastAttackTimestampTableHandle } from "./player_last_attack_timestamp_table.ts";
+export { PlayerLastAttackTimestampTableHandle };
 import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
@@ -374,6 +376,8 @@ import { PlayerCorpse } from "./player_corpse_type.ts";
 export { PlayerCorpse };
 import { PlayerCorpseDespawnSchedule } from "./player_corpse_despawn_schedule_type.ts";
 export { PlayerCorpseDespawnSchedule };
+import { PlayerLastAttackTimestamp } from "./player_last_attack_timestamp_type.ts";
+export { PlayerLastAttackTimestamp };
 import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
@@ -518,6 +522,11 @@ const REMOTE_MODULE = {
       tableName: "player_corpse_despawn_schedule",
       rowType: PlayerCorpseDespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "corpseId",
+    },
+    player_last_attack_timestamp: {
+      tableName: "player_last_attack_timestamp",
+      rowType: PlayerLastAttackTimestamp.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
     },
     player_pin: {
       tableName: "player_pin",
@@ -3237,6 +3246,10 @@ export class RemoteTables {
 
   get playerCorpseDespawnSchedule(): PlayerCorpseDespawnScheduleTableHandle {
     return new PlayerCorpseDespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerCorpseDespawnSchedule>(REMOTE_MODULE.tables.player_corpse_despawn_schedule));
+  }
+
+  get playerLastAttackTimestamp(): PlayerLastAttackTimestampTableHandle {
+    return new PlayerLastAttackTimestampTableHandle(this.connection.clientCache.getOrCreateTable<PlayerLastAttackTimestamp>(REMOTE_MODULE.tables.player_last_attack_timestamp));
   }
 
   get playerPin(): PlayerPinTableHandle {

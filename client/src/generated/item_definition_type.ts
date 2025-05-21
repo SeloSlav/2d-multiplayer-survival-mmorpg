@@ -75,7 +75,8 @@ export type ItemDefinition = {
   cookedItemDefName: string | undefined,
   damageResistance: number | undefined,
   warmthBonus: number | undefined,
-  respawnTimeSeconds: bigint | undefined,
+  respawnTimeSeconds: number | undefined,
+  attackIntervalSecs: number | undefined,
 };
 
 /**
@@ -127,7 +128,8 @@ export namespace ItemDefinition {
       new ProductTypeElement("cookedItemDefName", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
       new ProductTypeElement("damageResistance", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
       new ProductTypeElement("warmthBonus", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
-      new ProductTypeElement("respawnTimeSeconds", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("respawnTimeSeconds", AlgebraicType.createOptionType(AlgebraicType.createU32Type())),
+      new ProductTypeElement("attackIntervalSecs", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
     ]);
   }
 

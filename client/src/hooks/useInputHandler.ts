@@ -106,6 +106,7 @@ export const useInputHandler = ({
     const isEHeldDownRef = useRef<boolean>(false);
     const isMouseDownRef = useRef<boolean>(false);
     const lastClientSwingAttemptRef = useRef<number>(0);
+    const lastServerSwingTimestampRef = useRef<number>(0); // To store server-confirmed swing time
     const eKeyDownTimestampRef = useRef<number>(0);
     const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
     const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
@@ -231,37 +232,59 @@ export const useInputHandler = ({
 
         const currentEquipments = activeEquipmentsRef.current;
         const localEquipment = currentEquipments?.get(localPlayerId);
+        const itemDefMap = itemDefinitionsRef.current;
+
+        // --- Unarmed Swing ---
         if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
-            // If no item equipped (or instance ID is null for some reason), still allow unarmed swing
             const nowUnarmed = Date.now();
+            // Using a generic SWING_COOLDOWN_MS for unarmed as it has no specific itemDef
             if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
+            // Also check against the server's swing start time for this equipment record if available
             if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
+            
             try {
                 currentConnection.reducers.useEquippedItem(); // Unarmed/default action
                 lastClientSwingAttemptRef.current = nowUnarmed;
+                lastServerSwingTimestampRef.current = nowUnarmed; // Assume server allows unarmed swing immediately for client prediction
             } catch (err) { 
                 console.error("[AttemptSwing Unarmed] Error calling useEquippedItem reducer:", err);
             }
             return;
         }
 
-        // Check if the equipped item is a Bandage
-        const itemDef = itemDefinitionsRef.current?.get(String(localEquipment.equippedItemDefId));
-        if (itemDef && itemDef.name === "Bandage") {
-            // If Bandage is equipped, left-click (which calls attemptSwing) should NOT use/swing.
+        // --- Armed Swing ---
+        const itemDef = itemDefMap?.get(String(localEquipment.equippedItemDefId));
+        if (!itemDef) {
+            console.warn("[AttemptSwing] No itemDef found for equipped item:", localEquipment.equippedItemDefId);
+            return; // Cannot proceed without item definition
+        }
+
+        // Check if the equipped item is a Bandage (handled by right-click/context menu)
+        if (itemDef.name === "Bandage") {
             console.log("[AttemptSwing] Bandage equipped, preventing use via attemptSwing (left-click).");
             return;
         }
 
         const now = Date.now();
+        const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
 
-        // Client-side cooldown
-        if (now - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) {
+        // Client-side prediction based on last successful *server-confirmed* swing for this item type
+        // and the item's specific attack interval.
+        if (now - lastServerSwingTimestampRef.current < attackIntervalMs) {
+            // console.log(`[Client Cooldown] Attack too soon. Now: ${now}, LastServerSwing: ${lastServerSwingTimestampRef.current}, Interval: ${attackIntervalMs}`);
             return;
         }
-
-        // Server-side cooldown check (using equipment state)
-        if (now - Number(localEquipment.swingStartTimeMs) < SWING_COOLDOWN_MS) {
+        
+        // Fallback: Client-side cooldown based on last *attempt* (less accurate but a safety net)
+        if (now - lastClientSwingAttemptRef.current < attackIntervalMs) {
+            // console.log(`[Client Cooldown - Fallback] Attack attempt too soon. Now: ${now}, LastAttempt: ${lastClientSwingAttemptRef.current}, Interval: ${attackIntervalMs}`);
+            return;
+        }
+        
+        // Server-side cooldown check (using equipment state from server)
+        // This is crucial as the server has the true state of swingStartTimeMs
+        if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) {
+            // console.log(`[Server Cooldown Check] SwingStartTimeMs: ${localEquipment.swingStartTimeMs}, Now: ${now}, Interval: ${attackIntervalMs}`);
             return;
         }
 
@@ -269,6 +292,12 @@ export const useInputHandler = ({
         try {
             currentConnection.reducers.useEquippedItem();
             lastClientSwingAttemptRef.current = now;
+            // Optimistically update server swing timestamp here, assuming the server call will succeed
+            // The server will update its PlayerLastAttackTimestamp, which we don't directly read here.
+            // The localEquipment.swingStartTimeMs will be updated when the ActiveEquipment table syncs.
+            // For immediate client feedback, we rely on our lastServerSwingTimestampRef.
+            // When ActiveEquipment table updates with new swingStartTimeMs from server, that's the source of truth.
+            lastServerSwingTimestampRef.current = now; 
         } catch (err) { // Use unknown type for error
             console.error("[AttemptSwing] Error calling useEquippedItem reducer:", err);
         }
@@ -707,26 +736,48 @@ export const useInputHandler = ({
                 return;
             }
 
-            const localPlayerEquipment = activeEquipmentsRef.current?.get(localPlayerId || "");
-            if (localPlayerEquipment && localPlayerEquipment.equippedItemInstanceId) {
-                const itemDefId = localPlayerEquipment.equippedItemDefId;
-                const itemDef = itemDefinitionsRef.current?.get(String(itemDefId));
+            // --- Re-evaluate swing logic directly for canvas click, similar to attemptSwing ---
+            const currentConnection = connectionRef.current;
+            if (!currentConnection?.reducers || !localPlayerId) return;
 
-                if (itemDef && itemDef.name === "Bandage") {
-                    // If Bandage is equipped, left-click should NOT use/swing.
-                    console.log("[InputHandler] Bandage equipped, left-click does not trigger useEquippedItem.");
-                } else {
-                    // For any other equipped item, proceed with useEquippedItem
-                    connectionRef.current?.reducers.useEquippedItem();
-                    lastClientSwingAttemptRef.current = Date.now();
-                    // console.log("Attempting to use equipped item via click.");
-                }
+            const currentEquipments = activeEquipmentsRef.current;
+            const localEquipment = currentEquipments?.get(localPlayerId);
+            const itemDefMap = itemDefinitionsRef.current;
+
+            if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
+                // Unarmed
+                const nowUnarmed = Date.now();
+                if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
+                if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
+                try {
+                    currentConnection.reducers.useEquippedItem();
+                    lastClientSwingAttemptRef.current = nowUnarmed;
+                    lastServerSwingTimestampRef.current = nowUnarmed;
+                } catch (err) { console.error("[CanvasClick Unarmed] Error calling useEquippedItem reducer:", err); }
             } else {
-                 // No item equipped, or no equipment record, still allow "use" for unarmed / default action
-                connectionRef.current?.reducers.useEquippedItem();
-                lastClientSwingAttemptRef.current = Date.now();
-                // console.log("Attempting to use (unarmed) via click.");
+                // Armed
+                const itemDef = itemDefMap?.get(String(localEquipment.equippedItemDefId));
+                if (!itemDef) return;
+
+                if (itemDef.name === "Bandage") {
+                    console.log("[InputHandler] Bandage equipped, left-click does not trigger useEquippedItem.");
+                    return;
+                }
+
+                const now = Date.now();
+                const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
+
+                if (now - lastServerSwingTimestampRef.current < attackIntervalMs) return;
+                if (now - lastClientSwingAttemptRef.current < attackIntervalMs) return;
+                if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) return;
+                
+                try {
+                    currentConnection.reducers.useEquippedItem();
+                    lastClientSwingAttemptRef.current = now;
+                    lastServerSwingTimestampRef.current = now;
+                } catch (err) { console.error("[CanvasClick Armed] Error calling useEquippedItem reducer:", err); }
             }
+            // --- End re-evaluated swing logic for canvas click ---
         };
 
         // --- Context Menu for Placement Cancellation ---
@@ -756,12 +807,19 @@ export const useInputHandler = ({
                 if (itemDef && itemDef.name === "Bandage") {
                     // If Bandage is equipped, right-click should trigger useEquippedItem
                     const now = Date.now();
-                    if (now - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) {
-                        return;
-                    }
+                    // For bandage, use a generic cooldown or its own specific use interval if defined
+                    // (assuming bandages don't have attackIntervalSecs, so fallback to SWING_COOLDOWN_MS)
+                    const bandageUseInterval = SWING_COOLDOWN_MS; // Or itemDef.consumableUseIntervalMs if we add it
+                    
+                    if (now - lastServerSwingTimestampRef.current < bandageUseInterval) return;
+                    if (now - lastClientSwingAttemptRef.current < bandageUseInterval) return;
+                    // Server's swingStartTimeMs is not directly applicable to consumables like bandages in the same way
+                    // as attack weapons. We rely on the client-side cooldowns for bandage use primarily.
+
                     if (connectionRef.current?.reducers) {
-                        connectionRef.current.reducers.useEquippedItem();
+                        connectionRef.current.reducers.useEquippedItem(); // This will call the bandage logic on server
                         lastClientSwingAttemptRef.current = now;
+                        lastServerSwingTimestampRef.current = now; // Optimistically update for client-side prediction
                         console.log("[InputHandler] Used Bandage via right-click.");
                     }
                     return; // Bandage used, no further context menu logic needed
