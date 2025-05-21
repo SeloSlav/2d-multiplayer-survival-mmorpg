@@ -48,6 +48,9 @@ interface ExternalContainerUIProps {
     onItemDragStart: (info: DraggedItemInfo) => void;
     onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void;
     playerId: string | null; // Need player ID to check ownership for hiding stash
+    onExternalItemMouseEnter: (item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => void;
+    onExternalItemMouseLeave: () => void;
+    onExternalItemMouseMove: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
@@ -63,8 +66,10 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     onItemDragStart,
     onItemDrop,
     playerId,
+    onExternalItemMouseEnter,
+    onExternalItemMouseLeave,
+    onExternalItemMouseMove,
 }) => {
-
     // --- Derived Data for Campfire ---
     const isCampfireInteraction = interactionTarget?.type === 'campfire';
     const campfireIdNum = isCampfireInteraction ? Number(interactionTarget!.id) : null;
@@ -172,6 +177,19 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
         return items;
     }, [isStashInteraction, currentStash, inventoryItems, itemDefinitions]);
+
+    // --- Tooltip Handlers (simplified to call props) ---
+    const handleItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        onExternalItemMouseEnter(item, event);
+    }, [onExternalItemMouseEnter]);
+
+    const handleItemMouseLeave = useCallback(() => {
+        onExternalItemMouseLeave();
+    }, [onExternalItemMouseLeave]);
+
+    const handleItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        onExternalItemMouseMove(event);
+    }, [onExternalItemMouseMove]);
 
     // --- Callbacks specific to containers ---
     const handleRemoveFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
@@ -301,6 +319,9 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 onItemDragStart={onItemDragStart}
                                                 onItemDrop={onItemDrop}
                                                 onContextMenu={(event) => handleRemoveFuel(event, index)}
+                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
                                             />
                                         )}
                                     </DroppableSlot>
@@ -349,6 +370,9 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             onItemDragStart={onItemDragStart}
                                             onItemDrop={onItemDrop} 
                                             onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
+                                            onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                            onMouseLeave={handleItemMouseLeave}
+                                            onMouseMove={handleItemMouseMove}
                                         />
                                     )}
                                 </DroppableSlot>
@@ -386,6 +410,9 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             onItemDragStart={onItemDragStart}
                                             onItemDrop={onItemDrop}
                                             onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
+                                            onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                            onMouseLeave={handleItemMouseLeave}
+                                            onMouseMove={handleItemMouseMove}
                                         />
                                     )}
                                 </DroppableSlot>
@@ -422,6 +449,9 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 onItemDragStart={onItemDragStart}
                                                 onItemDrop={onItemDrop}
                                                 onContextMenu={(event) => handleStashItemContextMenu(event, itemInSlot, index)}
+                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
                                             />
                                         )}
                                     </DroppableSlot>

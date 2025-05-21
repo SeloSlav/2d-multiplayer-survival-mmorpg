@@ -240,8 +240,8 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                 onFocus={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(true)}
                 onBlur={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(false)}
             />
-            {/* Added scrollable class */}
-            <div className={`${styles.craftableItemsSection} ${styles.scrollableSection}`}> 
+            {/* Added scrollable class and data-attribute */}
+            <div data-scrollable-region="crafting-items" className={`${styles.craftableItemsSection} ${styles.scrollableSection}`}> 
                 {/* Changed grid to list */}
                 <div className={styles.craftableItemsList}> 
                     {filteredRecipes.map((recipe) => {
@@ -326,8 +326,8 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             {/* Crafting Queue Section (Moved down, potentially needs own scroll later) */}
             <div className={styles.craftingQueueSection}>
                 <h4 className={styles.queueTitle}>CRAFTING QUEUE ({playerQueue.length})</h4>
-                 {/* Added scrollable class */}
-                <div className={`${styles.craftingQueueList} ${styles.scrollableSection}`}> 
+                 {/* Added scrollable class and data-attribute */}
+                <div data-scrollable-region="crafting-queue" className={`${styles.craftingQueueList} ${styles.scrollableSection}`}> 
                     {playerQueue.map((item) => {
                         const outputDef = itemDefinitions.get(item.outputItemDefId.toString());
                         const remainingTime = calculateRemainingTime(Number(item.finishTime.microsSinceUnixEpoch / 1000n), currentTime);

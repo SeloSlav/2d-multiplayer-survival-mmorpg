@@ -96,7 +96,7 @@ export const useInputHandler = ({
     isSearchingCraftRecipes,
     isInventoryOpen, // Destructure new prop
 }: UseInputHandlerProps): InputHandlerState => {
-    console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
+    // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
     const { updatePlayerPosition, jump, setSprinting } = usePlayerActions();
 

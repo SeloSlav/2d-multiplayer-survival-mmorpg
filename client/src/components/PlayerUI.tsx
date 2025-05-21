@@ -351,32 +351,28 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         const preventBackgroundScroll = (event: WheelEvent) => {
             const target = event.target as Element;
 
-            // 1. Find the inventory panel itself
-            const inventoryPanel = document.querySelector('.inventoryPanel'); // Use a more specific ID or ref if possible for reliability
+            const inventoryPanel = document.querySelector('.inventoryPanel');
 
-            // 2. If the inventory panel doesn't exist, do nothing (shouldn't happen if listener is added correctly)
-            if (!inventoryPanel) return;
+            if (!inventoryPanel || !showInventory) return;
 
-            // 3. Check if the event target is *outside* the inventory panel entirely
             if (!inventoryPanel.contains(target)) {
-                // If outside, prevent default (stops page scroll)
-                // console.log("Scroll outside inventory, preventing.");
                 event.preventDefault();
                 return;
             }
 
-            // 4. If inside the panel, check if it's within designated scrollable children
+            // Check if the scroll event originated within a designated scrollable child
             const scrollableCrafting = target.closest('.craftableItemsSection');
             const scrollableQueue = target.closest('.craftingQueueList');
+            // If you add more scrollable areas inside InventoryUI, add their selectors here:
+            // const anotherScrollableArea = target.closest('.another-scrollable-class');
 
-            // 5. If it IS within a designated scrollable child, allow the default behavior
-            if (scrollableCrafting || scrollableQueue) {
-                // console.log("Scroll inside designated scrollable area, allowing.");
-                return; // Allow scroll within these areas
+            if (scrollableCrafting || scrollableQueue /* || anotherScrollableArea */) {
+                // If the event is within a known scrollable area, allow the default scroll behavior for that element.
+                return;
             }
 
-            // 6. If it's inside the panel but *not* within a designated scrollable child, prevent default
-            // console.log("Scroll inside inventory but outside scrollable areas, preventing.");
+            // If the event is inside the inventory panel but not within a designated scrollable child,
+            // prevent the default action to stop the main page from scrolling.
             event.preventDefault();
         };
 

@@ -160,7 +160,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isSearchingCraftRecipes,
   showInventory,
 }) => {
-  console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
+ // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
   // console.log("Cloud data in GameCanvas:", Array.from(clouds?.values() || []));
 

@@ -109,7 +109,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Cloth Pants", EquipmentSlotType::Legs),
         ("Cloth Boots", EquipmentSlotType::Feet),
         ("Cloth Gloves", EquipmentSlotType::Hands),
-        ("Burlap Backpack", EquipmentSlotType::Back),
+        ("Cloth Cape", EquipmentSlotType::Back),
     ];
 
     for (item_name, target_slot_type) in starting_equipment.iter() {

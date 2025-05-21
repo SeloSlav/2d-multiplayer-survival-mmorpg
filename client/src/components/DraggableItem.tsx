@@ -10,6 +10,9 @@ interface DraggableItemProps {
   onItemDragStart: (info: DraggedItemInfo) => void; // Callback to notify parent
   onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void; // Allow null
   onContextMenu?: (event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => void;
+  onMouseEnter?: (event: React.MouseEvent<HTMLDivElement>, item: PopulatedItem) => void;
+  onMouseLeave?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseMove?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ 
@@ -17,7 +20,10 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   sourceSlot,
   onItemDragStart,
   onItemDrop,
-  onContextMenu
+  onContextMenu,
+  onMouseEnter,
+  onMouseLeave,
+  onMouseMove
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
@@ -286,13 +292,38 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
 
   }, [item, sourceSlot, onItemDragStart, handleMouseMove, handleMouseUp, createGhostElement]);
 
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+    // console.log("[DraggableItem] Drag Start, Item:", item, "Source Slot:", sourceSlot);
+    const dragInfo: DraggedItemInfo = {
+      item: item, // Corrected: pass the whole PopulatedItem
+      sourceSlot: sourceSlot
+    };
+    onItemDragStart(dragInfo);
+    // Minimal data for drag image, actual data transfer via state
+    event.dataTransfer.setData('text/plain', item.instance.instanceId.toString());
+    // Consider a custom drag image if desired
+    // event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
+  };
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (onContextMenu) {
+      onContextMenu(event, item);
+    }
+  };
+
   // Basic rendering of the item
   return (
     <div 
       ref={itemRef}
       className={`${styles.draggableItem} ${isDraggingState ? styles.isDraggingFeedback : ''}`}
       onMouseDown={handleMouseDown}
-      title={`${item.definition.name}${item.definition.description ? ' - ' + item.definition.description : ''}`}
+      onDragStart={handleDragStart}
+      onDragEnd={() => onItemDrop(null)}
+      title={`${item.definition.name} (x${item.instance.quantity})`}
+      onContextMenu={handleContextMenu}
+      onMouseEnter={onMouseEnter ? (e) => onMouseEnter(e, item) : undefined}
+      onMouseLeave={onMouseLeave}
+      onMouseMove={onMouseMove}
     >
       <img
         src={getItemIcon(item.definition.iconAssetName)}

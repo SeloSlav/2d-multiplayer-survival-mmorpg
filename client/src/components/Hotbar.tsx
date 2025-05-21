@@ -348,8 +348,9 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   // Added handleWheel and updated useEffect for listeners
   const handleWheel = useCallback((event: WheelEvent) => {
-    const inventoryPanel = document.querySelector('.inventoryPanel');
-    // Also check if chat input is focused or other UI elements that might use wheel scroll
+    const inventoryPanel = document.querySelector('[data-id="inventory-panel"]'); // Use the data-id selector
+    
+    // If inventory is open, or chat input is focused, or other UI elements that might use wheel scroll, do nothing.
     const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
     const craftSearchIsFocused = document.activeElement?.id === 'craftSearchInput'; // Example ID
 
@@ -357,7 +358,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       return; // Don't interfere if inventory/chat/search is open, or no vertical scroll
     }
 
-    event.preventDefault(); // Prevent page scrolling
+    event.preventDefault(); // Prevent page scrolling (only if inventory is NOT open)
 
     setSelectedSlot(prevSlot => {
       let newSlot;

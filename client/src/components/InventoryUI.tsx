@@ -7,7 +7,7 @@
  * Typically rendered conditionally by PlayerUI when inventory is opened or a container is interacted with.
  */
 
-import React, { useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import styles from './InventoryUI.module.css';
 // Import Custom Components
 import DraggableItem from './DraggableItem';
@@ -42,6 +42,10 @@ import { PlacementItemInfo} from '../hooks/usePlacementManager';
 import CraftingUI from './CraftingUI';
 // ADD: Import ExternalContainerUI component
 import ExternalContainerUI from './ExternalContainerUI';
+// Import Tooltip component and its content type
+import Tooltip, { TooltipContent, TooltipStats } from './Tooltip';
+// Import the new formatting utility
+import { formatStatDisplay } from '../utils/formatUtils';
 
 // --- Type Definitions ---
 // Define props for InventoryUI component
@@ -122,6 +126,12 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 }) => {
     const isPlacingItem = placementInfo !== null;
     const prevInteractionTargetRef = useRef<typeof interactionTarget | undefined>(undefined);
+    const inventoryPanelRef = useRef<HTMLDivElement>(null); // Ref for the main panel
+
+    // Tooltip State
+    const [tooltipVisible, setTooltipVisible] = useState(false);
+    const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(null);
+    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
     // Memoized handleClose to ensure stability if its dependencies are stable.
     const handleClose = useCallback(() => {
@@ -182,6 +192,120 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     }, [playerIdentity, inventoryItems, itemDefinitions]);
 
     // --- Callbacks & Handlers ---
+    const handleItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        if (inventoryPanelRef.current) {
+            const panelRect = inventoryPanelRef.current.getBoundingClientRect();
+            const relativeX = event.clientX - panelRect.left;
+            const relativeY = event.clientY - panelRect.top;
+
+            // const rect = event.currentTarget.getBoundingClientRect(); // CurrentTarget is the DraggableItem
+            // console.log('[Tooltip Debug] event.clientX:', event.clientX, 'panelRect.left:', panelRect.left, 'relativeX:', relativeX);
+            // console.log('[Tooltip Debug] Hovered Item:', item.definition.name);
+
+            const stats: TooltipStats[] = [];
+            const def = item.definition;
+
+            const categoryTag = def.category.tag;
+
+            if (categoryTag === 'Tool') {
+                // Primary Yield for Tools
+                if (def.primaryTargetYieldMin !== undefined || def.primaryTargetYieldMax !== undefined) {
+                    const min = def.primaryTargetYieldMin ?? 0;
+                    const max = def.primaryTargetYieldMax ?? min;
+                    let yieldLabel = 'Primary Yield';
+                    if (def.primaryTargetType) {
+                        yieldLabel = `${def.primaryTargetType.tag} Yield`;
+                    }
+                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
+                }
+                // Secondary Yield for Tools
+                if (def.secondaryTargetYieldMin !== undefined || def.secondaryTargetYieldMax !== undefined) {
+                    const min = def.secondaryTargetYieldMin ?? 0;
+                    const max = def.secondaryTargetYieldMax ?? min;
+                    let yieldLabel = 'Secondary Yield';
+                    if (def.secondaryTargetType) {
+                        yieldLabel = `${def.secondaryTargetType.tag} Yield`;
+                    }
+                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
+                }
+            } else {
+                // Weapon Stats (Primary Damage - for non-tools or tools that also have direct damage)
+                if (def.primaryTargetDamageMin !== undefined || def.primaryTargetDamageMax !== undefined) {
+                    const min = def.primaryTargetDamageMin ?? 0;
+                    const max = def.primaryTargetDamageMax ?? min;
+                    stats.push({ label: 'Damage', value: max > min ? `${min}-${max}` : `${min}` });
+                }
+            }
+
+            // Weapon Stats (PvP) - could be combined or separate
+            if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+                const min = def.pvpDamageMin ?? 0;
+                const max = def.pvpDamageMax ?? min;
+                stats.push({ label: 'Damage', value: max > min ? `${min}-${max}` : `${min}` });
+            }
+            if (def.bleedDamagePerTick !== undefined && def.bleedDamagePerTick > 0 && def.bleedDurationSeconds !== undefined) {
+                stats.push({ label: 'Bleed', value: `${def.bleedDamagePerTick}/tick for ${def.bleedDurationSeconds}s` });
+            }
+
+            // Armor Stats
+            if (def.damageResistance !== undefined && def.damageResistance > 0) {
+                stats.push({ label: 'Defense', value: formatStatDisplay(def.damageResistance * 100, true) });
+            }
+            if (def.warmthBonus !== undefined && def.warmthBonus !== 0) {
+                stats.push({ label: 'Warmth', value: formatStatDisplay(def.warmthBonus), color: def.warmthBonus > 0 ? '#f0ad4e' : '#5bc0de' });
+            }
+
+            // Consumable Stats
+            if (def.consumableHealthGain !== undefined && def.consumableHealthGain !== 0) {
+                stats.push({ label: 'Health', value: `${def.consumableHealthGain > 0 ? '+' : ''}${def.consumableHealthGain}`, color: def.consumableHealthGain > 0 ? '#5cb85c' : '#d9534f' });
+            }
+            if (def.consumableHungerSatiated !== undefined && def.consumableHungerSatiated !== 0) {
+                stats.push({ label: 'Hunger', value: `${def.consumableHungerSatiated > 0 ? '+' : ''}${def.consumableHungerSatiated}`, color: '#f0ad4e' });
+            }
+            if (def.consumableThirstQuenched !== undefined && def.consumableThirstQuenched !== 0) {
+                stats.push({ label: 'Thirst', value: `${def.consumableThirstQuenched > 0 ? '+' : ''}${def.consumableThirstQuenched}`, color: '#5bc0de' });
+            }
+            if (def.consumableStaminaGain !== undefined && def.consumableStaminaGain !== 0) {
+                stats.push({ label: 'Stamina', value: `${def.consumableStaminaGain > 0 ? '+' : ''}${def.consumableStaminaGain}`, color: '#5cb85c' });
+            }
+            if (def.consumableDurationSecs !== undefined && def.consumableDurationSecs > 0) {
+                stats.push({ label: 'Duration', value: `${def.consumableDurationSecs}s` });
+            }
+            
+            // Fuel Stats
+            if (def.fuelBurnDurationSecs !== undefined && def.fuelBurnDurationSecs > 0) {
+                stats.push({ label: 'Burn Time', value: `${def.fuelBurnDurationSecs}s` });
+            }
+
+            const content: TooltipContent = {
+                name: def.name,
+                description: def.description,
+                category: def.category.tag,
+                // Rarity needs to be determined, for now, undefined
+                rarity: undefined, // Placeholder - implement rarity logic if available or desired
+                stats: stats.length > 0 ? stats : undefined,
+            };
+
+            setTooltipContent(content);
+            setTooltipPosition({ x: relativeX, y: relativeY });
+            setTooltipVisible(true);
+        }
+    }, []); // Dependency array is empty as panelRef and item details are stable or derived within
+
+    const handleItemMouseLeave = useCallback(() => {
+        setTooltipVisible(false);
+        setTooltipContent(null);
+    }, []);
+
+    const handleItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        if (inventoryPanelRef.current && tooltipVisible) { // Only update if visible and panel exists
+            const panelRect = inventoryPanelRef.current.getBoundingClientRect();
+            const relativeX = event.clientX - panelRect.left;
+            const relativeY = event.clientY - panelRect.top;
+            setTooltipPosition({ x: relativeX, y: relativeY });
+        }
+    }, [tooltipVisible]); // Depend on tooltipVisible to avoid unnecessary calculations
+
     const handleInventoryItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
         event.preventDefault();
         if (!connection?.reducers || !itemInfo) return;
@@ -258,9 +382,125 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         }
     }, [connection, interactionTarget, stashes]);
 
+    // Helper function to format stat numbers
+    const formatStatDisplay = (value: number, isPercentage: boolean = false, signed: boolean = true): string => {
+        const roundedValue = Math.round(value * 10) / 10;
+        const sign = signed && roundedValue > 0 ? '+' : '';
+        const percentage = isPercentage ? '%' : '';
+        return `${sign}${roundedValue}${percentage}`;
+    };
+
+    // These handlers will be identical to the ones above but are explicitly for external items
+    // to avoid any potential confusion if we ever needed to differentiate them.
+    const handleExternalItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        if (inventoryPanelRef.current) {
+            const panelRect = inventoryPanelRef.current.getBoundingClientRect();
+            const relativeX = event.clientX - panelRect.left;
+            const relativeY = event.clientY - panelRect.top;
+
+            const stats: TooltipStats[] = [];
+            const def = item.definition;
+            const categoryTag = def.category.tag;
+
+            if (categoryTag === 'Tool') {
+                // Primary Yield for Tools
+                if (def.primaryTargetYieldMin !== undefined || def.primaryTargetYieldMax !== undefined) {
+                    const min = def.primaryTargetYieldMin ?? 0;
+                    const max = def.primaryTargetYieldMax ?? min;
+                    let yieldLabel = 'Primary Yield';
+                    if (def.primaryTargetType) {
+                        yieldLabel = `${def.primaryTargetType.tag} Yield`;
+                    }
+                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
+                }
+                // Secondary Yield for Tools
+                if (def.secondaryTargetYieldMin !== undefined || def.secondaryTargetYieldMax !== undefined) {
+                    const min = def.secondaryTargetYieldMin ?? 0;
+                    const max = def.secondaryTargetYieldMax ?? min;
+                    let yieldLabel = 'Secondary Yield';
+                    if (def.secondaryTargetType) {
+                        yieldLabel = `${def.secondaryTargetType.tag} Yield`;
+                    }
+                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
+                }
+            } else {
+                // Weapon Stats (Primary Damage)
+                if (def.primaryTargetDamageMin !== undefined || def.primaryTargetDamageMax !== undefined) {
+                    const min = def.primaryTargetDamageMin ?? 0;
+                    const max = def.primaryTargetDamageMax ?? min;
+                    stats.push({ label: 'Damage', value: max > min ? `${min}-${max}` : `${min}` });
+                }
+            }
+            
+            // Weapon Stats (PvP Damage)
+            if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+                const min = def.pvpDamageMin ?? 0;
+                const max = def.pvpDamageMax ?? min;
+                stats.push({ label: 'PvP Damage', value: max > min ? `${min}-${max}` : `${min}` });
+            }
+            if (def.bleedDamagePerTick !== undefined && def.bleedDamagePerTick > 0 && def.bleedDurationSeconds !== undefined) {
+                stats.push({ label: 'Bleed', value: `${def.bleedDamagePerTick}/tick for ${def.bleedDurationSeconds}s` });
+            }
+
+            // Armor Stats
+            if (def.damageResistance !== undefined && def.damageResistance > 0) {
+                stats.push({ label: 'Defense', value: formatStatDisplay(def.damageResistance * 100, true) });
+            }
+            if (def.warmthBonus !== undefined && def.warmthBonus !== 0) {
+                stats.push({ label: 'Warmth', value: formatStatDisplay(def.warmthBonus), color: def.warmthBonus > 0 ? '#f0ad4e' : '#5bc0de' });
+            }
+
+            // Consumable Stats
+            if (def.consumableHealthGain !== undefined && def.consumableHealthGain !== 0) {
+                stats.push({ label: 'Health', value: `${def.consumableHealthGain > 0 ? '+' : ''}${def.consumableHealthGain}`, color: def.consumableHealthGain > 0 ? '#5cb85c' : '#d9534f' });
+            }
+            if (def.consumableHungerSatiated !== undefined && def.consumableHungerSatiated !== 0) {
+                stats.push({ label: 'Hunger', value: `${def.consumableHungerSatiated > 0 ? '+' : ''}${def.consumableHungerSatiated}`, color: '#f0ad4e' });
+            }
+            if (def.consumableThirstQuenched !== undefined && def.consumableThirstQuenched !== 0) {
+                stats.push({ label: 'Thirst', value: `${def.consumableThirstQuenched > 0 ? '+' : ''}${def.consumableThirstQuenched}`, color: '#5bc0de' });
+            }
+            if (def.consumableStaminaGain !== undefined && def.consumableStaminaGain !== 0) {
+                stats.push({ label: 'Stamina', value: `${def.consumableStaminaGain > 0 ? '+' : ''}${def.consumableStaminaGain}`, color: '#5cb85c' });
+            }
+            if (def.consumableDurationSecs !== undefined && def.consumableDurationSecs > 0) {
+                stats.push({ label: 'Duration', value: `${def.consumableDurationSecs}s` });
+            }
+            if (def.fuelBurnDurationSecs !== undefined && def.fuelBurnDurationSecs > 0) {
+                stats.push({ label: 'Burn Time', value: `${def.fuelBurnDurationSecs}s` });
+            }
+
+            const content: TooltipContent = {
+                name: def.name,
+                description: def.description,
+                category: def.category.tag,
+                rarity: undefined, 
+                stats: stats.length > 0 ? stats : undefined,
+            };
+
+            setTooltipContent(content);
+            setTooltipPosition({ x: relativeX, y: relativeY });
+            setTooltipVisible(true);
+        }
+    }, []);
+
+    const handleExternalItemMouseLeave = useCallback(() => {
+        setTooltipVisible(false);
+        setTooltipContent(null);
+    }, []);
+
+    const handleExternalItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        if (inventoryPanelRef.current && tooltipVisible) {
+            const panelRect = inventoryPanelRef.current.getBoundingClientRect();
+            const relativeX = event.clientX - panelRect.left;
+            const relativeY = event.clientY - panelRect.top;
+            setTooltipPosition({ x: relativeX, y: relativeY });
+        }
+    }, [tooltipVisible]);
+
     // --- Render --- 
     return (
-        <div className={styles.inventoryPanel}>
+        <div ref={inventoryPanelRef} data-id="inventory-panel" className={styles.inventoryPanel}>
             <button className={styles.closeButton} onClick={handleClose}>X</button>
 
             {/* Left Pane: Equipment */} 
@@ -285,6 +525,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                             sourceSlot={currentSlotInfo}
                                             onItemDragStart={onItemDragStart}
                                             onItemDrop={onItemDrop}
+                                            onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
+                                            onMouseLeave={handleItemMouseLeave}
+                                            onMouseMove={handleItemMouseMove}
                                             // No context menu needed for equipped items? Or move back to inv?
                                         />
                                     )}
@@ -318,6 +561,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                         onItemDragStart={onItemDragStart}
                                         onItemDrop={onItemDrop}
                                         onContextMenu={(event) => handleInventoryItemContextMenu(event, item)}
+                                        onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
+                                        onMouseLeave={handleItemMouseLeave}
+                                        onMouseMove={handleItemMouseMove}
                                     />
                                 )}
                             </DroppableSlot>
@@ -343,6 +589,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     onItemDragStart={onItemDragStart}
                     onItemDrop={onItemDrop}
                     playerId={playerIdentity ? playerIdentity.toHexString() : null}
+                    onExternalItemMouseEnter={handleExternalItemMouseEnter}
+                    onExternalItemMouseLeave={handleExternalItemMouseLeave}
+                    onExternalItemMouseMove={handleExternalItemMouseMove}
                 />
                 ) : (
                     // Otherwise, show the crafting UI
@@ -357,6 +606,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             />
                 )}
             </div>
+            <Tooltip content={tooltipContent} visible={tooltipVisible} position={tooltipPosition} />
         </div>
     );
 };
