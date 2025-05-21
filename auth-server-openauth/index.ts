@@ -329,21 +329,141 @@ async function success(ctx: any, value: any): Promise<Response> {
     const code_challenge_method = query['code_challenge_method'] || 'S256'; // Default to S256
     const client_id = query['client_id'] || CLIENT_ID; 
 
+    // GitHub logo can be inlined as a data URI or served from a public folder if the auth server has one.
+    // For simplicity, using a placeholder text for logo here.
+    const githubLogoPlaceholder = 'Vibe Survival'; // Or an actual <img> tag if you serve assets
+
     return c.html(`
-      <h1>Register</h1>
-      <form method="post">
-        <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
-        <input type="hidden" name="state" value="${state || ''}">
-        <input type="hidden" name="code_challenge" value="${code_challenge}">
-        <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
-        <input type="hidden" name="client_id" value="${client_id}">
-        
-        <div><label>Email: <input name="email" type="email" required></label></div>
-        <div><label>Password: <input name="password" type="password" required></label></div>
-        <button type="submit">Register</button>
-      </form>
-      <hr>
-      <p>Already have an account? <a href="/auth/password/login?${queryString}">Login</a></p>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Register</title>
+        <!-- <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"> -->
+        <style>
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                width: 100%;
+                margin: 0;
+                background-color: #1a1a2e; /* Darker background like game */
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                color: white;
+            }
+            .container {
+                background-color: rgba(40, 40, 60, 0.85); /* UI_BG_COLOR */
+                padding: 40px;
+                border-radius: 4px;
+                border: 1px solid #a0a0c0; /* UI_BORDER_COLOR */
+                box-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* UI_SHADOW */
+                text-align: center;
+                min-width: 400px;
+                max-width: 500px;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            }
+            .logo-text {
+                font-size: 24px; /* Larger for title */
+                margin-bottom: 10px;
+                color: #e0e0e0;
+            }
+            .subtitle {
+                font-size: 14px;
+                margin-bottom: 30px;
+                color: #b0b0c0;
+            }
+            h1 {
+                margin-bottom: 25px;
+                font-weight: normal;
+                font-size: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 8px;
+                font-size: 12px;
+                text-align: left;
+                color: #d0d0d0;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            }
+            input[type="email"], input[type="password"] {
+                padding: 10px;
+                margin-bottom: 20px;
+                border: 1px solid #a0a0c0; /* UI_BORDER_COLOR */
+                background-color: #333;
+                color: white;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                font-size: 14px;
+                display: block;
+                width: calc(100% - 22px); /* padding consideration */
+                text-align: center;
+                box-sizing: border-box;
+                border-radius: 2px;
+            }
+            button[type="submit"] {
+                padding: 12px 20px;
+                border: 1px solid #a0a0c0; /* UI_BORDER_COLOR */
+                background-color: #777; /* UI_BUTTON_COLOR */
+                color: white;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                font-size: 14px;
+                cursor: pointer;
+                box-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* UI_SHADOW */
+                display: inline-block;
+                box-sizing: border-box;
+                margin-bottom: 20px;
+                text-transform: uppercase;
+                border-radius: 2px;
+            }
+            button[type="submit"]:hover {
+                background-color: #888;
+            }
+            .form-link {
+                font-size: 12px;
+                color: #ccc;
+            }
+            .form-link a {
+                color: #fff;
+                text-decoration: underline;
+            }
+            .form-link a:hover {
+                color: #a0a0c0;
+            }
+            hr {
+                border: none;
+                border-top: 1px solid #555;
+                margin-top: 25px;
+                margin-bottom: 25px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo-text">${githubLogoPlaceholder}</div>
+            <div class="subtitle">2D Survival Multiplayer</div>
+            <h1>Create Account</h1>
+            <form method="post">
+                <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
+                <input type="hidden" name="state" value="${state || ''}">
+                <input type="hidden" name="code_challenge" value="${code_challenge}">
+                <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
+                <input type="hidden" name="client_id" value="${client_id}">
+                <div>
+                    <label for="email">Email:</label>
+                    <input id="email" name="email" type="email" required>
+                </div>
+                <div>
+                    <label for="password">Password:</label>
+                    <input id="password" name="password" type="password" required>
+                </div>
+                <button type="submit">Register</button>
+            </form>
+            <hr>
+            <p class="form-link">Already have an account? <a href="/auth/password/login?${queryString}">Login</a></p>
+        </div>
+    </body>
+    </html>
     `);
   });
 
@@ -351,7 +471,6 @@ async function success(ctx: any, value: any): Promise<Response> {
     const form = await c.req.formData();
     const email = form.get('email') as string | undefined;
     const password = form.get('password') as string | undefined;
-    // Retrieve hidden fields
     const redirect_uri_from_form = form.get('redirect_uri') as string | undefined;
     const state = form.get('state') as string | undefined;
     const code_challenge = form.get('code_challenge') as string | undefined;
@@ -362,30 +481,23 @@ async function success(ctx: any, value: any): Promise<Response> {
          console.error('[AuthServer] POST Register: Missing form data.');
          return c.text('Missing required form fields.', 400);
     }
+    const githubLogoPlaceholder = 'Vibe Survival'; // Consistent with GET route
 
-    // Call the simple registration handler
     const userResult = await _handlePasswordRegisterSimple(email, password);
 
     if (userResult) {
-        // Registration successful
         const userId = userResult.id;
         const code = uuidv4();
-        
-        // Decode the redirect URI received from the form TWICE
         let redirect_uri: string;
         try {
             const decoded_once = decodeURIComponent(redirect_uri_from_form);
-            redirect_uri = decodeURIComponent(decoded_once); // Decode again
+            redirect_uri = decodeURIComponent(decoded_once);
             console.log(`[AuthServer] POST Register: Decoded redirect_uri: ${redirect_uri}`);
         } catch (e) {
             console.error('[AuthServer] POST Register: Failed to double-decode redirect_uri:', redirect_uri_from_form, e);
             return c.text('Invalid redirect URI encoding.', 400);
         }
-        
-        // Store code details (using the fully decoded URI)
         authCodes.set(code, { userId, codeChallenge: code_challenge, codeChallengeMethod: code_challenge_method, clientId: client_id, redirectUri: redirect_uri });
-        
-        // Construct redirect URL using the fully decoded URI
         try {
             const redirect = new URL(redirect_uri);
             redirect.searchParams.set('code', code);
@@ -397,32 +509,24 @@ async function success(ctx: any, value: any): Promise<Response> {
             return c.text('Invalid redirect URI provided.', 500);
         }
     } else {
-        // Registration failed (likely email taken)
         console.warn(`[AuthServer] POST Register Failed for email: ${email} (Email likely taken)`);
-        // Re-render registration form with error message
-        const redirect_uri_encoded = encodeURIComponent(redirect_uri_from_form); // Re-encode for HTML value
+        const redirect_uri_encoded = encodeURIComponent(redirect_uri_from_form);
         const query = { redirect_uri: redirect_uri_encoded, state, code_challenge, code_challenge_method, client_id };
         const queryString = Object.entries(query)
-            .filter(([_, value]) => value != null) // Ensure values are not null/undefined before encoding
+            .filter(([_, value]) => value != null)
             .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
             .join('&');
             
         return c.html(`
-            <h1>Register</h1>
-            <p style="color:red;">Registration failed. That email might already be taken.</p>
-            <form method="post">
-                 <input type="hidden" name="redirect_uri" value="${redirect_uri_encoded}">
-                 <input type="hidden" name="state" value="${state || ''}">
-                 <input type="hidden" name="code_challenge" value="${code_challenge}">
-                 <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
-                 <input type="hidden" name="client_id" value="${client_id}">
-                 <div><label>Email: <input name="email" type="email" value="${email || ''}" required></label></div>
-                 <div><label>Password: <input name="password" type="password" required></label></div>
-                 <button type="submit">Register</button>
-            </form>
-            <hr>
-            <p>Already have an account? <a href="/auth/password/login?${queryString}">Login</a></p>
-        `);
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Register</title>
+            <!-- <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"> -->
+            <style>
+                body { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; margin: 0; background-color: #1a1a2e; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: white; }\n                .container { background-color: rgba(40, 40, 60, 0.85); padding: 40px; border-radius: 4px; border: 1px solid #a0a0c0; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); text-align: center; min-width: 400px; max-width: 500px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n                .logo-text { font-size: 24px; margin-bottom: 10px; color: #e0e0e0; }\n                .subtitle { font-size: 14px; margin-bottom: 30px; color: #b0b0c0; }\n                h1 { margin-bottom: 25px; font-weight: normal; font-size: 20px; }\n                .error-message { color: red; margin-top: 0px; margin-bottom: 15px; font-size: 12px; padding: 8px; background-color: rgba(255,0,0,0.1); border-radius: 4px; }\n                label { display: block; margin-bottom: 8px; font-size: 12px; text-align: left; color: #d0d0d0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n                input[type="email"], input[type="password"] { padding: 10px; margin-bottom: 20px; border: 1px solid #a0a0c0; background-color: #333; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; display: block; width: calc(100% - 22px); text-align: center; box-sizing: border-box; border-radius: 2px; }\n                button[type="submit"] { padding: 12px 20px; border: 1px solid #a0a0c0; background-color: #777; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; cursor: pointer; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); width: 100%; margin-bottom: 20px; text-transform: uppercase; border-radius: 2px; }\n                button[type="submit"]:hover { background-color: #888; }\n                .form-link { font-size: 12px; color: #ccc; }\n                .form-link a { color: #fff; text-decoration: underline; }\n                .form-link a:hover { color: #a0a0c0; }\n                hr { border: none; border-top: 1px solid #555; margin-top: 25px; margin-bottom: 25px; }\n            </style>\n        </head>\n        <body>\n            <div class="container">\n                <div class="logo-text">${githubLogoPlaceholder}</div>\n                <div class="subtitle">2D Survival Multiplayer</div>\n                <h1>Create Account</h1>\n                <p class="error-message">Registration failed. That email might already be taken.</p>\n                <form method="post">\n                     <input type="hidden" name="redirect_uri" value="${redirect_uri_encoded}">\n                     <input type="hidden" name="state" value="${state || ''}">\n                     <input type="hidden" name="code_challenge" value="${code_challenge}">\n                     <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">\n                     <input type="hidden" name="client_id" value="${client_id}">\n                     <div><label for="email">Email:</label><input id="email" name="email" type="email" value="${email || ''}" required></div>\n                     <div><label for="password">Password:</label><input id="password" name="password" type="password" required></div>\n                     <button type="submit">Register</button>\n                </form>\n                <hr>\n                <p class="form-link">Already have an account? <a href="/auth/password/login?${queryString}">Login</a></p>\n            </div>\n        </body>\n        </html>\n        `);
     }
   });
 
@@ -437,30 +541,24 @@ async function success(ctx: any, value: any): Promise<Response> {
     const code_challenge = query['code_challenge'] || '';
     const code_challenge_method = query['code_challenge_method'] || 'S256';
     const client_id = query['client_id'] || CLIENT_ID;
+    const githubLogoPlaceholder = 'Vibe Survival'; // Consistent with GET route
 
     return c.html(`
-      <h1>Login</h1>
-      <form method="post">
-         <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
-        <input type="hidden" name="state" value="${state || ''}">
-        <input type="hidden" name="code_challenge" value="${code_challenge}">
-        <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
-         <input type="hidden" name="client_id" value="${client_id}">
-
-        <div><label>Email: <input name="email" type="email" required></label></div>
-        <div><label>Password: <input name="password" type="password" required></label></div>
-        <button type="submit">Login</button>
-      </form>
-      <hr>
-      <p>Don't have an account? <a href="/auth/password/register?${queryString}">Register</a></p>
-    `);
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login</title>
+        <!-- <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"> -->
+        <style>
+            body { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; margin: 0; background-color: #1a1a2e; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: white; }\n            .container { background-color: rgba(40, 40, 60, 0.85); padding: 40px; border-radius: 4px; border: 1px solid #a0a0c0; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); text-align: center; min-width: 400px; max-width: 500px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n            .logo-text { font-size: 24px; margin-bottom: 10px; color: #e0e0e0; }\n            .subtitle { font-size: 14px; margin-bottom: 30px; color: #b0b0c0; }\n            h1 { margin-bottom: 25px; font-weight: normal; font-size: 20px; }\n            label { display: block; margin-bottom: 8px; font-size: 12px; text-align: left; color: #d0d0d0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n            input[type="email"], input[type="password"] { padding: 10px; margin-bottom: 20px; border: 1px solid #a0a0c0; background-color: #333; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; display: block; width: calc(100% - 22px); text-align: center; box-sizing: border-box; border-radius: 2px; }\n            button[type="submit"] { padding: 12px 20px; border: 1px solid #a0a0c0; background-color: #777; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; cursor: pointer; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* width: 100%; */ display: inline-block; box-sizing: border-box; margin-bottom: 20px; text-transform: uppercase; border-radius: 2px; }\n            button[type="submit"]:hover { background-color: #888; }\n            .form-link { font-size: 12px; color: #ccc; }\n            .form-link a { color: #fff; text-decoration: underline; }\n            .form-link a:hover { color: #a0a0c0; }\n            hr { border: none; border-top: 1px solid #555; margin-top: 25px; margin-bottom: 25px; }\n        </style>\n    </head>\n    <body>\n        <div class="container">\n            <div class="logo-text">${githubLogoPlaceholder}</div>\n            <div class="subtitle">2D Survival Multiplayer</div>\n            <h1>Login</h1>\n            <form method="post">\n                <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">\n                <input type="hidden" name="state" value="${state || ''}">\n                <input type="hidden" name="code_challenge" value="${code_challenge}">\n                <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">\n                <input type="hidden" name="client_id" value="${client_id}">\n                <div>\n                    <label for="email">Email:</label>\n                    <input id="email" name="email" type="email" required>\n                </div>\n                <div>\n                    <label for="password">Password:</label>\n                    <input id="password" name="password" type="password" required>\n                </div>\n                <button type="submit">Login</button>\n            </form>\n            <hr>\n            <p class="form-link">Don\'t have an account? <a href="/auth/password/register?${queryString}">Register</a></p>\n        </div>\n    </body>\n    </html>\n    `);
   });
   
   app.post('/auth/password/login', async (c) => {
       const form = await c.req.formData();
       const email = form.get('email') as string | undefined;
       const password = form.get('password') as string | undefined;
-      // Retrieve hidden fields
       const redirect_uri_from_form = form.get('redirect_uri') as string | undefined;
       const state = form.get('state') as string | undefined;
       const code_challenge = form.get('code_challenge') as string | undefined;
@@ -469,32 +567,25 @@ async function success(ctx: any, value: any): Promise<Response> {
 
       if (!email || !password || !redirect_uri_from_form || !code_challenge || !code_challenge_method || !client_id) {
            console.error('[AuthServer] POST Login: Missing form data.');
-           // TODO: Re-render form with error and hidden fields
            return c.text('Missing required form fields.', 400);
       }
+      const githubLogoPlaceholder = 'Vibe Survival'; // Consistent with GET route
 
       const userResult = await _handlePasswordLoginSimple(email, password);
 
       if (userResult) {
-          // Login successful
           const userId = userResult.id;
           const code = uuidv4();
-          
-          // Decode the redirect URI received from the form TWICE
           let redirect_uri: string;
           try {
               const decoded_once = decodeURIComponent(redirect_uri_from_form);
-              redirect_uri = decodeURIComponent(decoded_once); // Decode again
+              redirect_uri = decodeURIComponent(decoded_once);
               console.log(`[AuthServer] POST Login: Decoded redirect_uri: ${redirect_uri}`);
           } catch (e) {
               console.error('[AuthServer] POST Login: Failed to double-decode redirect_uri:', redirect_uri_from_form, e);
               return c.text('Invalid redirect URI encoding.', 400);
           }
-          
-          // Store code details (using the fully decoded URI)
           authCodes.set(code, { userId, codeChallenge: code_challenge, codeChallengeMethod: code_challenge_method, clientId: client_id, redirectUri: redirect_uri });
-          
-          // Construct redirect URL using the fully decoded URI
           try {
               const redirect = new URL(redirect_uri);
               redirect.searchParams.set('code', code);
@@ -506,30 +597,23 @@ async function success(ctx: any, value: any): Promise<Response> {
               return c.text('Invalid redirect URI provided.', 500);
           }
       } else {
-          // Login failed
           console.warn(`[AuthServer] POST Login Failed for email: ${email}`);
-          // Re-render login form with error message
-          // Pass the original encoded value back to the hidden field
           const query = { redirect_uri: redirect_uri_from_form, state, code_challenge, code_challenge_method, client_id };
           const queryString = Object.entries(query)
-              .filter(([_, value]) => value != null) // Ensure values are not null/undefined before encoding
+              .filter(([_, value]) => value != null)
               .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
               .join('&');
               
           return c.html(`
-              <h1>Login</h1>
-              <p style="color:red;">Invalid email or password.</p>
-              <form method="post">
-                  <input type="hidden" name="redirect_uri" value="${redirect_uri_from_form}">
-                  <input type="hidden" name="state" value="${state || ''}">
-                  <input type="hidden" name="code_challenge" value="${code_challenge}">
-                  <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
-                  <input type="hidden" name="client_id" value="${client_id}">
-                  <div><label>Email: <input name="email" type="email" value="${email || ''}" required></label></div>
-                  <div><label>Password: <input name="password" type="password" required></label></div>
-                  <button type="submit">Login</button>
-              </form>
-          `);
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Login</title>
+                <!-- <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"> -->
+                <style>
+                    body { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; margin: 0; background-color: #1a1a2e; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: white; }\n                    .container { background-color: rgba(40, 40, 60, 0.85); padding: 40px; border-radius: 4px; border: 1px solid #a0a0c0; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); text-align: center; min-width: 400px; max-width: 500px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n                    .logo-text { font-size: 24px; margin-bottom: 10px; color: #e0e0e0; }\n                    .subtitle { font-size: 14px; margin-bottom: 30px; color: #b0b0c0; }\n                    h1 { margin-bottom: 25px; font-weight: normal; font-size: 20px; }\n                    label { display: block; margin-bottom: 8px; font-size: 12px; text-align: left; color: #d0d0d0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }\n                    input[type="email"], input[type="password"] { padding: 10px; margin-bottom: 20px; border: 1px solid #a0a0c0; background-color: #333; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; display: block; width: calc(100% - 22px); text-align: center; box-sizing: border-box; border-radius: 2px; }\n                    button[type="submit"] { padding: 12px 20px; border: 1px solid #a0a0c0; background-color: #777; color: white; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; font-size: 14px; cursor: pointer; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* width: 100%; */ display: inline-block; box-sizing: border-box; margin-bottom: 20px; text-transform: uppercase; border-radius: 2px; }\n                    button[type="submit"]:hover { background-color: #888; }\n                    .form-link { font-size: 12px; color: #ccc; }\n                    .form-link a { color: #fff; text-decoration: underline; }\n                    .form-link a:hover { color: #a0a0c0; }\n                    hr { border: none; border-top: 1px solid #555; margin-top: 25px; margin-bottom: 25px; }\n                </style>\n            </head>\n            <body>\n                <div class="container">\n                    <div class="logo-text">${githubLogoPlaceholder}</div>\n                    <div class="subtitle">2D Survival Multiplayer</div>\n                    <h1>Login</h1>\n                    <p class="error-message">Invalid email or password.</p>\n                    <form method="post">\n                        <input type="hidden" name="redirect_uri" value="${redirect_uri_from_form}">\n                        <input type="hidden" name="state" value="${state || ''}">\n                        <input type="hidden" name="code_challenge" value="${code_challenge}">\n                        <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">\n                        <input type="hidden" name="client_id" value="${client_id}">\n                        <div><label for="email">Email:</label><input id="email" name="email" type="email" value="${email || ''}" required></div>\n                        <div><label for="password">Password:</label><input id="password" name="password" type="password" required></div>\n                        <button type="submit">Login</button>\n                    </form>\n                    <hr>\n                    <p class="form-link">Don\'t have an account? <a href="/auth/password/register?${queryString}">Register</a></p>\n                </div>\n            </body>\n            </html>\n          `);
       }
   });
   // --- End Manual Password Routes --- 

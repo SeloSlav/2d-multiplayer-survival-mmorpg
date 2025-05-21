@@ -12,7 +12,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
-import githubLogo from '../../public/github.png'; // Adjust path as needed
+// import githubLogo from '../../public/github.png'; // Adjust path as needed
 import { useAuth } from '../contexts/AuthContext';
 // Import the Player type from generated bindings
 import { Player } from '../generated'; // Adjusted path
@@ -23,9 +23,10 @@ import { Player } from '../generated'; // Adjusted path
 const UI_BG_COLOR = 'rgba(40, 40, 60, 0.85)';
 const UI_BORDER_COLOR = '#a0a0c0';
 const UI_SHADOW = '2px 2px 0px rgba(0,0,0,0.5)';
-const UI_FONT_FAMILY = '"Press Start 2P", cursive';
+const UI_FONT_FAMILY = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif";
 const UI_BUTTON_COLOR = '#777';
 const UI_BUTTON_DISABLED_COLOR = '#555';
+const UI_PAGE_BG_COLOR = '#1a1a2e';
 
 interface LoginScreenProps {
     // Removed username/setUsername props
@@ -120,6 +121,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             minHeight: '100vh',
             width: '100%',
             fontFamily: UI_FONT_FAMILY,
+            backgroundColor: UI_PAGE_BG_COLOR,
         }}>
             <div style={{ 
                 backgroundColor: UI_BG_COLOR,
@@ -130,8 +132,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 boxShadow: UI_SHADOW,
                 textAlign: 'center',
                 minWidth: '400px',
+                maxWidth: '500px', // Added maxWidth for consistency
             }}>
-                <img
+                {/* REMOVED Image Logo */}
+                {/* <img
                     src={githubLogo}
                     alt="Vibe Coding Logo"
                     style={{
@@ -139,8 +143,25 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         height: 'auto',
                         marginBottom: '25px',
                     }}
-                />
-                <h2 style={{ marginBottom: '30px', fontWeight: 'normal' }}>2D Survival Multiplayer</h2>
+                /> */}
+
+                {/* ADDED Text Logo and Subtitle */}
+                <div style={{
+                    fontSize: '24px',
+                    marginBottom: '10px',
+                    color: '#e0e0e0',
+                    fontFamily: UI_FONT_FAMILY,
+                }}>
+                    Vibe Survival
+                </div>
+                <div style={{
+                    fontSize: '14px',
+                    marginBottom: '30px',
+                    color: '#b0b0c0',
+                    fontFamily: UI_FONT_FAMILY,
+                }}>
+                    2D Survival Multiplayer
+                </div>
                 
                 {/* Display based on authentication and player existence */}
                 {authIsLoading ? (
@@ -173,6 +194,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 boxShadow: UI_SHADOW,
                                 width: '100%',
                                 marginBottom: '15px',
+                                textTransform: 'uppercase',
+                                borderRadius: '2px',
                             }}
                         >
                             Sign Out
@@ -199,7 +222,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             // disabled is implicitly handled by not rendering if authError
                             style={{
                                 padding: '10px',
-                                marginBottom: '15px',
+                                marginBottom: '20px',
                                 border: `1px solid ${UI_BORDER_COLOR}`,
                                 backgroundColor: '#333',
                                 color: 'white',
@@ -208,6 +231,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 display: 'block',
                                 width: 'calc(100% - 22px)',
                                 textAlign: 'center',
+                                boxSizing: 'border-box',
+                                borderRadius: '2px',
                             }}
                         />
                     )
@@ -221,7 +246,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             // disabled logic from previous step is still relevant if this form is shown
                             disabled={isAuthenticated && !!authError} //This condition is less likely to be met now due to parent check
                             style={{
-                                padding: '10px 20px',
+                                padding: '12px 20px', // Consistent button padding
                                 border: `1px solid ${UI_BORDER_COLOR}`,
                                 backgroundColor: (isAuthenticated && !!authError) ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
                                 color: (isAuthenticated && !!authError) ? '#aaa' : 'white',
@@ -229,8 +254,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 fontSize: '14px',
                                 cursor: (isAuthenticated && !!authError) ? 'not-allowed' : 'pointer',
                                 boxShadow: UI_SHADOW,
-                                width: '100%',
-                                marginBottom: '15px',
+                                display: 'inline-block', // ADDED for non-full-width
+                                boxSizing: 'border-box', // Ensure box-sizing
+                                marginBottom: '20px', // Matched auth forms
+                                textTransform: 'uppercase', // Matched auth forms
+                                borderRadius: '2px',    // Matched auth forms
                             }}
                         >
                             {isAuthenticated ? 'Join Game' : 'Sign In / Sign Up'}
@@ -242,7 +270,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 {localError && !authError && (
                     <p style={{
                         color: 'red',
-                        marginTop: '15px',
+                        marginTop: '0px',
+                        marginBottom: '15px',
                         fontSize: '12px',
                         padding: '8px',
                         backgroundColor: 'rgba(255,0,0,0.1)',
@@ -268,9 +297,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 fontSize: '10px',
                                 background: '#444',
                                 color: 'white',
-                                border: 'none',
+                                border: `1px solid #555`,
                                 cursor: authIsLoading ? 'not-allowed' : 'pointer',
                                 fontFamily: UI_FONT_FAMILY,
+                                borderRadius: '2px',
                             }}
                         >
                             Sign Out
