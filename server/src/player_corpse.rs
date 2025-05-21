@@ -14,7 +14,7 @@ use std::time::Duration;
 use crate::models::{ItemLocation, ContainerType, EquipmentSlotType, ContainerLocationData}; // <<< ADDED ContainerLocationData
 
 // Define constants for the corpse
-pub(crate) const CORPSE_DESPAWN_DURATION_SECONDS: u64 = 300; // 5 minutes
+const DEFAULT_CORPSE_DESPAWN_SECONDS: u64 = 300; // Default to 5 minutes if no items or no respawn times set
 pub(crate) const CORPSE_COLLISION_RADIUS: f32 = 18.0; // Similar to box/campfire
 pub(crate) const CORPSE_COLLISION_Y_OFFSET: f32 = 10.0; // Similar to box/campfire
 pub(crate) const PLAYER_CORPSE_COLLISION_DISTANCE_SQUARED: f32 = (super::PLAYER_RADIUS + CORPSE_COLLISION_RADIUS) * (super::PLAYER_RADIUS + CORPSE_COLLISION_RADIUS);
@@ -26,6 +26,7 @@ use crate::environment::calculate_chunk_index;
 use crate::inventory_management::{self, ItemContainer, ContainerItemClearer};
 use crate::Player; // Import Player struct directly
 use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait}; // Import trait and struct
+use crate::items::item_definition as ItemDefinitionTableTrait; // <<< ADDED ItemDefinition trait
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // Self trait
 use crate::player;
 use crate::player_inventory::{move_item_to_inventory, move_item_to_hotbar, NUM_PLAYER_INVENTORY_SLOTS, NUM_PLAYER_HOTBAR_SLOTS};
@@ -561,7 +562,7 @@ fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> R
         pos_y: dead_player.position_y,
         chunk_index: calculate_chunk_index(dead_player.position_x, dead_player.position_y),
         death_time: ctx.timestamp,
-        despawn_scheduled_at: ctx.timestamp + Duration::from_secs(CORPSE_DESPAWN_DURATION_SECONDS), // This will be set in create_corpse_for_player
+        despawn_scheduled_at: ctx.timestamp + Duration::from_secs(DEFAULT_CORPSE_DESPAWN_SECONDS), // This will be set in create_corpse_for_player
         slot_instance_id_0: None, slot_def_id_0: None,
         slot_instance_id_1: None, slot_def_id_1: None,
         slot_instance_id_2: None, slot_def_id_2: None,
@@ -661,6 +662,7 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
     let inventory_table = ctx.db.inventory_item();
     let player_corpse_table = ctx.db.player_corpse();
     let corpse_schedules = ctx.db.player_corpse_despawn_schedule();
+    let item_defs_table = ctx.db.item_definition(); // <<< ADDED: Need item definitions
 
     // Clear player's active equipped item (tool/weapon in hand) first
     match crate::active_equipment::clear_active_item_reducer(ctx, dead_player.identity) {
@@ -676,8 +678,7 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
         Err(e) => return Err(e),
     };
 
-    // --- 4. Schedule Despawn --- 
-    // Retrieve the newly created corpse to check if it has items
+    // --- 4. Schedule Despawn (Dynamically based on corpse contents) --- 
     let corpse_for_despawn_check = match player_corpse_table.id().find(new_corpse_id) {
         Some(c) => c,
         None => {
@@ -686,20 +687,28 @@ pub fn create_corpse_for_player(ctx: &ReducerContext, dead_player: &Player) -> R
         }
     };
 
-    let mut has_items = false;
+    let mut max_respawn_time_seconds: u64 = 0;
+    let mut corpse_has_items_with_respawn_time = false;
+
     for i in 0..corpse_for_despawn_check.num_slots() as u8 {
-        if corpse_for_despawn_check.get_slot_instance_id(i).is_some() {
-            has_items = true;
-            break;
+        if let Some(item_def_id_in_corpse) = corpse_for_despawn_check.get_slot_def_id(i) {
+            if let Some(item_def) = item_defs_table.id().find(item_def_id_in_corpse) {
+                if let Some(respawn_time) = item_def.respawn_time_seconds {
+                    if respawn_time > max_respawn_time_seconds {
+                        max_respawn_time_seconds = respawn_time;
+                    }
+                    corpse_has_items_with_respawn_time = true;
+                }
+            }
         }
     }
 
-    let despawn_duration_seconds = if has_items {
-        log::info!("[CorpseCreate:{:?}] Corpse {} has items. Setting despawn to 40 minutes.", player_id, new_corpse_id);
-        2400 // 40 minutes
+    let despawn_duration_seconds = if corpse_has_items_with_respawn_time {
+        log::info!("[CorpseCreate:{:?}] Corpse {} has items with respawn times. Max respawn time: {}s.", player_id, new_corpse_id, max_respawn_time_seconds);
+        max_respawn_time_seconds 
     } else {
-        log::info!("[CorpseCreate:{:?}] Corpse {} is empty. Setting despawn to 5 minutes.", player_id, new_corpse_id);
-        CORPSE_DESPAWN_DURATION_SECONDS // Use existing 5-minute constant for empty
+        log::info!("[CorpseCreate:{:?}] Corpse {} is empty or items have no respawn time. Using default: {}s.", player_id, new_corpse_id, DEFAULT_CORPSE_DESPAWN_SECONDS);
+        DEFAULT_CORPSE_DESPAWN_SECONDS
     };
 
     let despawn_time = ctx.timestamp + Duration::from_secs(despawn_duration_seconds);

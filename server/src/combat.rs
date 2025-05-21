@@ -40,7 +40,7 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::dropped_item;
-use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, CORPSE_DESPAWN_DURATION_SECONDS, NUM_CORPSE_SLOTS, create_corpse_for_player};
+use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE_SLOTS, create_corpse_for_player};
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait;
 use crate::inventory_management::ItemContainer;

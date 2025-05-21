@@ -103,6 +103,7 @@ pub struct ItemDefinition {
     pub cooked_item_def_name: Option<String>, // Name of the ItemDefinition this item cooks into
     pub damage_resistance: Option<f32>, // <<< ADDED: e.g., 0.05 for 5% damage reduction
     pub warmth_bonus: Option<f32>,      // <<< ADDED: e.g., 0.2 warmth points per effect interval
+    pub respawn_time_seconds: Option<u64>, // ADDED: Time for item to despawn when dropped or in corpse
 }
 
 // --- Inventory Table ---

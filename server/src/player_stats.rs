@@ -67,7 +67,7 @@ use crate::{
     world_state::{self, TimeOfDay, BASE_WARMTH_DRAIN_PER_SECOND, WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK, WARMTH_DRAIN_MULTIPLIER_NIGHT, WARMTH_DRAIN_MULTIPLIER_MIDNIGHT},
     campfire::{self, Campfire, WARMTH_RADIUS_SQUARED, WARMTH_PER_SECOND},
     active_equipment, // For unequipping on death
-    player_corpse::{self, PlayerCorpse, CORPSE_DESPAWN_DURATION_SECONDS, NUM_CORPSE_SLOTS, PlayerCorpseDespawnSchedule},
+    player_corpse::{self, PlayerCorpse, NUM_CORPSE_SLOTS, PlayerCorpseDespawnSchedule},
     environment::calculate_chunk_index,
 };
 

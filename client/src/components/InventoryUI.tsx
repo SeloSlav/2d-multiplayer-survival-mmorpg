@@ -228,7 +228,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     }
                     stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
                 }
-            } else {
+            } else {    
                 // Weapon Stats (Primary Damage - for non-tools or tools that also have direct damage)
                 if (def.primaryTargetDamageMin !== undefined || def.primaryTargetDamageMax !== undefined) {
                     const min = def.primaryTargetDamageMin ?? 0;

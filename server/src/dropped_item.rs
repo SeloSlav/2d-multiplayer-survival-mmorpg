@@ -46,8 +46,6 @@ pub struct DroppedItemDespawnSchedule {
 const PICKUP_RADIUS: f32 = 64.0; // How close the player needs to be to pick up (adjust as needed)
 const PICKUP_RADIUS_SQUARED: f32 = PICKUP_RADIUS * PICKUP_RADIUS;
 pub(crate) const DROP_OFFSET: f32 = 40.0; // How far in front of the player to drop the item
-// Ensure constant is i64
-const DROPPED_ITEM_DESPAWN_DURATION_SECS: i64 = 300; // 5 minutes
 const DESPAWN_CHECK_INTERVAL_SECS: u64 = 60; // Check every 1 minute
 
 // --- Reducers ---
@@ -112,21 +110,31 @@ pub fn pickup_dropped_item(ctx: &ReducerContext, dropped_item_id: u64) -> Result
 pub fn despawn_expired_items(ctx: &ReducerContext, _schedule: DroppedItemDespawnSchedule) -> Result<(), String> {
     let current_time = ctx.timestamp;
     let dropped_items_table = ctx.db.dropped_item();
+    let item_defs_table = ctx.db.item_definition(); // <<< ADDED: Need ItemDefinition table
     let mut items_to_despawn: Vec<u64> = Vec::new();
     let mut despawn_count = 0;
 
     log::trace!("[DespawnCheck] Running scheduled check for expired dropped items at {:?}", current_time);
 
     for item in dropped_items_table.iter() {
+        // --- Get respawn time from ItemDefinition --- 
+        let item_def_respawn_seconds = match item_defs_table.id().find(item.item_def_id) {
+            Some(def) => def.respawn_time_seconds.unwrap_or(300), // Default to 5 mins if not set
+            None => {
+                log::warn!("[DespawnCheck] ItemDefinition not found for dropped item ID {} (DefID {}). Using default despawn time.", item.id, item.item_def_id);
+                300 // Default to 5 mins if definition is missing
+            }
+        };
+
         // Calculate elapsed time in microseconds
         let elapsed_micros = current_time.to_micros_since_unix_epoch()
                                .saturating_sub(item.created_at.to_micros_since_unix_epoch());
         // Ensure comparison is between i64
         let elapsed_seconds = (elapsed_micros / 1_000_000) as i64;
 
-        if elapsed_seconds >= DROPPED_ITEM_DESPAWN_DURATION_SECS {
-            log::info!("[DespawnCheck] Despawning item ID {} (created at {:?}, elapsed: {}s)", 
-                     item.id, item.created_at, elapsed_seconds);
+        if elapsed_seconds >= item_def_respawn_seconds as i64 { // <<< MODIFIED: Use item_def_respawn_seconds
+            log::info!("[DespawnCheck] Despawning item ID {} (DefID {}, created at {:?}, elapsed: {}s, despawn_time: {}s)", 
+                     item.id, item.item_def_id, item.created_at, elapsed_seconds, item_def_respawn_seconds);
             items_to_despawn.push(item.id);
         }
     }

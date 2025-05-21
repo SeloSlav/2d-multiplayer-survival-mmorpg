@@ -44,6 +44,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -85,6 +86,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(30),
         },
         ItemDefinition {
             id: 0,
@@ -126,6 +128,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -169,6 +172,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -210,6 +214,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
 
         // --- TOOLS ---
@@ -256,6 +261,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(600),
         },
         ItemDefinition {
             id: 0,
@@ -299,6 +305,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -343,6 +350,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(600),
         },
         ItemDefinition {
             id: 0,
@@ -386,6 +394,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -429,6 +438,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -473,6 +483,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(30),
         },
         ItemDefinition {
             id: 0,
@@ -517,6 +528,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(420),
         },
 
         // --- PLACEABLES ---
@@ -563,6 +575,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -606,6 +619,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -649,6 +663,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -692,6 +707,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(420),
         },
 
         // --- ARMOR (CLOTH SET) ---
@@ -737,6 +753,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -780,6 +797,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -823,6 +841,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -866,6 +885,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -909,6 +929,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.2),
+            respawn_time_seconds: Some(420),
         },
         ItemDefinition {
             id: 0,
@@ -953,6 +974,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: Some(0.01),
             warmth_bonus: Some(0.1),
+            respawn_time_seconds: Some(420),
         },
         
         // --- CONSUMABLES (Rebalanced and New) ---
@@ -996,6 +1018,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Cooked Mushroom".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(180),
         },
         ItemDefinition {
             id: 0,
@@ -1037,6 +1060,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Burnt Mushroom".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(240),
         },
         ItemDefinition {
             id: 0,
@@ -1078,6 +1102,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(60),
         },
         ItemDefinition {
             id: 0,
@@ -1119,6 +1144,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Cooked Corn".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(180),
         },
         ItemDefinition {
             id: 0,
@@ -1160,6 +1186,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Burnt Corn".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(240),
         },
         ItemDefinition {
             id: 0,
@@ -1201,6 +1228,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(60),
         },
         ItemDefinition {
             id: 0,
@@ -1242,6 +1270,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Cooked Pumpkin".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
         ItemDefinition {
             id: 0,
@@ -1283,6 +1312,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: Some("Burnt Pumpkin".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(360),
         },
         ItemDefinition {
             id: 0,
@@ -1324,6 +1354,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(60),
         },
         ItemDefinition {
             id: 0,
@@ -1365,6 +1396,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cooked_item_def_name: None,
             damage_resistance: None,
             warmth_bonus: None,
+            respawn_time_seconds: Some(300),
         },
     ];
 

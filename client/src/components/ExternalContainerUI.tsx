@@ -299,7 +299,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {isCampfireInteraction && currentCampfire && (
                 <>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '5px' }}>
+                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
                             {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
                                 const itemInSlot = fuelItems[index];
                                 const currentCampfireSlotInfo: DragSourceSlotInfo = { type: 'campfire_fuel', index: index, parentId: campfireIdNum ?? undefined };
@@ -350,7 +350,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {/* Box UI */} 
             {isBoxInteraction && currentStorageBox && (
                 <>
-                    <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${BOX_COLS}, ${styles.slotSize || '60px'})` }}>
+                    <div className={styles.inventoryGrid}>
                         {Array.from({ length: NUM_BOX_SLOTS }).map((_, index) => {
                             const itemInSlot = boxItems[index];
                             const currentBoxSlotInfo: DragSourceSlotInfo = { type: 'wooden_storage_box', index: index, parentId: boxIdNum ?? undefined };
@@ -388,7 +388,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {/* Corpse UI */} 
             {isCorpseInteraction && currentCorpse && (
                 <>
-                    <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${CORPSE_COLS}, ${styles.slotSize || '60px'})` }}>
+                    <div className={styles.inventoryGrid}>
                         {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
                             const itemInSlot = corpseItems[index];
                             // Ensure corpseIdBigInt is defined before creating slot info
@@ -429,7 +429,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             {isStashInteraction && currentStash && (
                 <>
                     {!currentStash.isHidden && (
-                        <div className={styles.inventoryGrid} style={{ gridTemplateColumns: `repeat(${STASH_COLS}, ${styles.slotSize || '60px'})` }}>
+                        <div className={styles.inventoryGrid}>
                             {Array.from({ length: NUM_STASH_SLOTS }).map((_, index) => {
                                 const itemInSlot = stashItems[index];
                                 const currentStashSlotInfo: DragSourceSlotInfo = { type: 'stash', index: index, parentId: stashIdNum ?? undefined };
