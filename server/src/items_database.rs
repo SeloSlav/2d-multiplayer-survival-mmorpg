@@ -419,7 +419,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: Some(20),
             pvp_damage_max: Some(30),
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Animal Bone".to_string(), quantity: 5 },
+                CostIngredient { item_name: "Bone Fragments".to_string(), quantity: 125 },
                 CostIngredient { item_name: "Plant Fiber".to_string(), quantity: 10 },
             ]),
             crafting_output_quantity: Some(1),
@@ -465,7 +465,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: Some(15),
             pvp_damage_max: Some(20),
             crafting_cost: Some(vec![
-                CostIngredient { item_name: "Animal Bone".to_string(), quantity: 2 },
+                CostIngredient { item_name: "Bone Fragments".to_string(), quantity: 50 },
                 CostIngredient { item_name: "Plant Fiber".to_string(), quantity: 5 },
             ]),
             crafting_output_quantity: Some(1),
@@ -1813,7 +1813,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_max: None,
             crafting_cost: Some(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 25 },
-                CostIngredient { item_name: "Bone Fragments".to_string(), quantity: 10 },
+                CostIngredient { item_name: "Bone Fragments".to_string(), quantity: 25 },
             ]),
             crafting_output_quantity: Some(2),
             crafting_time_secs: Some(3),

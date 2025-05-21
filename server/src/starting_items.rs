@@ -32,7 +32,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Cloth", 100, None, Some(0u16)),
         ("Bone Arrow", 50, None, Some(1u16)),
         ("Animal Fat", 1, None, Some(3u16)),
-        ("Bone", 1, None, Some(4u16)),
+        ("Animal Bone", 10, None, Some(4u16)),
         ("Bone Club", 1, None, Some(5u16)),
         ("Bone Knife", 1, None, Some(6u16)),
         ("Human Skull", 1, None, Some(7u16)),
