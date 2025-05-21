@@ -40,6 +40,8 @@ interface PlayerUIProps {
   playerCorpses: Map<string, PlayerCorpse>;
   stashes: Map<string, SpacetimeDBStash>;
   onCraftingSearchFocusChange?: (isFocused: boolean) => void;
+  showInventory: boolean;
+  onToggleInventory: () => void;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -65,10 +67,11 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
-    onCraftingSearchFocusChange
+    onCraftingSearchFocusChange,
+    showInventory,
+    onToggleInventory
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
-    const [isInventoryOpen, setIsInventoryOpen] = useState(false);
     const [lowNeedThreshold, setLowNeedThreshold] = useState<number>(20.0);
     // --- NEW STATE FOR NOTIFICATIONS ---
     const [acquisitionNotifications, setAcquisitionNotifications] = useState<NotificationItem[]>([]);
@@ -330,10 +333,9 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             if (event.key === 'Tab') {
                 event.preventDefault();
                 // Toggle the inventory state
-                const closingInventory = isInventoryOpen; // Check state BEFORE toggling
-                setIsInventoryOpen(prev => !prev);
+                onToggleInventory();
                 // If closing, also clear the interaction target
-                if (closingInventory) {
+                if (showInventory) {
                      onSetInteractingWith(null);
                 }
             }
@@ -342,7 +344,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isInventoryOpen, onSetInteractingWith]);
+    }, [showInventory, onToggleInventory, onSetInteractingWith]);
 
     // Effect to disable background scrolling when inventory is open
     useEffect(() => {
@@ -378,7 +380,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             event.preventDefault();
         };
 
-        if (isInventoryOpen) {
+        if (showInventory) {
             // Add the listener to the window
             window.addEventListener('wheel', preventBackgroundScroll, { passive: false });
             document.body.style.overflow = 'hidden'; // Hide body scrollbar
@@ -393,18 +395,22 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             window.removeEventListener('wheel', preventBackgroundScroll);
             document.body.style.overflow = 'auto';
         };
-    }, [isInventoryOpen]);
+    }, [showInventory]);
 
     // --- Open Inventory when Interaction Starts --- 
     useEffect(() => {
         if (interactingWith) {
-            setIsInventoryOpen(true);
+            if (!showInventory) {
+                onToggleInventory();
+            }
         }
-    }, [interactingWith]);
+    }, [interactingWith, showInventory, onToggleInventory]);
 
     // --- Handle Closing Inventory & Interaction --- 
     const handleClose = () => {
-        setIsInventoryOpen(false);
+        if (showInventory) {
+            onToggleInventory();
+        }
         onSetInteractingWith(null); // Clear interaction state when closing
     };
 
@@ -459,7 +465,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             </div>
 
             {/* Render Inventory UI conditionally - Pass props down */}
-            {isInventoryOpen && (
+            {showInventory && (
                 <InventoryUI
                     playerIdentity={identity}
                     onClose={handleClose}

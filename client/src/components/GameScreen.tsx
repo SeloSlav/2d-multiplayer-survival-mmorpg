@@ -121,6 +121,7 @@ interface GameScreenProps {
 const GameScreen: React.FC<GameScreenProps> = (props) => {
     // ADD THIS LOG AT THE VERY BEGINNING OF THE COMPONENT
     // console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
+    const [showInventoryState, setShowInventoryState] = useState(false);
 
     // Destructure props for cleaner usage
     const {
@@ -194,6 +195,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 messages={messages}
                 isSearchingCraftRecipes={isCraftingSearchFocused}
                 activeConsumableEffects={activeConsumableEffects}
+                showInventory={showInventoryState}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -233,6 +235,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeEquipments={activeEquipments}
                 activeConsumableEffects={activeConsumableEffects}
                 onCraftingSearchFocusChange={setIsCraftingSearchFocused}
+                onToggleInventory={() => setShowInventoryState(prev => !prev)}
+                showInventory={showInventoryState}
             />
             <Hotbar
                 playerIdentity={playerIdentity}

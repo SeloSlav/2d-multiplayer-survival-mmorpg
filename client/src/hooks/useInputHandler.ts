@@ -47,6 +47,7 @@ interface UseInputHandlerProps {
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isChatting: boolean;
     isSearchingCraftRecipes?: boolean;
+    isInventoryOpen: boolean; // Prop to indicate if inventory is open
 }
 
 // --- Hook Return Value Interface ---
@@ -93,7 +94,9 @@ export const useInputHandler = ({
     setIsMinimapOpen,
     isChatting,
     isSearchingCraftRecipes,
+    isInventoryOpen, // Destructure new prop
 }: UseInputHandlerProps): InputHandlerState => {
+    console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
     const { updatePlayerPosition, jump, setSprinting } = usePlayerActions();
 
@@ -220,9 +223,11 @@ export const useInputHandler = ({
     // --- Swing Logic --- 
     const attemptSwing = useCallback(() => {
         const currentConnection = connectionRef.current;
-        // Check focus IN ADDITION to player death
+        // MODIFIED: Check isInventoryOpen here as a primary guard
+        if (isInventoryOpen || !currentConnection?.reducers || !localPlayerId || isPlayerDead) return;
+
         const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-        if (!currentConnection?.reducers || !localPlayerId || isPlayerDead || chatInputIsFocused) return; 
+        if (chatInputIsFocused) return; 
 
         const currentEquipments = activeEquipmentsRef.current;
         const localEquipment = currentEquipments?.get(localPlayerId);
@@ -267,16 +272,26 @@ export const useInputHandler = ({
         } catch (err) { // Use unknown type for error
             console.error("[AttemptSwing] Error calling useEquippedItem reducer:", err);
         }
-    }, [localPlayerId, isPlayerDead]); // Remove isInputEffectivelyDisabled dependency
+    }, [localPlayerId, isPlayerDead, isInventoryOpen]); // Added isInventoryOpen to dependencies
 
     // --- Input Handling useEffect (Listeners only) ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             // MODIFIED: Block if player is dead, chatting, or searching recipes
-            if (!event || isPlayerDead || isChatting || isSearchingCraftRecipes) return;
+            // REMOVED isInventoryOpen from this top-level guard for general keydown events
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
+                // Allow escape for placement even if inventory is open (this was a good specific check)
+                if (event.key.toLowerCase() === 'escape' && placementInfo && isInventoryOpen) {
+                    placementActionsRef.current?.cancelPlacement();
+                }
+                // Allow escape to close inventory (this is typically handled by PlayerUI, but good to not block it here)
+                // No, PlayerUI handles tab. Escape here if inventory is open should only be for placement.
+                return;
+            }
             const key = event.key.toLowerCase();
 
             // Placement cancellation (checked before general input disabled)
+            // This check is fine as is, if placement is active, escape should cancel it.
             if (key === 'escape' && placementInfo) {
                 placementActionsRef.current?.cancelPlacement();
                 return;
@@ -561,7 +576,10 @@ export const useInputHandler = ({
 
         const handleKeyUp = (event: KeyboardEvent) => {
             // MODIFIED: Block if player is dead, chatting, or searching recipes
-            if (!event || isPlayerDead || isChatting || isSearchingCraftRecipes) return;
+            // REMOVED isInventoryOpen from this top-level guard for general keyup events
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
+                return;
+            }
             const key = event.key.toLowerCase();
             // Sprinting end
             if (key === 'shift') {
@@ -647,15 +665,15 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            // MODIFIED: Block if player is dead, chatting, searching, button isn't left, or placing
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo) return;
+            // MODIFIED: Block if player is dead, chatting, searching, button isn't left, placing, OR INVENTORY IS OPEN
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo || isInventoryOpen) return;
             isMouseDownRef.current = true;
             attemptSwing(); // Call internal swing logic
         };
 
         const handleMouseUp = (event: MouseEvent) => {
-            // No need to check focus here, just handle the button state
-            // MODIFIED: Only care about left mouse button for releasing isMouseDownRef
+            // MODIFIED: Only care about left mouse button for releasing isMouseDownRef.
+            // No special blocking needed for mouseUp if inventory is open, as mouseDown is already blocked.
             if (event.button === 0) {
                 isMouseDownRef.current = false;
             }
@@ -665,15 +683,17 @@ export const useInputHandler = ({
         const handleCanvasClick = (event: MouseEvent) => {
             if (isPlayerDead) return; // No actions if dead
 
-            const now = Date.now();
-            if (now - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) {
-                // console.log("Swing cooldown active");
-                return;
-            }
-
+            // If placing, attempt placement regardless of inventory (though placement UI might be hidden)
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
-                return; // Don't swing if placing
+                // If placement was attempted, don't proceed to other click actions, especially if inventory is open.
+                return; 
+            }
+
+            // MODIFIED: If inventory is open AND we are NOT placing, then no further click actions (like swing).
+            if (isInventoryOpen) {
+                // console.log("[InputHandler] Inventory is open, canvas click ignored for item actions.");
+                return; 
             }
 
             // If an interaction hold was just completed via click (rather than E key release), don't also swing.
@@ -698,13 +718,13 @@ export const useInputHandler = ({
                 } else {
                     // For any other equipped item, proceed with useEquippedItem
                     connectionRef.current?.reducers.useEquippedItem();
-                    lastClientSwingAttemptRef.current = now;
+                    lastClientSwingAttemptRef.current = Date.now();
                     // console.log("Attempting to use equipped item via click.");
                 }
             } else {
                  // No item equipped, or no equipment record, still allow "use" for unarmed / default action
                 connectionRef.current?.reducers.useEquippedItem();
-                lastClientSwingAttemptRef.current = now;
+                lastClientSwingAttemptRef.current = Date.now();
                 // console.log("Attempting to use (unarmed) via click.");
             }
         };
@@ -712,8 +732,21 @@ export const useInputHandler = ({
         // --- Context Menu for Placement Cancellation ---
         const handleContextMenu = (event: MouseEvent) => {
             if (isPlayerDead) return; // No actions if dead
-            // Prevent default browser context menu
+            
+            // Prevent default browser context menu in all cases where this handler is active
             event.preventDefault(); 
+
+            // If placing, right-click should cancel placement, regardless of inventory state.
+            if (placementInfo) {
+                placementActionsRef.current?.cancelPlacement();
+                return; 
+            }
+
+            // MODIFIED: If inventory is open AND we are NOT placing, then no further context menu actions.
+            if (isInventoryOpen) {
+                // console.log("[InputHandler] Inventory is open, context menu ignored for item actions.");
+                return;
+            }
 
             const localPlayerEquipment = activeEquipmentsRef.current?.get(localPlayerId || "");
             if (localPlayerEquipment && localPlayerEquipment.equippedItemInstanceId) {
@@ -813,7 +846,7 @@ export const useInputHandler = ({
                 eKeyHoldTimerRef.current = null;
             }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen]);
 
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
@@ -888,8 +921,8 @@ export const useInputHandler = ({
         }
 
         // Handle continuous swing check
-        // MODIFIED: Guard this with isChatting and isSearchingCraftRecipes as well
-        if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes) { // Only swing if not placing and not in UI
+        // MODIFIED: Guard this with isChatting, isSearchingCraftRecipes, AND isInventoryOpen
+        if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
             attemptSwing(); // Call internal attemptSwing function
         }
     }, [
@@ -898,7 +931,7 @@ export const useInputHandler = ({
         closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
         isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY,
-        isChatting, isSearchingCraftRecipes, setSprinting // Added isChatting, isSearchingCraftRecipes, setSprinting
+        isChatting, isSearchingCraftRecipes, setSprinting, isInventoryOpen 
     ]);
 
     // --- Return State & Actions ---

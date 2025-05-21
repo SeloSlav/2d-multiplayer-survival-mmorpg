@@ -112,6 +112,7 @@ interface GameCanvasProps {
   isChatting: boolean;
   messages: any;
   isSearchingCraftRecipes?: boolean;
+  showInventory: boolean;
 }
 
 /**
@@ -157,7 +158,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isChatting,
   messages,
   isSearchingCraftRecipes,
+  showInventory,
 }) => {
+  console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
   // console.log("Cloud data in GameCanvas:", Array.from(clouds?.values() || []));
 
@@ -275,6 +278,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableStashId,
       stashes,
       isSearchingCraftRecipes,
+      isInventoryOpen: showInventory,
   });
 
   // --- Use Entity Filtering Hook ---
@@ -748,6 +752,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visibleTrees, // Added to dependency array
       visibleTreesMap, // Added to dependency array
       playerCorpses,
+      showInventory,
   ]);
 
   const gameLoopCallback = useCallback(() => {
