@@ -20,6 +20,7 @@ pub(crate) const CORPSE_COLLISION_Y_OFFSET: f32 = 10.0; // Similar to box/campfi
 pub(crate) const PLAYER_CORPSE_COLLISION_DISTANCE_SQUARED: f32 = (super::PLAYER_RADIUS + CORPSE_COLLISION_RADIUS) * (super::PLAYER_RADIUS + CORPSE_COLLISION_RADIUS);
 pub(crate) const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED: f32 = 64.0 * 64.0; // Similar interaction range
 pub(crate) const NUM_CORPSE_SLOTS: usize = 30 + 5; // 24 inv + 6 hotbar + 5 equipment (example)
+pub(crate) const PLAYER_CORPSE_INITIAL_HEALTH: u32 = 100; // Health for harvesting the corpse itself
 
 // Import required items
 use crate::environment::calculate_chunk_index;
@@ -51,6 +52,11 @@ pub struct PlayerCorpse {
 
     pub death_time: Timestamp,
     pub despawn_scheduled_at: Timestamp, // When this corpse should be removed
+
+    // --- Harvesting Fields ---
+    pub health: u32,
+    pub max_health: u32,
+    pub last_hit_time: Option<Timestamp>,
 
     // --- Inventory Slots (0-NUM_CORPSE_SLOTS-1) ---
     // Conceptually: Player inv (0-23), hotbar (24-29), equipment (30-34)
@@ -563,6 +569,9 @@ fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> R
         chunk_index: calculate_chunk_index(dead_player.position_x, dead_player.position_y),
         death_time: ctx.timestamp,
         despawn_scheduled_at: ctx.timestamp + Duration::from_secs(DEFAULT_CORPSE_DESPAWN_SECONDS), // This will be set in create_corpse_for_player
+        health: PLAYER_CORPSE_INITIAL_HEALTH, // Initialize health
+        max_health: PLAYER_CORPSE_INITIAL_HEALTH, // Initialize max_health
+        last_hit_time: None, // Initialize last_hit_time
         slot_instance_id_0: None, slot_def_id_0: None,
         slot_instance_id_1: None, slot_def_id_1: None,
         slot_instance_id_2: None, slot_def_id_2: None,

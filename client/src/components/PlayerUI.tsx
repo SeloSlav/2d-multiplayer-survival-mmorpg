@@ -200,20 +200,18 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
 
         let currentTotalInInventory: number | undefined = undefined;
 
-        if (def.category.tag === 'Material') {
-            let total = 0;
-            const playerIdentityHex = identity.toHexString();
-            for (const invItem of connection.db.inventoryItem.iter()) {
-                if (invItem.itemDefId === itemDefId) {
-                    if (invItem.location.tag === 'Inventory' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
-                        total += invItem.quantity;
-                    } else if (invItem.location.tag === 'Hotbar' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
-                        total += invItem.quantity;
-                    }
+        let total = 0;
+        const playerIdentityHex = identity.toHexString();
+        for (const invItem of connection.db.inventoryItem.iter()) {
+            if (invItem.itemDefId === itemDefId) {
+                if (invItem.location.tag === 'Inventory' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
+                    total += invItem.quantity;
+                } else if (invItem.location.tag === 'Hotbar' && invItem.location.value.ownerId.toHexString() === playerIdentityHex) {
+                    total += invItem.quantity;
                 }
             }
-            currentTotalInInventory = total;
         }
+        currentTotalInInventory = total;
 
         const newNotification: NotificationItem = {
             id: `${Date.now()}-${Math.random()}`, // Simple unique ID

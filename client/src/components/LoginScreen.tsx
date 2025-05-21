@@ -177,8 +177,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             borderRadius: '4px',
                             marginBottom: '20px',
                         }}>
-                            {authError}<br />
-                            Please try signing out and signing in again.
+                            Connection failed. Please ensure you have an internet connection and try again.<br />
+                            If the problem persists, please try signing out and signing in.
                         </p>
                         <button
                             onClick={logout}

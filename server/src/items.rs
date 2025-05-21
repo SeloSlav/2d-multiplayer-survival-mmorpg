@@ -40,7 +40,8 @@ pub enum ItemCategory {
     Placeable,
     Armor,
     Consumable,
-    Ammunition, // Added Ammunition as per previous user feedback, ensure it's used or remove if not
+    Ammunition,
+    Weapon,
     // Add other categories as needed (Consumable, Wearable, etc.)
 }
 
@@ -74,13 +75,6 @@ pub struct ItemDefinition {
     pub primary_target_yield_max: Option<u32>,
     pub primary_target_type: Option<TargetType>,
     pub primary_yield_resource_name: Option<String>,
-
-    pub secondary_target_damage_min: Option<u32>,
-    pub secondary_target_damage_max: Option<u32>,
-    pub secondary_target_yield_min: Option<u32>,
-    pub secondary_target_yield_max: Option<u32>,
-    pub secondary_target_type: Option<TargetType>,
-    pub secondary_yield_resource_name: Option<String>,
 
     pub pvp_damage_min: Option<u32>,
     pub pvp_damage_max: Option<u32>,

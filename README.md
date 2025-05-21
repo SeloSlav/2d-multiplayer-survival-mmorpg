@@ -73,7 +73,7 @@ cd server/
 # Optional: Clean previous DB state if needed
 # spacetime delete vibe-survival-game
 spacetime publish vibe-survival-game
-spacetime spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
+spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
 cd ..
 ```
 

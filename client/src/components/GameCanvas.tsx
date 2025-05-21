@@ -372,7 +372,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
     deltaTime,
-    damagingCampfireIds,
   });
   const torchParticles = useTorchParticles({
     players,

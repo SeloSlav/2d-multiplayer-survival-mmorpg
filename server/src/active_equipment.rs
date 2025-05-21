@@ -111,10 +111,10 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
                 return Err("Cannot activate an item you don't possess.".to_string());
             }
             // If item is a tool or weapon, allow activation
-            if item_def.category == ItemCategory::Tool { // ItemCategory::Weapon removed
+            if item_def.category == ItemCategory::Tool || item_def.category == ItemCategory::Weapon {
                 // Valid location and type for activation
             } else {
-                return Err(format!("Item '{}' (category {:?}) is not a tool and cannot be activated in hand.", item_def.name, item_def.category));
+                return Err(format!("Item '{}' (category {:?}) is not a Tool or Weapon and cannot be activated in hand.", item_def.name, item_def.category));
             }
         }
         ItemLocation::Equipped(data) => {

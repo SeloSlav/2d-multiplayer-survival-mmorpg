@@ -97,4 +97,5 @@ pub enum TargetType {
     Stash,
     SleepingBag,
     Animal, // Added for animal targets
+    PlayerCorpse,
 }

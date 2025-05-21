@@ -25,6 +25,7 @@ use crate::models::TargetType;
 use crate::tree;
 use crate::stone;
 use crate::wooden_storage_box;
+use crate::player_corpse;
 
 // Specific constants needed
 use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
@@ -39,9 +40,7 @@ use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::player as PlayerTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::dropped_item;
-use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE_SLOTS, create_player_corpse};
-use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
-use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait;
+use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE_SLOTS, create_player_corpse, player_corpse as PlayerCorpseTableTrait, player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait};
 use crate::inventory_management::ItemContainer;
 use crate::environment::calculate_chunk_index;
 use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait, campfire_processing_schedule as CampfireProcessingScheduleTableTrait};
@@ -75,6 +74,7 @@ pub enum TargetId {
     WoodenStorageBox(u32),
     Stash(u32),
     SleepingBag(u32),
+    PlayerCorpse(u32),
 }
 
 /// Represents a potential target within attack range
@@ -321,6 +321,36 @@ pub fn find_targets_in_cone(
             }
         }
     }
+
+    // Check player corpses
+    for corpse_entity in ctx.db.player_corpse().iter() {
+        // Corpses can be harvested even if they have items, but not if already "destroyed" (health 0)
+        if corpse_entity.health == 0 {
+            continue;
+        }
+        // Use corpse_entity.pos_x, pos_y and CORPSE_COLLISION_Y_OFFSET for targeting
+        let dx = corpse_entity.pos_x - player.position_x;
+        let target_y = corpse_entity.pos_y - player_corpse::CORPSE_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::PlayerCorpse,
+                    id: TargetId::PlayerCorpse(corpse_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
     
     // Sort by distance (closest first)
     targets.sort_by(|a, b| a.distance_sq.partial_cmp(&b.distance_sq).unwrap());
@@ -337,40 +367,32 @@ pub fn find_best_target(targets: &[Target], item_def: &ItemDefinition) -> Option
         return None;
     }
     
-    // 1. Check for primary target type
+    // 1. Check for primary target type if defined for the item
     if let Some(primary_type) = item_def.primary_target_type {
         if let Some(target) = targets.iter().find(|t| t.target_type == primary_type) {
             return Some(target.clone());
         }
     }
 
-    // 2. Check for secondary target type
-    if let Some(secondary_type) = item_def.secondary_target_type {
-        if let Some(target) = targets.iter().find(|t| t.target_type == secondary_type) {
-            return Some(target.clone());
-        }
-    }
-
-    // 3. If tool has PvP damage, check for Player targets if no resource target was found
-    if item_def.pvp_damage_min.is_some() || item_def.pvp_damage_max.is_some() { // Check if any PvP damage is defined
+    // 2. If no primary target found (or item has no primary_target_type) 
+    //    AND item has PvP damage capability, check for Player targets.
+    if item_def.pvp_damage_min.is_some() || item_def.pvp_damage_max.is_some() {
         if let Some(player_target) = targets.iter().find(|t| t.target_type == TargetType::Player) {
-            // Only return player if primary/secondary types weren't found or aren't defined
-            if item_def.primary_target_type.is_none() && item_def.secondary_target_type.is_none() {
+            // Only return player if primary type wasn't found or wasn't defined.
+            // This check ensures we don't pick a player if a defined primary (e.g. Tree) was available but just not in the current target list.
+            // If primary_target_type is None, it means the item is not specialized, so a Player target is a valid choice if it has PvP damage.
+            if item_def.primary_target_type.is_none() || 
+               (item_def.primary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.primary_target_type.unwrap()).is_none()) {
                 return Some(player_target.clone());
-            } else if item_def.primary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.primary_target_type.unwrap()).is_none() &&
-                      item_def.secondary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.secondary_target_type.unwrap()).is_none() {
-                 return Some(player_target.clone()); // Primary & secondary not found
-            } else if item_def.primary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.primary_target_type.unwrap()).is_none() && item_def.secondary_target_type.is_none(){
-                return Some(player_target.clone()); // Primary not found, no secondary defined
-            } else if item_def.secondary_target_type.is_some() && targets.iter().find(|t| t.target_type == item_def.secondary_target_type.unwrap()).is_none() && item_def.primary_target_type.is_none(){
-                 return Some(player_target.clone()); // Secondary not found, no primary defined
             }
         }
     }
 
-    // 4. If no specific preferred target found, return the closest target of any type.
-    // This allows hitting unintended targets, and calculate_damage_and_yield will determine effect (possibly zero).
-    return targets.first().cloned();
+    // 3. If no specific preferred target found by the above logic, 
+    //    return the closest target of any type. 
+    //    This allows hitting unintended targets, and calculate_damage_and_yield 
+    //    will determine the actual effect (possibly zero damage/yield).
+    targets.first().cloned()
 }
 
 // --- Resource & Damage Functions ---
@@ -405,66 +427,83 @@ pub fn calculate_damage_and_yield(
     let mut damage_max = 0u32;
     let mut yield_min = 0u32;
     let mut yield_max = 0u32;
-    let mut resource_name = "None".to_string(); // Default to None, especially for PvP
+    let mut resource_name = "None".to_string();
 
+    // 1. Handle PvP directly
     if target_type == TargetType::Player {
         damage_min = item_def.pvp_damage_min.unwrap_or(0);
         damage_max = item_def.pvp_damage_max.unwrap_or(damage_min); 
         yield_min = 0; // No yield from players
         yield_max = 0;
-        // resource_name is already "None"
-    } else if target_type == TargetType::Campfire || target_type == TargetType::WoodenStorageBox {
-        // For structures, use PvP damage as a baseline if specific structure damage isn't defined.
-        // Ideally, we would add specific fields like `campfire_damage_min`, etc., to ItemDefinition.
-        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Example: Use PvP damage for now
-        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
-        yield_min = 0; // No resource yield from destroying structures directly
-        yield_max = 0;
         resource_name = "None".to_string();
-    } else if target_type == TargetType::Stash || target_type == TargetType::SleepingBag {
-        // For stashes and sleeping bags, use PvP damage as a baseline.
-        damage_min = item_def.pvp_damage_min.unwrap_or(0);
-        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
-        yield_min = 0; // No resource yield
-        yield_max = 0;
-        resource_name = "None".to_string();
-    } else if Some(target_type) == item_def.primary_target_type {
-        // Target matches the item's primary target type
-        damage_min = item_def.primary_target_damage_min.unwrap_or(0);
-        damage_max = item_def.primary_target_damage_max.unwrap_or(damage_min);
-        yield_min = item_def.primary_target_yield_min.unwrap_or(0);
-        yield_max = item_def.primary_target_yield_max.unwrap_or(yield_min);
-        resource_name = item_def.primary_yield_resource_name.clone().unwrap_or_else(|| "None".to_string());
-    } else if Some(target_type) == item_def.secondary_target_type {
-        // Target matches the item's secondary target type
-        damage_min = item_def.secondary_target_damage_min.unwrap_or(0);
-        damage_max = item_def.secondary_target_damage_max.unwrap_or(damage_min);
-        yield_min = item_def.secondary_target_yield_min.unwrap_or(0);
-        yield_max = item_def.secondary_target_yield_max.unwrap_or(yield_min);
-        resource_name = item_def.secondary_yield_resource_name.clone().unwrap_or_else(|| "None".to_string());
-    } else {
-        // Tool is not designed for this target type (e.g., trying to hit a tree with something that has no tree affinity)
-        // Fallback to very low/no damage and no yield.
-        // If it has PvP damage defined, use that as a last resort even for non-player, otherwise 0.
-        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Could be 0 if not a weapon
+    // 2. Handle Structures (Campfire, Box, Stash, SleepingBag) - No yield, PvP or specific damage
+    } else if target_type == TargetType::Campfire || 
+              target_type == TargetType::WoodenStorageBox || 
+              target_type == TargetType::Stash || 
+              target_type == TargetType::SleepingBag {
+        // For structures, could use pvp_damage_min/max or dedicated structure_damage fields if added later.
+        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Default to PvP damage for now
         damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
         yield_min = 0;
         yield_max = 0;
-        // resource_name is already "None"
-        log::warn!(
-            "Item '{}' used against unhandled target type '{:?}'. Primary: {:?}, Secondary: {:?}. Defaulting to minimal/no effect.", 
-            item_def.name, 
-            target_type,
-            item_def.primary_target_type,
-            item_def.secondary_target_type
-        );
+        resource_name = "None".to_string();
+    // 3. Handle Resource Nodes (Tree, Stone, PlayerCorpse)
+    } else if target_type == TargetType::Tree || target_type == TargetType::Stone || target_type == TargetType::PlayerCorpse {
+        if item_def.category == ItemCategory::Weapon {
+            // Weapons can damage resource nodes but yield no resources.
+            // Use primary_target_damage if defined for the weapon, otherwise very low/pvp damage.
+            damage_min = item_def.primary_target_damage_min.or(item_def.pvp_damage_min).unwrap_or(1); 
+            damage_max = item_def.primary_target_damage_max.or(item_def.pvp_damage_max).unwrap_or(damage_min);
+            yield_min = 0;
+            yield_max = 0;
+            resource_name = "None".to_string();
+        } else if item_def.category == ItemCategory::Tool {
+            // Default behavior for any Tool on a resource node:
+            // Moderate general-purpose yield and damage (can be overridden by specialization).
+            damage_min = item_def.primary_target_damage_min.unwrap_or(1); // Use primary damage if set, else default low
+            damage_max = item_def.primary_target_damage_max.unwrap_or(damage_min.max(1));
+            yield_min = 5; // Default moderate harvest power for any tool
+            yield_max = 10;
+            match target_type {
+                TargetType::Tree => resource_name = "Wood".to_string(),
+                TargetType::Stone => resource_name = "Stone".to_string(),
+                TargetType::PlayerCorpse => resource_name = "Corpse Parts".to_string(),
+                _ => resource_name = "Scraps".to_string(), // Should not be reached for these node types
+            }
+
+            // Override with specialized values if this tool's primary_target_type matches the actual target_type
+            if item_def.primary_target_type == Some(target_type) {
+                // Use specific damage if primary_target_damage is defined for this specialization
+                damage_min = item_def.primary_target_damage_min.unwrap_or(damage_min); // Keep default if specialized damage is not set
+                damage_max = item_def.primary_target_damage_max.unwrap_or(damage_max);
+                
+                yield_min = item_def.primary_target_yield_min.unwrap_or(yield_min); // Keep default if specialized yield is not set
+                yield_max = item_def.primary_target_yield_max.unwrap_or(yield_max);
+                resource_name = item_def.primary_yield_resource_name.clone().unwrap_or_else(|| resource_name); // Keep default if no specific name
+            }
+        } else {
+            // Other categories (Material, Placeable, Armor, Consumable, Ammunition) - No damage/yield from nodes
+            damage_min = 0;
+            damage_max = 0;
+            yield_min = 0;
+            yield_max = 0;
+            resource_name = "None".to_string();
+        }
+    } else {
+        // Should not happen if all TargetTypes are covered above. Fallback for safety.
+        log::warn!("Item '{}' used against unhandled target type '{:?}'. Defaulting to zero effect.", item_def.name, target_type);
+        damage_min = 0;
+        damage_max = 0;
+        yield_min = 0;
+        yield_max = 0;
+        resource_name = "None".to_string();
     }
 
-    // Ensure max is not less than min
+    // Ensure max is not less than min for damage and yield
     if damage_max < damage_min { damage_max = damage_min; }
     if yield_max < yield_min { yield_max = yield_min; }
 
-    let mut final_damage = if damage_min == damage_max {
+    let final_damage = if damage_min == damage_max {
         damage_min as f32
     } else {
         rng.gen_range(damage_min..=damage_max) as f32
@@ -476,15 +515,8 @@ pub fn calculate_damage_and_yield(
         rng.gen_range(yield_min..=yield_max)
     };
     
-    // Apply PVP multiplier if target is a player. This is now the authoritative damage for PvP.
-    if target_type == TargetType::Player {
-        let pvp_min = item_def.pvp_damage_min.unwrap_or(0); // Default to 0 if not specified
-        let pvp_max = item_def.pvp_damage_max.unwrap_or(pvp_min);
-        let base_pvp_damage = if pvp_min == pvp_max { pvp_min } else { rng.gen_range(pvp_min..=pvp_max) };
-        final_damage = base_pvp_damage as f32;
-        // Yield and resource_name for PvP are already 0 and "None"
-        return (final_damage, 0, "None".to_string());
-    }
+    // PvP damage is already handled if target_type was Player. 
+    // For other target types, final_damage is based on the logic above.
 
     (final_damage, final_yield, resource_name)
 }
@@ -1103,6 +1135,181 @@ pub fn damage_sleeping_bag(
     })
 }
 
+/// Applies damage to a player corpse, yields resources, and handles destruction.
+pub fn damage_player_corpse(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    corpse_id: u32,
+    damage: f32,
+    yield_harvest_power: u32, 
+    item_def: &ItemDefinition, 
+    item_category: ItemCategory, // Added new parameter
+    timestamp: Timestamp,
+    rng: &mut impl Rng,
+) -> Result<AttackResult, String> {
+    let mut player_corpses_table = ctx.db.player_corpse();
+    let mut corpse = player_corpses_table.id().find(corpse_id)
+        .ok_or_else(|| format!("Target player corpse {} disappeared", corpse_id))?;
+
+    if corpse.health == 0 { // Already fully harvested
+        // If health is already 0, but the entity somehow still exists, log and exit.
+        // This might happen if two hits are processed very closely.
+        log::warn!("[DamagePlayerCorpse] Corpse {} already has 0 health. No action taken.", corpse_id);
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::PlayerCorpse), resource_granted: None });
+    }
+
+    let old_health = corpse.health;
+    corpse.health = corpse.health.saturating_sub(damage as u32);
+    corpse.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit PlayerCorpse {} for {:.1} damage. Health: {} -> {}",
+        attacker_id, corpse_id, damage, old_health, corpse.health
+    );
+
+    let mut resources_granted: Vec<(String, u32)> = Vec::new();
+
+    // Determine resources based on RNG and tool (placeholder logic for now)
+    // This is where you'd define frequencies for Animal Bone, Animal Fat, Raw Human Flesh.
+    // Human Skull is special: 1 per corpse, granted when health reaches 0.
+
+    // Base probabilities for high harvest power (e.g., Bone Knife yield_harvest_power might be 5)
+    const BASE_CHANCE_FAT: f64 = 0.50; // 50%
+    const BASE_CHANCE_FLESH: f64 = 0.30; // 30%
+    const BASE_CHANCE_BONE: f64 = 0.20; // 20%
+    const MAX_YIELD_FOR_FULL_CHANCE: u32 = 5; // At this harvest power, base chances apply.
+
+    // Scale probabilities by harvest_power.
+    // If yield_harvest_power is 0 (e.g. from wrong tool), chances will be 0.
+    // If yield_harvest_power is 1 (e.g. from wrong tool), chances will be low.
+    // If yield_harvest_power is high (e.g. from Bone Knife), chances will be close to base.
+    let effectiveness_multiplier = if MAX_YIELD_FOR_FULL_CHANCE > 0 {
+        (yield_harvest_power as f64) / (MAX_YIELD_FOR_FULL_CHANCE as f64)
+    } else {
+        0.0 // Avoid division by zero if MAX_YIELD_FOR_FULL_CHANCE is 0
+    };
+    
+    let actual_chance_fat = (BASE_CHANCE_FAT * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FAT);
+    let actual_chance_flesh = (BASE_CHANCE_FLESH * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FLESH);
+    let actual_chance_bone = (BASE_CHANCE_BONE * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_BONE);
+
+    log::debug!(
+        "[DamagePlayerCorpse:{}] Harvest Power: {}. Effectiveness: {:.2}. Chances: Fat({:.2}), Flesh({:.2}), Bone({:.2})",
+        corpse_id, yield_harvest_power, effectiveness_multiplier, actual_chance_fat, actual_chance_flesh, actual_chance_bone
+    );
+
+    // Example: 50% chance to get 1 Animal Fat per hit, if corpse still has health
+    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_fat) {
+        match grant_resource(ctx, attacker_id, "Animal Fat", 1) {
+            Ok(_) => resources_granted.push(("Animal Fat".to_string(), 1)),
+            Err(e) => log::error!("Failed to grant Animal Fat: {}", e),
+        }
+    }
+
+    // Example: 30% chance to get 1 Raw Human Flesh per hit
+    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_flesh) {
+        match grant_resource(ctx, attacker_id, "Raw Human Flesh", 1) {
+            Ok(_) => resources_granted.push(("Raw Human Flesh".to_string(), 1)),
+            Err(e) => log::error!("Failed to grant Raw Human Flesh: {}", e),
+        }
+    }
+    
+    // Example: 20% chance to get 1 Animal Bone per hit
+    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_bone) {
+        match grant_resource(ctx, attacker_id, "Animal Bone", 1) {
+            Ok(_) => resources_granted.push(("Animal Bone".to_string(), 1)),
+            Err(e) => log::error!("Failed to grant Animal Bone: {}", e),
+        }
+    }
+
+
+    if corpse.health == 0 {
+        log::info!("[DamagePlayerCorpse:{}] Corpse depleted by Player {:?} using item from category {:?}. Checking for Human Skull grant.", 
+                 corpse_id, attacker_id, item_category);
+        // Grant 1 Human Skull only if a Tool was used to deplete or hit the depleted corpse.
+        if item_category == ItemCategory::Tool {
+            match grant_resource(ctx, attacker_id, "Human Skull", 1) {
+                Ok(_) => {
+                    resources_granted.push(("Human Skull".to_string(), 1));
+                    log::info!("[DamagePlayerCorpse:{}] Granted Human Skull to Player {:?} (used a Tool).", corpse_id, attacker_id);
+                }
+                Err(e) => log::error!("[DamagePlayerCorpse:{}] Failed to grant Human Skull to Player {:?}: {}", corpse_id, attacker_id, e),
+            }
+        } else {
+            log::info!("[DamagePlayerCorpse:{}] Corpse depleted, but item used ({:?}) was not a Tool. Human Skull not granted by this hit.", 
+                     corpse_id, item_category);
+        }
+        
+        // Corpse is depleted. It will despawn based on its original schedule or when items are looted.
+        // We don't delete it here, just mark health as 0.
+        // The existing despawn logic in player_corpse.rs (process_corpse_despawn) will handle final cleanup.
+
+        // --- Scatter Items and Delete Corpse --- 
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
+        let inventory_items_table = ctx.db.inventory_item();
+
+        for i in 0..corpse.num_slots() as u8 {
+            if let (Some(instance_id), Some(def_id)) = (corpse.get_slot_instance_id(i), corpse.get_slot_def_id(i)) {
+                if let Some(item) = inventory_items_table.instance_id().find(instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    // Delete the InventoryItem from the central table
+                    inventory_items_table.instance_id().delete(instance_id);
+                    log::debug!("[DamagePlayerCorpse] Marked item instance {} (DefID: {}, Qty: {}) from corpse {} slot {} for dropping.", 
+                               instance_id, def_id, item.quantity, corpse_id, i);
+                } else {
+                    log::warn!("[DamagePlayerCorpse] InventoryItem instance {} not found for corpse {} slot {}, though slot data existed. Skipping drop for this item.", instance_id, corpse_id, i);
+                }
+                // No need to clear slot in corpse struct as it's being deleted
+            }
+        }
+
+        // Scatter collected items around the corpse's location
+        let corpse_pos_x = corpse.pos_x;
+        let corpse_pos_y = corpse.pos_y;
+
+        for (item_def_id, quantity) in items_to_drop {
+            // Spawn slightly offset from corpse center
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 30.0; // Spread within +/- 30px
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 30.0;
+            let drop_pos_x = corpse_pos_x + offset_x;
+            let drop_pos_y = corpse_pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("[DamagePlayerCorpse] Dropped {} of item_def_id {} from depleted corpse {} at ({:.1}, {:.1})", 
+                                   quantity, item_def_id, corpse_id, drop_pos_x, drop_pos_y),
+                Err(e) => log::error!("[DamagePlayerCorpse] Failed to drop item_def_id {} from corpse {}: {}", item_def_id, corpse_id, e),
+            }
+        }
+
+        // Delete the PlayerCorpse entity itself
+        player_corpses_table.id().delete(corpse_id);
+        log::info!("[DamagePlayerCorpse] PlayerCorpse {} entity deleted after being depleted.", corpse_id);
+
+        // Cancel any existing despawn schedule for this corpse
+        let despawn_schedule_table = ctx.db.player_corpse_despawn_schedule();
+        // The PK of PlayerCorpseDespawnSchedule is corpse_id (u64), PlayerCorpse ID is u32
+        if despawn_schedule_table.corpse_id().find(corpse_id as u64).is_some() {
+            despawn_schedule_table.corpse_id().delete(corpse_id as u64);
+            log::info!("[DamagePlayerCorpse] Canceled despawn schedule for depleted corpse {}.", corpse_id);
+        } else {
+            log::warn!("[DamagePlayerCorpse] No despawn schedule found for depleted corpse {} to cancel (might have already run or not existed).", corpse_id);
+        }
+        // --- END Scatter Items and Delete Corpse ---
+    } else {
+        // Corpse still has health, just update it
+        player_corpses_table.id().update(corpse);
+    }
+
+    // For AttackResult, we can summarize the first resource or a generic message.
+    let granted_summary = resources_granted.first().cloned();
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::PlayerCorpse),
+        resource_granted: granted_summary,
+    })
+}
+
 /// Processes an attack against a target
 ///
 /// Main entry point for weapon damage application. Handles different target types
@@ -1139,6 +1346,9 @@ pub fn process_attack(
         TargetId::SleepingBag(bag_id) => {
             damage_sleeping_bag(ctx, attacker_id, *bag_id, damage, timestamp, rng)
         },
+        TargetId::PlayerCorpse(corpse_id) => {
+            damage_player_corpse(ctx, attacker_id, *corpse_id, damage, yield_amount, item_def, item_def.category.clone(), timestamp, rng)
+        }
     }
 }
 
