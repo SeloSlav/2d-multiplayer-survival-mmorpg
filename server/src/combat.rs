@@ -26,11 +26,13 @@ use crate::tree;
 use crate::stone;
 use crate::wooden_storage_box;
 use crate::player_corpse;
+use crate::grass;
 
 // Specific constants needed
 use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
 use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS, STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
+use crate::grass::grass as GrassTableTrait;
 
 // Table trait imports for database access
 use crate::tree::tree as TreeTableTrait;
@@ -56,6 +58,9 @@ use crate::armor;
 use crate::player_stats;
 // Import the utils module
 use crate::utils::get_distance_squared;
+// Import grass respawn types
+use crate::grass::{GrassRespawnData, GrassRespawnSchedule, GRASS_INITIAL_HEALTH};
+use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -75,6 +80,7 @@ pub enum TargetId {
     Stash(u32),
     SleepingBag(u32),
     PlayerCorpse(u32),
+    Grass(u64),
 }
 
 /// Represents a potential target within attack range
@@ -351,6 +357,34 @@ pub fn find_targets_in_cone(
             }
         }
     }
+
+    // Check Grass
+    for grass_entity in ctx.db.grass().iter() {
+        if grass_entity.health == 0 { continue; } // Skip already destroyed grass
+
+        let dx = grass_entity.pos_x - player.position_x;
+        // Grass Y-offset is likely less significant than trees/stones, using a smaller or no offset
+        // For now, let's assume its base position is fine for targeting.
+        let dy = grass_entity.pos_y - player.position_y; 
+        let dist_sq = dx * dx + dy * dy;
+        
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                targets.push(Target {
+                    target_type: TargetType::Grass,
+                    id: TargetId::Grass(grass_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
     
     // Sort by distance (closest first)
     targets.sort_by(|a, b| a.distance_sq.partial_cmp(&b.distance_sq).unwrap());
@@ -423,102 +457,62 @@ pub fn calculate_damage_and_yield(
     target_type: TargetType,
     rng: &mut impl Rng,
 ) -> (f32, u32, String) {
-    let mut damage_min = 0u32;
-    let mut damage_max = 0u32;
-    let mut yield_min = 0u32;
-    let mut yield_max = 0u32;
-    let mut resource_name = "None".to_string();
+    let mut damage = 1.0; // Default damage
+    let mut yield_qty = 0;
+    let mut resource_name = "".to_string();
 
-    // 1. Handle PvP directly
-    if target_type == TargetType::Player {
-        damage_min = item_def.pvp_damage_min.unwrap_or(0);
-        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min); 
-        yield_min = 0; // No yield from players
-        yield_max = 0;
-        resource_name = "None".to_string();
-    // 2. Handle Structures (Campfire, Box, Stash, SleepingBag) - No yield, PvP or specific damage
-    } else if target_type == TargetType::Campfire || 
-              target_type == TargetType::WoodenStorageBox || 
-              target_type == TargetType::Stash || 
-              target_type == TargetType::SleepingBag {
-        // For structures, could use pvp_damage_min/max or dedicated structure_damage fields if added later.
-        damage_min = item_def.pvp_damage_min.unwrap_or(0); // Default to PvP damage for now
-        damage_max = item_def.pvp_damage_max.unwrap_or(damage_min);
-        yield_min = 0;
-        yield_max = 0;
-        resource_name = "None".to_string();
-    // 3. Handle Resource Nodes (Tree, Stone, PlayerCorpse)
-    } else if target_type == TargetType::Tree || target_type == TargetType::Stone || target_type == TargetType::PlayerCorpse {
-        if item_def.category == ItemCategory::Weapon {
-            // Weapons can damage resource nodes but yield no resources.
-            // Use primary_target_damage if defined for the weapon, otherwise very low/pvp damage.
-            damage_min = item_def.primary_target_damage_min.or(item_def.pvp_damage_min).unwrap_or(1); 
-            damage_max = item_def.primary_target_damage_max.or(item_def.pvp_damage_max).unwrap_or(damage_min);
-            yield_min = 0;
-            yield_max = 0;
-            resource_name = "None".to_string();
-        } else if item_def.category == ItemCategory::Tool {
-            // Default behavior for any Tool on a resource node:
-            // Moderate general-purpose yield and damage (can be overridden by specialization).
-            damage_min = item_def.primary_target_damage_min.unwrap_or(1); // Use primary damage if set, else default low
-            damage_max = item_def.primary_target_damage_max.unwrap_or(damage_min.max(1));
-            yield_min = 5; // Default moderate harvest power for any tool
-            yield_max = 10;
-            match target_type {
-                TargetType::Tree => resource_name = "Wood".to_string(),
-                TargetType::Stone => resource_name = "Stone".to_string(),
-                TargetType::PlayerCorpse => resource_name = "Corpse Parts".to_string(),
-                _ => resource_name = "Scraps".to_string(), // Should not be reached for these node types
-            }
-
-            // Override with specialized values if this tool's primary_target_type matches the actual target_type
-            if item_def.primary_target_type == Some(target_type) {
-                // Use specific damage if primary_target_damage is defined for this specialization
-                damage_min = item_def.primary_target_damage_min.unwrap_or(damage_min); // Keep default if specialized damage is not set
-                damage_max = item_def.primary_target_damage_max.unwrap_or(damage_max);
-                
-                yield_min = item_def.primary_target_yield_min.unwrap_or(yield_min); // Keep default if specialized yield is not set
-                yield_max = item_def.primary_target_yield_max.unwrap_or(yield_max);
-                resource_name = item_def.primary_yield_resource_name.clone().unwrap_or_else(|| resource_name); // Keep default if no specific name
-            }
-        } else {
-            // Other categories (Material, Placeable, Armor, Consumable, Ammunition) - No damage/yield from nodes
-            damage_min = 0;
-            damage_max = 0;
-            yield_min = 0;
-            yield_max = 0;
-            resource_name = "None".to_string();
+    // Check for PvP damage first if target is Player or Animal
+    if target_type == TargetType::Player || target_type == TargetType::Animal {
+        let min_pvp_dmg = item_def.pvp_damage_min.unwrap_or(0) as f32;
+        let max_pvp_dmg = item_def.pvp_damage_max.unwrap_or(min_pvp_dmg as u32) as f32; // Use min if max is None
+        if max_pvp_dmg > 0.0 { // Only override default if PvP damage is defined
+            damage = if min_pvp_dmg >= max_pvp_dmg {
+                min_pvp_dmg
+            } else {
+                rng.gen_range(min_pvp_dmg..=max_pvp_dmg)
+            };
         }
-    } else {
-        // Should not happen if all TargetTypes are covered above. Fallback for safety.
-        log::warn!("Item '{}' used against unhandled target type '{:?}'. Defaulting to zero effect.", item_def.name, target_type);
-        damage_min = 0;
-        damage_max = 0;
-        yield_min = 0;
-        yield_max = 0;
-        resource_name = "None".to_string();
+        // No yield for PvP/PvE combat in this direct function
+        return (damage, 0, "".to_string());
     }
 
-    // Ensure max is not less than min for damage and yield
-    if damage_max < damage_min { damage_max = damage_min; }
-    if yield_max < yield_min { yield_max = yield_min; }
+    // Check if the target type is the item's primary target type
+    if Some(target_type) == item_def.primary_target_type {
+        let min_dmg = item_def.primary_target_damage_min.unwrap_or(0) as f32;
+        let max_dmg = item_def.primary_target_damage_max.unwrap_or(min_dmg as u32) as f32;
+        
+        damage = if min_dmg >= max_dmg {
+            min_dmg
+        } else {
+            rng.gen_range(min_dmg..=max_dmg)
+        };
 
-    let final_damage = if damage_min == damage_max {
-        damage_min as f32
-    } else {
-        rng.gen_range(damage_min..=damage_max) as f32
-    };
+        let min_yield = item_def.primary_target_yield_min.unwrap_or(0);
+        let max_yield = item_def.primary_target_yield_max.unwrap_or(min_yield);
+        
+        yield_qty = if min_yield >= max_yield {
+            min_yield
+        } else {
+            rng.gen_range(min_yield..=max_yield)
+        };
+        resource_name = item_def.primary_yield_resource_name.clone().unwrap_or_default();
+        
+        return (damage, yield_qty, resource_name);
+    }
 
-    let final_yield = if yield_min == yield_max {
-        yield_min
-    } else {
-        rng.gen_range(yield_min..=yield_max)
-    };
+    // Fallback for non-primary targets (or if primary_target_type is None)
+    // Apply default damage (1.0), no yield for most other PvE targets unless specified
+    if target_type == TargetType::Grass {
+        // Grass is destroyed in one hit if any damage is applied.
+        // The actual health is 1, so any positive damage destroys it.
+        // No yield.
+        return (1.0, 0, "".to_string());
+    }
     
-    // PvP damage is already handled if target_type was Player. 
-    // For other target types, final_damage is based on the logic above.
-
-    (final_damage, final_yield, resource_name)
+    // For other destructibles like Campfire, WoodenStorageBox, etc.,
+    // they might take the default 1.0 damage.
+    // No direct yield from this function for them.
+    (damage, yield_qty, resource_name)
 }
 
 /// Applies damage to a tree and handles destruction/respawning
@@ -558,7 +552,7 @@ pub fn damage_tree(
         } else {
             rng.gen_range(MIN_TREE_RESPAWN_TIME_SECS..=MAX_TREE_RESPAWN_TIME_SECS)
         };
-        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(respawn_duration_secs));
+        let respawn_time = timestamp + TimeDuration::from_micros(respawn_duration_secs as i64 * 1_000_000);
         tree.respawn_at = Some(respawn_time);
     }
     
@@ -608,7 +602,7 @@ pub fn damage_stone(
         } else {
             rng.gen_range(MIN_STONE_RESPAWN_TIME_SECS..=MAX_STONE_RESPAWN_TIME_SECS)
         };
-        let respawn_time = timestamp + spacetimedb::TimeDuration::from(Duration::from_secs(respawn_duration_secs));
+        let respawn_time = timestamp + TimeDuration::from_micros(respawn_duration_secs as i64 * 1_000_000);
         stone.respawn_at = Some(respawn_time);
     }
     
@@ -1140,10 +1134,8 @@ pub fn damage_player_corpse(
     ctx: &ReducerContext,
     attacker_id: Identity,
     corpse_id: u32,
-    damage: f32,
-    yield_harvest_power: u32, 
-    item_def: &ItemDefinition, 
-    item_category: ItemCategory, // Added new parameter
+    damage: f32, // Damage already calculated by calculate_damage_and_yield
+    item_def: &ItemDefinition, // Pass the full item_def to check its properties
     timestamp: Timestamp,
     rng: &mut impl Rng,
 ) -> Result<AttackResult, String> {
@@ -1169,37 +1161,31 @@ pub fn damage_player_corpse(
 
     let mut resources_granted: Vec<(String, u32)> = Vec::new();
 
-    // Determine resources based on RNG and tool (placeholder logic for now)
-    // This is where you'd define frequencies for Animal Bone, Animal Fat, Raw Human Flesh.
-    // Human Skull is special: 1 per corpse, granted when health reaches 0.
+    // Determine resources based on RNG and tool
+    const BASE_CHANCE_FAT: f64 = 0.50; 
+    const BASE_CHANCE_FLESH: f64 = 0.30;
+    const BASE_CHANCE_BONE: f64 = 0.20;
+    const EFFECTIVE_TOOL_MULTIPLIER: f64 = 1.0; // For tools designed for corpses or general purpose tools
+    const NON_EFFECTIVE_TOOL_MULTIPLIER: f64 = 0.2; // For items not meant for harvesting corpses
 
-    // Base probabilities for high harvest power (e.g., Bone Knife yield_harvest_power might be 5)
-    const BASE_CHANCE_FAT: f64 = 0.50; // 50%
-    const BASE_CHANCE_FLESH: f64 = 0.30; // 30%
-    const BASE_CHANCE_BONE: f64 = 0.20; // 20%
-    const MAX_YIELD_FOR_FULL_CHANCE: u32 = 5; // At this harvest power, base chances apply.
-
-    // Scale probabilities by harvest_power.
-    // If yield_harvest_power is 0 (e.g. from wrong tool), chances will be 0.
-    // If yield_harvest_power is 1 (e.g. from wrong tool), chances will be low.
-    // If yield_harvest_power is high (e.g. from Bone Knife), chances will be close to base.
-    let effectiveness_multiplier = if MAX_YIELD_FOR_FULL_CHANCE > 0 {
-        (yield_harvest_power as f64) / (MAX_YIELD_FOR_FULL_CHANCE as f64)
-    } else {
-        0.0 // Avoid division by zero if MAX_YIELD_FOR_FULL_CHANCE is 0
-    };
+    let effectiveness_multiplier = 
+        if item_def.primary_target_type == Some(TargetType::PlayerCorpse) || item_def.category == ItemCategory::Tool {
+            EFFECTIVE_TOOL_MULTIPLIER
+        } else {
+            NON_EFFECTIVE_TOOL_MULTIPLIER
+        };
     
     let actual_chance_fat = (BASE_CHANCE_FAT * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FAT);
     let actual_chance_flesh = (BASE_CHANCE_FLESH * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FLESH);
     let actual_chance_bone = (BASE_CHANCE_BONE * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_BONE);
 
     log::debug!(
-        "[DamagePlayerCorpse:{}] Harvest Power: {}. Effectiveness: {:.2}. Chances: Fat({:.2}), Flesh({:.2}), Bone({:.2})",
-        corpse_id, yield_harvest_power, effectiveness_multiplier, actual_chance_fat, actual_chance_flesh, actual_chance_bone
+        "[DamagePlayerCorpse:{}] Effectiveness: {:.2}. Chances: Fat({:.2}), Flesh({:.2}), Bone({:.2})",
+        corpse_id, effectiveness_multiplier, actual_chance_fat, actual_chance_flesh, actual_chance_bone
     );
 
     // Example: 50% chance to get 1 Animal Fat per hit, if corpse still has health
-    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_fat) {
+    if corpse.health > 0 && rng.gen_bool(actual_chance_fat) {
         match grant_resource(ctx, attacker_id, "Animal Fat", 1) {
             Ok(_) => resources_granted.push(("Animal Fat".to_string(), 1)),
             Err(e) => log::error!("Failed to grant Animal Fat: {}", e),
@@ -1207,7 +1193,7 @@ pub fn damage_player_corpse(
     }
 
     // Example: 30% chance to get 1 Raw Human Flesh per hit
-    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_flesh) {
+    if corpse.health > 0 && rng.gen_bool(actual_chance_flesh) {
         match grant_resource(ctx, attacker_id, "Raw Human Flesh", 1) {
             Ok(_) => resources_granted.push(("Raw Human Flesh".to_string(), 1)),
             Err(e) => log::error!("Failed to grant Raw Human Flesh: {}", e),
@@ -1215,19 +1201,18 @@ pub fn damage_player_corpse(
     }
     
     // Example: 20% chance to get 1 Animal Bone per hit
-    if corpse.health > 0 && yield_harvest_power > 0 && rng.gen_bool(actual_chance_bone) {
+    if corpse.health > 0 && rng.gen_bool(actual_chance_bone) {
         match grant_resource(ctx, attacker_id, "Animal Bone", 1) {
             Ok(_) => resources_granted.push(("Animal Bone".to_string(), 1)),
             Err(e) => log::error!("Failed to grant Animal Bone: {}", e),
         }
     }
 
-
     if corpse.health == 0 {
         log::info!("[DamagePlayerCorpse:{}] Corpse depleted by Player {:?} using item from category {:?}. Checking for Human Skull grant.", 
-                 corpse_id, attacker_id, item_category);
+                 corpse_id, attacker_id, item_def.category);
         // Grant 1 Human Skull only if a Tool was used to deplete or hit the depleted corpse.
-        if item_category == ItemCategory::Tool {
+        if item_def.category == ItemCategory::Tool {
             match grant_resource(ctx, attacker_id, "Human Skull", 1) {
                 Ok(_) => {
                     resources_granted.push(("Human Skull".to_string(), 1));
@@ -1237,7 +1222,7 @@ pub fn damage_player_corpse(
             }
         } else {
             log::info!("[DamagePlayerCorpse:{}] Corpse depleted, but item used ({:?}) was not a Tool. Human Skull not granted by this hit.", 
-                     corpse_id, item_category);
+                     corpse_id, item_def.category);
         }
         
         // Corpse is depleted. It will despawn based on its original schedule or when items are looted.
@@ -1347,7 +1332,11 @@ pub fn process_attack(
             damage_sleeping_bag(ctx, attacker_id, *bag_id, damage, timestamp, rng)
         },
         TargetId::PlayerCorpse(corpse_id) => {
-            damage_player_corpse(ctx, attacker_id, *corpse_id, damage, yield_amount, item_def, item_def.category.clone(), timestamp, rng)
+            // Removed harvest_power from the call, pass item_def instead
+            damage_player_corpse(ctx, attacker_id, *corpse_id, damage, item_def, timestamp, rng)
+        },
+        TargetId::Grass(grass_id) => {
+            damage_grass(ctx, attacker_id, *grass_id, damage, timestamp, rng)
         }
     }
 }
@@ -1453,4 +1442,68 @@ fn resolve_knockback_collision(
 
     // If no collisions, return the (boundary-clamped) proposed position
     (proposed_x, proposed_y)
+}
+
+// --- NEW: Damage Grass Function ---
+pub fn damage_grass(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    grass_id: u64,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    let grass_table = ctx.db.grass();
+    if let Some(grass_entity) = grass_table.id().find(&grass_id) { // Make grass_entity immutable here
+        if grass_entity.health == 0 {
+            return Ok(AttackResult { hit: false, target_type: Some(TargetType::Grass), resource_granted: None }); // Already destroyed
+        }
+
+        let current_health = grass_entity.health;
+        let new_health = (current_health as f32 - damage).max(0.0) as u32;
+
+        log::info!("Grass ID {} hit by {}, health: {} -> {}", grass_id, attacker_id, current_health, new_health);
+
+        if new_health == 0 {
+            log::info!("Grass ID {} destroyed by {}. Scheduling respawn.", grass_id, attacker_id);
+            
+            // Prepare data for respawn schedule
+            let respawn_data = GrassRespawnData {
+                pos_x: grass_entity.pos_x,
+                pos_y: grass_entity.pos_y,
+                appearance_type: grass_entity.appearance_type.clone(),
+                chunk_index: grass_entity.chunk_index,
+                sway_offset_seed: grass_entity.sway_offset_seed,
+            };
+
+            let respawn_delay_secs = rng.gen_range(crate::grass::MIN_GRASS_RESPAWN_TIME_SECS..=crate::grass::MAX_GRASS_RESPAWN_TIME_SECS);
+            let respawn_at_timestamp = timestamp + TimeDuration::from_micros(respawn_delay_secs as i64 * 1_000_000);
+
+            let schedule_entry = GrassRespawnSchedule {
+                schedule_id: 0, // Auto-incremented by SpacetimeDB
+                respawn_data,
+                scheduled_at: respawn_at_timestamp.into(), // Convert Timestamp to ScheduleAt
+            };
+
+            // Insert into the respawn schedule table
+            match ctx.db.grass_respawn_schedule().try_insert(schedule_entry) {
+                Ok(_) => log::info!("Grass ID {} respawn scheduled for {:?}", grass_id, respawn_at_timestamp),
+                Err(e) => log::error!("Failed to schedule respawn for grass ID {}: {}", grass_id, e),
+            }
+
+            // Delete the original grass entity
+            grass_table.id().delete(&grass_id);
+            
+            Ok(AttackResult { hit: true, target_type: Some(TargetType::Grass), resource_granted: None })
+        } else {
+            // Grass still has health, update it
+            let mut mutable_grass_entity = grass_entity.clone(); // Clone to make it mutable for update
+            mutable_grass_entity.health = new_health;
+            mutable_grass_entity.last_hit_time = Some(timestamp);
+            grass_table.id().update(mutable_grass_entity);
+            Ok(AttackResult { hit: true, target_type: Some(TargetType::Grass), resource_granted: None })
+        }
+    } else {
+        Err(format!("Grass with ID {} not found.", grass_id))
+    }
 } 

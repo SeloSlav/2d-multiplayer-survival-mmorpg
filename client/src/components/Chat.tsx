@@ -14,7 +14,7 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, setIsChatting, localPlayerIdentity }) => {
-  console.log("[Chat Component Render] Props - Connection:", !!connection, "LocalPlayerIdentity:", localPlayerIdentity);
+  // console.log("[Chat Component Render] Props - Connection:", !!connection, "LocalPlayerIdentity:", localPlayerIdentity);
   const [inputValue, setInputValue] = useState('');
   const [privateMessages, setPrivateMessages] = useState<Map<string, SpacetimeDBPrivateMessage>>(new Map());
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -24,13 +24,13 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
   // Subscribe to private messages and set up callbacks
   useEffect(() => {
-    console.log("[Chat] PrivateMsgEffect: Running. Connection:", !!connection, "LocalPlayerId:", localPlayerIdentity);
+    // console.log("[Chat] PrivateMsgEffect: Running. Connection:", !!connection, "LocalPlayerId:", localPlayerIdentity);
 
     // If no connection or no local identity, we can't subscribe.
     // Ensure any existing subscription is cleaned up.
     if (!connection || !localPlayerIdentity) {
       if (privateMessageSubscriptionRef.current) {
-        console.log("[Chat] PrivateMsgEffect: Cleaning up old subscription (no connection/identity).");
+        // console.log("[Chat] PrivateMsgEffect: Cleaning up old subscription (no connection/identity).");
         try {
           privateMessageSubscriptionRef.current.unsubscribe();
         } catch (e) {
@@ -44,22 +44,22 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
     // Proceed with subscription as we have a connection and identity
     const query = `SELECT * FROM private_message WHERE recipient_identity = '${localPlayerIdentity}'`;
-    console.log("[Chat] PrivateMsgEffect: Attempting to subscribe with query:", query);
+    // console.log("[Chat] PrivateMsgEffect: Attempting to subscribe with query:", query);
 
     const subHandle = connection.subscriptionBuilder()
       .onApplied(() => console.log("[Chat] PrivateMsgEffect: Subscription APPLIED for query:", query))
       .onError((errorContext) => console.error("[Chat] PrivateMsgEffect: Subscription ERROR:", errorContext))
       .subscribe([query]);
     privateMessageSubscriptionRef.current = subHandle;
-    console.log("[Chat] PrivateMsgEffect: Subscription handle stored.");
+    // console.log("[Chat] PrivateMsgEffect: Subscription handle stored.");
 
     const handlePrivateMessageInsert = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
-      console.log("[Chat] PrivateMsgEffect: Private message INSERTED:", msg, "Context:", ctx);
+      // console.log("[Chat] PrivateMsgEffect: Private message INSERTED:", msg, "Context:", ctx);
       setPrivateMessages(prev => new Map(prev).set(String(msg.id), msg));
     };
 
     const handlePrivateMessageDelete = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
-      console.log("[Chat] PrivateMsgEffect: Private message DELETED:", msg, "Context:", ctx);
+      // console.log("[Chat] PrivateMsgEffect: Private message DELETED:", msg, "Context:", ctx);
       setPrivateMessages(prev => {
         const next = new Map(prev);
         next.delete(String(msg.id));
@@ -70,7 +70,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     const privateMessageTable = connection.db.privateMessage; 
 
     if (privateMessageTable) {
-      console.log("[Chat] PrivateMsgEffect: Attaching listeners to privateMessageTable.");
+      // console.log("[Chat] PrivateMsgEffect: Attaching listeners to privateMessageTable.");
       privateMessageTable.onInsert(handlePrivateMessageInsert);
       privateMessageTable.onDelete(handlePrivateMessageDelete);
     } else {
@@ -79,9 +79,9 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
     // Cleanup function for this effect
     return () => {
-      console.log("[Chat] PrivateMsgEffect: Cleanup initiated. Unsubscribing and removing listeners.");
+      // console.log("[Chat] PrivateMsgEffect: Cleanup initiated. Unsubscribing and removing listeners.");
       if (privateMessageSubscriptionRef.current) {
-        console.log("[Chat] PrivateMsgEffect: Calling unsubscribe() on stored handle.");
+        // console.log("[Chat] PrivateMsgEffect: Calling unsubscribe() on stored handle.");
         try {
           privateMessageSubscriptionRef.current.unsubscribe();
         } catch (e) {
@@ -90,7 +90,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
         privateMessageSubscriptionRef.current = null;
       }
       if (privateMessageTable) {
-        console.log("[Chat] PrivateMsgEffect: Removing listeners from privateMessageTable.");
+        // console.log("[Chat] PrivateMsgEffect: Removing listeners from privateMessageTable.");
         privateMessageTable.removeOnInsert(handlePrivateMessageInsert);
         privateMessageTable.removeOnDelete(handlePrivateMessageDelete);
       }

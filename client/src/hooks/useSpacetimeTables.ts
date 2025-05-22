@@ -30,6 +30,7 @@ export interface SpacetimeTableStates {
     activeConsumableEffects: Map<string, SpacetimeDB.ActiveConsumableEffect>;
     localPlayerRegistered: boolean; // Flag indicating local player presence
     clouds: Map<string, SpacetimeDB.Cloud>; // <<< ADDED clouds to interface
+    grass: Map<string, SpacetimeDB.Grass>; // <<< ADDED grass to interface
 }
 
 // Define the props the hook accepts
@@ -73,6 +74,7 @@ export const useSpacetimeTables = ({
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
     const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
     const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map()); // <<< ADDED clouds state
+    const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // <<< ADDED grass state
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -414,6 +416,11 @@ export const useSpacetimeTables = ({
                 setClouds(prev => { const newMap = new Map(prev); newMap.delete(cloud.id.toString()); return newMap; });
             };
             
+            // --- Grass Subscriptions ---
+            const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
+            const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
+            const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -453,6 +460,11 @@ export const useSpacetimeTables = ({
             connection.db.cloud.onInsert(handleCloudInsert);
             connection.db.cloud.onUpdate(handleCloudUpdate);
             connection.db.cloud.onDelete(handleCloudDelete);
+
+            // Register Grass callbacks
+            connection.db.grass.onInsert(handleGrassInsert);
+            connection.db.grass.onUpdate(handleGrassUpdate);
+            connection.db.grass.onDelete(handleGrassDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -595,6 +607,10 @@ export const useSpacetimeTables = ({
                             const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
 
+                            // Grass (Spatial Subscription)
+                            const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
+
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
                             console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
@@ -656,6 +672,7 @@ export const useSpacetimeTables = ({
                  setStashes(new Map());
                  setActiveConsumableEffects(new Map());
                  setClouds(new Map()); // <<< ADDED: Reset clouds state
+                 setGrass(new Map()); // <<< ADDED: Reset grass state
              }
         };
 
@@ -688,5 +705,6 @@ export const useSpacetimeTables = ({
         stashes,
         activeConsumableEffects,
         clouds, // <<< ADDED: Return clouds state
+        grass, // <<< ADDED: Return grass state
     };
 }; 

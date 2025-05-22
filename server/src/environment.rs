@@ -26,6 +26,7 @@ use crate::corn;
 use crate::hemp;
 use crate::pumpkin;
 use crate::cloud;
+use crate::grass;
 
 // Import table traits needed for ctx.db access
 use crate::tree::tree as TreeTableTrait;
@@ -39,6 +40,7 @@ use crate::cloud::{Cloud, CloudShapeType, CloudUpdateSchedule};
 use crate::utils::*;
 use crate::cloud::cloud as CloudTableTrait;
 use crate::cloud::cloud_update_schedule as CloudUpdateScheduleTableTrait;
+use crate::grass::grass as GrassTableTrait;
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -83,16 +85,17 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let pumpkins = ctx.db.pumpkin();
     let hemps = ctx.db.hemp();
     let clouds = ctx.db.cloud();
+    let grasses = ctx.db.grass();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 || grasses.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}, Pumpkins: {}, Clouds: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}, Pumpkins: {}, Clouds: {}, Grass: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count(), grasses.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds, grass)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -119,6 +122,14 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
+    // Grass seeding parameters (using constants from grass.rs)
+    let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
+    let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
+
+    // --- NEW: Region parameters for grass types ---
+    const GRASS_REGION_SIZE_CHUNKS: u32 = 10; // Each region is 10x10 chunks
+    const GRASS_REGION_SIZE_TILES: u32 = GRASS_REGION_SIZE_CHUNKS * CHUNK_SIZE_TILES;
+
     // Cloud drift parameters
     const CLOUD_BASE_DRIFT_X: f32 = 4.0; // Base speed in pixels per second (e.g., gentle eastward drift) - Doubled
     const CLOUD_BASE_DRIFT_Y: f32 = 1.0; // Doubled
@@ -131,6 +142,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
+    log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts);
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -144,6 +156,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_grass_positions = Vec::<(f32, f32)>::new();
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -159,6 +172,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut pumpkin_attempts = 0;
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
+    let mut spawned_grass_count = 0;
+    let mut grass_attempts = 0;
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -432,6 +447,129 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_hemp_count, target_hemp_count, hemp_attempts
     );
 
+    // --- Seed Grass --- (New Section)
+    log::info!("Seeding Grass...");
+    let (grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y) = 
+        calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::grass::GRASS_SPAWN_WORLD_MARGIN_TILES);
+    
+    while spawned_grass_count < target_grass_count && grass_attempts < max_grass_attempts {
+        grass_attempts += 1;
+
+        // Generate random values for grass appearance and sway before the attempt_single_spawn call
+        let appearance_roll_for_this_attempt: u32 = rng.gen_range(0..100);
+        let sway_offset_seed_for_this_attempt: u32 = rng.gen();
+
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles, // Grass can share tiles with other non-blocking items, but not other grass or solid objects initially
+            &mut spawned_grass_positions,
+            &spawned_tree_positions,    
+            &spawned_stone_positions,   
+            grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y,
+            &fbm,
+            crate::grass::GRASS_SPAWN_NOISE_FREQUENCY, 
+            crate::grass::GRASS_SPAWN_NOISE_THRESHOLD,          
+            crate::grass::MIN_GRASS_DISTANCE_SQ,
+            crate::grass::MIN_GRASS_TREE_DISTANCE_SQ,
+            crate::grass::MIN_GRASS_STONE_DISTANCE_SQ,
+            |pos_x, pos_y, (appearance_roll_base, sway_seed): (u32, u32)| { // Closure now accepts a tuple
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                // --- NEW: Determine grass region and adjust appearance_roll ---
+                let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as u32;
+                let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as u32;
+
+                let region_x = tile_x / GRASS_REGION_SIZE_TILES;
+                let region_y = tile_y / GRASS_REGION_SIZE_TILES;
+
+                // Simple hash to determine region type (can be more sophisticated)
+                // This creates a pseudo-random but deterministic region type
+                let region_type_seed = region_x.wrapping_add(region_y.wrapping_mul(31)); // Combine coordinates
+                let region_type_roll = region_type_seed % 100; // Roll from 0-99
+
+                let mut appearance_roll = appearance_roll_base; // Start with the random roll
+
+                // Target: More Tall Grass, very rare Brambles, common Short Grass
+                if region_type_roll < 5 { // 5% of regions are "Bramble Thickets" (Rare)
+                    // Bias towards BramblesA and BramblesB
+                    if appearance_roll_base < 80 { // 80% chance within this bramble region
+                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
+                    } else if appearance_roll_base < 90 {
+                        // Allow some bushes
+                         appearance_roll = 80 + (appearance_roll_base % 15); // Maps to 80-94 (Bushes)
+                    }
+                    // Else, keep original roll (allows for occasional other types)
+                } else if region_type_roll < 40 { // 35% of regions are "Tall Grass Plains" (from 5% to 40%)
+                    // Bias towards TallGrassA and TallGrassB
+                    if appearance_roll_base < 85 { // 85% chance within this tall grass region (Increased from 60%)
+                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrassA/B)
+                    } else if appearance_roll_base < 95 {
+                        // Allow some patches of short grass
+                        appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (Patches)
+                    }
+                    // Else, keep original roll (allows for occasional other types, like bushes)
+                } else if region_type_roll < 60 { // 20% of regions are "Bushland" (from 40% to 60%)
+                    // Bias towards Bushes
+                    if appearance_roll_base < 70 { // 70% chance
+                        appearance_roll = 80 + (appearance_roll_base % 15); // Maps to 80-94 (Bushes)
+                    } else if appearance_roll_base < 85 {
+                        // Allow some tall grass
+                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrass)
+                    }
+                    // Else, keep original roll
+                }
+                // Else (remaining 40% of regions): Default mixed short grass (from 60% to 100%)
+
+
+                // Use the (potentially adjusted) appearance_roll
+                let appearance_type = if appearance_roll < 20 { // 20% PatchA
+                    crate::grass::GrassAppearanceType::PatchA
+                } else if appearance_roll < 40 { // 20% PatchB
+                    crate::grass::GrassAppearanceType::PatchB
+                } else if appearance_roll < 60 { // 20% PatchC
+                    crate::grass::GrassAppearanceType::PatchC
+                } else if appearance_roll < 70 { // 10% TallGrassA
+                    crate::grass::GrassAppearanceType::TallGrassA
+                } else if appearance_roll < 80 { // 10% TallGrassB
+                    crate::grass::GrassAppearanceType::TallGrassB
+                } else if appearance_roll < 85 { // 5% BushRounded
+                    crate::grass::GrassAppearanceType::BushRounded
+                } else if appearance_roll < 90 { // 5% BushSpiky
+                    crate::grass::GrassAppearanceType::BushSpiky
+                } else if appearance_roll < 95 { // 5% BushFlowering
+                    crate::grass::GrassAppearanceType::BushFlowering
+                } else if appearance_roll < 98 { // 3% BramblesA
+                    crate::grass::GrassAppearanceType::BramblesA
+                } else { // 2% BramblesB
+                    crate::grass::GrassAppearanceType::BramblesB
+                };
+
+                crate::grass::Grass {
+                    id: 0,
+                    pos_x,
+                    pos_y,
+                    health: crate::grass::GRASS_INITIAL_HEALTH,
+                    appearance_type,
+                    chunk_index: chunk_idx,
+                    last_hit_time: None,
+                    respawn_at: None,
+                    sway_offset_seed: sway_seed, // Use the passed-in sway_seed
+                }
+            },
+            (appearance_roll_for_this_attempt, sway_offset_seed_for_this_attempt), // Pass the rolls as a tuple
+            grasses, // Pass the grass table handle
+        ) {
+            Ok(true) => spawned_grass_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} grass patches (target: {}, attempts: {}).",
+        spawned_grass_count, target_grass_count, grass_attempts
+    );
+    // --- End Seed Grass ---
+
     // --- Seed Clouds ---
     log::info!("Seeding Clouds...");
     // Use WORLD_WIDTH_PX and WORLD_HEIGHT_PX from crate root (lib.rs)
@@ -615,6 +753,21 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |_h: &crate::hemp::Hemp| true, // Filter: Always check if respawn_at is set
         |h: &mut crate::hemp::Hemp| {
             h.respawn_at = None;
+        }
+    );
+
+    // Respawn Grass
+    check_and_respawn_resource!(
+        ctx,
+        grass, // Table symbol
+        crate::grass::Grass, // Entity type
+        "Grass", // Name for logging
+        |g: &crate::grass::Grass| g.health == 0, // Filter: only check grass with 0 health
+        |g: &mut crate::grass::Grass| { // Update logic
+            g.health = crate::grass::GRASS_INITIAL_HEALTH;
+            g.respawn_at = None;
+            g.last_hit_time = None;
+            // appearance_type and sway_offset_seed remain the same on respawn
         }
     );
 

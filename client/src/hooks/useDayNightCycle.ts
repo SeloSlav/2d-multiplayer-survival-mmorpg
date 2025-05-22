@@ -51,8 +51,8 @@ const DAY_COLOR_CONFIG = { rgb: [0, 0, 0] as [number, number, number], alpha: 0.
 
 const REGULAR_CYCLE_KEYFRAMES: ColorAlphaKeyframe[] = [
   // Midnight to Pre-Dawn
-  { progress: 0.0,  rgb: [0, 0, 1],    alpha: 0.99 },   // Deepest Midnight (Dark Desaturated Indigo)
-  { progress: 0.02, rgb: [0, 0, 1],    alpha: 0.99 },   // Late Midnight (Slightly less intense)
+  { progress: 0.0,  rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Deepest Midnight (Pitch Black)
+  { progress: 0.02, rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Late Midnight (Pitch Black)
 
   // Dawn (Server: 0.0 - 0.04, Client visual stretch: 0.02 - 0.07)
   { progress: 0.035,rgb: [30, 25, 65],    alpha: 0.85 },   // Faint Blues/Purples emerge
@@ -85,8 +85,8 @@ const REGULAR_CYCLE_KEYFRAMES: ColorAlphaKeyframe[] = [
   { progress: 0.81, rgb: [5, 5, 10],    alpha: 0.96 },   // Astronomical Dusk
 
   // Night to Midnight (Server: Night 0.75 - 0.90, Midnight 0.90 - 1.0, Client visual stretch: 0.81 - 1.0)
-  { progress: 0.90, rgb: [0, 0, 2],    alpha: 0.98 },   // Early Night (Dark Blue/Indigo)
-  { progress: 1.0,  rgb: [0, 0, 1],    alpha: 0.99 },   // Deepest Midnight (Loop to start)
+  { progress: 0.90, rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Early Night / Midnight Start (Pitch Black)
+  { progress: 1.0,  rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Deepest Midnight (Pitch Black) (Loop to start)
 ];
 
 const FULL_MOON_NIGHT_KEYFRAMES: ColorAlphaKeyframe[] = [

@@ -134,6 +134,8 @@ import { ProcessCorpseDespawn } from "./process_corpse_despawn_reducer.ts";
 export { ProcessCorpseDespawn };
 import { ProcessGlobalTick } from "./process_global_tick_reducer.ts";
 export { ProcessGlobalTick };
+import { ProcessGrassRespawn } from "./process_grass_respawn_reducer.ts";
+export { ProcessGrassRespawn };
 import { ProcessPlayerStats } from "./process_player_stats_reducer.ts";
 export { ProcessPlayerStats };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
@@ -262,6 +264,10 @@ import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_sc
 export { DroppedItemDespawnScheduleTableHandle };
 import { GlobalTickScheduleTableHandle } from "./global_tick_schedule_table.ts";
 export { GlobalTickScheduleTableHandle };
+import { GrassTableHandle } from "./grass_table.ts";
+export { GrassTableHandle };
+import { GrassRespawnScheduleTableHandle } from "./grass_respawn_schedule_table.ts";
+export { GrassRespawnScheduleTableHandle };
 import { HempTableHandle } from "./hemp_table.ts";
 export { HempTableHandle };
 import { InventoryItemTableHandle } from "./inventory_item_table.ts";
@@ -356,6 +362,14 @@ import { EquippedLocationData } from "./equipped_location_data_type.ts";
 export { EquippedLocationData };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
+import { Grass } from "./grass_type.ts";
+export { Grass };
+import { GrassAppearanceType } from "./grass_appearance_type_type.ts";
+export { GrassAppearanceType };
+import { GrassRespawnData } from "./grass_respawn_data_type.ts";
+export { GrassRespawnData };
+import { GrassRespawnSchedule } from "./grass_respawn_schedule_type.ts";
+export { GrassRespawnSchedule };
 import { Hemp } from "./hemp_type.ts";
 export { Hemp };
 import { HotbarLocationData } from "./hotbar_location_data_type.ts";
@@ -490,6 +504,16 @@ const REMOTE_MODULE = {
       tableName: "global_tick_schedule",
       rowType: GlobalTickSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    grass: {
+      tableName: "grass",
+      rowType: Grass.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    grass_respawn_schedule: {
+      tableName: "grass_respawn_schedule",
+      rowType: GrassRespawnSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
     },
     hemp: {
       tableName: "hemp",
@@ -812,6 +836,10 @@ const REMOTE_MODULE = {
       reducerName: "process_global_tick",
       argsType: ProcessGlobalTick.getTypeScriptAlgebraicType(),
     },
+    process_grass_respawn: {
+      reducerName: "process_grass_respawn",
+      argsType: ProcessGrassRespawn.getTypeScriptAlgebraicType(),
+    },
     process_player_stats: {
       reducerName: "process_player_stats",
       argsType: ProcessPlayerStats.getTypeScriptAlgebraicType(),
@@ -1086,6 +1114,7 @@ export type Reducer = never
 | { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
+| { name: "ProcessGrassRespawn", args: ProcessGrassRespawn }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
@@ -1926,6 +1955,22 @@ export class RemoteReducers {
 
   removeOnProcessGlobalTick(callback: (ctx: ReducerEventContext, schedule: GlobalTickSchedule) => void) {
     this.connection.offReducer("process_global_tick", callback);
+  }
+
+  processGrassRespawn(scheduleEntry: GrassRespawnSchedule) {
+    const __args = { scheduleEntry };
+    let __writer = new BinaryWriter(1024);
+    ProcessGrassRespawn.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_grass_respawn", __argsBuffer, this.setCallReducerFlags.processGrassRespawnFlags);
+  }
+
+  onProcessGrassRespawn(callback: (ctx: ReducerEventContext, scheduleEntry: GrassRespawnSchedule) => void) {
+    this.connection.onReducer("process_grass_respawn", callback);
+  }
+
+  removeOnProcessGrassRespawn(callback: (ctx: ReducerEventContext, scheduleEntry: GrassRespawnSchedule) => void) {
+    this.connection.offReducer("process_grass_respawn", callback);
   }
 
   processPlayerStats(schedule: PlayerStatSchedule) {
@@ -2928,6 +2973,11 @@ export class SetReducerFlags {
     this.processGlobalTickFlags = flags;
   }
 
+  processGrassRespawnFlags: CallReducerFlags = 'FullUpdate';
+  processGrassRespawn(flags: CallReducerFlags) {
+    this.processGrassRespawnFlags = flags;
+  }
+
   processPlayerStatsFlags: CallReducerFlags = 'FullUpdate';
   processPlayerStats(flags: CallReducerFlags) {
     this.processPlayerStatsFlags = flags;
@@ -3232,6 +3282,14 @@ export class RemoteTables {
 
   get globalTickSchedule(): GlobalTickScheduleTableHandle {
     return new GlobalTickScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GlobalTickSchedule>(REMOTE_MODULE.tables.global_tick_schedule));
+  }
+
+  get grass(): GrassTableHandle {
+    return new GrassTableHandle(this.connection.clientCache.getOrCreateTable<Grass>(REMOTE_MODULE.tables.grass));
+  }
+
+  get grassRespawnSchedule(): GrassRespawnScheduleTableHandle {
+    return new GrassRespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GrassRespawnSchedule>(REMOTE_MODULE.tables.grass_respawn_schedule));
   }
 
   get hemp(): HempTableHandle {

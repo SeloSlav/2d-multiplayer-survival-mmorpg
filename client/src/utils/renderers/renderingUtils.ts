@@ -15,6 +15,7 @@ import {
     Hemp as SpacetimeDBHemp,
     Mushroom as SpacetimeDBMushroom,
     Pumpkin as SpacetimeDBPumpkin,
+    Grass as SpacetimeDBGrass,
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 // Import individual rendering functions
@@ -32,6 +33,7 @@ import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderMushroom } from './mushroomRenderingUtils';
 import { renderPumpkin } from './pumpkinRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
+import { renderGrass } from './grassRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -227,6 +229,8 @@ export const renderYSortedEntities = ({
                 itemImagesRef,
                 heroImageRef
             });
+        } else if (type === 'grass') {
+            renderGrass(ctx, entity as SpacetimeDBGrass, nowMs, cycleProgress, false, true);
         } else {
             console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);
         } 
@@ -264,6 +268,10 @@ export const renderYSortedEntities = ({
         } else if (type === 'player') {
             // Players are fully rendered in the first pass, including their shadows.
             // No action needed for players in this second (shadow-only) pass.
+        } else if (type === 'grass') {
+            // Grass is PIXI based and doesn't have a separate canvas shadow pass in this system
+            // Ensure shadows are also skipped in the second pass if grass were to be rendered here
+            renderGrass(ctx, entity as SpacetimeDBGrass, nowMs, cycleProgress, true, true);
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

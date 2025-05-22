@@ -45,7 +45,8 @@ import {
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
-    Cloud as SpacetimeDBCloud
+    Cloud as SpacetimeDBCloud,
+    Grass as SpacetimeDBGrass
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -86,6 +87,7 @@ interface GameScreenProps {
     messages: Map<string, SpacetimeDBMessage>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeConsumableEffects: Map<string, SpacetimeDBActiveConsumableEffect>;
+    grass: Map<string, SpacetimeDBGrass>;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -141,6 +143,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         setIsChatting,
         activeConsumableEffects,
         clouds,
+        grass,
     } = props;
 
     // You can also add a useEffect here if the above doesn't show up
@@ -196,6 +199,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isSearchingCraftRecipes={isCraftingSearchFocused}
                 activeConsumableEffects={activeConsumableEffects}
                 showInventory={showInventoryState}
+                grass={grass}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

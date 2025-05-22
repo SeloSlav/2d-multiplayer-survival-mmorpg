@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import heroSpriteSheet from '../assets/hero2.png';
 import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
-import burlapSackUrl from '../assets/Items/burlap_sack.png';
+import burlapSackUrl from '../assets/items/burlap_sack.png';
 
 // Import cloud image paths
 import cloud1Texture from '../assets/environment/clouds/cloud1.png';

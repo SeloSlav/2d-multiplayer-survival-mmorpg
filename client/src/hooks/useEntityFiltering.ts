@@ -13,7 +13,8 @@ import {
   Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
-  Stash as SpacetimeDBStash
+  Stash as SpacetimeDBStash,
+  Grass as SpacetimeDBGrass
 } from '../generated';
 import {
   isPlayer, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isWoodenStorageBox,
@@ -22,7 +23,8 @@ import {
   isHemp,
   isStash,
   isPumpkin,
-  isPlayerCorpse
+  isPlayerCorpse,
+  isGrass
 } from '../utils/typeGuards';
 
 interface ViewportBounds {
@@ -59,6 +61,8 @@ interface EntityFilteringResult {
   visibleTreesMap: Map<string, SpacetimeDBTree>;
   groundItems: (SpacetimeDBSleepingBag)[];
   ySortedEntities: YSortedEntityType[];
+  visibleGrass: SpacetimeDBGrass[];
+  visibleGrassMap: Map<string, SpacetimeDBGrass>;
 }
 
 // Define a unified entity type for sorting
@@ -74,7 +78,8 @@ export type YSortedEntityType =
   | { type: 'campfire'; entity: SpacetimeDBCampfire }
   | { type: 'dropped_item'; entity: SpacetimeDBDroppedItem }
   | { type: 'mushroom'; entity: SpacetimeDBMushroom }
-  | { type: 'pumpkin'; entity: SpacetimeDBPumpkin };
+  | { type: 'pumpkin'; entity: SpacetimeDBPumpkin }
+  | { type: 'grass'; entity: SpacetimeDBGrass };
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -93,7 +98,8 @@ export function useEntityFiltering(
   cameraOffsetX: number,
   cameraOffsetY: number,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  grass: Map<string, SpacetimeDBGrass>
 ): EntityFilteringResult {
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {
@@ -172,6 +178,11 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 32;
       height = 32;
+    } else if (isGrass(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 48;
+      height = 48;
     } else {
       return false; // Unknown entity type
     }
@@ -285,6 +296,13 @@ export function useEntityFiltering(
       : []
   , [hemps, isEntityInView, viewBounds]);
 
+  const visibleGrass = useMemo(() => 
+    grass ? Array.from(grass.values()).filter(e => 
+      e.health > 0 && isEntityInView(e, viewBounds)
+    ) : [],
+    [grass, isEntityInView, viewBounds]
+  );
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -340,6 +358,11 @@ export function useEntityFiltering(
     return map;
   }, [visibleTrees]);
 
+  const visibleGrassMap = useMemo(() => 
+    new Map(visibleGrass.map(g => [g.id.toString(), g])),
+    [visibleGrass]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleSleepingBags,
@@ -361,6 +384,7 @@ export function useEntityFiltering(
       ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
       ...visibleMushrooms.map(m => ({ type: 'mushroom' as const, entity: m })),
       ...visiblePumpkins.map(p => ({ type: 'pumpkin' as const, entity: p })),
+      ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })),
     ];
 
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
@@ -387,6 +411,12 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      if (isGrass(entity)) {
+        const Y_OFFSET = 16;
+        sortY = entity.posY - Y_OFFSET;
+        return sortY;
+      }
+
       // For other entities, use their standard posY.
       // This includes Tree, Stone, WoodenStorageBox, Mushroom, Pumpkin
       sortY = entity.posY;
@@ -404,7 +434,8 @@ export function useEntityFiltering(
   }, [
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, visibleCorns, visibleHemps,
-    visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins
+    visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
+    visibleGrass
   ]);
 
   return {
@@ -433,6 +464,8 @@ export function useEntityFiltering(
     visibleSleepingBagsMap,
     visibleTreesMap,
     groundItems,
-    ySortedEntities
+    ySortedEntities,
+    visibleGrass,
+    visibleGrassMap
   };
 } 

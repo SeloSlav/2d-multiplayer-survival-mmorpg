@@ -57,7 +57,7 @@ export interface GroundEntityConfig<T extends BaseEntity> {
      * @param baseDrawX Base calculated draw X.
      * @param baseDrawY Base calculated draw Y.
      * @param cycleProgress Cycle progress (time-of-day dependent effects).
-     * @returns Object with offsetX and offsetY to apply to the final drawImage call.
+     * @returns Object with offsetX, offsetY, rotation, and scale to apply to the final drawImage call.
      */
     applyEffects?: (
         ctx: CanvasRenderingContext2D, 
@@ -66,7 +66,7 @@ export interface GroundEntityConfig<T extends BaseEntity> {
         baseDrawX: number, 
         baseDrawY: number,
         cycleProgress: number) => 
-        { offsetX: number; offsetY: number };
+        { offsetX: number; offsetY: number; rotation?: number; scale?: number };
     
     /**
      * Optional callback to draw a custom shadow on the ground before the entity image.
@@ -160,16 +160,33 @@ export function renderConfiguredGroundEntity<T extends BaseEntity>({
 
         let effectOffsetX = 0;
         let effectOffsetY = 0;
+        let effectRotation = 0; // Default rotation
+        let effectScale = 1;    // Default scale
+
         if (config.applyEffects) {
             const effectsResult = config.applyEffects(ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress);
             effectOffsetX = effectsResult.offsetX;
             effectOffsetY = effectsResult.offsetY;
+            if (effectsResult.rotation) effectRotation = effectsResult.rotation;
+            if (effectsResult.scale) effectScale = effectsResult.scale;
         }
         
         const finalDrawX = baseDrawX + effectOffsetX;
         const finalDrawY = baseDrawY + effectOffsetY;
 
         if (img && !entity.isDestroyed) { // Don't draw main image if destroyed
+            ctx.save(); // Save context before transformations for this specific entity
+
+            // Calculate pivot point for rotation and scaling (center of the drawing area)
+            const pivotX = finalDrawX + targetImgWidth / 2;
+            const pivotY = finalDrawY + targetImgHeight / 2;
+
+            // Translate to pivot, rotate, scale, then translate back
+            ctx.translate(pivotX, pivotY);
+            if (effectRotation) ctx.rotate(effectRotation);
+            if (effectScale !== 1) ctx.scale(effectScale, effectScale);
+            ctx.translate(-pivotX, -pivotY);
+
             ctx.drawImage(
                 img, 
                 finalDrawX, 
@@ -177,6 +194,7 @@ export function renderConfiguredGroundEntity<T extends BaseEntity>({
                 targetImgWidth, 
                 targetImgHeight
             );
+            ctx.restore(); // Restore context after drawing this entity
         }
 
         ctx.restore(); // Restore before drawing overlay so overlay isn't affected by image effects

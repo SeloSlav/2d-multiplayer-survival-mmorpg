@@ -49,6 +49,7 @@ pub mod pumpkin;
 pub mod active_effects; // Added for timed consumable effects
 mod cloud; // Add the new cloud module
 mod armor; // <<< ADDED armor module
+mod grass; // <<< ADDED grass module
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;

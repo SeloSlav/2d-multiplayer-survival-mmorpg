@@ -104,7 +104,8 @@ function AppContent() {
       sleepingBags, // ADD destructuring
       playerCorpses, // <<< ADD playerCorpses destructuring
       stashes, // <<< ADD stashes destructuring
-      activeConsumableEffects // <<< ADD activeConsumableEffects destructuring
+      activeConsumableEffects, // <<< ADD activeConsumableEffects destructuring
+      grass // <<< ADD grass destructuring
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -405,6 +406,7 @@ function AppContent() {
                             setIsChatting={setIsChatting}
                             messages={messages}
                             activeConsumableEffects={activeConsumableEffects}
+                            grass={grass}
                         />
                     );
                 })()

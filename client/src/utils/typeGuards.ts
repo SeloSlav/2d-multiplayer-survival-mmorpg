@@ -11,7 +11,8 @@ import {
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
-  Stash as SpacetimeDBStash
+  Stash as SpacetimeDBStash,
+  Grass as SpacetimeDBGrass
 } from '../generated'; // Import necessary types
 
 // Type guard for Player
@@ -147,4 +148,20 @@ export function isStash(entity: any): entity is SpacetimeDBStash {
     // Check for properties unique to Stash or common identifiable ones
     // For example, `isHidden` and `ownerIdentity` might be good indicators.
     return entity && typeof entity.ownerIdentity === 'object' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.isHidden === 'boolean';
+}
+
+// Type guard for Grass
+export function isGrass(entity: any): entity is SpacetimeDBGrass {
+  return entity && 
+         typeof entity.id === 'bigint' && // or 'number' depending on your exact generated type for u64
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.health === 'number' &&
+         typeof entity.appearanceType !== 'undefined' && // Corrected from entity.appearance
+         typeof entity.swayOffsetSeed === 'number' && // Check for swayOffsetSeed
+         // Ensure it doesn't conflict with other types by checking for absence of their unique fields
+         typeof entity.identity === 'undefined' && // Not a Player
+         typeof entity.treeType === 'undefined' && // Not a Tree
+         typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, Stash, SleepingBag
+         typeof entity.itemDefId === 'undefined'; // Not a DroppedItem
 } 

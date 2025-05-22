@@ -20,7 +20,8 @@ import {
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
   Cloud as SpacetimeDBCloud,
-  ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect
+  ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
+  Grass as SpacetimeDBGrass
 } from '../generated';
 
 // --- Core Hooks ---
@@ -100,6 +101,7 @@ interface GameCanvasProps {
   localPlayerId?: string;
   connection: any | null;
   activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
+  grass: Map<string, SpacetimeDBGrass>;
   placementInfo: PlacementItemInfo | null;
   placementActions: PlacementActions;
   placementError: string | null;
@@ -159,6 +161,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   messages,
   isSearchingCraftRecipes,
   showInventory,
+  grass,
 }) => {
  // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -304,7 +307,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSleepingBagsMap,
     visibleTrees,
     visibleTreesMap,
-    ySortedEntities
+    ySortedEntities,
+    visibleGrass,
+    visibleGrassMap
   } = useEntityFiltering(
     players,
     trees,
@@ -322,7 +327,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetX,
     cameraOffsetY,
     canvasSize.width,
-    canvasSize.height
+    canvasSize.height,
+    grass
   );
 
   // --- UI State ---
@@ -532,14 +538,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         if (type === 'player') {
             const player = entity as SpacetimeDBPlayer;
             const playerId = player.identity.toHexString();
-
-            // ##### ADD LOGGING HERE #####
-            if (localPlayerId && playerId === localPlayerId) {
-              console.log(`[GameCanvas] Rendering local player ${player.username} (ID: ${playerId}). ` +
-                          `isDead: ${player.isDead}, ` +
-                          `lastHitTime: ${player.lastHitTime ? player.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-            }
-            // ##########################
 
            const lastPos = lastPositionsRef.current.get(playerId);
            const lastPosX = lastPos?.x || 0;

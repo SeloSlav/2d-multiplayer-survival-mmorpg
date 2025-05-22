@@ -98,4 +98,5 @@ pub enum TargetType {
     SleepingBag,
     Animal, // Added for animal targets
     PlayerCorpse,
+    Grass,
 }
