@@ -476,6 +476,13 @@ pub fn calculate_damage_and_yield(
         return (damage, 0, "".to_string());
     }
 
+    // NEW: Handle PlayerCorpse target type for fixed damage
+    if target_type == TargetType::PlayerCorpse {
+        // Player corpses always take a fixed amount of damage to ensure consistent hits to destroy.
+        // Yield is handled separately in damage_player_corpse.
+        return (25.0, 0, "".to_string());
+    }
+
     // Check if the target type is the item's primary target type
     if Some(target_type) == item_def.primary_target_type {
         let min_dmg = item_def.primary_target_damage_min.unwrap_or(0) as f32;
@@ -1165,15 +1172,23 @@ pub fn damage_player_corpse(
     const BASE_CHANCE_FAT: f64 = 0.50; 
     const BASE_CHANCE_FLESH: f64 = 0.30;
     const BASE_CHANCE_BONE: f64 = 0.20;
-    const EFFECTIVE_TOOL_MULTIPLIER: f64 = 1.0; // For tools designed for corpses or general purpose tools
-    const NON_EFFECTIVE_TOOL_MULTIPLIER: f64 = 0.2; // For items not meant for harvesting corpses
+    // Multipliers for specific tools and general categories
+    const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
+    const BONE_CLUB_MULTIPLIER: f64 = 3.0;
+    const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
+    const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1; // For non-primary items when harvesting corpses
 
-    let effectiveness_multiplier = 
-        if item_def.primary_target_type == Some(TargetType::PlayerCorpse) || item_def.category == ItemCategory::Tool {
-            EFFECTIVE_TOOL_MULTIPLIER
-        } else {
-            NON_EFFECTIVE_TOOL_MULTIPLIER
-        };
+    let effectiveness_multiplier = match item_def.name.as_str() {
+        "Bone Knife" => BONE_KNIFE_MULTIPLIER,
+        "Bone Club" => BONE_CLUB_MULTIPLIER,
+        _ => {
+            if item_def.primary_target_type == Some(TargetType::PlayerCorpse) {
+                PRIMARY_CORPSE_TOOL_MULTIPLIER
+            } else {
+                NON_PRIMARY_ITEM_MULTIPLIER
+            }
+        }
+    };
     
     let actual_chance_fat = (BASE_CHANCE_FAT * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FAT);
     let actual_chance_flesh = (BASE_CHANCE_FLESH * effectiveness_multiplier).clamp(0.0, BASE_CHANCE_FLESH);
@@ -1184,45 +1199,84 @@ pub fn damage_player_corpse(
         corpse_id, effectiveness_multiplier, actual_chance_fat, actual_chance_flesh, actual_chance_bone
     );
 
+    // Determine quantity based on tool, introducing randomization for specialized tools
+    let quantity_per_successful_hit = match item_def.name.as_str() {
+        "Bone Knife" => rng.gen_range(3..=5),
+        "Bone Club" => rng.gen_range(2..=4),
+        _ => { // Default for other items
+            if item_def.primary_target_type == Some(TargetType::PlayerCorpse) && item_def.category == ItemCategory::Tool {
+                rng.gen_range(1..=2) // Other primary tools for corpses
+            } else if item_def.category == ItemCategory::Tool {
+                1 // Non-primary tools get a fixed minimal yield
+            } else {
+                1 // Non-tool items also get a fixed minimal yield (if they pass the low chance)
+            }
+        }
+    };
+
     // Example: 50% chance to get 1 Animal Fat per hit, if corpse still has health
     if corpse.health > 0 && rng.gen_bool(actual_chance_fat) {
-        match grant_resource(ctx, attacker_id, "Animal Fat", 1) {
-            Ok(_) => resources_granted.push(("Animal Fat".to_string(), 1)),
+        match grant_resource(ctx, attacker_id, "Animal Fat", quantity_per_successful_hit) {
+            Ok(_) => resources_granted.push(("Animal Fat".to_string(), quantity_per_successful_hit)),
             Err(e) => log::error!("Failed to grant Animal Fat: {}", e),
         }
     }
 
     // Example: 30% chance to get 1 Raw Human Flesh per hit
     if corpse.health > 0 && rng.gen_bool(actual_chance_flesh) {
-        match grant_resource(ctx, attacker_id, "Raw Human Flesh", 1) {
-            Ok(_) => resources_granted.push(("Raw Human Flesh".to_string(), 1)),
+        match grant_resource(ctx, attacker_id, "Raw Human Flesh", quantity_per_successful_hit) {
+            Ok(_) => resources_granted.push(("Raw Human Flesh".to_string(), quantity_per_successful_hit)),
             Err(e) => log::error!("Failed to grant Raw Human Flesh: {}", e),
         }
     }
     
     // Example: 20% chance to get 1 Animal Bone per hit
     if corpse.health > 0 && rng.gen_bool(actual_chance_bone) {
-        match grant_resource(ctx, attacker_id, "Animal Bone", 1) {
-            Ok(_) => resources_granted.push(("Animal Bone".to_string(), 1)),
+        match grant_resource(ctx, attacker_id, "Animal Bone", quantity_per_successful_hit) {
+            Ok(_) => resources_granted.push(("Animal Bone".to_string(), quantity_per_successful_hit)),
             Err(e) => log::error!("Failed to grant Animal Bone: {}", e),
         }
     }
 
     if corpse.health == 0 {
-        log::info!("[DamagePlayerCorpse:{}] Corpse depleted by Player {:?} using item from category {:?}. Checking for Human Skull grant.", 
-                 corpse_id, attacker_id, item_def.category);
-        // Grant 1 Human Skull only if a Tool was used to deplete or hit the depleted corpse.
+        log::info!("[DamagePlayerCorpse:{}] Corpse depleted by Player {:?} using item {} (category {:?}, multiplier {:.1}). Checking for Human Skull grant.", 
+                 corpse_id, attacker_id, item_def.name, item_def.category, effectiveness_multiplier);
+        
+        // Grant Human Skulls based on tool effectiveness, only if the item is a Tool
         if item_def.category == ItemCategory::Tool {
-            match grant_resource(ctx, attacker_id, "Human Skull", 1) {
-                Ok(_) => {
-                    resources_granted.push(("Human Skull".to_string(), 1));
-                    log::info!("[DamagePlayerCorpse:{}] Granted Human Skull to Player {:?} (used a Tool).", corpse_id, attacker_id);
+            let skulls_to_grant = match effectiveness_multiplier {
+                m if m == BONE_KNIFE_MULTIPLIER => 3, // Bone Knife
+                m if m == BONE_CLUB_MULTIPLIER => 2,  // Bone Club
+                // Includes PRIMARY_CORPSE_TOOL_MULTIPLIER (1.0) 
+                // and NON_PRIMARY_ITEM_MULTIPLIER (0.1) if it's a tool, resulting in 1 skull
+                _ => 1, 
+            };
+
+            if skulls_to_grant > 0 {
+                match grant_resource(ctx, attacker_id, "Human Skull", skulls_to_grant) {
+                    Ok(_) => {
+                        resources_granted.push(("Human Skull".to_string(), skulls_to_grant));
+                        log::info!(
+                            "[DamagePlayerCorpse:{}] Granted {} Human Skull(s) to Player {:?} (using {} with multiplier {:.1}).",
+                            corpse_id, skulls_to_grant, attacker_id, item_def.name, effectiveness_multiplier
+                        );
+                    }
+                    Err(e) => log::error!(
+                        "[DamagePlayerCorpse:{}] Failed to grant Human Skull(s) to Player {:?}: {}",
+                        corpse_id, attacker_id, e
+                    ),
                 }
-                Err(e) => log::error!("[DamagePlayerCorpse:{}] Failed to grant Human Skull to Player {:?}: {}", corpse_id, attacker_id, e),
+            } else {
+                 log::info!(
+                    "[DamagePlayerCorpse:{}] Corpse depleted, item {} (category {:?}) is a tool but effectiveness multiplier {:.1} resulted in 0 skulls.",
+                    corpse_id, item_def.name, item_def.category, effectiveness_multiplier
+                );
             }
         } else {
-            log::info!("[DamagePlayerCorpse:{}] Corpse depleted, but item used ({:?}) was not a Tool. Human Skull not granted by this hit.", 
-                     corpse_id, item_def.category);
+            log::info!(
+                "[DamagePlayerCorpse:{}] Corpse depleted, but item used ({}, category {:?}) was not a Tool. Human Skull not granted.",
+                corpse_id, item_def.name, item_def.category
+            );
         }
         
         // Corpse is depleted. It will despawn based on its original schedule or when items are looted.
