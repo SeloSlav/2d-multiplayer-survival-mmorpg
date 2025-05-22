@@ -38,6 +38,7 @@ export type GrassRespawnData = {
   appearanceType: __GrassAppearanceType,
   chunkIndex: number,
   swayOffsetSeed: number,
+  swaySpeed: number,
 };
 
 /**
@@ -55,6 +56,7 @@ export namespace GrassRespawnData {
       new ProductTypeElement("appearanceType", __GrassAppearanceType.getTypeScriptAlgebraicType()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("swayOffsetSeed", AlgebraicType.createU32Type()),
+      new ProductTypeElement("swaySpeed", AlgebraicType.createF32Type()),
     ]);
   }
 

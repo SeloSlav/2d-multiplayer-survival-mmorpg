@@ -46,6 +46,9 @@ import { PLAYER_STASH_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/sta
 import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/playerCorpseRenderingUtils';
 // Add other relevant interaction distances if new interactable container types are added
 
+// Import the cut grass effect system
+import { initCutGrassEffectSystem, cleanupCutGrassEffectSystem } from './effects/cutGrassEffect';
+
 function AppContent() {
     // --- Auth Hook ---
     const { 
@@ -168,6 +171,19 @@ function AppContent() {
         }
     // Depend on the players map (specifically the local player's position), connection identity, and app connected status.
     }, [players, connection?.identity, debouncedUpdateViewport]); // Removed currentViewport dependency to avoid loops
+
+    // --- Effect to initialize and cleanup cut grass effect system ---
+    useEffect(() => {
+        if (connection && localPlayerRegistered) {
+            console.log("[App.tsx] Initializing CutGrassEffectSystem...");
+            initCutGrassEffectSystem(connection);
+
+            return () => {
+                console.log("[App.tsx] Cleaning up CutGrassEffectSystem...");
+                cleanupCutGrassEffectSystem();
+            };
+        }
+    }, [connection, localPlayerRegistered]);
 
     // --- Action Handlers --- 
     const handleAttemptRegisterPlayer = useCallback((usernameToRegister: string | null) => {

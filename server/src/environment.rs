@@ -482,43 +482,38 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 let region_x = tile_x / GRASS_REGION_SIZE_TILES;
                 let region_y = tile_y / GRASS_REGION_SIZE_TILES;
 
-                // Simple hash to determine region type (can be more sophisticated)
-                // This creates a pseudo-random but deterministic region type
-                let region_type_seed = region_x.wrapping_add(region_y.wrapping_mul(31)); // Combine coordinates
+                let region_type_seed = region_x.wrapping_add(region_y.wrapping_mul(31));
                 let region_type_roll = region_type_seed % 100; // Roll from 0-99
 
                 let mut appearance_roll = appearance_roll_base; // Start with the random roll
 
-                // Target: More Tall Grass, very rare Brambles, common Short Grass
-                if region_type_roll < 5 { // 5% of regions are "Bramble Thickets" (Rare)
-                    // Bias towards BramblesA and BramblesB
-                    if appearance_roll_base < 80 { // 80% chance within this bramble region
-                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
-                    } else if appearance_roll_base < 90 {
-                        // Allow some bushes
-                         appearance_roll = 80 + (appearance_roll_base % 15); // Maps to 80-94 (Bushes)
-                    }
-                    // Else, keep original roll (allows for occasional other types)
-                } else if region_type_roll < 40 { // 35% of regions are "Tall Grass Plains" (from 5% to 40%)
-                    // Bias towards TallGrassA and TallGrassB
-                    if appearance_roll_base < 85 { // 85% chance within this tall grass region (Increased from 60%)
+                // Region Definitions:
+                // 1. Tall Grass Plains (with Bramble Groves): 0-39 (40% of regions)
+                // 2. Bushland: 40-59 (20% of regions)
+                // 3. Default Mixed Short Grass: 60-99 (40% of regions)
+
+                if region_type_roll < 40 { // Tall Grass Plains (40% of regions)
+                    // Inside Tall Grass Plains:
+                    if appearance_roll_base < 70 { // 70% chance for Tall Grass A/B
                         appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrassA/B)
-                    } else if appearance_roll_base < 95 {
-                        // Allow some patches of short grass
-                        appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (Patches)
+                    } else if appearance_roll_base < 90 { // Next 20% chance for Brambles A/B
+                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
+                    } else { // Remaining 10% chance for Short Grass Patches
+                        appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (PatchesA/B/C)
                     }
-                    // Else, keep original roll (allows for occasional other types, like bushes)
-                } else if region_type_roll < 60 { // 20% of regions are "Bushland" (from 40% to 60%)
+                } else if region_type_roll < 60 { // Bushland (20% of regions, from 40 up to 59)
                     // Bias towards Bushes
-                    if appearance_roll_base < 70 { // 70% chance
+                    if appearance_roll_base < 70 { // 70% chance for Bushes
                         appearance_roll = 80 + (appearance_roll_base % 15); // Maps to 80-94 (Bushes)
-                    } else if appearance_roll_base < 85 {
-                        // Allow some tall grass
-                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrass)
+                    } else if appearance_roll_base < 85 { // Next 15% chance for Tall Grass
+                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrassA/B)
                     }
-                    // Else, keep original roll
-                }
-                // Else (remaining 40% of regions): Default mixed short grass (from 60% to 100%)
+                    // Else (remaining 15%): use original appearance_roll_base. This allows for short grass or 
+                    // occasional rare bramble if base roll is high enough to hit those ranges.
+                } 
+                // Else (remaining 40% of regions, from 60 up to 99): Default mixed short grass.
+                // In this case, the original `appearance_roll_base` is used, which will mostly result in short grass types.
+                // If appearance_roll_base is very high (e.g., 95-99), it could still rarely spawn a bramble.
 
 
                 // Use the (potentially adjusted) appearance_roll
@@ -554,6 +549,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     last_hit_time: None,
                     respawn_at: None,
                     sway_offset_seed: sway_seed, // Use the passed-in sway_seed
+                    sway_speed: 0.3f32, // Increased base sway speed to 0.3
                 }
             },
             (appearance_roll_for_this_attempt, sway_offset_seed_for_this_attempt), // Pass the rolls as a tuple

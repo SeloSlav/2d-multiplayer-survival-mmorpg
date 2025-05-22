@@ -40,6 +40,7 @@ import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
 import { useTorchParticles } from '../hooks/useTorchParticles';
 import { useCloudInterpolation, InterpolatedCloudData } from '../hooks/useCloudInterpolation';
+import { useGrassInterpolation, InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -75,6 +76,9 @@ import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from '../hooks/useInteraction
 
 // Define a placeholder height for Stash for indicator rendering
 const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
+
+// Import cut grass effect renderer
+import { renderCutGrassEffects } from '../effects/cutGrassEffect';
 
 // --- Prop Interface ---
 interface GameCanvasProps {
@@ -284,6 +288,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       isInventoryOpen: showInventory,
   });
 
+  const [deltaTime, setDeltaTime] = useState<number>(0);
+  const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime });
+  const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime });
+
   // --- Use Entity Filtering Hook ---
   const {
     visibleSleepingBags,
@@ -328,7 +336,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetY,
     canvasSize.width,
     canvasSize.height,
-    grass
+    interpolatedGrass // Ensure this is the 18th argument
   );
 
   // --- UI State ---
@@ -369,10 +377,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
 
   const lastFrameTimeRef = useRef<number>(performance.now());
-  const [deltaTime, setDeltaTime] = useState<number>(0);
-
-  // --- Use Cloud Interpolation Hook --- (NEW)
-  const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime });
 
   // Use the new hook for campfire particles
   const campfireParticles = useCampfireParticles({
@@ -572,6 +576,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         // Call without camera offsets, as ctx is already translated
         renderParticlesToCanvas(ctx, campfireParticles);
         renderParticlesToCanvas(ctx, torchParticles);
+
+        // Render cut grass effects
+        renderCutGrassEffects(ctx, now_ms);
     }
 
     renderInteractionLabels({

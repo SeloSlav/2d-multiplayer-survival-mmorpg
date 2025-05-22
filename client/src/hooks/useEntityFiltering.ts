@@ -14,7 +14,7 @@ import {
   Hemp as SpacetimeDBHemp,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
-  Grass as SpacetimeDBGrass
+  // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
   isPlayer, isTree, isStone, isCampfire, isMushroom, isDroppedItem, isWoodenStorageBox,
@@ -24,8 +24,9 @@ import {
   isStash,
   isPumpkin,
   isPlayerCorpse,
-  isGrass
+  isGrass // Type guard might need adjustment or can work if structure is similar enough
 } from '../utils/typeGuards';
+import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
 interface ViewportBounds {
   viewMinX: number;
@@ -61,8 +62,8 @@ interface EntityFilteringResult {
   visibleTreesMap: Map<string, SpacetimeDBTree>;
   groundItems: (SpacetimeDBSleepingBag)[];
   ySortedEntities: YSortedEntityType[];
-  visibleGrass: SpacetimeDBGrass[];
-  visibleGrassMap: Map<string, SpacetimeDBGrass>;
+  visibleGrass: InterpolatedGrassData[]; // Use InterpolatedGrassData
+  visibleGrassMap: Map<string, InterpolatedGrassData>; // Use InterpolatedGrassData
 }
 
 // Define a unified entity type for sorting
@@ -79,7 +80,7 @@ export type YSortedEntityType =
   | { type: 'dropped_item'; entity: SpacetimeDBDroppedItem }
   | { type: 'mushroom'; entity: SpacetimeDBMushroom }
   | { type: 'pumpkin'; entity: SpacetimeDBPumpkin }
-  | { type: 'grass'; entity: SpacetimeDBGrass };
+  | { type: 'grass'; entity: InterpolatedGrassData }; // Use InterpolatedGrassData
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -99,7 +100,7 @@ export function useEntityFiltering(
   cameraOffsetY: number,
   canvasWidth: number,
   canvasHeight: number,
-  grass: Map<string, SpacetimeDBGrass>
+  grass: Map<string, InterpolatedGrassData> // Use InterpolatedGrassData
 ): EntityFilteringResult {
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {
@@ -179,8 +180,14 @@ export function useEntityFiltering(
       width = 32;
       height = 32;
     } else if (isGrass(entity)) {
-      x = entity.posX;
-      y = entity.posY;
+      // After isGrass, entity could be SpacetimeDBGrass or InterpolatedGrassData
+      if ('serverPosX' in entity) { // It's InterpolatedGrassData
+        x = entity.serverPosX;
+        y = entity.serverPosY;
+      } else { // It's SpacetimeDBGrass (should ideally not happen if input is always InterpolatedGrassData)
+        x = entity.posX;
+        y = entity.posY;
+      }
       width = 48;
       height = 48;
     } else {
@@ -301,7 +308,7 @@ export function useEntityFiltering(
       e.health > 0 && isEntityInView(e, viewBounds)
     ) : [],
     [grass, isEntityInView, viewBounds]
-  );
+  ); // grass parameter is now Map<string, InterpolatedGrassData>
 
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
@@ -361,7 +368,7 @@ export function useEntityFiltering(
   const visibleGrassMap = useMemo(() => 
     new Map(visibleGrass.map(g => [g.id.toString(), g])),
     [visibleGrass]
-  );
+  ); // visibleGrass is now InterpolatedGrassData[]
 
   // Group entities for rendering
   const groundItems = useMemo(() => [
@@ -384,7 +391,7 @@ export function useEntityFiltering(
       ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
       ...visibleMushrooms.map(m => ({ type: 'mushroom' as const, entity: m })),
       ...visiblePumpkins.map(p => ({ type: 'pumpkin' as const, entity: p })),
-      ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })),
+      ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
     ];
 
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
@@ -413,13 +420,23 @@ export function useEntityFiltering(
 
       if (isGrass(entity)) {
         const Y_OFFSET = 16;
-        sortY = entity.posY - Y_OFFSET;
+        // entity here is already InterpolatedGrassData due to how ySortedEntities is constructed
+        sortY = (entity as InterpolatedGrassData).serverPosY - Y_OFFSET;
         return sortY;
       }
 
-      // For other entities, use their standard posY.
-      // This includes Tree, Stone, WoodenStorageBox, Mushroom, Pumpkin
-      sortY = entity.posY;
+      // For other entities, use their standard posY if it exists, otherwise default or handle error.
+      // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
+      if ('posY' in entity && typeof (entity as any).posY === 'number') {
+        sortY = (entity as any).posY;
+      } else if ('positionY' in entity && typeof (entity as any).positionY === 'number') { // For Player
+        sortY = (entity as any).positionY;
+      } else {
+        // Fallback for entities that might not have posY directly (e.g. InterpolatedGrassData without serverPosY)
+        // or if we hit an unexpected type. For grass, serverPosY is used above.
+        // console.warn("Entity type in getSortY does not have a standard posY or positionY property:", entity);
+        sortY = 0; // Default sortY if no position found, or handle as an error
+      }
       return sortY;
     };
 
@@ -435,7 +452,7 @@ export function useEntityFiltering(
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, visibleCorns, visibleHemps,
     visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
-    visibleGrass
+    visibleGrass // visibleGrass is now InterpolatedGrassData[]
   ]);
 
   return {

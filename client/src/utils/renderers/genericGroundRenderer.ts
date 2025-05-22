@@ -57,6 +57,8 @@ export interface GroundEntityConfig<T extends BaseEntity> {
      * @param baseDrawX Base calculated draw X.
      * @param baseDrawY Base calculated draw Y.
      * @param cycleProgress Cycle progress (time-of-day dependent effects).
+     * @param targetImgWidth The target image width.
+     * @param targetImgHeight The target image height.
      * @returns Object with offsetX, offsetY, rotation, and scale to apply to the final drawImage call.
      */
     applyEffects?: (
@@ -65,7 +67,10 @@ export interface GroundEntityConfig<T extends BaseEntity> {
         nowMs: number, 
         baseDrawX: number, 
         baseDrawY: number,
-        cycleProgress: number) => 
+        cycleProgress: number,
+        targetImgWidth: number,
+        targetImgHeight: number
+    ) => 
         { offsetX: number; offsetY: number; rotation?: number; scale?: number };
     
     /**
@@ -164,7 +169,7 @@ export function renderConfiguredGroundEntity<T extends BaseEntity>({
         let effectScale = 1;    // Default scale
 
         if (config.applyEffects) {
-            const effectsResult = config.applyEffects(ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress);
+            const effectsResult = config.applyEffects(ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress, targetImgWidth, targetImgHeight);
             effectOffsetX = effectsResult.offsetX;
             effectOffsetY = effectsResult.offsetY;
             if (effectsResult.rotation) effectRotation = effectsResult.rotation;
@@ -185,12 +190,12 @@ export function renderConfiguredGroundEntity<T extends BaseEntity>({
             ctx.translate(pivotX, pivotY);
             if (effectRotation) ctx.rotate(effectRotation);
             if (effectScale !== 1) ctx.scale(effectScale, effectScale);
-            ctx.translate(-pivotX, -pivotY);
 
+            // Draw the image centered around the new (transformed) origin
             ctx.drawImage(
                 img, 
-                finalDrawX, 
-                finalDrawY, 
+                -targetImgWidth / 2, 
+                -targetImgHeight / 2, 
                 targetImgWidth, 
                 targetImgHeight
             );

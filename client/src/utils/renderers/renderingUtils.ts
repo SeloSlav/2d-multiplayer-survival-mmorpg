@@ -37,6 +37,7 @@ import { renderGrass } from './grassRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
+import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
 
 // Module-level cache for debug logging
 const playerDebugStateCache = new Map<string, { prevIsDead: boolean, prevLastHitTime: string | null }>();
@@ -230,7 +231,7 @@ export const renderYSortedEntities = ({
                 heroImageRef
             });
         } else if (type === 'grass') {
-            renderGrass(ctx, entity as SpacetimeDBGrass, nowMs, cycleProgress, false, true);
+            renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);
         } else {
             console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);
         } 
@@ -271,9 +272,10 @@ export const renderYSortedEntities = ({
         } else if (type === 'grass') {
             // Grass is PIXI based and doesn't have a separate canvas shadow pass in this system
             // Ensure shadows are also skipped in the second pass if grass were to be rendered here
-            renderGrass(ctx, entity as SpacetimeDBGrass, nowMs, cycleProgress, true, true);
+            // Cast to InterpolatedGrassData as that's what YSortedEntityType provides for grass
+            renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, true, true);
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }
     });
-}; 
+};

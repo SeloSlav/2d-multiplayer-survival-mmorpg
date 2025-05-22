@@ -54,6 +54,7 @@ pub struct Grass {
     pub respawn_at: Option<Timestamp>,    // When it should reappear after being chopped
     // For client-side sway animation, to give each patch a unique offset
     pub sway_offset_seed: u32, 
+    pub sway_speed: f32, // RENAMED: Was sway_speed_multiplier. This is now the actual speed.
 } 
 
 // --- NEW: Grass Respawn Scheduling --- 
@@ -67,6 +68,7 @@ pub struct GrassRespawnData {
     pub appearance_type: GrassAppearanceType,
     pub chunk_index: u32,
     pub sway_offset_seed: u32,
+    pub sway_speed: f32, // RENAMED: Was sway_speed_multiplier. This is now the actual speed.
 }
 
 #[spacetimedb::table(name = grass_respawn_schedule, scheduled(process_grass_respawn))]
@@ -100,6 +102,7 @@ pub fn process_grass_respawn(ctx: &spacetimedb::ReducerContext, schedule_entry: 
         last_hit_time: None,
         respawn_at: None, // Not needed for newly spawned grass
         sway_offset_seed: data.sway_offset_seed,
+        sway_speed: data.sway_speed, // UPDATED: Use the direct sway_speed from respawn data
     }) {
         Ok(new_grass) => {
             log::info!("Respawned grass entity at ({}, {}) with new ID {}", new_grass.pos_x, new_grass.pos_y, new_grass.id);

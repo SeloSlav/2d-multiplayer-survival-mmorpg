@@ -42,6 +42,7 @@ export type Grass = {
   lastHitTime: Timestamp | undefined,
   respawnAt: Timestamp | undefined,
   swayOffsetSeed: number,
+  swaySpeed: number,
 };
 
 /**
@@ -63,6 +64,7 @@ export namespace Grass {
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("respawnAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("swayOffsetSeed", AlgebraicType.createU32Type()),
+      new ProductTypeElement("swaySpeed", AlgebraicType.createF32Type()),
     ]);
   }
 

@@ -1474,6 +1474,7 @@ pub fn damage_grass(
                 appearance_type: grass_entity.appearance_type.clone(),
                 chunk_index: grass_entity.chunk_index,
                 sway_offset_seed: grass_entity.sway_offset_seed,
+                sway_speed: grass_entity.sway_speed, // Use the renamed field
             };
 
             let respawn_delay_secs = rng.gen_range(crate::grass::MIN_GRASS_RESPAWN_TIME_SECS..=crate::grass::MAX_GRASS_RESPAWN_TIME_SECS);

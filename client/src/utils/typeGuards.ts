@@ -14,6 +14,7 @@ import {
   Stash as SpacetimeDBStash,
   Grass as SpacetimeDBGrass
 } from '../generated'; // Import necessary types
+import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
 // Type guard for Player
 export function isPlayer(entity: any): entity is SpacetimeDBPlayer {
@@ -151,14 +152,14 @@ export function isStash(entity: any): entity is SpacetimeDBStash {
 }
 
 // Type guard for Grass
-export function isGrass(entity: any): entity is SpacetimeDBGrass {
+export function isGrass(entity: any): entity is SpacetimeDBGrass | InterpolatedGrassData {
   return entity && 
-         typeof entity.id === 'bigint' && // or 'number' depending on your exact generated type for u64
-         typeof entity.posX === 'number' &&
-         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' && // originalId for Interpolated, id for SpacetimeDBGrass (assuming it's a bigint or number)
+         (typeof entity.posX === 'number' || typeof entity.serverPosX === 'number') &&
+         (typeof entity.posY === 'number' || typeof entity.serverPosY === 'number') &&
          typeof entity.health === 'number' &&
-         typeof entity.appearanceType !== 'undefined' && // Corrected from entity.appearance
-         typeof entity.swayOffsetSeed === 'number' && // Check for swayOffsetSeed
+         typeof entity.appearanceType !== 'undefined' && 
+         typeof entity.swayOffsetSeed === 'number' && 
          // Ensure it doesn't conflict with other types by checking for absence of their unique fields
          typeof entity.identity === 'undefined' && // Not a Player
          typeof entity.treeType === 'undefined' && // Not a Tree
