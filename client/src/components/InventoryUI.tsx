@@ -214,17 +214,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     const max = def.primaryTargetYieldMax ?? min;
                     let yieldLabel = 'Primary Yield';
                     if (def.primaryTargetType) {
-                        yieldLabel = `${def.primaryTargetType.tag} Yield`;
-                    }
-                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
-                }
-                // Secondary Yield for Tools
-                if (def.secondaryTargetYieldMin !== undefined || def.secondaryTargetYieldMax !== undefined) {
-                    const min = def.secondaryTargetYieldMin ?? 0;
-                    const max = def.secondaryTargetYieldMax ?? min;
-                    let yieldLabel = 'Secondary Yield';
-                    if (def.secondaryTargetType) {
-                        yieldLabel = `${def.secondaryTargetType.tag} Yield`;
+                        const targetTypeTag = def.primaryTargetType.tag === 'PlayerCorpse' ? 'Corpse' : def.primaryTargetType.tag;
+                        yieldLabel = `${targetTypeTag} Yield`;
                     }
                     stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
                 }
@@ -409,17 +400,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     const max = def.primaryTargetYieldMax ?? min;
                     let yieldLabel = 'Primary Yield';
                     if (def.primaryTargetType) {
-                        yieldLabel = `${def.primaryTargetType.tag} Yield`;
-                    }
-                    stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
-                }
-                // Secondary Yield for Tools
-                if (def.secondaryTargetYieldMin !== undefined || def.secondaryTargetYieldMax !== undefined) {
-                    const min = def.secondaryTargetYieldMin ?? 0;
-                    const max = def.secondaryTargetYieldMax ?? min;
-                    let yieldLabel = 'Secondary Yield';
-                    if (def.secondaryTargetType) {
-                        yieldLabel = `${def.secondaryTargetType.tag} Yield`;
+                        const targetTypeTag = def.primaryTargetType.tag === 'PlayerCorpse' ? 'Corpse' : def.primaryTargetType.tag;
+                        yieldLabel = `${targetTypeTag} Yield`;
                     }
                     stats.push({ label: yieldLabel, value: max > min ? `${min}-${max}` : `${min}` });
                 }
@@ -511,9 +493,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                         const item = itemsByEquipSlot.get(slotInfo.name);
                         const currentSlotInfo: DragSourceSlotInfo = { type: 'equipment', index: slotInfo.name };
                         return (
-                            <div className={styles.equipmentSlot}>
+                            <div key={`equip-${slotInfo.name}`} className={styles.equipmentSlot}>
                                 <DroppableSlot
-                                    key={`equip-${slotInfo.name}`}
                                     slotInfo={currentSlotInfo}
                                     onItemDrop={onItemDrop}
                                     className={styles.slot}

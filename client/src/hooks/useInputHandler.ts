@@ -255,13 +255,13 @@ export const useInputHandler = ({
         // --- Armed Swing ---
         const itemDef = itemDefMap?.get(String(localEquipment.equippedItemDefId));
         if (!itemDef) {
-            console.warn("[AttemptSwing] No itemDef found for equipped item:", localEquipment.equippedItemDefId);
+            // console.warn("[AttemptSwing] No itemDef found for equipped item:", localEquipment.equippedItemDefId);
             return; // Cannot proceed without item definition
         }
 
         // Check if the equipped item is a Bandage (handled by right-click/context menu)
         if (itemDef.name === "Bandage") {
-            console.log("[AttemptSwing] Bandage equipped, preventing use via attemptSwing (left-click).");
+            // console.log("[AttemptSwing] Bandage equipped, preventing use via attemptSwing (left-click).");
             return;
         }
 

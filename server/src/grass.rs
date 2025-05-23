@@ -44,6 +44,19 @@ pub enum GrassAppearanceType {
     BramblesB,
 }
 
+// --- NEW: Helper function to check if grass type is a bramble (indestructible) ---
+impl GrassAppearanceType {
+    /// Returns true if this grass type is a bramble and should be indestructible
+    pub fn is_bramble(&self) -> bool {
+        matches!(self, GrassAppearanceType::BramblesA | GrassAppearanceType::BramblesB)
+    }
+}
+
+// Helper function for backwards compatibility and external use
+pub fn is_grass_type_bramble(appearance_type: &GrassAppearanceType) -> bool {
+    appearance_type.is_bramble()
+}
+
 #[spacetimedb::table(name = grass, public)]
 #[derive(Clone, Debug)]
 pub struct Grass {

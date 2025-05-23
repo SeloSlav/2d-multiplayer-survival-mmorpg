@@ -124,14 +124,62 @@ export const renderYSortedEntities = ({
 
            const lastPos = lastPositionsRef.current.get(playerId);
            let isPlayerMoving = false;
+           let movementReason = 'none'; // Debug: track why player is considered moving
+           
            if (lastPos) {
+                // FIXED: Much more sensitive movement detection for animation
+                // Reduced threshold from 0.1 to 0.01 pixels to catch micro-movements during collision
                 const dx = Math.abs(player.positionX - lastPos.x);
                 const dy = Math.abs(player.positionY - lastPos.y);
-                if (dx > 0.1 || dy > 0.1) {
+                if (dx > 0.01 || dy > 0.01) {
                isPlayerMoving = true;
+               movementReason = `position_change(${dx.toFixed(3)}, ${dy.toFixed(3)})`;
              }
            }
-            lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
+           
+           // ALTERNATIVE FIX: If position-based detection fails, check if player direction recently changed
+           // This helps detect movement intent even when collision prevents position changes
+           if (!isPlayerMoving && lastPos) {
+               // If position hasn't changed much but player has a non-default direction,
+               // and their last update was recent, consider them moving
+               const timeSinceUpdate = nowMs - Number(player.lastUpdate.microsSinceUnixEpoch / 1000n);
+               if (timeSinceUpdate < 500 && player.direction !== 'down') { // 500ms window
+                   isPlayerMoving = true;
+                   movementReason = `direction_based(${player.direction}, ${timeSinceUpdate}ms)`;
+               }
+           }
+           
+           // ADDITIONAL FIX: Check for sprinting or very recent activity as movement indicators
+           if (!isPlayerMoving) {
+               // If player is sprinting, they're definitely trying to move
+               if (player.isSprinting) {
+                   isPlayerMoving = true;
+                   movementReason = 'sprinting';
+               }
+               
+               // If player updated very recently (within 100ms), assume movement intent
+               const veryRecentUpdate = nowMs - Number(player.lastUpdate.microsSinceUnixEpoch / 1000n);
+               if (veryRecentUpdate < 100) {
+                   isPlayerMoving = true;
+                   movementReason = `recent_update(${veryRecentUpdate}ms)`;
+               }
+           }
+           
+           // DEBUG: Log movement detection for local player when there are multiple players nearby
+           if (localPlayerId && playerId === localPlayerId && process.env.NODE_ENV === 'development') {
+               const nearbyPlayerCount = ySortedEntities.filter(e => 
+                   e.type === 'player' && 
+                   e.entity !== player &&
+                   Math.abs((e.entity as SpacetimeDBPlayer).positionX - player.positionX) < 100 &&
+                   Math.abs((e.entity as SpacetimeDBPlayer).positionY - player.positionY) < 100
+               ).length;
+               
+               if (nearbyPlayerCount > 0) {
+                   console.log(`[AnimationFix] LocalPlayer movement: ${isPlayerMoving} (${movementReason}), nearby players: ${nearbyPlayerCount}`);
+               }
+           }
+           
+           lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
 
            let jumpOffset = 0;
             const jumpStartTime = player.jumpStartTimeMs;

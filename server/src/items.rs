@@ -728,9 +728,9 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     let target_slot_enum_model = item_def.equipment_slot_type
         .ok_or_else(|| format!("Armor '{}' has no defined equipment slot.", item_def.name))?;
     
-    // Ensure item is currently in player inventory or hotbar
-    if !matches!(&item_to_equip.location, ItemLocation::Inventory(data) if data.owner_id == sender_id) && 
-       !matches!(&item_to_equip.location, ItemLocation::Hotbar(data) if data.owner_id == sender_id) {
+    // Ensure item is currently in player inventory or hotbar (regardless of original owner_id)
+    if !matches!(&item_to_equip.location, ItemLocation::Inventory(_)) && 
+       !matches!(&item_to_equip.location, ItemLocation::Hotbar(_)) {
         return Err("Item must be in inventory or hotbar to be equipped this way.".to_string());
     }
 

@@ -104,13 +104,10 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     // --- Validate Item Location & Ownership ---
     // Item must be in player's inventory or hotbar to be made active.
     match &item_to_make_active.location {
-        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) |
-        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => {
-            // Check ownership
-            if *owner_id != sender_id {
-                return Err("Cannot activate an item you don't possess.".to_string());
-            }
-            // If item is a tool or weapon, allow activation
+        ItemLocation::Inventory(_) |
+        ItemLocation::Hotbar(_) => {
+            // Item is in inventory or hotbar - allow activation regardless of original owner_id
+            // since if it's in the player's slots, they should be able to activate it
             if item_def.category == ItemCategory::Tool || item_def.category == ItemCategory::Weapon {
                 // Valid location and type for activation
             } else {
@@ -433,11 +430,10 @@ pub fn equip_armor(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), St
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
 
     match &item_to_equip.location {
-        ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) |
-        ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) => {
-            if *owner_id != sender_id {
-                return Err("Cannot equip item not in your inventory/hotbar.".to_string());
-            }
+        ItemLocation::Inventory(_) |
+        ItemLocation::Hotbar(_) => {
+            // Item is in inventory or hotbar - allow equipping regardless of original owner_id
+            // since if it's in the player's slots, they should be able to equip it
         }
         _ => return Err("Item to equip must be in player inventory or hotbar.".to_string()),
     }

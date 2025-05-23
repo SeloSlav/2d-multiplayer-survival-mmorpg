@@ -361,6 +361,12 @@ pub fn find_targets_in_cone(
     // Check Grass
     for grass_entity in ctx.db.grass().iter() {
         if grass_entity.health == 0 { continue; } // Skip already destroyed grass
+        
+        // --- NEW: Skip Brambles from targeting ---
+        if grass_entity.appearance_type.is_bramble() {
+            continue; // Skip bramble types
+        }
+        // --- END NEW ---
 
         let dx = grass_entity.pos_x - player.position_x;
         // Grass Y-offset is likely less significant than trees/stones, using a smaller or no offset
@@ -431,6 +437,17 @@ pub fn find_best_target(targets: &[Target], item_def: &ItemDefinition) -> Option
 
 // --- Resource & Damage Functions ---
 
+/// Determines if a target type represents a destructible deployable structure
+/// This makes the system generic for future deployables
+fn is_destructible_deployable(target_type: TargetType) -> bool {
+    matches!(target_type, 
+        TargetType::Campfire | 
+        TargetType::WoodenStorageBox | 
+        TargetType::SleepingBag | 
+        TargetType::Stash
+    )
+}
+
 /// Grants resource items to a player based on what they hit
 ///
 /// Looks up the proper resource definition and adds it to the player's inventory.
@@ -470,29 +487,7 @@ pub fn calculate_damage_and_yield(
     let mut yield_qty = 0;
     let mut resource_name = "".to_string();
 
-    // Check for PvP damage first if target is Player or Animal
-    if target_type == TargetType::Player || target_type == TargetType::Animal {
-        let min_pvp_dmg = item_def.pvp_damage_min.unwrap_or(0) as f32;
-        let max_pvp_dmg = item_def.pvp_damage_max.unwrap_or(min_pvp_dmg as u32) as f32; // Use min if max is None
-        if max_pvp_dmg > 0.0 { // Only override default if PvP damage is defined
-            damage = if min_pvp_dmg >= max_pvp_dmg {
-                min_pvp_dmg
-            } else {
-                rng.gen_range(min_pvp_dmg..=max_pvp_dmg)
-            };
-        }
-        // No yield for PvP/PvE combat in this direct function
-        return (damage, 0, "".to_string());
-    }
-
-    // NEW: Handle PlayerCorpse target type for fixed damage
-    if target_type == TargetType::PlayerCorpse {
-        // Player corpses always take a fixed amount of damage to ensure consistent hits to destroy.
-        // Yield is handled separately in damage_player_corpse.
-        return (25.0, 0, "".to_string());
-    }
-
-    // Check if the target type is the item's primary target type
+    // Check if the target type is the item's primary target type FIRST
     if Some(target_type) == item_def.primary_target_type {
         let min_dmg = item_def.primary_target_damage_min.unwrap_or(0) as f32;
         let max_dmg = item_def.primary_target_damage_max.unwrap_or(min_dmg as u32) as f32;
@@ -516,6 +511,29 @@ pub fn calculate_damage_and_yield(
         return (damage, yield_qty, resource_name);
     }
 
+    // Check for PvP damage for Players, Animals, AND Deployable Structures
+    if target_type == TargetType::Player || target_type == TargetType::Animal || is_destructible_deployable(target_type) {
+        let min_pvp_dmg = item_def.pvp_damage_min.unwrap_or(0) as f32;
+        let max_pvp_dmg = item_def.pvp_damage_max.unwrap_or(min_pvp_dmg as u32) as f32;
+        if max_pvp_dmg > 0.0 { // Only override default if PvP damage is defined
+            damage = if min_pvp_dmg >= max_pvp_dmg {
+                min_pvp_dmg
+            } else {
+                rng.gen_range(min_pvp_dmg..=max_pvp_dmg)
+            };
+            
+            // For players and animals, no yield. For deployables, they handle their own item drops in their respective damage functions
+            return (damage, 0, "".to_string());
+        }
+    }
+
+    // NEW: Handle PlayerCorpse target type for fixed damage
+    if target_type == TargetType::PlayerCorpse {
+        // Player corpses always take a fixed amount of damage to ensure consistent hits to destroy.
+        // Yield is handled separately in damage_player_corpse.
+        return (25.0, 0, "".to_string());
+    }
+
     // Fallback for non-primary targets (or if primary_target_type is None)
     // Apply default damage (1.0), no yield for most other PvE targets unless specified
     if target_type == TargetType::Grass {
@@ -525,8 +543,41 @@ pub fn calculate_damage_and_yield(
         return (1.0, 0, "".to_string());
     }
     
-    // For other destructibles like Campfire, WoodenStorageBox, etc.,
-    // they might take the default 1.0 damage.
+    // NEW: Fallback harvesting for tools on harvestable resources
+    // Any tool should be able to harvest minimal amounts from trees and stones
+    if item_def.category == crate::items::ItemCategory::Tool {
+        // Exclude certain specialized tools that shouldn't harvest basic resources
+        let excluded_tools = [
+            "Repair Hammer",    // For repairing structures, not harvesting
+            "Blueprint",        // For building/placing structures
+            "Bone Knife",       // Specialized for corpse harvesting only
+            "Bandage",          // Medical tool, not for harvesting
+            "Torch"
+        ];
+        
+        if !excluded_tools.contains(&item_def.name.as_str()) {
+            match target_type {
+                TargetType::Tree => {
+                    // Tools can harvest wood, but at minimal efficiency
+                    let fallback_damage = item_def.primary_target_damage_min.unwrap_or(5) as f32 * 0.5; // 50% of normal damage
+                    let fallback_yield = rng.gen_range(5..=10); // Random 5-10 wood per hit
+                    return (fallback_damage, fallback_yield, "Wood".to_string());
+                },
+                TargetType::Stone => {
+                    // Tools can harvest stone, but at minimal efficiency  
+                    let fallback_damage = item_def.primary_target_damage_min.unwrap_or(5) as f32 * 0.5; // 50% of normal damage
+                    let fallback_yield = rng.gen_range(5..=10); // Random 5-10 stone per hit
+                    return (fallback_damage, fallback_yield, "Stone".to_string());
+                },
+                _ => {
+                    // For other target types, use default behavior
+                }
+            }
+        }
+    }
+    
+    // For other destructibles that don't match any of the above conditions,
+    // they get the default 1.0 damage.
     // No direct yield from this function for them.
     (damage, yield_qty, resource_name)
 }
@@ -1520,6 +1571,13 @@ pub fn damage_grass(
     if let Some(grass_entity) = grass_table.id().find(&grass_id) { // Make grass_entity immutable here
         if grass_entity.health == 0 {
             return Ok(AttackResult { hit: false, target_type: Some(TargetType::Grass), resource_granted: None }); // Already destroyed
+        }
+
+        // --- NEW: Check if this grass type is a bramble (indestructible) ---
+        if grass_entity.appearance_type.is_bramble() {
+            log::info!("Grass ID {} (bramble type {:?}) hit by {} but brambles are indestructible. No damage applied.", 
+                      grass_id, grass_entity.appearance_type, attacker_id);
+            return Ok(AttackResult { hit: false, target_type: Some(TargetType::Grass), resource_granted: None });
         }
 
         let current_health = grass_entity.health;

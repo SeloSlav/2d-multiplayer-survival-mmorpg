@@ -497,14 +497,14 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     if appearance_roll_base < 70 { // 70% chance for Tall Grass A/B
                         appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
                     } else if appearance_roll_base < 90 { // Next 20% chance for Brambles A/B
-                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
+                        appearance_roll = 90 + (appearance_roll_base % 10); // Maps to 90-99 (BramblesA/B)
                     } else { // Remaining 10% chance for Short Grass Patches
                         appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (PatchesA/B/C)
                     }
                 } else if region_type_roll < 60 { // Bushland (20% of regions, from 40 up to 59)
                     // Bias towards Brambles and Tall Grass (since bushes are removed)
                     if appearance_roll_base < 60 { // 60% chance for Brambles
-                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
+                        appearance_roll = 90 + (appearance_roll_base % 10); // Maps to 90-99 (BramblesA/B)
                     } else if appearance_roll_base < 85 { // Next 25% chance for Tall Grass
                         appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
                     }

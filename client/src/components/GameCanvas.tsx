@@ -25,13 +25,14 @@ import {
 } from '../generated';
 
 // --- Core Hooks ---
-import { useAnimationCycle } from '../hooks/useAnimationCycle';
+import { useAnimationCycle, useWalkingAnimationCycle } from '../hooks/useAnimationCycle';
 import { useAssetLoader } from '../hooks/useAssetLoader';
 import { useGameViewport } from '../hooks/useGameViewport';
 import { useMousePosition } from '../hooks/useMousePosition';
 import { useDayNightCycle } from '../hooks/useDayNightCycle';
 import { useInteractionFinder } from '../hooks/useInteractionFinder';
 import { useGameLoop } from '../hooks/useGameLoop';
+import type { FrameInfo } from '../hooks/useGameLoop';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
@@ -265,7 +266,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     stashes,
     sleepingBags,
   });
-  const animationFrame = useAnimationCycle(150, 4);
+  const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
   const { 
     interactionProgress, 
     isActivelyHolding,
@@ -375,8 +376,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     });
   }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
-
-  const lastFrameTimeRef = useRef<number>(performance.now());
 
   // Use the new hook for campfire particles
   const campfireParticles = useCampfireParticles({
@@ -779,16 +778,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       showInventory,
   ]);
 
-  const gameLoopCallback = useCallback(() => {
-    const now = performance.now();
-    const dt = now - lastFrameTimeRef.current;
-    lastFrameTimeRef.current = now;
-    setDeltaTime(dt > 0 ? dt : 0); // Ensure deltaTime is not negative
+  const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
+    // Use deltaTime from the hook instead of calculating manually
+    setDeltaTime(frameInfo.deltaTime);
+
+    // Performance monitoring: warn if deltaTime is unusually high
+    if (process.env.NODE_ENV === 'development' && frameInfo.deltaTime > 50) {
+      console.warn(`[GameCanvas] Long frame detected: ${frameInfo.deltaTime.toFixed(2)}ms. Consider optimizing game loop callback.`);
+    }
 
     processInputsAndActions(); 
     renderGame(); 
   }, [processInputsAndActions, renderGame]);
-  useGameLoop(gameLoopCallback);
+
+  // Use the updated hook with optional performance settings
+  useGameLoop(gameLoopCallback, {
+    targetFPS: 60,
+    maxFrameTime: 20, // Warning threshold slightly higher than ideal 16.67ms
+    enableProfiling: process.env.NODE_ENV === 'development'
+  });
 
   // Convert sleepingBags map key from string to number for DeathScreen
   const sleepingBagsById = useMemo(() => {

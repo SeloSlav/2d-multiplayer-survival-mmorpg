@@ -95,6 +95,13 @@ function AppContent() {
     const lastSentViewportCenterRef = useRef<{ x: number, y: number } | null>(null);
     const localPlayerRef = useRef<any>(null); // Ref to hold local player data
 
+    // PERFORMANCE: Stable references for viewport calculations
+    const viewportCalculationRefs = useRef({
+        lastPlayerX: 0,
+        lastPlayerY: 0,
+        lastUpdateTime: 0,
+    });
+
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
       players, trees, clouds, stones, campfires, mushrooms, corns, pumpkins, hemps,

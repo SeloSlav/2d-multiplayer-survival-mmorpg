@@ -59,10 +59,18 @@ export const getSpriteCoordinates = (
     case 'left':  spriteRow = 3; break;
     default:      spriteRow = 2; break;
   }
-  let frameIndex = isMoving ? currentAnimationFrame : IDLE_FRAME_INDEX;
-  if (isUsingItem) {
+  
+  let frameIndex = IDLE_FRAME_INDEX; // Default to idle frame
+  
+  if (isMoving) {
+    // Use the animation frame directly (now comes from walking cycle: 0,1,2,1)
+    frameIndex = currentAnimationFrame;
+  } else if (isUsingItem) {
+    // For item usage, alternate between frames 0 and 1 for a subtle animation
     frameIndex = currentAnimationFrame % 2; 
   }
+  // If not moving and not using item, stays at IDLE_FRAME_INDEX (1)
+  
   const sx = frameIndex * gameConfig.spriteWidth;
   const sy = spriteRow * gameConfig.spriteHeight;
   return { sx, sy };

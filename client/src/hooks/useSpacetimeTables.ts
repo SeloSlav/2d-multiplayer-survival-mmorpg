@@ -538,7 +538,7 @@ export const useSpacetimeTables = ({
                 // console.log("[useSpacetimeTables] No chunk indices in viewport range. Skipping spatial subscriptions.");
                 // If viewport is empty, ensure all spatial subs are cleaned up
                 if (currentChunkIndicesSet.size > 0) {
-                     console.log("[useSpacetimeTables] Viewport empty, cleaning up all spatial subs.");
+                     // console.log("[useSpacetimeTables] Viewport empty, cleaning up all spatial subs.");
                      for (const chunkIdx of currentChunkIndicesSet) {
                          const handles = spatialSubHandlesMapRef.current.get(chunkIdx) || [];
                          handles.forEach(safeUnsubscribe);
@@ -555,7 +555,7 @@ export const useSpacetimeTables = ({
                 // Only proceed if there are actual changes
                 if (addedChunks.length > 0 || removedChunks.length > 0) {
                     // console.log(`[DEBUG] Spatial Update Needed! Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`); // Log diff
-                    console.log(`[Sub Update] Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`);
+                    // console.log(`[Sub Update] Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`);
 
                     // --- Unsubscribe from Removed Chunks ---
                     removedChunks.forEach(chunkIndex => {
