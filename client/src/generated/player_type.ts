@@ -53,6 +53,8 @@ export type Player = {
   isTorchLit: boolean,
   lastConsumedAt: Timestamp | undefined,
   isCrouching: boolean,
+  isKnockedOut: boolean,
+  knockedOutAt: Timestamp | undefined,
 };
 
 /**
@@ -87,6 +89,8 @@ export namespace Player {
       new ProductTypeElement("isTorchLit", AlgebraicType.createBoolType()),
       new ProductTypeElement("lastConsumedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("isCrouching", AlgebraicType.createBoolType()),
+      new ProductTypeElement("isKnockedOut", AlgebraicType.createBoolType()),
+      new ProductTypeElement("knockedOutAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

@@ -31,6 +31,7 @@ export interface SpacetimeTableStates {
     localPlayerRegistered: boolean; // Flag indicating local player presence
     clouds: Map<string, SpacetimeDB.Cloud>; // <<< ADDED clouds to interface
     grass: Map<string, SpacetimeDB.Grass>; // <<< ADDED grass to interface
+    knockedOutStatus: Map<string, SpacetimeDB.KnockedOutStatus>; // <<< ADDED knocked out status to interface
 }
 
 // Define the props the hook accepts
@@ -75,6 +76,7 @@ export const useSpacetimeTables = ({
     const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
     const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map()); // <<< ADDED clouds state
     const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // <<< ADDED grass state
+    const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map()); // <<< ADDED knocked out status state
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -421,6 +423,20 @@ export const useSpacetimeTables = ({
             const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
             const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
 
+            // --- KnockedOutStatus Subscriptions ---
+            const handleKnockedOutStatusInsert = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
+                console.log("[useSpacetimeTables] KnockedOutStatus INSERT:", status);
+                setKnockedOutStatus(prev => new Map(prev).set(status.playerId.toHexString(), status));
+            };
+            const handleKnockedOutStatusUpdate = (ctx: any, oldStatus: SpacetimeDB.KnockedOutStatus, newStatus: SpacetimeDB.KnockedOutStatus) => {
+                console.log("[useSpacetimeTables] KnockedOutStatus UPDATE:", newStatus);
+                setKnockedOutStatus(prev => new Map(prev).set(newStatus.playerId.toHexString(), newStatus));
+            };
+            const handleKnockedOutStatusDelete = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
+                console.log("[useSpacetimeTables] KnockedOutStatus DELETE:", status.playerId.toHexString());
+                setKnockedOutStatus(prev => { const newMap = new Map(prev); newMap.delete(status.playerId.toHexString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -465,6 +481,11 @@ export const useSpacetimeTables = ({
             connection.db.grass.onInsert(handleGrassInsert);
             connection.db.grass.onUpdate(handleGrassUpdate);
             connection.db.grass.onDelete(handleGrassDelete);
+
+            // Register KnockedOutStatus callbacks
+            connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
+            connection.db.knockedOutStatus.onUpdate(handleKnockedOutStatusUpdate);
+            connection.db.knockedOutStatus.onDelete(handleKnockedOutStatusDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -517,6 +538,10 @@ export const useSpacetimeTables = ({
                     .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'active_consumable_effect' ERROR:", err))
                     .subscribe('SELECT * FROM active_consumable_effect'),
+                 connection.subscriptionBuilder() // Added for KnockedOutStatus
+                    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'knocked_out_status' APPLIED."))
+                    .onError((err) => console.error("[useSpacetimeTables] Subscription for 'knocked_out_status' ERROR:", err))
+                    .subscribe('SELECT * FROM knocked_out_status'),
                  // connection.subscriptionBuilder() // Specific Cloud subscription with logging
                  //    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'cloud' APPLIED."))
                  //    .onError((errorContext) => console.error("[useSpacetimeTables] Subscription for 'cloud' Full Error Context:", errorContext)) // Log the entire context object
@@ -673,6 +698,7 @@ export const useSpacetimeTables = ({
                  setActiveConsumableEffects(new Map());
                  setClouds(new Map()); // <<< ADDED: Reset clouds state
                  setGrass(new Map()); // <<< ADDED: Reset grass state
+                 setKnockedOutStatus(new Map()); // <<< ADDED: Reset knocked out status state
              }
         };
 
@@ -706,5 +732,6 @@ export const useSpacetimeTables = ({
         activeConsumableEffects,
         clouds, // <<< ADDED: Return clouds state
         grass, // <<< ADDED: Return grass state
+        knockedOutStatus, // <<< ADDED: Return knocked out status state
     };
 }; 

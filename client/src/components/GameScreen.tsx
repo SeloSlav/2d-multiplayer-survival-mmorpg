@@ -46,7 +46,8 @@ import {
     Stash as SpacetimeDBStash,
     ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
     Cloud as SpacetimeDBCloud,
-    Grass as SpacetimeDBGrass
+    Grass as SpacetimeDBGrass,
+    KnockedOutStatus as SpacetimeDBKnockedOutStatus
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -88,6 +89,7 @@ interface GameScreenProps {
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeConsumableEffects: Map<string, SpacetimeDBActiveConsumableEffect>;
     grass: Map<string, SpacetimeDBGrass>;
+    knockedOutStatus: Map<string, SpacetimeDBKnockedOutStatus>;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -144,6 +146,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         activeConsumableEffects,
         clouds,
         grass,
+        knockedOutStatus,
     } = props;
 
     // You can also add a useEffect here if the above doesn't show up
@@ -241,6 +244,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 onCraftingSearchFocusChange={setIsCraftingSearchFocused}
                 onToggleInventory={() => setShowInventoryState(prev => !prev)}
                 showInventory={showInventoryState}
+                knockedOutStatus={knockedOutStatus}
             />
             <Hotbar
                 playerIdentity={playerIdentity}

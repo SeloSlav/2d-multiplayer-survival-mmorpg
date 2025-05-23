@@ -96,6 +96,7 @@ use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping 
 use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
 use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
+use crate::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -174,6 +175,8 @@ pub struct Player {
     pub is_torch_lit: bool, // <<< ADDED: Tracks if the player's torch is currently lit
     pub last_consumed_at: Option<Timestamp>, // <<< ADDED: Tracks when a player last consumed an item
     pub is_crouching: bool, // RENAMED: For crouching speed control
+    pub is_knocked_out: bool, // NEW: Tracks if the player is in knocked out state
+    pub knocked_out_at: Option<Timestamp>, // NEW: When the player was knocked out
 }
 
 // Table to store the last attack timestamp for each player
@@ -519,6 +522,8 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         is_torch_lit: false, // Initialize to false
         last_consumed_at: None, // Initialize last_consumed_at
         is_crouching: false, // Initialize is_crouching
+        is_knocked_out: false, // NEW: Initialize knocked out state
+        knocked_out_at: None, // NEW: Initialize knocked out time
     };
 
     // Insert the new player
@@ -594,6 +599,14 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     // --- 1. Validate Player and Placement Rules ---
     let player = players.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
+
+    // Don't allow placing campfires if dead or knocked out
+    if player.is_dead {
+        return Err("Cannot place campfire while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot place campfire while knocked out.".to_string());
+    }
 
     let dx_place = world_x - player.position_x;
     let dy_place = world_y - player.position_y;
@@ -780,6 +793,12 @@ pub fn update_player_position(
         return Ok(()); // Do nothing if dead
     }
 
+    // --- NEW: If player is knocked out, prevent sprinting ---
+    let mut current_sprinting_state = current_player.is_sprinting;
+    if current_player.is_knocked_out {
+        current_sprinting_state = false; // Force sprinting off for knocked out players
+    }
+
     // --- Determine Animation Direction from Input Vector ---
     let mut final_anim_direction = current_player.direction.clone();
     // Basic check: If there's significant movement
@@ -825,6 +844,12 @@ pub fn update_player_position(
     // --- Calculate Final Speed Multiplier based on Current Stats ---
     let mut final_speed_multiplier = base_speed_multiplier;
     // Use current player stats read at the beginning of the reducer
+
+    // NEW: Apply massive speed reduction if knocked out (95% slower, so 5% of normal speed)
+    if current_player.is_knocked_out {
+        final_speed_multiplier *= 0.05; // Only 5% of normal speed
+        log::trace!("Player {:?} is knocked out. Speed multiplier reduced to: {}", sender_id, final_speed_multiplier);
+    }
 
     // Apply fine movement speed reduction if active
     if current_player.is_crouching {
@@ -1357,6 +1382,11 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
            return Err("Cannot jump while dead.".to_string());
        }
 
+       // Don't allow jumping if knocked out
+       if player.is_knocked_out {
+           return Err("Cannot jump while knocked out.".to_string());
+       }
+
        let now_micros = ctx.timestamp.to_micros_since_unix_epoch();
        let now_ms = (now_micros / 1000) as u64;
 
@@ -1453,6 +1483,8 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     player.death_timestamp = None; // Clear death timestamp
     player.last_hit_time = None;
     player.is_torch_lit = false; // Ensure torch is unlit on respawn
+    player.is_knocked_out = false; // NEW: Reset knocked out state
+    player.knocked_out_at = None; // NEW: Clear knocked out timestamp
 
     // --- Reset Position to Random Location ---
     let mut rng = ctx.rng(); // Use the rng() method
@@ -1550,6 +1582,14 @@ pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {
     let mut player = players_table.identity().find(&sender_id)
         .ok_or_else(|| "Player not found.".to_string())?;
 
+    // Don't allow torch toggle if dead or knocked out
+    if player.is_dead {
+        return Err("Cannot toggle torch while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot toggle torch while knocked out.".to_string());
+    }
+
     let mut equipment = active_equipments_table.player_identity().find(&sender_id)
         .ok_or_else(|| "Player has no active equipment record.".to_string())?;
 
@@ -1611,3 +1651,372 @@ pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
     }
 }
 // --- END NEW Reducer ---
+
+// --- NEW: Knocked Out Recovery/Death System ---
+
+/// Table for scheduling knocked out player recovery checks
+#[spacetimedb::table(name = knocked_out_recovery_schedule, public, scheduled(process_knocked_out_recovery))]
+#[derive(Clone)]
+pub struct KnockedOutRecoverySchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub schedule_id: u64, // SpacetimeDB requires u64 primary key for scheduled tables
+    pub player_id: Identity, // The player this recovery check is for
+    pub scheduled_at: spacetimedb::spacetimedb_lib::ScheduleAt,
+    pub check_count: u32, // Track how many checks have been performed
+}
+
+/// Scheduled reducer to handle knocked out player recovery/death
+#[spacetimedb::reducer(name = "process_knocked_out_recovery")]
+pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecoverySchedule) -> Result<(), String> {
+    // Security check
+    if ctx.sender != ctx.identity() {
+        return Err("process_knocked_out_recovery can only be called by the scheduler".to_string());
+    }
+
+    let player_id = args.player_id;
+    let schedule_id = args.schedule_id;
+    let players = ctx.db.player();
+    let mut recovery_schedule = ctx.db.knocked_out_recovery_schedule();
+
+    log::info!("[KnockedOutRecovery] Processing recovery check for player {:?} (check #{})", player_id, args.check_count);
+
+    let mut player = match players.identity().find(&player_id) {
+        Some(p) => p,
+        None => {
+            log::warn!("[KnockedOutRecovery] Player {:?} not found. Removing schedule {}.", player_id, schedule_id);
+            recovery_schedule.schedule_id().delete(&schedule_id);
+            return Ok(());
+        }
+    };
+
+    // If player is no longer knocked out, remove schedule
+    if !player.is_knocked_out {
+        log::info!("[KnockedOutRecovery] Player {:?} is no longer knocked out. Removing schedule {}.", player_id, schedule_id);
+        recovery_schedule.schedule_id().delete(&schedule_id);
+        return Ok(());
+    }
+
+    let knocked_out_duration_secs = match player.knocked_out_at {
+        Some(knocked_out_time) => {
+            let duration_micros = ctx.timestamp.to_micros_since_unix_epoch() 
+                .saturating_sub(knocked_out_time.to_micros_since_unix_epoch());
+            (duration_micros / 1_000_000) as u32
+        }
+        None => {
+            log::error!("[KnockedOutRecovery] Player {:?} is knocked out but has no knocked_out_at timestamp. Clearing state.", player_id);
+            player.is_knocked_out = false;
+            player.knocked_out_at = None;
+            players.identity().update(player);
+            recovery_schedule.schedule_id().delete(&schedule_id);
+            return Ok(());
+        }
+    };
+
+    // Calculate stat-based modifiers for recovery and death chances
+    let stat_thresholds_config_table = ctx.db.stat_thresholds_config();
+    let stat_config = stat_thresholds_config_table.iter().filter(|stc| stc.id == 0).next();
+    let low_need_threshold = stat_config.map(|c| c.low_need_threshold).unwrap_or(25.0);
+
+    let hunger_modifier = if player.hunger >= 75.0 { 1.5 } else if player.hunger >= low_need_threshold { 1.0 } else if player.hunger >= 10.0 { 0.7 } else { 0.5 };
+    let thirst_modifier = if player.thirst >= 75.0 { 1.4 } else if player.thirst >= low_need_threshold { 1.0 } else if player.thirst >= 10.0 { 0.6 } else { 0.4 };
+    let stamina_modifier = if player.stamina >= 75.0 { 1.3 } else if player.stamina >= 50.0 { 1.0 } else if player.stamina >= 25.0 { 0.8 } else { 0.6 };
+    let warmth_modifier = if player.warmth >= 75.0 { 1.3 } else if player.warmth >= low_need_threshold { 1.0 } else if player.warmth >= 10.0 { 0.7 } else { 0.5 };
+    let armor_modifier = 1.0 + (crate::armor::calculate_total_damage_resistance(ctx, player_id) * 2.0);
+    let stat_multiplier = (hunger_modifier * thirst_modifier * stamina_modifier * warmth_modifier * armor_modifier).clamp(0.2, 3.0);
+
+    // Calculate current recovery and death chances using updated algorithm
+    let base_recovery_chance = if knocked_out_duration_secs <= 15 {
+        let time_factor = (15 - knocked_out_duration_secs) as f64 / 15.0;
+        0.15 + (time_factor * 0.15)
+    } else if knocked_out_duration_secs <= 30 {
+        let time_factor = (30 - knocked_out_duration_secs) as f64 / 15.0;
+        0.08 + (time_factor * 0.07)
+    } else {
+        let time_factor = ((knocked_out_duration_secs - 30) as f64 / 30.0).min(1.0);
+        0.08 - (time_factor * 0.06)
+    };
+
+    let modified_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.0, 0.9);
+
+    let base_death_start_time = 10.0 + (5.0 * (stat_multiplier - 1.0).max(0.0));
+    let base_death_escalation_time = base_death_start_time + 10.0;
+
+    let death_chance = if knocked_out_duration_secs <= base_death_start_time as u32 {
+        0.0
+    } else if knocked_out_duration_secs <= base_death_escalation_time as u32 {
+        let time_factor = (knocked_out_duration_secs as f64 - base_death_start_time as f64) / 10.0;
+        (time_factor * 0.15) / (stat_multiplier as f64).max(0.5)
+    } else {
+        let time_factor = ((knocked_out_duration_secs as f64 - base_death_escalation_time as f64) / 10.0).min(1.0);
+        (0.15 + (time_factor * 0.45)) / (stat_multiplier as f64).max(0.5)
+    };
+
+    let time_until_death_risk = if knocked_out_duration_secs < base_death_start_time as u32 {
+        base_death_start_time - knocked_out_duration_secs as f32
+    } else {
+        0.0
+    };
+
+    let mut rng = ctx.rng();
+    let roll = rng.gen::<f64>();
+
+    log::info!("[KnockedOutRecovery] Player {:?} unconscious for {}s. Base recovery: {:.1}%, Modified recovery: {:.1}%, Death chance: {:.1}%, Roll: {:.3}", 
+             player_id, knocked_out_duration_secs, base_recovery_chance * 100.0, modified_recovery_chance * 100.0, death_chance * 100.0, roll);
+
+    if roll < death_chance {
+        // Player dies
+        log::info!("[KnockedOutRecovery] Player {:?} died from their wounds after {}s unconscious", player_id, knocked_out_duration_secs);
+        
+        player.is_knocked_out = false;
+        player.knocked_out_at = None;
+        player.is_dead = true;
+        player.death_timestamp = Some(ctx.timestamp);
+        player.health = 0.0;
+
+        // Clear active item
+        match crate::active_equipment::clear_active_item_reducer(ctx, player.identity) {
+            Ok(_) => log::info!("[KnockedOutDeath] Active item cleared for dying player {}", player.identity),
+            Err(e) => log::error!("[KnockedOutDeath] Failed to clear active item for dying player {}: {}", player.identity, e),
+        }
+
+        // Create corpse
+        match crate::player_corpse::create_player_corpse(ctx, player.identity, player.position_x, player.position_y, &player.username) {
+            Ok(_) => log::info!("[KnockedOutDeath] Corpse created for player {:?}", player_id),
+            Err(e) => log::error!("[KnockedOutDeath] Failed to create corpse for player {:?}: {}", player_id, e),
+        }
+
+        players.identity().update(player);
+        recovery_schedule.schedule_id().delete(&schedule_id);
+
+    } else if roll < death_chance + modified_recovery_chance {
+        // Player recovers on their own
+        log::info!("[KnockedOutRecovery] Player {:?} recovered on their own after {}s unconscious", player_id, knocked_out_duration_secs);
+        
+        player.is_knocked_out = false;
+        player.knocked_out_at = None;
+        player.health = 10.0; // Recover with low health
+
+        players.identity().update(player);
+        recovery_schedule.schedule_id().delete(&schedule_id);
+
+    } else {
+        // Continue checking, schedule next check
+        let next_check_count = args.check_count + 1;
+        let next_check_time = ctx.timestamp + std::time::Duration::from_secs(3); // Check every 3 seconds (was 5)
+
+        let next_schedule = KnockedOutRecoverySchedule {
+            schedule_id, // Keep the same schedule_id
+            player_id,
+            scheduled_at: next_check_time.into(),
+            check_count: next_check_count,
+        };
+
+        // Update the existing schedule
+        recovery_schedule.schedule_id().update(next_schedule);
+        log::debug!("[KnockedOutRecovery] Scheduled next check for player {:?} in 3s (check #{})", player_id, next_check_count);
+    }
+
+    Ok(())
+}
+
+/// Helper function to start knocked out recovery scheduling for a player
+pub fn schedule_knocked_out_recovery(ctx: &ReducerContext, player_id: Identity) -> Result<(), String> {
+    let recovery_schedule_table = ctx.db.knocked_out_recovery_schedule();
+    
+    let first_check_time = ctx.timestamp + std::time::Duration::from_secs(5); // First check after 5 seconds (was 10)
+    
+    let schedule_entry = KnockedOutRecoverySchedule {
+        schedule_id: 0, // Auto-incremented by SpacetimeDB
+        player_id,
+        scheduled_at: first_check_time.into(),
+        check_count: 1,
+    };
+
+    match recovery_schedule_table.try_insert(schedule_entry) {
+        Ok(_) => {
+            log::info!("[KnockedOutRecovery] Scheduled recovery checks for player {:?} starting in 5s", player_id);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("[KnockedOutRecovery] Failed to schedule recovery for player {:?}: {}", player_id, e);
+            Err(format!("Failed to schedule recovery: {}", e))
+        }
+    }
+}
+
+/// Reducer for other players to revive a knocked out player
+#[spacetimedb::reducer]
+pub fn revive_knocked_out_player(ctx: &ReducerContext, target_player_id: Identity) -> Result<(), String> {
+    let reviver_id = ctx.sender;
+    let players = ctx.db.player();
+    let recovery_schedule_table = ctx.db.knocked_out_recovery_schedule();
+
+    // Get both players
+    let reviver = players.identity().find(&reviver_id)
+        .ok_or_else(|| "Reviver player not found".to_string())?;
+    
+    let mut target_player = players.identity().find(&target_player_id)
+        .ok_or_else(|| "Target player not found".to_string())?;
+
+    // Validate reviver is alive and not knocked out
+    if reviver.is_dead {
+        return Err("Dead players cannot revive others".to_string());
+    }
+    if reviver.is_knocked_out {
+        return Err("Knocked out players cannot revive others".to_string());
+    }
+
+    // Validate target is knocked out
+    if !target_player.is_knocked_out {
+        return Err("Target player is not knocked out".to_string());
+    }
+    if target_player.is_dead {
+        return Err("Target player is already dead".to_string());
+    }
+
+    // Check distance (similar to other interaction distances)
+    const REVIVE_INTERACTION_DISTANCE: f32 = 64.0;
+    const REVIVE_INTERACTION_DISTANCE_SQ: f32 = REVIVE_INTERACTION_DISTANCE * REVIVE_INTERACTION_DISTANCE;
+    
+    let dx = reviver.position_x - target_player.position_x;
+    let dy = reviver.position_y - target_player.position_y;
+    let distance_sq = dx * dx + dy * dy;
+    
+    if distance_sq > REVIVE_INTERACTION_DISTANCE_SQ {
+        return Err("Too far away to revive player".to_string());
+    }
+
+    // Revive the player
+    target_player.is_knocked_out = false;
+    target_player.knocked_out_at = None;
+    target_player.health = 10.0; // Revive with low health
+    target_player.last_update = ctx.timestamp;
+
+    players.identity().update(target_player.clone());
+
+    // Cancel recovery schedule - find by player_id since we don't have schedule_id
+    let schedules_to_remove: Vec<u64> = recovery_schedule_table.iter()
+        .filter(|schedule| schedule.player_id == target_player_id)
+        .map(|schedule| schedule.schedule_id)
+        .collect();
+    
+    for schedule_id in schedules_to_remove {
+        recovery_schedule_table.schedule_id().delete(&schedule_id);
+        log::info!("[Revive] Canceled recovery schedule {} for revived player {:?}", schedule_id, target_player_id);
+    }
+
+    log::info!("Player {:?} ({}) revived player {:?} ({}) with 10 health", 
+             reviver_id, reviver.username, target_player_id, target_player.username);
+
+    Ok(())
+}
+
+/// Table for tracking knocked out player state for UI display
+#[spacetimedb::table(name = knocked_out_status, public)]
+#[derive(Clone)]
+pub struct KnockedOutStatus {
+    #[primary_key]
+    pub player_id: Identity,
+    pub knocked_out_at: Timestamp,
+    pub current_recovery_chance_percent: f32,
+    pub current_death_chance_percent: f32,
+    pub time_until_death_risk_starts_secs: f32,
+    pub stat_multiplier: f32,
+    pub last_updated: Timestamp,
+}
+
+/// Reducer to calculate and update knocked out status for UI display
+#[spacetimedb::reducer]
+pub fn get_knocked_out_status(ctx: &ReducerContext) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+    let knocked_out_status_table = ctx.db.knocked_out_status();
+
+    let player = players.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    if !player.is_knocked_out {
+        // Remove status if player is no longer knocked out
+        if knocked_out_status_table.player_id().find(&sender_id).is_some() {
+            knocked_out_status_table.player_id().delete(&sender_id);
+        }
+        return Ok(());
+    }
+
+    let knocked_out_at = player.knocked_out_at
+        .ok_or_else(|| "Player is knocked out but has no knocked_out_at timestamp".to_string())?;
+
+    let knocked_out_duration_secs = {
+        let duration_micros = ctx.timestamp.to_micros_since_unix_epoch() 
+            .saturating_sub(knocked_out_at.to_micros_since_unix_epoch());
+        (duration_micros / 1_000_000) as u32
+    };
+
+    // Calculate the same modifiers as in process_knocked_out_recovery
+    let stat_thresholds_config_table = ctx.db.stat_thresholds_config();
+    let stat_config = stat_thresholds_config_table.iter().filter(|stc| stc.id == 0).next();
+    let low_need_threshold = stat_config.map(|c| c.low_need_threshold).unwrap_or(25.0);
+
+    let hunger_modifier = if player.hunger >= 75.0 { 1.5 } else if player.hunger >= low_need_threshold { 1.0 } else if player.hunger >= 10.0 { 0.7 } else { 0.5 };
+    let thirst_modifier = if player.thirst >= 75.0 { 1.4 } else if player.thirst >= low_need_threshold { 1.0 } else if player.thirst >= 10.0 { 0.6 } else { 0.4 };
+    let stamina_modifier = if player.stamina >= 75.0 { 1.3 } else if player.stamina >= 50.0 { 1.0 } else if player.stamina >= 25.0 { 0.8 } else { 0.6 };
+    let warmth_modifier = if player.warmth >= 75.0 { 1.3 } else if player.warmth >= low_need_threshold { 1.0 } else if player.warmth >= 10.0 { 0.7 } else { 0.5 };
+    let armor_modifier = 1.0 + (crate::armor::calculate_total_damage_resistance(ctx, sender_id) * 2.0);
+    let stat_multiplier = (hunger_modifier * thirst_modifier * stamina_modifier * warmth_modifier * armor_modifier).clamp(0.2, 3.0);
+
+    // Calculate current recovery and death chances
+    let base_recovery_chance = if knocked_out_duration_secs <= 15 {
+        let time_factor = (15 - knocked_out_duration_secs) as f64 / 15.0;
+        0.15 + (time_factor * 0.15)
+    } else if knocked_out_duration_secs <= 30 {
+        let time_factor = (30 - knocked_out_duration_secs) as f64 / 15.0;
+        0.08 + (time_factor * 0.07)
+    } else {
+        let time_factor = ((knocked_out_duration_secs - 30) as f64 / 30.0).min(1.0);
+        0.08 - (time_factor * 0.06)
+    };
+
+    let modified_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.0, 0.9);
+
+    let base_death_start_time = 10.0 + (5.0 * (stat_multiplier - 1.0).max(0.0));
+    let base_death_escalation_time = base_death_start_time + 10.0;
+
+    let death_chance = if knocked_out_duration_secs <= base_death_start_time as u32 {
+        0.0
+    } else if knocked_out_duration_secs <= base_death_escalation_time as u32 {
+        let time_factor = (knocked_out_duration_secs as f64 - base_death_start_time as f64) / 10.0;
+        (time_factor * 0.15) / (stat_multiplier as f64).max(0.5)
+    } else {
+        let time_factor = ((knocked_out_duration_secs as f64 - base_death_escalation_time as f64) / 10.0).min(1.0);
+        (0.15 + (time_factor * 0.45)) / (stat_multiplier as f64).max(0.5)
+    };
+
+    let time_until_death_risk = if knocked_out_duration_secs < base_death_start_time as u32 {
+        base_death_start_time - knocked_out_duration_secs as f32
+    } else {
+        0.0
+    };
+
+    let status = KnockedOutStatus {
+        player_id: sender_id,
+        knocked_out_at,
+        current_recovery_chance_percent: (modified_recovery_chance * 100.0) as f32,
+        current_death_chance_percent: (death_chance * 100.0) as f32,
+        time_until_death_risk_starts_secs: time_until_death_risk,
+        stat_multiplier: stat_multiplier as f32,
+        last_updated: ctx.timestamp,
+    };
+
+    // Insert or update status
+    if knocked_out_status_table.player_id().find(&sender_id).is_some() {
+        knocked_out_status_table.player_id().update(status);
+    } else {
+        match knocked_out_status_table.try_insert(status) {
+            Ok(_) => {},
+            Err(e) => log::error!("Failed to insert knocked out status for player {:?}: {}", sender_id, e),
+        }
+    }
+
+    Ok(())
+}

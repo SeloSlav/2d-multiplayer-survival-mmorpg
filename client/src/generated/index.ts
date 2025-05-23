@@ -66,6 +66,8 @@ import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
 export { EquipArmorFromDrag };
 import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts";
 export { EquipArmorFromInventory };
+import { GetKnockedOutStatus } from "./get_knocked_out_status_reducer.ts";
+export { GetKnockedOutStatus };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
@@ -136,6 +138,8 @@ import { ProcessGlobalTick } from "./process_global_tick_reducer.ts";
 export { ProcessGlobalTick };
 import { ProcessGrassRespawn } from "./process_grass_respawn_reducer.ts";
 export { ProcessGrassRespawn };
+import { ProcessKnockedOutRecovery } from "./process_knocked_out_recovery_reducer.ts";
+export { ProcessKnockedOutRecovery };
 import { ProcessPlayerStats } from "./process_player_stats_reducer.ts";
 export { ProcessPlayerStats };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
@@ -158,6 +162,8 @@ import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
 export { RespawnAtSleepingBag };
 import { RespawnRandomly } from "./respawn_randomly_reducer.ts";
 export { RespawnRandomly };
+import { ReviveKnockedOutPlayer } from "./revive_knocked_out_player_reducer.ts";
+export { ReviveKnockedOutPlayer };
 import { ScheduleNextCampfireProcessing } from "./schedule_next_campfire_processing_reducer.ts";
 export { ScheduleNextCampfireProcessing };
 import { SeedEnvironment } from "./seed_environment_reducer.ts";
@@ -274,6 +280,10 @@ import { InventoryItemTableHandle } from "./inventory_item_table.ts";
 export { InventoryItemTableHandle };
 import { ItemDefinitionTableHandle } from "./item_definition_table.ts";
 export { ItemDefinitionTableHandle };
+import { KnockedOutRecoveryScheduleTableHandle } from "./knocked_out_recovery_schedule_table.ts";
+export { KnockedOutRecoveryScheduleTableHandle };
+import { KnockedOutStatusTableHandle } from "./knocked_out_status_table.ts";
+export { KnockedOutStatusTableHandle };
 import { MessageTableHandle } from "./message_table.ts";
 export { MessageTableHandle };
 import { MushroomTableHandle } from "./mushroom_table.ts";
@@ -384,6 +394,10 @@ import { ItemDefinition } from "./item_definition_type.ts";
 export { ItemDefinition };
 import { ItemLocation } from "./item_location_type.ts";
 export { ItemLocation };
+import { KnockedOutRecoverySchedule } from "./knocked_out_recovery_schedule_type.ts";
+export { KnockedOutRecoverySchedule };
+import { KnockedOutStatus } from "./knocked_out_status_type.ts";
+export { KnockedOutStatus };
 import { Message } from "./message_type.ts";
 export { Message };
 import { Mushroom } from "./mushroom_type.ts";
@@ -529,6 +543,16 @@ const REMOTE_MODULE = {
       tableName: "item_definition",
       rowType: ItemDefinition.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    knocked_out_recovery_schedule: {
+      tableName: "knocked_out_recovery_schedule",
+      rowType: KnockedOutRecoverySchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
+    },
+    knocked_out_status: {
+      tableName: "knocked_out_status",
+      rowType: KnockedOutStatus.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
     },
     message: {
       tableName: "message",
@@ -700,6 +724,10 @@ const REMOTE_MODULE = {
       reducerName: "equip_armor_from_inventory",
       argsType: EquipArmorFromInventory.getTypeScriptAlgebraicType(),
     },
+    get_knocked_out_status: {
+      reducerName: "get_knocked_out_status",
+      argsType: GetKnockedOutStatus.getTypeScriptAlgebraicType(),
+    },
     identity_connected: {
       reducerName: "identity_connected",
       argsType: IdentityConnected.getTypeScriptAlgebraicType(),
@@ -840,6 +868,10 @@ const REMOTE_MODULE = {
       reducerName: "process_grass_respawn",
       argsType: ProcessGrassRespawn.getTypeScriptAlgebraicType(),
     },
+    process_knocked_out_recovery: {
+      reducerName: "process_knocked_out_recovery",
+      argsType: ProcessKnockedOutRecovery.getTypeScriptAlgebraicType(),
+    },
     process_player_stats: {
       reducerName: "process_player_stats",
       argsType: ProcessPlayerStats.getTypeScriptAlgebraicType(),
@@ -883,6 +915,10 @@ const REMOTE_MODULE = {
     respawn_randomly: {
       reducerName: "respawn_randomly",
       argsType: RespawnRandomly.getTypeScriptAlgebraicType(),
+    },
+    revive_knocked_out_player: {
+      reducerName: "revive_knocked_out_player",
+      argsType: ReviveKnockedOutPlayer.getTypeScriptAlgebraicType(),
     },
     schedule_next_campfire_processing: {
       reducerName: "schedule_next_campfire_processing",
@@ -1080,6 +1116,7 @@ export type Reducer = never
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
+| { name: "GetKnockedOutStatus", args: GetKnockedOutStatus }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
@@ -1115,6 +1152,7 @@ export type Reducer = never
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
 | { name: "ProcessGrassRespawn", args: ProcessGrassRespawn }
+| { name: "ProcessKnockedOutRecovery", args: ProcessKnockedOutRecovery }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
@@ -1126,6 +1164,7 @@ export type Reducer = never
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
 | { name: "RespawnRandomly", args: RespawnRandomly }
+| { name: "ReviveKnockedOutPlayer", args: ReviveKnockedOutPlayer }
 | { name: "ScheduleNextCampfireProcessing", args: ScheduleNextCampfireProcessing }
 | { name: "SeedEnvironment", args: SeedEnvironment }
 | { name: "SeedItems", args: SeedItems }
@@ -1431,6 +1470,18 @@ export class RemoteReducers {
 
   removeOnEquipArmorFromInventory(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("equip_armor_from_inventory", callback);
+  }
+
+  getKnockedOutStatus() {
+    this.connection.callReducer("get_knocked_out_status", new Uint8Array(0), this.setCallReducerFlags.getKnockedOutStatusFlags);
+  }
+
+  onGetKnockedOutStatus(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("get_knocked_out_status", callback);
+  }
+
+  removeOnGetKnockedOutStatus(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("get_knocked_out_status", callback);
   }
 
   onIdentityConnected(callback: (ctx: ReducerEventContext) => void) {
@@ -1973,6 +2024,22 @@ export class RemoteReducers {
     this.connection.offReducer("process_grass_respawn", callback);
   }
 
+  processKnockedOutRecovery(args: KnockedOutRecoverySchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    ProcessKnockedOutRecovery.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_knocked_out_recovery", __argsBuffer, this.setCallReducerFlags.processKnockedOutRecoveryFlags);
+  }
+
+  onProcessKnockedOutRecovery(callback: (ctx: ReducerEventContext, args: KnockedOutRecoverySchedule) => void) {
+    this.connection.onReducer("process_knocked_out_recovery", callback);
+  }
+
+  removeOnProcessKnockedOutRecovery(callback: (ctx: ReducerEventContext, args: KnockedOutRecoverySchedule) => void) {
+    this.connection.offReducer("process_knocked_out_recovery", callback);
+  }
+
   processPlayerStats(schedule: PlayerStatSchedule) {
     const __args = { schedule };
     let __writer = new BinaryWriter(1024);
@@ -2143,6 +2210,22 @@ export class RemoteReducers {
 
   removeOnRespawnRandomly(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("respawn_randomly", callback);
+  }
+
+  reviveKnockedOutPlayer(targetPlayerId: Identity) {
+    const __args = { targetPlayerId };
+    let __writer = new BinaryWriter(1024);
+    ReviveKnockedOutPlayer.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("revive_knocked_out_player", __argsBuffer, this.setCallReducerFlags.reviveKnockedOutPlayerFlags);
+  }
+
+  onReviveKnockedOutPlayer(callback: (ctx: ReducerEventContext, targetPlayerId: Identity) => void) {
+    this.connection.onReducer("revive_knocked_out_player", callback);
+  }
+
+  removeOnReviveKnockedOutPlayer(callback: (ctx: ReducerEventContext, targetPlayerId: Identity) => void) {
+    this.connection.offReducer("revive_knocked_out_player", callback);
   }
 
   scheduleNextCampfireProcessing(campfireId: number) {
@@ -2813,6 +2896,11 @@ export class SetReducerFlags {
     this.equipArmorFromInventoryFlags = flags;
   }
 
+  getKnockedOutStatusFlags: CallReducerFlags = 'FullUpdate';
+  getKnockedOutStatus(flags: CallReducerFlags) {
+    this.getKnockedOutStatusFlags = flags;
+  }
+
   interactWithCampfireFlags: CallReducerFlags = 'FullUpdate';
   interactWithCampfire(flags: CallReducerFlags) {
     this.interactWithCampfireFlags = flags;
@@ -2978,6 +3066,11 @@ export class SetReducerFlags {
     this.processGrassRespawnFlags = flags;
   }
 
+  processKnockedOutRecoveryFlags: CallReducerFlags = 'FullUpdate';
+  processKnockedOutRecovery(flags: CallReducerFlags) {
+    this.processKnockedOutRecoveryFlags = flags;
+  }
+
   processPlayerStatsFlags: CallReducerFlags = 'FullUpdate';
   processPlayerStats(flags: CallReducerFlags) {
     this.processPlayerStatsFlags = flags;
@@ -3031,6 +3124,11 @@ export class SetReducerFlags {
   respawnRandomlyFlags: CallReducerFlags = 'FullUpdate';
   respawnRandomly(flags: CallReducerFlags) {
     this.respawnRandomlyFlags = flags;
+  }
+
+  reviveKnockedOutPlayerFlags: CallReducerFlags = 'FullUpdate';
+  reviveKnockedOutPlayer(flags: CallReducerFlags) {
+    this.reviveKnockedOutPlayerFlags = flags;
   }
 
   scheduleNextCampfireProcessingFlags: CallReducerFlags = 'FullUpdate';
@@ -3302,6 +3400,14 @@ export class RemoteTables {
 
   get itemDefinition(): ItemDefinitionTableHandle {
     return new ItemDefinitionTableHandle(this.connection.clientCache.getOrCreateTable<ItemDefinition>(REMOTE_MODULE.tables.item_definition));
+  }
+
+  get knockedOutRecoverySchedule(): KnockedOutRecoveryScheduleTableHandle {
+    return new KnockedOutRecoveryScheduleTableHandle(this.connection.clientCache.getOrCreateTable<KnockedOutRecoverySchedule>(REMOTE_MODULE.tables.knocked_out_recovery_schedule));
+  }
+
+  get knockedOutStatus(): KnockedOutStatusTableHandle {
+    return new KnockedOutStatusTableHandle(this.connection.clientCache.getOrCreateTable<KnockedOutStatus>(REMOTE_MODULE.tables.knocked_out_status));
   }
 
   get message(): MessageTableHandle {

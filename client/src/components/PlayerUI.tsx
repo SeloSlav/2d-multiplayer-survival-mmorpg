@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -42,6 +42,7 @@ interface PlayerUIProps {
   onCraftingSearchFocusChange?: (isFocused: boolean) => void;
   showInventory: boolean;
   onToggleInventory: () => void;
+  knockedOutStatus: Map<string, KnockedOutStatus>;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -69,7 +70,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     stashes,
     onCraftingSearchFocusChange,
     showInventory,
-    onToggleInventory
+    onToggleInventory,
+    knockedOutStatus
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
     const [lowNeedThreshold, setLowNeedThreshold] = useState<number>(20.0);
@@ -151,6 +153,36 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         const player = players.get(identity.toHexString());
         setLocalPlayer(player || null);
     }, [identity, players]);
+
+    // --- NEW: Handle Knocked Out Status ---
+    useEffect(() => {
+        if (!connection || !localPlayer || !identity) return;
+
+        let intervalId: NodeJS.Timeout | null = null;
+
+        if (localPlayer.isKnockedOut) {
+            // Call the reducer immediately when player becomes knocked out
+            connection.reducers.getKnockedOutStatus();
+            
+            // Set up interval to call it every 2 seconds while knocked out
+            intervalId = setInterval(() => {
+                connection.reducers.getKnockedOutStatus();
+            }, 2000);
+        }
+
+        return () => {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        };
+    }, [connection, localPlayer?.isKnockedOut, identity]);
+
+    // Get the current knocked out status for the local player
+    const localPlayerKnockedOutStatus = React.useMemo(() => {
+        if (!identity || !localPlayer?.isKnockedOut) return null;
+        return knockedOutStatus.get(identity.toHexString()) || null;
+    }, [identity, localPlayer?.isKnockedOut, knockedOutStatus]);
+    // --- END NEW: Handle Knocked Out Status ---
 
     useEffect(() => {
         if (!connection) return;
@@ -403,6 +435,82 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             {/* --- NEW: Render Item Acquisition Notifications --- */}
             <ItemAcquisitionNotificationUI notifications={acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED)} />
             {/* --- END NEW --- */}
+
+            {/* --- NEW: Knocked Out Status Overlay --- */}
+            {localPlayer?.isKnockedOut && (
+                <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(20, 20, 30, 0.95)',
+                    color: '#ff6b6b',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    border: '2px solid #ff4444',
+                    fontFamily: '"Press Start 2P", cursive',
+                    fontSize: '12px',
+                    textAlign: 'center',
+                    minWidth: '300px',
+                    boxShadow: '0 0 20px rgba(255, 68, 68, 0.5)',
+                    zIndex: 1000,
+                    animation: 'pulse 2s ease-in-out infinite alternate'
+                }}>
+                    <h2 style={{ 
+                        margin: '0 0 15px 0', 
+                        fontSize: '16px', 
+                        color: '#ff4444',
+                        textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
+                    }}>
+                        ⚠️ YOU ARE WOUNDED ⚠️
+                    </h2>
+                    
+                    {localPlayerKnockedOutStatus ? (
+                        <div>
+                            <div style={{ marginBottom: '10px', color: '#ffaa44' }}>
+                                🏥 Recovery Chance: <span style={{ color: '#44ff44' }}>
+                                    {localPlayerKnockedOutStatus.currentRecoveryChancePercent.toFixed(1)}%
+                                </span>
+                            </div>
+                            
+                            <div style={{ marginBottom: '10px', color: '#ffaa44' }}>
+                                💀 Death Risk: <span style={{ color: '#ff4444' }}>
+                                    {localPlayerKnockedOutStatus.currentDeathChancePercent.toFixed(1)}%
+                                </span>
+                            </div>
+                            
+                            {localPlayerKnockedOutStatus.timeUntilDeathRiskStartsSecs > 0 && (
+                                <div style={{ marginBottom: '10px', color: '#44aaff' }}>
+                                    ⏱️ Safe Time: {Math.ceil(localPlayerKnockedOutStatus.timeUntilDeathRiskStartsSecs)}s
+                                </div>
+                            )}
+                            
+                            <div style={{ marginBottom: '15px', color: '#aaaaaa', fontSize: '10px' }}>
+                                Survival Factor: {localPlayerKnockedOutStatus.statMultiplier.toFixed(2)}x
+                                <br />
+                                (Based on hunger, thirst, stamina, warmth & armor)
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ color: '#ffaa44' }}>
+                            Calculating status...
+                        </div>
+                    )}
+                    
+                    <div style={{ 
+                        fontSize: '10px', 
+                        color: '#cccccc',
+                        marginTop: '10px',
+                        borderTop: '1px solid #444',
+                        paddingTop: '10px'
+                    }}>
+                        💡 Another player can revive you!
+                        <br />
+                        Better stats = better survival chances
+                    </div>
+                </div>
+            )}
+            {/* --- END NEW: Knocked Out Status Overlay --- */}
 
             {/* Status Bars UI */}
             <div style={{

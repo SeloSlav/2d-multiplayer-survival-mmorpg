@@ -95,13 +95,6 @@ function AppContent() {
     const lastSentViewportCenterRef = useRef<{ x: number, y: number } | null>(null);
     const localPlayerRef = useRef<any>(null); // Ref to hold local player data
 
-    // PERFORMANCE: Stable references for viewport calculations
-    const viewportCalculationRefs = useRef({
-        lastPlayerX: 0,
-        lastPlayerY: 0,
-        lastUpdateTime: 0,
-    });
-
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
       players, trees, clouds, stones, campfires, mushrooms, corns, pumpkins, hemps,
@@ -115,7 +108,8 @@ function AppContent() {
       playerCorpses, // <<< ADD playerCorpses destructuring
       stashes, // <<< ADD stashes destructuring
       activeConsumableEffects, // <<< ADD activeConsumableEffects destructuring
-      grass // <<< ADD grass destructuring
+      grass, // <<< ADD grass destructuring
+      knockedOutStatus // <<< ADD knockedOutStatus destructuring
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -430,6 +424,7 @@ function AppContent() {
                             messages={messages}
                             activeConsumableEffects={activeConsumableEffects}
                             grass={grass}
+                            knockedOutStatus={knockedOutStatus}
                         />
                     );
                 })()

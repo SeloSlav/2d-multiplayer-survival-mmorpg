@@ -61,6 +61,10 @@ use crate::utils::get_distance_squared;
 // Import grass respawn types
 use crate::grass::{GrassRespawnData, GrassRespawnSchedule, GRASS_INITIAL_HEALTH};
 use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
+// Import knocked out recovery function
+use crate::schedule_knocked_out_recovery;
+// Import knocked out recovery schedule table trait
+use crate::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -818,6 +822,12 @@ pub fn damage_player(
         attacker_id, target_id, actual_damage_applied, damage, item_def.name, old_health, target_player.health
     );
 
+    // DEBUG: Log the state before knocked out logic
+    log::info!(
+        "[DEBUG] Player {:?} state: health={:.2}, killed={}, is_knocked_out={}, actual_damage={:.2}",
+        target_id, target_player.health, killed, target_player.is_knocked_out, actual_damage_applied
+    );
+
     // Log the item_name and item_def_id being checked for bleed application
     // let item_def_id_for_bleed_check = ctx.db.item_definition().iter().find(|def| def.name == item_name).map_or(0, |def| def.id);
     log::info!("[BleedCheck] Item used: '{}' (Def ID: {}). Checking if it should apply bleed based on its definition.", item_def.name, item_def.id);
@@ -875,13 +885,29 @@ pub fn damage_player(
     // INTERRUPT BANDAGE IF DAMAGED
     active_effects::cancel_bandage_burst_effects(ctx, target_id);
 
-    if killed {
+    // NEW: Handle knocked out state and death logic
+    if target_player.is_knocked_out && actual_damage_applied > 0.0 {
+        // Player is already knocked out and took damage - they die immediately
+        log::info!("[DEBUG] Branch 1: Player {:?} was hit while knocked out and dies immediately", target_id);
+        
+        target_player.is_knocked_out = false;
+        target_player.knocked_out_at = None;
         target_player.is_dead = true;
         target_player.death_timestamp = Some(timestamp);
-        // last_update and last_hit_time are already set from the initial hit registration.
-        // No need to set them again here unless there's a specific reason for death to override.
-        // Keeping them as set at the start of the hit interaction is consistent.
+        target_player.health = 0.0;
 
+        // Cancel any recovery schedule - find by player_id since we don't have schedule_id
+        let schedules_to_remove: Vec<u64> = ctx.db.knocked_out_recovery_schedule().iter()
+            .filter(|schedule| schedule.player_id == target_id)
+            .map(|schedule| schedule.schedule_id)
+            .collect();
+        
+        for schedule_id in schedules_to_remove {
+            ctx.db.knocked_out_recovery_schedule().schedule_id().delete(&schedule_id);
+            log::info!("[CombatDeath] Canceled recovery schedule {} for player {:?} who died while knocked out", schedule_id, target_id);
+        }
+
+        // Clear active item and create corpse
         match crate::active_equipment::clear_active_item_reducer(ctx, target_player.identity) {
             Ok(_) => log::info!("[PlayerDeath] Active item cleared for dying player {}", target_player.identity),
             Err(e) => log::error!("[PlayerDeath] Failed to clear active item for dying player {}: {}", target_player.identity, e),
@@ -890,25 +916,39 @@ pub fn damage_player(
         match create_player_corpse(ctx, target_player.identity, target_player.position_x, target_player.position_y, &target_player.username) {
             Ok(_) => {
                 log::info!("Successfully created corpse via combat death for player {:?}", target_id);
-                if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&target_id) {
-                    if active_equip.equipped_item_instance_id.is_some() {
-                        match crate::active_equipment::clear_active_item_reducer(ctx, target_id) {
-                            Ok(_) => log::info!("[CombatDeath] Active item cleared for target {}", target_id),
-                            Err(e) => log::error!("[CombatDeath] Failed to clear active item for target {}: {}", target_id, e),
-                        }
-                    }
-                }
             }
             Err(e) => {
                 log::error!("Failed to create corpse via combat death for player {:?}: {}", target_id, e);
             }
         }
         players.identity().update(target_player.clone());
-        log::info!("Player {:?} marked as dead.", target_id);
+        log::info!("Player {:?} marked as dead after being hit while knocked out.", target_id);
+
+    } else if killed && !target_player.is_knocked_out {
+        // Player health reached 0 but they weren't already knocked out - enter knocked out state
+        log::info!("[DEBUG] Branch 2: Player {:?} health reached 0, entering knocked out state", target_id);
+        
+        target_player.is_knocked_out = true;
+        target_player.knocked_out_at = Some(timestamp);
+        target_player.health = 1.0; // Set to 1 health while knocked out
+        target_player.is_dead = false; // Not dead yet, just knocked out
+
+        players.identity().update(target_player.clone());
+
+        // Schedule recovery checks
+        match crate::schedule_knocked_out_recovery(ctx, target_id) {
+            Ok(_) => log::info!("Recovery checks scheduled for knocked out player {:?}", target_id),
+            Err(e) => log::error!("Failed to schedule recovery for knocked out player {:?}: {}", target_id, e),
+        }
 
     } else if target_player.health > 0.0 {
-        // Player is alive. last_hit_time and last_update were set at the beginning.
-        // Simply update the player state with new health etc.
+        // Player is alive and not knocked out. Update normally.
+        log::info!("[DEBUG] Branch 3: Player {:?} is alive and not knocked out, updating normally", target_id);
+        players.identity().update(target_player);
+    } else {
+        // This shouldn't happen, but let's log it for debugging
+        log::warn!("[DEBUG] Branch 4: Player {:?} in unexpected state - health: {:.2}, is_knocked_out: {}, killed: {}", 
+                   target_id, target_player.health, target_player.is_knocked_out, killed);
         players.identity().update(target_player);
     }
 
