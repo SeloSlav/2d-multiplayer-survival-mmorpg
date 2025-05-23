@@ -6,7 +6,7 @@
  * drag-and-drop interactions, and context menus for these containers.        *
  ******************************************************************************/
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import styles from './InventoryUI.module.css'; // Reuse styles for now
 
 // Import Custom Components
@@ -70,6 +70,16 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     onExternalItemMouseLeave,
     onExternalItemMouseMove,
 }) => {
+    // Add ref to track when drag operations complete
+    const lastDragCompleteTime = useRef<number>(0);
+
+    // Wrap the onItemDrop to track completion times
+    const handleItemDropWithTracking = useCallback((targetSlotInfo: DragSourceSlotInfo | null) => {
+        lastDragCompleteTime.current = Date.now();
+        console.log('[ExternalContainerUI] Drag operation completed at:', lastDragCompleteTime.current);
+        onItemDrop(targetSlotInfo);
+    }, [onItemDrop]);
+
     // --- Derived Data for Campfire ---
     const isCampfireInteraction = interactionTarget?.type === 'campfire';
     const campfireIdNum = isCampfireInteraction ? Number(interactionTarget!.id) : null;
@@ -194,7 +204,16 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // --- Callbacks specific to containers ---
     const handleRemoveFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
         event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            console.log('[ExternalContainerUI] Blocking campfire fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
         if (!connection?.reducers || campfireIdNum === null) return;
+        console.log('[ExternalContainerUI] Processing campfire fuel context menu for slot:', slotIndex);
         try { connection.reducers.autoRemoveFuelFromCampfire(campfireIdNum, slotIndex); } catch (e) { console.error("Error remove fuel:", e); }
     }, [connection, campfireIdNum]);
 
@@ -205,18 +224,36 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
 
     const handleBoxItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            console.log('[ExternalContainerUI] Blocking box context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
         console.log('[ExtCont CtxMenu Box->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, boxIdNum });
         if (!connection?.reducers || !itemInfo || boxIdNum === null) return; // Check boxIdNum null
+        console.log('[ExternalContainerUI] Processing box context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try { connection.reducers.quickMoveFromBox(boxIdNum, slotIndex); } catch (e: any) { console.error("[ExtCont CtxMenu Box->Inv]", e); }
     }, [connection, boxIdNum]);
 
     // --- NEW Callback for Corpse Context Menu ---
     const handleCorpseItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            console.log('[ExternalContainerUI] Blocking corpse context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
         console.log('[ExtCont CtxMenu Corpse->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, corpseIdBigInt });
         if (!connection?.reducers || !itemInfo || !corpseIdBigInt) return;
         // Corpse ID is u32 on the server, need to convert BigInt
         const corpseIdU32 = Number(corpseIdBigInt); 
+        console.log('[ExternalContainerUI] Processing corpse context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try {
             connection.reducers.quickMoveFromCorpse(corpseIdU32, slotIndex);
         } catch (e: any) { 
@@ -227,7 +264,16 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // --- NEW Callback for Stash Context Menu (Quick Move from Stash) ---
     const handleStashItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            console.log('[ExternalContainerUI] Blocking stash context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
         if (!connection?.reducers || !itemInfo || stashIdNum === null || !currentStash || currentStash.isHidden) return;
+        console.log('[ExternalContainerUI] Processing stash context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try {
             connection.reducers.quickMoveFromStash(stashIdNum, slotIndex);
         } catch (e: any) { 
@@ -308,7 +354,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     <DroppableSlot
                                         key={slotKey}
                                         slotInfo={currentCampfireSlotInfo}
-                                        onItemDrop={onItemDrop}
+                                        onItemDrop={handleItemDropWithTracking}
                                         className={styles.slot}
                                         isDraggingOver={false}
                                     >
@@ -317,7 +363,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 item={itemInSlot}
                                                 sourceSlot={currentCampfireSlotInfo}
                                                 onItemDragStart={onItemDragStart}
-                                                onItemDrop={onItemDrop}
+                                                onItemDrop={handleItemDropWithTracking}
                                                 onContextMenu={(event) => handleRemoveFuel(event, index)}
                                                 onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
                                                 onMouseLeave={handleItemMouseLeave}
@@ -359,7 +405,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                 <DroppableSlot
                                     key={slotKey}
                                     slotInfo={currentBoxSlotInfo}
-                                    onItemDrop={onItemDrop}
+                                    onItemDrop={handleItemDropWithTracking}
                                     className={styles.slot} 
                                     isDraggingOver={false} // Placeholder, real value from drag state needed
                                 >
@@ -368,7 +414,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             item={itemInSlot}
                                             sourceSlot={currentBoxSlotInfo}
                                             onItemDragStart={onItemDragStart}
-                                            onItemDrop={onItemDrop} 
+                                            onItemDrop={handleItemDropWithTracking} 
                                             onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
                                             onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
                                             onMouseLeave={handleItemMouseLeave}
@@ -399,7 +445,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                 <DroppableSlot
                                     key={slotKey}
                                     slotInfo={currentCorpseSlotInfo}
-                                    onItemDrop={onItemDrop}
+                                    onItemDrop={handleItemDropWithTracking}
                                     className={styles.slot}
                                     isDraggingOver={false} // Add state if needed
                                 >
@@ -408,7 +454,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             item={itemInSlot}
                                             sourceSlot={currentCorpseSlotInfo}
                                             onItemDragStart={onItemDragStart}
-                                            onItemDrop={onItemDrop}
+                                            onItemDrop={handleItemDropWithTracking}
                                             onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
                                             onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
                                             onMouseLeave={handleItemMouseLeave}
@@ -438,7 +484,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     <DroppableSlot
                                         key={slotKey}
                                         slotInfo={currentStashSlotInfo}
-                                        onItemDrop={onItemDrop}
+                                        onItemDrop={handleItemDropWithTracking}
                                         className={styles.slot}
                                         isDraggingOver={false} // Add state if needed
                                     >
@@ -447,7 +493,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 item={itemInSlot}
                                                 sourceSlot={currentStashSlotInfo}
                                                 onItemDragStart={onItemDragStart}
-                                                onItemDrop={onItemDrop}
+                                                onItemDrop={handleItemDropWithTracking}
                                                 onContextMenu={(event) => handleStashItemContextMenu(event, itemInSlot, index)}
                                                 onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
                                                 onMouseLeave={handleItemMouseLeave}

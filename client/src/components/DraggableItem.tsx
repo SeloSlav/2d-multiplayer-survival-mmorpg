@@ -13,7 +13,7 @@ interface DraggableItemProps {
   onMouseEnter?: (event: React.MouseEvent<HTMLDivElement>, item: PopulatedItem) => void;
   onMouseLeave?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onMouseMove?: (event: React.MouseEvent<HTMLDivElement>) => void;
-  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;  
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ 
@@ -117,23 +117,23 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   }, [item, sourceSlot, onItemDragStart, createGhostElement]);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
-    const wasDragging = isDraggingRef.current;
+    const wasDragging = didDragRef.current;
 
     // Clean up listeners first
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
 
-    // If we weren't dragging, this is a click
+    // If we weren't dragging, this is a click - BUT only if we didn't actually perform a drag operation
     if (!wasDragging) {
         if (e.button === 0 && onClick) { // Left click
             onClick(e as any);
-        } else if (e.button === 2 && onContextMenu) { // Right click
+        } else if (e.button === 2 && onContextMenu) { // Right click - only if we didn't drag
             onContextMenu(e as any, item);
         }
         return;
     }
 
-    // Handle drag end
+    // Handle drag end - we definitely dragged, so NO context menu actions
     if (ghostRef.current) {
         ghostRef.current.style.display = 'none';
         const dropTargetElement = document.elementFromPoint(e.clientX, e.clientY);
@@ -214,9 +214,11 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
         } else if (!targetSlotInfo) {
             onItemDrop(null);
         }
-    } else {
-        // console.log("[DraggableItem] MouseUp without significant drag/ghost.");
     }
+
+    // Reset drag tracking for next operation
+    didDragRef.current = false;
+    currentSplitQuantity.current = null;
 
   }, [handleMouseMove, item, sourceSlot, onItemDrop, onContextMenu, onClick]);
 
@@ -239,11 +241,13 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
         e.preventDefault();
     }
 
-    // Check for split quantity from synthetic event
+    // Check for split quantity from synthetic event (from split panel)
     const syntheticSplitQuantity = (e.currentTarget as any).currentSplitQuantity?.current;
     if (syntheticSplitQuantity !== undefined) {
         console.log('[Ghost] Using synthetic split quantity:', syntheticSplitQuantity);
         currentSplitQuantity.current = syntheticSplitQuantity;
+        // Clear the synthetic data immediately after reading it
+        delete (e.currentTarget as any).currentSplitQuantity;
     } else {
         // Normal mouse interaction split logic
         const canSplit = item.definition.isStackable && item.instance.quantity > 1;
@@ -270,7 +274,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 
-  }, [item, handleMouseMove, handleMouseUp]);
+  }, [handleMouseMove, handleMouseUp]);
 
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
     // console.log("[DraggableItem] Drag Start, Item:", item, "Source Slot:", sourceSlot);

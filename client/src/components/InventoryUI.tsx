@@ -140,6 +140,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
     // Add to state declarations
     const [splitDragInfo, setSplitDragInfo] = useState<{ item: PopulatedItem, quantity: number } | null>(null);
+    
+    // Add ref to track when drag operations complete
+    const lastDragCompleteTime = useRef<number>(0);
 
     // Memoized handleClose to ensure stability if its dependencies are stable.
     const handleClose = useCallback(() => {
@@ -148,6 +151,13 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         }
         onClose();
     }, [isPlacingItem, cancelPlacement, onClose]);
+
+    // Wrap the onItemDrop to track completion times
+    const handleItemDropWithTracking = useCallback((targetSlotInfo: DragSourceSlotInfo | null) => {
+        lastDragCompleteTime.current = Date.now();
+        console.log('[InventoryUI] Drag operation completed at:', lastDragCompleteTime.current);
+        onItemDrop(targetSlotInfo);
+    }, [onItemDrop]);
 
     useEffect(() => {
         // console.log('[InventoryUI Effect] Current interactionTarget:', interactionTarget);
@@ -331,8 +341,30 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
     const handleInventoryItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
         event.preventDefault();
+        
+        // Don't trigger context menu if we're currently dragging or just finished dragging
+        if (draggedItemInfo) {
+            console.log('[InventoryUI] Blocking context menu - currently dragging');
+            return;
+        }
+        
+        // Add a small delay check for recent drag operations
+        if (document.body.classList.contains('item-dragging')) {
+            console.log('[InventoryUI] Blocking context menu - drag operation in progress');
+            return;
+        }
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            console.log('[InventoryUI] Blocking context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
         if (!connection?.reducers || !itemInfo) return;
         const itemInstanceId = BigInt(itemInfo.instance.instanceId);
+
+        console.log('[InventoryUI] Processing context menu for item:', itemInfo.definition.name);
 
         // Get interaction context directly here
         const currentInteraction = interactionTarget;
@@ -403,7 +435,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 try { connection.reducers.moveToFirstAvailableHotbarSlot(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Hotbar]", e); /* TODO: setUiError */ }
             }
         }
-    }, [connection, interactionTarget, stashes]);
+    }, [connection, interactionTarget, stashes, draggedItemInfo]);
 
     // Helper function to format stat numbers
     const formatStatDisplay = (value: number, isPercentage: boolean = false, signed: boolean = true): string => {
@@ -604,7 +636,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             <div key={`equip-${slotInfo.name}`} className={styles.equipmentSlot}>
                                 <DroppableSlot
                                     slotInfo={currentSlotInfo}
-                                    onItemDrop={onItemDrop}
+                                    onItemDrop={handleItemDropWithTracking}
                                     className={styles.slot}
                                     isDraggingOver={false} // Add state if needed
                                 >
@@ -613,7 +645,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                             item={item}
                                             sourceSlot={currentSlotInfo}
                                             onItemDragStart={onItemDragStart}
-                                            onItemDrop={onItemDrop}
+                                            onItemDrop={handleItemDropWithTracking}
                                             onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
                                             onMouseLeave={handleItemMouseLeave}
                                             onMouseMove={handleItemMouseMove}
@@ -641,7 +673,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             <DroppableSlot
                                 key={`inv-${index}`}
                                 slotInfo={currentSlotInfo}
-                                onItemDrop={onItemDrop}
+                                onItemDrop={handleItemDropWithTracking}
                                 className={`${styles.slot} ${isSelected ? styles.selectedSlot : ''}`}
                                 isDraggingOver={false}
                             >
@@ -650,7 +682,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                         item={item}
                                         sourceSlot={currentSlotInfo}
                                         onItemDragStart={onItemDragStart}
-                                        onItemDrop={onItemDrop}
+                                        onItemDrop={handleItemDropWithTracking}
                                         onContextMenu={(event) => handleInventoryItemContextMenu(event, item)}
                                         onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
                                         onMouseLeave={handleItemMouseLeave}
@@ -689,7 +721,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     currentStorageBox={currentStorageBox}
                     connection={connection}
                     onItemDragStart={onItemDragStart}
-                    onItemDrop={onItemDrop}
+                    onItemDrop={handleItemDropWithTracking}
                     playerId={playerIdentity ? playerIdentity.toHexString() : null}
                     onExternalItemMouseEnter={handleExternalItemMouseEnter}
                     onExternalItemMouseLeave={handleExternalItemMouseLeave}
