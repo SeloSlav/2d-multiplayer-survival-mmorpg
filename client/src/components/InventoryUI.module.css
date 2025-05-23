@@ -332,6 +332,13 @@
     border-color: #aaa; /* Highlight on hover */
 }
 
+/* Selected slot styling */
+.selectedSlot {
+    border-color: #f0e68c !important; /* Gold border for selected items */
+    box-shadow: 0 0 4px rgba(240, 230, 140, 0.3); /* Subtle gold glow */
+    background-color: rgba(240, 230, 140, 0.05); /* Very subtle gold background */
+}
+
 /* Custom Scrollbar Styles */
 .craftableItemsSection::-webkit-scrollbar,
 .craftingQueueList::-webkit-scrollbar {
@@ -798,6 +805,13 @@
 
 .slot:hover {
     border-color: #aaa; /* Highlight on hover */
+}
+
+/* Selected slot styling */
+.selectedSlot {
+    border-color: #f0e68c !important; /* Gold border for selected items */
+    box-shadow: 0 0 4px rgba(240, 230, 140, 0.3); /* Subtle gold glow */
+    background-color: rgba(240, 230, 140, 0.05); /* Very subtle gold background */
 }
 
 /* Custom Scrollbar Styles */

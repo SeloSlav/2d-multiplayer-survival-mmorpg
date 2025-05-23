@@ -9,6 +9,7 @@ export type SlotType =
     | 'wooden_storage_box'
     | 'player_corpse'
     | 'stash'
+    | 'split'
     // Add more types as needed (e.g., 'furnace_input', 'furnace_fuel', 'crafting_output')
 
 // Type definition for the source/target of a drag/drop operation
@@ -25,5 +26,6 @@ export interface DraggedItemInfo {
     sourceContainerType?: string; // e.g., 'player_inventory', 'wooden_storage_box', 'campfire'
     sourceContainerEntityId?: number | string | bigint; // ID of the container entity if applicable
     splitQuantity?: number;
+    isSplitDrag?: boolean;
     // Add split info later if needed
 } 

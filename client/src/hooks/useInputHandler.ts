@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, RefObject } from 'react';
 import * as SpacetimeDB from '../generated';
 import { DbConnection } from '../generated';
+import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
@@ -10,6 +11,7 @@ import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig'; // <<< 
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
 // If it was missing, this adds it.
 export const HOLD_INTERACTION_DURATION_MS = 250;
+export const REVIVE_HOLD_DURATION_MS = 6000; // 6 seconds for reviving knocked out players
 
 // --- Constants (Copied from GameCanvas) ---
 const SWING_COOLDOWN_MS = 500;
@@ -38,6 +40,8 @@ interface UseInputHandlerProps {
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null; // Changed from bigint to number for Stash ID
     stashes: Map<string, SpacetimeDB.Stash>; // Added stashes map
+    closestInteractableKnockedOutPlayerId: string | null; // Added for knocked out player revive
+    players: Map<string, SpacetimeDB.Player>; // Added players map for knocked out revive
     // Callbacks for actions
     onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
     // Note: movement functions are now provided by usePlayerActions hook
@@ -62,8 +66,8 @@ interface InputHandlerState {
 }
 
 interface InteractionProgressState {
-    targetId: number | bigint | null;
-    targetType: 'campfire' | 'wooden_storage_box' | 'stash'; // Added 'stash'
+    targetId: number | bigint | string | null;
+    targetType: 'campfire' | 'wooden_storage_box' | 'stash' | 'knocked_out_player'; // Added 'knocked_out_player'
     startTime: number;
 }
 
@@ -89,6 +93,8 @@ export const useInputHandler = ({
     closestInteractableCorpseId,
     closestInteractableStashId, // Changed from bigint to number for Stash ID
     stashes, // Added stashes map
+    closestInteractableKnockedOutPlayerId, // Added for knocked out player revive
+    players, // Added players map for knocked out revive
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -134,11 +140,13 @@ export const useInputHandler = ({
         boxEmpty: false,
         corpse: null as bigint | null,
         stash: null as number | null, // Changed from bigint to number for Stash ID
+        knockedOutPlayer: null as string | null, // Added for knocked out player
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
     const woodenStorageBoxesRef = useRef(woodenStorageBoxes); // <<< ADDED Ref
     const stashesRef = useRef(stashes); // Added stashesRef
+    const playersRef = useRef(players); // Added playersRef for knocked out revive
     const itemDefinitionsRef = useRef(itemDefinitions); // <<< ADDED Ref
 
     // --- Derive input disabled state based ONLY on player death --- 
@@ -179,6 +187,7 @@ export const useInputHandler = ({
             boxEmpty: isClosestInteractableBoxEmpty,
             corpse: closestInteractableCorpseId,
             stash: closestInteractableStashId, // Changed from bigint to number for Stash ID
+            knockedOutPlayer: closestInteractableKnockedOutPlayerId, // Added for knocked out player
         };
     }, [
         closestInteractableMushroomId, 
@@ -191,11 +200,13 @@ export const useInputHandler = ({
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
         closestInteractableStashId, // Changed from bigint to number for Stash ID
+        closestInteractableKnockedOutPlayerId, // Added for knocked out player
     ]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
     useEffect(() => { stashesRef.current = stashes; }, [stashes]); // Added stashesRef effect
+    useEffect(() => { playersRef.current = players; }, [players]); // Added playersRef effect
     useEffect(() => { itemDefinitionsRef.current = itemDefinitions; }, [itemDefinitions]); // <<< ADDED Effect
 
     // --- Jump Offset Calculation Effect ---
@@ -452,7 +463,42 @@ export const useInputHandler = ({
                     }
                 }
 
-                // Pure Tap Actions (If no stash interaction was initiated)
+                // --- Knocked Out Player Interaction ---
+                const currentClosestKnockedOutPlayerId = closest.knockedOutPlayer;
+                const currentPlayers = playersRef.current;
+                if (currentClosestKnockedOutPlayerId !== null && currentPlayers) {
+                    const knockedOutPlayer = currentPlayers.get(currentClosestKnockedOutPlayerId);
+                    if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
+                        console.log(`[KnockedOut E-Down] Player ID: ${currentClosestKnockedOutPlayerId}, Username: ${knockedOutPlayer.username}. Starting revive hold.`);
+                        
+                        isEHeldDownRef.current = true; 
+                        eKeyDownTimestampRef.current = Date.now();
+
+                        setInteractionProgress({ targetId: currentClosestKnockedOutPlayerId, targetType: 'knocked_out_player', startTime: Date.now() });
+                        setIsActivelyHolding(true);
+                        
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                        eKeyHoldTimerRef.current = setTimeout(() => {
+                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestKnockedOutPlayerId !== null) {
+                                try {
+                                    // Convert hex string back to Identity for the reducer call
+                                    currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(currentClosestKnockedOutPlayerId));
+                                    console.log(`[KnockedOut E-Hold COMPLETED] Reviving player: ${currentClosestKnockedOutPlayerId}`);
+                                } catch (error) {
+                                    console.error("[InputHandler] Error calling reviveKnockedOutPlayer in timer:", error);
+                                }
+                            }
+                            setInteractionProgress(null); 
+                            setIsActivelyHolding(false);
+                            isEHeldDownRef.current = false; 
+                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                            eKeyHoldTimerRef.current = null; 
+                        }, REVIVE_HOLD_DURATION_MS); // Use 6-second duration for revive
+                        return; 
+                    }
+                }
+
+                // Pure Tap Actions (If no stash or knocked out player interaction was initiated)
                 if (closest.droppedItem !== null) {
                     try {
                         currentConnection.reducers.pickupDroppedItem(closest.droppedItem);

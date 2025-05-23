@@ -48,6 +48,8 @@ import { ClearActiveItemReducer } from "./clear_active_item_reducer_reducer.ts";
 export { ClearActiveItemReducer };
 import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
+import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
+export { CrushBoneItem };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
 import { DropItem } from "./drop_item_reducer.ts";
@@ -688,6 +690,10 @@ const REMOTE_MODULE = {
       reducerName: "consume_item",
       argsType: ConsumeItem.getTypeScriptAlgebraicType(),
     },
+    crush_bone_item: {
+      reducerName: "crush_bone_item",
+      argsType: CrushBoneItem.getTypeScriptAlgebraicType(),
+    },
     despawn_expired_items: {
       reducerName: "despawn_expired_items",
       argsType: DespawnExpiredItems.getTypeScriptAlgebraicType(),
@@ -1107,6 +1113,7 @@ export type Reducer = never
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
+| { name: "CrushBoneItem", args: CrushBoneItem }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DropItem", args: DropItem }
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
@@ -1326,6 +1333,22 @@ export class RemoteReducers {
 
   removeOnConsumeItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("consume_item", callback);
+  }
+
+  crushBoneItem(itemInstanceId: bigint) {
+    const __args = { itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    CrushBoneItem.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("crush_bone_item", __argsBuffer, this.setCallReducerFlags.crushBoneItemFlags);
+  }
+
+  onCrushBoneItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("crush_bone_item", callback);
+  }
+
+  removeOnCrushBoneItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("crush_bone_item", callback);
   }
 
   despawnExpiredItems(schedule: DroppedItemDespawnSchedule) {
@@ -2849,6 +2872,11 @@ export class SetReducerFlags {
   consumeItemFlags: CallReducerFlags = 'FullUpdate';
   consumeItem(flags: CallReducerFlags) {
     this.consumeItemFlags = flags;
+  }
+
+  crushBoneItemFlags: CallReducerFlags = 'FullUpdate';
+  crushBoneItem(flags: CallReducerFlags) {
+    this.crushBoneItemFlags = flags;
   }
 
   despawnExpiredItemsFlags: CallReducerFlags = 'FullUpdate';

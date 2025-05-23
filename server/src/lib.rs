@@ -53,6 +53,7 @@ mod armor; // <<< ADDED armor module
 mod grass; // <<< ADDED grass module
 mod player_movement; // <<< ADDED player movement module
 mod knocked_out; // <<< ADDED knocked out recovery module
+mod bones; // <<< ADDED bones module
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -93,6 +94,9 @@ pub use knocked_out::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule,
 pub use knocked_out::process_knocked_out_recovery; // For scheduler
 pub use knocked_out::revive_knocked_out_player; // For client bindings  
 pub use knocked_out::get_knocked_out_status; // For client bindings
+
+// Re-export bones reducer for client bindings
+pub use bones::crush_bone_item;
 
 // Import Table Traits needed in this module
 use crate::tree::tree as TreeTableTrait;

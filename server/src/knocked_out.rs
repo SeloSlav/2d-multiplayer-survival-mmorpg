@@ -272,7 +272,7 @@ pub fn revive_knocked_out_player(ctx: &ReducerContext, target_player_id: Identit
     }
 
     // Check distance (similar to other interaction distances)
-    const REVIVE_INTERACTION_DISTANCE: f32 = 64.0;
+    const REVIVE_INTERACTION_DISTANCE: f32 = 128.0; // Increased to match client-side distance
     const REVIVE_INTERACTION_DISTANCE_SQ: f32 = REVIVE_INTERACTION_DISTANCE * REVIVE_INTERACTION_DISTANCE;
     
     let dx = reviver.position_x - target_player.position_x;

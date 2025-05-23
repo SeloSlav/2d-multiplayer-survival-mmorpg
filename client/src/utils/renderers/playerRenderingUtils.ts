@@ -306,8 +306,24 @@ export const renderPlayer = (
   // --- Draw Sprite ---
   ctx.save(); // Save for rotation and flash effects
   try {
-    const centerX = spriteBaseX + drawWidth / 2; // Uses spriteBaseX which is based on currentDisplayX
-    const centerY = spriteDrawY + drawHeight / 2; // Uses spriteDrawY which is based on currentDisplayY
+    const centerX = spriteBaseX + drawWidth / 2; 
+    const centerY = spriteDrawY + drawHeight / 2; 
+
+    // --- MODIFICATION: Knocked Out Glow/Pulse ---
+    if (!isCorpse && player.isKnockedOut) {
+      const pulseSpeed = 1500; // Duration of one pulse cycle in ms
+      const minGlowAlpha = 0.4;
+      const maxGlowAlpha = 0.8;
+      // Create a sine wave that oscillates between 0 and 1
+      const pulseFactor = (Math.sin(nowMs / pulseSpeed * Math.PI * 2) + 1) / 2; 
+      const currentGlowAlpha = minGlowAlpha + (maxGlowAlpha - minGlowAlpha) * pulseFactor;
+
+      ctx.shadowColor = `rgba(255, 0, 0, ${currentGlowAlpha})`;
+      ctx.shadowBlur = 10 + (pulseFactor * 10); // Make blur also pulse slightly
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+    // --- END MODIFICATION ---
 
     // --- Prepare sprite on offscreen canvas (for tinting) ---
     if (offscreenCtx && heroImg) {
@@ -363,6 +379,15 @@ export const renderPlayer = (
         spriteBaseX, spriteDrawY, drawWidth, drawHeight // Destination rect on main canvas
       );
     }
+
+    // --- MODIFICATION: Reset shadow properties after drawing the potentially glowing sprite ---
+    if (!isCorpse && player.isKnockedOut) {
+      ctx.shadowColor = 'transparent'; // Or 'rgba(0,0,0,0)'
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+    // --- END MODIFICATION ---
 
   } finally {
       ctx.restore(); // Restores rotation and globalCompositeOperation

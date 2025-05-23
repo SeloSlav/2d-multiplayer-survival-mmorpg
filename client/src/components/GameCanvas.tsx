@@ -67,6 +67,7 @@ import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import { HOLD_INTERACTION_DURATION_MS } from '../hooks/useInputHandler';
+import { REVIVE_HOLD_DURATION_MS } from '../hooks/useInputHandler';
 import {
     CAMPFIRE_HEIGHT, 
     SERVER_CAMPFIRE_DAMAGE_RADIUS, 
@@ -253,6 +254,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractableCorpseId,
     closestInteractableStashId,
     closestInteractableSleepingBagId,
+    closestInteractableKnockedOutPlayerId,
   } = useInteractionFinder({
     localPlayer,
     mushrooms,
@@ -265,6 +267,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     playerCorpses,
     stashes,
     sleepingBags,
+    players,
   });
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
   const { 
@@ -287,6 +290,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       stashes,
       isSearchingCraftRecipes,
       isInventoryOpen: showInventory,
+      closestInteractableKnockedOutPlayerId,
+      players,
   });
 
   const [deltaTime, setDeltaTime] = useState<number>(0);
@@ -605,6 +610,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         closestInteractableCorpseId,
         closestInteractableStashId,
         closestInteractableSleepingBagId,
+        closestInteractableKnockedOutPlayerId,
     });
     renderPlacementPreview({
         ctx, placementInfo, itemImagesRef, worldMouseX: currentWorldMouseX,
@@ -635,14 +641,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse', entityId: number | bigint, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse' | 'knocked_out_player', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
         // If interactionProgress is null (meaning no interaction is even being tracked by the state object),
         // or if the entity is not in view, do nothing.
         if (!isInView || !interactionProgress) {
             return;
         }
         
-        const targetId = typeof entityId === 'bigint' ? BigInt(interactionProgress.targetId ?? 0) : Number(interactionProgress.targetId ?? 0);
+        let targetId: number | bigint | string;
+        if (typeof entityId === 'string') {
+            targetId = entityId; // For knocked out players (hex string)
+        } else if (typeof entityId === 'bigint') {
+            targetId = BigInt(interactionProgress.targetId ?? 0);
+        } else {
+            targetId = Number(interactionProgress.targetId ?? 0);
+        }
 
         // Check if the current entity being processed is the target of the (potentially stale) interactionProgress object.
         if (interactionProgress.targetType === entityType && targetId === entityId) {
@@ -652,7 +665,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             // In this case, we don't draw anything for this entity, not even the background circle.
             // The indicator will completely disappear once interactionProgress becomes null in the next state update.
             if (isActivelyHolding) {
-                const currentProgress = Math.min(Math.max((Date.now() - interactionProgress.startTime) / HOLD_INTERACTION_DURATION_MS, 0), 1);
+                // Use appropriate duration based on interaction type
+                const interactionDuration = entityType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
+                const currentProgress = Math.min(Math.max((Date.now() - interactionProgress.startTime) / interactionDuration, 0), 1);
                 drawInteractionIndicator(
                     ctx,
                     entityPosX + cameraOffsetX,
@@ -689,6 +704,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 drawIndicatorIfNeeded('stash', stash.id, stash.posX, stash.posY, STASH_HEIGHT, true); 
             }
         });
+    }
+
+    // Knocked Out Player Indicators
+    if (closestInteractableKnockedOutPlayerId && players instanceof Map) {
+        const knockedOutPlayer = players.get(closestInteractableKnockedOutPlayerId);
+        if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
+            // Check if this knocked out player is the one currently being revived
+            if (interactionProgress && interactionProgress.targetId === closestInteractableKnockedOutPlayerId && interactionProgress.targetType === 'knocked_out_player') {
+                const playerHeight = 48; // Approximate player sprite height
+                drawIndicatorIfNeeded('knocked_out_player', closestInteractableKnockedOutPlayerId, knockedOutPlayer.positionX, knockedOutPlayer.positionY, playerHeight, true);
+            }
+        }
     }
 
     // Campfire Lights - Only draw for visible campfires

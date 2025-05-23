@@ -390,7 +390,7 @@ pub fn split_stack(
 ) -> Result<(), String> {
     let sender_id = ctx.sender;
     let inventory_table = ctx.db.inventory_item();
-    let item_def_table = ctx.db.item_definition(); // Needed for item definitions
+    let item_def_table = ctx.db.item_definition();
 
     log::debug!(
         "[SplitStack] Player {} splitting {} from item {} to {} slot {}",
@@ -400,9 +400,11 @@ pub fn split_stack(
     // --- 1. Get Source Item Being Split ---
     let mut source_item_being_split = get_player_item(ctx, source_item_instance_id)?;
     let original_location_of_source_stack = source_item_being_split.location.clone();
-    // let source_item_def = item_def_table.id().find(source_item_being_split.item_def_id)
-    //     .ok_or_else(|| format!("Definition for source item {} not found", source_item_being_split.item_def_id))?;
 
+    // Validate split quantity
+    if quantity_to_split == 0 || quantity_to_split >= source_item_being_split.quantity {
+        return Err("Invalid split quantity".to_string());
+    }
 
     // --- 2. Determine Target Location for the New Split Stack ---
     let player_target_location_for_new_item = match target_slot_type.as_str() {
@@ -425,175 +427,146 @@ pub fn split_stack(
     let item_already_in_player_target_slot_opt = match player_target_location_for_new_item {
         ItemLocation::Inventory(ref data) => find_item_in_inventory_slot(ctx, data.slot_index),
         ItemLocation::Hotbar(ref data) => find_item_in_hotbar_slot(ctx, data.slot_index),
-        _ => None, // Should not happen given prior validation
+        _ => None,
     };
 
-    // --- 4. Perform the Actual Split ---
-    // split_stack_helper will:
-    //   - Reduce quantity of source_item_being_split (and update it in DB).
-    //   - Create a new InventoryItem (newly_split_item) with quantity_to_split.
-    //   - Set newly_split_item.location = player_target_location_for_new_item.
-    //   - Insert newly_split_item into DB.
-    // It returns the instance_id of the newly_split_item.
-    let newly_split_item_id = split_stack_helper(
-        ctx,
-        &mut source_item_being_split, // This will be updated (qty reduced)
-        quantity_to_split,
-        player_target_location_for_new_item.clone(),
-    )?;
-    
-    // At this point:
-    // - source_item_being_split (e.g., 25 Fiber) is updated in DB at original_location_of_source_stack.
-    // - newly_split_item (e.g., 5 Fiber) exists in DB at player_target_location_for_new_item.
-
-    // --- 5. Handle the item that was originally in the target slot (if any) ---
+    // --- 4. Handle Different Scenarios Based on Target Slot Occupancy ---
     if let Some(mut item_that_was_in_target_slot) = item_already_in_player_target_slot_opt {
-        // The target slot was occupied.
-        // The newly_split_item has now been placed there by split_stack_helper.
-        // The item_that_was_in_target_slot needs to be moved.
-        
-        // If the item that was in the target slot is somehow the same as the source item that was split,
-        // this is a weird edge case (e.g. splitting onto own stack - split_stack_helper might have already merged).
-        // For robustness, if it's the same item def, it implies a merge might have been intended by helper,
-        // or if it's the exact same instance_id (shouldn't happen if target slot is different from source slot).
-        // The current split_stack_helper doesn't merge, it just places.
-        // So, if item_def_id is same, we assume they are now two stacks in different locations (original and target).
-        
-        // We only care about SWAPPING if the item_that_was_in_target_slot is DIFFERENT from newly_split_item.
-        // split_stack_helper places the new item. If the target slot had a *different* item, that one needs to move.
+        // Target slot is occupied
+        log::debug!(
+            "[SplitStack] Target slot occupied by item {} (def {}). Source item def: {}",
+            item_that_was_in_target_slot.instance_id, 
+            item_that_was_in_target_slot.item_def_id,
+            source_item_being_split.item_def_id
+        );
 
-        let newly_split_item_def_id = inventory_table.instance_id().find(newly_split_item_id)
-            .map(|item| item.item_def_id)
-            .ok_or("Failed to fetch newly_split_item after creation for def_id check")?;
-
-        if item_that_was_in_target_slot.item_def_id != newly_split_item_def_id {
-            // Different item types: item_that_was_in_target_slot (e.g., Hatchet) must move
-            // to the original_location_of_source_stack (where the Fiber was split from).
+        if item_that_was_in_target_slot.item_def_id == source_item_being_split.item_def_id {
+            // SAME ITEM TYPE: Merge directly without creating a new item
             log::info!(
-                "[SplitStack] Target slot {:?} was occupied by different item {} (def {}). Moving it to source stack's original location {:?}. New split item {} (def {}) takes target slot.",
-                player_target_location_for_new_item, item_that_was_in_target_slot.instance_id, item_that_was_in_target_slot.item_def_id,
-                original_location_of_source_stack, newly_split_item_id, newly_split_item_def_id
+                "[SplitStack] Same item type detected. Merging {} from source {} into target {} directly.",
+                quantity_to_split, source_item_instance_id, item_that_was_in_target_slot.instance_id
             );
 
-            item_that_was_in_target_slot.location = original_location_of_source_stack.clone();
+            // Get item definition for stack size validation
+            let item_def = item_def_table.id().find(source_item_being_split.item_def_id)
+                .ok_or_else(|| format!("Definition for item {} not found", source_item_being_split.item_def_id))?;
+
+            // Check if merge is possible within stack size limits
+            let total_after_merge = item_that_was_in_target_slot.quantity + quantity_to_split;
+            if total_after_merge > item_def.stack_size {
+                return Err(format!(
+                    "Cannot merge: would exceed stack size limit ({} + {} > {})",
+                    item_that_was_in_target_slot.quantity, quantity_to_split, item_def.stack_size
+                ));
+            }
+
+            // Perform the merge
+            source_item_being_split.quantity -= quantity_to_split;
+            item_that_was_in_target_slot.quantity += quantity_to_split;
+
+            // Update both items in the database
+            inventory_table.instance_id().update(source_item_being_split.clone());
             inventory_table.instance_id().update(item_that_was_in_target_slot.clone());
-            
-            // Clear active equipment if the item_that_was_in_target_slot was active and moved from an activatable slot
-            // Or if the original_location_of_source_stack is not an activatable slot.
-            // This part needs careful handling of active equipment state.
-            // For now, we assume the client/player will re-activate if needed.
-            // We also need to ensure that if original_location_of_source_stack was an equipment slot,
-            // and source_item_being_split (the remainder) is still there, this doesn't cause issues.
-            // The source_item_being_split remains in its original_location_of_source_stack.
-            // item_that_was_in_target_slot is now also trying to move to original_location_of_source_stack. This is a conflict if source_item_being_split is not zero.
 
-            // --- CORRECTED SWAP LOGIC for SPLIT ---
-            // If source_item_being_split still has quantity > 0 (i.e., it wasn't fully split)
-            // then item_that_was_in_target_slot cannot move to original_location_of_source_stack,
-            // as that slot is still occupied by the remainder of source_item_being_split.
-            // In this "failed swap" case for split, we should revert the split.
-            let source_remainder = inventory_table.instance_id().find(source_item_instance_id)
-                .ok_or_else(|| format!("Failed to find source item remainder {} after split", source_item_instance_id))?;
-
-            if source_remainder.quantity > 0 {
-                 log::warn!(
-                    "[SplitStack] SWAP FAILED for split: Source item {} still has {} items at {:?}. Cannot move item {} there. Reverting split of {}.",
-                    source_item_instance_id, source_remainder.quantity, original_location_of_source_stack,
-                    item_that_was_in_target_slot.instance_id, newly_split_item_id
-                );
-                // Delete the newly_split_item
-                inventory_table.instance_id().delete(newly_split_item_id);
-                // Restore the original quantity to source_item_being_split (which is source_remainder)
-                let mut source_to_revert = source_remainder;
-                source_to_revert.quantity += quantity_to_split;
-                inventory_table.instance_id().update(source_to_revert);
-                // item_that_was_in_target_slot remains in its original place (player_target_location_for_new_item)
-                // as if the split never affected it.
-                return Err("Cannot complete split: target occupied and source slot for swap is also occupied by remainder.".to_string());
-            } else {
-                // Source item was fully split (quantity became 0).
-                // The original_location_of_source_stack is now conceptually empty.
-                // So, item_that_was_in_target_slot can move there.
-                // (split_stack_helper would have set source_item_being_split.quantity to 0. We should delete it if so)
-                 if inventory_table.instance_id().find(source_item_instance_id).is_some() { // Check if it still exists
-                    log::debug!("[SplitStack] Deleting depleted source item {} before swapping.", source_item_instance_id);
-                    inventory_table.instance_id().delete(source_item_instance_id);
-                 }
-            }
-            // If we reached here, the swap is possible.
-            // item_that_was_in_target_slot.location was already set to original_location_of_source_stack.
-            // inventory_table.instance_id().update(item_that_was_in_target_slot.clone()); // Already did this above, ensure it's correct.
-            
-            // Check for active equipment implications for item_that_was_in_target_slot
-            let was_target_active = ctx.db.active_equipment().player_identity().find(sender_id)
-                .map_or(false, |ae| ae.equipped_item_instance_id == Some(item_that_was_in_target_slot.instance_id));
-
-            if was_target_active {
-                 if !matches!(&original_location_of_source_stack, ItemLocation::Hotbar(_)) { // Or more specific check if it's a valid active slot
-                    if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id){
-                        active_equip.equipped_item_instance_id = None;
-                        active_equip.equipped_item_def_id = None;
-                        ctx.db.active_equipment().player_identity().update(active_equip);
-                        log::info!("[SplitStack] Cleared active equipment as item {} (was target) moved to non-active slot {:?}", item_that_was_in_target_slot.instance_id, original_location_of_source_stack);
+            // If source item quantity becomes 0, delete it
+            if source_item_being_split.quantity == 0 {
+                log::debug!("[SplitStack] Source item {} depleted after merge. Deleting.", source_item_instance_id);
+                inventory_table.instance_id().delete(source_item_instance_id);
+                
+                // Clear active equipment if this was the active item
+                if let ItemLocation::Hotbar(_) = &original_location_of_source_stack {
+                    if ctx.db.active_equipment().player_identity().find(sender_id)
+                        .map_or(false, |ae| ae.equipped_item_instance_id == Some(source_item_instance_id)) {
+                        if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id) {
+                            active_equip.equipped_item_instance_id = None;
+                            active_equip.equipped_item_def_id = None;
+                            ctx.db.active_equipment().player_identity().update(active_equip);
+                            log::info!("[SplitStack] Cleared active equipment as source item was fully merged and deleted.");
+                        }
                     }
-                 }
+                }
             }
 
+            log::info!(
+                "[SplitStack] Successfully merged {} items. Source now has {}, target now has {}.",
+                quantity_to_split, source_item_being_split.quantity, item_that_was_in_target_slot.quantity
+            );
 
         } else {
-            // Target slot was occupied by the SAME item type.
-            // split_stack_helper placed the new stack there.
-            // A merge might be desired here, but current logic is just placing a new stack.
-            // This is effectively like stacking two partial stacks of the same item.
-            // For now, this is considered a successful placement of the new split stack.
+            // DIFFERENT ITEM TYPE: Perform swap operation
             log::info!(
-                "[SplitStack] Target slot {:?} was occupied by same item type. New split item {} placed. Merge not implemented here.",
-                player_target_location_for_new_item, newly_split_item_id
+                "[SplitStack] Different item types. Swapping {} (def {}) with split portion of {} (def {}).",
+                item_that_was_in_target_slot.instance_id, item_that_was_in_target_slot.item_def_id,
+                source_item_instance_id, source_item_being_split.item_def_id
+            );
+
+            // Check if source still has items after split
+            if source_item_being_split.quantity <= quantity_to_split {
+                return Err("Cannot swap: source slot would be empty but needs space for swapped item.".to_string());
+            }
+
+            // Create the split item at a temporary location first
+            let temp_location = find_first_empty_player_slot(ctx, sender_id)
+                .ok_or_else(|| "Player inventory is full, cannot create split stack for swap.".to_string())?;
+
+            let newly_split_item_id = split_stack_helper(
+                ctx,
+                &mut source_item_being_split,
+                quantity_to_split,
+                temp_location,
+            )?;
+
+            // Capture the instance_id before moving the item
+            let target_item_instance_id = item_that_was_in_target_slot.instance_id;
+
+            // Now perform the swap
+            // Move the item that was in target slot to source location
+            item_that_was_in_target_slot.location = original_location_of_source_stack;
+            inventory_table.instance_id().update(item_that_was_in_target_slot);
+
+            // Move the newly split item to target location
+            let mut newly_split_item = inventory_table.instance_id().find(newly_split_item_id)
+                .ok_or_else(|| format!("Failed to find newly split item {}", newly_split_item_id))?;
+            newly_split_item.location = player_target_location_for_new_item;
+            inventory_table.instance_id().update(newly_split_item);
+
+            log::info!(
+                "[SplitStack] Swap completed. Item {} moved to source location, split item {} moved to target location.",
+                target_item_instance_id, newly_split_item_id
             );
         }
     } else {
-        // Target slot was empty. newly_split_item is already placed there by split_stack_helper.
+        // Target slot is empty - use original logic
         log::info!(
-            "[SplitStack] Target slot {:?} was empty. Newly split item {} (qty {}) placed there.",
-            player_target_location_for_new_item, newly_split_item_id, quantity_to_split
+            "[SplitStack] Target slot empty. Creating new split stack at target location."
         );
-    }
-    
-    // If the source_item_being_split was equipped (e.g. an ammo pouch being split from)
-    // and its quantity became zero, its equipment slot should be cleared.
-    // split_stack_helper doesn't handle un-equipping.
-    // However, source_item_being_split is usually from general inventory/hotbar for splitting.
-    // If it *was* from an equipment slot (e.g. armor) and became 0, that's a different problem.
-    // For now, assume splits mainly happen from non-equipped active items or general inventory.
 
-    // If source_item_being_split was the active (hand) item, and its quantity dropped to 0, clear active.
-    if let ItemLocation::Hotbar(_) = &original_location_of_source_stack { // Only if it was in hotbar
-        if let Some(source_after_split) = inventory_table.instance_id().find(source_item_instance_id) { // Check if it still exists
-             if source_after_split.quantity == 0 {
-                 if ctx.db.active_equipment().player_identity().find(sender_id).map_or(false, |ae| ae.equipped_item_instance_id == Some(source_item_instance_id)) {
-                     if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id){
+        let _newly_split_item_id = split_stack_helper(
+            ctx,
+            &mut source_item_being_split,
+            quantity_to_split,
+            player_target_location_for_new_item,
+        )?;
+
+        // If source item quantity becomes 0, delete it and clear active equipment if needed
+        if source_item_being_split.quantity == 0 {
+            log::debug!("[SplitStack] Source item {} depleted after split. Deleting.", source_item_instance_id);
+            inventory_table.instance_id().delete(source_item_instance_id);
+            
+            // Clear active equipment if this was the active item
+            if let ItemLocation::Hotbar(_) = &original_location_of_source_stack {
+                if ctx.db.active_equipment().player_identity().find(sender_id)
+                    .map_or(false, |ae| ae.equipped_item_instance_id == Some(source_item_instance_id)) {
+                    if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id) {
                         active_equip.equipped_item_instance_id = None;
                         active_equip.equipped_item_def_id = None;
                         ctx.db.active_equipment().player_identity().update(active_equip);
-                        log::info!("[SplitStack] Cleared active equipment as source item {} quantity became 0 after split.", source_item_instance_id);
-                     }
-                 }
-                 // Also delete the item from inventory if quantity is 0
-                 log::debug!("[SplitStack] Deleting source item {} as its quantity is 0 after split.", source_item_instance_id);
-                 inventory_table.instance_id().delete(source_item_instance_id);
-             }
-        } else { // Source item was deleted because it was fully split into the new stack, and the remainder was 0.
-             if ctx.db.active_equipment().player_identity().find(sender_id).map_or(false, |ae| ae.equipped_item_instance_id == Some(source_item_instance_id)) {
-                 if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id){
-                    active_equip.equipped_item_instance_id = None;
-                    active_equip.equipped_item_def_id = None;
-                    ctx.db.active_equipment().player_identity().update(active_equip);
-                    log::info!("[SplitStack] Cleared active equipment as source item {} was deleted (fully split).", source_item_instance_id);
-                 }
-             }
+                        log::info!("[SplitStack] Cleared active equipment as source item was fully split and deleted.");
+                    }
+                }
+            }
         }
     }
-
 
     Ok(())
 }

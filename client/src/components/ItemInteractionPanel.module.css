@@ -1,0 +1,261 @@
+/* ItemInteractionPanel.module.css */
+
+.itemInteractionPanel {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: rgba(20, 20, 30, 0.95); /* Match tooltip background */
+  border: 1px solid #a0a0c0; /* Match tooltip border */
+  border-radius: 6px;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.4);
+  color: #e0e0e0; /* Match tooltip text color */
+  font-family: 'Press Start 2P', cursive;
+  position: relative;
+  width: 404px; /* Match inventory grid width + gap (388px + 16px) */
+  box-sizing: border-box; /* Include padding in width */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.interactionHeader {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.closeInteractionButton {
+  background: #555;
+  color: #eee;
+  border: 1px solid #777;
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.closeInteractionButton:hover {
+  background: #777;
+}
+
+.interactionContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding-top: 10px; /* Space for the close button */
+}
+
+.interactionItemIcon {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 1px solid #777;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative; /* For quantity positioning */
+}
+
+.itemIcon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.itemQuantity {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 8px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  min-width: 16px;
+  text-align: center;
+}
+
+.interactionItemDetails {
+  flex-grow: 1;
+  min-width: 0; /* Allow flex item to shrink */
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Increased gap between elements */
+}
+
+.interactionItemName {
+  margin: 0;
+  font-size: 0.9rem; /* Match tooltip name size */
+  color: #f0e68c;
+  font-weight: bold;
+  line-height: 1.4;
+  text-align: left;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #505070; /* Match tooltip separator */
+}
+
+.interactionItemDescription {
+  margin: 0;
+  font-size: 0.75rem; /* Match tooltip description size */
+  color: #c0c0c0; /* Match tooltip description color */
+  line-height: 1.6;
+  text-align: left;
+  max-height: none;
+  overflow-y: visible;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.interactionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #505070; /* Match tooltip separator */
+  justify-content: flex-start; /* Left align buttons */
+  align-items: center; /* Center items vertically */
+}
+
+.actionButton {
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid #888;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 80px;
+  color: white;
+}
+
+.actionButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.actionButton:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.9);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #666;
+  border-color: #555;
+  color: #aaa;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Specific action button styles */
+.crushButton {
+  background-color: #8b4513; /* Brown for bone crushing */
+  border-color: #654321;
+}
+
+.consumeButton {
+  background-color: #228b22; /* Green for consuming */
+  border-color: #006400;
+}
+
+/* Split controls styles */
+.splitControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto; /* Push to the right */
+}
+
+.splitInput {
+  width: 50px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #eee;
+  border: 1px solid #777;
+  border-radius: 3px;
+  outline: none;
+}
+
+.splitInput:focus {
+  border-color: #a0a0c0;
+  box-shadow: 0 0 0 1px rgba(160, 160, 192, 0.3);
+}
+
+.splitInput::-webkit-inner-spin-button,
+.splitInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.splitButton {
+  background-color: #6688cc; /* Blue for split action */
+  border-color: #5577bb;
+  min-width: 60px; /* Smaller than other action buttons */
+}
+
+.splitButton:hover:not(:disabled) {
+  background-color: #7799dd;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .itemInteractionPanel {
+    padding: 12px;
+  }
+  
+  .interactionContent {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .interactionItemIcon {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .interactionItemDetails {
+    align-items: center;
+    text-align: center;
+  }
+
+  .interactionItemName {
+    font-size: 11px;
+    text-align: center;
+  }
+  
+  .interactionItemDescription {
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .interactionActions {
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .splitControls {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+  
+  .actionButton {
+    font-size: 9px;
+    padding: 6px 10px;
+    min-width: 70px;
+  }
+} 

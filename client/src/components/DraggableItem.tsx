@@ -13,6 +13,7 @@ interface DraggableItemProps {
   onMouseEnter?: (event: React.MouseEvent<HTMLDivElement>, item: PopulatedItem) => void;
   onMouseLeave?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onMouseMove?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ 
@@ -23,7 +24,8 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   onContextMenu,
   onMouseEnter,
   onMouseLeave,
-  onMouseMove
+  onMouseMove,
+  onClick
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
@@ -34,14 +36,14 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   const didDragRef = useRef(false);
 
   const createGhostElement = useCallback((e: MouseEvent | Touch, splitQuantity: number | null) => {
-    // console.log(`[DraggableItem] Creating ghost element... Split: ${splitQuantity}`);
+    console.log('[Ghost] Creating ghost element:', { splitQuantity, event: { x: e.clientX, y: e.clientY } });
     if (ghostRef.current && document.body.contains(ghostRef.current)) {
       document.body.removeChild(ghostRef.current);
     }
 
     const ghost = document.createElement('div');
     ghost.id = 'drag-ghost';
-    ghost.className = styles.dragGhost; // Use CSS module class
+    ghost.className = styles.dragGhost;
     ghost.style.left = `${e.clientX + 10}px`;
     ghost.style.top = `${e.clientY + 10}px`;
 
@@ -60,237 +62,215 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
     if (displayQuantity) {
         const quantityEl = document.createElement('div');
         quantityEl.textContent = displayQuantity.toString();
-        quantityEl.className = styles.ghostQuantity; // Use CSS module class
+        quantityEl.className = styles.ghostQuantity;
         ghost.appendChild(quantityEl);
     }
 
     document.body.appendChild(ghost);
     ghostRef.current = ghost;
-    // console.log("[DraggableItem] Ghost element appended.");
-  }, [item]); // Dependency: item (for definition and original quantity)
+    console.log('[Ghost] Ghost element created and appended to body');
+  }, [item]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    // Use the ref to check dragging status
-    if (!isDraggingRef.current) return;
+    console.log('[Ghost] Mouse move event:', { 
+      isDragging: isDraggingRef.current,
+      hasGhost: !!ghostRef.current,
+      pos: { x: e.clientX, y: e.clientY }
+    });
 
-    // Basic movement threshold check
+    // Check if we've moved enough to start dragging
     const dx = e.clientX - dragStartPos.current.x;
     const dy = e.clientY - dragStartPos.current.y;
     const distSq = dx*dx + dy*dy;
-    const thresholdSq = 2*2; // Compare squared distances. Lowered from 3*3 for more sensitivity.
+    const thresholdSq = 2*2; // Compare squared distances
 
-    // Update ghost position IF it exists
-    if (ghostRef.current) {
+    if (distSq >= thresholdSq && !isDraggingRef.current) {
+        console.log('[Ghost] Starting drag operation');
+        // Only now do we start dragging
+        isDraggingRef.current = true;
+        didDragRef.current = true;
+        setIsDraggingState(true);
+        document.body.classList.add('item-dragging');
+        if (itemRef.current) {
+            itemRef.current.style.opacity = '0.5';
+        }
+
+        // Construct and send drag info
+        const dragInfo: DraggedItemInfo = {
+            item: item,
+            sourceSlot: sourceSlot,
+            sourceContainerType: sourceSlot.type,
+            sourceContainerEntityId: sourceSlot.parentId,
+            splitQuantity: currentSplitQuantity.current === null ? undefined : currentSplitQuantity.current,
+        };
+        onItemDragStart(dragInfo);
+
+        // Create ghost element
+        createGhostElement(e, currentSplitQuantity.current);
+    }
+
+    // Update ghost position if we're dragging
+    if (isDraggingRef.current && ghostRef.current) {
         ghostRef.current.style.left = `${e.clientX + 10}px`;
         ghostRef.current.style.top = `${e.clientY + 10}px`;
     }
-    // Create ghost only if threshold is met AND ghost doesn't exist yet
-    else if (distSq >= thresholdSq) {
-        didDragRef.current = true;
-        // console.log(`[DraggableItem] Drag threshold met, didDrag = true.`);
-        createGhostElement(e, currentSplitQuantity.current);
-    }
-  }, [createGhostElement]);
+  }, [item, sourceSlot, onItemDragStart, createGhostElement]);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
-    // Capture drag state BEFORE removing listeners / resetting state
-    const wasDragging = didDragRef.current;
-    // console.log(`[DraggableItem MouseUp] Button: ${e.button}, wasDragging: ${wasDragging}`);
+    const wasDragging = isDraggingRef.current;
 
-    if (!isDraggingRef.current) {
-        // Safety check - mouseup when not dragging shouldn't happen often here
-        // but ensure listeners are cleaned up if it does.
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        return; 
-    }
-
-    // --- Remove Listeners FIRST --- 
+    // Clean up listeners first
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
 
-    // --- Determine Drop Target --- 
-    let targetSlotInfo: DragSourceSlotInfo | null = null;
-    let dropHandledInternal = false; 
+    // If we weren't dragging, this is a click
+    if (!wasDragging) {
+        if (e.button === 0 && onClick) { // Left click
+            onClick(e as any);
+        } else if (e.button === 2 && onContextMenu) { // Right click
+            onContextMenu(e as any, item);
+        }
+        return;
+    }
+
+    // Handle drag end
     if (ghostRef.current) {
-      ghostRef.current.style.display = 'none'; 
-      const dropTargetElement = document.elementFromPoint(e.clientX, e.clientY);
-      if (dropTargetElement) {
-          const droppableSlot = dropTargetElement.closest('[data-slot-type]');
-          if (droppableSlot) {
-              const targetType = droppableSlot.getAttribute('data-slot-type') as DragSourceSlotInfo['type'];
-              const targetIndexAttr = droppableSlot.getAttribute('data-slot-index');
-              const targetParentIdAttr = droppableSlot.getAttribute('data-slot-parent-id'); 
+        ghostRef.current.style.display = 'none';
+        const dropTargetElement = document.elementFromPoint(e.clientX, e.clientY);
+        
+        let targetSlotInfo: DragSourceSlotInfo | null = null;
+        let isSameSlot = false;
+        let dropHandledInternal = false; 
+        if (dropTargetElement) {
+            const droppableSlot = dropTargetElement.closest('[data-slot-type]');
+            if (droppableSlot) {
+                const targetType = droppableSlot.getAttribute('data-slot-type') as DragSourceSlotInfo['type'];
+                const targetIndexAttr = droppableSlot.getAttribute('data-slot-index');
+                const targetParentIdAttr = droppableSlot.getAttribute('data-slot-parent-id'); 
 
-              if (targetType && targetIndexAttr !== null) {
-                   const targetIndex: number | string = (targetType === 'inventory' || targetType === 'hotbar' || targetType === 'campfire_fuel' || targetType === 'wooden_storage_box') 
-                                                      ? parseInt(targetIndexAttr, 10) 
-                                                      : targetIndexAttr; 
-                  
-                  // Parse parentId: Attempt BigInt conversion, handle potential errors/NaN
-                  let parentId: number | bigint | undefined = undefined;
-                  if (targetParentIdAttr) {
-                      try {
-                          // Attempt BigInt conversion first (common case)
-                          parentId = BigInt(targetParentIdAttr);
-                      } catch (bigIntError) {
-                          // If BigInt fails, try Number (maybe it was a regular number string?)
-                          const numVal = Number(targetParentIdAttr);
-                          if (!isNaN(numVal)) {
-                               parentId = numVal;
-                          } else {
-                              console.warn(`Could not parse parentId attribute: ${targetParentIdAttr}`);
-                          }
-                      }
-                  }
-                  
-                  if (!isNaN(targetIndex as number) || typeof targetIndex === 'string') { 
-                      // Construct targetSlotInfo only if index is valid
-                      const currentTargetSlotInfo: DragSourceSlotInfo = { 
-                          type: targetType, 
-                          index: targetIndex, 
-                          parentId: parentId 
-                      };
-                      targetSlotInfo = currentTargetSlotInfo; // Assign to outer scope variable
+                if (targetType && targetIndexAttr !== null) {
+                    const targetIndex: number | string = (targetType === 'inventory' || targetType === 'hotbar' || targetType === 'campfire_fuel' || targetType === 'wooden_storage_box') 
+                                                    ? parseInt(targetIndexAttr, 10) 
+                                                    : targetIndexAttr; 
+                    
+                    // Parse parentId: Attempt BigInt conversion, handle potential errors/NaN
+                    let parentId: number | bigint | undefined = undefined;
+                    if (targetParentIdAttr) {
+                        try {
+                            // Attempt BigInt conversion first (common case)
+                            parentId = BigInt(targetParentIdAttr);
+                        } catch (bigIntError) {
+                            // If BigInt fails, try Number (maybe it was a regular number string?)
+                            const numVal = Number(targetParentIdAttr);
+                            if (!isNaN(numVal)) {
+                                parentId = numVal;
+                            } else {
+                                console.warn(`Could not parse parentId attribute: ${targetParentIdAttr}`);
+                            }
+                        }
+                    }
+                    
+                    if (!isNaN(targetIndex as number) || typeof targetIndex === 'string') { 
+                        // Construct targetSlotInfo only if index is valid
+                        const currentTargetSlotInfo: DragSourceSlotInfo = { 
+                            type: targetType, 
+                            index: targetIndex, 
+                            parentId: parentId 
+                        };
+                        targetSlotInfo = currentTargetSlotInfo; // Assign to outer scope variable
 
-                      // Check if dropping onto the same source slot (including parent)
-                      const isSameSlot = sourceSlot.type === currentTargetSlotInfo.type && 
-                                       sourceSlot.index === currentTargetSlotInfo.index && 
-                                       sourceSlot.parentId?.toString() === currentTargetSlotInfo.parentId?.toString();
+                        // Check if dropping onto the same source slot (including parent)
+                        isSameSlot = sourceSlot.type === currentTargetSlotInfo.type && 
+                                    sourceSlot.index === currentTargetSlotInfo.index && 
+                                    sourceSlot.parentId?.toString() === currentTargetSlotInfo.parentId?.toString();
 
-                      if (!isSameSlot) { 
-                           dropHandledInternal = true;
-                      } else {
-                          // console.log("[DraggableItem] Drop on source slot ignored (no action needed).");
-                          dropHandledInternal = true; 
-                          targetSlotInfo = null; // Reset target if it was the source
-                      }
-                  }
-              }
-          } 
-      }
-       if (ghostRef.current && document.body.contains(ghostRef.current)) { 
-        document.body.removeChild(ghostRef.current);
-      }
-      ghostRef.current = null;
+                        if (!isSameSlot) { 
+                            dropHandledInternal = true;
+                        } else {
+                            dropHandledInternal = true; 
+                            targetSlotInfo = null; // Reset target if it was the source
+                        }
+                    }
+                }
+            } 
+        }
+
+        if (ghostRef.current && document.body.contains(ghostRef.current)) {
+            document.body.removeChild(ghostRef.current);
+        }
+        ghostRef.current = null;
+
+        // Clean up drag state
+        isDraggingRef.current = false;
+        setIsDraggingState(false);
+        document.body.classList.remove('item-dragging');
+        if (itemRef.current) {
+            itemRef.current.style.opacity = '1';
+        }
+
+        // Call appropriate drop handler
+        if (targetSlotInfo && !isSameSlot) {
+            onItemDrop(targetSlotInfo);
+        } else if (!targetSlotInfo) {
+            onItemDrop(null);
+        }
     } else {
         // console.log("[DraggableItem] MouseUp without significant drag/ghost.");
     }
-    // --- End Drop Target Determination ---
 
-    // --- NEW Decision Logic --- 
-    if (e.button === 2) { // Right Button Release
-        if (wasDragging) {
-            // Right-DRAG: Perform the drop action (split/merge)
-            // console.log("[DraggableItem MouseUp] Right-DRAG detected. Calling onItemDrop.");
-             if (dropHandledInternal) {
-                onItemDrop(targetSlotInfo); 
-            } else {
-                onItemDrop(null); // Dropped outside
-            }
-        } else {
-            // Right-CLICK: Perform the context menu action
-            // console.log("[DraggableItem MouseUp] Right-CLICK detected. Calling onContextMenu prop.");
-            if (onContextMenu) {
-                // We might need to pass a simulated event if the handler expects it,
-                // but for now, let's pass null or a minimal object. 
-                // Pass the original mouse event `e` for position info if needed.
-                onContextMenu(e as any, item); // Call the prop function
-            }
-        }
-    } else { // Left or Middle Button Release
-        // console.log("[DraggableItem MouseUp] Left/Middle mouse button released.");
-        if (dropHandledInternal && targetSlotInfo) {
-            // Valid drop onto different slot
-            // console.log("[DraggableItem MouseUp] Valid L/M drop. Calling onItemDrop with target:", targetSlotInfo);
-            onItemDrop(targetSlotInfo);
-        } else if (wasDragging) {
-            // Dragged, but ended outside or on source slot
-            // Only call drop(null) if it ended outside a valid target altogether
-            if (!targetSlotInfo) { // If targetSlotInfo is null (meaning not over a valid slot)
-                 // console.log("[DraggableItem MouseUp] L/M Dragged outside. Calling onItemDrop(null).");
-                 onItemDrop(null);
-            } else {
-                 // Dragged, but ended on source slot or invalid target. No action needed.
-                 // console.log("[DraggableItem MouseUp] L/M Dragged to source/invalid. No drop action.");
-                 // App state is cleared by App.handleItemDrop unconditionally.
-            }
-        } else {
-            // Simple click without drag. No action needed.
-            // console.log("[DraggableItem MouseUp] Simple left/middle click. No drop action.");
-            // App state is cleared by App.handleItemDrop unconditionally.
-        }
-    }
-    // --- End Decision Logic ---
-
-    // Common Cleanup (Visuals, Dragging State)
-    isDraggingRef.current = false;
-    setIsDraggingState(false);
-    document.body.classList.remove('item-dragging');
-    if (itemRef.current) {
-         itemRef.current.style.opacity = '1';
-    }
-
-  }, [handleMouseMove, item, sourceSlot, onItemDrop, onContextMenu]);
+  }, [handleMouseMove, item, sourceSlot, onItemDrop, onContextMenu, onClick]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // --- RESTORE Resetting didDrag flag --- 
+    console.log('[Ghost] Mouse down event:', {
+      button: e.button,
+      pos: { x: e.clientX, y: e.clientY },
+      splitQuantity: (e.currentTarget as any).currentSplitQuantity?.current
+    });
+
+    // Reset drag state
     didDragRef.current = false;
-    // --- END RESTORE ---
-
-    // --- NEW: Prevent default for right-click --- 
-    if (e.button === 2) {
-        // console.log('[DraggableItem MouseDown] Right button pressed, preventing default.');
-        e.preventDefault(); // Attempt to suppress native context menu
-    }
-    // --- END NEW ---
-
-    // Check stackability and quantity for splitting possibility
-    const canSplit = item.definition.isStackable && item.instance.quantity > 1;
-    let splitQuantity: number | null = null;
-    if (canSplit) {
-        if (e.button === 1) { // Middle mouse button
-            e.preventDefault(); 
-            if (e.shiftKey) {
-                splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 3));
-            } else {
-                splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
-            }
-        } else if (e.button === 0 && e.ctrlKey) { // Ctrl + Left Click for splitting
-            e.preventDefault();
-            splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
-        } else if (e.button === 2) { // Right mouse button (for drag-split)
-            // If right-click and stackable, initiate drag with a split quantity of 1.
-            splitQuantity = 1;
-        }
-    }
-    currentSplitQuantity.current = splitQuantity;
-
-    dragStartPos.current = { x: e.clientX, y: e.clientY };
-    isDraggingRef.current = true;
-    setIsDraggingState(true);
-    document.body.classList.add('item-dragging');
-    if (itemRef.current) {
-      itemRef.current.style.opacity = '0.5'; // Make original item semi-transparent
-    }
+    isDraggingRef.current = false; // Start as not dragging
     
-    // Construct the DraggedItemInfo
-    const dragInfo: DraggedItemInfo = {
-      item: item, 
-      sourceSlot: sourceSlot,
-      sourceContainerType: sourceSlot.type, // Use type from sourceSlot
-      sourceContainerEntityId: sourceSlot.parentId, // Use parentId from sourceSlot
-      splitQuantity: currentSplitQuantity.current === null ? undefined : currentSplitQuantity.current,
-    };
+    // Store initial position for drag detection
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
 
-    // console.log("[DraggableItem MouseDown] Starting drag. Info:", dragInfo);
-    onItemDragStart(dragInfo);
+    // Prevent default for right-click
+    if (e.button === 2) {
+        e.preventDefault();
+    }
+
+    // Check for split quantity from synthetic event
+    const syntheticSplitQuantity = (e.currentTarget as any).currentSplitQuantity?.current;
+    if (syntheticSplitQuantity !== undefined) {
+        console.log('[Ghost] Using synthetic split quantity:', syntheticSplitQuantity);
+        currentSplitQuantity.current = syntheticSplitQuantity;
+    } else {
+        // Normal mouse interaction split logic
+        const canSplit = item.definition.isStackable && item.instance.quantity > 1;
+        let splitQuantity: number | null = null;
+        if (canSplit) {
+            if (e.button === 1) { // Middle mouse button
+                e.preventDefault(); 
+                if (e.shiftKey) {
+                    splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 3));
+                } else {
+                    splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
+                }
+            } else if (e.button === 0 && e.ctrlKey) { // Ctrl + Left Click for splitting
+                e.preventDefault();
+                splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
+            } else if (e.button === 2) { // Right mouse button (for drag-split)
+                splitQuantity = 1;
+            }
+        }
+        currentSplitQuantity.current = splitQuantity;
+    }
 
     // Add temporary listeners to the document
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 
-  }, [item, sourceSlot, onItemDragStart, handleMouseMove, handleMouseUp, createGhostElement]);
+  }, [item, handleMouseMove, handleMouseUp]);
 
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
     // console.log("[DraggableItem] Drag Start, Item:", item, "Source Slot:", sourceSlot);

@@ -23,6 +23,7 @@ const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
+const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; // Doubled distance for easier revive access
 
 // Define the hook's input props
 interface UseInteractionFinderProps {
@@ -37,6 +38,7 @@ interface UseInteractionFinderProps {
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
+    players: Map<string, SpacetimeDBPlayer>;
 }
 
 // Define the hook's return type
@@ -52,6 +54,7 @@ interface UseInteractionFinderResult {
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null;
     closestInteractableSleepingBagId: number | null;
+    closestInteractableKnockedOutPlayerId: string | null; // Player identity hex string
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -88,6 +91,7 @@ export function useInteractionFinder({
     playerCorpses,
     stashes,
     sleepingBags,
+    players,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -102,6 +106,7 @@ export function useInteractionFinder({
     const [closestInteractableCorpseId, setClosestInteractableCorpseId] = useState<bigint | null>(null);
     const [closestInteractableStashId, setClosestInteractableStashId] = useState<number | null>(null);
     const [closestInteractableSleepingBagId, setClosestInteractableSleepingBagId] = useState<number | null>(null);
+    const [closestInteractableKnockedOutPlayerId, setClosestInteractableKnockedOutPlayerId] = useState<string | null>(null);
 
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
@@ -134,6 +139,9 @@ export function useInteractionFinder({
 
         let closestSleepingBagId: number | null = null;
         let closestSleepingBagDistSq = PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED;
+
+        let closestKnockedOutPlayerId: string | null = null;
+        let closestKnockedOutPlayerDistSq = PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED;
 
         if (localPlayer) {
             const playerX = localPlayer.positionX;
@@ -289,6 +297,27 @@ export function useInteractionFinder({
                     }
                 });
             }
+
+            // Find closest knocked out player (excluding local player)
+            if (players) {
+                players.forEach((player) => {
+                    // Skip if it's the local player or player is not knocked out or is dead
+                    if (localPlayer && player.identity.isEqual(localPlayer.identity)) {
+                        return; // Skip local player
+                    }
+                    if (!player.isKnockedOut || player.isDead) {
+                        return; // Skip if not knocked out or is dead
+                    }
+                    
+                    const dx = playerX - player.positionX;
+                    const dy = playerY - player.positionY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestKnockedOutPlayerDistSq) {
+                        closestKnockedOutPlayerDistSq = distSq;
+                        closestKnockedOutPlayerId = player.identity.toHexString();
+                    }
+                });
+            }
         }
 
         return {
@@ -303,9 +332,10 @@ export function useInteractionFinder({
             closestInteractableCorpseId: closestCorpse,
             closestInteractableStashId: closestStashId,
             closestInteractableSleepingBagId: closestSleepingBagId,
+            closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags]);
+    }, [localPlayer, mushrooms, corns, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -344,6 +374,9 @@ export function useInteractionFinder({
         if (interactionResult.closestInteractableSleepingBagId !== closestInteractableSleepingBagId) {
             setClosestInteractableSleepingBagId(interactionResult.closestInteractableSleepingBagId);
         }
+        if (interactionResult.closestInteractableKnockedOutPlayerId !== closestInteractableKnockedOutPlayerId) {
+            setClosestInteractableKnockedOutPlayerId(interactionResult.closestInteractableKnockedOutPlayerId);
+        }
     // Depend on the memoized result object
     }, [interactionResult]);
 
@@ -359,6 +392,7 @@ export function useInteractionFinder({
         closestInteractableCorpseId,
         closestInteractableStashId,
         closestInteractableSleepingBagId,
+        closestInteractableKnockedOutPlayerId,
     };
 }
 

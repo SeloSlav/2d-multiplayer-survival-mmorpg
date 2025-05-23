@@ -52,6 +52,7 @@ interface RenderLabelsParams {
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null;
     closestInteractableSleepingBagId: number | null;
+    closestInteractableKnockedOutPlayerId: string | null;
 }
 
 const LABEL_FONT = '14px "Press Start 2P", cursive';
@@ -88,6 +89,7 @@ export function renderInteractionLabels({
     closestInteractableCorpseId,
     closestInteractableStashId,
     closestInteractableSleepingBagId,
+    closestInteractableKnockedOutPlayerId,
 }: RenderLabelsParams): void {
     ctx.save(); // Save context state before changing styles
 
@@ -225,6 +227,18 @@ export function renderInteractionLabels({
             const textX = sleepingBag.posX;
             // Adjust Y offset as needed, similar to campfire or box
             const textY = sleepingBag.posY - (SLEEPING_BAG_HEIGHT / 2) - 50;
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Knocked Out Player Label
+    if (closestInteractableKnockedOutPlayerId !== null) {
+        const knockedOutPlayer = players.get(closestInteractableKnockedOutPlayerId);
+        if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
+            const text = `Hold E to revive ${knockedOutPlayer.username}`;
+            const textX = knockedOutPlayer.positionX;
+            const textY = knockedOutPlayer.positionY - 30; // Offset above player
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

@@ -46,6 +46,8 @@ import ExternalContainerUI from './ExternalContainerUI';
 import Tooltip, { TooltipContent, TooltipStats } from './Tooltip';
 // Import the new formatting utility
 import { formatStatDisplay } from '../utils/formatUtils';
+// ADD: Import ItemInteractionPanel component
+import ItemInteractionPanel from './ItemInteractionPanel';
 
 // --- Type Definitions ---
 // Define props for InventoryUI component
@@ -132,6 +134,12 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     const [tooltipVisible, setTooltipVisible] = useState(false);
     const [tooltipContent, setTooltipContent] = useState<TooltipContent | null>(null);
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+    // NEW: Selected item for interaction
+    const [selectedInventoryItem, setSelectedInventoryItem] = useState<PopulatedItem | null>(null);
+
+    // Add to state declarations
+    const [splitDragInfo, setSplitDragInfo] = useState<{ item: PopulatedItem, quantity: number } | null>(null);
 
     // Memoized handleClose to ensure stability if its dependencies are stable.
     const handleClose = useCallback(() => {
@@ -296,6 +304,30 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             setTooltipPosition({ x: relativeX, y: relativeY });
         }
     }, [tooltipVisible]); // Depend on tooltipVisible to avoid unnecessary calculations
+
+    // NEW: Handler for clicking inventory items to show interaction panel
+    const handleInventoryItemClick = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Only handle left clicks for item interaction
+        if (event.button !== 0) return;
+        
+        // Don't interfere with drag operations
+        if (draggedItemInfo) return;
+
+        // Don't handle clicks if they're coming from the interaction panel
+        if ((event.target as HTMLElement).closest('.itemInteractionPanel')) return;
+        
+        // Toggle selection - if same item clicked, deselect
+        if (selectedInventoryItem?.instance.instanceId === item.instance.instanceId) {
+            setSelectedInventoryItem(null);
+        } else {
+            setSelectedInventoryItem(item);
+        }
+    }, [selectedInventoryItem, draggedItemInfo]);
+
+    // NEW: Handler for closing the item interaction panel
+    const handleCloseItemInteraction = useCallback(() => {
+        setSelectedInventoryItem(null);
+    }, []);
 
     const handleInventoryItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
         event.preventDefault();
@@ -480,6 +512,82 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         }
     }, [tooltipVisible]);
 
+    // Add the handler function
+    const handleStartSplitDrag = useCallback((item: PopulatedItem, quantity: number) => {
+        console.log('[Split] Starting split drag operation:', { item, quantity });
+        setSplitDragInfo({ item, quantity });
+        
+        // Start the drag operation with the original item's location
+        const sourceLocation = item.instance.location;
+        console.log('[Split] Item source location:', sourceLocation);
+        
+        let sourceSlotInfo: DragSourceSlotInfo;
+        
+        if (sourceLocation.tag === 'Inventory') {
+            sourceSlotInfo = {
+                type: 'inventory',
+                index: sourceLocation.value.slotIndex
+            };
+            console.log('[Split] Created inventory source slot info:', sourceSlotInfo);
+        } else if (sourceLocation.tag === 'Hotbar') {
+            sourceSlotInfo = {
+                type: 'hotbar',
+                index: sourceLocation.value.slotIndex
+            };
+            console.log('[Split] Created hotbar source slot info:', sourceSlotInfo);
+        } else {
+            console.error('[Split] Cannot split items from this location:', sourceLocation);
+            return;
+        }
+
+        // Find the actual item element
+        const itemElement = document.querySelector(`[data-slot-type="${sourceSlotInfo.type}"][data-slot-index="${sourceSlotInfo.index}"] > div`);
+        if (!itemElement) {
+            console.error('[Split] Could not find item element to drag');
+            return;
+        }
+
+        // Start the drag operation
+        console.log('[Split] Starting drag with info:', {
+            itemId: item.instance.instanceId,
+            sourceSlot: sourceSlotInfo,
+            splitQuantity: quantity
+        });
+        
+        onItemDragStart({
+            item,
+            sourceSlot: sourceSlotInfo,
+            splitQuantity: quantity
+        });
+
+        // Set the split quantity on the element
+        (itemElement as any).currentSplitQuantity = { current: quantity };
+
+        // Trigger ghost creation by simulating mouse events on the actual item element
+        const rect = itemElement.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        // First simulate a mousedown event
+        const mouseDownEvent = new MouseEvent('mousedown', {
+            bubbles: true,
+            clientX: centerX,
+            clientY: centerY,
+            button: 0
+        });
+        itemElement.dispatchEvent(mouseDownEvent);
+
+        // Then simulate a mousemove event slightly offset
+        const mouseMoveEvent = new MouseEvent('mousemove', {
+            bubbles: true,
+            clientX: centerX + 10,
+            clientY: centerY + 10
+        });
+        document.dispatchEvent(mouseMoveEvent);
+        
+        console.log('[Split] Dispatched synthetic mouse events for ghost creation');
+    }, [onItemDragStart]);
+
     // --- Render --- 
     return (
         <div ref={inventoryPanelRef} data-id="inventory-panel" className={styles.inventoryPanel}>
@@ -527,13 +635,15 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     {Array.from({ length: TOTAL_INVENTORY_SLOTS }).map((_, index) => {
                         const item = itemsByInvSlot.get(index);
                         const currentSlotInfo: DragSourceSlotInfo = { type: 'inventory', index: index };
+                        const isSelected = item && selectedInventoryItem?.instance.instanceId === item.instance.instanceId;
+                        
                         return (
                             <DroppableSlot
                                 key={`inv-${index}`}
                                 slotInfo={currentSlotInfo}
                                 onItemDrop={onItemDrop}
-                                className={styles.slot}
-                                isDraggingOver={false} // Add state if needed
+                                className={`${styles.slot} ${isSelected ? styles.selectedSlot : ''}`}
+                                isDraggingOver={false}
                             >
                                 {item && (
                                     <DraggableItem
@@ -545,13 +655,24 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                         onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
                                         onMouseLeave={handleItemMouseLeave}
                                         onMouseMove={handleItemMouseMove}
+                                        onClick={(e: React.MouseEvent<HTMLDivElement>) => handleInventoryItemClick(item, e)}
                                     />
                                 )}
                             </DroppableSlot>
                         );
                     })}
                 </div>
-                </div>
+
+                {/* NEW: Item Interaction Panel */}
+                {selectedInventoryItem && (
+                    <ItemInteractionPanel
+                        selectedItem={selectedInventoryItem}
+                        connection={connection}
+                        onClose={handleCloseItemInteraction}
+                        onStartSplitDrag={handleStartSplitDrag}
+                    />
+                )}
+            </div>
 
             {/* Right Pane: Always shows External Container if interacting */}
             <div className={styles.rightPane}> {/* Ensure rightPane class exists if needed */}
