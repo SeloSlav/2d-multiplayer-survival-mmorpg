@@ -759,7 +759,7 @@ pub fn set_sprinting(ctx: &ReducerContext, sprinting: bool) -> Result<(), String
 #[spacetimedb::reducer]
 pub fn update_player_position(
     ctx: &ReducerContext,
-    // Renamed parameters to represent normalized direction vector from client
+    // Raw direction components from client input (-1, 0, 1) - server will normalize
     move_x: f32,
     move_y: f32,
 ) -> Result<(), String> {
@@ -853,9 +853,18 @@ pub fn update_player_position(
 
     // --- Calculate Target Velocity & Server Displacement ---
     let target_speed = effective_speed;
-    // Velocity is the normalized direction vector scaled by target speed
-    let velocity_x = move_x * target_speed;
-    let velocity_y = move_y * target_speed;
+    
+    // Normalize the movement vector to prevent diagonal movement from being faster
+    let move_magnitude = (move_x * move_x + move_y * move_y).sqrt();
+    let (normalized_move_x, normalized_move_y) = if move_magnitude > 0.0 {
+        (move_x / move_magnitude, move_y / move_magnitude)
+    } else {
+        (0.0, 0.0)
+    };
+    
+    // Velocity is the properly normalized direction vector scaled by target speed
+    let velocity_x = normalized_move_x * target_speed;
+    let velocity_y = normalized_move_y * target_speed;
 
     let server_dx = velocity_x * delta_time_secs;
     let server_dy = velocity_y * delta_time_secs;
