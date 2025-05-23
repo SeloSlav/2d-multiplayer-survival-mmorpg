@@ -43,6 +43,13 @@ pub(crate) const PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 =
 pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 = 
     (CAMPFIRE_COLLISION_RADIUS * 2.0) * (CAMPFIRE_COLLISION_RADIUS * 2.0);
  
+ // --- Placement constants ---
+ pub(crate) const CAMPFIRE_PLACEMENT_MAX_DISTANCE: f32 = 96.0;
+ pub(crate) const CAMPFIRE_PLACEMENT_MAX_DISTANCE_SQUARED: f32 = CAMPFIRE_PLACEMENT_MAX_DISTANCE * CAMPFIRE_PLACEMENT_MAX_DISTANCE;
+ 
+ // --- Initial amounts ---
+ pub const INITIAL_CAMPFIRE_FUEL_AMOUNT: u32 = 50; // Starting wood amount for new campfires
+
  // Interaction constants
  pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE: f32 = 96.0; // New radius: 96px
  pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED: f32 = 
@@ -438,6 +445,184 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
      schedule_next_campfire_processing(ctx, campfire_id);
      Ok(())
  }
+
+ // Reducer to place a campfire
+#[spacetimedb::reducer]
+pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, world_y: f32) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let inventory_items = ctx.db.inventory_item();
+    let item_defs = ctx.db.item_definition();
+    let players = ctx.db.player();
+    let campfires = ctx.db.campfire();
+
+    // --- Look up Item Definition IDs by Name ---
+    let campfire_def_id = item_defs.iter()
+        .find(|def| def.name == "Camp Fire")
+        .map(|def| def.id)
+        .ok_or_else(|| "Item definition for 'Camp Fire' not found.".to_string())?;
+
+    let wood_def_id = item_defs.iter()
+        .find(|def| def.name == "Wood")
+        .map(|def| def.id)
+        .ok_or_else(|| "Item definition for 'Wood' not found.".to_string())?;
+    // --- End Look up ---
+
+    log::info!(
+        "[PlaceCampfire] Player {:?} attempting placement of item {} at ({:.1}, {:.1})",
+        sender_id, item_instance_id, world_x, world_y
+    );
+
+    // --- 1. Validate Player and Placement Rules ---
+    let player = players.identity().find(sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    // Don't allow placing campfires if dead or knocked out
+    if player.is_dead {
+        return Err("Cannot place campfire while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot place campfire while knocked out.".to_string());
+    }
+
+    let dx_place = world_x - player.position_x;
+    let dy_place = world_y - player.position_y;
+    let dist_sq_place = dx_place * dx_place + dy_place * dy_place;
+    if dist_sq_place > CAMPFIRE_PLACEMENT_MAX_DISTANCE_SQUARED {
+        return Err(format!("Cannot place campfire too far away ({} > {}).",
+                dist_sq_place.sqrt(), CAMPFIRE_PLACEMENT_MAX_DISTANCE));
+    }
+    for other_fire in campfires.iter() {
+        let dx_fire = world_x - other_fire.pos_x;
+        let dy_fire = world_y - other_fire.pos_y;
+        let dist_sq_fire = dx_fire * dx_fire + dy_fire * dy_fire;
+        if dist_sq_fire < CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED {
+            return Err("Cannot place campfire too close to another campfire.".to_string());
+        }
+    }
+
+    // --- 3. Find the specific item instance and validate ---
+    let item_to_consume = inventory_items.instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
+
+    // Validate ownership and location based on ItemLocation
+    match item_to_consume.location {
+        ItemLocation::Inventory(data) => {
+            if data.owner_id != sender_id {
+                return Err(format!("Item instance {} for campfire not owned by player {:?}.", item_instance_id, sender_id));
+            }
+        }
+        ItemLocation::Hotbar(data) => {
+            if data.owner_id != sender_id {
+                return Err(format!("Item instance {} for campfire not owned by player {:?}.", item_instance_id, sender_id));
+            }
+        }
+        _ => {
+            return Err(format!("Item instance {} must be in inventory or hotbar to be placed.", item_instance_id));
+        }
+    }
+    if item_to_consume.item_def_id != campfire_def_id {
+        return Err(format!("Item instance {} is not a Camp Fire (expected def {}, got {}).",
+                        item_instance_id, campfire_def_id, item_to_consume.item_def_id));
+    }
+
+    // --- 4. Consume the Item (Delete from InventoryItem table) ---
+    log::info!(
+        "[PlaceCampfire] Consuming item instance {} (Def ID: {}) from player {:?}",
+        item_instance_id, campfire_def_id, sender_id
+    );
+    inventory_items.instance_id().delete(item_instance_id);
+
+    // --- 5. Create Campfire Entity & Initial Fuel ---
+    // --- 5a. Insert Campfire Entity first to get its ID ---
+    let current_time = ctx.timestamp;
+    let chunk_idx = calculate_chunk_index(world_x, world_y);
+
+    // --- 5b. Create Initial Fuel Item (Wood) with correct ItemLocation ---
+    // We need the ItemDefinition of the wood to get its fuel_burn_duration_secs
+    let initial_fuel_item_def = ctx.db.item_definition().id().find(wood_def_id)
+        .ok_or_else(|| "Wood item definition not found for initial fuel.".to_string())?;
+
+    // --- 5a. Insert Campfire Entity first to get its ID ---
+    // The campfire entity is created with initial fuel data directly
+    let new_campfire = Campfire {
+        id: 0, // Auto-incremented
+        pos_x: world_x,
+        pos_y: world_y,
+        chunk_index: chunk_idx,
+        placed_by: sender_id,
+        placed_at: current_time,
+        is_burning: false, // Campfires start unlit
+        // Initialize all fuel slots to None
+        fuel_instance_id_0: None,
+        fuel_def_id_0: None,
+        fuel_instance_id_1: None,
+        fuel_def_id_1: None,
+        fuel_instance_id_2: None,
+        fuel_def_id_2: None,
+        fuel_instance_id_3: None,
+        fuel_def_id_3: None,
+        fuel_instance_id_4: None,
+        fuel_def_id_4: None,
+        current_fuel_def_id: None, 
+        remaining_fuel_burn_time_secs: None,
+        health: 100.0, // Example initial health
+        max_health: 100.0, // Example max health
+        is_destroyed: false,
+        destroyed_at: None,
+        last_hit_time: None,
+        // Initialize cooking progress to None
+        slot_0_cooking_progress: None,
+        slot_1_cooking_progress: None,
+        slot_2_cooking_progress: None,
+        slot_3_cooking_progress: None,
+        slot_4_cooking_progress: None,
+        last_damage_application_time: None,
+        is_player_in_hot_zone: false, // Initialize new field
+    };
+    let inserted_campfire = campfires.try_insert(new_campfire.clone())
+        .map_err(|e| format!("Failed to insert campfire entity: {}", e))?;
+    let new_campfire_id = inserted_campfire.id; 
+
+    let initial_fuel_item = crate::items::InventoryItem {
+        instance_id: 0, // Auto-inc
+        item_def_id: wood_def_id, 
+        quantity: INITIAL_CAMPFIRE_FUEL_AMOUNT, 
+        location: ItemLocation::Container(ContainerLocationData {
+            container_type: ContainerType::Campfire,
+            container_id: new_campfire_id as u64, 
+            slot_index: 0, 
+        }),
+    };
+    let inserted_fuel_item = inventory_items.try_insert(initial_fuel_item)
+        .map_err(|e| format!("Failed to insert initial fuel item: {}", e))?;
+    let fuel_instance_id = inserted_fuel_item.instance_id;
+    log::info!("[PlaceCampfire] Created initial fuel item (Wood, instance {}) for campfire {}.", fuel_instance_id, new_campfire_id);
+
+    // --- 5c. Update the Campfire Entity with the Fuel Item's ID in the correct slot --- 
+    let mut campfire_to_update = campfires.id().find(new_campfire_id)
+        .ok_or_else(|| format!("Failed to re-find campfire {} to update with fuel.", new_campfire_id))?;
+    
+    // Set the first fuel slot of the campfire
+    campfire_to_update.fuel_instance_id_0 = Some(fuel_instance_id);
+    campfire_to_update.fuel_def_id_0 = Some(wood_def_id);
+    // DO NOT set current_fuel_def_id or remaining_fuel_burn_time_secs here.
+    // is_burning is already false from new_campfire.
+    // The scheduled process_campfire_logic_scheduled will pick it up.
+    
+    let is_burning_for_log = campfire_to_update.is_burning; // Capture before move
+    campfires.id().update(campfire_to_update); // campfire_to_update is moved here
+    
+    log::info!("Player {} placed a campfire {} at ({:.1}, {:.1}) with initial fuel (Item {} in slot 0). Burning state: {}.",
+             player.username, new_campfire_id, world_x, world_y, fuel_instance_id, is_burning_for_log); // Use captured value
+
+    // Schedule initial processing for the new campfire
+    match crate::campfire::schedule_next_campfire_processing(ctx, new_campfire_id) {
+        Ok(_) => log::info!("[PlaceCampfire] Scheduled initial processing for campfire {}", new_campfire_id),
+        Err(e) => log::error!("[PlaceCampfire] Failed to schedule initial processing for campfire {}: {}", new_campfire_id, e),
+    }
+
+    Ok(())
+}
  
  /******************************************************************************
   *                           SCHEDULED REDUCERS                               *

@@ -42,6 +42,16 @@ import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
 // Module-level cache for debug logging
 const playerDebugStateCache = new Map<string, { prevIsDead: boolean, prevLastHitTime: string | null }>();
 
+// Movement smoothing cache to prevent animation jitters
+const playerMovementCache = new Map<string, { 
+    lastMovementTime: number, 
+    isCurrentlyMoving: boolean,
+    lastKnownPosition: { x: number, y: number } | null
+}>();
+
+// Movement buffer duration - keep animation going for this long after movement stops
+const MOVEMENT_BUFFER_MS = 150;
+
 interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
     ySortedEntities: YSortedEntityType[];
@@ -126,43 +136,51 @@ export const renderYSortedEntities = ({
            let isPlayerMoving = false;
            let movementReason = 'none'; // Debug: track why player is considered moving
            
+           // Get or create movement cache for this player
+           let movementCache = playerMovementCache.get(playerId);
+           if (!movementCache) {
+               movementCache = {
+                   lastMovementTime: 0,
+                   isCurrentlyMoving: false,
+                   lastKnownPosition: null
+               };
+               playerMovementCache.set(playerId, movementCache);
+           }
+           
+           // Check for actual position changes
+           let hasPositionChanged = false;
            if (lastPos) {
-                // FIXED: Much more sensitive movement detection for animation
-                // Reduced threshold from 0.1 to 0.01 pixels to catch micro-movements during collision
                 const dx = Math.abs(player.positionX - lastPos.x);
                 const dy = Math.abs(player.positionY - lastPos.y);
-                if (dx > 0.01 || dy > 0.01) {
+                // Use a smaller threshold (0.1) but with smoothing
+                if (dx > 0.1 || dy > 0.1) {
+                    hasPositionChanged = true;
+                }
+           }
+           
+           // Update movement cache if position changed
+           if (hasPositionChanged) {
+               movementCache.lastMovementTime = nowMs;
+               movementCache.isCurrentlyMoving = true;
                isPlayerMoving = true;
-               movementReason = `position_change(${dx.toFixed(3)}, ${dy.toFixed(3)})`;
-             }
-           }
-           
-           // ALTERNATIVE FIX: If position-based detection fails, check if player direction recently changed
-           // This helps detect movement intent even when collision prevents position changes
-           if (!isPlayerMoving && lastPos) {
-               // If position hasn't changed much but player has a non-default direction,
-               // and their last update was recent, consider them moving
-               const timeSinceUpdate = nowMs - Number(player.lastUpdate.microsSinceUnixEpoch / 1000n);
-               if (timeSinceUpdate < 500 && player.direction !== 'down') { // 500ms window
+               movementReason = 'position_change';
+           } else {
+               // Check if we're still in the movement buffer period
+               const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
+               if (timeSinceLastMovement < MOVEMENT_BUFFER_MS) {
                    isPlayerMoving = true;
-                   movementReason = `direction_based(${player.direction}, ${timeSinceUpdate}ms)`;
+                   movementReason = `movement_buffer(${timeSinceLastMovement}ms)`;
+               } else {
+                   movementCache.isCurrentlyMoving = false;
                }
            }
            
-           // ADDITIONAL FIX: Check for sprinting or very recent activity as movement indicators
-           if (!isPlayerMoving) {
-               // If player is sprinting, they're definitely trying to move
-               if (player.isSprinting) {
-                   isPlayerMoving = true;
-                   movementReason = 'sprinting';
-               }
-               
-               // If player updated very recently (within 100ms), assume movement intent
-               const veryRecentUpdate = nowMs - Number(player.lastUpdate.microsSinceUnixEpoch / 1000n);
-               if (veryRecentUpdate < 100) {
-                   isPlayerMoving = true;
-                   movementReason = `recent_update(${veryRecentUpdate}ms)`;
-               }
+           // If position-based detection fails, check if player is actively sprinting
+           if (!isPlayerMoving && player.isSprinting) {
+               movementCache.lastMovementTime = nowMs;
+               movementCache.isCurrentlyMoving = true;
+               isPlayerMoving = true;
+               movementReason = 'sprinting';
            }
            
            // DEBUG: Log movement detection for local player when there are multiple players nearby

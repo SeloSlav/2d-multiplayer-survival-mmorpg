@@ -92,6 +92,17 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     let active_equipments = ctx.db.active_equipment();
     let mut players_table = ctx.db.player(); // Get a mutable reference for player updates
 
+    // --- Check player state first ---
+    let player = players_table.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found.".to_string())?;
+    
+    if player.is_dead {
+        return Err("Cannot equip items while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot equip items while knocked out.".to_string());
+    }
+
     // Cancel any ongoing BandageBurst effect before equipping a new item or re-equipping.
     cancel_bandage_burst_effects(ctx, sender_id);
 
@@ -261,6 +272,15 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
 
     let player = players_table.identity().find(sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
+    
+    // --- Check player state first ---
+    if player.is_dead {
+        return Err("Cannot use items while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot use items while knocked out.".to_string());
+    }
+    
     let current_equipment = active_equipments.player_identity().find(sender_id)
         .ok_or_else(|| "No active equipment record found.".to_string())?;
 
@@ -425,6 +445,17 @@ pub fn equip_armor(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), St
     let inventory_items = ctx.db.inventory_item();
     let item_defs = ctx.db.item_definition();
     let active_equipments = ctx.db.active_equipment();
+
+    // --- Check player state first ---
+    let player = ctx.db.player().identity().find(&sender_id)
+        .ok_or_else(|| "Player not found.".to_string())?;
+    
+    if player.is_dead {
+        return Err("Cannot equip armor while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot equip armor while knocked out.".to_string());
+    }
 
     let mut item_to_equip = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;

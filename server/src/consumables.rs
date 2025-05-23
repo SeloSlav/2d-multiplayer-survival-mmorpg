@@ -30,6 +30,14 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let mut player_to_update = players_table.identity().find(&sender_id)
         .ok_or_else(|| "Player not found.".to_string())?;
 
+    // --- Check player state first ---
+    if player_to_update.is_dead {
+        return Err("Cannot consume items while dead.".to_string());
+    }
+    if player_to_update.is_knocked_out {
+        return Err("Cannot consume items while knocked out.".to_string());
+    }
+
     if let Some(last_consumed_ts) = player_to_update.last_consumed_at {
         let cooldown_duration = TimeDuration::from_micros(CONSUMPTION_COOLDOWN_MICROS as i64);
         if ctx.timestamp < last_consumed_ts + cooldown_duration {

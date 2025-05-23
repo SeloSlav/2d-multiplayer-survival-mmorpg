@@ -61,10 +61,9 @@ use crate::utils::get_distance_squared;
 // Import grass respawn types
 use crate::grass::{GrassRespawnData, GrassRespawnSchedule, GRASS_INITIAL_HEALTH};
 use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
-// Import knocked out recovery function
-use crate::schedule_knocked_out_recovery;
-// Import knocked out recovery schedule table trait
-use crate::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
+// Import knocked out recovery function and types (re-exported from lib.rs)
+use crate::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule};
+use crate::knocked_out::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -938,7 +937,11 @@ pub fn damage_player(
         // Schedule recovery checks
         match crate::schedule_knocked_out_recovery(ctx, target_id) {
             Ok(_) => log::info!("Recovery checks scheduled for knocked out player {:?}", target_id),
-            Err(e) => log::error!("Failed to schedule recovery for knocked out player {:?}: {}", target_id, e),
+            Err(e) => {
+                log::error!("Failed to schedule recovery for knocked out player {:?}: {}. This attack will be rolled back.", target_id, e);
+                // CRITICAL: Propagate the error to roll back the transaction
+                return Err(format!("Failed to enter knocked out state due to scheduling error: {}", e)); 
+            }
         }
 
     } else if target_player.health > 0.0 {
@@ -1508,7 +1511,7 @@ fn resolve_knockback_collision(
     proposed_x = proposed_x.clamp(PLAYER_RADIUS, WORLD_WIDTH_PX - PLAYER_RADIUS);
     proposed_y = proposed_y.clamp(PLAYER_RADIUS, WORLD_HEIGHT_PX - PLAYER_RADIUS);
 
-    // Check against other players
+    // Check against other players (solid collision)
     for other_player in ctx.db.player().iter() {
         if other_player.identity == colliding_player_id || other_player.is_dead {
             continue;
@@ -1524,7 +1527,7 @@ fn resolve_knockback_collision(
         }
     }
 
-    // Check against trees
+    // Check against trees (solid collision)
     for tree in ctx.db.tree().iter() {
         if tree.health == 0 { continue; } 
         let tree_collision_center_y = tree.pos_y - TREE_COLLISION_Y_OFFSET;
@@ -1537,7 +1540,7 @@ fn resolve_knockback_collision(
         }
     }
     
-    // Check against stones
+    // Check against stones (solid collision)
     for stone in ctx.db.stone().iter() {
         if stone.health == 0 { continue; }
         let stone_collision_center_y = stone.pos_y - STONE_COLLISION_Y_OFFSET;
@@ -1550,7 +1553,7 @@ fn resolve_knockback_collision(
         }
     }
 
-    // Check against WoodenStorageBoxes
+    // Check against WoodenStorageBoxes (solid collision)
     for box_entity in ctx.db.wooden_storage_box().iter() {
         if box_entity.is_destroyed { continue; }
         let box_collision_center_y = box_entity.pos_y - BOX_COLLISION_Y_OFFSET;
@@ -1564,37 +1567,11 @@ fn resolve_knockback_collision(
         }
     }
     
-    // Check against Campfires
-    for campfire in ctx.db.campfire().iter() {
-        if campfire.is_destroyed { continue; }
-        let campfire_collision_center_y = campfire.pos_y - CAMPFIRE_COLLISION_Y_OFFSET;
-        let dx = proposed_x - campfire.pos_x;
-        let dy = proposed_y - campfire_collision_center_y;
-        let player_campfire_collision_dist_sq = (PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS) * (PLAYER_RADIUS + CAMPFIRE_COLLISION_RADIUS);
-        if (dx * dx + dy * dy) < player_campfire_collision_dist_sq {
-            log::debug!("[KnockbackCollision] Player ID {:?} would collide with Campfire ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
-                       colliding_player_id, campfire.id, proposed_x, proposed_y);
-            return (current_x, current_y);
-        }
-    }
+    // REMOVED: Campfire collision check - players can be knocked back over campfires
+    // REMOVED: SleepingBag collision check - players can be knocked back over sleeping bags
+    // NOTE: Stashes were already not checked - players can be knocked back over stashes
 
-    // Check against SleepingBags
-    for bag in ctx.db.sleeping_bag().iter() {
-        if bag.is_destroyed { continue; }
-        let bag_collision_center_y = bag.pos_y - SLEEPING_BAG_COLLISION_Y_OFFSET;
-        let dx = proposed_x - bag.pos_x;
-        let dy = proposed_y - bag_collision_center_y;
-        let player_bag_collision_dist_sq = (PLAYER_RADIUS + SLEEPING_BAG_COLLISION_RADIUS) * (PLAYER_RADIUS + SLEEPING_BAG_COLLISION_RADIUS);
-        if (dx * dx + dy * dy) < player_bag_collision_dist_sq {
-             log::debug!("[KnockbackCollision] Player ID {:?} would collide with SleepingBag ID {} at proposed ({:.1}, {:.1}). Reverting knockback.", 
-                       colliding_player_id, bag.id, proposed_x, proposed_y);
-            return (current_x, current_y);
-        }
-    }
-    
-    // Note: Stashes are typically not solid. Add collision check if their behavior changes.
-
-    // If no collisions, return the (boundary-clamped) proposed position
+    // If no collisions with solid objects, return the (boundary-clamped) proposed position
     (proposed_x, proposed_y)
 }
 
