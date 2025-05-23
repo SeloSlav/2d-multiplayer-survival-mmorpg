@@ -90,26 +90,44 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
         
         const localPlayerIdHex = localPlayer.identity.toHexString();
-        // console.log(`[PlayerUI] Checking active effects for player: ${localPlayerIdHex}`);
-
         let foundMatch = false;
-        activeConsumableEffects.forEach((effect, key) => {
+        
+        activeConsumableEffects.forEach((effect) => {
             const effectPlayerIdHex = effect.playerId.toHexString();
             const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
             const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
             
-            // console.log(`[PlayerUI] Effect ID ${key}: player ID matches: ${effectPlayerIdHex === localPlayerIdHex}, type tag: ${effectTypeTag}`);
-
-            if ((effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'HealthRegen') ||
-                (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') ||
-                (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst')) {
-                // console.log(`[PlayerUI] Found matching HealthRegen effect:`, effect);
+            // For RemoteBandageBurst, check if players are in range
+            if (effectTypeTag === 'RemoteBandageBurst') {
+                // Only check range if this player is involved (either as healer or target)
+                if (effectPlayerIdHex === localPlayerIdHex || effectTargetPlayerIdHex === localPlayerIdHex) {
+                    const healerIdHex = effectPlayerIdHex;
+                    const targetIdHex = effectTargetPlayerIdHex;
+                    
+                    if (healerIdHex && targetIdHex) {
+                        const healer = players.get(healerIdHex);
+                        const target = players.get(targetIdHex);
+                        
+                        if (healer && target) {
+                            const dx = healer.positionX - target.positionX;
+                            const dy = healer.positionY - target.positionY;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            const HEALING_RANGE = 4.0 * 32.0; // Must match server's range (4 tiles)
+                            
+                            if (distance <= HEALING_RANGE) {
+                                foundMatch = true;
+                            }
+                        }
+                    }
+                }
+            } else if (effectTypeTag === 'HealthRegen' || 
+                      (effectTypeTag === 'BandageBurst' && effectPlayerIdHex === localPlayerIdHex)) {
                 foundMatch = true;
             }
         });
 
         return foundMatch;
-    }, [localPlayer, activeConsumableEffects]);
+    }, [localPlayer, activeConsumableEffects, players]);
 
     // Determine if there's an active bleed effect for the local player
     const isPlayerBleeding = React.useMemo(() => {
@@ -137,19 +155,35 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
 
         const localPlayerIdHex = localPlayer.identity.toHexString();
         let potentialHeal = 0;
+        
         activeConsumableEffects.forEach((effect) => {
             const effectPlayerIdHex = effect.playerId.toHexString();
             const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
             const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
 
-            // Check both direct BandageBurst and RemoteBandageBurst targeting this player
-            if ((effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') || 
-                (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst')) {
-                potentialHeal = effect.totalAmount || 0; // Use totalAmount from the effect
+            // For RemoteBandageBurst, check if players are in range
+            if (effectTypeTag === 'RemoteBandageBurst' && effectTargetPlayerIdHex === localPlayerIdHex) {
+                const healer = players.get(effectPlayerIdHex);
+                const target = players.get(localPlayerIdHex);
+                
+                if (healer && target) {
+                    const dx = healer.positionX - target.positionX;
+                    const dy = healer.positionY - target.positionY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const HEALING_RANGE = 4.0 * 32.0; // Must match server's range (4 tiles)
+                    
+                    // Only show ghost bar if players are in range
+                    if (distance <= HEALING_RANGE) {
+                        potentialHeal = effect.totalAmount || 0;
+                    }
+                }
+            } else if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') {
+                potentialHeal = effect.totalAmount || 0;
             }
         });
+        
         return potentialHeal;
-    }, [localPlayer, activeConsumableEffects]);
+    }, [localPlayer, activeConsumableEffects, players]);
 
     useEffect(() => {
         if (!identity) {

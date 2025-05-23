@@ -47,7 +47,7 @@ pub fn init_global_tick_schedule(ctx: &ReducerContext) -> Result<(), String> {
 // --- Reducer to Process Global Ticks (Scheduled) ---
 #[spacetimedb::reducer]
 pub fn process_global_tick(ctx: &ReducerContext, _schedule: GlobalTickSchedule) -> Result<(), String> {
-    log::trace!("Processing global tick via schedule...");
+    // log::trace!("Processing global tick via schedule...");
     let current_time = ctx.timestamp;
 
     // --- Tick World State ---

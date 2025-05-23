@@ -119,11 +119,25 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         // --- Handle BandageBurst (Delayed Burst Heal) ---
         else if effect.effect_type == EffectType::BandageBurst || effect.effect_type == EffectType::RemoteBandageBurst {
             if let Some(burst_heal_amount) = effect.total_amount {
-                // For remote healing, we need to get the target player
-                let target_id = if effect.effect_type == EffectType::RemoteBandageBurst {
-                    effect.target_player_id
-                } else {
-                    Some(effect.player_id)
+                log::info!("[EffectTick] Processing bandage effect: type={:?}, player_id={:?}, target_id={:?}, amount={:?}, current_time={:?}, ends_at={:?}", 
+                    effect.effect_type, effect.player_id, effect.target_player_id, burst_heal_amount, current_time, effect.ends_at);
+
+                // For regular BandageBurst (self-heal), we want to heal the player_id
+                // For RemoteBandageBurst, we want to heal the target_player_id
+                let target_id = match effect.effect_type {
+                    EffectType::BandageBurst => {
+                        log::info!("[EffectTick] Self-heal case: Using player_id as target: {:?}", effect.player_id);
+                        Some(effect.player_id)
+                    },
+                    EffectType::RemoteBandageBurst => {
+                        log::info!("[EffectTick] Remote-heal case: Using target_player_id: {:?}", effect.target_player_id);
+                        effect.target_player_id
+                    },
+                    // Other effect types shouldn't reach this code path, but we need to handle them
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed => {
+                        log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
+                        Some(effect.player_id)
+                    }
                 };
 
                 if let Some(target_id) = target_id {
@@ -143,22 +157,34 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             if !in_range {
                                 log::info!("[EffectTick] RemoteBandageBurst cancelled: Players moved out of range. Healer: {:?}, Target: {:?}, Distance: {:.2}", 
                                     effect.player_id, target_id, distance);
+                                effects_to_remove.push(effect.effect_id);
                                 effect_ended = true;
+                                
+                                // Cancel any other active effects for this healing attempt
+                                cancel_bandage_burst_effects(ctx, effect.player_id);
+                                cancel_bandage_burst_effects(ctx, target_id);
                                 continue;
                             }
                         } else {
                             log::warn!("[EffectTick] RemoteBandageBurst cancelled: Player not found. Healer: {:?}, Target: {:?}", 
                                 effect.player_id, target_id);
+                            effects_to_remove.push(effect.effect_id);
                             effect_ended = true;
                             continue;
                         }
                     }
 
                     // Get the correct player to update based on who is receiving the healing
-                    let mut player_to_update = match player_updates.get(&target_id) {
-                        Some(p) => p.clone(),
+                    let mut target_player_to_update = match player_updates.get(&target_id) {
+                        Some(p) => {
+                            log::info!("[EffectTick] Found player in updates map. ID: {:?}, Health: {:.2}", target_id, p.health);
+                            p.clone()
+                        },
                         None => match ctx.db.player().identity().find(&target_id) {
-                            Some(p) => p,
+                            Some(p) => {
+                                log::info!("[EffectTick] Found player in DB. ID: {:?}, Health: {:.2}", target_id, p.health);
+                                p
+                            },
                             None => {
                                 log::warn!("[EffectTick] Target player {:?} not found for bandage effect. Removing effect.", target_id);
                                 effects_to_remove.push(effect.effect_id);
@@ -166,29 +192,38 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             }
                         }
                     };
-                    let old_health = player_to_update.health;
+                    let old_health = target_player_to_update.health;
 
                     if current_time >= effect.ends_at && in_range { // Timer finished and players in range
-                        log::trace!("[EffectTick] BANDAGE_BURST Target {:?}: Effect ended. Applying burst heal: {:.2}. Old health: {:.2}", 
-                            target_id, burst_heal_amount, old_health);
-                        player_to_update.health = (player_to_update.health + burst_heal_amount).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                        log::info!("[EffectTick] BANDAGE_BURST Effect Type: {:?}, Target {:?}: Effect ended. Applying burst heal: {:.2}. Old health: {:.2}", 
+                            effect.effect_type, target_id, burst_heal_amount, old_health);
+                        
+                        target_player_to_update.health = (target_player_to_update.health + burst_heal_amount).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
                         current_effect_applied_so_far = burst_heal_amount; // Mark as fully applied for consistency in logging/consumption
-                        log::trace!("[EffectTick] BANDAGE_BURST Target {:?}: Health now {:.2}", target_id, player_to_update.health);
-                        if (player_to_update.health - old_health).abs() > f32::EPSILON {
+                        
+                        log::info!("[EffectTick] BANDAGE_BURST Effect Type: {:?}, Target {:?}: Health now {:.2} (change: {:.2})", 
+                            effect.effect_type, target_id, target_player_to_update.health, target_player_to_update.health - old_health);
+                        
+                        if (target_player_to_update.health - old_health).abs() > f32::EPSILON {
                             player_effect_applied_this_iteration = true;
                             // Update the player_updates map with the target player's new state
-                            player_updates.insert(target_id, player_to_update);
+                            log::info!("[EffectTick] Updating player_updates map for target {:?} with new health: {:.2}", 
+                                target_id, target_player_to_update.health);
+                            player_updates.insert(target_id, target_player_to_update.clone());
+                            
+                            // If BandageBurst completes successfully, cancel bleed effects for this player.
+                            if player_effect_applied_this_iteration { // Ensure health was actually applied
+                                log::info!("[EffectTick] BandageBurst completed for target {:?}. Attempting to cancel bleed effects.", target_id);
+                                cancel_bleed_effects(ctx, target_id);
+                            }
+                        } else {
+                            log::warn!("[EffectTick] No health change detected for target {:?}. Old: {:.2}, New: {:.2}", 
+                                target_id, old_health, target_player_to_update.health);
                         }
                         effect_ended = true;
-
-                        // If BandageBurst completes successfully, cancel bleed effects for this player.
-                        if player_effect_applied_this_iteration { // Ensure health was actually applied
-                            log::info!("[EffectTick] BandageBurst completed for target {:?}. Attempting to cancel bleed effects.", target_id);
-                            cancel_bleed_effects(ctx, target_id);
-                        }
                     } else {
                         // Timer still running for BandageBurst, do nothing to health, don't end yet.
-                        log::trace!("[EffectTick] BANDAGE_BURST Target {:?}: Timer active, ends_at: {:?}, current_time: {:?}", 
+                        log::info!("[EffectTick] BANDAGE_BURST Target {:?}: Timer active, ends_at: {:?}, current_time: {:?}", 
                             target_id, effect.ends_at, current_time);
                     }
                 } else {
@@ -297,7 +332,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         }
 
         // --- Update player_updates map if health changed in this iteration ---
-        if player_effect_applied_this_iteration {
+        // NOTE: BandageBurst and RemoteBandageBurst handle their own player_updates insertions
+        // with the correct target player, so we exclude them here
+        if player_effect_applied_this_iteration && 
+           effect.effect_type != EffectType::BandageBurst && 
+           effect.effect_type != EffectType::RemoteBandageBurst {
             let health_was_reduced = player_to_update.health < old_health;
 
             player_to_update.last_update = current_time;

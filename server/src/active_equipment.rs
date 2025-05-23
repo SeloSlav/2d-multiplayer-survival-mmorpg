@@ -160,7 +160,7 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     
     if let Some(old_active_id) = equipment.equipped_item_instance_id {
         if old_active_id != item_instance_id {
-             log::info!("Player {:?} changing active item from {} to {}.", sender_id, old_active_id, item_instance_id);
+             // log::info!("Player {:?} changing active item from {} to {}.", sender_id, old_active_id, item_instance_id);
         }
     }
 
@@ -195,8 +195,8 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
 
     active_equipments.player_identity().update(equipment.clone());
 
-    log::info!("Player {:?} set active item to: {} (Instance ID: {}). Item remains in location: {:?}",
-        sender_id, item_def.name, item_instance_id, item_to_make_active.location);
+    // log::info!("Player {:?} set active item to: {} (Instance ID: {}). Item remains in location: {:?}",
+    //     sender_id, item_def.name, item_instance_id, item_to_make_active.location);
 
     Ok(())
 }
@@ -217,8 +217,8 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
         let old_item_def_id_opt = equipment.equipped_item_def_id;
 
         if equipment.equipped_item_instance_id.is_some() {
-            log::info!("Player {:?} cleared active item (was instance ID: {:?}, def ID: {:?}).", 
-                     player_identity, equipment.equipped_item_instance_id, equipment.equipped_item_def_id);
+            // log::info!("Player {:?} cleared active item (was instance ID: {:?}, def ID: {:?}).", 
+            //          player_identity, equipment.equipped_item_instance_id, equipment.equipped_item_def_id);
             
             equipment.equipped_item_def_id = None;
             equipment.equipped_item_instance_id = None;
@@ -313,8 +313,8 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
 
     // --- BEGIN BANDAGE HANDLING ---
     if item_def.name == "Bandage" {
-        log::info!("[UseEquippedItem] Player {:?} is using an equipped Bandage (Instance: {}, Def: {}).", 
-            sender_id, equipped_item_instance_id, item_def.id);
+        log::info!("[UseEquippedItem] Player {:?} is using an equipped Bandage (Instance: {}, Def: {}, Health Gain: {:?}).", 
+            sender_id, equipped_item_instance_id, item_def.id, item_def.consumable_health_gain);
 
         // Check for existing active BandageBurst effect from ANY bandage item to prevent stacking this specific effect type.
         let has_active_bandage_burst_effect = ctx.db.active_consumable_effect().iter().any(|effect| {
@@ -394,17 +394,31 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
 
         } else {
             // No nearby wounded players, apply to self as normal
-            match apply_item_effects_and_consume(ctx, sender_id, &item_def, equipped_item_instance_id, &mut player_stats) {
-                Ok(_) => {
-                    players_table.identity().update(player_stats);
-                    log::info!("[UseEquippedItem] BandageBurst effect initiated for player {:?} with bandage instance {}.", 
-                        sender_id, equipped_item_instance_id);
-                },
-                Err(e) => {
-                    log::error!("[UseEquippedItem] Failed to apply bandage effects for player {:?}: {}", sender_id, e);
-                    return Err(format!("Failed to apply bandage effects: {}", e));
-                }
-            }
+            log::info!("[UseEquippedItem] No nearby wounded players found, applying bandage to self (Player {:?})", sender_id);
+            
+            // Create a BandageBurst effect for self-healing
+            let effect = ActiveConsumableEffect {
+                effect_id: 0, // Will be auto-incremented
+                player_id: sender_id, // The healer (self)
+                target_player_id: None, // For BandageBurst (self-heal), we use player_id as target
+                item_def_id: item_def.id,
+                consuming_item_instance_id: Some(equipped_item_instance_id),
+                started_at: ctx.timestamp,
+                ends_at: ctx.timestamp + Duration::from_secs(5), // 5 second duration
+                total_amount: item_def.consumable_health_gain,
+                amount_applied_so_far: Some(0.0),
+                effect_type: EffectType::BandageBurst,
+                tick_interval_micros: 1_000_000, // Check every second
+                next_tick_at: ctx.timestamp + Duration::from_secs(1),
+            };
+
+            ctx.db.active_consumable_effect().insert(effect);
+            log::info!("[UseEquippedItem] BandageBurst effect initiated for self-healing player {:?} with bandage instance {}. Heal amount: {:?}", 
+                sender_id, equipped_item_instance_id, item_def.consumable_health_gain);
+
+            // Update player's last_consumed_at
+            player_stats.last_consumed_at = Some(ctx.timestamp);
+            players_table.identity().update(player_stats);
         }
         return Ok(()); // Bandage handling complete
     }
