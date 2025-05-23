@@ -322,6 +322,65 @@ export const renderPlayer = (
       ctx.shadowBlur = 10 + (pulseFactor * 10); // Make blur also pulse slightly
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
+    } else if (isUsingItem) { // Bandage glow
+      const pulseSpeed = 1000; // Faster pulse for healing
+      const minGlowAlpha = 0.3;
+      const maxGlowAlpha = 0.7;
+      const pulseFactor = (Math.sin(nowMs / pulseSpeed * Math.PI * 2) + 1) / 2; 
+      const currentGlowAlpha = minGlowAlpha + (maxGlowAlpha - minGlowAlpha) * pulseFactor;
+
+      ctx.shadowColor = `rgba(0, 255, 0, ${currentGlowAlpha})`; // Green glow
+      ctx.shadowBlur = 8 + (pulseFactor * 8);
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    } else if (activeConsumableEffects) {
+      // Check for active healing effects (both self-heal and remote heal)
+      let isBeingHealed = false;
+      let isHealing = false;
+      let healingEffect = null;
+
+      for (const effect of activeConsumableEffects.values()) {
+        const effectTypeTag = effect.effectType.tag;
+        const isPlayerHealer = effect.playerId.toHexString() === player.identity.toHexString();
+        
+        // Check if this player is being healed (self-heal)
+        if (isPlayerHealer && effectTypeTag === 'BandageBurst') {
+          isBeingHealed = true;
+          healingEffect = effect;
+          break;
+        }
+        
+        // Check if this player is healing others
+        if (isPlayerHealer && effectTypeTag === 'RemoteBandageBurst') {
+          isHealing = true;
+          healingEffect = effect;
+          break;
+        }
+
+        // Check if this player is being healed by someone else
+        if (effectTypeTag === 'RemoteBandageBurst' && effect.totalAmount && effect.totalAmount > 0) {
+          // If this player is the target of a remote heal
+          if (effect.targetPlayerId && effect.targetPlayerId.toHexString() === player.identity.toHexString()) {
+            isBeingHealed = true;
+            healingEffect = effect;
+            break;
+          }
+        }
+      }
+
+      if ((isBeingHealed || isHealing) && healingEffect) {
+        const pulseSpeed = 1000; // Match bandage application speed
+        const minGlowAlpha = 0.3;
+        const maxGlowAlpha = 0.7;
+        const pulseFactor = (Math.sin(nowMs / pulseSpeed * Math.PI * 2) + 1) / 2;
+        const currentGlowAlpha = minGlowAlpha + (maxGlowAlpha - minGlowAlpha) * pulseFactor;
+
+        // Green glow for both healer and target
+        ctx.shadowColor = `rgba(0, 255, 0, ${currentGlowAlpha})`;
+        ctx.shadowBlur = isBeingHealed ? 12 + (pulseFactor * 10) : 8 + (pulseFactor * 8); // Stronger effect on target
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
     }
     // --- END MODIFICATION ---
 
@@ -381,7 +440,7 @@ export const renderPlayer = (
     }
 
     // --- MODIFICATION: Reset shadow properties after drawing the potentially glowing sprite ---
-    if (!isCorpse && player.isKnockedOut) {
+    if ((!isCorpse && player.isKnockedOut) || isUsingItem) {
       ctx.shadowColor = 'transparent'; // Or 'rgba(0,0,0,0)'
       ctx.shadowBlur = 0;
       ctx.shadowOffsetX = 0;

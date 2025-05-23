@@ -715,6 +715,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                      let damage_effect = ActiveConsumableEffect {
                          effect_id: 0, // Auto-incremented by the table
                          player_id: player_entity.identity,
+                         target_player_id: None, // Add this line
                          item_def_id: 0, // 0 for environmental/non-item effects
                          consuming_item_instance_id: None, // Added: Campfire damage doesn't consume an item instance
                          started_at: current_time,

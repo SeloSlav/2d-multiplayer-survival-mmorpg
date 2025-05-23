@@ -467,24 +467,24 @@ pub fn split_stack(
             // Update both items in the database
             inventory_table.instance_id().update(source_item_being_split.clone());
             inventory_table.instance_id().update(item_that_was_in_target_slot.clone());
-
+            
             // If source item quantity becomes 0, delete it
             if source_item_being_split.quantity == 0 {
                 log::debug!("[SplitStack] Source item {} depleted after merge. Deleting.", source_item_instance_id);
-                inventory_table.instance_id().delete(source_item_instance_id);
+                    inventory_table.instance_id().delete(source_item_instance_id);
                 
                 // Clear active equipment if this was the active item
                 if let ItemLocation::Hotbar(_) = &original_location_of_source_stack {
                     if ctx.db.active_equipment().player_identity().find(sender_id)
                         .map_or(false, |ae| ae.equipped_item_instance_id == Some(source_item_instance_id)) {
                         if let Some(mut active_equip) = ctx.db.active_equipment().player_identity().find(sender_id) {
-                            active_equip.equipped_item_instance_id = None;
-                            active_equip.equipped_item_def_id = None;
-                            ctx.db.active_equipment().player_identity().update(active_equip);
+                        active_equip.equipped_item_instance_id = None;
+                        active_equip.equipped_item_def_id = None;
+                        ctx.db.active_equipment().player_identity().update(active_equip);
                             log::info!("[SplitStack] Cleared active equipment as source item was fully merged and deleted.");
                         }
                     }
-                }
+                 }
             }
 
             log::info!(
@@ -563,8 +563,8 @@ pub fn split_stack(
                         ctx.db.active_equipment().player_identity().update(active_equip);
                         log::info!("[SplitStack] Cleared active equipment as source item was fully split and deleted.");
                     }
-                }
-            }
+                 }
+             }
         }
     }
 

@@ -245,7 +245,8 @@ export const renderEquippedItem = (
 
   if (activeConsumableEffects && player.identity) {
     for (const effect of activeConsumableEffects.values()) {
-      if (effect.playerId.toHexString() === player.identity.toHexString() && effect.effectType.tag === "BandageBurst") {
+      if (effect.playerId.toHexString() === player.identity.toHexString() && 
+          (effect.effectType.tag === "BandageBurst" || effect.effectType.tag === "RemoteBandageBurst")) {
         bandagingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
         break;
       }

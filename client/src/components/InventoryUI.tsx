@@ -140,7 +140,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
     // Add to state declarations
     const [splitDragInfo, setSplitDragInfo] = useState<{ item: PopulatedItem, quantity: number } | null>(null);
-    
+
     // Add ref to track when drag operations complete
     const lastDragCompleteTime = useRef<number>(0);
 

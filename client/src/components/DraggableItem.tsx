@@ -13,7 +13,7 @@ interface DraggableItemProps {
   onMouseEnter?: (event: React.MouseEvent<HTMLDivElement>, item: PopulatedItem) => void;
   onMouseLeave?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onMouseMove?: (event: React.MouseEvent<HTMLDivElement>) => void;
-  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;  
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ 
@@ -250,24 +250,24 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
         delete (e.currentTarget as any).currentSplitQuantity;
     } else {
         // Normal mouse interaction split logic
-        const canSplit = item.definition.isStackable && item.instance.quantity > 1;
-        let splitQuantity: number | null = null;
-        if (canSplit) {
-            if (e.button === 1) { // Middle mouse button
-                e.preventDefault(); 
-                if (e.shiftKey) {
-                    splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 3));
-                } else {
-                    splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
-                }
-            } else if (e.button === 0 && e.ctrlKey) { // Ctrl + Left Click for splitting
-                e.preventDefault();
+    const canSplit = item.definition.isStackable && item.instance.quantity > 1;
+    let splitQuantity: number | null = null;
+    if (canSplit) {
+        if (e.button === 1) { // Middle mouse button
+            e.preventDefault(); 
+            if (e.shiftKey) {
+                splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 3));
+            } else {
                 splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
-            } else if (e.button === 2) { // Right mouse button (for drag-split)
-                splitQuantity = 1;
             }
+        } else if (e.button === 0 && e.ctrlKey) { // Ctrl + Left Click for splitting
+            e.preventDefault();
+            splitQuantity = Math.max(1, Math.floor(item.instance.quantity / 2));
+        } else if (e.button === 2) { // Right mouse button (for drag-split)
+            splitQuantity = 1;
         }
-        currentSplitQuantity.current = splitQuantity;
+    }
+    currentSplitQuantity.current = splitQuantity;
     }
 
     // Add temporary listeners to the document

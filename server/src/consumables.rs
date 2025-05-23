@@ -239,15 +239,16 @@ fn apply_timed_effect_for_helper(
     }
 
     let effect_to_insert = ActiveConsumableEffect {
-        effect_id: 0, // Auto-incremented by the table
-        player_id,
+        effect_id: 0,
+        player_id: player_id,
+        target_player_id: None,
         item_def_id: item_def.id,
-        consuming_item_instance_id: Some(item_instance_id), // Key change: store the instance ID
+        consuming_item_instance_id: Some(item_instance_id),
         started_at: now,
         ends_at: now + TimeDuration::from_micros(duration_micros as i64),
         total_amount: Some(total_amount),
         amount_applied_so_far: Some(0.0),
-        effect_type: effect_type.clone(), // CLONE HERE, so original effect_type param remains valid
+        effect_type: effect_type.clone(),
         tick_interval_micros,
         next_tick_at: now + TimeDuration::from_micros(tick_interval_micros as i64),
     };
@@ -256,14 +257,14 @@ fn apply_timed_effect_for_helper(
         Ok(_) => {
             log::info!(
                 "[TimedEffectHelper] Applied timed effect {:?} to player {:?} from item '{}' (instance {}). Duration: {}s, Total: {}, Tick: {}s.",
-                effect_type, player_id, item_def.name, item_instance_id, duration_secs, total_amount, tick_interval_secs // Use original effect_type (no clone needed here now)
+                effect_type, player_id, item_def.name, item_instance_id, duration_secs, total_amount, tick_interval_secs
             );
             Ok(())
         }
         Err(e) => {
             log::error!(
                 "[TimedEffectHelper] Failed to insert timed effect {:?} for player {:?} from item '{}': {:?}",
-                effect_type, player_id, item_def.name, e // Use original effect_type (no clone needed here now)
+                effect_type, player_id, item_def.name, e
             );
             Err(format!("Failed to apply timed effect: {:?}", e))
         }

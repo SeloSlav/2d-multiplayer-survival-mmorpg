@@ -849,13 +849,14 @@ pub fn damage_player(
             let time_until_next_tick = TimeDuration::from_micros((interval_sec * 1_000_000.0) as i64);
 
             let bleed_effect = ActiveConsumableEffect {
-                effect_id: 0, 
+                effect_id: 0,
                 player_id: target_id,
-                item_def_id: item_def.id, // Store the ID of the item causing the bleed
-                consuming_item_instance_id: None, 
+                target_player_id: None, // Add this line
+                item_def_id: item_def.id,
+                consuming_item_instance_id: None,
                 started_at: timestamp,
                 ends_at: timestamp + TimeDuration::from_micros((duration_sec * 1_000_000.0) as i64),
-                total_amount: Some(bleed_total_damage), // Total potential damage
+                total_amount: Some(bleed_total_damage),
                 amount_applied_so_far: Some(0.0),
                 effect_type: EffectType::Bleed,
                 tick_interval_micros: (interval_sec * 1_000_000.0) as u64,

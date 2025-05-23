@@ -35,6 +35,7 @@ import { EffectType as __EffectType } from "./effect_type_type";
 export type ActiveConsumableEffect = {
   effectId: bigint,
   playerId: Identity,
+  targetPlayerId: Identity | undefined,
   itemDefId: bigint,
   consumingItemInstanceId: bigint | undefined,
   startedAt: Timestamp,
@@ -58,6 +59,7 @@ export namespace ActiveConsumableEffect {
     return AlgebraicType.createProductType([
       new ProductTypeElement("effectId", AlgebraicType.createU64Type()),
       new ProductTypeElement("playerId", AlgebraicType.createIdentityType()),
+      new ProductTypeElement("targetPlayerId", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
       new ProductTypeElement("itemDefId", AlgebraicType.createU64Type()),
       new ProductTypeElement("consumingItemInstanceId", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
       new ProductTypeElement("startedAt", AlgebraicType.createTimestampType()),

@@ -96,10 +96,13 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         activeConsumableEffects.forEach((effect, key) => {
             const effectPlayerIdHex = effect.playerId.toHexString();
             const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+            const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
             
             // console.log(`[PlayerUI] Effect ID ${key}: player ID matches: ${effectPlayerIdHex === localPlayerIdHex}, type tag: ${effectTypeTag}`);
 
-            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'HealthRegen') {
+            if ((effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'HealthRegen') ||
+                (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') ||
+                (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst')) {
                 // console.log(`[PlayerUI] Found matching HealthRegen effect:`, effect);
                 foundMatch = true;
             }
@@ -137,8 +140,11 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         activeConsumableEffects.forEach((effect) => {
             const effectPlayerIdHex = effect.playerId.toHexString();
             const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+            const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
 
-            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') {
+            // Check both direct BandageBurst and RemoteBandageBurst targeting this player
+            if ((effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'BandageBurst') || 
+                (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst')) {
                 potentialHeal = effect.totalAmount || 0; // Use totalAmount from the effect
             }
         });

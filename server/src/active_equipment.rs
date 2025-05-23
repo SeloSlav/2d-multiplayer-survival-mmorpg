@@ -318,36 +318,92 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
 
         // Check for existing active BandageBurst effect from ANY bandage item to prevent stacking this specific effect type.
         let has_active_bandage_burst_effect = ctx.db.active_consumable_effect().iter().any(|effect| {
-            effect.player_id == sender_id && 
-            effect.effect_type == EffectType::BandageBurst 
-            // We don't need to check effect.item_def_id == item_def.id here, 
-            // as we just want to prevent any BandageBurst from stacking, regardless of specific bandage type if we had multiple.
+            // Check if player is either the healer or target of any active bandage effect
+            (effect.player_id == sender_id && 
+             (effect.effect_type == EffectType::BandageBurst || effect.effect_type == EffectType::RemoteBandageBurst)) ||
+            (effect.target_player_id == Some(sender_id) && effect.effect_type == EffectType::RemoteBandageBurst)
         });
 
         if has_active_bandage_burst_effect {
-            log::warn!("[UseEquippedItem] Player {:?} tried to use Bandage while another BandageBurst effect is already active.", sender_id);
-            return Err("You are already applying a bandage.".to_string());
+            log::warn!("[UseEquippedItem] Player {:?} tried to use Bandage while another bandage effect is already active.", sender_id);
+            return Err("You are already applying or receiving a bandage.".to_string());
         }
 
-        // Player state is needed for apply_item_effects_and_consume (though it won't change health directly for BandageBurst)
-        // and for last_consumed_at update.
+        // Get the player's position to check for nearby players
+        let player_pos = players_table.identity().find(sender_id)
+            .ok_or_else(|| "Player not found for bandage use".to_string())?;
+
+        // Find nearby players within healing range (use a reasonable range, e.g., 4 tiles)
+        const HEALING_RANGE: f32 = 4.0 * 32.0; // 4 tiles * 32 pixels per tile (increased from 2 tiles)
+        let mut nearest_wounded_player: Option<(Identity, f32)> = None; // (player_id, distance)
+
+        for other_player in players_table.iter() {
+            if other_player.identity == sender_id || other_player.is_dead || other_player.health >= 100.0 {
+                continue; // Skip self, dead players, and fully healthy players
+            }
+
+            let dx = other_player.position_x - player_pos.position_x;
+            let dy = other_player.position_y - player_pos.position_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            if distance <= HEALING_RANGE {
+                // If we find a wounded player in range, and they're either closer than our current nearest
+                // or we haven't found anyone yet
+                if let Some((_, current_nearest_dist)) = nearest_wounded_player {
+                    if distance < current_nearest_dist {
+                        nearest_wounded_player = Some((other_player.identity, distance));
+                    }
+                } else {
+                    nearest_wounded_player = Some((other_player.identity, distance));
+                }
+            }
+        }
+
+        // Player state is needed for apply_item_effects_and_consume
         let mut player_stats = players_table.identity().find(sender_id)
             .ok_or_else(|| "Player not found for bandage use".to_string())?;
-        
-        // This will create the BandageBurst effect. Item is NOT consumed here.
-        match apply_item_effects_and_consume(ctx, sender_id, &item_def, equipped_item_instance_id, &mut player_stats) {
-            Ok(_) => {
-                // Update player for last_consumed_at (which is set by apply_item_effects_and_consume)
-                players_table.identity().update(player_stats); 
-                
-                log::info!("[UseEquippedItem] BandageBurst effect initiated for player {:?} with bandage instance {}.", 
-                    sender_id, equipped_item_instance_id);
-                // No change to current_equipment is needed here as item is not consumed yet and bandaging_start_time_ms is removed.
-                // The active_equipments table also doesn't need an update here just for using a bandage.
-            },
-            Err(e) => {
-                log::error!("[UseEquippedItem] Failed to apply bandage effects for player {:?}: {}", sender_id, e);
-                return Err(format!("Failed to apply bandage effects: {}", e));
+
+        // If we found a nearby wounded player, heal them instead of self
+        if let Some((target_id, _)) = nearest_wounded_player {
+            let mut target_player = players_table.identity().find(&target_id)
+                .ok_or_else(|| "Target player not found".to_string())?;
+
+            // Create a RemoteBandageBurst effect for the target
+            let effect = ActiveConsumableEffect {
+                effect_id: 0, // Will be auto-incremented
+                player_id: sender_id, // The healer
+                target_player_id: Some(target_id), // The player being healed
+                item_def_id: item_def.id,
+                consuming_item_instance_id: Some(equipped_item_instance_id),
+                started_at: ctx.timestamp,
+                ends_at: ctx.timestamp + Duration::from_secs(5), // 5 second duration
+                total_amount: item_def.consumable_health_gain,
+                amount_applied_so_far: Some(0.0),
+                effect_type: EffectType::RemoteBandageBurst,
+                tick_interval_micros: 1_000_000, // Check every second
+                next_tick_at: ctx.timestamp + Duration::from_secs(1),
+            };
+
+            ctx.db.active_consumable_effect().insert(effect);
+            log::info!("[UseEquippedItem] RemoteBandageBurst effect initiated from player {:?} to target {:?}", 
+                sender_id, target_id);
+
+            // Update player's last_consumed_at
+            player_stats.last_consumed_at = Some(ctx.timestamp);
+            players_table.identity().update(player_stats);
+
+        } else {
+            // No nearby wounded players, apply to self as normal
+            match apply_item_effects_and_consume(ctx, sender_id, &item_def, equipped_item_instance_id, &mut player_stats) {
+                Ok(_) => {
+                    players_table.identity().update(player_stats);
+                    log::info!("[UseEquippedItem] BandageBurst effect initiated for player {:?} with bandage instance {}.", 
+                        sender_id, equipped_item_instance_id);
+                },
+                Err(e) => {
+                    log::error!("[UseEquippedItem] Failed to apply bandage effects for player {:?}: {}", sender_id, e);
+                    return Err(format!("Failed to apply bandage effects: {}", e));
+                }
             }
         }
         return Ok(()); // Bandage handling complete
