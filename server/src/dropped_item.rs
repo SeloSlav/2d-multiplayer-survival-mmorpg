@@ -1,3 +1,16 @@
+//! # Dropped Item System
+//! 
+//! This module handles items that are dropped in the world and provides automatic
+//! inventory overflow handling. When a player's inventory is full and they attempt
+//! to pick up items or harvest resources, those items are automatically dropped
+//! near the player instead of being lost.
+//!
+//! ## Key Features:
+//! - Players can pick up dropped items if they're close enough
+//! - Items automatically despawn after their configured respawn time
+//! - **Automatic dropping**: When inventory is full, items are dropped near the player
+//! - Public API for other modules to give items with fallback dropping
+
 use spacetimedb::{Identity, ReducerContext, SpacetimeType, Table, Timestamp};
 use log;
 // Use the specific import path from Blackholio
@@ -77,27 +90,35 @@ pub fn pickup_dropped_item(ctx: &ReducerContext, dropped_item_id: u64) -> Result
         return Err("Too far away to pick up the item.".to_string());
     }
 
-    // 4. Attempt to add item to player inventory (using existing helper from items.rs)
-    log::info!("[PickupDropped] Player {:?} is close enough. Attempting to add item def {} (qty {}) to inventory.",
+    // 4. Attempt to give item to player (inventory or drop near player if full)
+    log::info!("[PickupDropped] Player {:?} is close enough. Attempting to give item def {} (qty {}).",
              sender_id, dropped_item.item_def_id, dropped_item.quantity);
 
-    // Call the helper function from the items module
-    match crate::items::add_item_to_player_inventory(ctx, sender_id, dropped_item.item_def_id, dropped_item.quantity) {
-        Ok(_) => {
-            // 5. If successful, delete the dropped item entity
+    // Get item name for logging
+    let item_name = item_defs_table.id().find(dropped_item.item_def_id)
+                       .map(|def| def.name.clone())
+                       .unwrap_or_else(|| format!("[Def ID {}]", dropped_item.item_def_id));
+
+    // Use the new helper that handles full inventory by dropping near player
+    match give_item_to_player_or_drop(ctx, sender_id, dropped_item.item_def_id, dropped_item.quantity) {
+        Ok(added_to_inventory) => {
+            // 5. Delete the original dropped item regardless of whether it went to inventory or was re-dropped
             dropped_items_table.id().delete(dropped_item_id);
-            let item_name = item_defs_table.id().find(dropped_item.item_def_id)
-                               .map(|def| def.name.clone())
-                               .unwrap_or_else(|| format!("[Def ID {}]", dropped_item.item_def_id));
-            log::info!("[PickupDropped] Successfully picked up item '{}' (ID {}) and added to inventory for player {:?}",
-                     item_name, dropped_item_id, sender_id);
+            
+            if added_to_inventory {
+                log::info!("[PickupDropped] Successfully picked up item '{}' (ID {}) and added to inventory for player {:?}",
+                         item_name, dropped_item_id, sender_id);
+            } else {
+                log::info!("[PickupDropped] Inventory full, moved item '{}' (ID {}) closer to player {:?}",
+                         item_name, dropped_item_id, sender_id);
+            }
             Ok(())
         }
         Err(e) => {
-            // If adding failed (e.g., inventory full), leave the dropped item in the world
-            log::error!("[PickupDropped] Failed to add item {} to inventory for player {:?}: {}",
-                      dropped_item_id, sender_id, e);
-            Err(format!("Could not pick up item: {}", e)) // Propagate the error (e.g., "Inventory is full")
+            // If both inventory and dropping failed, leave the original dropped item in the world
+            log::error!("[PickupDropped] Failed to handle pickup for item {} '{}' for player {:?}: {}",
+                      dropped_item_id, item_name, sender_id, e);
+            Err(format!("Could not pick up item: {}", e))
         }
     }
 }
@@ -157,6 +178,44 @@ pub fn despawn_expired_items(ctx: &ReducerContext, _schedule: DroppedItemDespawn
 }
 
 // --- Helper Functions (Internal to this module) ---
+
+/// Attempts to give an item to a player's inventory. If the inventory is full or cannot stack,
+/// creates a dropped item near the player instead.
+/// Returns Ok(true) if added to inventory, Ok(false) if dropped near player, Err if failed completely.
+pub(crate) fn give_item_to_player_or_drop(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    item_def_id: u64,
+    quantity: u32,
+) -> Result<bool, String> {
+    // First try to add to inventory
+    match crate::items::add_item_to_player_inventory(ctx, player_id, item_def_id, quantity) {
+        Ok(_) => {
+            log::debug!("[GiveOrDrop] Successfully added item def {} (qty {}) to player {} inventory", 
+                       item_def_id, quantity, player_id);
+            Ok(true) // Successfully added to inventory
+        }
+        Err(inventory_error) => {
+            log::info!("[GiveOrDrop] Failed to add to inventory ({}), creating dropped item near player {}", 
+                      inventory_error, player_id);
+            
+            // Get player for drop position calculation
+            let player = ctx.db.player().identity().find(player_id)
+                .ok_or_else(|| format!("Player {} not found for drop calculation", player_id))?;
+            
+            // Calculate drop position near player
+            let (drop_x, drop_y) = calculate_drop_position(&player);
+            
+            // Create dropped item near player
+            create_dropped_item_entity(ctx, item_def_id, quantity, drop_x, drop_y)?;
+            
+            log::info!("[GiveOrDrop] Created dropped item near player {} at ({:.1}, {:.1}) for item def {} (qty {})", 
+                      player_id, drop_x, drop_y, item_def_id, quantity);
+            
+            Ok(false) // Item was dropped, not added to inventory
+        }
+    }
+}
 
 /// Creates a DroppedItem entity in the world.
 /// Assumes validation (like position checks) might happen before calling this.
@@ -229,4 +288,19 @@ pub(crate) fn init_dropped_item_schedule(ctx: &ReducerContext) -> Result<(), Str
         log::debug!("Dropped item despawn schedule already exists.");
     }
     Ok(())
+}
+
+// --- Public API Functions for Other Modules ---
+
+/// Public API for giving items to players with automatic dropping fallback.
+/// This should be used by harvesting, crafting, and other systems that give items to players.
+/// If the player's inventory is full, the item will be dropped near the player instead.
+/// Returns Ok(true) if added to inventory, Ok(false) if dropped near player.
+pub fn try_give_item_to_player(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    item_def_id: u64,
+    quantity: u32,
+) -> Result<bool, String> {
+    give_item_to_player_or_drop(ctx, player_id, item_def_id, quantity)
 }

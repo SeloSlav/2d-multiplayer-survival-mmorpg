@@ -61,7 +61,7 @@ pub fn validate_player_resource_interaction(
 /// Adds a resource item to player's inventory and schedules respawn
 ///
 /// Generic function to handle the common pattern of:
-/// 1. Adding item to player inventory
+/// 1. Adding item to player inventory (or dropping near player if inventory full)
 /// 2. Scheduling resource respawn
 /// 3. Logging the interaction
 pub fn collect_resource_and_schedule_respawn<F>(
@@ -92,8 +92,19 @@ where
         .find(|def| def.name == primary_resource_name)
         .ok_or_else(|| format!("Primary resource item definition '{}' not found", primary_resource_name))?;
 
-    crate::items::add_item_to_player_inventory(ctx, player_id, primary_item_def.id, primary_quantity_to_grant)?;
-    log::info!("Player {:?} collected {} of primary resource: {}.", player_id, primary_quantity_to_grant, primary_resource_name);
+    // Use our new system that automatically drops items if inventory is full
+    match crate::dropped_item::try_give_item_to_player(ctx, player_id, primary_item_def.id, primary_quantity_to_grant) {
+        Ok(added_to_inventory) => {
+            if added_to_inventory {
+                log::info!("Player {:?} collected {} of primary resource: {} (added to inventory).", player_id, primary_quantity_to_grant, primary_resource_name);
+            } else {
+                log::info!("Player {:?} collected {} of primary resource: {} (dropped near player - inventory full).", player_id, primary_quantity_to_grant, primary_resource_name);
+            }
+        }
+        Err(e) => {
+            return Err(format!("Failed to give primary resource {} to player: {}", primary_resource_name, e));
+        }
+    }
 
     // --- Handle Secondary Resource --- 
     if let Some(sec_item_name) = secondary_item_name_to_grant {
@@ -110,13 +121,18 @@ where
                         .find(|def| def.name == sec_item_name)
                         .ok_or_else(|| format!("Secondary resource item definition '{}' not found", sec_item_name))?;
                     
-                    match crate::items::add_item_to_player_inventory(ctx, player_id, secondary_item_def.id, secondary_amount_to_grant) {
-                        Ok(_) => {
-                            log::info!("Player {:?} also collected {} of secondary resource: {}.", player_id, secondary_amount_to_grant, sec_item_name);
+                    // Use our new system that automatically drops items if inventory is full
+                    match crate::dropped_item::try_give_item_to_player(ctx, player_id, secondary_item_def.id, secondary_amount_to_grant) {
+                        Ok(added_to_inventory) => {
+                            if added_to_inventory {
+                                log::info!("Player {:?} also collected {} of secondary resource: {} (added to inventory).", player_id, secondary_amount_to_grant, sec_item_name);
+                            } else {
+                                log::info!("Player {:?} also collected {} of secondary resource: {} (dropped near player - inventory full).", player_id, secondary_amount_to_grant, sec_item_name);
+                            }
                         }
                         Err(e) => {
-                            log::error!("Failed to add secondary resource {} for player {:?}: {}", sec_item_name, player_id, e);
-                            // Decide if this error should propagate or just be logged. For now, just log.
+                            log::error!("Failed to give secondary resource {} to player {:?}: {}", sec_item_name, player_id, e);
+                            // Continue processing - secondary resource failure shouldn't stop primary resource collection
                         }
                     }
                 }

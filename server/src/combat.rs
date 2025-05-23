@@ -434,6 +434,7 @@ pub fn find_best_target(targets: &[Target], item_def: &ItemDefinition) -> Option
 /// Grants resource items to a player based on what they hit
 ///
 /// Looks up the proper resource definition and adds it to the player's inventory.
+/// If inventory is full, items are automatically dropped near the player.
 pub fn grant_resource(
     ctx: &ReducerContext, 
     player_id: Identity, 
@@ -445,9 +446,17 @@ pub fn grant_resource(
         .find(|def| def.name == resource_name)
         .ok_or_else(|| format!("{} item definition not found.", resource_name))?;
         
-    crate::items::add_item_to_player_inventory(ctx, player_id, resource_def.id, amount)
-        .map(|_| ())
-        .map_err(|e| format!("Failed to grant {} to player: {}", resource_name, e))
+    // Use our new system that automatically drops items if inventory is full
+    match crate::dropped_item::try_give_item_to_player(ctx, player_id, resource_def.id, amount) {
+        Ok(added_to_inventory) => {
+            if !added_to_inventory {
+                log::info!("[GrantResource] Inventory full for player {}. Dropped {} {} near player.", 
+                         player_id, amount, resource_name);
+            }
+            Ok(())
+        }
+        Err(e) => Err(format!("Failed to grant {} to player: {}", resource_name, e))
+    }
 }
 
 /// Calculates damage amount based on item definition, target type, and RNG.

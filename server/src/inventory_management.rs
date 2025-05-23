@@ -5,6 +5,10 @@
  * like moving, splitting, and merging items, allowing specific container     *
  * modules (e.g., campfire, wooden_storage_box) to reuse this logic.          *
  *                                                                            *
+ * NOTE: For operations that give NEW items to players (harvesting, loot,     *
+ * rewards, etc.), consider using `crate::dropped_item::try_give_item_to_player` *
+ * which automatically drops items near the player if inventory is full.      *
+ *                                                                            *
  ******************************************************************************/
 
 use spacetimedb::{ReducerContext, Identity, Table};
