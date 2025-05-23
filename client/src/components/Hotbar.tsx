@@ -59,10 +59,12 @@ const Hotbar: React.FC<HotbarProps> = ({
   const [isVisualCooldownActive, setIsVisualCooldownActive] = useState<boolean>(false);
   const [visualCooldownStartTime, setVisualCooldownStartTime] = useState<number | null>(null);
   const [animationProgress, setAnimationProgress] = useState<number>(0);
+  const [currentAnimationDuration, setCurrentAnimationDuration] = useState<number>(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
   const visualCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const numSlots = 6;
   const prevLastConsumedAtRef = useRef<bigint | null>(null);
+  const prevSelectedSlotRef = useRef<number>(selectedSlot);
 
   // Cleanup refs on unmount
   useEffect(() => {
@@ -96,11 +98,6 @@ const Hotbar: React.FC<HotbarProps> = ({
   // useEffect for the cooldown animation progress - MOVED AFTER findItemForSlot
   useEffect(() => {
     if (isVisualCooldownActive && visualCooldownStartTime !== null) {
-      const selectedItemForAnim = findItemForSlot(selectedSlot);
-      const animationDuration = selectedItemForAnim && selectedItemForAnim.definition.name === "Bandage" 
-                                ? BANDAGE_CLIENT_ANIMATION_DURATION_MS 
-                                : DEFAULT_CLIENT_ANIMATION_DURATION_MS;
-      
       const animate = () => {
         if (visualCooldownStartTime === null) { 
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -109,7 +106,7 @@ const Hotbar: React.FC<HotbarProps> = ({
             return;
         }
         const elapsedTimeMs = Date.now() - visualCooldownStartTime;
-        const currentProgress = Math.min(1, elapsedTimeMs / animationDuration); 
+        const currentProgress = Math.min(1, elapsedTimeMs / currentAnimationDuration); 
         setAnimationProgress(currentProgress);
 
         if (currentProgress < 1) {
@@ -117,7 +114,8 @@ const Hotbar: React.FC<HotbarProps> = ({
         } else {
           setIsVisualCooldownActive(false);
           setVisualCooldownStartTime(null);
-          setAnimationProgress(0); 
+          setAnimationProgress(0);
+          setCurrentAnimationDuration(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
         }
       };
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -134,33 +132,47 @@ const Hotbar: React.FC<HotbarProps> = ({
         animationFrameRef.current = null;
       }
     };
-  }, [isVisualCooldownActive, visualCooldownStartTime, selectedSlot, findItemForSlot]); // findItemForSlot is now defined
+  }, [isVisualCooldownActive, visualCooldownStartTime, currentAnimationDuration]); // Use stored duration instead of recalculating
 
   // Trigger client cooldown animation - MOVED UP (already done, but ensure it's before the lastConsumedAt useEffect)
-  const triggerClientCooldownAnimation = useCallback(() => {
-    if (isVisualCooldownActive) {
+  const triggerClientCooldownAnimation = useCallback((forceBandageDuration: boolean = false) => {
+    // For bandages, allow restarting the animation even if one is already active
+    const selectedItemForCheck = findItemForSlot(selectedSlot);
+    const isBandage = selectedItemForCheck && selectedItemForCheck.definition.name === "Bandage";
+    
+    if (isVisualCooldownActive && !forceBandageDuration && !isBandage) {
       // console.log('[Hotbar] triggerClientCooldownAnimation called, but visual cooldown is ALREADY ACTIVE. Ignoring call.');
       return; 
     }
-    // console.log('[Hotbar] triggerClientCooldownAnimation called. Setting visual cooldown active.');
-    setIsVisualCooldownActive(true);
-    setVisualCooldownStartTime(Date.now());
-    setAnimationProgress(0); 
-
+    
+    console.log('[Hotbar] triggerClientCooldownAnimation called. Setting visual cooldown active. Force bandage:', forceBandageDuration, 'Duration will be:', (forceBandageDuration || isBandage) ? BANDAGE_CLIENT_ANIMATION_DURATION_MS : DEFAULT_CLIENT_ANIMATION_DURATION_MS, 'ms');
+    
+    // Clear any existing timeout
     if (visualCooldownTimeoutRef.current) {
       clearTimeout(visualCooldownTimeoutRef.current);
     }
+    
+    // Clear any existing animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-    const selectedItemForTimeout = findItemForSlot(selectedSlot);
-    const timeoutDuration = selectedItemForTimeout && selectedItemForTimeout.definition.name === "Bandage"
+    const timeoutDuration = (forceBandageDuration || isBandage)
                             ? BANDAGE_CLIENT_ANIMATION_DURATION_MS
                             : DEFAULT_CLIENT_ANIMATION_DURATION_MS;
 
+    setIsVisualCooldownActive(true);
+    setVisualCooldownStartTime(Date.now());
+    setAnimationProgress(0); 
+    setCurrentAnimationDuration(timeoutDuration);
+
     visualCooldownTimeoutRef.current = setTimeout(() => {
-      // console.log('[Hotbar] Visual cooldown timeout in triggerClientCooldownAnimation completed. Resetting visual cooldown.');
+      console.log('[Hotbar] Visual cooldown timeout completed. Resetting visual cooldown.');
       setIsVisualCooldownActive(false);
       setVisualCooldownStartTime(null);
-    }, timeoutDuration); // Use item-specific duration for the timeout as well
+      setAnimationProgress(0);
+      setCurrentAnimationDuration(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
+    }, timeoutDuration);
   }, [isVisualCooldownActive, selectedSlot, findItemForSlot]); // Added selectedSlot and findItemForSlot
 
   // Effect to trigger cooldown animation for Bandage when lastConsumedAt updates
@@ -174,12 +186,39 @@ const Hotbar: React.FC<HotbarProps> = ({
             const selectedItem = findItemForSlot(selectedSlot);
             if (selectedItem && selectedItem.definition.name === "Bandage") {
                 console.log("[Hotbar] Bandage consumption detected via lastConsumedAt update. Triggering cooldown.");
-                triggerClientCooldownAnimation();
+                triggerClientCooldownAnimation(true); // Force bandage duration
             }
         }
         prevLastConsumedAtRef.current = currentLastConsumedMicros; // Update ref for next comparison
     }
   }, [localPlayer?.lastConsumedAt, selectedSlot, findItemForSlot, triggerClientCooldownAnimation]); // Corrected field name in dependency
+
+  // Effect to stop animation when switching slots
+  useEffect(() => {
+    // Stop any active animation when switching slots (but not on initial render)
+    if (isVisualCooldownActive && prevSelectedSlotRef.current !== selectedSlot) {
+      console.log('[Hotbar] Selected slot changed from', prevSelectedSlotRef.current, 'to', selectedSlot, ', stopping visual cooldown animation');
+      
+      // Clear timeouts and animation frames
+      if (visualCooldownTimeoutRef.current) {
+        clearTimeout(visualCooldownTimeoutRef.current);
+        visualCooldownTimeoutRef.current = null;
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      // Reset animation state
+      setIsVisualCooldownActive(false);
+      setVisualCooldownStartTime(null);
+      setAnimationProgress(0);
+      setCurrentAnimationDuration(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
+    }
+    
+    // Update the previous slot ref
+    prevSelectedSlotRef.current = selectedSlot;
+  }, [selectedSlot, isVisualCooldownActive]); // Track both for completeness
 
   const activateHotbarSlot = useCallback((slotIndex: number, isMouseWheelScroll: boolean = false) => {
     const itemInSlot = findItemForSlot(slotIndex);
@@ -212,7 +251,11 @@ const Hotbar: React.FC<HotbarProps> = ({
       if (!isMouseWheelScroll) { // Only consume if not a mouse wheel scroll
         try {
           connection.reducers.consumeItem(instanceId);
-          triggerClientCooldownAnimation();
+          // Only trigger immediate animation for non-bandage consumables
+          // Bandages will be triggered by server feedback via lastConsumedAt
+          if (itemInSlot.definition.name !== "Bandage") {
+            triggerClientCooldownAnimation();
+          }
         } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
       }
       // If it is a mouse wheel scroll, the item is selected, but not consumed.
