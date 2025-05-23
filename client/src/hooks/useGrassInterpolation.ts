@@ -38,6 +38,11 @@ interface GrassInterpolationState {
   swaySpeed: number;
   lastHitTime: SpacetimeDBTimestamp | null;
   respawnAt: SpacetimeDBTimestamp | null;
+  
+  // NEW: Disturbance tracking fields
+  disturbedAt: SpacetimeDBTimestamp | null;
+  disturbanceDirectionX: number;
+  disturbanceDirectionY: number;
 }
 
 // Output structure, including current render position (which is server position for grass)
@@ -81,7 +86,10 @@ export const useGrassInterpolation = ({
                                 prevServerGrassInstance.swayOffsetSeed !== currentServerGrass.swayOffsetSeed ||
                                 prevServerGrassInstance.swaySpeed !== currentServerGrass.swaySpeed ||
                                 !Object.is(prevServerGrassInstance.lastHitTime, currentServerGrass.lastHitTime) ||
-                                !Object.is(prevServerGrassInstance.respawnAt, currentServerGrass.respawnAt);
+                                !Object.is(prevServerGrassInstance.respawnAt, currentServerGrass.respawnAt) ||
+                                !Object.is((prevServerGrassInstance as any).disturbedAt, (currentServerGrass as any).disturbedAt) ||
+                                (prevServerGrassInstance as any).disturbanceDirectionX !== (currentServerGrass as any).disturbanceDirectionX ||
+                                (prevServerGrassInstance as any).disturbanceDirectionY !== (currentServerGrass as any).disturbanceDirectionY;
 
 
       if (!prevState || grassDataChanged) { // New grass or its data has been updated
@@ -108,6 +116,9 @@ export const useGrassInterpolation = ({
           swaySpeed: currentServerGrass.swaySpeed,
           lastHitTime: currentServerGrass.lastHitTime ?? null,
           respawnAt: currentServerGrass.respawnAt ?? null,
+          disturbedAt: (currentServerGrass as any).disturbedAt ?? null,
+          disturbanceDirectionX: (currentServerGrass as any).disturbanceDirectionX ?? 0,
+          disturbanceDirectionY: (currentServerGrass as any).disturbanceDirectionY ?? 0,
         });
       }
     });

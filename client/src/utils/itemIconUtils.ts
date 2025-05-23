@@ -50,7 +50,7 @@ import skullIcon from '../assets/items/skull.png';
 import animalFatIcon from '../assets/items/animal_fat.png';
 import boneIcon from '../assets/items/bone.png';
 import rawHumanFleshIcon from '../assets/items/human_meat.png';
-
+import blueprintIcon from '../assets/items/blueprint.png';
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
 const iconMap: { [key: string]: string | undefined } = {
@@ -100,6 +100,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'animal_fat.png': animalFatIcon,
   'bone.png': boneIcon,
   'human_meat.png': rawHumanFleshIcon,
+  'blueprint.png': blueprintIcon,
 };
 
 // Export a function that provides the fallback logic

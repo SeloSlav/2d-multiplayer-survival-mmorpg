@@ -3,6 +3,7 @@ use log;
 use std::time::Duration;
 use rand::Rng; // Add rand for random respawn location
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
+use crate::environment::WORLD_WIDTH_CHUNKS; // Import chunk constant for optimization
 use crate::models::{ContainerType, ItemLocation}; // Ensure ItemLocation and ContainerType are in scope
 
 // Declare the module
@@ -94,6 +95,7 @@ use crate::chat::message as MessageTableTrait; // Import the trait for Message t
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
 use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
+use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -1164,6 +1166,119 @@ pub fn update_player_position(
     }
     // --- End Collision Resolution ---
 
+    // --- NEW: Grass Disturbance Detection (OPTIMIZED) ---
+    // Only check for grass disturbance if player is actually moving with meaningful distance
+    const MIN_MOVEMENT_FOR_DISTURBANCE: f32 = 3.0; // Increased threshold slightly
+    let movement_magnitude = (server_dx * server_dx + server_dy * server_dy).sqrt();
+    
+    // Check grass disturbance on every movement (user requested to revert frequency reduction)
+    let should_check_disturbance = is_moving && movement_magnitude > MIN_MOVEMENT_FOR_DISTURBANCE;
+    
+    if should_check_disturbance {
+        let grasses = ctx.db.grass();
+        let current_time = ctx.timestamp;
+        
+        // Calculate movement direction for disturbance (opposite to player movement)
+        if movement_magnitude > 0.0 {
+            let normalized_movement_x = server_dx / movement_magnitude;
+            let normalized_movement_y = server_dy / movement_magnitude;
+            
+            // Grass should sway in opposite direction to player movement
+            let disturbance_direction_x = -normalized_movement_x;
+            let disturbance_direction_y = -normalized_movement_y;
+            
+            // OPTIMIZATION: Use smaller radius for better performance while still being visually impactful
+            const OPTIMIZED_DISTURBANCE_RADIUS: f32 = 48.0; // Changed back to 48.0 per user request
+            const OPTIMIZED_DISTURBANCE_RADIUS_SQ: f32 = OPTIMIZED_DISTURBANCE_RADIUS * OPTIMIZED_DISTURBANCE_RADIUS;
+            
+            // OPTIMIZATION: Only check current chunk and immediate neighbors (smaller area)
+            let player_chunk_index = calculate_chunk_index(resolved_x, resolved_y);
+            let chunk_x = player_chunk_index % WORLD_WIDTH_CHUNKS;
+            let chunk_y = player_chunk_index / WORLD_WIDTH_CHUNKS;
+            
+            let mut chunks_to_check = Vec::new();
+            // Only check 3x3 grid but prioritize current chunk
+            for dy in -1i32..=1i32 {
+                for dx in -1i32..=1i32 {
+                    let new_chunk_x = chunk_x as i32 + dx;
+                    let new_chunk_y = chunk_y as i32 + dy;
+                    
+                    if new_chunk_x >= 0 && new_chunk_x < WORLD_WIDTH_CHUNKS as i32 &&
+                       new_chunk_y >= 0 && new_chunk_y < WORLD_WIDTH_CHUNKS as i32 {
+                        let chunk_idx = (new_chunk_y as u32 * WORLD_WIDTH_CHUNKS + new_chunk_x as u32);
+                        chunks_to_check.push(chunk_idx);
+                    }
+                }
+            }
+            
+            // OPTIMIZATION: Limit max disturbances per movement to prevent huge batches
+            const MAX_DISTURBANCES_PER_MOVEMENT: usize = 8;
+            let mut disturbed_count = 0;
+            let chunks_set: std::collections::HashSet<u32> = chunks_to_check.iter().cloned().collect();
+            
+            // OPTIMIZATION: Collect updates to batch them
+            let mut grass_updates = Vec::new();
+            
+            for grass in grasses.iter() {
+                if disturbed_count >= MAX_DISTURBANCES_PER_MOVEMENT {
+                    break; // Limit disturbances per movement
+                }
+                
+                // Skip grass not in nearby chunks
+                if !chunks_set.contains(&grass.chunk_index) { continue; }
+                
+                // Skip grass that's already destroyed
+                if grass.health == 0 { continue; }
+                
+                // OPTIMIZATION: Skip grass that was recently disturbed (within last 500ms)
+                if let Some(last_disturbed) = grass.disturbed_at {
+                    let time_since_last_disturbance = current_time.to_micros_since_unix_epoch()
+                        .saturating_sub(last_disturbed.to_micros_since_unix_epoch());
+                    if time_since_last_disturbance < 500_000 { // 500ms in microseconds
+                        continue;
+                    }
+                }
+                
+                // Only disturb certain grass types (not brambles)
+                let should_disturb = match grass.appearance_type {
+                    crate::grass::GrassAppearanceType::PatchA |
+                    crate::grass::GrassAppearanceType::PatchB |
+                    crate::grass::GrassAppearanceType::PatchC |
+                    crate::grass::GrassAppearanceType::TallGrassA |
+                    crate::grass::GrassAppearanceType::TallGrassB => true,
+                    _ => false,
+                };
+                
+                if !should_disturb { continue; }
+                
+                // Check if player is within disturbance radius of this grass
+                let dx = resolved_x - grass.pos_x;
+                let dy = resolved_y - grass.pos_y;
+                let dist_sq = dx * dx + dy * dy;
+                
+                if dist_sq <= OPTIMIZED_DISTURBANCE_RADIUS_SQ {
+                    // Prepare update for this grass
+                    let mut grass_to_update = grass.clone();
+                    grass_to_update.disturbed_at = Some(current_time);
+                    grass_to_update.disturbance_direction_x = disturbance_direction_x;
+                    grass_to_update.disturbance_direction_y = disturbance_direction_y;
+                    
+                    grass_updates.push(grass_to_update);
+                    disturbed_count += 1;
+                }
+            }
+            
+            // OPTIMIZATION: Batch apply all updates
+            for grass_update in grass_updates {
+                grasses.id().update(grass_update);
+            }
+            
+            if disturbed_count > 0 {
+                log::trace!("Player {:?} disturbed {} grass patches (limit: {})", sender_id, disturbed_count, MAX_DISTURBANCES_PER_MOVEMENT);
+            }
+        }
+    }
+    // --- End Grass Disturbance Detection ---
 
     // --- Final Update ---
     let mut player_to_update = current_player; // Get a mutable copy from the initial read

@@ -252,6 +252,13 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         const localPlayerIdHex = identity.toHexString();
         const currentInventorySnapshot = new Map(inventoryItems);
 
+        // If prevInventoryRef.current is empty, this is the initial load.
+        // In this case, we just populate the ref and don't trigger notifications.
+        if (prevInventoryRef.current.size === 0) {
+            prevInventoryRef.current = currentInventorySnapshot;
+            return;
+        }
+
         const currentTotals = new Map<string, number>(); // itemDefId_str -> quantity
         const previousTotals = new Map<string, number>(); // itemDefId_str -> quantity
 

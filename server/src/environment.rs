@@ -495,22 +495,21 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 if region_type_roll < 40 { // Tall Grass Plains (40% of regions)
                     // Inside Tall Grass Plains:
                     if appearance_roll_base < 70 { // 70% chance for Tall Grass A/B
-                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrassA/B)
+                        appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
                     } else if appearance_roll_base < 90 { // Next 20% chance for Brambles A/B
                         appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
                     } else { // Remaining 10% chance for Short Grass Patches
                         appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (PatchesA/B/C)
                     }
                 } else if region_type_roll < 60 { // Bushland (20% of regions, from 40 up to 59)
-                    // Bias towards Bushes
-                    if appearance_roll_base < 70 { // 70% chance for Bushes
-                        appearance_roll = 80 + (appearance_roll_base % 15); // Maps to 80-94 (Bushes)
-                    } else if appearance_roll_base < 85 { // Next 15% chance for Tall Grass
-                        appearance_roll = 60 + (appearance_roll_base % 20); // Maps to 60-79 (TallGrassA/B)
+                    // Bias towards Brambles and Tall Grass (since bushes are removed)
+                    if appearance_roll_base < 60 { // 60% chance for Brambles
+                        appearance_roll = 95 + (appearance_roll_base % 5); // Maps to 95-99 (BramblesA/B)
+                    } else if appearance_roll_base < 85 { // Next 25% chance for Tall Grass
+                        appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
                     }
-                    // Else (remaining 15%): use original appearance_roll_base. This allows for short grass or 
-                    // occasional rare bramble if base roll is high enough to hit those ranges.
-                } 
+                    // Else (remaining 15%): use original appearance_roll_base for short grass or rare bramble
+                }
                 // Else (remaining 40% of regions, from 60 up to 99): Default mixed short grass.
                 // In this case, the original `appearance_roll_base` is used, which will mostly result in short grass types.
                 // If appearance_roll_base is very high (e.g., 95-99), it could still rarely spawn a bramble.
@@ -523,19 +522,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     crate::grass::GrassAppearanceType::PatchB
                 } else if appearance_roll < 60 { // 20% PatchC
                     crate::grass::GrassAppearanceType::PatchC
-                } else if appearance_roll < 70 { // 10% TallGrassA
+                } else if appearance_roll < 75 { // 15% TallGrassA
                     crate::grass::GrassAppearanceType::TallGrassA
-                } else if appearance_roll < 80 { // 10% TallGrassB
+                } else if appearance_roll < 90 { // 15% TallGrassB
                     crate::grass::GrassAppearanceType::TallGrassB
-                } else if appearance_roll < 85 { // 5% BushRounded
-                    crate::grass::GrassAppearanceType::BushRounded
-                } else if appearance_roll < 90 { // 5% BushSpiky
-                    crate::grass::GrassAppearanceType::BushSpiky
-                } else if appearance_roll < 95 { // 5% BushFlowering
-                    crate::grass::GrassAppearanceType::BushFlowering
-                } else if appearance_roll < 98 { // 3% BramblesA
+                } else if appearance_roll < 95 { // 5% BramblesA
                     crate::grass::GrassAppearanceType::BramblesA
-                } else { // 2% BramblesB
+                } else { // 5% BramblesB
                     crate::grass::GrassAppearanceType::BramblesB
                 };
 
@@ -550,6 +543,10 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     respawn_at: None,
                     sway_offset_seed: sway_seed, // Use the passed-in sway_seed
                     sway_speed: 0.3f32, // Increased base sway speed to 0.3
+                    // Initialize disturbance fields for new grass
+                    disturbed_at: None,
+                    disturbance_direction_x: 0.0,
+                    disturbance_direction_y: 0.0,
                 }
             },
             (appearance_roll_for_this_attempt, sway_offset_seed_for_this_attempt), // Pass the rolls as a tuple

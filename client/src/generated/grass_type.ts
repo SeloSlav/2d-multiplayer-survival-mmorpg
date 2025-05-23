@@ -43,6 +43,9 @@ export type Grass = {
   respawnAt: Timestamp | undefined,
   swayOffsetSeed: number,
   swaySpeed: number,
+  disturbedAt: Timestamp | undefined,
+  disturbanceDirectionX: number,
+  disturbanceDirectionY: number,
 };
 
 /**
@@ -65,6 +68,9 @@ export namespace Grass {
       new ProductTypeElement("respawnAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("swayOffsetSeed", AlgebraicType.createU32Type()),
       new ProductTypeElement("swaySpeed", AlgebraicType.createF32Type()),
+      new ProductTypeElement("disturbedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("disturbanceDirectionX", AlgebraicType.createF32Type()),
+      new ProductTypeElement("disturbanceDirectionY", AlgebraicType.createF32Type()),
     ]);
   }
 
