@@ -27,6 +27,10 @@ export const renderEquippedItem = (
   activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
   localPlayerId?: string
 ) => {
+  // Early validation: if no equipped item instance ID, don't render anything
+  if (!equipment.equippedItemInstanceId) {
+    return;
+  }
   // --- Calculate Shake Offset (Only if alive) ---
   let shakeX = 0;
   let shakeY = 0;
@@ -243,10 +247,13 @@ export const renderEquippedItem = (
   let bandageDrawnWithAnimation = false;
   let bandagingStartTimeMs: number | null = null;
 
-  if (activeConsumableEffects && player.identity) {
+  // Only show bandage animation if we have both an active effect AND the bandage is actually equipped
+  if (itemDef.name === "Bandage" && activeConsumableEffects && player.identity) {
+    const playerHexId = player.identity.toHexString();
     for (const effect of activeConsumableEffects.values()) {
-      if (effect.playerId.toHexString() === player.identity.toHexString() && 
-          (effect.effectType.tag === "BandageBurst" || effect.effectType.tag === "RemoteBandageBurst")) {
+      // Show animation if player is healing themselves or someone else with this equipped bandage
+      if ((effect.effectType.tag === "BandageBurst" && effect.playerId.toHexString() === playerHexId) ||
+          (effect.effectType.tag === "RemoteBandageBurst" && effect.playerId.toHexString() === playerHexId)) {
         bandagingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
         break;
       }

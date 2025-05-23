@@ -7,6 +7,7 @@ import {
     ActiveConnection,
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
+    InventoryItem as SpacetimeDBInventoryItem,
     Stash as SpacetimeDBStash,
     DroppedItem as SpacetimeDBDroppedItem,
     Campfire as SpacetimeDBCampfire,
@@ -61,6 +62,7 @@ interface RenderYSortedEntitiesProps {
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
     activeConsumableEffects: Map<string, ActiveConsumableEffect>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
+    inventoryItems: Map<string, SpacetimeDBInventoryItem>; // Add inventory items for validation
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
     worldMouseX: number | null;
     worldMouseY: number | null;
@@ -91,6 +93,7 @@ export const renderYSortedEntities = ({
     activeEquipments,
     activeConsumableEffects,
     itemDefinitions,
+    inventoryItems,
     itemImagesRef,
     worldMouseX,
     worldMouseY,
@@ -219,9 +222,16 @@ export const renderYSortedEntities = ({
            let itemDef: SpacetimeDBItemDefinition | null = null;
            let itemImg: HTMLImageElement | null = null;
 
-           if (equipment && equipment.equippedItemDefId) {
-             itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
-             itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
+           if (equipment && equipment.equippedItemDefId && equipment.equippedItemInstanceId) {
+             // Validate that the equipped item instance actually exists in inventory
+             const equippedItemInstance = inventoryItems.get(equipment.equippedItemInstanceId.toString());
+             if (equippedItemInstance && equippedItemInstance.quantity > 0) {
+               itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
+               itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
+             } else {
+               // Item was consumed but equipment table hasn't updated yet - don't render
+               console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
+             }
            }
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
 

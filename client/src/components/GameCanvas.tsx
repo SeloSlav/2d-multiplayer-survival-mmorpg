@@ -560,6 +560,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                activeEquipments,
                activeConsumableEffects,
                itemDefinitions,
+               inventoryItems,
                itemImagesRef,
                worldMouseX: currentWorldMouseX,
                worldMouseY: currentWorldMouseY,
@@ -780,7 +781,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       // Dependencies
       visibleMushrooms, visibleCorns, visiblePumpkins, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
       ySortedEntities, visibleMushroomsMap, visibleCornsMap, visiblePumpkinsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
-      players, itemDefinitions, trees, stones, 
+      players, itemDefinitions, inventoryItems, trees, stones, 
       worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
       itemImagesRef, heroImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
       canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,

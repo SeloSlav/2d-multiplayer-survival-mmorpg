@@ -109,6 +109,11 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     let item_to_make_active = inventory_items.instance_id().find(item_instance_id)
         .ok_or_else(|| format!("Inventory item with instance ID {} not found.", item_instance_id))?;
 
+    // Additional validation: ensure the item hasn't been consumed (quantity > 0)
+    if item_to_make_active.quantity == 0 {
+        return Err(format!("Cannot set item {} as active: it has been consumed (quantity is 0).", item_instance_id));
+    }
+
     let item_def = item_defs.id().find(item_to_make_active.item_def_id)
         .ok_or_else(|| format!("Item definition {} not found for item instance {}.", item_to_make_active.item_def_id, item_instance_id))?;
 
@@ -281,13 +286,29 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
         return Err("Cannot use items while knocked out.".to_string());
     }
     
-    let current_equipment = active_equipments.player_identity().find(sender_id)
+    let mut current_equipment = active_equipments.player_identity().find(sender_id)
         .ok_or_else(|| "No active equipment record found.".to_string())?;
 
     let equipped_item_instance_id = current_equipment.equipped_item_instance_id
         .ok_or_else(|| "No item instance ID in active equipment to use.".to_string())?;
     let item_def_id = current_equipment.equipped_item_def_id
         .ok_or_else(|| "No item definition ID in active equipment to use.".to_string())?;
+    
+    // Check if the equipped item instance still exists (it might have been consumed)
+    let inventory_items = ctx.db.inventory_item();
+    if inventory_items.instance_id().find(equipped_item_instance_id).is_none() {
+        log::warn!("[UseEquippedItem] Equipped item instance {} no longer exists (probably consumed). Clearing from ActiveEquipment.", equipped_item_instance_id);
+        
+        // Clear the stale reference from ActiveEquipment
+        current_equipment.equipped_item_def_id = None;
+        current_equipment.equipped_item_instance_id = None;
+        current_equipment.swing_start_time_ms = 0;
+        current_equipment.icon_asset_name = None;
+        active_equipments.player_identity().update(current_equipment);
+        
+        return Err("Equipped item no longer exists.".to_string());
+    }
+    
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
 

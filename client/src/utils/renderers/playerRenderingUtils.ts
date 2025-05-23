@@ -234,9 +234,16 @@ export const renderPlayer = (
   // --- End Knockback Interpolation Logic ---
 
   let isUsingItem = false;
-  if (!isCorpse && activeConsumableEffects) {
+  if (!isCorpse && activeConsumableEffects && player.identity) {
+    const playerHexId = player.identity.toHexString();
     for (const effect of activeConsumableEffects.values()) {
-      if (player.identity && effect.playerId.toHexString() === player.identity.toHexString() && effect.effectType.tag === "BandageBurst") { 
+      // Check if this player is using a bandage on themselves
+      if (effect.effectType.tag === "BandageBurst" && effect.playerId.toHexString() === playerHexId) {
+        isUsingItem = true;
+        break;
+      }
+      // Check if this player is healing someone else
+      if (effect.effectType.tag === "RemoteBandageBurst" && effect.playerId.toHexString() === playerHexId) {
         isUsingItem = true;
         break;
       }
