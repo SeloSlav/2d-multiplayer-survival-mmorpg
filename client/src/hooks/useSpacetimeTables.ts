@@ -121,7 +121,7 @@ export const useSpacetimeTables = ({
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
         if (connection && !callbacksRegisteredRef.current) {
-            console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
+            // console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
              
@@ -143,8 +143,8 @@ export const useSpacetimeTables = ({
                 
                 // Log newPlayer's lastHitTime when a respawn might be happening
                 if (oldPlayer.isDead && !newPlayer.isDead) {
-                    console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
-                    console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                    //console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
+                    // console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
                     // console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
                 }
 
@@ -164,10 +164,10 @@ export const useSpacetimeTables = ({
 
                 if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged || lastHitTimeChanged) { 
                     if (lastHitTimeChanged) {
-                         console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
+                         // console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
                     }
                     if (oldPlayer.isDead && !newPlayer.isDead && lastHitTimeChanged) {
-                        console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
+                        // console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
                     } else if (oldPlayer.isDead && !newPlayer.isDead && !lastHitTimeChanged) {
                         // This case should ideally not happen if server sends null for last_hit_time on respawn and SDK passes it through.
                         console.warn(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} BUT lastHitTime DID NOT CHANGE. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. This might be an issue.`);
@@ -365,19 +365,19 @@ export const useSpacetimeTables = ({
             
             // --- Active Connection Subscriptions ---
             const handleActiveConnectionInsert = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
-                console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
+                // console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
                 setActiveConnections(prev => {
                     const newMap = new Map(prev).set(conn.identity.toHexString(), conn);
-                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER INSERT:`, newMap);
+                    // console.log(`[useSpacetimeTables LOG] activeConnections map AFTER INSERT:`, newMap);
                     return newMap;
                 });
             };
             const handleActiveConnectionDelete = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
-                 console.log(`[useSpacetimeTables LOG] ActiveConnection DELETE: ${conn.identity.toHexString()}`);
+                // console.log(`[useSpacetimeTables LOG] ActiveConnection DELETE: ${conn.identity.toHexString()}`);
                 setActiveConnections(prev => {
                     const newMap = new Map(prev);
                     newMap.delete(conn.identity.toHexString());
-                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER DELETE:`, newMap);
+                    // console.log(`[useSpacetimeTables LOG] activeConnections map AFTER DELETE:`, newMap);
                     return newMap;
                 });
             };
@@ -456,15 +456,15 @@ export const useSpacetimeTables = ({
 
             // --- KnockedOutStatus Subscriptions ---
             const handleKnockedOutStatusInsert = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus INSERT:", status);
+                // console.log("[useSpacetimeTables] KnockedOutStatus INSERT:", status);
                 setKnockedOutStatus(prev => new Map(prev).set(status.playerId.toHexString(), status));
             };
             const handleKnockedOutStatusUpdate = (ctx: any, oldStatus: SpacetimeDB.KnockedOutStatus, newStatus: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus UPDATE:", newStatus);
+                // console.log("[useSpacetimeTables] KnockedOutStatus UPDATE:", newStatus);
                 setKnockedOutStatus(prev => new Map(prev).set(newStatus.playerId.toHexString(), newStatus));
             };
             const handleKnockedOutStatusDelete = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus DELETE:", status.playerId.toHexString());
+                // console.log("[useSpacetimeTables] KnockedOutStatus DELETE:", status.playerId.toHexString());
                 setKnockedOutStatus(prev => { const newMap = new Map(prev); newMap.delete(status.playerId.toHexString()); return newMap; });
             };
 
@@ -517,7 +517,7 @@ export const useSpacetimeTables = ({
             connection.db.stash.onInsert(handleStashInsert);
             connection.db.stash.onUpdate(handleStashUpdate);
             connection.db.stash.onDelete(handleStashDelete);
-            console.log("[useSpacetimeTables] Attempting to register ActiveConsumableEffect callbacks."); // ADDED LOG
+            // console.log("[useSpacetimeTables] Attempting to register ActiveConsumableEffect callbacks."); // ADDED LOG
             connection.db.activeConsumableEffect.onInsert(handleActiveConsumableEffectInsert);
             connection.db.activeConsumableEffect.onUpdate(handleActiveConsumableEffectUpdate);
             connection.db.activeConsumableEffect.onDelete(handleActiveConsumableEffectDelete);
@@ -714,7 +714,7 @@ export const useSpacetimeTables = ({
             // If viewport becomes null, clean up ALL spatial subs
             // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL. Cleaning up spatial subs."); // Log cleanup trigger
             if (spatialSubHandlesMapRef.current.size > 0) {
-                console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions."); // Updated log
+                // console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions."); // Updated log
                 spatialSubHandlesMapRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
                 });

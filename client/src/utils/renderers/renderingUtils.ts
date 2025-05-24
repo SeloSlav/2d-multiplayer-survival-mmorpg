@@ -188,20 +188,6 @@ export const renderYSortedEntities = ({
                movementReason = 'sprinting';
            }
            
-           // DEBUG: Log movement detection for local player when there are multiple players nearby
-           if (localPlayerId && playerId === localPlayerId && process.env.NODE_ENV === 'development') {
-               const nearbyPlayerCount = ySortedEntities.filter(e => 
-                   e.type === 'player' && 
-                   e.entity !== player &&
-                   Math.abs((e.entity as SpacetimeDBPlayer).positionX - player.positionX) < 100 &&
-                   Math.abs((e.entity as SpacetimeDBPlayer).positionY - player.positionY) < 100
-               ).length;
-               
-               if (nearbyPlayerCount > 0) {
-                   console.log(`[AnimationFix] LocalPlayer movement: ${isPlayerMoving} (${movementReason}), nearby players: ${nearbyPlayerCount}`);
-               }
-           }
-           
            lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
 
            let jumpOffset = 0;
@@ -214,7 +200,7 @@ export const renderYSortedEntities = ({
                }
            }
            
-            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
+           const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
            const heroImg = heroImageRef.current;
@@ -245,7 +231,7 @@ export const renderYSortedEntities = ({
             //    }
              } else {
                // Item was consumed but equipment table hasn't updated yet - don't render
-               console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
+               // console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
              }
            } else if (localPlayerId && playerId === localPlayerId) {
              // Debug logging removed for performance (was spamming every frame)

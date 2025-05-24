@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [spacetimeToken, setSpacetimeToken] = useState<string | null>(() => {
       const storedToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
-      console.log(`[AuthContext LOG] Initializing token state. Found in storage: ${!!storedToken}`); // <-- LOG initialization
+      // console.log(`[AuthContext LOG] Initializing token state. Found in storage: ${!!storedToken}`); // <-- LOG initialization
       return storedToken;
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     setAuthError(null);
     try {
-        console.log("[AuthContext] Initiating login redirect manually for password flow...");
+        // console.log("[AuthContext] Initiating login redirect manually for password flow...");
         
         // 1. Generate PKCE Verifier and Challenge
         const verifier = generateRandomString(128); // Generate a random verifier
@@ -135,7 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         authUrl.searchParams.set('code_challenge_method', pkce.code_challenge_method);
         authUrl.searchParams.set('acr_values', 'pwd'); // Add acr_values
 
-        console.log("[AuthContext] Redirecting to manually constructed URL:", authUrl.toString());
+        // console.log("[AuthContext] Redirecting to manually constructed URL:", authUrl.toString());
         window.location.assign(authUrl.toString()); // Redirect user
 
     } catch (error: any) {
@@ -148,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleRedirectCallback = useCallback(async () => {
     setIsLoading(true);
     setAuthError(null);
-    console.log("[AuthContext LOG] START: Handling redirect callback...");
+    // console.log("[AuthContext LOG] START: Handling redirect callback...");
 
     const queryParams = new URLSearchParams(window.location.search);
     const code = queryParams.get("code");
@@ -167,17 +167,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Might be initial load without callback, check existing token
             const existingToken = localStorage.getItem(LOCAL_STORAGE_KEYS.ID_TOKEN);
             if (existingToken) {
-                 console.log("[AuthContext] No code in URL, but found existing token.");
+                 // console.log("[AuthContext] No code in URL, but found existing token.");
                  setSpacetimeToken(existingToken);
                  // TODO: Parse existing token to set userProfile
                  const profile = parseToken(existingToken);
                  setUserProfile(profile);
             } else {
-                console.log("[AuthContext] No code and no existing token.");
+                // console.log("[AuthContext] No code and no existing token.");
             }
         }
         setIsLoading(false);
-        console.log("[AuthContext LOG] END: No code found in redirect callback.");
+        // console.log("[AuthContext LOG] END: No code found in redirect callback.");
         return;
     }
 
@@ -187,13 +187,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error("[AuthContext] PKCE verifier missing from storage.");
         setAuthError("Authentication context lost. Please try logging in again.");
         setIsLoading(false);
-        console.log("[AuthContext LOG] END: PKCE verifier missing.");
+        // console.log("[AuthContext LOG] END: PKCE verifier missing.");
         return;
     }
     localStorage.removeItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER); // Clean up verifier
 
     try {
-        console.log("[AuthContext LOG] Exchanging code for tokens...");
+        // console.log("[AuthContext LOG] Exchanging code for tokens...");
         
         // Construct form data payload for the token endpoint
         const tokenRequestBody = new URLSearchParams();
@@ -225,7 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const access_token = tokens.access_token as string | undefined;
         const refresh_token = tokens.refresh_token as string | undefined;
         
-        console.log("[AuthContext LOG] Tokens received (id_token present?):", !!id_token);
+        // console.log("[AuthContext LOG] Tokens received (id_token present?):", !!id_token);
 
         if (!id_token) {
              throw new Error("id_token missing from token response");
@@ -237,14 +237,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (refresh_token) localStorage.setItem(LOCAL_STORAGE_KEYS.REFRESH_TOKEN, refresh_token);
 
         // Set state (This will trigger the useEffect below)
-        console.log("[AuthContext LOG] Setting spacetimeToken state AFTER successful callback.");
+        // console.log("[AuthContext LOG] Setting spacetimeToken state AFTER successful callback.");
         setSpacetimeToken(id_token);
         const profile = parseToken(id_token);
         setUserProfile(profile);
         setAuthError(null);
 
         // Redirect to the main application page
-        console.log("[AuthContext LOG] END: Callback handled successfully, redirecting to '/'...");
+        // console.log("[AuthContext LOG] END: Callback handled successfully, redirecting to '/'...");
         window.location.replace('/');
 
     } catch (error: any) {
@@ -254,14 +254,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearTokens();
         setSpacetimeToken(null);
         setUserProfile(null);
-        console.log("[AuthContext LOG] END: Error during callback handling.");
+        // console.log("[AuthContext LOG] END: Error during callback handling.");
     } finally {
         setIsLoading(false);
     }
   }, []);
 
   const logout = useCallback(async () => {
-    console.log("[AuthContext LOG] Logging out...");
+    // console.log("[AuthContext LOG] Logging out...");
     setIsLoading(true);
     clearTokens();
     setSpacetimeToken(null);
@@ -274,7 +274,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // window.location.assign(endSessionUrl); 
     
     // For simplicity now, just clear client-side state
-    console.log("[AuthContext LOG] Cleared state and tokens for logout.");
+    // console.log("[AuthContext LOG] Cleared state and tokens for logout.");
     setIsLoading(false); 
     // Force reload or redirect to home to clear application state if needed
     window.location.assign(window.location.origin); 
@@ -289,7 +289,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem(LOCAL_STORAGE_KEYS.PKCE_VERIFIER); // Just in case
       setSpacetimeToken(null); 
       setUserProfile(null);
-      console.log("[AuthContext LOG] Cleared tokens from storage AND state.");
+      // console.log("[AuthContext LOG] Cleared tokens from storage AND state.");
   };
 
   const parseToken = (token: string): UserProfile | null => {
@@ -331,22 +331,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Only handle redirect OR set initial user profile
     if (window.location.pathname === new URL(REDIRECT_URI).pathname) {
-      console.log("[AuthContext LOG] Initial Load: Detected callback URL, invoking handler..."); 
+      // console.log("[AuthContext LOG] Initial Load: Detected callback URL, invoking handler..."); 
       handleRedirectCallback();
     } else {
       // --- MODIFIED: Token is already initialized. Just parse profile and finish loading. ---
       if (spacetimeToken) { 
-          console.log("[AuthContext LOG] Initial Load: Token was pre-loaded from storage. Parsing profile.");
+          // console.log("[AuthContext LOG] Initial Load: Token was pre-loaded from storage. Parsing profile.");
           const profile = parseToken(spacetimeToken);
           if (profile) {
               setUserProfile(profile);
-              console.log("[AuthContext LOG] Initial Load: Profile parsed successfully.");
+              // console.log("[AuthContext LOG] Initial Load: Profile parsed successfully.");
           } else {
               console.error("[AuthContext LOG] Initial Load: Failed to parse pre-loaded token. Clearing token.");
               clearTokens(); // Clear invalid stored token and state
           }
       } else {
-         console.log("[AuthContext LOG] Initial Load: No token was pre-loaded from storage."); 
+         // console.log("[AuthContext LOG] Initial Load: No token was pre-loaded from storage."); 
       }
       setIsLoading(false); // Finished initial non-callback load
     }
@@ -356,7 +356,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // --- Effect to Log Token Changes ---
   useEffect(() => {
     // This log will now reflect changes from login, logout, or clearing invalid tokens
-    console.log("[AuthContext LOG] spacetimeToken STATE CHANGED to:", spacetimeToken ? `token starting with ${spacetimeToken.substring(0, 10)}...` : null);
+    // console.log("[AuthContext LOG] spacetimeToken STATE CHANGED to:", spacetimeToken ? `token starting with ${spacetimeToken.substring(0, 10)}...` : null);
   }, [spacetimeToken]); 
 
   const isAuthenticated = !!spacetimeToken;

@@ -235,7 +235,7 @@ export const useDragDropManager = ({
                             return;
                         }
                         const targetCorpseIdU32 = Number(targetContainerIdBigInt); // Convert BigInt to number (u32 for reducer)
-                        console.log(`[useDragDropManager Drop Split] Calling split_stack_into_corpse (Corpse ${targetCorpseIdU32}, Slot ${targetSlotIndexNum})`);
+                        // console.log(`[useDragDropManager Drop Split] Calling split_stack_into_corpse (Corpse ${targetCorpseIdU32}, Slot ${targetSlotIndexNum})`);
                         connection.reducers.splitStackIntoCorpse(targetCorpseIdU32, targetSlotIndexNum, sourceInstanceId, quantityToSplit);
                     } else if (targetSlotType === 'stash') { // Splitting into Stash
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
@@ -245,7 +245,7 @@ export const useDragDropManager = ({
                             setDropError("Invalid target slot or context for stash split.");
                             return;
                         }
-                        console.log(`[useDragDropManager Drop Split] Calling split_stack_into_stash (StashID: ${targetContainerIdNum}, Slot: ${targetSlotIndexNum}, Item: ${sourceInstanceId}, Qty: ${quantityToSplit})`);
+                        // console.log(`[useDragDropManager Drop Split] Calling split_stack_into_stash (StashID: ${targetContainerIdNum}, Slot: ${targetSlotIndexNum}, Item: ${sourceInstanceId}, Qty: ${quantityToSplit})`);
                         connection.reducers.splitStackIntoStash(targetContainerIdNum, targetSlotIndexNum, sourceInstanceId, quantityToSplit);
                     } else {
                         console.warn(`[useDragDropManager Drop] Split ignored: Cannot split from ${sourceSlotType} to ${targetSlotType}`);
@@ -287,12 +287,12 @@ export const useDragDropManager = ({
                             }
                         }
                         if (targetItemInstance) {
-                            console.log(`  Target Slot Occupied By:`, targetItemInstance);
-                            console.log(`    -> Current Quantity: ${targetItemInstance.quantity}`);
+                            // console.log(`  Target Slot Occupied By:`, targetItemInstance);
+                            // console.log(`    -> Current Quantity: ${targetItemInstance.quantity}`);
                         } else {
-                            console.log(`  Target Slot is Empty.`);
+                            // console.log(`  Target Slot is Empty.`);
                         }
-                        console.log(`  Calling Reducer: splitStackFromCampfire(${sourceCampfireId}, ${sourceIndexNum}, ${quantityToSplit}, ${targetSlotType}, ${targetSlotIndexNum})`);
+                        // console.log(`  Calling Reducer: splitStackFromCampfire(${sourceCampfireId}, ${sourceIndexNum}, ${quantityToSplit}, ${targetSlotType}, ${targetSlotIndexNum})`);
                         // --- DEBUG LOGS END ---
                         
                         connection.reducers.splitStackFromCampfire(
@@ -319,7 +319,7 @@ export const useDragDropManager = ({
                             return;
                         }
                         
-                        console.log(`[useDragDropManager Drop] Calling split_stack_within_campfire: Campfire ${sourceCampfireId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
+                        // console.log(`[useDragDropManager Drop] Calling split_stack_within_campfire: Campfire ${sourceCampfireId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
                         connection.reducers.splitStackWithinCampfire(
                             sourceCampfireId,
                             sourceIndexNum,
@@ -383,7 +383,7 @@ export const useDragDropManager = ({
                             setDropError("Invalid target slot for split.");
                             return;
                         }
-                        console.log(`[useDragDropManager Drop Split] Calling splitStackFromCorpse (Corpse ${sourceCorpseIdU32}, Slot ${sourceIndexNum} -> ${targetSlotType} ${targetSlotIndexNum})`);
+                        // console.log(`[useDragDropManager Drop Split] Calling splitStackFromCorpse (Corpse ${sourceCorpseIdU32}, Slot ${sourceIndexNum} -> ${targetSlotType} ${targetSlotIndexNum})`);
                         connection.reducers.splitStackFromCorpse(
                             sourceCorpseIdU32,
                             sourceIndexNum,
@@ -407,7 +407,7 @@ export const useDragDropManager = ({
                             setDropError("Cannot split between different corpses.");
                             return;
                         }
-                        console.log(`[useDragDropManager Drop Split] Calling splitStackWithinCorpse (Corpse ${sourceCorpseIdU32}, Slot ${sourceIndexNum} -> Slot ${targetSlotIndexNum})`);
+                        // console.log(`[useDragDropManager Drop Split] Calling splitStackWithinCorpse (Corpse ${sourceCorpseIdU32}, Slot ${sourceIndexNum} -> Slot ${targetSlotIndexNum})`);
                         connection.reducers.splitStackWithinCorpse(
                             sourceCorpseIdU32,
                             sourceIndexNum,
@@ -437,7 +437,7 @@ export const useDragDropManager = ({
                             setDropError("Invalid target player slot index for split from stash.");
                             return;
                         }
-                        console.log(`[useDragDropManager Drop Split] Calling split_stack_from_stash (StashID: ${sourceStashId}, StashSlot: ${sourceIndexNum}, Qty: ${quantityToSplit}, Target: ${targetSlotType}, TargetSlot: ${targetSlotIndexNum})`);
+                        // console.log(`[useDragDropManager Drop Split] Calling split_stack_from_stash (StashID: ${sourceStashId}, StashSlot: ${sourceIndexNum}, Qty: ${quantityToSplit}, Target: ${targetSlotType}, TargetSlot: ${targetSlotIndexNum})`);
                         connection.reducers.splitStackFromStash(sourceStashId, sourceIndexNum, quantityToSplit, targetSlotType, targetSlotIndexNum);
 
                     } else if (targetSlotType === 'stash') {
@@ -492,7 +492,7 @@ export const useDragDropManager = ({
                     const sourceStashId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
                     if (sourceStashId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing StashID/SourceIndex for move from stash"); setDropError("Cannot move item: Source context lost."); return; }
-                    console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
                     connection.reducers.moveItemFromStash(sourceStashId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
                     // Default move to inventory (from inv/hotbar/equip)
@@ -522,7 +522,7 @@ export const useDragDropManager = ({
                     const sourceStashId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
                     if (sourceStashId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing StashID/SourceIndex for move from stash"); setDropError("Cannot move item: Source context lost."); return; }
-                    console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to hotbar ${targetIndexNum})`);
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to hotbar ${targetIndexNum})`);
                     connection.reducers.moveItemFromStash(sourceStashId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
                     // Default move to hotbar (from inv/hotbar/equip)
@@ -593,7 +593,7 @@ export const useDragDropManager = ({
                 if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
                     // Revert back to the logically correct reducer name
                     // despite the persistent linter error.
-                    console.log(`[useDragDropManager Drop] Calling moveItemToCorpse (linter error expected)`);
+                    // console.log(`[useDragDropManager Drop] Calling moveItemToCorpse (linter error expected)`);
                     connection.reducers.moveItemToCorpse(corpseIdU32, targetIndexNum, itemInstanceId);
                 } else if (source_type === 'player_corpse') {
                     // <<< Move Within Corpse >>>
@@ -620,7 +620,7 @@ export const useDragDropManager = ({
                 }
                 const source_type = sourceInfo.sourceSlot.type.trim();
                 if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
-                    console.log(`[useDragDropManager Drop] Calling move_item_to_stash (StashID: ${stashIdNum}, Slot: ${targetIndexNum}, Item: ${itemInstanceId})`);
+                    // console.log(`[useDragDropManager Drop] Calling move_item_to_stash (StashID: ${stashIdNum}, Slot: ${targetIndexNum}, Item: ${itemInstanceId})`);
                     connection.reducers.moveItemToStash(stashIdNum, targetIndexNum, itemInstanceId);
                 } else if (source_type === 'stash') {
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
@@ -629,7 +629,7 @@ export const useDragDropManager = ({
                         setDropError("Cannot move items between different stashes yet.");
                         return;
                     }
-                    console.log(`[useDragDropManager Drop] Calling move_item_within_stash (StashID: ${stashIdNum}, FromSlot: ${sourceIndexNum}, ToSlot: ${targetIndexNum})`);
+                    // console.log(`[useDragDropManager Drop] Calling move_item_within_stash (StashID: ${stashIdNum}, FromSlot: ${sourceIndexNum}, ToSlot: ${targetIndexNum})`);
                     connection.reducers.moveItemWithinStash(stashIdNum, sourceIndexNum, targetIndexNum);
                 } else {
                     console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to stash`);

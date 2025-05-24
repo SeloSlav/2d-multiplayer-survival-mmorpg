@@ -413,7 +413,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
         // --- ADDED: Debugging for smoke burst particles ---
         if (p.type === 'smoke' && p.color === "#000000") { // Check if it's a black smoke burst particle
-            console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
+            // console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
         }
         // --- END ADDED ---
 
@@ -883,7 +883,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
               if (distSq < damageRadiusSq) {
                 newlyDamagingIds.add(id.toString());
-                console.log(`[GameCanvas] Player took damage near burning campfire ${id}. Health: ${prevHealth} -> ${currentHealth}`);
+                // console.log(`[GameCanvas] Player took damage near burning campfire ${id}. Health: ${prevHealth} -> ${currentHealth}`);
               }
             }
           });

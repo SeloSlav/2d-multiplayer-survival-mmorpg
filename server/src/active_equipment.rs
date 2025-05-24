@@ -650,12 +650,26 @@ pub fn equip_armor(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), St
         .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
 
     match &item_to_equip.location {
-        ItemLocation::Inventory(_) |
-        ItemLocation::Hotbar(_) => {
-            // Item is in inventory or hotbar - allow equipping regardless of original owner_id
-            // since if it's in the player's slots, they should be able to equip it
+        ItemLocation::Inventory(_) | ItemLocation::Hotbar(_) => {
+            // Item is in player's direct possession slots (Inventory or Hotbar).
+            // The owner_id within these ItemLocationData variants should ideally match ctx.sender.
+            // This reducer proceeds to equip it for ctx.sender regardless of a potential mismatch here,
+            // as the act of equipping by sender_id implies claim and corrects its state to Equipped by sender_id.
+            log::debug!("[EquipArmor] Item {} found in Inventory/Hotbar ({:?}), proceeding to equip for player {:?}.", item_instance_id, item_to_equip.location, sender_id);
         }
-        _ => return Err("Item to equip must be in player inventory or hotbar.".to_string()),
+        ItemLocation::Unknown => {
+            // Item's location is Unknown. This typically means it's not properly tracked in a specific player slot or container.
+            // Allowing equip from Unknown implies the player (ctx.sender) is claiming this unlocated item.
+            log::warn!("[EquipArmor] Equipping item {} which has an ItemLocation::Unknown for player {:?}. The item will be claimed and its location updated to Equipped.", item_instance_id, sender_id);
+        }
+        // Other locations (Container, Dropped, already Equipped in a different slot) are not directly handled here.
+        // Equipping from a container would typically involve moving it to inventory first.
+        // Equipping a dropped item requires picking it up first.
+        // Swapping already equipped items is usually handled by client-side logic orchestrating unequip/equip or specific swap reducers.
+        _ => {
+            log::warn!("[EquipArmor] Item {} cannot be equipped directly from its current location: {:?}. It must be in Inventory, Hotbar, or be in an Unknown state to be claimed.", item_instance_id, item_to_equip.location);
+            return Err(format!("Item cannot be equipped from its current location ({:?}). Move to inventory/hotbar or ensure it's in a claimable state first.", item_to_equip.location));
+        }
     }
 
     let item_def = item_defs.id().find(item_to_equip.item_def_id)

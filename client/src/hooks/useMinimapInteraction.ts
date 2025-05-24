@@ -288,7 +288,7 @@ export function useMinimapInteraction({
                 worldY = clickYRelative / baseScale;
             } else {
                 // Click was in the padding area, ignore
-                console.log("Pin click outside world bounds (in padding).");
+                // console.log("Pin click outside world bounds (in padding).");
                 return; 
             }
         
@@ -316,7 +316,7 @@ export function useMinimapInteraction({
             const clampedWorldX = Math.max(0, Math.min(worldPixelWidth, Math.round(worldX)));
             const clampedWorldY = Math.max(0, Math.min(worldPixelHeight, Math.round(worldY)));
 
-            console.log(`Setting pin at world coordinates: (${clampedWorldX}, ${clampedWorldY})`);
+            // console.log(`Setting pin at world coordinates: (${clampedWorldX}, ${clampedWorldY})`);
             try {
                 connection.reducers.setPlayerPin(clampedWorldX, clampedWorldY);
             } catch (err) {

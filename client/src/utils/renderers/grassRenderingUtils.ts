@@ -666,7 +666,7 @@ export function cleanupGrassRenderingOptimizations() {
     }
     
     if (deletedCount > 0) {
-        console.log(`[GrassRenderingUtils] Cleaned up ${deletedCount} old disturbance cache entries`);
+        // console.log(`[GrassRenderingUtils] Cleaned up ${deletedCount} old disturbance cache entries`);
     }
 }
 

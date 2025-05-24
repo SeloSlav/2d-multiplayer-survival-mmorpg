@@ -728,52 +728,52 @@ export const useInputHandler = ({
 
             if (event.button === 0) { // Left Click
                 isMouseDownRef.current = true; 
-                console.log("[InputHandler MOUSEDOWN] Left-click detected.");
+                // console.log("[InputHandler MOUSEDOWN] Left-click detected.");
 
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
-                console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
+                // console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
                 if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
                     const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
-                    console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item Def (raw object): ", equippedItemDef);
+                   //  console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item Def (raw object): ", equippedItemDef);
                     
                     if (equippedItemDef) { 
-                        console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
+                        // console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
                         
                         // 1. Ranged Weapon Firing
                         if (equippedItemDef.category?.tag === "RangedWeapon") { 
                             if (localPlayerActiveEquipment.isReadyToFire) {
                                 if (connectionRef.current?.reducers && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
-                                    console.log("[InputHandler MOUSEDOWN] Ranged weapon loaded. Firing!");
+                                    // console.log("[InputHandler MOUSEDOWN] Ranged weapon loaded. Firing!");
                                     connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y); 
                                 } else {
                                     console.warn("[InputHandler MOUSEDOWN] Cannot fire ranged weapon: No connection/reducers or invalid mouse position.");
                                 }
                             } else {
-                                console.log("[InputHandler MOUSEDOWN] Ranged weapon equipped but not ready to fire (isReadyToFire: false).");
+                                // console.log("[InputHandler MOUSEDOWN] Ranged weapon equipped but not ready to fire (isReadyToFire: false).");
                             }
                             return; // Ranged weapon logic handled (fired or noted as not ready)
                         }
                         // 2. Torch: Prevent left-click swing   
                         else if (equippedItemDef.name === "Torch") {
-                            console.log("[InputHandler MOUSEDOWN] Torch equipped. Left-click does nothing (use Right-Click to toggle).");
+                            // console.log("[InputHandler MOUSEDOWN] Torch equipped. Left-click does nothing (use Right-Click to toggle).");
                             return; // Torch has no default left-click action here
                         }
                         // 3. Bandage: Prevent left-click swing (already handled by right-click)
                         else if (equippedItemDef.name === "Bandage") {
-                            console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
+                            // console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
                             return; 
                         }
                         // If none of the above special cases, fall through to default item use (melee/tool)
                     } else {
-                        console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
+                        // console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
                         // Fall through to default unarmed action if item def is missing
                     }
                 }
 
                 // Default action for other items (tools, melee weapons) or if unarmed
                 if (localPlayerId && connectionRef.current?.reducers) {
-                    console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
+                    // console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
                     connectionRef.current.reducers.useEquippedItem(); 
                 } else {
                      console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
@@ -860,22 +860,22 @@ export const useInputHandler = ({
         const handleContextMenu = (event: MouseEvent) => {
             if (isPlayerDead) return;
             if (isInventoryOpen) return; 
-            console.log("[InputHandler] handleContextMenu triggered."); 
+            // console.log("[InputHandler] handleContextMenu triggered."); 
 
             const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
-            console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
+            // console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
             if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
                 const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
-                console.log("[InputHandler DEBUG CTXMENU] Equipped item Def (raw object): ", equippedItemDef);
+                // console.log("[InputHandler DEBUG CTXMENU] Equipped item Def (raw object): ", equippedItemDef);
 
                 if (equippedItemDef) { // <<< NULL CHECK ADDED
-                    console.log("[InputHandler DEBUG CTXMENU] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
+                    // console.log("[InputHandler DEBUG CTXMENU] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
                     if (equippedItemDef.category?.tag === "RangedWeapon") { 
-                        console.log("[InputHandler CTXMENU] Ranged Weapon equipped. Attempting to load.");
+                        // console.log("[InputHandler CTXMENU] Ranged Weapon equipped. Attempting to load.");
                         event.preventDefault(); 
                         if (connectionRef.current?.reducers) {
-                            console.log("[InputHandler CTXMENU] Calling loadRangedWeapon reducer.");
+                            // console.log("[InputHandler CTXMENU] Calling loadRangedWeapon reducer.");
                             connectionRef.current.reducers.loadRangedWeapon(); 
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call loadRangedWeapon.");
@@ -883,20 +883,20 @@ export const useInputHandler = ({
                         return; 
                     } 
                     else if (equippedItemDef.name === "Torch") {
-                        console.log("[InputHandler CTXMENU] Torch equipped. Attempting to toggle.");
+                        // console.log("[InputHandler CTXMENU] Torch equipped. Attempting to toggle.");
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
-                            console.log("[InputHandler CTXMENU] Calling toggleTorch reducer.");
+                            // console.log("[InputHandler CTXMENU] Calling toggleTorch reducer.");
                             connectionRef.current.reducers.toggleTorch();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call toggleTorch.");
                         }
                         return; 
                     } else if (equippedItemDef.name === "Bandage") {
-                        console.log("[InputHandler CTXMENU] Bandage equipped. Attempting to use.");
+                        // console.log("[InputHandler CTXMENU] Bandage equipped. Attempting to use.");
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
-                            console.log("[InputHandler CTXMENU] Calling useEquippedItem for Bandage.");
+                            // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Bandage.");
                             connectionRef.current.reducers.useEquippedItem(); 
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Bandage.");
@@ -904,13 +904,13 @@ export const useInputHandler = ({
                         return; 
                     }
                     else {
-                        console.log("[InputHandler DEBUG CTXMENU] Equipped item is not Ranged, Torch, or Bandage. Proceeding to placement check.");
+                        // console.log("[InputHandler DEBUG CTXMENU] Equipped item is not Ranged, Torch, or Bandage. Proceeding to placement check.");
                     }
                 } else {
-                    console.log("[InputHandler DEBUG CTXMENU] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
+                    // console.log("[InputHandler DEBUG CTXMENU] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
                 }
             } else {
-                 console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
+                 // console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
             }
 
             if (placementInfo) {
