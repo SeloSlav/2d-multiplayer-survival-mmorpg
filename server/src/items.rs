@@ -29,6 +29,8 @@ use crate::campfire::CampfireClearer;
 use crate::wooden_storage_box::WoodenStorageBoxClearer;
 use crate::player_corpse::PlayerCorpseClearer;
 use crate::stash::StashClearer; // Added StashClearer import
+use crate::ranged_weapon_stats::RangedWeaponStats; // For the struct
+use crate::ranged_weapon_stats::ranged_weapon_stats as ranged_weapon_stats_table_accessor; // For ctx.db.ranged_weapon_stats()
 
 // --- Item Enums and Structs ---
 
@@ -42,6 +44,7 @@ pub enum ItemCategory {
     Consumable,
     Ammunition,
     Weapon,
+    RangedWeapon, // NEW: Added RangedWeapon category
     // Add other categories as needed (Consumable, Wearable, etc.)
 }
 
@@ -141,6 +144,46 @@ pub fn seed_items(ctx: &ReducerContext) -> Result<(), String> {
 
     log::info!("Finished seeding {} item definitions.", seeded_count);
     Ok(())
+}
+
+// Reducer to seed initial ranged weapon stats
+#[spacetimedb::reducer]
+pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
+    let ranged_stats = ctx.db.ranged_weapon_stats();
+    if ranged_stats.iter().count() > 0 {
+        log::info!("Ranged weapon stats already seeded ({}). Skipping.", ranged_stats.iter().count());
+        return Ok(());
+    }
+
+    log::info!("Seeding initial ranged weapon stats...");
+
+    let initial_ranged_stats = vec![
+        RangedWeaponStats {
+            item_name: "Hunting Bow".to_string(),
+            weapon_range: 800.0,      // Increased from 300 to 400 world units
+            projectile_speed: 650.0,  // Fast projectile
+            accuracy: 0.8,            // 80% accuracy base
+            reload_time_secs: 1.0,    // 1 second between shots
+        },
+    ];
+
+    let mut seeded_count = 0;
+    for stats in initial_ranged_stats {
+        match ranged_stats.try_insert(stats) {
+            Ok(_) => seeded_count += 1,
+            Err(e) => log::error!("Failed to insert ranged weapon stats during seeding: {}", e),
+        }
+    }
+
+    log::info!("Finished seeding {} ranged weapon stats.", seeded_count);
+    Ok(())
+}
+
+// --- Helper Functions ---
+
+// Helper to get ranged weapon stats by item name
+pub(crate) fn get_ranged_weapon_stats(ctx: &ReducerContext, item_name: &str) -> Option<RangedWeaponStats> {
+    ctx.db.ranged_weapon_stats().iter().find(|stats| stats.item_name == item_name).map(|stats| stats.clone())
 }
 
 // --- Inventory Management Reducers ---
@@ -798,4 +841,27 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     ctx.db.inventory_item().instance_id().update(item_to_equip);
 
     Ok(())
+}
+
+pub fn init_ranged_weapon_stats(ctx: &ReducerContext) {
+    if ctx.db.ranged_weapon_stats().count() > 0 {
+        log::info!("RangedWeaponStats table already populated.");
+        return;
+    }
+
+    let initial_stats = vec![
+        RangedWeaponStats {
+            item_name: "Hunting Bow".to_string(),
+            weapon_range: 400.0,      // Increased from 300 to 400 world units
+            projectile_speed: 500.0,  // world units per second
+            accuracy: 0.8,            // 80% base
+            reload_time_secs: 1.0,    // 1 second between shots
+        },
+        // Add stats for other ranged weapons here if any
+    ];
+
+    for stats in initial_stats {
+        ctx.db.ranged_weapon_stats().insert(stats);
+    }
+    log::info!("Populated RangedWeaponStats table with initial data.");
 } 

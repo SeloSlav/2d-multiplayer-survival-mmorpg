@@ -740,10 +740,68 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            // MODIFIED: Block if player is dead, chatting, searching, button isn't left, placing, OR INVENTORY IS OPEN
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo || isInventoryOpen) return;
+            console.log("[DEBUG] Mouse down event triggered. Button:", event.button);
+            
+            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo || isInventoryOpen) {
+                console.log("[DEBUG] Mouse down blocked by conditions:", {
+                    isPlayerDead,
+                    isChatting,
+                    isSearchingCraftRecipes,
+                    isButton0: event.button === 0,
+                    hasPlacement: !!placementInfo,
+                    isInventoryOpen
+                });
+                return;
+            }
+            
+            console.log("[DEBUG] Mouse down passed initial checks, checking ranged weapon conditions...");
+            
+            // Use existing refs directly
+            if (connectionRef.current?.reducers && localPlayerId && localPlayerRef.current && activeEquipmentsRef.current && itemDefinitionsRef.current && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
+                console.log("[DEBUG] All refs available, checking equipment...");
+                
+                const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
+                console.log("[DEBUG] Local equipment:", localEquipment);
+                
+                if (localEquipment?.equippedItemDefId) {
+                    const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
+                    console.log("[DEBUG] Item definition:", itemDef);
+                    console.log("[DEBUG] Item name:", itemDef?.name);
+                    console.log("[DEBUG] Item category:", itemDef?.category);
+                    console.log("[DEBUG] World mouse pos:", worldMousePosRefInternal.current);
+                    
+                    if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
+                        console.log("[DEBUG] FIRING PROJECTILE! Target:", worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
+                        try {
+                            connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
+                            lastClientSwingAttemptRef.current = Date.now(); 
+                            lastServerSwingTimestampRef.current = Date.now(); 
+                            isMouseDownRef.current = true; 
+                            console.log("[DEBUG] Projectile fired successfully!");
+                            return; 
+                        } catch (err) {
+                            console.error("[MouseDown Ranged] Error calling fireProjectile reducer:", err);
+                        }
+                    } else {
+                        console.log("[DEBUG] Not a ranged weapon - name check:", itemDef?.name === "Hunting Bow", "category check:", itemDef?.category === SpacetimeDB.ItemCategory.RangedWeapon);
+                    }
+                } else {
+                    console.log("[DEBUG] No equipped item def ID");
+                }
+            } else {
+                console.log("[DEBUG] Missing refs:", {
+                    hasConnection: !!connectionRef.current?.reducers,
+                    hasLocalPlayerId: !!localPlayerId,
+                    hasLocalPlayer: !!localPlayerRef.current,
+                    hasActiveEquipments: !!activeEquipmentsRef.current,
+                    hasItemDefinitions: !!itemDefinitionsRef.current,
+                    worldMouseX: worldMousePosRefInternal.current.x,
+                    worldMouseY: worldMousePosRefInternal.current.y
+                });
+            }
+
             isMouseDownRef.current = true;
-            attemptSwing(); // Call internal swing logic
+            attemptSwing(); 
         };
 
         const handleMouseUp = (event: MouseEvent) => {
@@ -756,39 +814,47 @@ export const useInputHandler = ({
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
-            if (isPlayerDead) return; // No actions if dead
-
-            // If placing, attempt placement regardless of inventory (though placement UI might be hidden)
+            console.log("[DEBUG] Canvas click event triggered");
+            
+            if (isPlayerDead) return;
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
-                // If placement was attempted, don't proceed to other click actions, especially if inventory is open.
                 return; 
             }
+            if (isInventoryOpen) return; 
+            if (isActivelyHolding) return;
+            if (event.target !== canvasRef?.current) return;
 
-            // MODIFIED: If inventory is open AND we are NOT placing, then no further click actions (like swing).
-            if (isInventoryOpen) {
-                // console.log("[InputHandler] Inventory is open, canvas click ignored for item actions.");
-                return; 
-            }
+            console.log("[DEBUG] Canvas click passed initial checks, checking ranged weapon...");
 
-            // If an interaction hold was just completed via click (rather than E key release), don't also swing.
-            if (isActivelyHolding) {
-                return;
-            }
-
-            // Prevent swinging if a UI element was clicked (e.g., a button over the canvas)
-            if (event.target !== canvasRef.current) {
-                // console.log("Clicked on a UI element, not swinging.");
-                return;
+            // Use existing refs directly
+            if (connectionRef.current?.reducers && localPlayerId && localPlayerRef.current && activeEquipmentsRef.current && itemDefinitionsRef.current && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
+                const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
+                if (localEquipment?.equippedItemDefId) {
+                    const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
+                    console.log("[DEBUG] Canvas click - Item def:", itemDef?.name, itemDef?.category);
+                    
+                    if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
+                        console.log("[DEBUG] CANVAS CLICK FIRING PROJECTILE!");
+                        try {
+                            connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
+                            lastClientSwingAttemptRef.current = Date.now();
+                            lastServerSwingTimestampRef.current = Date.now(); 
+                            console.log("[DEBUG] Canvas click projectile fired!");
+                            return; 
+                        } catch (err) {
+                            console.error("[CanvasClick Ranged] Error calling fireProjectile reducer:", err);
+                        }
+                    }
+                }
             }
 
             // --- Re-evaluate swing logic directly for canvas click, similar to attemptSwing ---
-            const currentConnection = connectionRef.current;
-            if (!currentConnection?.reducers || !localPlayerId) return;
-
-            const currentEquipments = activeEquipmentsRef.current;
-            const localEquipment = currentEquipments?.get(localPlayerId);
-            const itemDefMap = itemDefinitionsRef.current;
+            // Ensure connectionRef is used here as well if currentConnection was from outer scope
+            if (!connectionRef.current?.reducers || !localPlayerId) return;
+            // ... rest of melee swing logic, ensure it uses refs if needed ...
+            const localEquipment = activeEquipmentsRef.current?.get(localPlayerId);
+            const itemDef = itemDefinitionsRef.current?.get(String(localEquipment?.equippedItemDefId));
 
             if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
                 // Unarmed
@@ -796,34 +862,28 @@ export const useInputHandler = ({
                 if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
                 if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
                 try {
-                    currentConnection.reducers.useEquippedItem();
+                    connectionRef.current.reducers.useEquippedItem();
                     lastClientSwingAttemptRef.current = nowUnarmed;
                     lastServerSwingTimestampRef.current = nowUnarmed;
                 } catch (err) { console.error("[CanvasClick Unarmed] Error calling useEquippedItem reducer:", err); }
             } else {
-                // Armed
-                const itemDef = itemDefMap?.get(String(localEquipment.equippedItemDefId));
+                // Armed (melee/tool)
                 if (!itemDef) return;
-
-                if (itemDef.name === "Bandage") {
-                    console.log("[InputHandler] Bandage equipped, left-click does not trigger useEquippedItem.");
-                    return;
+                if (itemDef.name === "Bandage" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
+                    // Ranged/Bandage already handled or should not be triggered by this melee path
+                    return; 
                 }
-
                 const now = Date.now();
                 const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
-
                 if (now - lastServerSwingTimestampRef.current < attackIntervalMs) return;
                 if (now - lastClientSwingAttemptRef.current < attackIntervalMs) return;
                 if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) return;
-                
                 try {
-                    currentConnection.reducers.useEquippedItem();
+                    connectionRef.current.reducers.useEquippedItem();
                     lastClientSwingAttemptRef.current = now;
                     lastServerSwingTimestampRef.current = now;
                 } catch (err) { console.error("[CanvasClick Armed] Error calling useEquippedItem reducer:", err); }
             }
-            // --- End re-evaluated swing logic for canvas click ---
         };
 
         // --- Context Menu for Placement Cancellation ---

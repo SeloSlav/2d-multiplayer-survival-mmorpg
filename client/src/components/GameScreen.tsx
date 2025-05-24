@@ -18,6 +18,7 @@ import Hotbar from './Hotbar';
 import DayNightCycleTracker from './DayNightCycleTracker';
 import Chat from './Chat';
 import SpeechBubbleManager from './SpeechBubbleManager';
+import TargetingReticle from './TargetingReticle';
 
 // Import types used by props
 import { 
@@ -47,7 +48,9 @@ import {
     ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
     Cloud as SpacetimeDBCloud,
     Grass as SpacetimeDBGrass,
-    KnockedOutStatus as SpacetimeDBKnockedOutStatus
+    KnockedOutStatus as SpacetimeDBKnockedOutStatus,
+    RangedWeaponStats,
+    Projectile as SpacetimeDBProjectile
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -59,7 +62,7 @@ import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
 // Import other necessary imports
 import { useInteractionManager } from '../hooks/useInteractionManager';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Define props required by GameScreen and its children
 interface GameScreenProps {
@@ -90,6 +93,7 @@ interface GameScreenProps {
     activeConsumableEffects: Map<string, SpacetimeDBActiveConsumableEffect>;
     grass: Map<string, SpacetimeDBGrass>;
     knockedOutStatus: Map<string, SpacetimeDBKnockedOutStatus>;
+    rangedWeaponStats: Map<string, RangedWeaponStats>;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -120,6 +124,9 @@ interface GameScreenProps {
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isChatting: boolean;
     setIsChatting: (isChatting: boolean) => void;
+
+    // Additional props
+    projectiles: Map<string, SpacetimeDBProjectile>;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -147,7 +154,11 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         clouds,
         grass,
         knockedOutStatus,
+        rangedWeaponStats,
+        projectiles,
     } = props;
+
+    const gameCanvasRef = useRef<HTMLCanvasElement>(null);
 
     // You can also add a useEffect here if the above doesn't show up
     useEffect(() => {
@@ -162,6 +173,12 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     // Added state
     const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
+
+    // Derive activeItemDef for TargetingReticle
+    const localPlayerActiveEquipment = localPlayerId ? activeEquipments.get(localPlayerId) : undefined;
+    const activeItemDef = localPlayerActiveEquipment?.equippedItemDefId && itemDefinitions
+        ? itemDefinitions.get(localPlayerActiveEquipment.equippedItemDefId.toString()) || null
+        : null;
 
     return (
         <div className="game-container">
@@ -203,6 +220,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeConsumableEffects={activeConsumableEffects}
                 showInventory={showInventoryState}
                 grass={grass}
+                gameCanvasRef={gameCanvasRef}
+                projectiles={projectiles}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -260,6 +279,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 connection={connection}
                 campfires={campfires}
                 stashes={stashes}
+                activeConsumableEffects={activeConsumableEffects}
             />
             <DayNightCycleTracker worldState={worldState} />
             <Chat 
@@ -269,6 +289,16 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isChatting={isChatting}
                 setIsChatting={setIsChatting}
                 localPlayerIdentity={localPlayerId}
+            />
+
+            <TargetingReticle
+                localPlayer={localPlayer || null}
+                playerIdentity={playerIdentity}
+                activeItemDef={activeItemDef}
+                rangedWeaponStats={rangedWeaponStats || new Map()}
+                gameCanvasRef={gameCanvasRef}
+                cameraOffsetX={cameraOffsetX}
+                cameraOffsetY={cameraOffsetY}
             />
         </div>
     );

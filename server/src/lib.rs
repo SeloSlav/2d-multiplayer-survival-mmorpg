@@ -54,6 +54,8 @@ mod grass; // <<< ADDED grass module
 mod player_movement; // <<< ADDED player movement module
 mod knocked_out; // <<< ADDED knocked out recovery module
 mod bones; // <<< ADDED bones module
+mod ranged_weapon_stats; // Add this line
+mod projectile; // Add this line
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -248,6 +250,7 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::player_stats::init_stat_thresholds_config(ctx)?;
     // ADD: Initialize active effects processing schedule
     crate::active_effects::schedule_effect_processing(ctx)?;
+    crate::projectile::init_projectile_system(ctx)?;
 
     log::info!("Module initialization complete.");
     Ok(())
@@ -261,6 +264,8 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     crate::items::seed_items(ctx)?; // Call the item seeder
     crate::world_state::seed_world_state(ctx)?; // Call the world state seeder
     crate::crafting::seed_recipes(ctx)?; // Seed the crafting recipes
+    crate::items::seed_ranged_weapon_stats(ctx)?; // Seed the ranged weapon stats
+    crate::projectile::init_projectile_system(ctx)?; // Initialize projectile collision detection system
     // No seeder needed for Campfire yet, table will be empty initially
 
     // --- Track Active Connection --- 

@@ -42,6 +42,7 @@ export namespace ItemCategory {
   export type Consumable = { tag: "Consumable" };
   export type Ammunition = { tag: "Ammunition" };
   export type Weapon = { tag: "Weapon" };
+  export type RangedWeapon = { tag: "RangedWeapon" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -56,6 +57,7 @@ export namespace ItemCategory {
   export const Consumable = { tag: "Consumable" };
   export const Ammunition = { tag: "Ammunition" };
   export const Weapon = { tag: "Weapon" };
+  export const RangedWeapon = { tag: "RangedWeapon" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -66,6 +68,7 @@ export namespace ItemCategory {
       new SumTypeVariant("Consumable", AlgebraicType.createProductType([])),
       new SumTypeVariant("Ammunition", AlgebraicType.createProductType([])),
       new SumTypeVariant("Weapon", AlgebraicType.createProductType([])),
+      new SumTypeVariant("RangedWeapon", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -80,7 +83,7 @@ export namespace ItemCategory {
 }
 
 // The tagged union or sum type for the algebraic type `ItemCategory`.
-export type ItemCategory = ItemCategory.Tool | ItemCategory.Material | ItemCategory.Placeable | ItemCategory.Armor | ItemCategory.Consumable | ItemCategory.Ammunition | ItemCategory.Weapon;
+export type ItemCategory = ItemCategory.Tool | ItemCategory.Material | ItemCategory.Placeable | ItemCategory.Armor | ItemCategory.Consumable | ItemCategory.Ammunition | ItemCategory.Weapon | ItemCategory.RangedWeapon;
 
 export default ItemCategory;
 

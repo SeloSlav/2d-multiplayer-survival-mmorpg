@@ -27,6 +27,17 @@ export const renderEquippedItem = (
   activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
   localPlayerId?: string
 ) => {
+  // DEBUG: Log item being rendered
+  // if (localPlayerId && player.identity.toHexString() === localPlayerId) {
+  //   console.log(`[DEBUG] renderEquippedItem called for:`, {
+  //     itemName: itemDef.name,
+  //     category: itemDef.category,
+  //     categoryTag: itemDef.category?.tag,
+  //     categoryType: typeof itemDef.category,
+  //     hasInstanceId: !!equipment.equippedItemInstanceId
+  //   });
+  // }
+
   // Early validation: if no equipped item instance ID, don't render anything
   if (!equipment.equippedItemInstanceId) {
     return;
@@ -50,6 +61,10 @@ export const renderEquippedItem = (
   const itemHeight = itemImgFromCaller.height * scale;
   let itemOffsetX = 0; 
   let itemOffsetY = 0; 
+
+  let displayItemWidth = itemWidth;
+  let displayItemHeight = itemHeight;
+
   let rotation = 0;
   let isSwinging = false;
   let isSpearThrusting = false;
@@ -142,6 +157,39 @@ export const renderEquippedItem = (
     
     rotation = spearRotation; // Use the calculated spear rotation
 
+  } else if (itemDef.name === "Hunting Bow") {
+
+    // TEST: Increase scale for bows
+    const bowScale = 0.05; // Reverted from 0.25 to match default weapon/tool scale
+    displayItemWidth = itemImgFromCaller.width * bowScale;
+    displayItemHeight = itemImgFromCaller.height * bowScale;
+
+    switch (player.direction) {
+      case 'up':
+        itemOffsetX = 0;
+        itemOffsetY = -gameConfig.spriteHeight * 0.2;
+        rotation = -Math.PI / 2; // Point bow upward
+        break;
+      case 'down':
+        itemOffsetX = 0;
+        itemOffsetY = gameConfig.spriteHeight * 0.2;
+        rotation = Math.PI / 2; // Point bow downward
+        break;
+      case 'left':
+        itemOffsetX = -gameConfig.spriteWidth * 0.2;
+        itemOffsetY = 0;
+        rotation = Math.PI / 2; // Rotate bow 270 degrees counterclockwise
+        break;
+      case 'right':
+        itemOffsetX = gameConfig.spriteWidth * 0.2;
+        itemOffsetY = 0;
+        rotation = 0; // Point bow right (default)
+        break;
+    }
+    
+    pivotX = player.positionX + shakeX + itemOffsetX;
+    pivotY = player.positionY - jumpOffset + shakeY + itemOffsetY;
+
   } else {
     // Original logic for other items' pivot and default orientation
     switch (player.direction) {
@@ -233,6 +281,9 @@ export const renderEquippedItem = (
   if (itemDef.name === "Wooden Spear" || itemDef.name === "Stone Spear") {
     ctx.rotate(rotation); // `rotation` is pre-calculated spearRotation
     ctx.scale(spearScaleX, spearScaleY);
+  } else if (itemDef.name === "Hunting Bow") {
+    ctx.rotate(rotation); // Apply calculated bow rotation
+    ctx.scale(-1, 1); // Flip horizontally
   } else {
     // Non-spear items might have a different base orientation/flip before animation
     // Ensure this scale doesn't affect bandage animation logic if it's drawn separately with its own save/restore
@@ -280,8 +331,9 @@ export const renderEquippedItem = (
   // --- REGULAR ITEM DRAWING (AND SWING FOR NON-SPEAR/NON-BANDAGE-ANIMATING) --- 
   if (!bandageDrawnWithAnimation) {
     ctx.save(); // Save for regular item drawing / swing
-    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage") {
-      // Apply dynamic swing rotation for non-spear, non-bandage items
+    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage" 
+        && itemDef.name?.toLowerCase() !== "hunting bow" && itemDef.category?.tag !== "RangedWeapon") {
+      // Apply dynamic swing rotation for non-spear, non-bandage, non-ranged weapon items
       // `rotation` here is the dynamic swing angle from earlier logic (currentAngle)
       // This needs to be the `rotation` variable that holds currentAngle for non-spears.
       // The outer `rotation` variable is pre-set for spears and might be 0 for others initially.
@@ -291,7 +343,7 @@ export const renderEquippedItem = (
     // If it's a spear, its main rotation is already applied outside this block.
     // If it's a bandage that didn't animate, it will be drawn with no additional rotation here.
     
-    ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight); // Draw centered
+    ctx.drawImage(imageToRender, -displayItemWidth / 2, -displayItemHeight / 2, displayItemWidth, displayItemHeight); // Draw centered
     ctx.restore(); // Restore from regular item drawing / swing
   }
 
@@ -304,7 +356,7 @@ export const renderEquippedItem = (
         ctx.save();
         try {
             ctx.beginPath();
-            const spearLength = Math.max(itemWidth, itemHeight); 
+            const spearLength = Math.max(displayItemWidth, displayItemHeight); 
             
             const lineStartX = preAnimationPivotX; // Start from the hand position
             const lineStartY = preAnimationPivotY;
@@ -327,7 +379,7 @@ export const renderEquippedItem = (
       // Original slash arc effect for non-spear weapons
       ctx.save();
       try {
-          const slashRadius = Math.max(itemWidth, itemHeight) * 0.5; 
+          const slashRadius = Math.max(displayItemWidth, displayItemHeight) * 0.5; 
           let slashStartAngle = 0;
           
           switch(player.direction) {

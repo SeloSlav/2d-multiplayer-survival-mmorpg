@@ -14,6 +14,7 @@ import {
   Hemp as SpacetimeDBHemp,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
+  Projectile as SpacetimeDBProjectile,
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -47,6 +48,7 @@ interface EntityFilteringResult {
   visibleCorns: SpacetimeDBCorn[];
   visiblePumpkins: SpacetimeDBPumpkin[];
   visibleHemps: SpacetimeDBHemp[];
+  visibleProjectiles: SpacetimeDBProjectile[];
   visibleMushroomsMap: Map<string, SpacetimeDBMushroom>;
   visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
   visibleDroppedItemsMap: Map<string, SpacetimeDBDroppedItem>;
@@ -54,6 +56,7 @@ interface EntityFilteringResult {
   visibleCornsMap: Map<string, SpacetimeDBCorn>;
   visiblePumpkinsMap: Map<string, SpacetimeDBPumpkin>;
   visibleHempsMap: Map<string, SpacetimeDBHemp>;
+  visibleProjectilesMap: Map<string, SpacetimeDBProjectile>;
   visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
   visiblePlayerCorpsesMap: Map<string, SpacetimeDBPlayerCorpse>;
   visibleStashes: SpacetimeDBStash[];
@@ -80,6 +83,7 @@ export type YSortedEntityType =
   | { type: 'dropped_item'; entity: SpacetimeDBDroppedItem }
   | { type: 'mushroom'; entity: SpacetimeDBMushroom }
   | { type: 'pumpkin'; entity: SpacetimeDBPumpkin }
+  | { type: 'projectile'; entity: SpacetimeDBProjectile }
   | { type: 'grass'; entity: InterpolatedGrassData }; // Use InterpolatedGrassData
 
 export function useEntityFiltering(
@@ -100,8 +104,12 @@ export function useEntityFiltering(
   cameraOffsetY: number,
   canvasWidth: number,
   canvasHeight: number,
-  grass: Map<string, InterpolatedGrassData> // Use InterpolatedGrassData
+  grass: Map<string, InterpolatedGrassData>, // Use InterpolatedGrassData
+  projectiles: Map<string, SpacetimeDBProjectile>
 ): EntityFilteringResult {
+  // Get consistent timestamp for all projectile calculations in this frame
+  const currentTime = Date.now();
+
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {
     const buffer = gameConfig.tileSize * 2;
@@ -113,7 +121,7 @@ export function useEntityFiltering(
   }, [cameraOffsetX, cameraOffsetY, canvasWidth, canvasHeight]);
 
   // Entity visibility check
-  const isEntityInView = useCallback((entity: any, bounds: ViewportBounds): boolean => {
+  const isEntityInView = useCallback((entity: any, bounds: ViewportBounds, timestamp: number): boolean => {
     let x: number | undefined;
     let y: number | undefined;
     let width: number = gameConfig.tileSize;
@@ -179,6 +187,15 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 32;
       height = 32;
+    } else if ((entity as any).startPosX !== undefined && (entity as any).startPosY !== undefined) {
+      // Handle projectiles - calculate current position based on time
+      const projectile = entity as any;
+      const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (timestamp - startTime) / 1000.0;
+      x = projectile.startPosX + projectile.velocityX * elapsedSeconds;
+      y = projectile.startPosY + projectile.velocityY * elapsedSeconds;
+      width = 32;
+      height = 32;
     } else if (isGrass(entity)) {
       // After isGrass, entity could be SpacetimeDBGrass or InterpolatedGrassData
       if ('serverPosX' in entity) { // It's InterpolatedGrassData
@@ -212,102 +229,108 @@ export function useEntityFiltering(
   const visibleMushrooms = useMemo(() => 
     // Check source map
     mushrooms ? Array.from(mushrooms.values()).filter(e => 
-      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
+      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds, currentTime)
     ) : [],
-    [mushrooms, isEntityInView, viewBounds]
+    [mushrooms, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleCorns = useMemo(() => 
     // Check source map
     corns ? Array.from(corns.values()).filter(e => 
-      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
+      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds, currentTime)
     ) : [],
-    [corns, isEntityInView, viewBounds]
+    [corns, isEntityInView, viewBounds, currentTime]
   );
 
   const visiblePumpkins = useMemo(() => 
     // Check source map
     pumpkins ? Array.from(pumpkins.values()).filter(e => 
-      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds)
+      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds, currentTime)
     ) : [],
-    [pumpkins, isEntityInView, viewBounds]
+    [pumpkins, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleDroppedItems = useMemo(() => 
     // Check source map
-    droppedItems ? Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds))
+    droppedItems ? Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
     : [],
-    [droppedItems, isEntityInView, viewBounds]
+    [droppedItems, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleCampfires = useMemo(() => 
     // Check source map
-    campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds))
+    campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
     : [],
-    [campfires, isEntityInView, viewBounds]
+    [campfires, isEntityInView, viewBounds, currentTime]
   );
 
   const visiblePlayers = useMemo(() => 
     // Check source map
-    players ? Array.from(players.values()).filter(e => isEntityInView(e, viewBounds))
+    players ? Array.from(players.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
     : [],
-    [players, isEntityInView, viewBounds]
+    [players, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleTrees = useMemo(() => 
     // Check source map
-    trees ? Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds))
+    trees ? Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, currentTime))
     : [],
-    [trees, isEntityInView, viewBounds]
+    [trees, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleStones = useMemo(() => 
     // Check source map
-    stones ? Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds))
+    stones ? Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, currentTime))
     : [],
-    [stones, isEntityInView, viewBounds]
+    [stones, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleWoodenStorageBoxes = useMemo(() => 
     // Check source map
-    woodenStorageBoxes ? Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds))
+    woodenStorageBoxes ? Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
     : [],
-    [woodenStorageBoxes, isEntityInView, viewBounds]
+    [woodenStorageBoxes, isEntityInView, viewBounds, currentTime]
   );
   
   const visibleSleepingBags = useMemo(() => 
     // Check source map
     sleepingBags ? Array.from(sleepingBags.values())
-      .filter(e => isEntityInView(e, viewBounds))
+      .filter(e => isEntityInView(e, viewBounds, currentTime))
       : []
-    ,[sleepingBags, isEntityInView, viewBounds]
+    ,[sleepingBags, isEntityInView, viewBounds, currentTime]
   );
 
   const visiblePlayerCorpses = useMemo(() => 
     // Add check: If playerCorpses is undefined or null, return empty array
     playerCorpses ? Array.from(playerCorpses.values())
-      .filter(e => isEntityInView(e, viewBounds))
+      .filter(e => isEntityInView(e, viewBounds, currentTime))
       : []
-    ,[playerCorpses, isEntityInView, viewBounds]
+    ,[playerCorpses, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleStashes = useMemo(() => 
-    stashes ? Array.from(stashes.values()).filter(e => !e.isHidden && isEntityInView(e, viewBounds))
+    stashes ? Array.from(stashes.values()).filter(e => !e.isHidden && isEntityInView(e, viewBounds, currentTime))
     : [],
-    [stashes, isEntityInView, viewBounds]
+    [stashes, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleHemps = useMemo(() => 
     hemps ? Array.from(hemps.values())
-      .filter(e => isEntityInView(e, viewBounds) && !e.respawnAt)
+      .filter(e => isEntityInView(e, viewBounds, currentTime) && !e.respawnAt)
       : []
-  , [hemps, isEntityInView, viewBounds]);
+  , [hemps, isEntityInView, viewBounds, currentTime]);
+
+  const visibleProjectiles = useMemo(() => 
+    projectiles ? Array.from(projectiles.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [projectiles, isEntityInView, viewBounds, currentTime]
+  );
 
   const visibleGrass = useMemo(() => 
     grass ? Array.from(grass.values()).filter(e => 
-      e.health > 0 && isEntityInView(e, viewBounds)
+      e.health > 0 && isEntityInView(e, viewBounds, currentTime)
     ) : [],
-    [grass, isEntityInView, viewBounds]
+    [grass, isEntityInView, viewBounds, currentTime]
   ); // grass parameter is now Map<string, InterpolatedGrassData>
 
   // Create maps from filtered arrays for easier lookup
@@ -344,6 +367,11 @@ export function useEntityFiltering(
   const visibleHempsMap = useMemo(() => 
     new Map(visibleHemps.map(h => [h.id.toString(), h])), 
     [visibleHemps]
+  );
+
+  const visibleProjectilesMap = useMemo(() => 
+    new Map(visibleProjectiles.map(p => [p.id.toString(), p])), 
+    [visibleProjectiles]
   );
 
   const visiblePlayerCorpsesMap = useMemo(() => {
@@ -391,6 +419,7 @@ export function useEntityFiltering(
       ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
       ...visibleMushrooms.map(m => ({ type: 'mushroom' as const, entity: m })),
       ...visiblePumpkins.map(p => ({ type: 'pumpkin' as const, entity: p })),
+      ...visibleProjectiles.map(p => ({ type: 'projectile' as const, entity: p })),
       ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
     ];
 
@@ -425,6 +454,15 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      // Handle projectiles - calculate current Y position
+      if ((entity as any).startPosX !== undefined && (entity as any).startPosY !== undefined && (entity as any).velocityY !== undefined) {
+        const projectile = entity as any;
+        const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
+        const elapsedSeconds = (currentTime - startTime) / 1000.0;
+        sortY = projectile.startPosY + projectile.velocityY * elapsedSeconds;
+        return sortY;
+      }
+
       // For other entities, use their standard posY if it exists, otherwise default or handle error.
       // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
       if ('posY' in entity && typeof (entity as any).posY === 'number') {
@@ -452,7 +490,7 @@ export function useEntityFiltering(
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, visibleCorns, visibleHemps,
     visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
-    visibleGrass // visibleGrass is now InterpolatedGrassData[]
+    visibleProjectiles, visibleGrass // visibleGrass is now InterpolatedGrassData[]
   ]);
 
   return {
@@ -469,6 +507,7 @@ export function useEntityFiltering(
     visibleSleepingBags,
     visiblePlayerCorpses,
     visibleStashes,
+    visibleProjectiles,
     visibleMushroomsMap,
     visibleCampfiresMap,
     visibleDroppedItemsMap,
@@ -476,6 +515,7 @@ export function useEntityFiltering(
     visibleCornsMap,
     visiblePumpkinsMap,
     visibleHempsMap,
+    visibleProjectilesMap,
     visiblePlayerCorpsesMap,
     visibleStashesMap,
     visibleSleepingBagsMap,

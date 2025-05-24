@@ -21,7 +21,8 @@ import {
   Stash as SpacetimeDBStash,
   Cloud as SpacetimeDBCloud,
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
-  Grass as SpacetimeDBGrass
+  Grass as SpacetimeDBGrass,
+  Projectile as SpacetimeDBProjectile
 } from '../generated';
 
 // --- Core Hooks ---
@@ -62,6 +63,7 @@ import { renderStash } from '../utils/renderers/stashRenderingUtils';
 import { renderPlayerTorchLight, renderCampfireLight } from '../utils/renderers/lightRenderingUtils';
 import { renderTree } from '../utils/renderers/treeRenderingUtils';
 import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
+import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
@@ -121,6 +123,8 @@ interface GameCanvasProps {
   messages: any;
   isSearchingCraftRecipes?: boolean;
   showInventory: boolean;
+  gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  projectiles: Map<string, SpacetimeDBProjectile>;
 }
 
 /**
@@ -168,13 +172,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isSearchingCraftRecipes,
   showInventory,
   grass,
+  gameCanvasRef,
+  projectiles,
 }) => {
  // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
   // console.log("Cloud data in GameCanvas:", Array.from(clouds?.values() || []));
 
   // --- Refs ---
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastPositionsRef = useRef<Map<string, {x: number, y: number}>>(new Map());
   const placementActionsRef = useRef(placementActions);
   const prevPlayerHealthRef = useRef<number | undefined>(undefined);
@@ -191,7 +196,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
   const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef } = useAssetLoader();
-  const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
+  const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   // Lift deathMarkerImg definition here
   const deathMarkerImg = useMemo(() => itemImagesRef.current?.get('death_marker.png'), [itemImagesRef]);
@@ -276,7 +281,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     processInputsAndActions,
     currentJumpOffsetY
   } = useInputHandler({
-      canvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
+      canvasRef: gameCanvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
       activeEquipments, itemDefinitions,
       placementInfo, placementActions, worldMousePos,
       closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId,
@@ -342,7 +347,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetY,
     canvasSize.width,
     canvasSize.height,
-    interpolatedGrass // Ensure this is the 18th argument
+    interpolatedGrass, // Ensure this is the 18th argument
+    projectiles // Add projectiles as the 19th argument
   );
 
   // --- UI State ---
@@ -350,7 +356,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
-      canvasRef,
+      canvasRef: gameCanvasRef,
       isMinimapOpen,
       connection,
       localPlayer,
@@ -428,7 +434,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, []);
 
   const renderGame = useCallback(() => {
-    const canvas = canvasRef.current;
+    const canvas = gameCanvasRef.current;
     const maskCanvas = maskCanvasRef.current;
     if (!canvas || !maskCanvas) return;
     const ctx = canvas.getContext('2d');
@@ -777,6 +783,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             worldState, // <-- Pass worldState for time of day
         });
     }
+
   }, [
       // Dependencies
       visibleMushrooms, visibleCorns, visiblePumpkins, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
@@ -804,6 +811,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visibleTreesMap, // Added to dependency array
       playerCorpses,
       showInventory,
+      gameCanvasRef,
+      projectiles,
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
@@ -907,7 +916,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   return (
     <div style={{ position: 'relative', width: canvasSize.width, height: canvasSize.height, overflow: 'hidden' }}>
       <canvas
-        ref={canvasRef}
+        ref={gameCanvasRef}
         id="game-canvas"
         width={canvasSize.width}
         height={canvasSize.height}

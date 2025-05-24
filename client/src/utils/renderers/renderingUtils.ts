@@ -17,6 +17,7 @@ import {
     Mushroom as SpacetimeDBMushroom,
     Pumpkin as SpacetimeDBPumpkin,
     Grass as SpacetimeDBGrass,
+    Projectile as SpacetimeDBProjectile,
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 // Import individual rendering functions
@@ -35,6 +36,7 @@ import { renderMushroom } from './mushroomRenderingUtils';
 import { renderPumpkin } from './pumpkinRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
+import { renderProjectile } from './projectileRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -228,12 +230,38 @@ export const renderYSortedEntities = ({
              if (equippedItemInstance && equippedItemInstance.quantity > 0) {
                itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
                itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
+               
+               // DEBUG: Log equipment info for local player
+            //    if (localPlayerId && playerId === localPlayerId) {
+            //      console.log(`[DEBUG] Equipment found:`, {
+            //        itemDefId: equipment.equippedItemDefId.toString(),
+            //        itemName: itemDef?.name,
+            //        iconAssetName: itemDef?.iconAssetName,
+            //        category: itemDef?.category,
+            //        hasImage: !!itemImg,
+            //        imageComplete: itemImg?.complete,
+            //        imageHeight: itemImg?.naturalHeight
+            //      });
+            //    }
              } else {
                // Item was consumed but equipment table hasn't updated yet - don't render
                console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
              }
+           } else if (localPlayerId && playerId === localPlayerId) {
+             console.log(`[DEBUG] No equipment found for local player`);
            }
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
+           
+           // DEBUG: Log canRenderItem status for local player
+        //    if (localPlayerId && playerId === localPlayerId && equipment) {
+        //      console.log(`[DEBUG] canRenderItem:`, {
+        //        canRender: canRenderItem,
+        //        hasItemDef: !!itemDef,
+        //        hasItemImg: !!itemImg,
+        //        imgComplete: itemImg?.complete,
+        //        imgHeight: itemImg?.naturalHeight
+        //      });
+        //    }
 
             // Determine rendering order based on player direction
             if (player.direction === 'up' || player.direction === 'left') {
@@ -308,6 +336,17 @@ export const renderYSortedEntities = ({
             });
         } else if (type === 'grass') {
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);
+        } else if (type === 'projectile') {
+            const projectile = entity as SpacetimeDBProjectile;
+            const arrowImage = itemImagesRef.current?.get('wooden_arrow.png');
+            if (arrowImage) {
+                renderProjectile({
+                    ctx,
+                    projectile,
+                    arrowImage,
+                    currentTimeMs: nowMs,
+                });
+            }
         } else {
             console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);
         } 
@@ -350,6 +389,9 @@ export const renderYSortedEntities = ({
             // Ensure shadows are also skipped in the second pass if grass were to be rendered here
             // Cast to InterpolatedGrassData as that's what YSortedEntityType provides for grass
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, true, true);
+        } else if (type === 'projectile') {
+            // Projectiles are fully rendered in the first pass and don't have separate shadows
+            // No action needed in the shadow-only pass
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

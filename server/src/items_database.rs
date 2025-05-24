@@ -1509,7 +1509,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             id: 0,
             name: "Hunting Bow".to_string(),
             description: "A basic, silent ranged weapon suitable for early-game hunting and combat.".to_string(),
-            category: ItemCategory::Weapon,
+            category: ItemCategory::RangedWeapon,
             icon_asset_name: "bow.png".to_string(),
             is_stackable: false,
             stack_size: 1,

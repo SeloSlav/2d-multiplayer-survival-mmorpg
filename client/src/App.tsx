@@ -109,7 +109,9 @@ function AppContent() {
       stashes, // <<< ADD stashes destructuring
       activeConsumableEffects, // <<< ADD activeConsumableEffects destructuring
       grass, // <<< ADD grass destructuring
-      knockedOutStatus // <<< ADD knockedOutStatus destructuring
+      knockedOutStatus, // <<< ADD knockedOutStatus destructuring
+      rangedWeaponStats, // Ensure this is destructured
+      projectiles      // Ensure this is destructured
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -425,6 +427,8 @@ function AppContent() {
                             activeConsumableEffects={activeConsumableEffects}
                             grass={grass}
                             knockedOutStatus={knockedOutStatus}
+                            rangedWeaponStats={rangedWeaponStats}
+                            projectiles={projectiles}
                         />
                     );
                 })()

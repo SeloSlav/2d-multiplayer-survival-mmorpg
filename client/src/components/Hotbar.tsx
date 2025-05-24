@@ -354,6 +354,19 @@ const Hotbar: React.FC<HotbarProps> = ({
       } catch (err) { 
         console.error("Error clearActiveItemReducer when selecting placeable:", err); 
       }
+    } else if (categoryTag === 'RangedWeapon') {
+      console.log(`[Hotbar] Handling ranged weapon: ${itemInSlot.definition.name}`);
+      console.log(`[Hotbar] Ranged weapon category tag: ${categoryTag}`);
+      console.log(`[Hotbar] Instance ID: ${instanceId}`);
+      cancelPlacement();
+      try { 
+        connection.reducers.setActiveItemReducer(instanceId); 
+        console.log(`[Hotbar] Successfully set active ranged weapon: ${itemInSlot.definition.name}`);
+        console.log(`[Hotbar] Ranged weapon should now be equipped and ready to fire`);
+        // TODO: Activate targeting reticle system here
+      } catch (err) { 
+        console.error("Error setActiveItemReducer for ranged weapon:", err); 
+      }
     } else if (categoryTag === 'Tool' || categoryTag === 'Weapon' || isEquippable) {
       console.log(`[Hotbar] Handling tool/weapon/equippable: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
       cancelPlacement();

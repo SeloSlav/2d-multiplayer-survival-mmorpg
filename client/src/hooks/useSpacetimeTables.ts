@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import * as SpacetimeDB from '../generated';
-import { DbConnection } from '../generated'; // Import the connection type
-import { getChunkIndicesForViewport } from '../utils/chunkUtils'; // Import the chunk utility
+import {
+    DbConnection,
+    RangedWeaponStats as SpacetimeDBRangedWeaponStats,
+    Projectile as SpacetimeDBProjectile
+} from '../generated';
+import { getChunkIndicesForViewport } from '../utils/chunkUtils';
 
 // Define the shape of the state returned by the hook
 export interface SpacetimeTableStates {
@@ -28,10 +32,12 @@ export interface SpacetimeTableStates {
     sleepingBags: Map<string, SpacetimeDB.SleepingBag>;
     playerCorpses: Map<string, SpacetimeDB.PlayerCorpse>;
     activeConsumableEffects: Map<string, SpacetimeDB.ActiveConsumableEffect>;
-    localPlayerRegistered: boolean; // Flag indicating local player presence
-    clouds: Map<string, SpacetimeDB.Cloud>; // <<< ADDED clouds to interface
-    grass: Map<string, SpacetimeDB.Grass>; // <<< ADDED grass to interface
-    knockedOutStatus: Map<string, SpacetimeDB.KnockedOutStatus>; // <<< ADDED knocked out status to interface
+    localPlayerRegistered: boolean;
+    clouds: Map<string, SpacetimeDB.Cloud>;
+    grass: Map<string, SpacetimeDB.Grass>;
+    knockedOutStatus: Map<string, SpacetimeDB.KnockedOutStatus>;
+    rangedWeaponStats: Map<string, SpacetimeDBRangedWeaponStats>;
+    projectiles: Map<string, SpacetimeDBProjectile>;
 }
 
 // Define the props the hook accepts
@@ -74,9 +80,11 @@ export const useSpacetimeTables = ({
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
     const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
-    const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map()); // <<< ADDED clouds state
-    const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // <<< ADDED grass state
-    const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map()); // <<< ADDED knocked out status state
+    const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map());
+    const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map());
+    const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map());
+    const [rangedWeaponStats, setRangedWeaponStats] = useState<Map<string, SpacetimeDBRangedWeaponStats>>(() => new Map());
+    const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -227,8 +235,22 @@ export const useSpacetimeTables = ({
             const handleCampfireDelete = (ctx: any, campfire: SpacetimeDB.Campfire) => setCampfires(prev => { const newMap = new Map(prev); newMap.delete(campfire.id.toString()); return newMap; });
             
             // --- Item Definition Subscriptions ---
-            const handleItemDefInsert = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => new Map(prev).set(itemDef.id.toString(), itemDef));
-            const handleItemDefUpdate = (ctx: any, oldDef: SpacetimeDB.ItemDefinition, newDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => new Map(prev).set(newDef.id.toString(), newDef));
+            const handleItemDefInsert = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => {
+                if (itemDef.name === "Hunting Bow") {
+                    console.log("[DEBUG] Hunting Bow item definition loaded:", itemDef);
+                    console.log("[DEBUG] Hunting Bow category:", itemDef.category);
+                    console.log("[DEBUG] Hunting Bow category tag:", itemDef.category?.tag);
+                }
+                setItemDefinitions(prev => new Map(prev).set(itemDef.id.toString(), itemDef));
+            };
+            const handleItemDefUpdate = (ctx: any, oldDef: SpacetimeDB.ItemDefinition, newDef: SpacetimeDB.ItemDefinition) => {
+                if (newDef.name === "Hunting Bow") {
+                    console.log("[DEBUG] Hunting Bow item definition UPDATED:", newDef);
+                    console.log("[DEBUG] Hunting Bow category:", newDef.category);
+                    console.log("[DEBUG] Hunting Bow category tag:", newDef.category?.tag);
+                }
+                setItemDefinitions(prev => new Map(prev).set(newDef.id.toString(), newDef));
+            };
             const handleItemDefDelete = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => setItemDefinitions(prev => { const newMap = new Map(prev); newMap.delete(itemDef.id.toString()); return newMap; });
             
             // --- Inventory Subscriptions ---
@@ -245,9 +267,18 @@ export const useSpacetimeTables = ({
             const handleWorldStateDelete = (ctx: any, state: SpacetimeDB.WorldState) => setWorldState(null);
             
             // --- Active Equipment Subscriptions ---
-            const handleActiveEquipmentInsert = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => new Map(prev).set(equip.playerIdentity.toHexString(), equip));
-            const handleActiveEquipmentUpdate = (ctx: any, oldEquip: SpacetimeDB.ActiveEquipment, newEquip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => new Map(prev).set(newEquip.playerIdentity.toHexString(), newEquip));
-            const handleActiveEquipmentDelete = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => setActiveEquipments(prev => { const newMap = new Map(prev); newMap.delete(equip.playerIdentity.toHexString()); return newMap; });
+            const handleActiveEquipmentInsert = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => {
+                console.log("[DEBUG] Active equipment INSERT for player:", equip.playerIdentity.toHexString(), "item:", equip.equippedItemDefId);
+                setActiveEquipments(prev => new Map(prev).set(equip.playerIdentity.toHexString(), equip));
+            };
+            const handleActiveEquipmentUpdate = (ctx: any, oldEquip: SpacetimeDB.ActiveEquipment, newEquip: SpacetimeDB.ActiveEquipment) => {
+                console.log("[DEBUG] Active equipment UPDATE for player:", newEquip.playerIdentity.toHexString(), "old item:", oldEquip.equippedItemDefId, "new item:", newEquip.equippedItemDefId);
+                setActiveEquipments(prev => new Map(prev).set(newEquip.playerIdentity.toHexString(), newEquip));
+            };
+            const handleActiveEquipmentDelete = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => {
+                console.log("[DEBUG] Active equipment DELETE for player:", equip.playerIdentity.toHexString());
+                setActiveEquipments(prev => { const newMap = new Map(prev); newMap.delete(equip.playerIdentity.toHexString()); return newMap; });
+            };
             
             // --- Mushroom Subscriptions ---
             const handleMushroomInsert = (ctx: any, mushroom: SpacetimeDB.Mushroom) => setMushrooms(prev => new Map(prev).set(mushroom.id.toString(), mushroom));
@@ -437,6 +468,42 @@ export const useSpacetimeTables = ({
                 setKnockedOutStatus(prev => { const newMap = new Map(prev); newMap.delete(status.playerId.toHexString()); return newMap; });
             };
 
+            // --- RangedWeaponStats Callbacks --- Added
+            const handleRangedWeaponStatsInsert = (ctx: any, stats: SpacetimeDBRangedWeaponStats) => setRangedWeaponStats(prev => new Map(prev).set(stats.itemName, stats));
+            const handleRangedWeaponStatsUpdate = (ctx: any, oldStats: SpacetimeDBRangedWeaponStats, newStats: SpacetimeDBRangedWeaponStats) => setRangedWeaponStats(prev => new Map(prev).set(newStats.itemName, newStats));
+            const handleRangedWeaponStatsDelete = (ctx: any, stats: SpacetimeDBRangedWeaponStats) => setRangedWeaponStats(prev => { const newMap = new Map(prev); newMap.delete(stats.itemName); return newMap; });
+
+            // --- Projectile Callbacks --- Added
+            const handleProjectileInsert = (ctx: any, projectile: SpacetimeDBProjectile) => {
+                console.log("[DEBUG] Projectile INSERT received:", projectile);
+                setProjectiles(prev => new Map(prev).set(projectile.id.toString(), projectile));
+            };
+            const handleProjectileUpdate = (ctx: any, oldProjectile: SpacetimeDBProjectile, newProjectile: SpacetimeDBProjectile) => {
+                console.log("[DEBUG] Projectile UPDATE received:", newProjectile);
+                setProjectiles(prev => new Map(prev).set(newProjectile.id.toString(), newProjectile));
+            };
+            const handleProjectileDelete = (ctx: any, projectile: SpacetimeDBProjectile) => {
+                console.log("[DEBUG] Projectile DELETE received:", projectile);
+                setProjectiles(prev => { const newMap = new Map(prev); newMap.delete(projectile.id.toString()); return newMap; });
+            };
+
+            // Add reducer callbacks to monitor fireProjectile results
+            console.log("[DEBUG] Registering fireProjectile reducer callback...");
+            connection.reducers.onFireProjectile((ctx, targetWorldX, targetWorldY) => {
+                console.log("[DEBUG] fireProjectile reducer result:", {
+                    event: ctx.event,
+                    status: ctx.event.status,
+                    callerIdentity: ctx.event.callerIdentity?.toHexString(),
+                    targetX: targetWorldX,
+                    targetY: targetWorldY
+                });
+                
+                // Log raw status to understand the structure
+                console.log("[DEBUG] Raw status object:", ctx.event.status);
+                console.log("[DEBUG] Status type:", typeof ctx.event.status);
+                console.log("[DEBUG] Status constructor:", ctx.event.status.constructor.name);
+            });
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -486,6 +553,16 @@ export const useSpacetimeTables = ({
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
             connection.db.knockedOutStatus.onUpdate(handleKnockedOutStatusUpdate);
             connection.db.knockedOutStatus.onDelete(handleKnockedOutStatusDelete);
+
+            // Register RangedWeaponStats callbacks - Added
+            connection.db.rangedWeaponStats.onInsert(handleRangedWeaponStatsInsert);
+            connection.db.rangedWeaponStats.onUpdate(handleRangedWeaponStatsUpdate);
+            connection.db.rangedWeaponStats.onDelete(handleRangedWeaponStatsDelete);
+
+            // Register Projectile callbacks - Added
+            connection.db.projectile.onInsert(handleProjectileInsert);
+            connection.db.projectile.onUpdate(handleProjectileUpdate);
+            connection.db.projectile.onDelete(handleProjectileDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -542,10 +619,9 @@ export const useSpacetimeTables = ({
                     .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'knocked_out_status' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'knocked_out_status' ERROR:", err))
                     .subscribe('SELECT * FROM knocked_out_status'),
-                 // connection.subscriptionBuilder() // Specific Cloud subscription with logging
-                 //    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'cloud' APPLIED."))
-                 //    .onError((errorContext) => console.error("[useSpacetimeTables] Subscription for 'cloud' Full Error Context:", errorContext)) // Log the entire context object
-                 //    .subscribe('SELECT * FROM cloud'),
+                 // Added subscriptions for new tables
+                 connection.subscriptionBuilder().onError((err) => console.error("[RANGED_WEAPON_STATS Sub Error]:", err)).subscribe('SELECT * FROM ranged_weapon_stats'),
+                 connection.subscriptionBuilder().onError((err) => console.error("[PROJECTILE Sub Error]:", err)).subscribe('SELECT * FROM projectile'),
             ];
             console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -699,6 +775,8 @@ export const useSpacetimeTables = ({
                  setClouds(new Map()); // <<< ADDED: Reset clouds state
                  setGrass(new Map()); // <<< ADDED: Reset grass state
                  setKnockedOutStatus(new Map()); // <<< ADDED: Reset knocked out status state
+                 setRangedWeaponStats(new Map());
+                 setProjectiles(new Map());
              }
         };
 
@@ -733,5 +811,7 @@ export const useSpacetimeTables = ({
         clouds, // <<< ADDED: Return clouds state
         grass, // <<< ADDED: Return grass state
         knockedOutStatus, // <<< ADDED: Return knocked out status state
+        rangedWeaponStats,
+        projectiles,
     };
 }; 

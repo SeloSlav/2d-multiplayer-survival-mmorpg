@@ -68,12 +68,16 @@ import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
 export { EquipArmorFromDrag };
 import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts";
 export { EquipArmorFromInventory };
+import { FireProjectile } from "./fire_projectile_reducer.ts";
+export { FireProjectile };
 import { GetKnockedOutStatus } from "./get_knocked_out_status_reducer.ts";
 export { GetKnockedOutStatus };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
+import { InitProjectileSystem } from "./init_projectile_system_reducer.ts";
+export { InitProjectileSystem };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
 import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
@@ -172,6 +176,8 @@ import { SeedEnvironment } from "./seed_environment_reducer.ts";
 export { SeedEnvironment };
 import { SeedItems } from "./seed_items_reducer.ts";
 export { SeedItems };
+import { SeedRangedWeaponStats } from "./seed_ranged_weapon_stats_reducer.ts";
+export { SeedRangedWeaponStats };
 import { SeedRecipes } from "./seed_recipes_reducer.ts";
 export { SeedRecipes };
 import { SeedWorldState } from "./seed_world_state_reducer.ts";
@@ -238,6 +244,8 @@ import { UpdateCloudPositions } from "./update_cloud_positions_reducer.ts";
 export { UpdateCloudPositions };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
+import { UpdateProjectiles } from "./update_projectiles_reducer.ts";
+export { UpdateProjectiles };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
 export { UpdateViewport };
 import { UseEquippedItem } from "./use_equipped_item_reducer.ts";
@@ -308,8 +316,14 @@ import { PrivateMessageTableHandle } from "./private_message_table.ts";
 export { PrivateMessageTableHandle };
 import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
 export { ProcessEffectsScheduleTableHandle };
+import { ProjectileTableHandle } from "./projectile_table.ts";
+export { ProjectileTableHandle };
+import { ProjectileUpdateScheduleTableHandle } from "./projectile_update_schedule_table.ts";
+export { ProjectileUpdateScheduleTableHandle };
 import { PumpkinTableHandle } from "./pumpkin_table.ts";
 export { PumpkinTableHandle };
+import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
+export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
@@ -422,8 +436,14 @@ import { PrivateMessage } from "./private_message_type.ts";
 export { PrivateMessage };
 import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
 export { ProcessEffectsSchedule };
+import { Projectile } from "./projectile_type.ts";
+export { Projectile };
+import { ProjectileUpdateSchedule } from "./projectile_update_schedule_type.ts";
+export { ProjectileUpdateSchedule };
 import { Pumpkin } from "./pumpkin_type.ts";
 export { Pumpkin };
+import { RangedWeaponStats } from "./ranged_weapon_stats_type.ts";
+export { RangedWeaponStats };
 import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
@@ -611,10 +631,25 @@ const REMOTE_MODULE = {
       rowType: ProcessEffectsSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "jobId",
     },
+    projectile: {
+      tableName: "projectile",
+      rowType: Projectile.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    projectile_update_schedule: {
+      tableName: "projectile_update_schedule",
+      rowType: ProjectileUpdateSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     pumpkin: {
       tableName: "pumpkin",
       rowType: Pumpkin.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    ranged_weapon_stats: {
+      tableName: "ranged_weapon_stats",
+      rowType: RangedWeaponStats.getTypeScriptAlgebraicType(),
+      primaryKey: "itemName",
     },
     recipe: {
       tableName: "recipe",
@@ -730,6 +765,10 @@ const REMOTE_MODULE = {
       reducerName: "equip_armor_from_inventory",
       argsType: EquipArmorFromInventory.getTypeScriptAlgebraicType(),
     },
+    fire_projectile: {
+      reducerName: "fire_projectile",
+      argsType: FireProjectile.getTypeScriptAlgebraicType(),
+    },
     get_knocked_out_status: {
       reducerName: "get_knocked_out_status",
       argsType: GetKnockedOutStatus.getTypeScriptAlgebraicType(),
@@ -741,6 +780,10 @@ const REMOTE_MODULE = {
     identity_disconnected: {
       reducerName: "identity_disconnected",
       argsType: IdentityDisconnected.getTypeScriptAlgebraicType(),
+    },
+    init_projectile_system: {
+      reducerName: "init_projectile_system",
+      argsType: InitProjectileSystem.getTypeScriptAlgebraicType(),
     },
     interact_with_campfire: {
       reducerName: "interact_with_campfire",
@@ -938,6 +981,10 @@ const REMOTE_MODULE = {
       reducerName: "seed_items",
       argsType: SeedItems.getTypeScriptAlgebraicType(),
     },
+    seed_ranged_weapon_stats: {
+      reducerName: "seed_ranged_weapon_stats",
+      argsType: SeedRangedWeaponStats.getTypeScriptAlgebraicType(),
+    },
     seed_recipes: {
       reducerName: "seed_recipes",
       argsType: SeedRecipes.getTypeScriptAlgebraicType(),
@@ -1070,6 +1117,10 @@ const REMOTE_MODULE = {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
     },
+    update_projectiles: {
+      reducerName: "update_projectiles",
+      argsType: UpdateProjectiles.getTypeScriptAlgebraicType(),
+    },
     update_viewport: {
       reducerName: "update_viewport",
       argsType: UpdateViewport.getTypeScriptAlgebraicType(),
@@ -1123,9 +1174,11 @@ export type Reducer = never
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
+| { name: "FireProjectile", args: FireProjectile }
 | { name: "GetKnockedOutStatus", args: GetKnockedOutStatus }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
+| { name: "InitProjectileSystem", args: InitProjectileSystem }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithHemp", args: InteractWithHemp }
@@ -1175,6 +1228,7 @@ export type Reducer = never
 | { name: "ScheduleNextCampfireProcessing", args: ScheduleNextCampfireProcessing }
 | { name: "SeedEnvironment", args: SeedEnvironment }
 | { name: "SeedItems", args: SeedItems }
+| { name: "SeedRangedWeaponStats", args: SeedRangedWeaponStats }
 | { name: "SeedRecipes", args: SeedRecipes }
 | { name: "SeedWorldState", args: SeedWorldState }
 | { name: "SendMessage", args: SendMessage }
@@ -1208,6 +1262,7 @@ export type Reducer = never
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
+| { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
 ;
@@ -1495,6 +1550,22 @@ export class RemoteReducers {
     this.connection.offReducer("equip_armor_from_inventory", callback);
   }
 
+  fireProjectile(targetWorldX: number, targetWorldY: number) {
+    const __args = { targetWorldX, targetWorldY };
+    let __writer = new BinaryWriter(1024);
+    FireProjectile.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("fire_projectile", __argsBuffer, this.setCallReducerFlags.fireProjectileFlags);
+  }
+
+  onFireProjectile(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
+    this.connection.onReducer("fire_projectile", callback);
+  }
+
+  removeOnFireProjectile(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
+    this.connection.offReducer("fire_projectile", callback);
+  }
+
   getKnockedOutStatus() {
     this.connection.callReducer("get_knocked_out_status", new Uint8Array(0), this.setCallReducerFlags.getKnockedOutStatusFlags);
   }
@@ -1521,6 +1592,18 @@ export class RemoteReducers {
 
   removeOnIdentityDisconnected(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("identity_disconnected", callback);
+  }
+
+  initProjectileSystem() {
+    this.connection.callReducer("init_projectile_system", new Uint8Array(0), this.setCallReducerFlags.initProjectileSystemFlags);
+  }
+
+  onInitProjectileSystem(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("init_projectile_system", callback);
+  }
+
+  removeOnInitProjectileSystem(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("init_projectile_system", callback);
   }
 
   interactWithCampfire(campfireId: number) {
@@ -2291,6 +2374,18 @@ export class RemoteReducers {
     this.connection.offReducer("seed_items", callback);
   }
 
+  seedRangedWeaponStats() {
+    this.connection.callReducer("seed_ranged_weapon_stats", new Uint8Array(0), this.setCallReducerFlags.seedRangedWeaponStatsFlags);
+  }
+
+  onSeedRangedWeaponStats(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("seed_ranged_weapon_stats", callback);
+  }
+
+  removeOnSeedRangedWeaponStats(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("seed_ranged_weapon_stats", callback);
+  }
+
   seedRecipes() {
     this.connection.callReducer("seed_recipes", new Uint8Array(0), this.setCallReducerFlags.seedRecipesFlags);
   }
@@ -2803,6 +2898,22 @@ export class RemoteReducers {
     this.connection.offReducer("update_player_position", callback);
   }
 
+  updateProjectiles(args: ProjectileUpdateSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    UpdateProjectiles.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_projectiles", __argsBuffer, this.setCallReducerFlags.updateProjectilesFlags);
+  }
+
+  onUpdateProjectiles(callback: (ctx: ReducerEventContext, args: ProjectileUpdateSchedule) => void) {
+    this.connection.onReducer("update_projectiles", callback);
+  }
+
+  removeOnUpdateProjectiles(callback: (ctx: ReducerEventContext, args: ProjectileUpdateSchedule) => void) {
+    this.connection.offReducer("update_projectiles", callback);
+  }
+
   updateViewport(minX: number, minY: number, maxX: number, maxY: number) {
     const __args = { minX, minY, maxX, maxY };
     let __writer = new BinaryWriter(1024);
@@ -2924,9 +3035,19 @@ export class SetReducerFlags {
     this.equipArmorFromInventoryFlags = flags;
   }
 
+  fireProjectileFlags: CallReducerFlags = 'FullUpdate';
+  fireProjectile(flags: CallReducerFlags) {
+    this.fireProjectileFlags = flags;
+  }
+
   getKnockedOutStatusFlags: CallReducerFlags = 'FullUpdate';
   getKnockedOutStatus(flags: CallReducerFlags) {
     this.getKnockedOutStatusFlags = flags;
+  }
+
+  initProjectileSystemFlags: CallReducerFlags = 'FullUpdate';
+  initProjectileSystem(flags: CallReducerFlags) {
+    this.initProjectileSystemFlags = flags;
   }
 
   interactWithCampfireFlags: CallReducerFlags = 'FullUpdate';
@@ -3174,6 +3295,11 @@ export class SetReducerFlags {
     this.seedItemsFlags = flags;
   }
 
+  seedRangedWeaponStatsFlags: CallReducerFlags = 'FullUpdate';
+  seedRangedWeaponStats(flags: CallReducerFlags) {
+    this.seedRangedWeaponStatsFlags = flags;
+  }
+
   seedRecipesFlags: CallReducerFlags = 'FullUpdate';
   seedRecipes(flags: CallReducerFlags) {
     this.seedRecipesFlags = flags;
@@ -3339,6 +3465,11 @@ export class SetReducerFlags {
     this.updatePlayerPositionFlags = flags;
   }
 
+  updateProjectilesFlags: CallReducerFlags = 'FullUpdate';
+  updateProjectiles(flags: CallReducerFlags) {
+    this.updateProjectilesFlags = flags;
+  }
+
   updateViewportFlags: CallReducerFlags = 'FullUpdate';
   updateViewport(flags: CallReducerFlags) {
     this.updateViewportFlags = flags;
@@ -3482,8 +3613,20 @@ export class RemoteTables {
     return new ProcessEffectsScheduleTableHandle(this.connection.clientCache.getOrCreateTable<ProcessEffectsSchedule>(REMOTE_MODULE.tables.process_effects_schedule));
   }
 
+  get projectile(): ProjectileTableHandle {
+    return new ProjectileTableHandle(this.connection.clientCache.getOrCreateTable<Projectile>(REMOTE_MODULE.tables.projectile));
+  }
+
+  get projectileUpdateSchedule(): ProjectileUpdateScheduleTableHandle {
+    return new ProjectileUpdateScheduleTableHandle(this.connection.clientCache.getOrCreateTable<ProjectileUpdateSchedule>(REMOTE_MODULE.tables.projectile_update_schedule));
+  }
+
   get pumpkin(): PumpkinTableHandle {
     return new PumpkinTableHandle(this.connection.clientCache.getOrCreateTable<Pumpkin>(REMOTE_MODULE.tables.pumpkin));
+  }
+
+  get rangedWeaponStats(): RangedWeaponStatsTableHandle {
+    return new RangedWeaponStatsTableHandle(this.connection.clientCache.getOrCreateTable<RangedWeaponStats>(REMOTE_MODULE.tables.ranged_weapon_stats));
   }
 
   get recipe(): RecipeTableHandle {

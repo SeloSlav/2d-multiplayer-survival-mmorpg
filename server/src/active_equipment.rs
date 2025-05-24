@@ -124,10 +124,12 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
         ItemLocation::Hotbar(_) => {
             // Item is in inventory or hotbar - allow activation regardless of original owner_id
             // since if it's in the player's slots, they should be able to activate it
-            if item_def.category == ItemCategory::Tool || item_def.category == ItemCategory::Weapon {
+            if item_def.category == ItemCategory::Tool ||
+               item_def.category == ItemCategory::Weapon ||
+               item_def.category == ItemCategory::RangedWeapon { // Assuming RangedWeapon is a variant of ItemCategory
                 // Valid location and type for activation
             } else {
-                return Err(format!("Item '{}' (category {:?}) is not a Tool or Weapon and cannot be activated in hand.", item_def.name, item_def.category));
+                return Err(format!("Item '{}' (category {:?}) is not a Tool, Weapon, or Ranged Weapon and cannot be activated in hand.", item_def.name, item_def.category));
             }
         }
         ItemLocation::Equipped(data) => {
