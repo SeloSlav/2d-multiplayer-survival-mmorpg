@@ -313,6 +313,12 @@ const Hotbar: React.FC<HotbarProps> = ({
       
       if (isCurrentlySelected && !isMouseWheelScroll) {
         // Second click/press on already selected consumable - actually consume it
+        // Check if animation is already running on this slot
+        if (isVisualCooldownActive && cooldownSlot === slotIndex) {
+          console.log('[Hotbar] Animation already running on slot:', slotIndex, '- ignoring click');
+          return; // Don't consume again or retrigger animation
+        }
+        
         try {
           console.log('[Hotbar] Consuming item on second click:', itemInSlot.definition.name, 'Instance ID:', instanceId);
           connection.reducers.consumeItem(instanceId);
@@ -370,7 +376,7 @@ const Hotbar: React.FC<HotbarProps> = ({
         console.error("Error clearActiveItemReducer:", err); 
       }
     }
-  }, [findItemForSlot, connection, playerIdentity, cancelPlacement, startPlacement, triggerClientCooldownAnimation]);
+  }, [findItemForSlot, connection, playerIdentity, cancelPlacement, startPlacement, triggerClientCooldownAnimation, isVisualCooldownActive, cooldownSlot]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const inventoryPanel = document.querySelector('.inventoryPanel');
