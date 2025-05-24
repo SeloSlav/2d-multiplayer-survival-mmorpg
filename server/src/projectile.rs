@@ -14,6 +14,8 @@ use crate::ranged_weapon_stats::ranged_weapon_stats;
 use crate::player_last_attack_timestamp;
 use crate::combat; // Import the combat module to use damage_player
 use crate::dropped_item; // Import the dropped item module for creating dropped items
+use crate::active_effects; // Import the active effects module for applying ammunition-based effects
+use crate::active_effects::active_consumable_effect; // Import the trait for the table
 
 #[table(name = projectile, public)]
 #[derive(Clone, Debug)]
@@ -215,6 +217,61 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
     Ok(())
 }
 
+// --- BEGIN NEW HELPER FUNCTION ---
+fn apply_projectile_bleed_effect(
+    ctx: &ReducerContext,
+    target_player_id: Identity,
+    ammo_item_def: &crate::items::ItemDefinition, // Pass the ammo definition
+    current_time: Timestamp,
+) -> Result<(), String> {
+    if let (Some(bleed_damage_per_tick), Some(bleed_duration_seconds), Some(bleed_tick_interval_seconds)) = (
+        ammo_item_def.bleed_damage_per_tick,
+        ammo_item_def.bleed_duration_seconds,
+        ammo_item_def.bleed_tick_interval_seconds,
+    ) {
+        if bleed_duration_seconds <= 0.0 || bleed_tick_interval_seconds <= 0.0 {
+            log::warn!("Projectile bleed for ammo '{}' has non-positive duration or interval. Skipping.", ammo_item_def.name);
+            return Ok(());
+        }
+
+        let total_ticks = (bleed_duration_seconds / bleed_tick_interval_seconds).ceil();
+        let total_bleed_damage = bleed_damage_per_tick * total_ticks;
+
+        let new_effect = active_effects::ActiveConsumableEffect {
+            effect_id: 0, // auto_inc
+            player_id: target_player_id, // The player receiving the bleed
+            target_player_id: Some(target_player_id), // Bleed is on the target
+            item_def_id: ammo_item_def.id, // ID of the ammunition causing the bleed
+            consuming_item_instance_id: None, // Projectiles are not consumed "by" the effect
+            started_at: current_time,
+            ends_at: current_time + TimeDuration::from_micros((bleed_duration_seconds * 1_000_000.0) as i64),
+            total_amount: Some(total_bleed_damage),
+            amount_applied_so_far: Some(0.0),
+            effect_type: active_effects::EffectType::Bleed,
+            tick_interval_micros: (bleed_tick_interval_seconds * 1_000_000.0) as u64,
+            next_tick_at: current_time + TimeDuration::from_micros((bleed_tick_interval_seconds * 1_000_000.0) as i64),
+        };
+
+        ctx.db.active_consumable_effect().insert(new_effect);
+        log::info!(
+            "Created Bleed effect on player {:?} from ammo '{}': {:.1} total damage over {:.1}s (tick every {:.1}s)",
+            target_player_id,
+            ammo_item_def.name,
+            total_bleed_damage,
+            bleed_duration_seconds,
+            bleed_tick_interval_seconds
+        );
+        Ok(())
+    } else {
+        log::debug!(
+            "Ammo '{}' does not have complete bleed parameters defined. No bleed applied.",
+            ammo_item_def.name
+        );
+        Ok(())
+    }
+}
+// --- END NEW HELPER FUNCTION ---
+
 #[reducer]
 pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule) -> Result<(), String> {
     // Security check - only allow scheduler to call this
@@ -274,17 +331,25 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     }
                 };
 
-                // --- Use combat::damage_player --- 
-                // The damage amount will be determined by damage_player based on weapon_item_def.pvp_damage_min/max
-                // combat::damage_player handles armor, knocked_out, death, corpse creation, etc.
+                // --- IMPROVED: Use ammunition-based damage and effects ---
+                // First apply weapon-based damage via combat::damage_player
                 match combat::damage_player(ctx, projectile.owner_id, player_to_check.identity, weapon_item_def.pvp_damage_min.unwrap_or(0) as f32, &weapon_item_def, current_time) {
                     Ok(attack_result) => {
                         if attack_result.hit {
                             log::info!("Projectile from {:?} (weapon: {}) successfully processed damage on player {:?}.", 
                                      projectile.owner_id, weapon_item_def.name, player_to_check.identity);
-                            // If damage_player indicated a hit, we can assume the projectile did its job.
+                            
+                            // Now apply ammunition-based bleed effects
+                            if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                                // Call the new helper to apply bleed
+                                if let Err(e) = apply_projectile_bleed_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {
+                                    log::error!("Error applying projectile bleed effect for ammo '{}' on player {:?}: {}", 
+                                        ammo_item_def.name, player_to_check.identity, e);
+                                }
+                            } else {
+                                log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's ammunition (ID: {}). Cannot apply ammo effects.", projectile.ammo_def_id);
+                            }
                         } else {
-                            // This might happen if damage_player determined no actual damage was dealt (e.g., target already dead before this exact tick)
                             log::info!("Projectile from {:?} (weapon: {}) hit player {:?}, but combat::damage_player reported no effective damage (e.g., target already dead).", 
                                      projectile.owner_id, weapon_item_def.name, player_to_check.identity);
                         }
@@ -295,7 +360,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                         // Even if damage_player fails, we should consume the projectile.
                     }
                 }
-                // --- End Use combat::damage_player ---
+                // --- End Improved Ammunition-Based Effects ---
 
                 projectiles_to_delete.push(projectile.id);
                 hit_player_this_tick = true;
