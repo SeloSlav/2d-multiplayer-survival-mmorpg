@@ -14,6 +14,7 @@ interface DraggableItemProps {
   onMouseLeave?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onMouseMove?: (event: React.MouseEvent<HTMLDivElement>) => void;
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  cooldownOverlay?: React.ReactNode; // Optional overlay to render on top
 }
 
 const DraggableItem: React.FC<DraggableItemProps> = ({ 
@@ -25,7 +26,8 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   onMouseEnter,
   onMouseLeave,
   onMouseMove,
-  onClick
+  onClick,
+  cooldownOverlay
 }) => {
   const itemRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
@@ -318,6 +320,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
       {item.definition.isStackable && item.instance.quantity > 1 && (
         <div className={styles.itemQuantity}>{item.instance.quantity}</div>
       )}
+      {cooldownOverlay}
     </div>
   );
 };

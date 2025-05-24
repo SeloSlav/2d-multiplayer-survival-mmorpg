@@ -8,6 +8,7 @@
   cursor: grab;
   user-select: none;
   box-sizing: border-box;
+  opacity: 1; /* Ensure full opacity by default */
   /* Add transition for opacity feedback */
   transition: opacity 0.15s ease-out;
 }

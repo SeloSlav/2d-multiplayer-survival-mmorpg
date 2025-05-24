@@ -633,6 +633,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     stashes={stashes}
                     startPlacement={startPlacement}
                     cancelPlacement={cancelPlacement}
+                    activeConsumableEffects={activeConsumableEffects}
                 />
             )}
 
