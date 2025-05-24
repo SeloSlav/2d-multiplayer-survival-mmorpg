@@ -1,0 +1,107 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 🚀 Multiplayer Game Performance Optimization Guide
+
+## Core Performance Rules
+
+### 1. **Never setState in Game Loop**
+❌ **BAD:**
+```typescript
+const gameLoop = () => {
+  setFrameTime(deltaTime); // Re-renders every frame!
+  setPlayerPosition(newPos); // Re-renders every frame!
+}
+```
+
+✅ **GOOD:**
+```typescript
+const gameLoop = () => {
+  frameTimeRef.current = deltaTime; // No re-render
+  updatePlayerPositionOnServer(newPos); // Batch updates
+}
+```
+
+### 2. **Use Refs for High-Frequency Data**
+- Animation frames
+- Mouse positions
+- Player movement
+- Any data that updates >30fps
+
+### 3. **Batch State Updates**
+- Collect all UI changes
+- Update once per frame or less
+- Use `React.unstable_batchedUpdates()` if needed
+
+### 4. **Optimize Rendering**
+```typescript
+// Memoize expensive calculations
+const expensiveData = useMemo(() => {
+  return heavyCalculation(props);
+}, [props.id]); // Only recalculate when ID changes
+
+// Use React.memo for pure components
+const PlayerSprite = React.memo(({ player }) => {
+  return <div>{player.name}</div>;
+});
+```
+
+### 5. **Canvas Optimizations**
+- Use `requestAnimationFrame` over `setInterval`
+- Clear only dirty regions, not entire canvas
+- Use off-screen canvases for static elements
+- Pre-render sprites to ImageBitmap
+
+### 6. **Network Optimizations**
+- Interpolate movement between server updates
+- Predict player actions locally
+- Use delta compression for position updates
+- Batch multiple actions into single packets
+
+### 7. **Memory Management**
+- Reuse objects instead of creating new ones
+- Use object pools for frequently created/destroyed items
+- Clean up event listeners and timers
+- Avoid memory leaks in useEffect
+
+### 8. **Entity Culling**
+- Only render entities within viewport
+- Use spatial partitioning (quadtree/grid)
+- Reduce update frequency for distant objects
+- LOD (Level of Detail) for far objects
+
+## Performance Monitoring
+
+```typescript
+// Use performance.now() for accurate timing
+const startTime = performance.now();
+expensiveOperation();
+const endTime = performance.now();
+console.log(`Operation took ${endTime - startTime}ms`);
+
+// Profile with browser dev tools
+performance.mark('game-loop-start');
+gameLoop();
+performance.mark('game-loop-end');
+performance.measure('game-loop', 'game-loop-start', 'game-loop-end');
+```
+
+## Target Metrics for 60fps
+- **Frame budget:** 16.67ms
+- **Game logic:** <5ms
+- **Rendering:** <8ms
+- **Browser overhead:** <3ms
+- **Network updates:** Async (don't block frames)
+
+## Common Performance Killers
+1. setState in game loop ❌
+2. Creating objects in render loops ❌
+3. Expensive calculations without memoization ❌
+4. DOM manipulation every frame ❌
+5. Synchronous network calls ❌
+6. Memory leaks ❌
+7. Unoptimized images/assets ❌
+
+8. Too many React re-renders ❌ 

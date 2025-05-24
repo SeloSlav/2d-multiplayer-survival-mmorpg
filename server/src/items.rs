@@ -161,7 +161,7 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
         RangedWeaponStats {
             item_name: "Hunting Bow".to_string(),
             weapon_range: 800.0,      // Increased from 300 to 400 world units
-            projectile_speed: 650.0,  // Fast projectile
+            projectile_speed: 800.0,  // Fast projectile
             accuracy: 0.8,            // 80% accuracy base
             reload_time_secs: 1.0,    // 1 second between shots
         },

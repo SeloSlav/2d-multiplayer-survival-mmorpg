@@ -70,7 +70,8 @@ export function useCampfireParticles({
     visibleCampfiresMap,
     deltaTime,
 }: UseCampfireParticlesProps): Particle[] {
-    const [particles, setParticles] = useState<Particle[]>([]);
+    // OPTIMIZED: Use ref instead of state to avoid re-renders every frame
+    const particlesRef = useRef<Particle[]>([]);
     
     const fireEmissionAccumulatorRef = useRef<Map<string, number>>(new Map());
     const smokeEmissionAccumulatorRef = useRef<Map<string, number>>(new Map());
@@ -78,11 +79,12 @@ export function useCampfireParticles({
     const prevBurningStatesRef = useRef<Map<string, boolean>>(new Map());
     const lingeringSmokeDataRef = useRef<Map<string, { lingerUntil: number }>>(new Map());
 
+    // Update particles directly in ref without triggering re-renders
     useEffect(() => {
         if (deltaTime <= 0) return; // Don't update if deltaTime is not positive
 
         const now = performance.now();
-        setParticles(prevParticles => {
+        const prevParticles = particlesRef.current;
             const updatedAndActiveParticles = prevParticles.map(p => {
                 const age = now - p.spawnTime;
                 const lifetimeRemaining = p.initialLifetime - age;
@@ -255,9 +257,8 @@ export function useCampfireParticles({
                 }
             });
 
-            return [...updatedAndActiveParticles, ...newGeneratedParticles];
-        });
+            particlesRef.current = [...updatedAndActiveParticles, ...newGeneratedParticles];
     }, [visibleCampfiresMap, deltaTime]);
 
-    return particles;
+    return particlesRef.current;
 } 

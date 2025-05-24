@@ -268,15 +268,15 @@ export const useSpacetimeTables = ({
             
             // --- Active Equipment Subscriptions ---
             const handleActiveEquipmentInsert = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => {
-                console.log("[DEBUG] Active equipment INSERT for player:", equip.playerIdentity.toHexString(), "item:", equip.equippedItemDefId);
+                // Debug logs removed for performance
                 setActiveEquipments(prev => new Map(prev).set(equip.playerIdentity.toHexString(), equip));
             };
             const handleActiveEquipmentUpdate = (ctx: any, oldEquip: SpacetimeDB.ActiveEquipment, newEquip: SpacetimeDB.ActiveEquipment) => {
-                console.log("[DEBUG] Active equipment UPDATE for player:", newEquip.playerIdentity.toHexString(), "old item:", oldEquip.equippedItemDefId, "new item:", newEquip.equippedItemDefId);
+                // Debug logs removed for performance
                 setActiveEquipments(prev => new Map(prev).set(newEquip.playerIdentity.toHexString(), newEquip));
             };
             const handleActiveEquipmentDelete = (ctx: any, equip: SpacetimeDB.ActiveEquipment) => {
-                console.log("[DEBUG] Active equipment DELETE for player:", equip.playerIdentity.toHexString());
+                // Debug logs removed for performance
                 setActiveEquipments(prev => { const newMap = new Map(prev); newMap.delete(equip.playerIdentity.toHexString()); return newMap; });
             };
             

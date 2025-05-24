@@ -117,7 +117,8 @@ export const useInputHandler = ({
     const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
     const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
     const [isActivelyHolding, setIsActivelyHolding] = useState<boolean>(false);
-    const [currentJumpOffsetY, setCurrentJumpOffsetY] = useState<number>(0); // <<< ADDED
+    // Use ref for jump offset to avoid re-renders every frame
+    const currentJumpOffsetYRef = useRef<number>(0);
 
     // Refs for auto-walk state
     const isAutoWalkingRef = useRef<boolean>(false);
@@ -209,28 +210,8 @@ export const useInputHandler = ({
     useEffect(() => { playersRef.current = players; }, [players]); // Added playersRef effect
     useEffect(() => { itemDefinitionsRef.current = itemDefinitions; }, [itemDefinitions]); // <<< ADDED Effect
 
-    // --- Jump Offset Calculation Effect ---
-    useEffect(() => {
-        const player = localPlayerRef.current;
-        if (player && player.jumpStartTimeMs > 0) {
-            const nowMs = Date.now();
-            const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
-
-            if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
-                const t = elapsedJumpTime / JUMP_DURATION_MS; // Normalized time (0 to 1)
-                const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
-                setCurrentJumpOffsetY(jumpOffset);
-            } else {
-                setCurrentJumpOffsetY(0); // End of jump
-            }
-        } else {
-            setCurrentJumpOffsetY(0); // Not jumping or no player
-        }
-        // This effect should run very frequently to update the jump arc smoothly.
-        // Relying on localPlayer changes might not be frequent enough.
-        // We'll add a requestAnimationFrame based update in processInputsAndActions or a separate loop.
-        // For now, localPlayer is the main trigger.
-    }, [localPlayer]);
+    // Jump offset calculation is now handled directly in processInputsAndActions
+    // to avoid React re-renders every frame
 
     // --- Swing Logic --- 
     const attemptSwing = useCallback(() => {
@@ -740,64 +721,31 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            console.log("[DEBUG] Mouse down event triggered. Button:", event.button);
+            // Debug logging removed for performance (was spamming console on every click)
             
             if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo || isInventoryOpen) {
-                console.log("[DEBUG] Mouse down blocked by conditions:", {
-                    isPlayerDead,
-                    isChatting,
-                    isSearchingCraftRecipes,
-                    isButton0: event.button === 0,
-                    hasPlacement: !!placementInfo,
-                    isInventoryOpen
-                });
                 return;
             }
             
-            console.log("[DEBUG] Mouse down passed initial checks, checking ranged weapon conditions...");
-            
             // Use existing refs directly
             if (connectionRef.current?.reducers && localPlayerId && localPlayerRef.current && activeEquipmentsRef.current && itemDefinitionsRef.current && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
-                console.log("[DEBUG] All refs available, checking equipment...");
-                
                 const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
-                console.log("[DEBUG] Local equipment:", localEquipment);
                 
                 if (localEquipment?.equippedItemDefId) {
                     const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
-                    console.log("[DEBUG] Item definition:", itemDef);
-                    console.log("[DEBUG] Item name:", itemDef?.name);
-                    console.log("[DEBUG] Item category:", itemDef?.category);
-                    console.log("[DEBUG] World mouse pos:", worldMousePosRefInternal.current);
                     
                     if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
-                        console.log("[DEBUG] FIRING PROJECTILE! Target:", worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                         try {
                             connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                             lastClientSwingAttemptRef.current = Date.now(); 
                             lastServerSwingTimestampRef.current = Date.now(); 
                             isMouseDownRef.current = true; 
-                            console.log("[DEBUG] Projectile fired successfully!");
                             return; 
                         } catch (err) {
                             console.error("[MouseDown Ranged] Error calling fireProjectile reducer:", err);
                         }
-                    } else {
-                        console.log("[DEBUG] Not a ranged weapon - name check:", itemDef?.name === "Hunting Bow", "category check:", itemDef?.category === SpacetimeDB.ItemCategory.RangedWeapon);
                     }
-                } else {
-                    console.log("[DEBUG] No equipped item def ID");
                 }
-            } else {
-                console.log("[DEBUG] Missing refs:", {
-                    hasConnection: !!connectionRef.current?.reducers,
-                    hasLocalPlayerId: !!localPlayerId,
-                    hasLocalPlayer: !!localPlayerRef.current,
-                    hasActiveEquipments: !!activeEquipmentsRef.current,
-                    hasItemDefinitions: !!itemDefinitionsRef.current,
-                    worldMouseX: worldMousePosRefInternal.current.x,
-                    worldMouseY: worldMousePosRefInternal.current.y
-                });
             }
 
             isMouseDownRef.current = true;
@@ -814,8 +762,6 @@ export const useInputHandler = ({
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
-            console.log("[DEBUG] Canvas click event triggered");
-            
             if (isPlayerDead) return;
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
@@ -825,22 +771,17 @@ export const useInputHandler = ({
             if (isActivelyHolding) return;
             if (event.target !== canvasRef?.current) return;
 
-            console.log("[DEBUG] Canvas click passed initial checks, checking ranged weapon...");
-
             // Use existing refs directly
             if (connectionRef.current?.reducers && localPlayerId && localPlayerRef.current && activeEquipmentsRef.current && itemDefinitionsRef.current && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
                 if (localEquipment?.equippedItemDefId) {
                     const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
-                    console.log("[DEBUG] Canvas click - Item def:", itemDef?.name, itemDef?.category);
                     
                     if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
-                        console.log("[DEBUG] CANVAS CLICK FIRING PROJECTILE!");
                         try {
                             connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                             lastClientSwingAttemptRef.current = Date.now();
                             lastServerSwingTimestampRef.current = Date.now(); 
-                            console.log("[DEBUG] Canvas click projectile fired!");
                             return; 
                         } catch (err) {
                             console.error("[CanvasClick Ranged] Error calling fireProjectile reducer:", err);
@@ -1039,8 +980,8 @@ export const useInputHandler = ({
                 setSprinting(false); 
             }
             // Also clear jump offset if player is dead or UI is active
-            if (currentJumpOffsetY !== 0) {
-                setCurrentJumpOffsetY(0);
+            if (currentJumpOffsetYRef.current !== 0) {
+                currentJumpOffsetYRef.current = 0;
             }
             return;
         }
@@ -1053,12 +994,12 @@ export const useInputHandler = ({
             if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
                 const t = elapsedJumpTime / JUMP_DURATION_MS;
                 const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
-                setCurrentJumpOffsetY(jumpOffset);
+                currentJumpOffsetYRef.current = jumpOffset;
             } else {
-                setCurrentJumpOffsetY(0); // End of jump
+                currentJumpOffsetYRef.current = 0; // End of jump
             }
-        } else if (currentJumpOffsetY !== 0) { // Ensure it resets if not jumping
-            setCurrentJumpOffsetY(0);
+        } else if (currentJumpOffsetYRef.current !== 0) { // Ensure it resets if not jumping
+            currentJumpOffsetYRef.current = 0;
         }
         // --- End Jump Offset Calculation ---
 
@@ -1094,7 +1035,7 @@ export const useInputHandler = ({
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
         closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
-        isClosestInteractableBoxEmpty, onSetInteractingWith, currentJumpOffsetY,
+        isClosestInteractableBoxEmpty, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setSprinting, isInventoryOpen 
     ]);
 
@@ -1103,7 +1044,7 @@ export const useInputHandler = ({
         interactionProgress,
         isActivelyHolding,
         isSprinting: isSprintingRef.current, // Return the ref's current value
-        currentJumpOffsetY, // <<< ADDED
+        currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
         processInputsAndActions,
     };
 }; 

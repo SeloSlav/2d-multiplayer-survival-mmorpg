@@ -74,11 +74,6 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   }, [item]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    console.log('[Ghost] Mouse move event:', { 
-      isDragging: isDraggingRef.current,
-      hasGhost: !!ghostRef.current,
-      pos: { x: e.clientX, y: e.clientY }
-    });
 
     // Check if we've moved enough to start dragging
     const dx = e.clientX - dragStartPos.current.x;
@@ -87,7 +82,6 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
     const thresholdSq = 2*2; // Compare squared distances
 
     if (distSq >= thresholdSq && !isDraggingRef.current) {
-        console.log('[Ghost] Starting drag operation');
         // Only now do we start dragging
         isDraggingRef.current = true;
         didDragRef.current = true;

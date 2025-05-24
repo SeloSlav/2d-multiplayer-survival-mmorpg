@@ -245,33 +245,43 @@ const Hotbar: React.FC<HotbarProps> = ({
     prevActiveEffectsRef.current = currentEffectIds;
   }, [activeConsumableEffects, playerIdentity, triggerClientCooldownAnimation, findItemForSlot]);
 
-  // Effect to stop animation when switching slots
+  // Effect to stop animation when switching slots (except for consumable food items)
   useEffect(() => {
     // Stop any active animation when switching slots (but not on initial render)
-    if (isVisualCooldownActive && prevSelectedSlotRef.current !== selectedSlot) {
-      console.log('[Hotbar] Selected slot changed from', prevSelectedSlotRef.current, 'to', selectedSlot, ', stopping visual cooldown animation');
+    if (isVisualCooldownActive && prevSelectedSlotRef.current !== selectedSlot && cooldownSlot !== null) {
+      // Check what item is in the cooldown slot to determine if we should stop the animation
+      const itemInCooldownSlot = findItemForSlot(cooldownSlot);
+      const shouldPersistAnimation = itemInCooldownSlot && 
+        itemInCooldownSlot.definition.category.tag === 'Consumable' && 
+        itemInCooldownSlot.definition.name !== 'Bandage'; // Food items persist, bandages don't
       
-      // Clear timeouts and animation frames
-      if (visualCooldownTimeoutRef.current) {
-        clearTimeout(visualCooldownTimeoutRef.current);
-        visualCooldownTimeoutRef.current = null;
+      if (shouldPersistAnimation) {
+        console.log('[Hotbar] Selected slot changed, but keeping consumable food animation active for slot:', cooldownSlot);
+      } else {
+        console.log('[Hotbar] Selected slot changed from', prevSelectedSlotRef.current, 'to', selectedSlot, ', stopping visual cooldown animation');
+        
+        // Clear timeouts and animation frames
+        if (visualCooldownTimeoutRef.current) {
+          clearTimeout(visualCooldownTimeoutRef.current);
+          visualCooldownTimeoutRef.current = null;
+        }
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        
+        // Reset animation state
+        setIsVisualCooldownActive(false);
+        setVisualCooldownStartTime(null);
+        setAnimationProgress(0);
+        setCurrentAnimationDuration(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
+        setCooldownSlot(null);
       }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      
-            // Reset animation state
-      setIsVisualCooldownActive(false);
-      setVisualCooldownStartTime(null);
-      setAnimationProgress(0);
-      setCurrentAnimationDuration(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
-      setCooldownSlot(null);
     }
     
     // Update the previous slot ref
     prevSelectedSlotRef.current = selectedSlot;
-  }, [selectedSlot, isVisualCooldownActive]); // Track both for completeness
+  }, [selectedSlot, isVisualCooldownActive, cooldownSlot, findItemForSlot]); // Added cooldownSlot and findItemForSlot to dependencies
 
   const activateHotbarSlot = useCallback((slotIndex: number, isMouseWheelScroll: boolean = false, currentSelectedSlot?: number) => {
     const itemInSlot = findItemForSlot(slotIndex);
@@ -632,7 +642,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                               left: '0px',
                               width: '100%',
                               height: `${(1 - animationProgress) * 100}%`, // Shrinks from top to bottom
-                              backgroundColor: 'rgba(0, 0, 0, 0.75)', // Proper dark overlay
+                              backgroundColor: 'rgba(0, 0, 0, 0.4)', // Lighter overlay with slight opacity
                               borderRadius: '2px',
                             }}
                             title={`Cooldown: ${Math.round((1 - animationProgress) * 100)}% remaining`} 
@@ -683,7 +693,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                 left: '0px',
                 width: '100%',
                 height: `${(1 - animationProgress) * 100}%`,
-                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
                 borderRadius: '2px',
               }}
               title={`Server Cooldown: ${Math.round((1 - animationProgress) * 100)}% remaining`}

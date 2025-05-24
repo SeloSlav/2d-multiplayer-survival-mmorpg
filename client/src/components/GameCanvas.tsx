@@ -299,9 +299,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       players,
   });
 
-  const [deltaTime, setDeltaTime] = useState<number>(0);
-  const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime });
-  const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime });
+  // Use ref instead of state to avoid re-renders every frame
+  const deltaTimeRef = useRef<number>(0);
+  const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime: deltaTimeRef.current });
+  const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime: deltaTimeRef.current });
 
   // --- Use Entity Filtering Hook ---
   const {
@@ -391,13 +392,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Use the new hook for campfire particles
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
-    deltaTime,
+    deltaTime: deltaTimeRef.current,
   });
   const torchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime,
+    deltaTime: deltaTimeRef.current,
   });
 
   // New function to render particles
@@ -816,23 +817,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
-    // Use deltaTime from the hook instead of calculating manually
-    setDeltaTime(frameInfo.deltaTime);
-
-    // Performance monitoring: warn if deltaTime is unusually high
-    if (process.env.NODE_ENV === 'development' && frameInfo.deltaTime > 50) {
-      console.warn(`[GameCanvas] Long frame detected: ${frameInfo.deltaTime.toFixed(2)}ms. Consider optimizing game loop callback.`);
-    }
+    // Update deltaTime ref directly to avoid re-renders
+    deltaTimeRef.current = frameInfo.deltaTime;
 
     processInputsAndActions(); 
     renderGame(); 
   }, [processInputsAndActions, renderGame]);
 
-  // Use the updated hook with optional performance settings
+  // Use the updated hook with optimized performance settings
   useGameLoop(gameLoopCallback, {
     targetFPS: 60,
-    maxFrameTime: 20, // Warning threshold slightly higher than ideal 16.67ms
-    enableProfiling: process.env.NODE_ENV === 'development'
+    maxFrameTime: 33, // More lenient threshold to reduce console spam
+    enableProfiling: false // Disable profiling in production for maximum performance
   });
 
   // Convert sleepingBags map key from string to number for DeathScreen

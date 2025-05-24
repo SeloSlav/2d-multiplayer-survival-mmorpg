@@ -195,6 +195,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let target_player_id = player.identity; // Get identity before moving player
                 
                 let mut updated_player = player;
+                // Set last_hit_time for client visual effects (shake and flash)
+                updated_player.last_hit_time = Some(current_time);
+                
                 if updated_player.health > damage {
                     updated_player.health -= damage;
                 } else {

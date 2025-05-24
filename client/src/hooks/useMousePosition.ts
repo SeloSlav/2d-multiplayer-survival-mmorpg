@@ -20,6 +20,7 @@ interface UseMousePositionResult {
 
 /**
  * Tracks mouse position relative to the canvas and the game world.
+ * OPTIMIZED: Uses refs instead of state to avoid re-renders on every mouse move.
  */
 export function useMousePosition({
   canvasRef,
@@ -27,10 +28,10 @@ export function useMousePosition({
   cameraOffsetY,
   canvasSize,
 }: UseMousePositionProps): UseMousePositionResult {
-  // Use state for positions so consumers can react to changes if needed
-  const [screenMousePos, setScreenMousePos] = useState<MousePosition>({ x: null, y: null });
-  const [worldMousePos, setWorldMousePos] = useState<MousePosition>({ x: null, y: null });
-  const [canvasMousePos, setCanvasMousePos] = useState<MousePosition>({ x: null, y: null });
+  // Use refs for actual position tracking to avoid re-renders
+  const screenMousePosRef = useRef<MousePosition>({ x: null, y: null });
+  const worldMousePosRef = useRef<MousePosition>({ x: null, y: null });
+  const canvasMousePosRef = useRef<MousePosition>({ x: null, y: null });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,23 +46,23 @@ export function useMousePosition({
       // Calculate screen coordinates
       const currentScreenX = (event.clientX - rect.left) * scaleX;
       const currentScreenY = (event.clientY - rect.top) * scaleY;
-      setScreenMousePos({ x: currentScreenX, y: currentScreenY });
+      screenMousePosRef.current = { x: currentScreenX, y: currentScreenY };
 
       // Calculate world coordinates using camera offset
       const currentWorldX = currentScreenX - cameraOffsetX;
       const currentWorldY = currentScreenY - cameraOffsetY;
-      setWorldMousePos({ x: currentWorldX, y: currentWorldY });
+      worldMousePosRef.current = { x: currentWorldX, y: currentWorldY };
 
       // Calculate canvas coordinates
       const canvasX = currentScreenX - rect.left;
       const canvasY = currentScreenY - rect.top;
-      setCanvasMousePos({ x: canvasX, y: canvasY });
+      canvasMousePosRef.current = { x: canvasX, y: canvasY };
     };
 
     const handleMouseLeave = () => {
-      setScreenMousePos({ x: null, y: null });
-      setWorldMousePos({ x: null, y: null });
-      setCanvasMousePos({ x: null, y: null });
+      screenMousePosRef.current = { x: null, y: null };
+      worldMousePosRef.current = { x: null, y: null };
+      canvasMousePosRef.current = { x: null, y: null };
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
@@ -76,8 +77,8 @@ export function useMousePosition({
   }, [canvasRef, cameraOffsetX, cameraOffsetY, canvasSize]);
 
   return {
-    screenMousePos,
-    worldMousePos,
-    canvasMousePos,
+    screenMousePos: screenMousePosRef.current,
+    worldMousePos: worldMousePosRef.current,
+    canvasMousePos: canvasMousePosRef.current,
   };
 } 

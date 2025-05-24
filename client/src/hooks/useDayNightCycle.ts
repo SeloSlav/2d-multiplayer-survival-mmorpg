@@ -242,6 +242,8 @@ export function useDayNightCycle({
 }: UseDayNightCycleProps): UseDayNightCycleResult {
     const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [overlayRgba, setOverlayRgba] = useState<string>('transparent');
+    // OPTIMIZED: Track previous overlay value to avoid unnecessary re-renders
+    const prevOverlayRef = useRef<string>('transparent');
 
     // --- Create a derived state string that changes when any torch's lit status changes ---
     const torchLitStatesKey = useMemo(() => {
@@ -286,7 +288,11 @@ export function useDayNightCycle({
             calculatedOverlayString = 'rgba(0,0,0,0)'; // Default to fully transparent day
         }
         
-        setOverlayRgba(calculatedOverlayString); 
+        // OPTIMIZED: Only update state if the overlay value actually changed
+        if (calculatedOverlayString !== prevOverlayRef.current) {
+            prevOverlayRef.current = calculatedOverlayString;
+            setOverlayRgba(calculatedOverlayString);
+        } 
 
         maskCtx.fillStyle = calculatedOverlayString; 
         maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);

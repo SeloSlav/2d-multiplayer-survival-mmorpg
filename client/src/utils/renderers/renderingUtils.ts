@@ -248,7 +248,7 @@ export const renderYSortedEntities = ({
                console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
              }
            } else if (localPlayerId && playerId === localPlayerId) {
-             console.log(`[DEBUG] No equipment found for local player`);
+             // Debug logging removed for performance (was spamming every frame)
            }
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
            
