@@ -160,7 +160,7 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
     let initial_ranged_stats = vec![
         RangedWeaponStats {
             item_name: "Hunting Bow".to_string(),
-            weapon_range: 400.0,      // Increased from 300 to 400 world units
+            weapon_range: 550.0,      // Increased from 300 to 400 world units
             projectile_speed: 800.0,  // Fast projectile
             accuracy: 0.8,            // 80% accuracy base
             reload_time_secs: 1.0,    // 1 second between shots

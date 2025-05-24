@@ -5,6 +5,7 @@ import heroSpriteSheet from '../assets/hero2.png';
 import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
+import deathMarkerUrl from '../assets/items/death_marker.png';
 
 // Import cloud image paths
 import cloud1Texture from '../assets/environment/clouds/cloud1.png';
@@ -37,7 +38,7 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 4 + 5;
+    const totalStaticAssets = 4 + 5 + 1;
     let allStaticLoaded = false;
 
     const checkLoadingComplete = () => {
@@ -68,6 +69,7 @@ export function useAssetLoader(): AssetLoaderResult {
     loadImage(grassTexture, grassImageRef);
     loadImage(campfireSprite, campfireImageRef);
     loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
+    loadImage(deathMarkerUrl, undefined, itemImagesRef, 'death_marker.png');
 
     // Load Cloud Images
     loadImage(cloud1Texture, undefined, cloudImagesRef, 'cloud1.png');

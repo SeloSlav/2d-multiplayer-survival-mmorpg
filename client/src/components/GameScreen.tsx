@@ -225,6 +225,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 grass={grass}
                 gameCanvasRef={gameCanvasRef}
                 projectiles={projectiles}
+                deathMarkers={deathMarkers}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

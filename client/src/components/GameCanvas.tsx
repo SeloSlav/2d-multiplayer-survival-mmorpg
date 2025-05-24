@@ -126,7 +126,7 @@ interface GameCanvasProps {
   showInventory: boolean;
   gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   projectiles: Map<string, SpacetimeDBProjectile>;
-  minimapPlayerPin: SpacetimeDBPlayerPin | null;
+  deathMarkers: Map<string, SpacetimeDBDeathMarker>;
 }
 
 /**
@@ -176,7 +176,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   grass,
   gameCanvasRef,
   projectiles,
-  minimapPlayerPin,
+  deathMarkers,
 }) => {
  // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -873,13 +873,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       viewport: worldViewport, // Pass calculated viewport (can be null)
   });
 
-  // CORRECTLY DERIVE localPlayerDeathMarker from the HOOK'S state
+  // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
   const localPlayerDeathMarker = useMemo(() => {
-    if (localPlayer && localPlayer.identity && spacetimeTableHookStates.deathMarkers) {
-      return spacetimeTableHookStates.deathMarkers.get(localPlayer.identity.toHexString()) || null;
+    console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
+    if (localPlayer && localPlayer.identity && deathMarkers) {
+      const marker = deathMarkers.get(localPlayer.identity.toHexString());
+      console.log('[GameCanvas] Found death marker for player:', marker);
+      return marker || null;
     }
     return null;
-  }, [localPlayer, spacetimeTableHookStates.deathMarkers]);
+  }, [localPlayer, deathMarkers]);
 
   // --- Logic to detect player damage from campfires and trigger effects ---
   useEffect(() => {
@@ -955,7 +958,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           trees={trees}
           stones={stones}
           campfires={campfires}
-          playerPin={minimapPlayerPin}
+          playerPin={localPlayerPin}
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
           // Pass the identified corpse and its image for the death screen minimap
           localPlayerDeathMarker={localPlayerDeathMarker}
