@@ -785,30 +785,35 @@ pub fn damage_player(
                 log::debug!("Applied knockback to target player {:?}: new pos ({:.1}, {:.1})", 
                     target_id, target_player.position_x, target_player.position_y);
 
-                // Knockback for Attacker (recoil)
-                let attacker_recoil_distance = PVP_KNOCKBACK_DISTANCE / 3.0; // Example: attacker recoils less
-                let knockback_dx_attacker = (-dx_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
-                let knockback_dy_attacker = (-dy_target_from_attacker / distance) * attacker_recoil_distance; // Opposite direction
-                
-                let current_attacker_x = attacker.position_x;
-                let current_attacker_y = attacker.position_y;
-                let proposed_attacker_x = current_attacker_x + knockback_dx_attacker;
-                let proposed_attacker_y = current_attacker_y + knockback_dy_attacker;
+                // --- MODIFIED: Only apply recoil if it's not a ranged weapon --- 
+                if item_def.category != crate::items::ItemCategory::RangedWeapon {
+                    let attacker_recoil_distance = PVP_KNOCKBACK_DISTANCE / 3.0; 
+                    let knockback_dx_attacker = (-dx_target_from_attacker / distance) * attacker_recoil_distance; 
+                    let knockback_dy_attacker = (-dy_target_from_attacker / distance) * attacker_recoil_distance; 
+                    
+                    let current_attacker_x = attacker.position_x;
+                    let current_attacker_y = attacker.position_y;
+                    let proposed_attacker_x = current_attacker_x + knockback_dx_attacker;
+                    let proposed_attacker_y = current_attacker_y + knockback_dy_attacker;
 
-                let (final_attacker_x, final_attacker_y) = resolve_knockback_collision(
-                    ctx,
-                    attacker.identity,
-                    current_attacker_x,
-                    current_attacker_y,
-                    proposed_attacker_x,
-                    proposed_attacker_y,
-                );
-                attacker.position_x = final_attacker_x;
-                attacker.position_y = final_attacker_y;
-                attacker.last_update = timestamp; // Update attacker's timestamp as their position changed
-                players.identity().update(attacker.clone()); // Update attacker player in DB
-                 log::debug!("Applied recoil to attacking player {:?}: new pos ({:.1}, {:.1})", 
-                    attacker_id, attacker.position_x, attacker.position_y);
+                    let (final_attacker_x, final_attacker_y) = resolve_knockback_collision(
+                        ctx,
+                        attacker.identity,
+                        current_attacker_x,
+                        current_attacker_y,
+                        proposed_attacker_x,
+                        proposed_attacker_y,
+                    );
+                    attacker.position_x = final_attacker_x;
+                    attacker.position_y = final_attacker_y;
+                    attacker.last_update = timestamp; 
+                    players.identity().update(attacker.clone()); 
+                    log::debug!("Applied recoil to attacking player {:?}: new pos ({:.1}, {:.1})", 
+                        attacker_id, attacker.position_x, attacker.position_y);
+                } else {
+                    log::debug!("Skipping recoil for attacker {:?} because a ranged weapon ({}) was used.", attacker_id, item_def.name);
+                }
+                // --- END MODIFICATION ---
             }
         }
     }

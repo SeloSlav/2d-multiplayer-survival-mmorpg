@@ -72,6 +72,9 @@ pub struct ActiveEquipment {
     pub equipped_item_instance_id: Option<u64>, // Instance ID from InventoryItem
     pub icon_asset_name: Option<String>, // Icon to display for equipped item
     pub swing_start_time_ms: u64, // Timestamp (ms) when the current swing started, 0 if not swinging
+    // Ranged weapon ammunition tracking
+    pub loaded_ammo_def_id: Option<u64>, // ID of loaded ammunition (e.g., arrow)
+    pub is_ready_to_fire: bool, // Whether the ranged weapon is loaded and ready
     // Fields for worn armor
     pub head_item_instance_id: Option<u64>,
     pub chest_item_instance_id: Option<u64>,
@@ -175,6 +178,9 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     equipment.equipped_item_instance_id = Some(item_instance_id);
     equipment.swing_start_time_ms = 0;
     equipment.icon_asset_name = Some(item_def.icon_asset_name.clone());
+    // Reset ammunition state when switching items
+    equipment.loaded_ammo_def_id = None;
+    equipment.is_ready_to_fire = false;
 
     // --- Handle Torch Specific State on Equip ---
     if item_def.name == "Torch" {
@@ -231,6 +237,8 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
             equipment.equipped_item_instance_id = None;
             equipment.swing_start_time_ms = 0;
             equipment.icon_asset_name = None; // <<< CLEAR icon name
+            equipment.loaded_ammo_def_id = None;
+            equipment.is_ready_to_fire = false;
             active_equipments.player_identity().update(equipment);
 
             // --- Handle Torch Lit State on Unequip ---
@@ -255,6 +263,87 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
     } else {
         log::info!("Player {:?} tried to clear active item, but no ActiveEquipment row found.", player_identity);
     }
+    Ok(())
+}
+
+/// Loads ammunition for ranged weapons (e.g., arrows for bows)
+/// 
+/// Checks player inventory for compatible ammunition and sets the ranged weapon to ready state.
+/// This is typically triggered by right-click when a ranged weapon is equipped.
+#[spacetimedb::reducer]
+pub fn load_ranged_weapon(ctx: &ReducerContext) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    log::info!("[LoadRangedWeapon] Reducer called by player: {:?}", sender_id);
+
+    let active_equipments = ctx.db.active_equipment();
+    let players_table = ctx.db.player();
+    let item_defs = ctx.db.item_definition();
+    let inventory_items = ctx.db.inventory_item();
+
+    // --- Check player state first ---
+    let player = players_table.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found.".to_string())?;
+    
+    if player.is_dead {
+        return Err("Cannot load weapons while dead.".to_string());
+    }
+    if player.is_knocked_out {
+        return Err("Cannot load weapons while knocked out.".to_string());
+    }
+
+    let mut current_equipment = active_equipments.player_identity().find(sender_id)
+        .ok_or_else(|| "No active equipment record found.".to_string())?;
+    log::info!("[LoadRangedWeapon] Found ActiveEquipment for player {:?}: {:?}", sender_id, current_equipment);
+
+    let equipped_item_def_id = current_equipment.equipped_item_def_id
+        .ok_or_else(|| "No item equipped to load.".to_string())?;
+    
+    let item_def = item_defs.id().find(equipped_item_def_id)
+        .ok_or_else(|| "Equipped item definition not found".to_string())?;
+
+    // Check if the equipped item is a ranged weapon
+    if item_def.category != crate::items::ItemCategory::RangedWeapon {
+        return Err("Equipped item is not a ranged weapon.".to_string());
+    }
+
+    // Check if already loaded
+    if current_equipment.is_ready_to_fire {
+        return Err("Weapon is already loaded.".to_string());
+    }
+
+    // Find compatible ammunition in player inventory
+    // For now, we'll hardcode "Wooden Arrow" for "Hunting Bow"
+    let compatible_ammo_name = match item_def.name.as_str() {
+        "Hunting Bow" => "Wooden Arrow",
+        _ => return Err("No compatible ammunition type defined for this weapon.".to_string()),
+    };
+
+    // Find the ammo item definition
+    let ammo_def = item_defs.iter()
+        .find(|def| def.name == compatible_ammo_name)
+        .ok_or_else(|| format!("Ammunition type '{}' not found in item definitions.", compatible_ammo_name))?;
+
+    // Check if player has at least 1 of this ammo in inventory/hotbar
+    let has_ammo = inventory_items.iter().any(|item| {
+        item.item_def_id == ammo_def.id 
+        && item.quantity > 0
+        && match &item.location {
+            crate::models::ItemLocation::Inventory(data) => data.owner_id == sender_id,
+            crate::models::ItemLocation::Hotbar(data) => data.owner_id == sender_id,
+            _ => false,
+        }
+    });
+
+    if !has_ammo {
+        return Err(format!("You need at least 1 {} to load the {}.", compatible_ammo_name, item_def.name));
+    }
+
+    // Load the weapon
+    current_equipment.loaded_ammo_def_id = Some(ammo_def.id);
+    current_equipment.is_ready_to_fire = true;
+    active_equipments.player_identity().update(current_equipment);
+
+    log::info!("[LoadRangedWeapon] Player {:?} loaded {} with {} (ready to fire).", sender_id, item_def.name, compatible_ammo_name);
     Ok(())
 }
 
@@ -313,6 +402,11 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     
     let item_def = item_defs.id().find(item_def_id)
         .ok_or_else(|| "Equipped item definition not found".to_string())?;
+
+    // --- Skip ranged weapons for melee use_equipped_item logic ---
+    if item_def.category == crate::items::ItemCategory::RangedWeapon {
+        return Err("Ranged weapons should be fired using fire_projectile, not used as melee weapons.".to_string());
+    }
 
     // --- BEGIN ATTACK SPEED CHECK ---
     if let Some(attack_interval_seconds) = item_def.attack_interval_secs {
@@ -515,6 +609,8 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
             equipped_item_instance_id: None,
             icon_asset_name: None,
             swing_start_time_ms: 0,
+            loaded_ammo_def_id: None,
+            is_ready_to_fire: false,
             head_item_instance_id: None,
             chest_item_instance_id: None,
             legs_item_instance_id: None,

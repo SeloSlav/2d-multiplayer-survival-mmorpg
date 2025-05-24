@@ -94,6 +94,8 @@ import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
 export { InteractWithStorageBox };
 import { Jump } from "./jump_reducer.ts";
 export { Jump };
+import { LoadRangedWeapon } from "./load_ranged_weapon_reducer.ts";
+export { LoadRangedWeapon };
 import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reducer.ts";
 export { MoveFuelItemToPlayerSlot };
 import { MoveFuelWithinCampfire } from "./move_fuel_within_campfire_reducer.ts";
@@ -817,6 +819,10 @@ const REMOTE_MODULE = {
       reducerName: "jump",
       argsType: Jump.getTypeScriptAlgebraicType(),
     },
+    load_ranged_weapon: {
+      reducerName: "load_ranged_weapon",
+      argsType: LoadRangedWeapon.getTypeScriptAlgebraicType(),
+    },
     move_fuel_item_to_player_slot: {
       reducerName: "move_fuel_item_to_player_slot",
       argsType: MoveFuelItemToPlayerSlot.getTypeScriptAlgebraicType(),
@@ -1187,6 +1193,7 @@ export type Reducer = never
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
+| { name: "LoadRangedWeapon", args: LoadRangedWeapon }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
@@ -1728,6 +1735,18 @@ export class RemoteReducers {
 
   removeOnJump(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("jump", callback);
+  }
+
+  loadRangedWeapon() {
+    this.connection.callReducer("load_ranged_weapon", new Uint8Array(0), this.setCallReducerFlags.loadRangedWeaponFlags);
+  }
+
+  onLoadRangedWeapon(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("load_ranged_weapon", callback);
+  }
+
+  removeOnLoadRangedWeapon(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("load_ranged_weapon", callback);
   }
 
   moveFuelItemToPlayerSlot(campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
@@ -3088,6 +3107,11 @@ export class SetReducerFlags {
   jumpFlags: CallReducerFlags = 'FullUpdate';
   jump(flags: CallReducerFlags) {
     this.jumpFlags = flags;
+  }
+
+  loadRangedWeaponFlags: CallReducerFlags = 'FullUpdate';
+  loadRangedWeapon(flags: CallReducerFlags) {
+    this.loadRangedWeaponFlags = flags;
   }
 
   moveFuelItemToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';

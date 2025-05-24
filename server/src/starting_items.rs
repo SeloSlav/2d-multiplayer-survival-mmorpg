@@ -103,6 +103,8 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
                 equipped_item_instance_id: None,
                 icon_asset_name: None,
                 swing_start_time_ms: 0,
+                loaded_ammo_def_id: None,
+                is_ready_to_fire: false,
                 head_item_instance_id: None,
                 chest_item_instance_id: None,
                 legs_item_instance_id: None,

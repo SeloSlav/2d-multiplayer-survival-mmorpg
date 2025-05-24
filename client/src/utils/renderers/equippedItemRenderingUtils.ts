@@ -20,6 +20,7 @@ export const renderEquippedItem = (
   player: SpacetimeDBPlayer, 
   equipment: SpacetimeDBActiveEquipment,
   itemDef: SpacetimeDBItemDefinition,
+  itemDefinitions: Map<string, SpacetimeDBItemDefinition>,
   itemImgFromCaller: HTMLImageElement,
   now_ms: number,
   jumpOffset: number,
@@ -225,6 +226,19 @@ export const renderEquippedItem = (
   const preAnimationPivotX = pivotX;
   const preAnimationPivotY = pivotY;
 
+  // --- NEW: Arrow Rendering for Loaded Bow ---
+  let loadedArrowImage: HTMLImageElement | undefined = undefined;
+  if (itemDef.name === "Hunting Bow" && equipment.isReadyToFire && equipment.loadedAmmoDefId && itemDefinitions) {
+    const ammoDef = itemDefinitions.get(String(equipment.loadedAmmoDefId));
+    if (ammoDef && ammoDef.iconAssetName) {
+        loadedArrowImage = itemImages.get(ammoDef.iconAssetName); // Use ammo's icon
+        if (!loadedArrowImage) {
+            // console.warn(`[RenderEquipped] Image for loaded arrow '${ammoDef.iconAssetName}' not found.`);
+        }
+    }
+  }
+  // --- END NEW ---
+
   // --- Swing/Thrust Animation --- 
   const swingStartTime = Number(equipment.swingStartTimeMs);
   const elapsedSwingTime = now_ms - swingStartTime;
@@ -333,17 +347,51 @@ export const renderEquippedItem = (
     ctx.save(); // Save for regular item drawing / swing
     if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage" 
         && itemDef.name?.toLowerCase() !== "hunting bow" && itemDef.category?.tag !== "RangedWeapon") {
-      // Apply dynamic swing rotation for non-spear, non-bandage, non-ranged weapon items
-      // `rotation` here is the dynamic swing angle from earlier logic (currentAngle)
-      // This needs to be the `rotation` variable that holds currentAngle for non-spears.
-      // The outer `rotation` variable is pre-set for spears and might be 0 for others initially.
-      // Let's assume `currentAngle` is the correct variable for dynamic swing here.
-      ctx.rotate(currentAngle); // `currentAngle` should be 0 if not swinging
+      ctx.rotate(currentAngle); 
     }
-    // If it's a spear, its main rotation is already applied outside this block.
-    // If it's a bandage that didn't animate, it will be drawn with no additional rotation here.
     
     ctx.drawImage(imageToRender, -displayItemWidth / 2, -displayItemHeight / 2, displayItemWidth, displayItemHeight); // Draw centered
+
+    // --- NEW: Draw Loaded Arrow on Bow ---
+    if (loadedArrowImage && itemDef.name === "Hunting Bow") {
+        const arrowScale = 0.045; // Adjust as needed
+        const arrowWidth = loadedArrowImage.width * arrowScale;
+        const arrowHeight = loadedArrowImage.height * arrowScale;
+        // Position the arrow slightly offset from the bow's center, adjust as needed
+        // These offsets are relative to the bow's own drawing context, 
+        // which is already translated and rotated.
+        let arrowOffsetX = -displayItemWidth * 0.05; // Move slightly left of bow center
+        let arrowOffsetY = -displayItemHeight * 0.1; // Move slightly above bow center
+
+        // Further adjust arrow position based on player direction to align with bowstring
+        // This assumes the bow image itself is oriented consistently.
+        // These are very rough estimates and will likely need artistic tweaking.
+        switch (player.direction) {
+            case 'up':
+                arrowOffsetX = -displayItemWidth * 0.05; 
+                arrowOffsetY = -displayItemHeight * 0.3; // Arrow nocked further up
+                break;
+            case 'down':
+                arrowOffsetX = -displayItemWidth * 0.05; 
+                arrowOffsetY = displayItemHeight * 0.1;  // Arrow nocked further down
+                break;
+            case 'left': // Bow points left (rotated PI/2 or 270 deg), arrow should be to its "right"
+                arrowOffsetX = displayItemWidth * 0.15; 
+                arrowOffsetY = -displayItemHeight * 0.05;
+                break;
+            case 'right': // Bow points right (no rotation), arrow should be to its "left"
+                arrowOffsetX = -displayItemWidth * 0.25; 
+                arrowOffsetY = -displayItemHeight * 0.05;
+                break;
+        }
+        
+        // The arrow should visually align with the bow. Since the bow itself is already
+        // rotated and scaled, we draw the arrow in the same transformed context.
+        // The arrow itself probably shouldn't have its own rotation independent of the bow here.
+        ctx.drawImage(loadedArrowImage, arrowOffsetX - arrowWidth / 2, arrowOffsetY - arrowHeight / 2, arrowWidth, arrowHeight);
+    }
+    // --- END NEW ---
+
     ctx.restore(); // Restore from regular item drawing / swing
   }
 

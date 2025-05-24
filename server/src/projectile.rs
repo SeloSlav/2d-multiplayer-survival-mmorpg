@@ -1,5 +1,6 @@
 use spacetimedb::{table, reducer, SpacetimeType, Identity, Timestamp, ReducerContext, Table, TimeDuration, ScheduleAt};
 use std::f32::consts::PI;
+use rand::{Rng, SeedableRng};
 
 // Import the PlayerLastAttackTimestamp struct from root crate
 use crate::PlayerLastAttackTimestamp;
@@ -8,8 +9,10 @@ use crate::PlayerLastAttackTimestamp;
 use crate::player;
 use crate::active_equipment::active_equipment;
 use crate::items::item_definition;
+use crate::items::inventory_item as inventory_item_table_accessor;
 use crate::ranged_weapon_stats::ranged_weapon_stats;
 use crate::player_last_attack_timestamp;
+use crate::combat; // Import the combat module to use damage_player
 
 #[table(name = projectile, public)]
 #[derive(Clone, Debug)]
@@ -65,14 +68,78 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         return Err("Dead players cannot fire projectiles".to_string());
     }
 
-    // Get the equipped item
-    let equipment = ctx.db.active_equipment().player_identity().find(&player_id)
-        .ok_or("No equipped item found")?;
+    // Get the equipped item and its definition
+    let mut equipment = ctx.db.active_equipment().player_identity().find(&player_id)
+        .ok_or("No active equipment record found for player.")?;
+    
+    let equipped_item_def_id = equipment.equipped_item_def_id
+        .ok_or("No item definition ID in active equipment.")?;
+    
+    let item_def = ctx.db.item_definition().id().find(equipped_item_def_id)
+        .ok_or("Equipped item definition not found.")?;
 
-        // Get ranged weapon stats
-        let equipped_item_def_id = equipment.equipped_item_def_id.ok_or("No item equipped")?;
-        let item_def = ctx.db.item_definition().id().find(&equipped_item_def_id).ok_or("Item definition not found")?;
+    // --- Check if it's a Ranged Weapon and if it's ready to fire ---
+    if item_def.category != crate::items::ItemCategory::RangedWeapon {
+        return Err("Equipped item is not a ranged weapon.".to_string());
+    }
 
+    if !equipment.is_ready_to_fire {
+        return Err("Weapon is not loaded. Right-click to load ammunition.".to_string());
+    }
+
+    let loaded_ammo_def_id = equipment.loaded_ammo_def_id
+        .ok_or("Weapon is not loaded correctly (missing ammo def ID).")?;
+
+    // --- Consume Ammunition ---
+    let inventory_items = ctx.db.inventory_item();
+    let mut ammo_item_instance_id_to_consume: Option<u64> = None;
+    let mut ammo_item_current_quantity: u32 = 0;
+
+    for item in inventory_items.iter() {
+        if item.item_def_id == loaded_ammo_def_id && item.quantity > 0 {
+            match &item.location {
+                crate::models::ItemLocation::Inventory(loc_data) if loc_data.owner_id == player_id => {
+                    ammo_item_instance_id_to_consume = Some(item.instance_id);
+                    ammo_item_current_quantity = item.quantity;
+                    break;
+                }
+                crate::models::ItemLocation::Hotbar(loc_data) if loc_data.owner_id == player_id => {
+                    ammo_item_instance_id_to_consume = Some(item.instance_id);
+                    ammo_item_current_quantity = item.quantity;
+                    break;
+                }
+                _ => {} // Not in player's inventory or hotbar
+            }
+        }
+    }
+
+    if let Some(instance_id) = ammo_item_instance_id_to_consume {
+        if ammo_item_current_quantity > 1 {
+            let mut item_to_update = inventory_items.instance_id().find(instance_id).unwrap(); // Should exist
+            item_to_update.quantity -= 1;
+            inventory_items.instance_id().update(item_to_update);
+            log::info!("Player {:?} consumed 1 ammunition (def_id: {}). {} remaining.", 
+                player_id, loaded_ammo_def_id, ammo_item_current_quantity - 1);
+        } else {
+            inventory_items.instance_id().delete(instance_id);
+            log::info!("Player {:?} consumed last ammunition (def_id: {}). Item instance deleted.", 
+                player_id, loaded_ammo_def_id);
+        }
+    } else {
+        // This case should ideally not be reached if is_ready_to_fire was true,
+        // but as a safeguard:
+        equipment.is_ready_to_fire = false;
+        equipment.loaded_ammo_def_id = None;
+        ctx.db.active_equipment().player_identity().update(equipment);
+        return Err("No loaded ammunition found in inventory to consume, despite weapon being marked as ready. Weapon unloaded.".to_string());
+    }
+
+    // --- Update ActiveEquipment: Weapon is now unloaded ---
+    equipment.is_ready_to_fire = false;
+    equipment.loaded_ammo_def_id = None;
+    ctx.db.active_equipment().player_identity().update(equipment);
+    // --- End Ammunition Consumption & Weapon Unload ---
+ 
     let weapon_stats = ctx.db.ranged_weapon_stats().item_name().find(&item_def.name)
         .ok_or(format!("Ranged weapon stats not found for: {}", item_def.name))?;
 
@@ -153,75 +220,88 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
     }
 
     let current_time = ctx.timestamp;
-    let current_time_secs = current_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0;
+    let item_defs_table = ctx.db.item_definition(); // Get item definitions table
+    let mut rng = rand::rngs::StdRng::from_seed(ctx.rng().gen::<[u8; 32]>()); // Explicitly generate a [u8; 32] seed
 
     let mut projectiles_to_delete = Vec::new();
 
-    // Check each projectile for collisions and cleanup
     for projectile in ctx.db.projectile().iter() {
         let start_time_secs = projectile.start_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0;
+        let current_time_secs = current_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0; // Moved here for correct scope
         let elapsed_time = current_time_secs - start_time_secs;
         
         let current_x = projectile.start_pos_x + projectile.velocity_x * elapsed_time as f32;
         let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32;
         
-        // Calculate travel distance
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         
-        // Check if projectile exceeded max range or is too old (10 seconds max)
         if travel_distance > projectile.max_range || elapsed_time > 10.0 {
             projectiles_to_delete.push(projectile.id);
             continue;
         }
 
-        // Check collision with players (excluding owner)
-        let mut hit_player = false;
-        for player in ctx.db.player().iter() {
-            if player.identity == projectile.owner_id || player.is_dead {
+        let mut hit_player_this_tick = false;
+        for player_to_check in ctx.db.player().iter() {
+            if player_to_check.identity == projectile.owner_id || player_to_check.is_dead { // Also check if target is already dead
                 continue;
             }
             
-            let dx = current_x - player.position_x;
-            let dy = current_y - player.position_y;
+            let dx = current_x - player_to_check.position_x;
+            let dy = current_y - player_to_check.position_y;
             let distance_sq = dx * dx + dy * dy;
             
-            // Hit radius of ~20 pixels
-            if distance_sq < 400.0 {
-                log::info!("Projectile {} hit player {} at ({:.1}, {:.1})", projectile.id, player.identity.to_string(), current_x, current_y);
+            // Use PLAYER_RADIUS for collision detection
+            const PROJECTILE_HIT_PLAYER_RADIUS_SQ: f32 = crate::PLAYER_RADIUS * crate::PLAYER_RADIUS; 
+
+            if distance_sq < PROJECTILE_HIT_PLAYER_RADIUS_SQ { // Use player's actual radius
+                log::info!("Projectile {} from owner {:?} hit player {:?} at ({:.1}, {:.1}) with hit radius check against PLAYER_RADIUS ({:.1})", 
+                         projectile.id, projectile.owner_id, player_to_check.identity, current_x, current_y, crate::PLAYER_RADIUS);
                 
-                // Apply damage (simplified - 25.0 damage)
-                let damage = 25.0f32;
-                let shooter_id = projectile.owner_id;
-                let target_player_id = player.identity; // Get identity before moving player
-                
-                let mut updated_player = player;
-                // Set last_hit_time for client visual effects (shake and flash)
-                updated_player.last_hit_time = Some(current_time);
-                
-                if updated_player.health > damage {
-                    updated_player.health -= damage;
-                } else {
-                    updated_player.health = 0.0;
-                    updated_player.is_dead = true;
-                    updated_player.death_timestamp = Some(ctx.timestamp);
+                // Fetch the ItemDefinition for the weapon that fired the projectile (e.g., the bow)
+                let weapon_item_def = match item_defs_table.id().find(projectile.item_def_id) {
+                    Some(def) => def,
+                    None => {
+                        log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's weapon (ID: {}). Cannot apply damage.", projectile.item_def_id);
+                        projectiles_to_delete.push(projectile.id); // Delete projectile if weapon def is missing
+                        hit_player_this_tick = true; // Mark as handled to prevent further processing for this projectile
+                        break; // Stop checking other players for this projectile
+                    }
+                };
+
+                // --- Use combat::damage_player --- 
+                // The damage amount will be determined by damage_player based on weapon_item_def.pvp_damage_min/max
+                // combat::damage_player handles armor, knocked_out, death, corpse creation, etc.
+                match combat::damage_player(ctx, projectile.owner_id, player_to_check.identity, weapon_item_def.pvp_damage_min.unwrap_or(0) as f32, &weapon_item_def, current_time) {
+                    Ok(attack_result) => {
+                        if attack_result.hit {
+                            log::info!("Projectile from {:?} (weapon: {}) successfully processed damage on player {:?}.", 
+                                     projectile.owner_id, weapon_item_def.name, player_to_check.identity);
+                            // If damage_player indicated a hit, we can assume the projectile did its job.
+                        } else {
+                            // This might happen if damage_player determined no actual damage was dealt (e.g., target already dead before this exact tick)
+                            log::info!("Projectile from {:?} (weapon: {}) hit player {:?}, but combat::damage_player reported no effective damage (e.g., target already dead).", 
+                                     projectile.owner_id, weapon_item_def.name, player_to_check.identity);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error calling combat::damage_player for projectile hit from {:?} on {:?}: {}", 
+                                 projectile.owner_id, player_to_check.identity, e);
+                        // Even if damage_player fails, we should consume the projectile.
+                    }
                 }
-                
-                ctx.db.player().identity().update(updated_player);
-                
-                log::info!("Projectile from {} dealt {} damage to {}", shooter_id.to_string(), damage, target_player_id.to_string());
-                
+                // --- End Use combat::damage_player ---
+
                 projectiles_to_delete.push(projectile.id);
-                hit_player = true;
-                break;
+                hit_player_this_tick = true;
+                break; // Projectile hits one player and is consumed
             }
         }
         
-        if hit_player {
-            continue;
+        if hit_player_this_tick {
+            continue; // Move to the next projectile if this one hit someone
         }
     }
 
-    // Clean up projectiles
     for projectile_id in projectiles_to_delete {
         ctx.db.projectile().id().delete(&projectile_id);
     }

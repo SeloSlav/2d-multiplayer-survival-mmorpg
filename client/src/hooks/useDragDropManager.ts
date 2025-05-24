@@ -268,12 +268,6 @@ export const useDragDropManager = ({
                             return;
                         }
 
-                        // --- DEBUG LOGS START ---
-                        console.log(`[DEBUG] Splitting from Campfire (${sourceCampfireId}, Slot ${sourceIndexNum})`);
-                        console.log(`  Source Item:`, sourceInfo.item);
-                        console.log(`  Quantity to Split: ${quantityToSplit}`);
-                        console.log(`  Target Slot: ${targetSlotType}:${targetSlotIndexNum}`);
-
                         // Check target slot state BEFORE calling reducer
                         let targetItemInstance: InventoryItem | undefined = undefined;
                         if (connection && playerIdentity) { // Ensure connection and playerIdentity exist

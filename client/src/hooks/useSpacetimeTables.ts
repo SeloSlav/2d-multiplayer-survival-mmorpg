@@ -237,17 +237,17 @@ export const useSpacetimeTables = ({
             // --- Item Definition Subscriptions ---
             const handleItemDefInsert = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => {
                 if (itemDef.name === "Hunting Bow") {
-                    console.log("[DEBUG] Hunting Bow item definition loaded:", itemDef);
-                    console.log("[DEBUG] Hunting Bow category:", itemDef.category);
-                    console.log("[DEBUG] Hunting Bow category tag:", itemDef.category?.tag);
+                    // console.log("[DEBUG] Hunting Bow item definition loaded:", itemDef);
+                    // console.log("[DEBUG] Hunting Bow category:", itemDef.category);
+                    // console.log("[DEBUG] Hunting Bow category tag:", itemDef.category?.tag);
                 }
                 setItemDefinitions(prev => new Map(prev).set(itemDef.id.toString(), itemDef));
             };
             const handleItemDefUpdate = (ctx: any, oldDef: SpacetimeDB.ItemDefinition, newDef: SpacetimeDB.ItemDefinition) => {
                 if (newDef.name === "Hunting Bow") {
-                    console.log("[DEBUG] Hunting Bow item definition UPDATED:", newDef);
-                    console.log("[DEBUG] Hunting Bow category:", newDef.category);
-                    console.log("[DEBUG] Hunting Bow category tag:", newDef.category?.tag);
+                    // console.log("[DEBUG] Hunting Bow item definition UPDATED:", newDef);
+                    // console.log("[DEBUG] Hunting Bow category:", newDef.category);
+                    // console.log("[DEBUG] Hunting Bow category tag:", newDef.category?.tag);
                 }
                 setItemDefinitions(prev => new Map(prev).set(newDef.id.toString(), newDef));
             };
@@ -475,34 +475,17 @@ export const useSpacetimeTables = ({
 
             // --- Projectile Callbacks --- Added
             const handleProjectileInsert = (ctx: any, projectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile INSERT received:", projectile);
+                // console.log("[DEBUG] Projectile INSERT received:", projectile);
                 setProjectiles(prev => new Map(prev).set(projectile.id.toString(), projectile));
             };
             const handleProjectileUpdate = (ctx: any, oldProjectile: SpacetimeDBProjectile, newProjectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile UPDATE received:", newProjectile);
+                // console.log("[DEBUG] Projectile UPDATE received:", newProjectile);
                 setProjectiles(prev => new Map(prev).set(newProjectile.id.toString(), newProjectile));
             };
             const handleProjectileDelete = (ctx: any, projectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile DELETE received:", projectile);
+                // console.log("[DEBUG] Projectile DELETE received:", projectile);
                 setProjectiles(prev => { const newMap = new Map(prev); newMap.delete(projectile.id.toString()); return newMap; });
             };
-
-            // Add reducer callbacks to monitor fireProjectile results
-            console.log("[DEBUG] Registering fireProjectile reducer callback...");
-            connection.reducers.onFireProjectile((ctx, targetWorldX, targetWorldY) => {
-                console.log("[DEBUG] fireProjectile reducer result:", {
-                    event: ctx.event,
-                    status: ctx.event.status,
-                    callerIdentity: ctx.event.callerIdentity?.toHexString(),
-                    targetX: targetWorldX,
-                    targetY: targetWorldY
-                });
-                
-                // Log raw status to understand the structure
-                console.log("[DEBUG] Raw status object:", ctx.event.status);
-                console.log("[DEBUG] Status type:", typeof ctx.event.status);
-                console.log("[DEBUG] Status constructor:", ctx.event.status.constructor.name);
-            });
 
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);

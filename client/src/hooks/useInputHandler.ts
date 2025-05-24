@@ -721,35 +721,64 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
-            // Debug logging removed for performance (was spamming console on every click)
-            
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes || event.button !== 0 || placementInfo || isInventoryOpen) {
-                return;
-            }
-            
-            // Use existing refs directly
-            if (connectionRef.current?.reducers && localPlayerId && localPlayerRef.current && activeEquipmentsRef.current && itemDefinitionsRef.current && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
-                const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
-                
-                if (localEquipment?.equippedItemDefId) {
-                    const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
+            if (isPlayerDead) return;
+            if (event.target !== canvasRef?.current) return; 
+            if (isInventoryOpen) return; 
+            if (isActivelyHolding) return; 
+
+            if (event.button === 0) { // Left Click
+                isMouseDownRef.current = true; 
+                console.log("[InputHandler MOUSEDOWN] Left-click detected.");
+
+                const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
+                console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
+
+                if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
+                    const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
+                    console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item Def (raw object): ", equippedItemDef);
                     
-                    if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
-                        try {
-                            connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
-                            lastClientSwingAttemptRef.current = Date.now(); 
-                            lastServerSwingTimestampRef.current = Date.now(); 
-                            isMouseDownRef.current = true; 
-                            return; 
-                        } catch (err) {
-                            console.error("[MouseDown Ranged] Error calling fireProjectile reducer:", err);
+                    if (equippedItemDef) { 
+                        console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
+                        
+                        // 1. Ranged Weapon Firing
+                        if (equippedItemDef.category?.tag === "RangedWeapon") { 
+                            if (localPlayerActiveEquipment.isReadyToFire) {
+                                if (connectionRef.current?.reducers && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
+                                    console.log("[InputHandler MOUSEDOWN] Ranged weapon loaded. Firing!");
+                                    connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y); 
+                                } else {
+                                    console.warn("[InputHandler MOUSEDOWN] Cannot fire ranged weapon: No connection/reducers or invalid mouse position.");
+                                }
+                            } else {
+                                console.log("[InputHandler MOUSEDOWN] Ranged weapon equipped but not ready to fire (isReadyToFire: false).");
+                            }
+                            return; // Ranged weapon logic handled (fired or noted as not ready)
                         }
+                        // 2. Torch: Prevent left-click swing   
+                        else if (equippedItemDef.name === "Torch") {
+                            console.log("[InputHandler MOUSEDOWN] Torch equipped. Left-click does nothing (use Right-Click to toggle).");
+                            return; // Torch has no default left-click action here
+                        }
+                        // 3. Bandage: Prevent left-click swing (already handled by right-click)
+                        else if (equippedItemDef.name === "Bandage") {
+                            console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
+                            return; 
+                        }
+                        // If none of the above special cases, fall through to default item use (melee/tool)
+                    } else {
+                        console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
+                        // Fall through to default unarmed action if item def is missing
                     }
                 }
-            }
 
-            isMouseDownRef.current = true;
-            attemptSwing(); 
+                // Default action for other items (tools, melee weapons) or if unarmed
+                if (localPlayerId && connectionRef.current?.reducers) {
+                    console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
+                    connectionRef.current.reducers.useEquippedItem(); 
+                } else {
+                     console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
+                }
+            }
         };
 
         const handleMouseUp = (event: MouseEvent) => {
@@ -829,65 +858,66 @@ export const useInputHandler = ({
 
         // --- Context Menu for Placement Cancellation ---
         const handleContextMenu = (event: MouseEvent) => {
-            if (isPlayerDead) return; // No actions if dead
-            
-            // Prevent default browser context menu in all cases where this handler is active
-            event.preventDefault(); 
+            if (isPlayerDead) return;
+            if (isInventoryOpen) return; 
+            console.log("[InputHandler] handleContextMenu triggered."); 
 
-            // If placing, right-click should cancel placement, regardless of inventory state.
-            if (placementInfo) {
-                placementActionsRef.current?.cancelPlacement();
-                return; 
-            }
+            const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
+            console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
-            // MODIFIED: If inventory is open AND we are NOT placing, then no further context menu actions.
-            if (isInventoryOpen) {
-                // console.log("[InputHandler] Inventory is open, context menu ignored for item actions.");
-                return;
-            }
+            if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
+                const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
+                console.log("[InputHandler DEBUG CTXMENU] Equipped item Def (raw object): ", equippedItemDef);
 
-            const localPlayerEquipment = activeEquipmentsRef.current?.get(localPlayerId || "");
-            if (localPlayerEquipment && localPlayerEquipment.equippedItemInstanceId) {
-                const itemDefId = localPlayerEquipment.equippedItemDefId;
-                const itemDef = itemDefinitionsRef.current?.get(String(itemDefId));
-
-                if (itemDef && itemDef.name === "Bandage") {
-                    // If Bandage is equipped, right-click should trigger useEquippedItem
-                    const now = Date.now();
-                    // For bandage, use a generic cooldown or its own specific use interval if defined
-                    // (assuming bandages don't have attackIntervalSecs, so fallback to SWING_COOLDOWN_MS)
-                    const bandageUseInterval = SWING_COOLDOWN_MS; // Or itemDef.consumableUseIntervalMs if we add it
-                    
-                    if (now - lastServerSwingTimestampRef.current < bandageUseInterval) return;
-                    if (now - lastClientSwingAttemptRef.current < bandageUseInterval) return;
-                    // Server's swingStartTimeMs is not directly applicable to consumables like bandages in the same way
-                    // as attack weapons. We rely on the client-side cooldowns for bandage use primarily.
-
-                    if (connectionRef.current?.reducers) {
-                        connectionRef.current.reducers.useEquippedItem(); // This will call the bandage logic on server
-                        lastClientSwingAttemptRef.current = now;
-                        lastServerSwingTimestampRef.current = now; // Optimistically update for client-side prediction
-                        // console.log("[InputHandler] Used Bandage via right-click.");
-                    }
-                    return; // Bandage used, no further context menu logic needed
-                } else if (itemDef && itemDef.name === "Torch") {
-                    // If Torch is equipped, right-click should toggle it
-                    if (connectionRef.current?.reducers) {
-                        try {
-                            connectionRef.current.reducers.toggleTorch();
-                            // console.log("[InputHandler] Toggled Torch via right-click.");
-                        } catch (err) {
-                            console.error("[InputHandler] Error calling toggleTorch reducer:", err);
+                if (equippedItemDef) { // <<< NULL CHECK ADDED
+                    console.log("[InputHandler DEBUG CTXMENU] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
+                    if (equippedItemDef.category?.tag === "RangedWeapon") { 
+                        console.log("[InputHandler CTXMENU] Ranged Weapon equipped. Attempting to load.");
+                        event.preventDefault(); 
+                        if (connectionRef.current?.reducers) {
+                            console.log("[InputHandler CTXMENU] Calling loadRangedWeapon reducer.");
+                            connectionRef.current.reducers.loadRangedWeapon(); 
+                        } else {
+                            console.warn("[InputHandler CTXMENU] No connection or reducers to call loadRangedWeapon.");
                         }
+                        return; 
+                    } 
+                    else if (equippedItemDef.name === "Torch") {
+                        console.log("[InputHandler CTXMENU] Torch equipped. Attempting to toggle.");
+                        event.preventDefault();
+                        if (connectionRef.current?.reducers) {
+                            console.log("[InputHandler CTXMENU] Calling toggleTorch reducer.");
+                            connectionRef.current.reducers.toggleTorch();
+                        } else {
+                            console.warn("[InputHandler CTXMENU] No connection or reducers to call toggleTorch.");
+                        }
+                        return; 
+                    } else if (equippedItemDef.name === "Bandage") {
+                        console.log("[InputHandler CTXMENU] Bandage equipped. Attempting to use.");
+                        event.preventDefault();
+                        if (connectionRef.current?.reducers) {
+                            console.log("[InputHandler CTXMENU] Calling useEquippedItem for Bandage.");
+                            connectionRef.current.reducers.useEquippedItem(); 
+                        } else {
+                            console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Bandage.");
+                        }
+                        return; 
                     }
-                    return; // Torch toggled, no further context menu logic needed
+                    else {
+                        console.log("[InputHandler DEBUG CTXMENU] Equipped item is not Ranged, Torch, or Bandage. Proceeding to placement check.");
+                    }
+                } else {
+                    console.log("[InputHandler DEBUG CTXMENU] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
                 }
+            } else {
+                 console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
             }
-            
-            // If not a bandage or torch, or no item equipped, or other conditions, 
-            // you might have other right-click logic here in the future.
-            // For now, it does nothing further.
-            // console.log("Context menu triggered, no specific action for equipped item or unhandled.");
+
+            if (placementInfo) {
+                console.log("[InputHandler CTXMENU] Right-click during placement - cancelling placement.");
+                event.preventDefault();
+                placementActionsRef.current?.cancelPlacement();
+            }
         };
 
         // --- Wheel for Placement Cancellation (optional) ---

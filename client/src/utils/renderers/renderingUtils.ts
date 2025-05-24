@@ -267,7 +267,7 @@ export const renderYSortedEntities = ({
             if (player.direction === 'up' || player.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
               if (heroImg) {
                 renderPlayer(
@@ -298,7 +298,7 @@ export const renderYSortedEntities = ({
                 );
               }
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+                    renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
            }
         } else if (type === 'tree') {
