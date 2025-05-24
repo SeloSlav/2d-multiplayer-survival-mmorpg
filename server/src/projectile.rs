@@ -13,6 +13,7 @@ use crate::items::inventory_item as inventory_item_table_accessor;
 use crate::ranged_weapon_stats::ranged_weapon_stats;
 use crate::player_last_attack_timestamp;
 use crate::combat; // Import the combat module to use damage_player
+use crate::dropped_item; // Import the dropped item module for creating dropped items
 
 #[table(name = projectile, public)]
 #[derive(Clone, Debug)]
@@ -22,6 +23,7 @@ pub struct Projectile {
     pub id: u64,
     pub owner_id: Identity,
     pub item_def_id: u64,
+    pub ammo_def_id: u64, // NEW: The ammunition type that was fired (e.g., Wooden Arrow)
     pub start_time: Timestamp,
     pub start_pos_x: f32,
     pub start_pos_y: f32,
@@ -186,6 +188,7 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         id: 0, // auto_inc
         owner_id: player_id,
         item_def_id: equipped_item_def_id,
+        ammo_def_id: loaded_ammo_def_id, // Store the ammunition type that was fired
         start_time: ctx.timestamp,
         start_pos_x: player.position_x,
         start_pos_y: player.position_y,
@@ -224,6 +227,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
     let mut rng = rand::rngs::StdRng::from_seed(ctx.rng().gen::<[u8; 32]>()); // Explicitly generate a [u8; 32] seed
 
     let mut projectiles_to_delete = Vec::new();
+    let mut missed_projectiles_for_drops = Vec::new(); // Store missed projectiles for drop creation
 
     for projectile in ctx.db.projectile().iter() {
         let start_time_secs = projectile.start_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0;
@@ -236,6 +240,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         
         if travel_distance > projectile.max_range || elapsed_time > 10.0 {
+            // Projectile missed - store info for dropped item creation
+            missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
             projectiles_to_delete.push(projectile.id);
             continue;
         }
@@ -302,6 +308,26 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
     }
 
+    // Create dropped items for missed projectiles
+    for (projectile_id, ammo_def_id, pos_x, pos_y) in missed_projectiles_for_drops {
+        // Get the ammunition name for better logging
+        let ammo_name = item_defs_table.id().find(ammo_def_id)
+            .map(|def| def.name.clone())
+            .unwrap_or_else(|| format!("Unknown (ID: {})", ammo_def_id));
+        
+        match dropped_item::create_dropped_item_entity(ctx, ammo_def_id, 1, pos_x, pos_y) {
+            Ok(_) => {
+                log::info!("[ProjectileMiss] Created dropped '{}' (def_id: {}) at ({:.1}, {:.1}) for missed projectile {}", 
+                         ammo_name, ammo_def_id, pos_x, pos_y, projectile_id);
+            }
+            Err(e) => {
+                log::error!("[ProjectileMiss] Failed to create dropped '{}' for missed projectile {}: {}", 
+                          ammo_name, projectile_id, e);
+            }
+        }
+    }
+
+    // Delete all projectiles that need to be removed
     for projectile_id in projectiles_to_delete {
         ctx.db.projectile().id().delete(&projectile_id);
     }
