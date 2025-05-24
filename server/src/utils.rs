@@ -73,8 +73,8 @@ pub fn is_respawn_position_clear(ctx: &ReducerContext, target_x: f32, target_y: 
     for player in players.iter() {
         if !player.is_dead {
             let dist_sq = get_distance_squared(target_x, target_y, player.position_x, player.position_y);
-            // Use PLAYER_RADIUS and the global RESPAWN_CHECK_RADIUS for collision check against players
-            let player_check_radius_sq = (crate::PLAYER_RADIUS + crate::RESPAWN_CHECK_RADIUS) * (crate::PLAYER_RADIUS + crate::RESPAWN_CHECK_RADIUS);
+            // Use PLAYER_RADIUS and the respawn module's RESPAWN_CHECK_RADIUS for collision check against players
+            let player_check_radius_sq = (crate::PLAYER_RADIUS + crate::respawn::RESPAWN_CHECK_RADIUS) * (crate::PLAYER_RADIUS + crate::respawn::RESPAWN_CHECK_RADIUS);
             if dist_sq < player_check_radius_sq {
                 log::trace!("Respawn blocked by player {:?} at ({}, {})", player.identity, player.position_x, player.position_y);
                 return false;
@@ -236,10 +236,10 @@ macro_rules! check_and_respawn_resource {
                     let mut position_clear = false;
 
                     // Check initial position and attempt offsets
-                    // Use crate:: prefixed constants now
-                    for attempt in 0..=crate::MAX_RESPAWN_OFFSET_ATTEMPTS { // Include initial check (attempt 0)
-                        // Use the fully qualified path to the helper function and the global constant
-                        if crate::utils::is_respawn_position_clear($ctx, current_pos_x, current_pos_y, crate::RESPAWN_CHECK_RADIUS_SQ) {
+                    // Use crate::respawn:: prefixed constants now
+                    for attempt in 0..=crate::respawn::MAX_RESPAWN_OFFSET_ATTEMPTS { // Include initial check (attempt 0)
+                        // Use the fully qualified path to the helper function and the respawn module's constant
+                        if crate::utils::is_respawn_position_clear($ctx, current_pos_x, current_pos_y, crate::respawn::RESPAWN_CHECK_RADIUS_SQ) {
                             position_clear = true;
                             if attempt > 0 {
                                 log::info!(
@@ -260,28 +260,28 @@ macro_rules! check_and_respawn_resource {
                         }
 
                         // If not clear and more attempts left, calculate next offset position (simple spiral-like pattern)
-                        // Use crate:: prefixed constants now
-                        if attempt < crate::MAX_RESPAWN_OFFSET_ATTEMPTS {
+                        // Use crate::respawn:: prefixed constants now
+                        if attempt < crate::respawn::MAX_RESPAWN_OFFSET_ATTEMPTS {
                             // Simple offset strategy: move outwards in cardinal/diagonal directions
                             let (dx, dy) = match attempt % 8 {
-                                0 => (crate::RESPAWN_OFFSET_DISTANCE, 0.0), // Right
-                                1 => (0.0, crate::RESPAWN_OFFSET_DISTANCE), // Down
-                                2 => (-crate::RESPAWN_OFFSET_DISTANCE, 0.0), // Left
-                                3 => (0.0, -crate::RESPAWN_OFFSET_DISTANCE), // Up
-                                4 => (crate::RESPAWN_OFFSET_DISTANCE, crate::RESPAWN_OFFSET_DISTANCE), // Down-Right
-                                5 => (-crate::RESPAWN_OFFSET_DISTANCE, crate::RESPAWN_OFFSET_DISTANCE), // Down-Left
-                                6 => (-crate::RESPAWN_OFFSET_DISTANCE, -crate::RESPAWN_OFFSET_DISTANCE), // Up-Left
-                                _ => (crate::RESPAWN_OFFSET_DISTANCE, -crate::RESPAWN_OFFSET_DISTANCE), // Up-Right (7)
+                                0 => (crate::respawn::RESPAWN_OFFSET_DISTANCE, 0.0), // Right
+                                1 => (0.0, crate::respawn::RESPAWN_OFFSET_DISTANCE), // Down
+                                2 => (-crate::respawn::RESPAWN_OFFSET_DISTANCE, 0.0), // Left
+                                3 => (0.0, -crate::respawn::RESPAWN_OFFSET_DISTANCE), // Up
+                                4 => (crate::respawn::RESPAWN_OFFSET_DISTANCE, crate::respawn::RESPAWN_OFFSET_DISTANCE), // Down-Right
+                                5 => (-crate::respawn::RESPAWN_OFFSET_DISTANCE, crate::respawn::RESPAWN_OFFSET_DISTANCE), // Down-Left
+                                6 => (-crate::respawn::RESPAWN_OFFSET_DISTANCE, -crate::respawn::RESPAWN_OFFSET_DISTANCE), // Up-Left
+                                _ => (crate::respawn::RESPAWN_OFFSET_DISTANCE, -crate::respawn::RESPAWN_OFFSET_DISTANCE), // Up-Right (7)
                             };
                             current_pos_x = original_pos_x + dx;
                             current_pos_y = original_pos_y + dy;
                             // Optional: Add bounds check here if needed
                         } else {
                             // Max attempts reached, log and skip respawn for this cycle
-                            // Use crate:: prefixed constant now
+                            // Use crate::respawn:: prefixed constant now
                             log::warn!(
                                 "Could not find clear respawn position for {} {} near ({:.1}, {:.1}) after {} attempts. Skipping respawn.",
-                                $resource_name, entity_id, original_pos_x, original_pos_y, crate::MAX_RESPAWN_OFFSET_ATTEMPTS + 1 // +1 because we check 0..=MAX
+                                $resource_name, entity_id, original_pos_x, original_pos_y, crate::respawn::MAX_RESPAWN_OFFSET_ATTEMPTS + 1 // +1 because we check 0..=MAX
                             );
                             // Ensure position_clear remains false
                         }

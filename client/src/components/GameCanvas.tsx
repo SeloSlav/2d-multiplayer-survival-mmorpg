@@ -204,42 +204,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Lift deathMarkerImg definition here
   const deathMarkerImg = useMemo(() => itemImagesRef.current?.get('death_marker.png'), [itemImagesRef]);
 
-  // Lift currentLocalPlayerCorpse calculation here
-  const currentLocalPlayerCorpse = useMemo(() => {
-    if (localPlayerId && playerCorpses instanceof Map && localPlayer && localPlayer.identity) {
-      let latestTimeMicros: bigint = BigInt(-1);
-      let foundCorpse: SpacetimeDBPlayerCorpse | null = null;
-
-      playerCorpses.forEach(corpse => {
-        if (corpse.playerIdentity.isEqual(localPlayer.identity)) {
-          try {
-            const corpseTimeMicros = (corpse.deathTime as any).__timestamp_micros_since_unix_epoch__;
-            if (typeof corpseTimeMicros === 'bigint') {
-              if (corpseTimeMicros > latestTimeMicros) {
-                latestTimeMicros = corpseTimeMicros;
-                foundCorpse = corpse;
-              }
-            } else {
-              console.error(`[GameCanvas] Corpse ID ${corpse.id} deathTime.__timestamp_micros_since_unix_epoch__ was not a bigint. Actual type: ${typeof corpseTimeMicros}, value: ${corpseTimeMicros}. Timestamp structure:`, corpse.deathTime);
-            }
-          } catch (e) {
-            console.error(`[GameCanvas] Error processing deathTime for corpse ID ${corpse.id}:`, e, "Full timestamp object:", corpse.deathTime);
-          }
-        }
-      });
-
-      if (foundCorpse) {
-        // console.log(`[GameCanvas] Latest corpse for local player ${localPlayer.username} is ID ${(foundCorpse as SpacetimeDBPlayerCorpse).id} with time ${latestTimeMicros}`);
-      } else {
-        // console.log(`[GameCanvas] No corpse found for local player ${localPlayer.username} after checking all corpses.`);
-      }
-      return foundCorpse;
-    } else {
-      // console.log('[GameCanvas] Corpse finding skipped due to missing dependencies.');
-      return null;
-    }
-  }, [localPlayerId, playerCorpses, localPlayer]);
-  
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({ 
     worldState, 
     campfires, 

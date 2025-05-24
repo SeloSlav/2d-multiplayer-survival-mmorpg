@@ -1,7 +1,6 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, ConnectionId};
 use log;
 use std::time::Duration;
-use rand::Rng; // Add rand for random respawn location
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
 use crate::environment::WORLD_WIDTH_CHUNKS; // Import chunk constant for optimization
 use crate::models::{ContainerType, ItemLocation}; // Ensure ItemLocation and ContainerType are in scope
@@ -57,6 +56,15 @@ mod bones; // <<< ADDED bones module
 mod ranged_weapon_stats; // Add this line
 mod projectile; // Add this line
 mod death_marker; // <<< ADDED death marker module
+mod torch; // <<< ADDED torch module
+mod respawn; // <<< ADDED respawn module
+mod player_collision; // <<< ADDED player_collision module
+
+// ADD: Re-export respawn reducer
+pub use respawn::respawn_randomly;
+
+// ADD: Re-export player movement reducers
+pub use player_movement::{set_sprinting, toggle_crouch, jump};
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -100,6 +108,9 @@ pub use knocked_out::get_knocked_out_status; // For client bindings
 
 // Re-export bones reducer for client bindings
 pub use bones::crush_bone_item;
+
+// ADD: Re-export torch reducer for client bindings
+pub use torch::toggle_torch;
 
 // Import Table Traits needed in this module
 use crate::tree::tree as TreeTableTrait;
@@ -153,17 +164,7 @@ pub const WORLD_HEIGHT_TILES: u32 = 500;
 pub const WORLD_WIDTH_PX: f32 = (WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32;
 pub const WORLD_HEIGHT_PX: f32 = (WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32;
 
-// Campfire Placement Constants (Restored)
-// pub const CAMPFIRE_PLACEMENT_MAX_DISTANCE: f32 = 96.0;
-// pub const CAMPFIRE_PLACEMENT_MAX_DISTANCE_SQUARED: f32 = CAMPFIRE_PLACEMENT_MAX_DISTANCE * CAMPFIRE_PLACEMENT_MAX_DISTANCE;
-
-// Respawn Collision Check Constants
-pub const RESPAWN_CHECK_RADIUS: f32 = TILE_SIZE_PX as f32 * 0.8; // Check slightly less than a tile radius
-pub const RESPAWN_CHECK_RADIUS_SQ: f32 = RESPAWN_CHECK_RADIUS * RESPAWN_CHECK_RADIUS;
-pub const MAX_RESPAWN_OFFSET_ATTEMPTS: u32 = 8; // Max times to try offsetting
-pub const RESPAWN_OFFSET_DISTANCE: f32 = TILE_SIZE_PX as f32 * 0.5; // How far to offset each attempt
-
-// Player table to store position and color
+// Player table to store position
 #[spacetimedb::table(
     name = player,
     public,
@@ -177,7 +178,6 @@ pub struct Player {
     pub username: String,
     pub position_x: f32,
     pub position_y: f32,
-    pub color: String,
     pub direction: String,
     pub last_update: Timestamp, // Timestamp of the last update (movement or stats)
     pub last_stat_update: Timestamp, // Timestamp of the last stat processing tick
@@ -257,7 +257,12 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     Ok(())
 }
 
-// When a client connects, we need to create a player for them
+/// Reducer that handles client connection events.
+/// 
+/// This reducer is called automatically when a new client connects to the server.
+/// It initializes the game world if needed, tracks the client's connection,
+/// and updates the player's online status. The world seeding functions are
+/// idempotent, so they can be safely called on every connection.
 #[spacetimedb::reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     // Call seeders using qualified paths
@@ -322,21 +327,22 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     Ok(())
 }
 
-// When a client disconnects, we need to clean up
+/// Reducer that handles client disconnection events.
+/// 
+/// This reducer is called automatically when a client disconnects from the server.
+/// It performs necessary cleanup including:
+/// - Removing the active connection record if it matches the disconnecting connection
+/// - Setting the player's online status to false
+/// - Preserving state if the player has already reconnected
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
     let sender_id = ctx.sender;
     let disconnecting_connection_id = match ctx.connection_id {
         Some(id) => id,
         None => {
-            // Log if possible, but return regardless
-            // log::error!("[Disconnect] Missing ConnectionId for {:?}. Cannot clean up.", sender_id);
             return;
         }
     };
-
-    // Log if possible
-    // log::info!("[Disconnect] Handling disconnect for identity: {:?}, connection_id: {:?}", sender_id, disconnecting_connection_id);
 
     let active_connections = ctx.db.active_connection();
     let players = ctx.db.player(); // <<< Need players table handle
@@ -344,11 +350,9 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
     // --- Check 1: Does the active connection record match the disconnecting one? ---
     if let Some(initial_active_conn) = active_connections.identity().find(&sender_id) {
         if initial_active_conn.connection_id == disconnecting_connection_id {
+
             // --- Clean Up Connection --- 
-                    // Log if possible
-            // log::info!("[Disconnect] Removing active connection record for identity: {:?}, connection_id: {:?}", 
-            //               sender_id, disconnecting_connection_id);
-                    active_connections.identity().delete(&sender_id);
+            active_connections.identity().delete(&sender_id);
             // --- END Clean Up Connection --- 
 
             // --- Set Player Offline Status --- 
@@ -368,19 +372,18 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
             // This means the player reconnected quickly before the old disconnect processed fully.
             // In this case, DO NOTHING. The new connection is already active, 
             // and we don't want to mark them offline or mess with their new state.
-                            // Log if possible
-            // log::info!("[Disconnect] Stale disconnect for {:?}. New connection ({:?}) already active. Ignoring disconnect for ID {:?}.", 
-            //              sender_id, initial_active_conn.connection_id, disconnecting_connection_id);
                         }
                     } else {
         // No active connection found for this identity, maybe they disconnected before fully registering?
         // Or maybe the disconnect arrived *very* late after a new connection replaced the record.
-        // Log if possible
-        // log::info!("[Disconnect] No active connection record found for identity {:?}. Possibly already cleaned up or never registered.", sender_id);
     }
 }
 
-// Register a new player (Now handles existing authenticated players)
+/// Reducer that handles player registration and reconnection.
+/// 
+/// This reducer is called when a player first joins the game or reconnects after disconnecting.
+/// For new players, it creates their initial game state and grants starting items.
+/// For existing players, it updates their connection status and timestamps.
 #[spacetimedb::reducer]
 pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), String> {
     let sender_id = ctx.sender;
@@ -520,14 +523,11 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     // --- End spawn position logic ---
 
     // --- Create and Insert New Player ---
-    let color = random_color(&username);
-
     let player = Player {
         identity: sender_id, // Use the authenticated identity
         username: username.clone(),
         position_x: spawn_x, // Use calculated spawn position
         position_y: spawn_y, // Use calculated spawn position
-        color,
         direction: "down".to_string(),
         last_update: ctx.timestamp,
         last_stat_update: ctx.timestamp,
@@ -593,219 +593,11 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     }
 }
 
-// Called by the client to set the sprinting state
-#[spacetimedb::reducer]
-pub fn set_sprinting(ctx: &ReducerContext, sprinting: bool) -> Result<(), String> {
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-
-    if let Some(mut player) = players.identity().find(&sender_id) {
-        // Don't allow sprinting if dead or knocked out
-        if player.is_dead {
-            return Err("Cannot sprint while dead.".to_string());
-        }
-        if player.is_knocked_out {
-            return Err("Cannot sprint while knocked out.".to_string());
-        }
-
-        // Only update if the state is actually changing
-        if player.is_sprinting != sprinting {
-            player.is_sprinting = sprinting;
-            player.last_update = ctx.timestamp; // Update timestamp when sprint state changes
-            players.identity().update(player);
-            log::debug!("Player {:?} set sprinting to {}", sender_id, sprinting);
-        }
-        Ok(())
-    } else {
-        Err("Player not found".to_string())
-    }
-}
-
-// Helper function to generate a deterministic color based on username
-fn random_color(username: &str) -> String {
-    let colors = [
-        "#FF0000", // Red
-        "#00FF00", // Green
-        "#0000FF", // Blue
-        "#FFFF00", // Yellow
-        "#FF00FF", // Magenta
-        "#00FFFF", // Cyan
-        "#FF8000", // Orange
-        "#8000FF", // Purple
-    ];
-    let username_bytes = username.as_bytes();
-    let sum_of_bytes: u64 = username_bytes.iter().map(|&byte| byte as u64).sum();
-    let color_index = (sum_of_bytes % colors.len() as u64) as usize;
-    colors[color_index].to_string()
-}
-
-// Reducer called by the client to initiate a jump.
-#[spacetimedb::reducer]
-pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
-   let identity = ctx.sender;
-   let players = ctx.db.player();
-   if let Some(mut player) = players.identity().find(&identity) {
-       // Don't allow jumping if dead
-       if player.is_dead {
-           return Err("Cannot jump while dead.".to_string());
-       }
-
-       // Don't allow jumping if knocked out
-       if player.is_knocked_out {
-           return Err("Cannot jump while knocked out.".to_string());
-       }
-
-       let now_micros = ctx.timestamp.to_micros_since_unix_epoch();
-       let now_ms = (now_micros / 1000) as u64;
-
-       // Check if the player is already jumping (within cooldown)
-       if player.jump_start_time_ms > 0 && now_ms < player.jump_start_time_ms + JUMP_COOLDOWN_MS {
-           return Err("Cannot jump again so soon.".to_string());
-       }
-
-       // Proceed with the jump
-       player.jump_start_time_ms = now_ms;
-       player.last_update = ctx.timestamp; // Update timestamp on jump
-       players.identity().update(player);
-       Ok(())
-   } else {
-       Err("Player not found".to_string())
-   }
-}
-
-// --- Client-Requested Random Respawn Reducer ---
-#[spacetimedb::reducer]
-pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed function
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-    let item_defs = ctx.db.item_definition();
-
-    // Find the player requesting respawn
-    let mut player = players.identity().find(&sender_id)
-        .ok_or_else(|| "Player not found".to_string())?;
-
-    // Check if the player is actually dead
-    if !player.is_dead {
-        log::warn!("Player {:?} requested respawn but is not dead.", sender_id);
-        return Err("You are not dead.".to_string());
-    }
-
-    log::info!("Respawning player {} ({:?}). Crafting queue will be cleared.", player.username, sender_id);
-
-    // --- Clear Crafting Queue & Refund ---
-    crate::crafting_queue::clear_player_crafting_queue(ctx, sender_id);
-    // --- END Clear Crafting Queue ---
-
-    // --- Look up Rock Item Definition ID ---
-    let rock_item_def_id = item_defs.iter()
-        .find(|def| def.name == "Rock")
-        .map(|def| def.id)
-        .ok_or_else(|| "Item definition for 'Rock' not found.".to_string())?;
-    // --- End Look up ---
-
-    // --- Grant Starting Rock ---
-    log::info!("Granting starting Rock to respawned player: {}", player.username);
-    let opt_instance_id = crate::items::add_item_to_player_inventory(ctx, sender_id, rock_item_def_id, 1)?;
-    match opt_instance_id {
-        Some(new_rock_instance_id) => {
-            let _ = log::info!("Granted 1 Rock (ID: {}) to player {}.", new_rock_instance_id, player.username);
-            ()
-        }
-        None => {
-            let _ = log::error!("Failed to grant starting Rock to player {} (no slot found).", player.username);
-            // Optionally, we could return an Err here if not getting a rock is critical
-            // return Err("Could not grant starting Rock: Inventory full or other issue.".to_string());
-            ()
-        }
-    }
-    // --- End Grant Starting Rock ---
-
-    // --- Grant Starting Torch ---
-    match item_defs.iter().find(|def| def.name == "Torch") {
-        Some(torch_def) => {
-            log::info!("Granting starting Torch to respawned player: {}", player.username);
-            match crate::items::add_item_to_player_inventory(ctx, sender_id, torch_def.id, 1)? {
-                Some(new_torch_instance_id) => {
-                    log::info!("Granted 1 Torch (ID: {}) to player {}.", new_torch_instance_id, player.username);
-                }
-                None => {
-                    log::error!("Failed to grant starting Torch to player {} (no slot found).", player.username);
-                }
-            }
-        }
-        None => {
-            log::error!("Item definition for 'Torch' not found. Cannot grant starting torch.");
-        }
-    }
-    // --- End Grant Starting Torch ---
-
-    // --- Reset Stats and State ---
-    player.health = 100.0;
-    player.hunger = 100.0;
-    player.thirst = 100.0;
-    player.warmth = 100.0;
-    player.stamina = 100.0;
-    player.jump_start_time_ms = 0;
-    player.is_sprinting = false;
-    player.is_dead = false; // Mark as alive again
-    player.death_timestamp = None; // Clear death timestamp
-    player.last_hit_time = None;
-    player.is_torch_lit = false; // Ensure torch is unlit on respawn
-    player.is_knocked_out = false; // NEW: Reset knocked out state
-    player.knocked_out_at = None; // NEW: Clear knocked out timestamp
-
-    // --- Reset Position to Random Location ---
-    let mut rng = ctx.rng(); // Use the rng() method
-    let spawn_padding = TILE_SIZE_PX as f32 * 2.0; // Padding from world edges
-    let mut spawn_x;
-    let mut spawn_y;
-    let mut attempts = 0;
-    const MAX_SPAWN_ATTEMPTS: u32 = 10; // Prevent infinite loop
-
-    loop {
-        spawn_x = rng.gen_range(spawn_padding..(WORLD_WIDTH_PX - spawn_padding));
-        spawn_y = rng.gen_range(spawn_padding..(WORLD_HEIGHT_PX - spawn_padding));
-        
-        // Basic collision check (simplified - TODO: Add proper safe spawn logic like in register_player)
-        let is_safe = true; // Placeholder - replace with actual check
-
-        if is_safe || attempts >= MAX_SPAWN_ATTEMPTS {
-            break;
-        }
-        attempts += 1;
-    }
-
-    if attempts >= MAX_SPAWN_ATTEMPTS {
-        log::warn!("Could not find a guaranteed safe random spawn point for player {:?} after {} attempts. Spawning anyway.", sender_id, MAX_SPAWN_ATTEMPTS);
-    }
-
-    player.position_x = spawn_x;
-    player.position_y = spawn_y;
-    player.direction = "down".to_string();
-
-    // --- Update Timestamp ---
-    player.last_update = ctx.timestamp;
-    player.last_stat_update = ctx.timestamp; // Reset stat timestamp on respawn
-
-    // --- Apply Player Changes ---
-    players.identity().update(player);
-    log::info!("Player {:?} respawned randomly at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
-
-    // Ensure item is unequipped on respawn
-    match active_equipment::clear_active_item_reducer(ctx, sender_id) {
-        Ok(_) => log::info!("Ensured active item is cleared for respawned player {:?}", sender_id),
-        Err(e) => log::error!("Failed to clear active item for respawned player {:?}: {}", sender_id, e),
-    }
-
-    // match items::clear_all_equipped_armor_from_player(ctx, sender_id) {
-    //     Ok(_) => log::info!("All equipped armor cleared for player {} before respawn.", sender_id),
-    //     Err(e) => log::error!("Failed to clear equipped armor for player {} before respawn: {}", sender_id, e),
-    // }
-
-    Ok(())
-}
-
-// --- NEW: Reducer to Update Viewport ---
+/// Reducer that handles client viewport updates.
+/// 
+/// This reducer is called by the client to update their visible game area boundaries.
+/// It stores the viewport coordinates for each client, which can be used for
+/// optimizing game state updates and rendering.
 #[spacetimedb::reducer]
 pub fn update_viewport(ctx: &ReducerContext, min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Result<(), String> {
     let client_id = ctx.sender;
@@ -839,92 +631,3 @@ pub fn update_viewport(ctx: &ReducerContext, min_x: f32, min_y: f32, max_x: f32,
     }
     Ok(())
 }
-
-#[spacetimedb::reducer]
-pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {
-    let sender_id = ctx.sender;
-    let mut players_table = ctx.db.player();
-    let mut active_equipments_table = ctx.db.active_equipment();
-    let item_defs_table = ctx.db.item_definition();
-
-    let mut player = players_table.identity().find(&sender_id)
-        .ok_or_else(|| "Player not found.".to_string())?;
-
-    // Don't allow torch toggle if dead or knocked out
-    if player.is_dead {
-        return Err("Cannot toggle torch while dead.".to_string());
-    }
-    if player.is_knocked_out {
-        return Err("Cannot toggle torch while knocked out.".to_string());
-    }
-
-    let mut equipment = active_equipments_table.player_identity().find(&sender_id)
-        .ok_or_else(|| "Player has no active equipment record.".to_string())?;
-
-    match equipment.equipped_item_def_id {
-        Some(item_def_id) => {
-            let item_def = item_defs_table.id().find(item_def_id)
-                .ok_or_else(|| "Equipped item definition not found.".to_string())?;
-
-            if item_def.name != "Torch" {
-                return Err("Cannot toggle: Not a Torch.".to_string());
-            }
-
-            // Toggle the lit state
-            player.is_torch_lit = !player.is_torch_lit;
-            // ADD: Update player's last_update timestamp
-            player.last_update = ctx.timestamp;
-
-            // Update icon based on new lit state
-            if player.is_torch_lit {
-                equipment.icon_asset_name = Some("torch_on.png".to_string());
-                log::info!("Player {:?} lit their torch.", sender_id);
-            } else {
-                equipment.icon_asset_name = Some("torch.png".to_string());
-                log::info!("Player {:?} extinguished their torch.", sender_id);
-            }
-
-            // Update player and equipment records
-            players_table.identity().update(player);
-            active_equipments_table.player_identity().update(equipment);
-
-            Ok(())
-        }
-        None => Err("No item equipped to toggle.".to_string()),
-    }
-}
-
-// --- NEW: Reducer to Toggle Crouching Speed ---
-#[spacetimedb::reducer]
-pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-
-    if let Some(mut player) = players.identity().find(&sender_id) {
-        // Don't allow crouching if dead or knocked out
-        if player.is_dead {
-            return Err("Cannot crouch while dead.".to_string());
-        }
-        if player.is_knocked_out {
-            return Err("Cannot crouch while knocked out.".to_string());
-        }
-
-        player.is_crouching = !player.is_crouching;
-        player.last_update = ctx.timestamp; // Update timestamp when crouching state changes
-        
-        // Store the state for logging before moving the player struct
-        let crouching_active_for_log = player.is_crouching;
-
-        players.identity().update(player); // player is moved here
-        
-        log::info!(
-            "Player {:?} toggled crouching. Active: {}",
-            sender_id, crouching_active_for_log // Use the stored value for logging
-        );
-        Ok(())
-    } else {
-        Err("Player not found".to_string())
-    }
-}
-// --- END NEW Reducer ---
-

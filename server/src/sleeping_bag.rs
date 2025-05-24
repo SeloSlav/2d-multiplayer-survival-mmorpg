@@ -302,17 +302,6 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
 
     players.identity().update(player);
 
-    // Clear equipped items (this should ideally happen before corpse creation if items are to be moved to it)
-    // If create_corpse_for_player handles un-equipping, these might be redundant or need careful ordering.
-    // match crate::active_equipment::clear_active_item_reducer(ctx, sender_id) {
-    //     Ok(_) => log::info!("[Respawn] Active item cleared for player {}", sender_id),
-    //     Err(e) => log::error!("[Respawn] Failed to clear active item for player {}: {}", sender_id, e),
-    // }
-    // match crate::items::clear_all_equipped_armor_from_player(ctx, sender_id) {
-    //     Ok(_) => log::info!("[Respawn] All equipped armor cleared for player {}", sender_id),
-    //     Err(e) => log::error!("[Respawn] Failed to clear all equipped armor for player {}: {}", sender_id, e),
-    // }
-
     log::info!(
         "[RespawnAtSleepingBag] Player {:?} respawned successfully at bag {} ({:.1}, {:.1})",
         sender_id, bag_id, sleeping_bag.pos_x, sleeping_bag.pos_y

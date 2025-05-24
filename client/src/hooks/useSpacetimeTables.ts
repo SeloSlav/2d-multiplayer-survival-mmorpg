@@ -123,7 +123,7 @@ export const useSpacetimeTables = ({
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
         if (connection && !callbacksRegisteredRef.current) {
-            // console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
+            console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions.");
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
              
@@ -145,9 +145,9 @@ export const useSpacetimeTables = ({
                 
                 // Log newPlayer's lastHitTime when a respawn might be happening
                 if (oldPlayer.isDead && !newPlayer.isDead) {
-                    //console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
-                    // console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                    // console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
+                    console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
+                    console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                    console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
                 }
 
                 const EPSILON = 0.01;
@@ -162,14 +162,17 @@ export const useSpacetimeTables = ({
                 const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead || oldPlayer.isTorchLit !== newPlayer.isTorchLit;
                 const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
                 const usernameChanged = oldPlayer.username !== newPlayer.username;
-                const colorChanged = oldPlayer.color !== newPlayer.color;
 
-                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged || lastHitTimeChanged) { 
+                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || lastHitTimeChanged) { 
                     if (lastHitTimeChanged) {
-                         // console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
+                         console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
                     }
                     if (oldPlayer.isDead && !newPlayer.isDead && lastHitTimeChanged) {
-                        // console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
+
+                        // ⚠️ IMPORTANT: DO NOT COMMENT OUT THIS LOG STATEMENT ⚠️
+                        // Removing this log will break death marker functionality
+                        console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
+
                     } else if (oldPlayer.isDead && !newPlayer.isDead && !lastHitTimeChanged) {
                         // This case should ideally not happen if server sends null for last_hit_time on respawn and SDK passes it through.
                         console.warn(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} BUT lastHitTime DID NOT CHANGE. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. This might be an issue.`);
@@ -179,15 +182,15 @@ export const useSpacetimeTables = ({
                         const newMap = new Map(prev);
                         newMap.set(playerHexId, newPlayer); // Use playerHexId here
                         // Optional: Log details of what's being set
-                        // if (oldPlayer.isDead && !newPlayer.isDead) {
-                        //     console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                        // }
+                        if (oldPlayer.isDead && !newPlayer.isDead) {
+                            console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                        }
                         return newMap;
                     });
                 }
             };
             const handlePlayerDelete = (ctx: any, deletedPlayer: SpacetimeDB.Player) => {
-                // console.log('[useSpacetimeTables] Player Deleted:', deletedPlayer.username, deletedPlayer.identity.toHexString());
+                console.log('[useSpacetimeTables] Player Deleted:', deletedPlayer.username, deletedPlayer.identity.toHexString());
                 setPlayers(prev => { const newMap = new Map(prev); newMap.delete(deletedPlayer.identity.toHexString()); return newMap; });
                 if (connection && connection.identity && deletedPlayer.identity.isEqual(connection.identity)) {
                     if (localPlayerRegistered) {
