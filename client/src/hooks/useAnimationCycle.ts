@@ -4,24 +4,33 @@ import { useState, useEffect, useRef } from 'react';
 // For player walking animation, use useWalkingAnimationCycle instead
 export function useAnimationCycle(interval: number, numFrames: number): number {
   const [animationFrame, setAnimationFrame] = useState(0);
-  const intervalRef = useRef<number | null>(null);
-  const lastUpdateRef = useRef<number>(Date.now());
+  const accumulatedTimeRef = useRef<number>(0);
+  const lastUpdateRef = useRef<number>(performance.now());
+  const animationIdRef = useRef<number>(0);
 
   useEffect(() => {
-    // Use a more efficient update mechanism
+    // Use requestAnimationFrame for better performance and consistency
     const updateAnimation = () => {
-      const now = Date.now();
-      if (now - lastUpdateRef.current >= interval) {
+      const now = performance.now();
+      const deltaTime = now - lastUpdateRef.current;
+      lastUpdateRef.current = now;
+      
+      accumulatedTimeRef.current += deltaTime;
+      
+      // Check if enough time has passed for the next frame
+      if (accumulatedTimeRef.current >= interval) {
         setAnimationFrame(frame => (frame + 1) % numFrames);
-        lastUpdateRef.current = now;
+        accumulatedTimeRef.current -= interval; // Keep remainder for smooth timing
       }
+      
+      animationIdRef.current = requestAnimationFrame(updateAnimation);
     };
 
-    intervalRef.current = window.setInterval(updateAnimation, Math.min(interval, 16)); // Max 60fps updates
+    animationIdRef.current = requestAnimationFrame(updateAnimation);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
       }
     };
   }, [interval, numFrames]);
@@ -34,27 +43,36 @@ export function useAnimationCycle(interval: number, numFrames: number): number {
 // Frame 1 is the neutral/idle position, creating natural movement
 export function useWalkingAnimationCycle(interval: number = 120): number {
   const [cycleIndex, setCycleIndex] = useState(0);
-  const intervalRef = useRef<number | null>(null);
-  const lastUpdateRef = useRef<number>(Date.now());
+  const accumulatedTimeRef = useRef<number>(0);
+  const lastUpdateRef = useRef<number>(performance.now());
+  const animationIdRef = useRef<number>(0);
 
   // Walking cycle: 0 -> 1 -> 2 -> 1 (creates smooth back-and-forth motion)
   const walkingFrames = [0, 1, 2, 1];
 
   useEffect(() => {
-    // Use a more efficient update mechanism with frame limiting
+    // Use requestAnimationFrame for better performance and consistency
     const updateWalkCycle = () => {
-      const now = Date.now();
-      if (now - lastUpdateRef.current >= interval) {
+      const now = performance.now();
+      const deltaTime = now - lastUpdateRef.current;
+      lastUpdateRef.current = now;
+      
+      accumulatedTimeRef.current += deltaTime;
+      
+      // Check if enough time has passed for the next frame
+      if (accumulatedTimeRef.current >= interval) {
         setCycleIndex(index => (index + 1) % walkingFrames.length);
-        lastUpdateRef.current = now;
+        accumulatedTimeRef.current -= interval; // Keep remainder for smooth timing
       }
+      
+      animationIdRef.current = requestAnimationFrame(updateWalkCycle);
     };
 
-    intervalRef.current = window.setInterval(updateWalkCycle, Math.min(interval, 16)); // Max 60fps updates
+    animationIdRef.current = requestAnimationFrame(updateWalkCycle);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
       }
     };
   }, [interval]);

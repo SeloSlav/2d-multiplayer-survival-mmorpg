@@ -301,6 +301,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
+  // Add stable deltaTime state for particle systems
+  const [stableDeltaTime, setStableDeltaTime] = useState<number>(16.667);
+  
   const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime: deltaTimeRef.current });
   const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime: deltaTimeRef.current });
 
@@ -389,17 +392,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
   }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
 
-  // Use the new hook for campfire particles
-  const campfireParticles = useCampfireParticles({
+  // Use the particle hooks - but store results in refs to avoid re-render cascades
+  const latestCampfireParticles = useCampfireParticles({
     visibleCampfiresMap,
-    deltaTime: deltaTimeRef.current,
+    deltaTime: stableDeltaTime,
   });
-  const torchParticles = useTorchParticles({
+  const latestTorchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: deltaTimeRef.current,
+    deltaTime: stableDeltaTime,
   });
+
+  // Store particles in refs to decouple from render cycle
+  const campfireParticlesRef = useRef<Particle[]>([]);
+  const torchParticlesRef = useRef<Particle[]>([]);
+  
+  // Update particle refs without causing re-renders
+  campfireParticlesRef.current = latestCampfireParticles;
+  torchParticlesRef.current = latestTorchParticles;
 
   // New function to render particles
   const renderParticlesToCanvas = useCallback((ctx: CanvasRenderingContext2D, particlesToRender: Particle[]) => {
@@ -506,6 +517,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Clouds are rendered after all world entities and particles,
     // but before world-anchored UI like labels.
     // The context (ctx) should still be translated by cameraOffset at this point.
+    /* REMOVING THIS FIRST CALL TO RENDER CLOUDS
     if (clouds && clouds.size > 0 && cloudImagesRef.current) {
       renderCloudsDirectly({ 
         ctx, 
@@ -516,6 +528,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         cameraOffsetY  
       });
     }
+    */
     // --- End Render Clouds on Canvas ---
 
     // Second pass: Draw the actual entities for ground items
@@ -549,45 +562,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- End Ground Items --- 
 
     // --- Render Y-Sorted Entities --- (Keep this logic)
-    ySortedEntities.forEach(({ type, entity }) => {
-        if (type === 'player') {
-            const player = entity as SpacetimeDBPlayer;
-            const playerId = player.identity.toHexString();
-
-           const lastPos = lastPositionsRef.current.get(playerId);
-           const lastPosX = lastPos?.x || 0;
-           const lastPosY = lastPos?.y || 0;
-
-           renderYSortedEntities({
-               ctx,
-               ySortedEntities,
-               heroImageRef,
-               lastPositionsRef,
-               activeConnections,
-               activeEquipments,
-               activeConsumableEffects,
-               itemDefinitions,
-               inventoryItems,
-               itemImagesRef,
-               worldMouseX: currentWorldMouseX,
-               worldMouseY: currentWorldMouseY,
-               localPlayerId: localPlayerId,
-               animationFrame,
-               nowMs: now_ms,
-               hoveredPlayerIds,
-               onPlayerHover: handlePlayerHover,
-               cycleProgress: currentCycleProgress,
-               renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
-           });
-        }
+    // CORRECTED: Call renderYSortedEntities once, not in a loop
+    renderYSortedEntities({
+        ctx,
+        ySortedEntities,
+        heroImageRef,
+        lastPositionsRef,
+        activeConnections,
+        activeEquipments,
+        activeConsumableEffects,
+        itemDefinitions,
+        inventoryItems,
+        itemImagesRef,
+        worldMouseX: currentWorldMouseX,
+        worldMouseY: currentWorldMouseY,
+        localPlayerId: localPlayerId,
+        animationFrame,
+        nowMs: now_ms,
+        hoveredPlayerIds,
+        onPlayerHover: handlePlayerHover,
+        cycleProgress: currentCycleProgress,
+        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
     });
     // --- End Y-Sorted Entities ---
 
     // Render campfire particles here, after other world entities but before labels/UI
     if (ctx) { // Ensure context is still valid
         // Call without camera offsets, as ctx is already translated
-        renderParticlesToCanvas(ctx, campfireParticles);
-        renderParticlesToCanvas(ctx, torchParticles);
+        renderParticlesToCanvas(ctx, campfireParticlesRef.current);
+        renderParticlesToCanvas(ctx, torchParticlesRef.current);
 
         // Render cut grass effects
         renderCutGrassEffects(ctx, now_ms);
@@ -803,8 +806,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       visiblePlayerCorpses,
       visibleStashes,
       visibleSleepingBags,
-      campfireParticles, 
-      torchParticles,
       interpolatedClouds,
       isSearchingCraftRecipes,
       worldState?.cycleProgress, // Correct dependency for renderGame
@@ -819,6 +820,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
     // Update deltaTime ref directly to avoid re-renders
     deltaTimeRef.current = frameInfo.deltaTime;
+    
+    // Update stable deltaTime for particle systems less frequently to avoid render storms
+    if (frameInfo.deltaTime > 0 && frameInfo.deltaTime < 100) { // Reasonable deltaTime range
+      setStableDeltaTime(frameInfo.deltaTime);
+    }
 
     processInputsAndActions(); 
     renderGame(); 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import styles from './InventoryUI.module.css'; // Reuse styles for consistency
 import {
     Recipe,
@@ -51,6 +51,14 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
         }, 1000); // Update every second
         return () => clearInterval(timerId);
     }, []);
+
+    // Defensive cleanup to ensure game controls are restored on unmount
+    useEffect(() => {
+        return () => {
+            // Always restore game controls when component unmounts
+            onCraftingSearchFocusChange?.(false);
+        };
+    }, [onCraftingSearchFocusChange]);
 
     // Memoize player inventory calculation
     const playerInventoryResources = useMemo(() => {
@@ -237,8 +245,8 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                 searchTerm={searchTerm}
                 onSearchChange={handleSearchChange}
                 placeholder="Search by item or ingredient name..."
-                onFocus={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(true)}
-                onBlur={() => onCraftingSearchFocusChange && onCraftingSearchFocusChange(false)}
+                onFocus={() => onCraftingSearchFocusChange?.(true)}
+                onBlur={() => onCraftingSearchFocusChange?.(false)}
             />
             {/* Added scrollable class and data-attribute */}
             <div data-scrollable-region="crafting-items" className={`${styles.craftableItemsSection} ${styles.scrollableSection}`}> 

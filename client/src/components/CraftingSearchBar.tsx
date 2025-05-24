@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import styles from './InventoryUI.module.css'; // Reuse existing styles if applicable, or create new ones
 
 interface CraftingSearchBarProps {
@@ -18,20 +18,26 @@ const CraftingSearchBar: React.FC<CraftingSearchBarProps> = (props) => {
     onBlur,
   } = props;
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key.toLowerCase() === 'g' || event.key === ' ') {
       // Prevent 'g' and 'spacebar' from triggering game actions
       // but still allow typing them into the input.
       event.stopPropagation();
     }
-    // If there's an onKeyDown prop passed from parent, call it too
-    // This component doesn't define its own onKeyDown prop in CraftingSearchBarProps,
-    // so we don't need to worry about calling a parent-supplied one for now.
+    
+    // Handle Escape key to blur the input and ensure game controls are restored
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      inputRef.current?.blur();
+    }
   };
 
   return (
-    <div className={styles.craftingSearchBarContainer}> {/* Will add style for this */}
+    <div className={styles.craftingSearchBarContainer}>
       <input
+        ref={inputRef}
         type="text"
         className={styles.craftingSearchInput} 
         value={searchTerm}

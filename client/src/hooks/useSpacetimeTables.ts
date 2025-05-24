@@ -683,7 +683,8 @@ export const useSpacetimeTables = ({
                             // DroppedItem
                             const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
-                            // SleepingBag - REMOVED spatial subscription
+                            
+                            // SleepingBag - REMOVED spatial subscription because you want to be able to see your sleeping bag anywhere on the mini map - we can use RLS to block remote players from subscribing to YOUR sleeping bags - but we need to be able to see them on the mini map
                             // const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
                             // newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
 
@@ -691,7 +692,7 @@ export const useSpacetimeTables = ({
                             const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
 
-                            // Grass (Spatial Subscription)
+                            // Grass (Spatial Subscription) - COMMENTED OUT FOR TESTING
                             const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
 

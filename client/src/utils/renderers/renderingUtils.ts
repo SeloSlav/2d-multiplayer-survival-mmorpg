@@ -216,39 +216,15 @@ export const renderYSortedEntities = ({
              if (equippedItemInstance && equippedItemInstance.quantity > 0) {
                itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
                itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
-               
-               // DEBUG: Log equipment info for local player
-            //    if (localPlayerId && playerId === localPlayerId) {
-            //      console.log(`[DEBUG] Equipment found:`, {
-            //        itemDefId: equipment.equippedItemDefId.toString(),
-            //        itemName: itemDef?.name,
-            //        iconAssetName: itemDef?.iconAssetName,
-            //        category: itemDef?.category,
-            //        hasImage: !!itemImg,
-            //        imageComplete: itemImg?.complete,
-            //        imageHeight: itemImg?.naturalHeight
-            //      });
-            //    }
+        
              } else {
                // Item was consumed but equipment table hasn't updated yet - don't render
-               // console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);
              }
            } else if (localPlayerId && playerId === localPlayerId) {
              // Debug logging removed for performance (was spamming every frame)
            }
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
            
-           // DEBUG: Log canRenderItem status for local player
-        //    if (localPlayerId && playerId === localPlayerId && equipment) {
-        //      console.log(`[DEBUG] canRenderItem:`, {
-        //        canRender: canRenderItem,
-        //        hasItemDef: !!itemDef,
-        //        hasItemImg: !!itemImg,
-        //        imgComplete: itemImg?.complete,
-        //        imgHeight: itemImg?.naturalHeight
-        //      });
-        //    }
-
             // Determine rendering order based on player direction
             if (player.direction === 'up' || player.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
