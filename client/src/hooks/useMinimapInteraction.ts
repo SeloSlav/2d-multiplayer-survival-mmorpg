@@ -41,11 +41,6 @@ export function useMinimapInteraction({
     const [panStartCoords, setPanStartCoords] = useState<{ screenX: number, screenY: number } | null>(null);
     // Stores the offset of the view center from the default (player or world center) in WORLD coordinates
     const [viewCenterOffset, setViewCenterOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
-    
-    // Use a ref to avoid including viewCenterOffset in dependency arrays (prevents infinite loops)
-    const viewCenterOffsetRef = useRef(viewCenterOffset);
-    // Update ref without useEffect to avoid infinite loops
-    viewCenterOffsetRef.current = viewCenterOffset;
 
     // Define world dimensions here
     const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -98,9 +93,9 @@ export function useMinimapInteraction({
             const deltaXWorld = deltaXScreen / currentScale;
             const deltaYWorld = deltaYScreen / currentScale;
 
-            // Calculate potential new offset using ref to avoid dependency array issues
-            const potentialNewOffsetX = viewCenterOffsetRef.current.x - deltaXWorld;
-            const potentialNewOffsetY = viewCenterOffsetRef.current.y - deltaYWorld;
+            // Calculate potential new offset
+            const potentialNewOffsetX = viewCenterOffset.x - deltaXWorld;
+            const potentialNewOffsetY = viewCenterOffset.y - deltaYWorld;
 
             // --- Panning Limits --- 
             let targetDefaultCenterXWorld = worldPixelWidth / 2;
@@ -153,7 +148,7 @@ export function useMinimapInteraction({
             // Update pan start for next move event
             setPanStartCoords({ screenX: event.screenX, screenY: event.screenY });
         }
-    }, [checkMouseOverMinimap, isPanning, panStartCoords, baseScale, minimapZoom, localPlayer, worldPixelWidth, worldPixelHeight]);
+    }, [checkMouseOverMinimap, isPanning, panStartCoords, baseScale, minimapZoom, viewCenterOffset.x, viewCenterOffset.y, localPlayer, worldPixelWidth, worldPixelHeight]);
 
     // Handle scroll wheel zoom (zoom at cursor)
     const handleWheel = useCallback((event: WheelEvent) => {
@@ -190,8 +185,8 @@ export function useMinimapInteraction({
             currentViewCenterYWorld = worldPixelHeight / 2;
         } else {
             // Player centered + current offset
-            currentViewCenterXWorld = localPlayer.positionX + viewCenterOffsetRef.current.x;
-            currentViewCenterYWorld = localPlayer.positionY + viewCenterOffsetRef.current.y;
+            currentViewCenterXWorld = localPlayer.positionX + viewCenterOffset.x;
+            currentViewCenterYWorld = localPlayer.positionY + viewCenterOffset.y;
         }
 
         const currentScale = baseScale * oldZoom;
@@ -239,8 +234,8 @@ export function useMinimapInteraction({
         setViewCenterOffset({ x: newOffsetX, y: newOffsetY });
 
     }, [ 
-        isMinimapOpen, checkMouseOverMinimap, minimapZoom, baseScale,
-        canvasRef, canvasSize, localPlayer,
+        isMinimapOpen, checkMouseOverMinimap, minimapZoom, baseScale, 
+        canvasRef, canvasSize, localPlayer, viewCenterOffset.x, viewCenterOffset.y, 
         worldPixelWidth, worldPixelHeight 
     ]);
 
@@ -330,8 +325,8 @@ export function useMinimapInteraction({
         }
 
     }, [ 
-        isMinimapOpen, checkMouseOverMinimap, connection, canvasRef, canvasSize,
-        minimapZoom, localPlayer, baseScale, viewCenterOffset.x, viewCenterOffset.y,
+        isMinimapOpen, checkMouseOverMinimap, connection, canvasRef, canvasSize, 
+        minimapZoom, localPlayer, baseScale, viewCenterOffset.x, viewCenterOffset.y, 
         worldPixelWidth, worldPixelHeight 
     ]);
 

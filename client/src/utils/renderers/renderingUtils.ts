@@ -53,7 +53,7 @@ const playerMovementCache = new Map<string, {
 }>();
 
 // Movement buffer duration - keep animation going for this long after movement stops
-const MOVEMENT_BUFFER_MS = 50; // Reduced from 150ms to 50ms for faster response
+const MOVEMENT_BUFFER_MS = 150;
 
 interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
@@ -152,18 +152,15 @@ export const renderYSortedEntities = ({
                playerMovementCache.set(playerId, movementCache);
            }
            
-           // Check for actual position changes with improved precision
+           // Check for actual position changes
            let hasPositionChanged = false;
            if (lastPos) {
                 const dx = Math.abs(player.positionX - lastPos.x);
                 const dy = Math.abs(player.positionY - lastPos.y);
-                // Use a very small threshold (0.01) for more precise detection
-                if (dx > 0.01 || dy > 0.01) {
+                // Use a smaller threshold (0.1) but with smoothing
+                if (dx > 0.1 || dy > 0.1) {
                     hasPositionChanged = true;
                 }
-           } else {
-               // If no last position, consider it as moved to initialize
-               hasPositionChanged = true;
            }
            
            // Update movement cache if position changed
@@ -175,13 +172,11 @@ export const renderYSortedEntities = ({
            } else {
                // Check if we're still in the movement buffer period
                const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
-               if (timeSinceLastMovement < MOVEMENT_BUFFER_MS && movementCache.isCurrentlyMoving) {
+               if (timeSinceLastMovement < MOVEMENT_BUFFER_MS) {
                    isPlayerMoving = true;
                    movementReason = `movement_buffer(${timeSinceLastMovement}ms)`;
                } else {
                    movementCache.isCurrentlyMoving = false;
-                   isPlayerMoving = false;
-                   movementReason = 'stopped';
                }
            }
            
@@ -193,7 +188,19 @@ export const renderYSortedEntities = ({
                movementReason = 'sprinting';
            }
            
-           // Removed debug logging for better performance
+           // DEBUG: Log movement detection for local player when there are multiple players nearby
+           if (localPlayerId && playerId === localPlayerId && process.env.NODE_ENV === 'development') {
+               const nearbyPlayerCount = ySortedEntities.filter(e => 
+                   e.type === 'player' && 
+                   e.entity !== player &&
+                   Math.abs((e.entity as SpacetimeDBPlayer).positionX - player.positionX) < 100 &&
+                   Math.abs((e.entity as SpacetimeDBPlayer).positionY - player.positionY) < 100
+               ).length;
+               
+               if (nearbyPlayerCount > 0) {
+                   console.log(`[AnimationFix] LocalPlayer movement: ${isPlayerMoving} (${movementReason}), nearby players: ${nearbyPlayerCount}`);
+               }
+           }
            
            lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
 
@@ -223,7 +230,19 @@ export const renderYSortedEntities = ({
              if (equippedItemInstance && equippedItemInstance.quantity > 0) {
                itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
                itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
-           
+               
+               // DEBUG: Log equipment info for local player
+            //    if (localPlayerId && playerId === localPlayerId) {
+            //      console.log(`[DEBUG] Equipment found:`, {
+            //        itemDefId: equipment.equippedItemDefId.toString(),
+            //        itemName: itemDef?.name,
+            //        iconAssetName: itemDef?.iconAssetName,
+            //        category: itemDef?.category,
+            //        hasImage: !!itemImg,
+            //        imageComplete: itemImg?.complete,
+            //        imageHeight: itemImg?.naturalHeight
+            //      });
+            //    }
              } else {
                // Item was consumed but equipment table hasn't updated yet - don't render
                console.log(`[renderingUtils] Equipped item ${equipment.equippedItemInstanceId} no longer exists or has 0 quantity, skipping render`);

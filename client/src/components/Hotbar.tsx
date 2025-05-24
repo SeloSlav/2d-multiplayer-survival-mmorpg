@@ -144,7 +144,7 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   // Trigger client cooldown animation - simplified to work like other consumables
   const triggerClientCooldownAnimation = useCallback((isBandageEffect: boolean, slotToAnimate: number) => {
-    // console.log('[Hotbar] triggerClientCooldownAnimation called. IsBandage:', isBandageEffect, 'Animate Slot:', slotToAnimate);
+    console.log('[Hotbar] triggerClientCooldownAnimation called. IsBandage:', isBandageEffect, 'Animate Slot:', slotToAnimate);
 
     if (slotToAnimate < 0 || slotToAnimate >= numSlots) {
         console.warn("[Hotbar] Invalid slotToAnimate provided:", slotToAnimate);
@@ -157,7 +157,7 @@ const Hotbar: React.FC<HotbarProps> = ({
 
     const itemForAnimation = findItemForSlot(slotToAnimate);
     if (!itemForAnimation) {
-        // console.log('[Hotbar] No item in animation slot', slotToAnimate, 'Aborting animation.');
+        console.log('[Hotbar] No item in animation slot', slotToAnimate, 'Aborting animation.');
         setIsVisualCooldownActive(false); // Ensure cooldown is not stuck if item disappears
         setCooldownSlot(null);
         return;
@@ -165,11 +165,11 @@ const Hotbar: React.FC<HotbarProps> = ({
     
     // Validate item type for the animation type
     if (isBandageEffect && itemForAnimation.definition.name !== "Bandage") {
-        // console.log('[Hotbar] Attempted to trigger bandage animation for non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
+        console.log('[Hotbar] Attempted to trigger bandage animation for non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
         return;
     }
     if (!isBandageEffect && itemForAnimation.definition.category.tag !== 'Consumable') {
-        // console.log('[Hotbar] Attempted to trigger consumable animation for non-consumable/non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
+        console.log('[Hotbar] Attempted to trigger consumable animation for non-consumable/non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
         return;
     }
 
@@ -177,7 +177,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                             ? BANDAGE_CLIENT_ANIMATION_DURATION_MS
                             : DEFAULT_CLIENT_ANIMATION_DURATION_MS;
 
-    // console.log('[Hotbar] Starting animation on slot:', slotToAnimate, 'Duration:', timeoutDuration, 'ms. Item:', itemForAnimation.definition.name);
+    console.log('[Hotbar] Starting animation on slot:', slotToAnimate, 'Duration:', timeoutDuration, 'ms. Item:', itemForAnimation.definition.name);
 
     setIsVisualCooldownActive(true);
     setVisualCooldownStartTime(Date.now());
@@ -186,7 +186,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     setCooldownSlot(slotToAnimate);
 
     visualCooldownTimeoutRef.current = setTimeout(() => {
-      // console.log('[Hotbar] Animation timeout completed for slot:', slotToAnimate);
+      console.log('[Hotbar] Animation timeout completed for slot:', slotToAnimate);
       // Only clear if this timeout is for the currently active cooldown slot
       if (cooldownSlot === slotToAnimate) {
         setIsVisualCooldownActive(false);
@@ -281,7 +281,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     
     // Update the previous slot ref
     prevSelectedSlotRef.current = selectedSlot;
-  }, [selectedSlot, isVisualCooldownActive, cooldownSlot]); // findItemForSlot removed to prevent infinite loops
+  }, [selectedSlot, isVisualCooldownActive, cooldownSlot, findItemForSlot]); // Added cooldownSlot and findItemForSlot to dependencies
 
   const activateHotbarSlot = useCallback((slotIndex: number, isMouseWheelScroll: boolean = false, currentSelectedSlot?: number) => {
     const itemInSlot = findItemForSlot(slotIndex);

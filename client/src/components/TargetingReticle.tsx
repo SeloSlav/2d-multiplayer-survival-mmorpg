@@ -53,25 +53,12 @@ const TargetingReticle: React.FC<TargetingReticleProps> = ({
   const weaponStats = activeItemDef ? rangedWeaponStats.get(activeItemDef.name || '') : null;
   const weaponRange = weaponStats?.weaponRange || 500; // Default to 500 if not found or name is empty
 
-  // Update rotation continuously for animation with throttling
+  // Update rotation continuously for animation
   useEffect(() => {
     if (!shouldShowReticle) return;
 
-    const startTime = performance.now();
-    let lastUpdateTime = startTime;
-    const updateInterval = 16; // Update every ~16ms (60fps max)
-
     const animate = () => {
-      const currentTime = performance.now();
-      
-      // Only update rotation every 16ms to prevent excessive re-renders
-      if (currentTime - lastUpdateTime >= updateInterval) {
-        const elapsedTime = currentTime - startTime;
-        const newRotation = (elapsedTime * 0.12) % 360; // 0.12 degrees per ms for smooth rotation
-        setRotation(newRotation);
-        lastUpdateTime = currentTime;
-      }
-      
+      setRotation(prev => (prev + 2) % 360); // Rotate 2 degrees per frame
       animationFrameRef.current = requestAnimationFrame(animate);
     };
     
