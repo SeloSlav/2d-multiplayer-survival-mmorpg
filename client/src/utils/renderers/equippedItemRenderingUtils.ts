@@ -167,12 +167,12 @@ export const renderEquippedItem = (
 
     switch (player.direction) {
       case 'up':
-        itemOffsetX = 0;
-        itemOffsetY = -gameConfig.spriteHeight * 0.2;
+        itemOffsetX = gameConfig.spriteWidth * 0.3;
+        itemOffsetY = -gameConfig.spriteHeight * 0.0;
         rotation = -Math.PI / 2; // Point bow upward
         break;
       case 'down':
-        itemOffsetX = 0;
+        itemOffsetX = gameConfig.spriteWidth * -0.3;
         itemOffsetY = gameConfig.spriteHeight * 0.2;
         rotation = Math.PI / 2; // Point bow downward
         break;
@@ -182,8 +182,8 @@ export const renderEquippedItem = (
         rotation = Math.PI / 2; // Rotate bow 270 degrees counterclockwise
         break;
       case 'right':
-        itemOffsetX = gameConfig.spriteWidth * 0.2;
-        itemOffsetY = 0;
+        itemOffsetX = gameConfig.spriteWidth * -0.2;
+        itemOffsetY = 4.0;
         rotation = 0; // Point bow right (default)
         break;
     }
@@ -357,38 +357,41 @@ export const renderEquippedItem = (
         const arrowScale = 0.045; // Adjust as needed
         const arrowWidth = loadedArrowImage.width * arrowScale;
         const arrowHeight = loadedArrowImage.height * arrowScale;
-        // Position the arrow slightly offset from the bow's center, adjust as needed
-        // These offsets are relative to the bow's own drawing context, 
-        // which is already translated and rotated.
-        let arrowOffsetX = -displayItemWidth * 0.05; // Move slightly left of bow center
-        let arrowOffsetY = -displayItemHeight * 0.1; // Move slightly above bow center
-
-        // Further adjust arrow position based on player direction to align with bowstring
-        // This assumes the bow image itself is oriented consistently.
-        // These are very rough estimates and will likely need artistic tweaking.
+        // Arrow position and rotation settings per player direction
+        let arrowOffsetX = 0; // Independent arrow position
+        let arrowOffsetY = 0;
+        let arrowRotation = 0; // Independent arrow rotation
+        
         switch (player.direction) {
             case 'up':
-                arrowOffsetX = -displayItemWidth * 0.05; 
-                arrowOffsetY = -displayItemHeight * 0.3; // Arrow nocked further up
+                arrowOffsetX = -displayItemWidth * 0.15; 
+                arrowOffsetY = -displayItemHeight * -0.15; // Arrow nocked further up
+                arrowRotation = -Math.PI / 2; // Point arrow upward
                 break;
             case 'down':
-                arrowOffsetX = -displayItemWidth * 0.05; 
-                arrowOffsetY = displayItemHeight * 0.1;  // Arrow nocked further down
+                arrowOffsetX = displayItemWidth * -0.15;  // Mirrored horizontally
+                arrowOffsetY = -displayItemHeight * -0.15; // Mirrored vertically
+                arrowRotation = -Math.PI / 2; // Mirrored rotation
                 break;
-            case 'left': // Bow points left (rotated PI/2 or 270 deg), arrow should be to its "right"
-                arrowOffsetX = displayItemWidth * 0.15; 
-                arrowOffsetY = -displayItemHeight * 0.05;
+            case 'left':
+                arrowOffsetX = displayItemWidth * 0.0; 
+                arrowOffsetY = -displayItemHeight * -0.15;
+                arrowRotation = Math.PI + (Math.PI / 2); // Point arrow left and rotate 45 degrees counterclockwise
                 break;
-            case 'right': // Bow points right (no rotation), arrow should be to its "left"
-                arrowOffsetX = -displayItemWidth * 0.25; 
-                arrowOffsetY = -displayItemHeight * 0.05;
+            case 'right':
+                arrowOffsetX = -displayItemWidth * 0.0; 
+                arrowOffsetY = -displayItemHeight * 0.0;
+                arrowRotation = Math.PI + (Math.PI / 2); // Point arrow left and rotate 45 degrees counterclockwise
+
                 break;
         }
         
-        // The arrow should visually align with the bow. Since the bow itself is already
-        // rotated and scaled, we draw the arrow in the same transformed context.
-        // The arrow itself probably shouldn't have its own rotation independent of the bow here.
-        ctx.drawImage(loadedArrowImage, arrowOffsetX - arrowWidth / 2, arrowOffsetY - arrowHeight / 2, arrowWidth, arrowHeight);
+        // Draw arrow with independent rotation
+        ctx.save(); // Save current context for arrow-specific transforms
+        ctx.translate(arrowOffsetX, arrowOffsetY); // Move to arrow position
+        ctx.rotate(arrowRotation); // Apply independent arrow rotation
+        ctx.drawImage(loadedArrowImage, -arrowWidth / 2, -arrowHeight / 2, arrowWidth, arrowHeight);
+        ctx.restore(); // Restore context
     }
     // --- END NEW ---
 
