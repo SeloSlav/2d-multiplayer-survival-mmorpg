@@ -760,7 +760,10 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     log::info!("[EquipArmorInv] Player {:?} attempting to equip item {} from inventory/hotbar.", sender_id, item_instance_id);
 
     // 1. Get Item and Definition
-    let mut item_to_equip = get_player_item(ctx, item_instance_id)?;
+    // MODIFIED: Fetch item directly without get_player_item's strict ownership check first.
+    let mut item_to_equip = ctx.db.inventory_item().instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("Item instance {} not found.", item_instance_id))?;
+    
     let item_def = ctx.db.item_definition().id().find(item_to_equip.item_def_id)
         .ok_or_else(|| format!("Definition not found for item ID {}", item_to_equip.item_def_id))?;
 
@@ -771,75 +774,105 @@ pub fn equip_armor_from_inventory(ctx: &ReducerContext, item_instance_id: u64) -
     let target_slot_enum_model = item_def.equipment_slot_type
         .ok_or_else(|| format!("Armor '{}' has no defined equipment slot.", item_def.name))?;
     
-    // Ensure item is currently in player inventory or hotbar (regardless of original owner_id)
-    if !matches!(&item_to_equip.location, ItemLocation::Inventory(_)) && 
-       !matches!(&item_to_equip.location, ItemLocation::Hotbar(_)) {
-        return Err("Item must be in inventory or hotbar to be equipped this way.".to_string());
+    // MODIFIED: Allow Inventory, Hotbar, or Unknown. Ownership is asserted by sender equipping.
+    match &item_to_equip.location {
+        ItemLocation::Inventory(data) => {
+            // Log if owner_id in location data doesn't match sender, but proceed.
+            if data.owner_id != sender_id {
+                log::warn!("[EquipArmorInv] Item {} in Inventory slot owned by {:?}, but being equipped by {:?}. Proceeding with equip.", 
+                         item_instance_id, data.owner_id, sender_id);
+            } else {
+                log::debug!("[EquipArmorInv] Item {} found in Inventory ({:?}), proceeding to equip for player {:?}.", 
+                         item_instance_id, item_to_equip.location, sender_id);
+            }
+        }
+        ItemLocation::Hotbar(data) => {
+            if data.owner_id != sender_id {
+                log::warn!("[EquipArmorInv] Item {} in Hotbar slot owned by {:?}, but being equipped by {:?}. Proceeding with equip.", 
+                         item_instance_id, data.owner_id, sender_id);
+            } else {
+                log::debug!("[EquipArmorInv] Item {} found in Hotbar ({:?}), proceeding to equip for player {:?}.", 
+                         item_instance_id, item_to_equip.location, sender_id);
+            }
+        }
+        ItemLocation::Unknown => {
+            log::warn!("[EquipArmorInv] Equipping item {} which has an ItemLocation::Unknown for player {:?}. The item will be claimed and its location updated to Equipped.", 
+                     item_instance_id, sender_id);
+        }
+        _ => {
+            log::warn!("[EquipArmorInv] Item {} cannot be equipped directly from its current location: {:?}. It must be in Inventory, Hotbar, or be in an Unknown state.", 
+                     item_instance_id, item_to_equip.location);
+            return Err(format!("Item cannot be equipped from its current location ({:?}).", item_to_equip.location));
+        }
     }
 
     // 3. Get ActiveEquipment and Handle Unequipping Existing Item
     let active_equip_table = ctx.db.active_equipment();
-    let mut equip = active_equip_table.player_identity().find(sender_id)
-                     .ok_or_else(|| "ActiveEquipment entry not found for player.".to_string())?;
-
-    let current_item_in_slot_id: Option<u64> = match target_slot_enum_model {
-        EquipmentSlotType::Head => equip.head_item_instance_id,
-        EquipmentSlotType::Chest => equip.chest_item_instance_id,
-        EquipmentSlotType::Legs => equip.legs_item_instance_id,
-        EquipmentSlotType::Feet => equip.feet_item_instance_id,
-        EquipmentSlotType::Hands => equip.hands_item_instance_id,
-        EquipmentSlotType::Back => equip.back_item_instance_id,
+    let mut equip = match active_equip_table.player_identity().find(sender_id) {
+        Some(existing_equip) => existing_equip, // Found it
+        None => { // Not found, create it
+            log::info!("[EquipArmorInv] ActiveEquipment not found for player {:?}. Creating new entry.", sender_id);
+            let new_equip_entry = crate::active_equipment::ActiveEquipment {
+                player_identity: sender_id,
+                ..Default::default()
+            };
+            active_equip_table.insert(new_equip_entry.clone());
+            new_equip_entry // Use the newly created entry
+        }
     };
 
-    if let Some(currently_equipped_id) = current_item_in_slot_id {
-        if currently_equipped_id == item_instance_id { return Ok(()); } // Already equipped in the correct slot
-
-        log::info!("[EquipArmorInv] Unequipping item {} from slot {:?}.", currently_equipped_id, target_slot_enum_model);
-        match find_first_empty_inventory_slot(ctx, sender_id) {
-            Some(empty_slot_idx) => {
-                if let Ok(mut currently_equipped_item_row) = get_player_item(ctx, currently_equipped_id) {
-                    currently_equipped_item_row.location = ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: sender_id, slot_index: empty_slot_idx });
-                    ctx.db.inventory_item().instance_id().update(currently_equipped_item_row);
-                    log::info!("[EquipArmorInv] Moved previously equipped item {} to inventory slot {}.", currently_equipped_id, empty_slot_idx);
-                    // Clear the slot in ActiveEquipment *after* successfully moving the old item
-                    match target_slot_enum_model {
-                        EquipmentSlotType::Head => equip.head_item_instance_id = None,
-                        EquipmentSlotType::Chest => equip.chest_item_instance_id = None,
-                        EquipmentSlotType::Legs => equip.legs_item_instance_id = None,
-                        EquipmentSlotType::Feet => equip.feet_item_instance_id = None,
-                        EquipmentSlotType::Hands => equip.hands_item_instance_id = None,
-                        EquipmentSlotType::Back => equip.back_item_instance_id = None,
-                    };
-                } else {
-                    log::error!("[EquipArmorInv] Failed to find InventoryItem for previously equipped item {}! Aborting equip.", currently_equipped_id);
-                    return Err("Failed to process currently equipped item.".to_string());
-                }
-            }
-            None => {
-                log::error!("[EquipArmorInv] Inventory full! Cannot unequip item {} from slot {:?}. Aborting equip.", currently_equipped_id, target_slot_enum_model);
-                return Err("Inventory full, cannot unequip existing item.".to_string());
-            }
-        }
-    } // End handling currently equipped item
-
-    // 4. Equip the New Item
-    log::info!("[EquipArmorInv] Equipping item {} to slot {:?}.", item_instance_id, target_slot_enum_model);
-    let equipment_slot_type_for_location = target_slot_enum_model;
+    let mut previously_equipped_item_id: Option<u64> = None;
 
     match target_slot_enum_model {
-        EquipmentSlotType::Head => equip.head_item_instance_id = Some(item_instance_id),
-        EquipmentSlotType::Chest => equip.chest_item_instance_id = Some(item_instance_id),
-        EquipmentSlotType::Legs => equip.legs_item_instance_id = Some(item_instance_id),
-        EquipmentSlotType::Feet => equip.feet_item_instance_id = Some(item_instance_id),
-        EquipmentSlotType::Hands => equip.hands_item_instance_id = Some(item_instance_id),
-        EquipmentSlotType::Back => equip.back_item_instance_id = Some(item_instance_id),
-    };
+        EquipmentSlotType::Head => previously_equipped_item_id = equip.head_item_instance_id.replace(item_instance_id),
+        EquipmentSlotType::Chest => previously_equipped_item_id = equip.chest_item_instance_id.replace(item_instance_id),
+        EquipmentSlotType::Legs => previously_equipped_item_id = equip.legs_item_instance_id.replace(item_instance_id),
+        EquipmentSlotType::Feet => previously_equipped_item_id = equip.feet_item_instance_id.replace(item_instance_id),
+        EquipmentSlotType::Hands => previously_equipped_item_id = equip.hands_item_instance_id.replace(item_instance_id),
+        EquipmentSlotType::Back => previously_equipped_item_id = equip.back_item_instance_id.replace(item_instance_id),
+    }
+
+    if let Some(old_item_id) = previously_equipped_item_id {
+        if old_item_id != item_instance_id { // Ensure it's not the same item being "swapped" with itself
+            if let Some(mut old_item) = ctx.db.inventory_item().instance_id().find(old_item_id) {
+                // Move old item to first available inventory/hotbar slot
+                match crate::player_inventory::find_first_empty_player_slot(ctx, sender_id) {
+                    Some(empty_slot_location) => {
+                        old_item.location = empty_slot_location;
+                        ctx.db.inventory_item().instance_id().update(old_item);
+                        log::info!("[EquipArmorInv] Moved previously equipped armor {} to player slot {:?}.", old_item_id, item_to_equip.location);
+                    }
+                    None => {
+                        // No space, try to drop it near the player. This is a last resort.
+                        log::warn!("[EquipArmorInv] No space in inventory to unequip previous armor {}. Attempting to drop.", old_item_id);
+                        if let Some(player_for_drop) = ctx.db.player().identity().find(&sender_id) {
+                            let (drop_x, drop_y) = crate::dropped_item::calculate_drop_position(&player_for_drop);
+                            if crate::dropped_item::create_dropped_item_entity(ctx, old_item.item_def_id, old_item.quantity, drop_x, drop_y).is_err() {
+                                log::error!("[EquipArmorInv] Failed to drop previously equipped item {} after inventory was full.", old_item_id);
+                                // Potentially revert the equip operation if dropping the old item is critical and fails.
+                                // For now, we'll proceed with the new equip, the old item might be lost if drop failed.
+                            } else {
+                                // If successfully dropped, we also need to delete its InventoryItem record
+                                ctx.db.inventory_item().instance_id().delete(old_item_id);
+                            }
+                        } else {
+                            log::error!("[EquipArmorInv] Player not found for dropping previously equipped item {}. Item may be lost.", old_item_id);
+                        }
+                    }
+                }
+            } else {
+                log::warn!("[EquipArmorInv] Could not find InventoryItem for previously equipped armor ID {}. Slot was cleared.", old_item_id);
+            }
+        }
+    }
+    
     active_equip_table.player_identity().update(equip);
 
-    // 5. Update the InventoryItem's location
-    item_to_equip.location = ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: sender_id, slot_type: equipment_slot_type_for_location });
+    // 4. Update the newly equipped item's location
+    item_to_equip.location = ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: sender_id, slot_type: target_slot_enum_model.clone() });
     ctx.db.inventory_item().instance_id().update(item_to_equip);
 
+    log::info!("[EquipArmorInv] Player {:?} successfully equipped armor '{}' (Instance ID: {}) to slot {:?}.", sender_id, item_def.name, item_instance_id, target_slot_enum_model);
     Ok(())
 }
 
