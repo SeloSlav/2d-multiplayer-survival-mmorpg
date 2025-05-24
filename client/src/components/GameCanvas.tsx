@@ -301,6 +301,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
+  
+  // Performance monitoring refs
+  const frameCountRef = useRef<number>(0);
+  const lastFpsLogRef = useRef<number>(performance.now());
+  const renderTimeRef = useRef<number>(0);
   const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime: deltaTimeRef.current });
   const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime: deltaTimeRef.current });
 
@@ -413,7 +418,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
         // --- ADDED: Debugging for smoke burst particles ---
         if (p.type === 'smoke' && p.color === "#000000") { // Check if it's a black smoke burst particle
-            console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
+            // console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
         }
         // --- END ADDED ---
 
@@ -817,11 +822,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
+    const frameStartTime = performance.now();
+    
     // Update deltaTime ref directly to avoid re-renders
     deltaTimeRef.current = frameInfo.deltaTime;
 
     processInputsAndActions(); 
     renderGame(); 
+    
+    // Performance monitoring
+    frameCountRef.current++;
+    const now = performance.now();
+    renderTimeRef.current = now - frameStartTime;
+    
+    // Log FPS every 5 seconds in development
+    if (process.env.NODE_ENV === 'development' && now - lastFpsLogRef.current > 5000) {
+      const fps = Math.round(frameCountRef.current / 5);
+      const avgRenderTime = renderTimeRef.current.toFixed(2);
+      console.log(`[Performance] FPS: ${fps}, Avg Render Time: ${avgRenderTime}ms`);
+      frameCountRef.current = 0;
+      lastFpsLogRef.current = now;
+    }
   }, [processInputsAndActions, renderGame]);
 
   // Use the updated hook with optimized performance settings
@@ -883,7 +904,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
               if (distSq < damageRadiusSq) {
                 newlyDamagingIds.add(id.toString());
-                console.log(`[GameCanvas] Player took damage near burning campfire ${id}. Health: ${prevHealth} -> ${currentHealth}`);
+                // console.log(`[GameCanvas] Player took damage near burning campfire ${id}. Health: ${prevHealth} -> ${currentHealth}`);
               }
             }
           });

@@ -108,11 +108,11 @@ export function useEntityFiltering(
   projectiles: Map<string, SpacetimeDBProjectile>
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
-  const currentTime = Date.now();
+  const currentTime = useMemo(() => Date.now(), [cameraOffsetX, cameraOffsetY]); // Only update when camera moves
 
-  // Calculate viewport bounds
+  // Calculate viewport bounds with larger buffer for smoother culling
   const getViewportBounds = useCallback((): ViewportBounds => {
-    const buffer = gameConfig.tileSize * 2;
+    const buffer = gameConfig.tileSize * 3; // Increased buffer for smoother transitions
     const viewMinX = -cameraOffsetX - buffer;
     const viewMaxX = -cameraOffsetX + canvasWidth + buffer;
     const viewMinY = -cameraOffsetY - buffer;

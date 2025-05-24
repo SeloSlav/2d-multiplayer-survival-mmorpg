@@ -121,7 +121,7 @@ export const useSpacetimeTables = ({
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
         if (connection && !callbacksRegisteredRef.current) {
-            console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
+            // console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions."); // ADDED LOG
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
              
@@ -141,10 +141,65 @@ export const useSpacetimeTables = ({
             const handlePlayerUpdate = (ctx: any, oldPlayer: SpacetimeDB.Player, newPlayer: SpacetimeDB.Player) => {
                 const playerHexId = newPlayer.identity.toHexString();
                 
+                // Safety check: if it's the exact same object reference, no need to update
+                if (oldPlayer === newPlayer) {
+                    return;
+                }
+                
+                // Global rate limiter: Prevent more than 60 total player updates per second across all players
+                if (!(globalThis as any).globalUpdateLimiter) {
+                    (globalThis as any).globalUpdateLimiter = { count: 0, lastReset: performance.now() };
+                }
+                
+                const globalLimiter = (globalThis as any).globalUpdateLimiter;
+                const currentTime = performance.now();
+                
+                // Reset counter every second
+                if (currentTime - globalLimiter.lastReset > 1000) {
+                    globalLimiter.count = 0;
+                    globalLimiter.lastReset = currentTime;
+                }
+                
+                // If we've exceeded global rate limit, skip this update
+                if (globalLimiter.count > 60) {
+                    if (Math.random() < 0.0001) { // Very rare logging
+                        console.warn(`[GLOBAL LIMITER] Skipping update - ${globalLimiter.count} updates this second`);
+                    }
+                    return;
+                }
+                
+                globalLimiter.count++;
+                
+                // Enhanced circuit breaker: track recent updates per player to prevent infinite loops
+                if (!(globalThis as any).playerUpdateTracker) (globalThis as any).playerUpdateTracker = new Map();
+                if (!(globalThis as any).playerUpdateCounter) (globalThis as any).playerUpdateCounter = new Map();
+                
+                const now = performance.now();
+                const lastUpdateTime = (globalThis as any).playerUpdateTracker.get(playerHexId) || 0;
+                const updateCount = (globalThis as any).playerUpdateCounter.get(playerHexId) || 0;
+                
+                // Enhanced protection: minimum 8ms between updates OR max 5 updates per 100ms window
+                if (now - lastUpdateTime < 8 || updateCount > 5) {
+                    // Only log occasionally to avoid spam
+                    if (Math.random() < 0.001) { // Further reduced to 0.1% chance to log
+                        console.warn(`[CIRCUIT BREAKER] Skipping rapid updates for ${playerHexId.substring(0, 8)}... (${updateCount} updates)`);
+                    }
+                    return;
+                }
+                
+                // Reset counter every 100ms window
+                if (now - lastUpdateTime > 100) {
+                    (globalThis as any).playerUpdateCounter.set(playerHexId, 0);
+                } else {
+                    (globalThis as any).playerUpdateCounter.set(playerHexId, updateCount + 1);
+                }
+                
+                (globalThis as any).playerUpdateTracker.set(playerHexId, now);
+                
                 // Log newPlayer's lastHitTime when a respawn might be happening
                 if (oldPlayer.isDead && !newPlayer.isDead) {
-                    console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
-                    console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                    // console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
+                    // console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
                     // console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
                 }
 
@@ -157,29 +212,30 @@ export const useSpacetimeTables = ({
                 const lastHitTimeChanged = oldLastHitTimeMicros !== newLastHitTimeMicros;
 
                 const statsChanged = Math.round(oldPlayer.health) !== Math.round(newPlayer.health) || Math.round(oldPlayer.stamina) !== Math.round(newPlayer.stamina) || Math.round(oldPlayer.hunger) !== Math.round(newPlayer.hunger) || Math.round(oldPlayer.thirst) !== Math.round(newPlayer.thirst) || Math.round(oldPlayer.warmth) !== Math.round(newPlayer.warmth);
-                const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead || oldPlayer.isTorchLit !== newPlayer.isTorchLit;
+                const stateChanged = oldPlayer.isSprinting !== newPlayer.isSprinting || oldPlayer.direction !== newPlayer.direction || oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs || oldPlayer.isDead !== newPlayer.isDead || oldPlayer.isTorchLit !== newPlayer.isTorchLit || oldPlayer.isKnockedOut !== newPlayer.isKnockedOut;
+                
+                // Check knocked out timestamp change
+                const oldKnockedOutTimeMicros = oldPlayer.knockedOutAt ? oldPlayer.knockedOutAt.__timestamp_micros_since_unix_epoch__ : null;
+                const newKnockedOutTimeMicros = newPlayer.knockedOutAt ? newPlayer.knockedOutAt.__timestamp_micros_since_unix_epoch__ : null;
+                const knockedOutTimeChanged = oldKnockedOutTimeMicros !== newKnockedOutTimeMicros;
+                
+                // Check last update timestamp change
+                const oldLastUpdateMicros = oldPlayer.lastUpdate ? oldPlayer.lastUpdate.__timestamp_micros_since_unix_epoch__ : null;
+                const newLastUpdateMicros = newPlayer.lastUpdate ? newPlayer.lastUpdate.__timestamp_micros_since_unix_epoch__ : null;
+                const lastUpdateChanged = oldLastUpdateMicros !== newLastUpdateMicros;
+                
+                // Check death timestamp change
+                const oldDeathTimeMicros = oldPlayer.deathTimestamp ? oldPlayer.deathTimestamp.__timestamp_micros_since_unix_epoch__ : null;
+                const newDeathTimeMicros = newPlayer.deathTimestamp ? newPlayer.deathTimestamp.__timestamp_micros_since_unix_epoch__ : null;
+                const deathTimeChanged = oldDeathTimeMicros !== newDeathTimeMicros;
                 const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
                 const usernameChanged = oldPlayer.username !== newPlayer.username;
                 const colorChanged = oldPlayer.color !== newPlayer.color;
 
-                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged || lastHitTimeChanged) { 
-                    if (lastHitTimeChanged) {
-                         console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
-                    }
-                    if (oldPlayer.isDead && !newPlayer.isDead && lastHitTimeChanged) {
-                        console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
-                    } else if (oldPlayer.isDead && !newPlayer.isDead && !lastHitTimeChanged) {
-                        // This case should ideally not happen if server sends null for last_hit_time on respawn and SDK passes it through.
-                        console.warn(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} BUT lastHitTime DID NOT CHANGE. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. This might be an issue.`);
-                    }
-
+                if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || colorChanged || lastHitTimeChanged || knockedOutTimeChanged || lastUpdateChanged || deathTimeChanged) { 
                     setPlayers(prev => {
                         const newMap = new Map(prev);
                         newMap.set(playerHexId, newPlayer); // Use playerHexId here
-                        // Optional: Log details of what's being set
-                        // if (oldPlayer.isDead && !newPlayer.isDead) {
-                        //     console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                        // }
                         return newMap;
                     });
                 }
@@ -237,17 +293,17 @@ export const useSpacetimeTables = ({
             // --- Item Definition Subscriptions ---
             const handleItemDefInsert = (ctx: any, itemDef: SpacetimeDB.ItemDefinition) => {
                 if (itemDef.name === "Hunting Bow") {
-                    console.log("[DEBUG] Hunting Bow item definition loaded:", itemDef);
-                    console.log("[DEBUG] Hunting Bow category:", itemDef.category);
-                    console.log("[DEBUG] Hunting Bow category tag:", itemDef.category?.tag);
+                    // console.log("[DEBUG] Hunting Bow item definition loaded:", itemDef);
+                    // console.log("[DEBUG] Hunting Bow category:", itemDef.category);
+                    // console.log("[DEBUG] Hunting Bow category tag:", itemDef.category?.tag);
                 }
                 setItemDefinitions(prev => new Map(prev).set(itemDef.id.toString(), itemDef));
             };
             const handleItemDefUpdate = (ctx: any, oldDef: SpacetimeDB.ItemDefinition, newDef: SpacetimeDB.ItemDefinition) => {
                 if (newDef.name === "Hunting Bow") {
-                    console.log("[DEBUG] Hunting Bow item definition UPDATED:", newDef);
-                    console.log("[DEBUG] Hunting Bow category:", newDef.category);
-                    console.log("[DEBUG] Hunting Bow category tag:", newDef.category?.tag);
+                    // console.log("[DEBUG] Hunting Bow item definition UPDATED:", newDef);
+                    // console.log("[DEBUG] Hunting Bow category:", newDef.category);
+                    // console.log("[DEBUG] Hunting Bow category tag:", newDef.category?.tag);
                 }
                 setItemDefinitions(prev => new Map(prev).set(newDef.id.toString(), newDef));
             };
@@ -365,19 +421,19 @@ export const useSpacetimeTables = ({
             
             // --- Active Connection Subscriptions ---
             const handleActiveConnectionInsert = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
-                console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
+                // console.log(`[useSpacetimeTables LOG] ActiveConnection INSERT: ${conn.identity.toHexString()}`);
                 setActiveConnections(prev => {
                     const newMap = new Map(prev).set(conn.identity.toHexString(), conn);
-                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER INSERT:`, newMap);
+                    // console.log(`[useSpacetimeTables LOG] activeConnections map AFTER INSERT:`, newMap);
                     return newMap;
                 });
             };
             const handleActiveConnectionDelete = (ctx: any, conn: SpacetimeDB.ActiveConnection) => {
-                 console.log(`[useSpacetimeTables LOG] ActiveConnection DELETE: ${conn.identity.toHexString()}`);
+                // console.log(`[useSpacetimeTables LOG] ActiveConnection DELETE: ${conn.identity.toHexString()}`);
                 setActiveConnections(prev => {
                     const newMap = new Map(prev);
                     newMap.delete(conn.identity.toHexString());
-                    console.log(`[useSpacetimeTables LOG] activeConnections map AFTER DELETE:`, newMap);
+                    // console.log(`[useSpacetimeTables LOG] activeConnections map AFTER DELETE:`, newMap);
                     return newMap;
                 });
             };
@@ -456,15 +512,15 @@ export const useSpacetimeTables = ({
 
             // --- KnockedOutStatus Subscriptions ---
             const handleKnockedOutStatusInsert = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus INSERT:", status);
+                // console.log("[useSpacetimeTables] KnockedOutStatus INSERT:", status);
                 setKnockedOutStatus(prev => new Map(prev).set(status.playerId.toHexString(), status));
             };
             const handleKnockedOutStatusUpdate = (ctx: any, oldStatus: SpacetimeDB.KnockedOutStatus, newStatus: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus UPDATE:", newStatus);
+                // console.log("[useSpacetimeTables] KnockedOutStatus UPDATE:", newStatus);
                 setKnockedOutStatus(prev => new Map(prev).set(newStatus.playerId.toHexString(), newStatus));
             };
             const handleKnockedOutStatusDelete = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
-                console.log("[useSpacetimeTables] KnockedOutStatus DELETE:", status.playerId.toHexString());
+                // console.log("[useSpacetimeTables] KnockedOutStatus DELETE:", status.playerId.toHexString());
                 setKnockedOutStatus(prev => { const newMap = new Map(prev); newMap.delete(status.playerId.toHexString()); return newMap; });
             };
 
@@ -475,33 +531,21 @@ export const useSpacetimeTables = ({
 
             // --- Projectile Callbacks --- Added
             const handleProjectileInsert = (ctx: any, projectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile INSERT received:", projectile);
+                // console.log("[DEBUG] Projectile INSERT received:", projectile);
                 setProjectiles(prev => new Map(prev).set(projectile.id.toString(), projectile));
             };
             const handleProjectileUpdate = (ctx: any, oldProjectile: SpacetimeDBProjectile, newProjectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile UPDATE received:", newProjectile);
+                // console.log("[DEBUG] Projectile UPDATE received:", newProjectile);
                 setProjectiles(prev => new Map(prev).set(newProjectile.id.toString(), newProjectile));
             };
             const handleProjectileDelete = (ctx: any, projectile: SpacetimeDBProjectile) => {
-                console.log("[DEBUG] Projectile DELETE received:", projectile);
+                // console.log("[DEBUG] Projectile DELETE received:", projectile);
                 setProjectiles(prev => { const newMap = new Map(prev); newMap.delete(projectile.id.toString()); return newMap; });
             };
 
             // Add reducer callbacks to monitor fireProjectile results
-            console.log("[DEBUG] Registering fireProjectile reducer callback...");
+            // console.log("[DEBUG] Registering fireProjectile reducer callback...");
             connection.reducers.onFireProjectile((ctx, targetWorldX, targetWorldY) => {
-                console.log("[DEBUG] fireProjectile reducer result:", {
-                    event: ctx.event,
-                    status: ctx.event.status,
-                    callerIdentity: ctx.event.callerIdentity?.toHexString(),
-                    targetX: targetWorldX,
-                    targetY: targetWorldY
-                });
-                
-                // Log raw status to understand the structure
-                console.log("[DEBUG] Raw status object:", ctx.event.status);
-                console.log("[DEBUG] Status type:", typeof ctx.event.status);
-                console.log("[DEBUG] Status constructor:", ctx.event.status.constructor.name);
             });
 
             // --- Register Callbacks ---
@@ -534,7 +578,6 @@ export const useSpacetimeTables = ({
             connection.db.stash.onInsert(handleStashInsert);
             connection.db.stash.onUpdate(handleStashUpdate);
             connection.db.stash.onDelete(handleStashDelete);
-            console.log("[useSpacetimeTables] Attempting to register ActiveConsumableEffect callbacks."); // ADDED LOG
             connection.db.activeConsumableEffect.onInsert(handleActiveConsumableEffectInsert);
             connection.db.activeConsumableEffect.onUpdate(handleActiveConsumableEffectUpdate);
             connection.db.activeConsumableEffect.onDelete(handleActiveConsumableEffectDelete);
@@ -612,18 +655,18 @@ export const useSpacetimeTables = ({
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial STASH subscription error:", err))
                     .subscribe('SELECT * FROM stash'),
                  connection.subscriptionBuilder() // Added for ActiveConsumableEffect
-                    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
+                    // .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'active_consumable_effect' ERROR:", err))
                     .subscribe('SELECT * FROM active_consumable_effect'),
                  connection.subscriptionBuilder() // Added for KnockedOutStatus
-                    .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'knocked_out_status' APPLIED."))
+                    // .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'knocked_out_status' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'knocked_out_status' ERROR:", err))
                     .subscribe('SELECT * FROM knocked_out_status'),
                  // Added subscriptions for new tables
                  connection.subscriptionBuilder().onError((err) => console.error("[RANGED_WEAPON_STATS Sub Error]:", err)).subscribe('SELECT * FROM ranged_weapon_stats'),
                  connection.subscriptionBuilder().onError((err) => console.error("[PROJECTILE Sub Error]:", err)).subscribe('SELECT * FROM projectile'),
             ];
-            console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
+            // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
         }
 
@@ -731,7 +774,7 @@ export const useSpacetimeTables = ({
             // If viewport becomes null, clean up ALL spatial subs
             // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL. Cleaning up spatial subs."); // Log cleanup trigger
             if (spatialSubHandlesMapRef.current.size > 0) {
-                console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions."); // Updated log
+                // console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions."); // Updated log
                 spatialSubHandlesMapRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
                 });

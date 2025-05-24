@@ -76,7 +76,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // Wrap the onItemDrop to track completion times
     const handleItemDropWithTracking = useCallback((targetSlotInfo: DragSourceSlotInfo | null) => {
         lastDragCompleteTime.current = Date.now();
-        console.log('[ExternalContainerUI] Drag operation completed at:', lastDragCompleteTime.current);
+        // console.log('[ExternalContainerUI] Drag operation completed at:', lastDragCompleteTime.current);
         onItemDrop(targetSlotInfo);
     }, [onItemDrop]);
 
@@ -208,12 +208,12 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            console.log('[ExternalContainerUI] Blocking campfire fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            // console.log('[ExternalContainerUI] Blocking campfire fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
         if (!connection?.reducers || campfireIdNum === null) return;
-        console.log('[ExternalContainerUI] Processing campfire fuel context menu for slot:', slotIndex);
+        // console.log('[ExternalContainerUI] Processing campfire fuel context menu for slot:', slotIndex);
         try { connection.reducers.autoRemoveFuelFromCampfire(campfireIdNum, slotIndex); } catch (e) { console.error("Error remove fuel:", e); }
     }, [connection, campfireIdNum]);
 
@@ -228,13 +228,13 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            console.log('[ExternalContainerUI] Blocking box context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            // console.log('[ExternalContainerUI] Blocking box context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
-        console.log('[ExtCont CtxMenu Box->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, boxIdNum });
+        // console.log('[ExtCont CtxMenu Box->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, boxIdNum });
         if (!connection?.reducers || !itemInfo || boxIdNum === null) return; // Check boxIdNum null
-        console.log('[ExternalContainerUI] Processing box context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
+        // console.log('[ExternalContainerUI] Processing box context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try { connection.reducers.quickMoveFromBox(boxIdNum, slotIndex); } catch (e: any) { console.error("[ExtCont CtxMenu Box->Inv]", e); }
     }, [connection, boxIdNum]);
 
@@ -245,15 +245,15 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            console.log('[ExternalContainerUI] Blocking corpse context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            // console.log('[ExternalContainerUI] Blocking corpse context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
-        console.log('[ExtCont CtxMenu Corpse->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, corpseIdBigInt });
+        // console.log('[ExtCont CtxMenu Corpse->Inv DEBUG PRE-GUARD]', { connectionExists
         if (!connection?.reducers || !itemInfo || !corpseIdBigInt) return;
         // Corpse ID is u32 on the server, need to convert BigInt
         const corpseIdU32 = Number(corpseIdBigInt); 
-        console.log('[ExternalContainerUI] Processing corpse context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
+        // console.log('[ExternalContainerUI] Processing corpse context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try {
             connection.reducers.quickMoveFromCorpse(corpseIdU32, slotIndex);
         } catch (e: any) { 
@@ -268,12 +268,12 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            console.log('[ExternalContainerUI] Blocking stash context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            // console.log('[ExternalContainerUI] Blocking stash context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
         if (!connection?.reducers || !itemInfo || stashIdNum === null || !currentStash || currentStash.isHidden) return;
-        console.log('[ExternalContainerUI] Processing stash context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
+        // console.log('[ExternalContainerUI] Processing stash context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
         try {
             connection.reducers.quickMoveFromStash(stashIdNum, slotIndex);
         } catch (e: any) { 

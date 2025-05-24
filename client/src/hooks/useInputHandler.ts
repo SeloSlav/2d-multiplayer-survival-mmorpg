@@ -415,7 +415,7 @@ export const useInputHandler = ({
                 if (currentClosestStashId !== null && currentStashes) {
                     const stashEntity = currentStashes.get(currentClosestStashId.toString());
                     if (stashEntity) {
-                        console.log(`[Stash E-Down] Stash ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}. About to setInteractionProgress.`);
+                        // console.log(`[Stash E-Down] Stash ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}. About to setInteractionProgress.`);
                         
                         isEHeldDownRef.current = true; 
                         eKeyDownTimestampRef.current = Date.now();
@@ -423,7 +423,7 @@ export const useInputHandler = ({
                         setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
                         setIsActivelyHolding(true);
                         
-                        console.log(`[Stash E-Down] setInteractionProgress CALLED. interactionProgress in this closure:`, interactionProgress);
+                        // console.log(`[Stash E-Down] setInteractionProgress CALLED. interactionProgress in this closure:`, interactionProgress);
                         
                         if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
                         eKeyHoldTimerRef.current = setTimeout(() => {
@@ -450,7 +450,7 @@ export const useInputHandler = ({
                 if (currentClosestKnockedOutPlayerId !== null && currentPlayers) {
                     const knockedOutPlayer = currentPlayers.get(currentClosestKnockedOutPlayerId);
                     if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
-                        console.log(`[KnockedOut E-Down] Player ID: ${currentClosestKnockedOutPlayerId}, Username: ${knockedOutPlayer.username}. Starting revive hold.`);
+                        // console.log(`[KnockedOut E-Down] Player ID: ${currentClosestKnockedOutPlayerId}, Username: ${knockedOutPlayer.username}. Starting revive hold.`);
                         
                         isEHeldDownRef.current = true; 
                         eKeyDownTimestampRef.current = Date.now();
@@ -464,7 +464,7 @@ export const useInputHandler = ({
                                 try {
                                     // Convert hex string back to Identity for the reducer call
                                     currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(currentClosestKnockedOutPlayerId));
-                                    console.log(`[KnockedOut E-Hold COMPLETED] Reviving player: ${currentClosestKnockedOutPlayerId}`);
+                                    // console.log(`[KnockedOut E-Hold COMPLETED] Reviving player: ${currentClosestKnockedOutPlayerId}`);
                                 } catch (error) {
                                     console.error("[InputHandler] Error calling reviveKnockedOutPlayer in timer:", error);
                                 }
@@ -867,7 +867,7 @@ export const useInputHandler = ({
                         connectionRef.current.reducers.useEquippedItem(); // This will call the bandage logic on server
                         lastClientSwingAttemptRef.current = now;
                         lastServerSwingTimestampRef.current = now; // Optimistically update for client-side prediction
-                        console.log("[InputHandler] Used Bandage via right-click.");
+                        // console.log("[InputHandler] Used Bandage via right-click.");
                     }
                     return; // Bandage used, no further context menu logic needed
                 } else if (itemDef && itemDef.name === "Torch") {
@@ -875,7 +875,7 @@ export const useInputHandler = ({
                     if (connectionRef.current?.reducers) {
                         try {
                             connectionRef.current.reducers.toggleTorch();
-                            console.log("[InputHandler] Toggled Torch via right-click.");
+                            // console.log("[InputHandler] Toggled Torch via right-click.");
                         } catch (err) {
                             console.error("[InputHandler] Error calling toggleTorch reducer:", err);
                         }
@@ -957,16 +957,6 @@ export const useInputHandler = ({
     const processInputsAndActions = useCallback(() => {
         const currentConnection = connectionRef.current;
         const player = localPlayerRef.current; // Get the current player state
-
-        // --- Add extensive logging here ---
-        /*
-        console.log("[ProcessInputs] Tick. AutoWalking:", isAutoWalkingRef.current, 
-                    "Direction:", autoWalkDirectionRef.current,
-                    "Player:", !!player, 
-                    "Dead:", player?.isDead, 
-                    "Chatting:", isChatting, 
-                    "SearchingRecipes:", isSearchingCraftRecipes);
-        */
 
         // MODIFIED: Do nothing if player is dead, or if chatting/searching
         if (!player || player.isDead || isChatting || isSearchingCraftRecipes) {

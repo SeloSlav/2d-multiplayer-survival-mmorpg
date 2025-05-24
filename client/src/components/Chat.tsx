@@ -47,7 +47,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     // console.log("[Chat] PrivateMsgEffect: Attempting to subscribe with query:", query);
 
     const subHandle = connection.subscriptionBuilder()
-      .onApplied(() => console.log("[Chat] PrivateMsgEffect: Subscription APPLIED for query:", query))
+      // .onApplied(() => console.log("[Chat] PrivateMsgEffect: Subscription APPLIED for query:", query))
       .onError((errorContext) => console.error("[Chat] PrivateMsgEffect: Subscription ERROR:", errorContext))
       .subscribe([query]);
     privateMessageSubscriptionRef.current = subHandle;

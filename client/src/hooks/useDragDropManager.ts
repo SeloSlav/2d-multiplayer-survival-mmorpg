@@ -121,7 +121,7 @@ export const useDragDropManager = ({
 
                     if (entityIdNum !== null && numericSlotIndex !== null) {
                         if (sourceInfo.splitQuantity) {
-                            console.log(`[useDragDropManager Drop] Calling split_and_drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}, Qty: ${quantityToDrop}`);
+                            // console.log(`[useDragDropManager Drop] Calling split_and_drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}, Qty: ${quantityToDrop}`);
                             if (handler.splitDropReducer) {
                                 handler.splitDropReducer(entityIdNum, numericSlotIndex, quantityToDrop);
                             } else {
@@ -129,7 +129,7 @@ export const useDragDropManager = ({
                                 setDropError(`Configuration error: Split drop action not found for ${handler.containerName.toLowerCase()}.`);
                             }
                         } else {
-                            console.log(`[useDragDropManager Drop] Calling drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}`);
+                            // console.log(`[useDragDropManager Drop] Calling drop_item_from_${handler.containerName.toLowerCase()}_slot_to_world. ${handler.containerName}ID: ${entityIdNum}, Slot: ${numericSlotIndex}`);
                             if (handler.dropReducer) {
                                 handler.dropReducer(entityIdNum, numericSlotIndex);
                             } else {
@@ -144,7 +144,7 @@ export const useDragDropManager = ({
                 } else { 
                     // Default to player inventory drop if sourceContainerType is not in handlers
                     // (e.g., 'inventory', 'hotbar', 'equipment')
-                    console.log(`[useDragDropManager Drop] Calling drop_item (default/player inventory). Item: ${itemInstanceId}, Qty: ${quantityToDrop}`);
+                    // console.log(`[useDragDropManager Drop] Calling drop_item (default/player inventory). Item: ${itemInstanceId}, Qty: ${quantityToDrop}`);
                     connection.reducers.dropItem(itemInstanceId, quantityToDrop);
                 }
             } catch (error) {

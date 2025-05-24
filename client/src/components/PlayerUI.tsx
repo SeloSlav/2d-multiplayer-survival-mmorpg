@@ -230,7 +230,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         const handleStatThresholdsConfig = (config: StatThresholdsConfig | null | undefined) => {
             if (config && typeof config.lowNeedThreshold === 'number') {
                 setLowNeedThreshold(config.lowNeedThreshold);
-                console.log('StatThresholdsConfig: low_need_threshold set to', config.lowNeedThreshold);
+                // console.log('StatThresholdsConfig: low_need_threshold set to', config.lowNeedThreshold);
             }
         };
 

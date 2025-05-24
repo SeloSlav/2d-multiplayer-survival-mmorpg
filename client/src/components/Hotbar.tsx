@@ -144,7 +144,7 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   // Trigger client cooldown animation - simplified to work like other consumables
   const triggerClientCooldownAnimation = useCallback((isBandageEffect: boolean, slotToAnimate: number) => {
-    console.log('[Hotbar] triggerClientCooldownAnimation called. IsBandage:', isBandageEffect, 'Animate Slot:', slotToAnimate);
+    // console.log('[Hotbar] triggerClientCooldownAnimation called. IsBandage:', isBandageEffect, 'Animate Slot:', slotToAnimate);
 
     if (slotToAnimate < 0 || slotToAnimate >= numSlots) {
         console.warn("[Hotbar] Invalid slotToAnimate provided:", slotToAnimate);
@@ -157,7 +157,7 @@ const Hotbar: React.FC<HotbarProps> = ({
 
     const itemForAnimation = findItemForSlot(slotToAnimate);
     if (!itemForAnimation) {
-        console.log('[Hotbar] No item in animation slot', slotToAnimate, 'Aborting animation.');
+        // console.log('[Hotbar] No item in animation slot', slotToAnimate, 'Aborting animation.');
         setIsVisualCooldownActive(false); // Ensure cooldown is not stuck if item disappears
         setCooldownSlot(null);
         return;
@@ -165,11 +165,11 @@ const Hotbar: React.FC<HotbarProps> = ({
     
     // Validate item type for the animation type
     if (isBandageEffect && itemForAnimation.definition.name !== "Bandage") {
-        console.log('[Hotbar] Attempted to trigger bandage animation for non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
+        // console.log('[Hotbar] Attempted to trigger bandage animation for non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
         return;
     }
     if (!isBandageEffect && itemForAnimation.definition.category.tag !== 'Consumable') {
-        console.log('[Hotbar] Attempted to trigger consumable animation for non-consumable/non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
+        // console.log('[Hotbar] Attempted to trigger consumable animation for non-consumable/non-bandage item in slot', slotToAnimate, 'Aborting. Item:', itemForAnimation.definition.name);
         return;
     }
 
@@ -177,7 +177,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                             ? BANDAGE_CLIENT_ANIMATION_DURATION_MS
                             : DEFAULT_CLIENT_ANIMATION_DURATION_MS;
 
-    console.log('[Hotbar] Starting animation on slot:', slotToAnimate, 'Duration:', timeoutDuration, 'ms. Item:', itemForAnimation.definition.name);
+    // console.log('[Hotbar] Starting animation on slot:', slotToAnimate, 'Duration:', timeoutDuration, 'ms. Item:', itemForAnimation.definition.name);
 
     setIsVisualCooldownActive(true);
     setVisualCooldownStartTime(Date.now());
@@ -186,7 +186,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     setCooldownSlot(slotToAnimate);
 
     visualCooldownTimeoutRef.current = setTimeout(() => {
-      console.log('[Hotbar] Animation timeout completed for slot:', slotToAnimate);
+      // console.log('[Hotbar] Animation timeout completed for slot:', slotToAnimate);
       // Only clear if this timeout is for the currently active cooldown slot
       if (cooldownSlot === slotToAnimate) {
         setIsVisualCooldownActive(false);
@@ -225,7 +225,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
       const itemInSlot = findItemForSlot(slotIndex);
       if (itemInSlot && itemInSlot.definition.name === "Bandage") {
-        console.log('[Hotbar] New bandage effect detected! Starting 5-second animation on slot:', slotIndex);
+        // console.log('[Hotbar] New bandage effect detected! Starting 5-second animation on slot:', slotIndex);
         // Don't trigger the normal overlay for server effects, use a separate system
         setIsVisualCooldownActive(true);
         setVisualCooldownStartTime(Date.now());
@@ -237,7 +237,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       }
     }
     if (!bandageSlotFound) {
-      console.log('[Hotbar] New bandage effect detected, but no bandage found in hotbar slots. No animation.');
+      // console.log('[Hotbar] New bandage effect detected, but no bandage found in hotbar slots. No animation.');
     }
   }
 
@@ -256,9 +256,9 @@ const Hotbar: React.FC<HotbarProps> = ({
         itemInCooldownSlot.definition.name !== 'Bandage'; // Food items persist, bandages don't
       
       if (shouldPersistAnimation) {
-        console.log('[Hotbar] Selected slot changed, but keeping consumable food animation active for slot:', cooldownSlot);
+        // console.log('[Hotbar] Selected slot changed, but keeping consumable food animation active for slot:', cooldownSlot);
       } else {
-        console.log('[Hotbar] Selected slot changed from', prevSelectedSlotRef.current, 'to', selectedSlot, ', stopping visual cooldown animation');
+        // console.log('[Hotbar] Selected slot changed from', prevSelectedSlotRef.current, 'to', selectedSlot, ', stopping visual cooldown animation');
         
         // Clear timeouts and animation frames
         if (visualCooldownTimeoutRef.current) {
@@ -281,7 +281,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     
     // Update the previous slot ref
     prevSelectedSlotRef.current = selectedSlot;
-  }, [selectedSlot, isVisualCooldownActive, cooldownSlot, findItemForSlot]); // Added cooldownSlot and findItemForSlot to dependencies
+  }, [selectedSlot, isVisualCooldownActive, cooldownSlot]); // findItemForSlot removed to prevent infinite loops
 
   const activateHotbarSlot = useCallback((slotIndex: number, isMouseWheelScroll: boolean = false, currentSelectedSlot?: number) => {
     const itemInSlot = findItemForSlot(slotIndex);
@@ -305,7 +305,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     const instanceId = BigInt(itemInSlot.instance.instanceId);
     const isEquippable = itemInSlot.definition.isEquippable;
 
-    console.log(`[Hotbar] Activating slot ${slotIndex}: "${itemInSlot.definition.name}" (Category: ${categoryTag}, Equippable: ${isEquippable})`);
+    // console.log(`[Hotbar] Activating slot ${slotIndex}: "${itemInSlot.definition.name}" (Category: ${categoryTag}, Equippable: ${isEquippable})`);
 
     if (categoryTag === 'Consumable') {
       cancelPlacement(); // Always cancel placement if activating a consumable slot
@@ -319,38 +319,38 @@ const Hotbar: React.FC<HotbarProps> = ({
       const actualCurrentSlot = currentSelectedSlot !== undefined ? currentSelectedSlot : selectedSlot;
       const isCurrentlySelected = actualCurrentSlot === slotIndex;
       
-      console.log(`[Hotbar] Consumable click debug: slotIndex=${slotIndex}, currentSelectedSlot=${currentSelectedSlot}, selectedSlot=${selectedSlot}, actualCurrentSlot=${actualCurrentSlot}, isCurrentlySelected=${isCurrentlySelected}, isMouseWheelScroll=${isMouseWheelScroll}`);
+      // console.log(`[Hotbar] Consumable click debug: slotIndex=${slotIndex}, currentSelectedSlot=${currentSelectedSlot}, selectedSlot=${selectedSlot}, actualCurrentSlot=${actualCurrentSlot}, isCurrentlySelected=${isCurrentlySelected}, isMouseWheelScroll=${isMouseWheelScroll}`);
       
       if (isCurrentlySelected && !isMouseWheelScroll) {
         // Second click/press on already selected consumable - actually consume it
         // Check if animation is already running on this slot
         if (isVisualCooldownActive && cooldownSlot === slotIndex) {
-          console.log('[Hotbar] Animation already running on slot:', slotIndex, '- ignoring click');
+          // console.log('[Hotbar] Animation already running on slot:', slotIndex, '- ignoring click');
           return; // Don't consume again or retrigger animation
         }
         
         try {
-          console.log('[Hotbar] Consuming item on second click:', itemInSlot.definition.name, 'Instance ID:', instanceId);
+          // console.log('[Hotbar] Consuming item on second click:', itemInSlot.definition.name, 'Instance ID:', instanceId);
           connection.reducers.consumeItem(instanceId);
           // Trigger immediate animation - optimistic UI for responsiveness (1 second for consumables)
-          console.log('[Hotbar] Triggering consumable animation (1 second) on slot:', slotIndex);
+          // console.log('[Hotbar] Triggering consumable animation (1 second) on slot:', slotIndex);
           triggerClientCooldownAnimation(false, slotIndex); // Use default duration, specify the clicked slot
         } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
       } else {
         // First click/press - just select the slot
-        console.log('[Hotbar] Selected consumable:', itemInSlot.definition.name, '- click again to consume');
+        // console.log('[Hotbar] Selected consumable:', itemInSlot.definition.name, '- click again to consume');
       }
     } else if (categoryTag === 'Armor') {
-      console.log(`[Hotbar] Handling armor: ${itemInSlot.definition.name}`);
+      // console.log(`[Hotbar] Handling armor: ${itemInSlot.definition.name}`);
       cancelPlacement();
       try { 
         connection.reducers.equipArmorFromInventory(instanceId); 
-        console.log(`[Hotbar] Successfully equipped armor: ${itemInSlot.definition.name}`);
+        // console.log(`[Hotbar] Successfully equipped armor: ${itemInSlot.definition.name}`);
       } catch (err) { 
         console.error("Error equipArmorFromInventory:", err); 
       }
     } else if (categoryTag === 'Placeable') {
-      console.log(`[Hotbar] Handling placeable: ${itemInSlot.definition.name}`);
+      // console.log(`[Hotbar] Handling placeable: ${itemInSlot.definition.name}`);
       const placementInfoData: PlacementItemInfo = {
         itemDefId: BigInt(itemInSlot.definition.id),
         itemName: itemInSlot.definition.name,
@@ -360,41 +360,41 @@ const Hotbar: React.FC<HotbarProps> = ({
       startPlacement(placementInfoData);
       try { 
         if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); 
-        console.log(`[Hotbar] Cleared active item for placeable: ${itemInSlot.definition.name}`);
+        // console.log(`[Hotbar] Cleared active item for placeable: ${itemInSlot.definition.name}`);
       } catch (err) { 
         console.error("Error clearActiveItemReducer when selecting placeable:", err); 
       }
     } else if (categoryTag === 'RangedWeapon') {
-      console.log(`[Hotbar] Handling ranged weapon: ${itemInSlot.definition.name}`);
-      console.log(`[Hotbar] Ranged weapon category tag: ${categoryTag}`);
-      console.log(`[Hotbar] Instance ID: ${instanceId}`);
+      // console.log(`[Hotbar] Handling ranged weapon: ${itemInSlot.definition.name}`);
+      // console.log(`[Hotbar] Ranged weapon category tag: ${categoryTag}`);
+      // console.log(`[Hotbar] Instance ID: ${instanceId}`);
       cancelPlacement();
       try { 
         connection.reducers.setActiveItemReducer(instanceId); 
-        console.log(`[Hotbar] Successfully set active ranged weapon: ${itemInSlot.definition.name}`);
-        console.log(`[Hotbar] Ranged weapon should now be equipped and ready to fire`);
+        // console.log(`[Hotbar] Successfully set active ranged weapon: ${itemInSlot.definition.name}`);
+        // console.log(`[Hotbar] Ranged weapon should now be equipped and ready to fire`);
         // TODO: Activate targeting reticle system here
       } catch (err) { 
         console.error("Error setActiveItemReducer for ranged weapon:", err); 
       }
     } else if (categoryTag === 'Tool' || categoryTag === 'Weapon' || isEquippable) {
-      console.log(`[Hotbar] Handling tool/weapon/equippable: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
+      // console.log(`[Hotbar] Handling tool/weapon/equippable: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
       cancelPlacement();
       try { 
         connection.reducers.setActiveItemReducer(instanceId); 
-        console.log(`[Hotbar] Successfully set active item: ${itemInSlot.definition.name}`);
+        // console.log(`[Hotbar] Successfully set active item: ${itemInSlot.definition.name}`);
       } catch (err) { 
         console.error("Error setActiveItemReducer:", err); 
       }
     } else {
-      console.log(`[Hotbar] Unhandled category or non-equippable item: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
+      // console.log(`[Hotbar] Unhandled category or non-equippable item: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
       // If item is not consumable, armor, placeable, or equippable,
       // it implies it's not directly "activatable" by selecting its hotbar slot.
       // Default behavior might be to clear any previously active item.
       cancelPlacement();
       try { 
         if (playerIdentity) connection.reducers.clearActiveItemReducer(playerIdentity); 
-        console.log(`[Hotbar] Cleared active item for unhandled category: ${itemInSlot.definition.name}`);
+        // console.log(`[Hotbar] Cleared active item for unhandled category: ${itemInSlot.definition.name}`);
       } catch (err) { 
         console.error("Error clearActiveItemReducer:", err); 
       }
@@ -416,9 +416,9 @@ const Hotbar: React.FC<HotbarProps> = ({
     if (keyNum !== -1 && keyNum >= 1 && keyNum <= numSlots) {
       const newSlotIndex = keyNum - 1;
       const currentSlot = selectedSlot; // Capture current value before state update
-      console.log(`[Hotbar] Keyboard ${keyNum} pressed: newSlotIndex=${newSlotIndex}, currentSlot=${currentSlot}, selectedSlot state=${selectedSlot}`);
+      // console.log(`[Hotbar] Keyboard ${keyNum} pressed: newSlotIndex=${newSlotIndex}, currentSlot=${currentSlot}, selectedSlot state=${selectedSlot}`);
       setSelectedSlot(newSlotIndex);
-      console.log(`[Hotbar] Called setSelectedSlot(${newSlotIndex})`);
+      // console.log(`[Hotbar] Called setSelectedSlot(${newSlotIndex})`);
       activateHotbarSlot(newSlotIndex, false, currentSlot);
     }
   }, [numSlots, activateHotbarSlot, selectedSlot]); // Updated dependencies
@@ -431,7 +431,7 @@ const Hotbar: React.FC<HotbarProps> = ({
   }, [handleKeyDown]);
 
   const handleSlotClick = (index: number) => {
-      console.log('[Hotbar] Slot clicked:', index);
+      // console.log('[Hotbar] Slot clicked:', index);
       const currentSlot = selectedSlot; // Capture current value before state update
       setSelectedSlot(index);
       activateHotbarSlot(index, false, currentSlot); // Pass the current slot
@@ -442,9 +442,9 @@ const Hotbar: React.FC<HotbarProps> = ({
       event.stopPropagation();
       if (itemInfo.instance.location.tag === 'Hotbar') {
         const hotbarData = itemInfo.instance.location.value as HotbarLocationData;
-        console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${hotbarData.slotIndex}`);
+        // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${hotbarData.slotIndex}`);
       } else {
-        console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} (not in hotbar)`);
+        // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} (not in hotbar)`);
       }
 
       if (!connection?.reducers) return;
@@ -486,7 +486,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                 console.error("[Hotbar ContextMenu Hotbar->Stash] Failed to call quickMoveToStash reducer:", error);
             }
           } else {
-            console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} is hidden or not found. Cannot quick move.`);
+            // console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} is hidden or not found. Cannot quick move.`);
           }
           return;
       }

@@ -38,7 +38,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   const didDragRef = useRef(false);
 
   const createGhostElement = useCallback((e: MouseEvent | Touch, splitQuantity: number | null) => {
-    console.log('[Ghost] Creating ghost element:', { splitQuantity, event: { x: e.clientX, y: e.clientY } });
+    // console.log('[Ghost] Creating ghost element:', { splitQuantity, event: { x: e.clientX, y: e.clientY } });
     if (ghostRef.current && document.body.contains(ghostRef.current)) {
       document.body.removeChild(ghostRef.current);
     }
@@ -70,7 +70,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
 
     document.body.appendChild(ghost);
     ghostRef.current = ghost;
-    console.log('[Ghost] Ghost element created and appended to body');
+    // console.log('[Ghost] Ghost element created and appended to body');
   }, [item]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -219,11 +219,11 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
   }, [handleMouseMove, item, sourceSlot, onItemDrop, onContextMenu, onClick]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    console.log('[Ghost] Mouse down event:', {
-      button: e.button,
-      pos: { x: e.clientX, y: e.clientY },
-      splitQuantity: (e.currentTarget as any).currentSplitQuantity?.current
-    });
+    // console.log('[Ghost] Mouse down event:', {
+    //   button: e.button,
+    //   pos: { x: e.clientX, y: e.clientY },
+    //   splitQuantity: (e.currentTarget as any).currentSplitQuantity?.current
+    // });
 
     // Reset drag state
     didDragRef.current = false;
@@ -240,7 +240,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
     // Check for split quantity from synthetic event (from split panel)
     const syntheticSplitQuantity = (e.currentTarget as any).currentSplitQuantity?.current;
     if (syntheticSplitQuantity !== undefined) {
-        console.log('[Ghost] Using synthetic split quantity:', syntheticSplitQuantity);
+        // console.log('[Ghost] Using synthetic split quantity:', syntheticSplitQuantity);
         currentSplitQuantity.current = syntheticSplitQuantity;
         // Clear the synthetic data immediately after reading it
         delete (e.currentTarget as any).currentSplitQuantity;

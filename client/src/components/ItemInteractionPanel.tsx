@@ -118,11 +118,11 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
             
             switch (action) {
                 case 'crush':
-                    console.log(`Crushing item ${itemInstanceId}: ${selectedItem.definition.name}`);
+                    // console.log(`Crushing item ${itemInstanceId}: ${selectedItem.definition.name}`);
                     connection.reducers.crushBoneItem(itemInstanceId);
                     break;
                 case 'consume':
-                    console.log(`Consuming item ${itemInstanceId}: ${selectedItem.definition.name}`);
+                    // console.log(`Consuming item ${itemInstanceId}: ${selectedItem.definition.name}`);
                     connection.reducers.consumeItem(itemInstanceId);
                     break;
                 default:
@@ -138,18 +138,18 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
     const handleSplitQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value, 10);
         if (!isNaN(value) && value >= 1 && value <= currentItemQuantity) {
-            console.log('[Split] Quantity changed to:', value);
+            // console.log('[Split] Quantity changed to:', value);
             setSplitQuantity(value);
         }
     };
 
     const handleSplitClick = () => {
-        console.log('[Split] Split button clicked:', {
-            item: selectedItem.definition.name,
-            itemId: selectedItem.instance.instanceId,
-            quantity: splitQuantity,
-            maxQuantity: currentItemQuantity
-        });
+        // console.log('[Split] Split button clicked:', {
+        //     item: selectedItem.definition.name,
+        //     itemId: selectedItem.instance.instanceId,
+        //     quantity: splitQuantity,
+        //     maxQuantity: currentItemQuantity
+        // });
         if (onStartSplitDrag && splitQuantity > 0 && splitQuantity <= currentItemQuantity) {
             onStartSplitDrag(selectedItem, splitQuantity);
         } else {

@@ -155,7 +155,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     // Wrap the onItemDrop to track completion times
     const handleItemDropWithTracking = useCallback((targetSlotInfo: DragSourceSlotInfo | null) => {
         lastDragCompleteTime.current = Date.now();
-        console.log('[InventoryUI] Drag operation completed at:', lastDragCompleteTime.current);
+        // console.log('[InventoryUI] Drag operation completed at:', lastDragCompleteTime.current);
         onItemDrop(targetSlotInfo);
     }, [onItemDrop]);
 
@@ -344,27 +344,27 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         
         // Don't trigger context menu if we're currently dragging or just finished dragging
         if (draggedItemInfo) {
-            console.log('[InventoryUI] Blocking context menu - currently dragging');
+            // console.log('[InventoryUI] Blocking context menu - currently dragging');
             return;
         }
         
         // Add a small delay check for recent drag operations
         if (document.body.classList.contains('item-dragging')) {
-            console.log('[InventoryUI] Blocking context menu - drag operation in progress');
+            // console.log('[InventoryUI] Blocking context menu - drag operation in progress');
             return;
         }
         
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            console.log('[InventoryUI] Blocking context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            // console.log('[InventoryUI] Blocking context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
         if (!connection?.reducers || !itemInfo) return;
         const itemInstanceId = BigInt(itemInfo.instance.instanceId);
 
-        console.log('[InventoryUI] Processing context menu for item:', itemInfo.definition.name);
+        // console.log('[InventoryUI] Processing context menu for item:', itemInfo.definition.name);
 
         // Get interaction context directly here
         const currentInteraction = interactionTarget;
@@ -376,7 +376,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         // --- PRIORITY 1: Open Corpse ---
         if (currentCorpseId !== null) {
             try {
-                console.log(`[Inv CtxMenu Inv->Corpse] Corpse ${currentCorpseId} open. Calling quickMoveToCorpse for item ${itemInstanceId}`);
+                // console.log(`[Inv CtxMenu Inv->Corpse] Corpse ${currentCorpseId} open. Calling quickMoveToCorpse for item ${itemInstanceId}`);
                 connection.reducers.quickMoveToCorpse(currentCorpseId, itemInstanceId);
             } catch (e: any) { 
                 console.error("[Inv CtxMenu Inv->Corpse] Error quick moving to corpse:", e); 
@@ -401,14 +401,14 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             const stashEntity = stashes.get(currentStashId.toString());
             if (stashEntity && !stashEntity.isHidden) {
                 try {
-                    console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
+                    // console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
                     connection.reducers.quickMoveToStash(currentStashId, itemInstanceId);
                 } catch (e: any) {
                     console.error(`[Inv CtxMenu Inv->Stash] Error quick moving item ${itemInstanceId} to stash ${currentStashId}:`, e);
                     // TODO: setUiError
                 }
             } else {
-                console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} is hidden. Cannot quick move.`);
+                // console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} is hidden. Cannot quick move.`);
                 // Optionally set a UI error here to inform the player
             }
             return; // Action handled (or intentionally not handled if hidden)
@@ -546,12 +546,12 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
     // Add the handler function
     const handleStartSplitDrag = useCallback((item: PopulatedItem, quantity: number) => {
-        console.log('[Split] Starting split drag operation:', { item, quantity });
+        // console.log('[Split] Starting split drag operation:', { item, quantity });
         setSplitDragInfo({ item, quantity });
         
         // Start the drag operation with the original item's location
         const sourceLocation = item.instance.location;
-        console.log('[Split] Item source location:', sourceLocation);
+        // console.log('[Split] Item source location:', sourceLocation);
         
         let sourceSlotInfo: DragSourceSlotInfo;
         
@@ -560,13 +560,13 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 type: 'inventory',
                 index: sourceLocation.value.slotIndex
             };
-            console.log('[Split] Created inventory source slot info:', sourceSlotInfo);
+            // console.log('[Split] Created inventory source slot info:', sourceSlotInfo);
         } else if (sourceLocation.tag === 'Hotbar') {
             sourceSlotInfo = {
                 type: 'hotbar',
                 index: sourceLocation.value.slotIndex
             };
-            console.log('[Split] Created hotbar source slot info:', sourceSlotInfo);
+            // console.log('[Split] Created hotbar source slot info:', sourceSlotInfo);
         } else {
             console.error('[Split] Cannot split items from this location:', sourceLocation);
             return;
@@ -580,11 +580,11 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         }
 
         // Start the drag operation
-        console.log('[Split] Starting drag with info:', {
-            itemId: item.instance.instanceId,
-            sourceSlot: sourceSlotInfo,
-            splitQuantity: quantity
-        });
+        // console.log('[Split] Starting drag with info:', {
+        //     itemId: item.instance.instanceId,
+        //     sourceSlot: sourceSlotInfo,
+        //     splitQuantity: quantity
+        // });
         
         onItemDragStart({
             item,
@@ -617,7 +617,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         });
         document.dispatchEvent(mouseMoveEvent);
         
-        console.log('[Split] Dispatched synthetic mouse events for ghost creation');
+        // console.log('[Split] Dispatched synthetic mouse events for ghost creation');
     }, [onItemDragStart]);
 
     // --- Render --- 

@@ -178,11 +178,11 @@ function AppContent() {
     // --- Effect to initialize and cleanup cut grass effect system ---
     useEffect(() => {
         if (connection && localPlayerRegistered) {
-            console.log("[App.tsx] Initializing CutGrassEffectSystem...");
+            // console.log("[App.tsx] Initializing CutGrassEffectSystem...");
             initCutGrassEffectSystem(connection);
 
             return () => {
-                console.log("[App.tsx] Cleaning up CutGrassEffectSystem...");
+                // console.log("[App.tsx] Cleaning up CutGrassEffectSystem...");
                 cleanupCutGrassEffectSystem();
             };
         }

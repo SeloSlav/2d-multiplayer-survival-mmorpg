@@ -57,19 +57,19 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   const ownedBags = useMemo(() => {
     const owned: Map<number, SleepingBag> = new Map();
     if (!localPlayerIdentity) {
-        console.log("[DeathScreen] No localPlayerIdentity, cannot find owned bags.");
+        // console.log("[DeathScreen] No localPlayerIdentity, cannot find owned bags.");
         return owned;
     }
-    console.log("[DeathScreen] Calculating owned bags. Identity:", localPlayerIdentity, "Received bags map:", sleepingBags);
+    // console.log("[DeathScreen] Calculating owned bags. Identity:", localPlayerIdentity, "Received bags map:", sleepingBags);
     sleepingBags.forEach((bag) => {
       // Compare string representations of identities
-      console.log(`[DeathScreen] Checking bag ID ${bag.id}, placedBy: ${bag.placedBy.toHexString()}`);
+      // console.log(`[DeathScreen] Checking bag ID ${bag.id}, placedBy: ${bag.placedBy.toHexString()}`);
       if (bag.placedBy.toHexString() === localPlayerIdentity) {
-        console.log(`[DeathScreen] -- Found owned bag: ${bag.id}`);
+        // console.log(`[DeathScreen] -- Found owned bag: ${bag.id}`);
         owned.set(bag.id, bag);
       }
     });
-    console.log("[DeathScreen] Final ownedBags map size:", owned.size);
+    // console.log("[DeathScreen] Final ownedBags map size:", owned.size);
     return owned;
   }, [sleepingBags, localPlayerIdentity]);
   const ownedSleepingBagIds = useMemo(() => new Set(ownedBags.keys()), [ownedBags]);
@@ -186,7 +186,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     });
 
     if (clickedBagId !== null) {
-      console.log("Clicked on owned sleeping bag:", clickedBagId);
+      // console.log("Clicked on owned sleeping bag:", clickedBagId);
       onRespawnAtBag(clickedBagId);
     }
   }, [ownedBags, onRespawnAtBag, canvasSize, minimapZoom, viewCenterOffset]);

@@ -48,14 +48,14 @@ export function initCutGrassEffectSystem(connection: DbConnection) {
     // and subscribed to by the client for this to work.
     if (dbConn.db && dbConn.db.grass) {
         dbConn.db.grass.onDelete(handleGrassDestroyed);
-        console.log("[CutGrassEffect] Subscribed to grass.onDelete");
+        // console.log("[CutGrassEffect] Subscribed to grass.onDelete");
     } else {
         console.warn("[CutGrassEffect] Grass table not available on DB connection at init time. Retrying subscription shortly...");
         // Retry subscription shortly, in case db is not fully initialized yet
         setTimeout(() => {
             if (dbConn && dbConn.db && dbConn.db.grass) {
                 dbConn.db.grass.onDelete(handleGrassDestroyed);
-                console.log("[CutGrassEffect] Successfully subscribed to grass.onDelete after retry.");
+                // console.log("[CutGrassEffect] Successfully subscribed to grass.onDelete after retry.");
             } else {
                 console.error("[CutGrassEffect] Failed to subscribe to grass.onDelete even after retry. Cut grass effect will not work.");
             }
@@ -170,7 +170,7 @@ export function cleanupCutGrassEffectSystem() {
         // SpacetimeDB SDK might not have a direct removeOnDelete,
         // so this might involve more complex listener management if needed.
         // For now, we assume the system lives as long as the client.
-        console.log("[CutGrassEffect] System cleanup (if implemented by SDK).");
+        // console.log("[CutGrassEffect] System cleanup (if implemented by SDK).");
     }
     activeParticles.length = 0; // Clear any remaining particles
     dbConn = null;

@@ -128,30 +128,52 @@ export const useCloudInterpolation = ({
 
   }, [serverClouds]); // Only re-run when serverClouds prop itself changes identity
 
-  // Effect to perform interpolation each frame using deltaTime
+  // Use ref for animation frame management
+  const animationFrameRef = useRef<number | undefined>(undefined);
+
+  // Start/stop animation when interpolatedCloudStates changes
   useEffect(() => {
-    if (deltaTime === 0) return; // No time has passed
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    
+    if (interpolatedCloudStates.size > 0) {
+      // Create a new animation function to avoid circular dependencies
+      const animate = (timestamp: number) => {
+        const newRenderables = new Map<string, InterpolatedCloudData>();
+        const now = performance.now();
 
-    const newRenderables = new Map<string, InterpolatedCloudData>();
-    const now = performance.now();
+        interpolatedCloudStates.forEach((state, id) => {
+          const timeSinceLastServerUpdate = now - state.lastServerUpdateTimeMs;
+          const interpolationFactor = Math.min(1.0, timeSinceLastServerUpdate / SERVER_UPDATE_INTERVAL_MS);
+          
+          const currentRenderPosX = lerp(state.lastKnownPosX, state.targetPosX, interpolationFactor);
+          const currentRenderPosY = lerp(state.lastKnownPosY, state.targetPosY, interpolationFactor);
 
-    interpolatedCloudStates.forEach((state, id) => {
-      const timeSinceLastServerUpdate = now - state.lastServerUpdateTimeMs;
-      // Ensure interpolationFactor does not exceed 1 if client frame rate is very low
-      // or server update is very recent.
-      const interpolationFactor = Math.min(1.0, timeSinceLastServerUpdate / SERVER_UPDATE_INTERVAL_MS);
+          newRenderables.set(id, {
+            ...state,
+            currentRenderPosX,
+            currentRenderPosY,
+          });
+        });
+        
+        setRenderableClouds(newRenderables);
+        
+        // Continue animation only if there are still clouds
+        if (interpolatedCloudStates.size > 0) {
+          animationFrameRef.current = requestAnimationFrame(animate);
+        }
+      };
       
-      const currentRenderPosX = lerp(state.lastKnownPosX, state.targetPosX, interpolationFactor);
-      const currentRenderPosY = lerp(state.lastKnownPosY, state.targetPosY, interpolationFactor);
-
-      newRenderables.set(id, {
-        ...state,
-        currentRenderPosX,
-        currentRenderPosY,
-      });
-    });
-    setRenderableClouds(newRenderables);
-  }, [interpolatedCloudStates, deltaTime]); // Re-run when states or deltaTime change
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [interpolatedCloudStates]); // Remove updateRenderables dependency
 
   return renderableClouds;
 }; 
