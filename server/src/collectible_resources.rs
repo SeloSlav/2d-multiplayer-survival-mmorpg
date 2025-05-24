@@ -25,8 +25,8 @@ use crate::player as PlayerTableTrait;
 // --- Shared Interaction Constants ---
 /// Base interaction radius for collectible resources
 pub const BASE_RESOURCE_RADIUS: f32 = 16.0;
-/// Standard distance players can interact with collectibles
-pub const PLAYER_RESOURCE_INTERACTION_DISTANCE: f32 = 64.0;
+/// Standard distance players can interact with collectibles (increased for easier food pickup)
+pub const PLAYER_RESOURCE_INTERACTION_DISTANCE: f32 = 80.0;
 /// Squared interaction distance for faster distance checks
 pub const PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED: f32 = 
     PLAYER_RESOURCE_INTERACTION_DISTANCE * PLAYER_RESOURCE_INTERACTION_DISTANCE;

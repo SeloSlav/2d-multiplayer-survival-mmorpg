@@ -18,10 +18,10 @@ import {
     CAMPFIRE_RENDER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
 
-// Define the constant for corn interaction (use same as mushroom for now)
-const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
-const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
-const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
+// Define the constant for food item interactions (larger radius for easier pickup)
+const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
 const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; // Doubled distance for easier revive access
 
@@ -63,7 +63,7 @@ const NUM_BOX_SLOTS = 18;
 const INTERACTION_CHECK_INTERVAL = 100; // ms
 
 // --- Locally Defined Interaction Distance Constants (formerly in gameConfig.ts) ---
-export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
+export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
 export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
