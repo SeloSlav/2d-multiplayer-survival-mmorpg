@@ -276,6 +276,8 @@ import { CraftingFinishScheduleTableHandle } from "./crafting_finish_schedule_ta
 export { CraftingFinishScheduleTableHandle };
 import { CraftingQueueItemTableHandle } from "./crafting_queue_item_table.ts";
 export { CraftingQueueItemTableHandle };
+import { DeathMarkerTableHandle } from "./death_marker_table.ts";
+export { DeathMarkerTableHandle };
 import { DroppedItemTableHandle } from "./dropped_item_table.ts";
 export { DroppedItemTableHandle };
 import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_schedule_table.ts";
@@ -376,6 +378,8 @@ import { CraftingFinishSchedule } from "./crafting_finish_schedule_type.ts";
 export { CraftingFinishSchedule };
 import { CraftingQueueItem } from "./crafting_queue_item_type.ts";
 export { CraftingQueueItem };
+import { DeathMarker } from "./death_marker_type.ts";
+export { DeathMarker };
 import { DroppedItem } from "./dropped_item_type.ts";
 export { DroppedItem };
 import { DroppedItemDespawnSchedule } from "./dropped_item_despawn_schedule_type.ts";
@@ -527,6 +531,11 @@ const REMOTE_MODULE = {
       tableName: "crafting_queue_item",
       rowType: CraftingQueueItem.getTypeScriptAlgebraicType(),
       primaryKey: "queueItemId",
+    },
+    death_marker: {
+      tableName: "death_marker",
+      rowType: DeathMarker.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
     },
     dropped_item: {
       tableName: "dropped_item",
@@ -3551,6 +3560,10 @@ export class RemoteTables {
 
   get craftingQueueItem(): CraftingQueueItemTableHandle {
     return new CraftingQueueItemTableHandle(this.connection.clientCache.getOrCreateTable<CraftingQueueItem>(REMOTE_MODULE.tables.crafting_queue_item));
+  }
+
+  get deathMarker(): DeathMarkerTableHandle {
+    return new DeathMarkerTableHandle(this.connection.clientCache.getOrCreateTable<DeathMarker>(REMOTE_MODULE.tables.death_marker));
   }
 
   get droppedItem(): DroppedItemTableHandle {

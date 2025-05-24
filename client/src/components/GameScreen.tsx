@@ -50,7 +50,8 @@ import {
     Grass as SpacetimeDBGrass,
     KnockedOutStatus as SpacetimeDBKnockedOutStatus,
     RangedWeaponStats,
-    Projectile as SpacetimeDBProjectile
+    Projectile as SpacetimeDBProjectile,
+    DeathMarker as SpacetimeDBDeathMarker
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -127,6 +128,7 @@ interface GameScreenProps {
 
     // Additional props
     projectiles: Map<string, SpacetimeDBProjectile>;
+    deathMarkers: Map<string, SpacetimeDBDeathMarker>;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -156,6 +158,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         knockedOutStatus,
         rangedWeaponStats,
         projectiles,
+        deathMarkers,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);

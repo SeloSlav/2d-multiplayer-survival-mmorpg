@@ -111,7 +111,8 @@ function AppContent() {
       grass, // <<< ADD grass destructuring
       knockedOutStatus, // <<< ADD knockedOutStatus destructuring
       rangedWeaponStats, // Ensure this is destructured
-      projectiles      // Ensure this is destructured
+      projectiles, // Ensure this is destructured
+      deathMarkers, // Ensure this is destructured
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -429,6 +430,7 @@ function AppContent() {
                             knockedOutStatus={knockedOutStatus}
                             rangedWeaponStats={rangedWeaponStats}
                             projectiles={projectiles}
+                            deathMarkers={deathMarkers}
                         />
                     );
                 })()

@@ -56,6 +56,7 @@ mod knocked_out; // <<< ADDED knocked out recovery module
 mod bones; // <<< ADDED bones module
 mod ranged_weapon_stats; // Add this line
 mod projectile; // Add this line
+mod death_marker; // <<< ADDED death marker module
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;

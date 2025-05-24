@@ -64,6 +64,8 @@ use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
 // Import knocked out recovery function and types (re-exported from lib.rs)
 use crate::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule};
 use crate::knocked_out::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
+use crate::death_marker; // Ensure module is used
+use crate::death_marker::death_marker as DeathMarkerTableTrait; // Ensure trait is used
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -928,6 +930,23 @@ pub fn damage_player(
         }
         players.identity().update(target_player.clone());
         log::info!("Player {:?} marked as dead after being hit while knocked out.", target_id);
+
+        // --- Create/Update DeathMarker ---
+        let new_death_marker = death_marker::DeathMarker {
+            player_id: target_player.identity,
+            pos_x: target_player.position_x,
+            pos_y: target_player.position_y,
+            death_timestamp: timestamp, // Use the combat timestamp
+        };
+        let death_marker_table = ctx.db.death_marker();
+        if death_marker_table.player_id().find(&target_player.identity).is_some() {
+            death_marker_table.player_id().update(new_death_marker);
+            log::info!("[DeathMarker] Updating death marker for player {:?} due to combat death.", target_player.identity);
+        } else {
+            death_marker_table.insert(new_death_marker);
+            log::info!("[DeathMarker] Inserting new death marker for player {:?} due to combat death.", target_player.identity);
+        }
+        // --- End DeathMarker ---
 
     } else if killed && !target_player.is_knocked_out {
         // Player health reached 0 but they weren't already knocked out - enter knocked out state

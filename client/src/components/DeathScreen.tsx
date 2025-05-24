@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState } from '../generated'; // Corrected import
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -20,7 +20,7 @@ interface DeathScreenProps {
   playerPin: PlayerPin | null;
   sleepingBagImage?: HTMLImageElement | null;
   // Add new props for death marker
-  localPlayerCorpse?: SpacetimeDBPlayerCorpse | null;
+  localPlayerDeathMarker?: SpacetimeDBDeathMarker | null;
   deathMarkerImage?: HTMLImageElement | null;
   worldState: WorldState | null; // <-- Fix type here
 }
@@ -37,7 +37,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   playerPin,
   sleepingBagImage,
   // Destructure new props
-  localPlayerCorpse,
+  localPlayerDeathMarker,
   deathMarkerImage,
   worldState, // <-- Correct type
 }) => {
@@ -112,8 +112,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       isDeathScreen: true,
       ownedSleepingBagIds,
       sleepingBagImage,
-      // Pass death marker props through
-      localPlayerCorpse,
+      localPlayerDeathMarker,
       deathMarkerImage,
       worldState, // <-- Pass worldState for time of day
     });
@@ -141,7 +140,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     players, trees, stones, sleepingBags, ownedSleepingBagIds, hoveredBagId,
     canvasSize.width, canvasSize.height, localPlayer, localPlayerIdentity, minimapZoom, viewCenterOffset, sleepingBagImage,
     campfires,
-    localPlayerCorpse,
+    localPlayerDeathMarker,
     deathMarkerImage,
     worldState,
   ]);

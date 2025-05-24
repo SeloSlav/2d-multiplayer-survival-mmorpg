@@ -13,6 +13,8 @@ use crate::player_corpse; // To call create_player_corpse
 use crate::active_equipment; // To call clear_active_item_reducer
 use crate::PrivateMessage; // Struct for private messages
 use crate::private_message as PrivateMessageTableTrait; // Trait for private messages
+use crate::death_marker; // <<< ADDED for DeathMarker
+use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
 
 // --- Table Definitions ---
 
@@ -93,6 +95,25 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                         log::error!("Failed to clear active item for player {:?} after {}: {}", sender_id, command, e);
                     }
                     
+                    // --- Create/Update DeathMarker for /kill command ---
+                    let death_marker_pos_x = player.position_x;
+                    let death_marker_pos_y = player.position_y;
+                    let new_death_marker = death_marker::DeathMarker {
+                        player_id: sender_id,
+                        pos_x: death_marker_pos_x,
+                        pos_y: death_marker_pos_y,
+                        death_timestamp: current_time, // Use current_time from the command context
+                    };
+                    let death_marker_table = ctx.db.death_marker();
+                    if death_marker_table.player_id().find(&sender_id).is_some() {
+                        death_marker_table.player_id().update(new_death_marker);
+                        log::info!("[DeathMarker] Updating death marker for player {:?} via {} command.", sender_id, command);
+                    } else {
+                        death_marker_table.insert(new_death_marker);
+                        log::info!("[DeathMarker] Inserting new death marker for player {:?} via {} command.", sender_id, command);
+                    }
+                    // --- End DeathMarker ---
+
                     // Update cooldown
                     let new_cooldown_record = crate::PlayerKillCommandCooldown {
                         player_id: sender_id,

@@ -38,6 +38,7 @@ export interface SpacetimeTableStates {
     knockedOutStatus: Map<string, SpacetimeDB.KnockedOutStatus>;
     rangedWeaponStats: Map<string, SpacetimeDBRangedWeaponStats>;
     projectiles: Map<string, SpacetimeDBProjectile>;
+    deathMarkers: Map<string, SpacetimeDB.DeathMarker>;
 }
 
 // Define the props the hook accepts
@@ -85,6 +86,7 @@ export const useSpacetimeTables = ({
     const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map());
     const [rangedWeaponStats, setRangedWeaponStats] = useState<Map<string, SpacetimeDBRangedWeaponStats>>(() => new Map());
     const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
+    const [deathMarkers, setDeathMarkers] = useState<Map<string, SpacetimeDB.DeathMarker>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -151,9 +153,9 @@ export const useSpacetimeTables = ({
                 const EPSILON = 0.01;
                 const posChanged = Math.abs(oldPlayer.positionX - newPlayer.positionX) > EPSILON || Math.abs(oldPlayer.positionY - newPlayer.positionY) > EPSILON;
                 
-                // Explicitly check if lastHitTime has changed
-                const oldLastHitTimeMicros = oldPlayer.lastHitTime ? oldPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : null;
-                const newLastHitTimeMicros = newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : null;
+                // Explicitly check if lastHitTime has changed by comparing microsecond values
+                const oldLastHitTimeMicros = oldPlayer.lastHitTime ? BigInt(oldPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__) : null;
+                const newLastHitTimeMicros = newPlayer.lastHitTime ? BigInt(newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__) : null;
                 const lastHitTimeChanged = oldLastHitTimeMicros !== newLastHitTimeMicros;
 
                 const statsChanged = Math.round(oldPlayer.health) !== Math.round(newPlayer.health) || Math.round(oldPlayer.stamina) !== Math.round(newPlayer.stamina) || Math.round(oldPlayer.hunger) !== Math.round(newPlayer.hunger) || Math.round(oldPlayer.thirst) !== Math.round(newPlayer.thirst) || Math.round(oldPlayer.warmth) !== Math.round(newPlayer.warmth);
@@ -398,12 +400,15 @@ export const useSpacetimeTables = ({
 
             // --- Player Corpse Subscriptions ---
             const handlePlayerCorpseInsert = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
+                console.log("[useSpacetimeTables] PlayerCorpse INSERT received:", corpse);
                 setPlayerCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
             };
             const handlePlayerCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.PlayerCorpse, newCorpse: SpacetimeDB.PlayerCorpse) => {
+                console.log("[useSpacetimeTables] PlayerCorpse UPDATE received:", newCorpse);
                 setPlayerCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
             };
             const handlePlayerCorpseDelete = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
+                console.log("[useSpacetimeTables] PlayerCorpse DELETE received for ID:", corpse.id.toString(), "Object:", corpse);
                 setPlayerCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
             };
 
@@ -487,6 +492,20 @@ export const useSpacetimeTables = ({
                 setProjectiles(prev => { const newMap = new Map(prev); newMap.delete(projectile.id.toString()); return newMap; });
             };
 
+            // --- DeathMarker Callbacks --- Added
+            const handleDeathMarkerInsert = (ctx: any, marker: SpacetimeDB.DeathMarker) => {
+                console.log("[useSpacetimeTables] DeathMarker INSERT received:", marker);
+                setDeathMarkers(prev => new Map(prev).set(marker.playerId.toHexString(), marker));
+            };
+            const handleDeathMarkerUpdate = (ctx: any, oldMarker: SpacetimeDB.DeathMarker, newMarker: SpacetimeDB.DeathMarker) => {
+                console.log("[useSpacetimeTables] DeathMarker UPDATE received:", newMarker);
+                setDeathMarkers(prev => new Map(prev).set(newMarker.playerId.toHexString(), newMarker));
+            };
+            const handleDeathMarkerDelete = (ctx: any, marker: SpacetimeDB.DeathMarker) => {
+                console.log("[useSpacetimeTables] DeathMarker DELETE received for player ID:", marker.playerId.toHexString());
+                setDeathMarkers(prev => { const newMap = new Map(prev); newMap.delete(marker.playerId.toHexString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -547,6 +566,11 @@ export const useSpacetimeTables = ({
             connection.db.projectile.onUpdate(handleProjectileUpdate);
             connection.db.projectile.onDelete(handleProjectileDelete);
 
+            // Register DeathMarker callbacks - Added
+            connection.db.deathMarker.onInsert(handleDeathMarkerInsert);
+            connection.db.deathMarker.onUpdate(handleDeathMarkerUpdate);
+            connection.db.deathMarker.onDelete(handleDeathMarkerDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -605,6 +629,7 @@ export const useSpacetimeTables = ({
                  // Added subscriptions for new tables
                  connection.subscriptionBuilder().onError((err) => console.error("[RANGED_WEAPON_STATS Sub Error]:", err)).subscribe('SELECT * FROM ranged_weapon_stats'),
                  connection.subscriptionBuilder().onError((err) => console.error("[PROJECTILE Sub Error]:", err)).subscribe('SELECT * FROM projectile'),
+                 connection.subscriptionBuilder().onError((err) => console.error("[DEATH_MARKER Sub Error]:", err)).subscribe('SELECT * FROM death_marker'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -761,6 +786,7 @@ export const useSpacetimeTables = ({
                  setKnockedOutStatus(new Map()); // <<< ADDED: Reset knocked out status state
                  setRangedWeaponStats(new Map());
                  setProjectiles(new Map());
+                 setDeathMarkers(new Map()); // Reset death markers state
              }
         };
 
@@ -797,5 +823,6 @@ export const useSpacetimeTables = ({
         knockedOutStatus, // <<< ADDED: Return knocked out status state
         rangedWeaponStats,
         projectiles,
+        deathMarkers, // Return death markers state
     };
 }; 

@@ -83,6 +83,8 @@ use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // <<< ADDED
 use crate::player_corpse::player_corpse_despawn_schedule as PlayerCorpseDespawnScheduleTableTrait; // <<< ADDED
 use crate::items::item_definition as ItemDefinitionTableTrait; // <<< ADDED missing import
 use crate::armor; // <<< ADDED for warmth bonus
+use crate::death_marker; // <<< ADDED for DeathMarker
+use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
 
@@ -268,9 +270,8 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                     log::info!("Successfully created corpse via stats decay for player {:?}", player_id);
                     // If player was holding an item, it should be unequipped (returned to inventory or dropped)
                     if let Some(player_state) = ctx.db.player().identity().find(&player_id) {
-                        if player_state.health == 0.0 {
+                        if player_state.health == 0.0 { // Double check health is indeed 0 after death processing
                             // Player is dead, clear active equipment if any
-                            // Check ActiveEquipment table
                             if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&player_id) {
                                 if let Some(item_id) = active_equip.equipped_item_instance_id {
                                     log::info!("[StatsUpdate] Player {} died with active item instance {}. Clearing.", player_id, item_id);
@@ -282,19 +283,29 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                             }
                         }
                     }
-                    // Additional: Clear any equipped armor as well by calling the specific armor clearing logic
-                    // match crate::items::clear_all_equipped_armor_from_player(ctx, player_id) {
-                    //     Ok(_) => log::info!("[PlayerDeath] All equipped armor cleared for player {}", player_id),
-                    //     Err(e) => log::error!("[PlayerDeath] Failed to clear all equipped armor for player {}: {}", player_id, e),
-                    // }
                 }
                 Err(e) => {
                     log::error!("Failed to create corpse via stats decay for player {:?}: {}", player_id, e);
-                    // If corpse creation failed, the items were NOT deleted.
-                    // Consider adding logic here to drop items on the ground as a fallback?
                 }
             }
             // --- <<< END CHANGED >>> ---
+
+            // --- Create/Update DeathMarker ---
+            let new_death_marker = death_marker::DeathMarker {
+                player_id: player.identity, // Use player_id directly
+                pos_x: player.position_x,
+                pos_y: player.position_y,
+                death_timestamp: ctx.timestamp,
+            };
+            let death_marker_table = ctx.db.death_marker();
+            if death_marker_table.player_id().find(&player.identity).is_some() {
+                death_marker_table.player_id().update(new_death_marker);
+                log::info!("[DeathMarker] Updating death marker for player {:?} due to stats decay.", player.identity);
+            } else {
+                death_marker_table.insert(new_death_marker);
+                log::info!("[DeathMarker] Inserting new death marker for player {:?} due to stats decay.", player.identity);
+            }
+            // --- End DeathMarker ---
         }
 
         // --- Update Player Table ---

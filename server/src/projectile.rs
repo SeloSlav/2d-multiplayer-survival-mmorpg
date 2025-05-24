@@ -17,6 +17,8 @@ use crate::dropped_item; // Import the dropped item module for creating dropped 
 use crate::active_effects; // Import the active effects module for applying ammunition-based effects
 use crate::active_effects::active_consumable_effect; // Import the trait for the table
 
+const GRAVITY: f32 = 600.0; // Adjust this value to change the arc. Positive values pull downwards.
+
 #[table(name = projectile, public)]
 #[derive(Clone, Debug)]
 pub struct Projectile {
@@ -95,21 +97,21 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         .ok_or("Weapon is not loaded correctly (missing ammo def ID).")?;
 
     // --- Consume Ammunition ---
-    let inventory_items = ctx.db.inventory_item();
+    let inventory_items_table = ctx.db.inventory_item(); // Renamed for clarity
     let mut ammo_item_instance_id_to_consume: Option<u64> = None;
     let mut ammo_item_current_quantity: u32 = 0;
 
-    for item in inventory_items.iter() {
-        if item.item_def_id == loaded_ammo_def_id && item.quantity > 0 {
-            match &item.location {
+    for item_instance in inventory_items_table.iter() { // Renamed for clarity
+        if item_instance.item_def_id == loaded_ammo_def_id && item_instance.quantity > 0 {
+            match &item_instance.location {
                 crate::models::ItemLocation::Inventory(loc_data) if loc_data.owner_id == player_id => {
-                    ammo_item_instance_id_to_consume = Some(item.instance_id);
-                    ammo_item_current_quantity = item.quantity;
+                    ammo_item_instance_id_to_consume = Some(item_instance.instance_id);
+                    ammo_item_current_quantity = item_instance.quantity;
                     break;
                 }
                 crate::models::ItemLocation::Hotbar(loc_data) if loc_data.owner_id == player_id => {
-                    ammo_item_instance_id_to_consume = Some(item.instance_id);
-                    ammo_item_current_quantity = item.quantity;
+                    ammo_item_instance_id_to_consume = Some(item_instance.instance_id);
+                    ammo_item_current_quantity = item_instance.quantity;
                     break;
                 }
                 _ => {} // Not in player's inventory or hotbar
@@ -119,35 +121,30 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
 
     if let Some(instance_id) = ammo_item_instance_id_to_consume {
         if ammo_item_current_quantity > 1 {
-            let mut item_to_update = inventory_items.instance_id().find(instance_id).unwrap(); // Should exist
+            let mut item_to_update = inventory_items_table.instance_id().find(instance_id).unwrap(); // Should exist
             item_to_update.quantity -= 1;
-            inventory_items.instance_id().update(item_to_update);
+            inventory_items_table.instance_id().update(item_to_update);
             log::info!("Player {:?} consumed 1 ammunition (def_id: {}). {} remaining.", 
                 player_id, loaded_ammo_def_id, ammo_item_current_quantity - 1);
         } else {
-            inventory_items.instance_id().delete(instance_id);
+            inventory_items_table.instance_id().delete(instance_id);
             log::info!("Player {:?} consumed last ammunition (def_id: {}). Item instance deleted.", 
                 player_id, loaded_ammo_def_id);
         }
     } else {
-        // This case should ideally not be reached if is_ready_to_fire was true,
-        // but as a safeguard:
         equipment.is_ready_to_fire = false;
         equipment.loaded_ammo_def_id = None;
         ctx.db.active_equipment().player_identity().update(equipment);
         return Err("No loaded ammunition found in inventory to consume, despite weapon being marked as ready. Weapon unloaded.".to_string());
     }
 
-    // --- Update ActiveEquipment: Weapon is now unloaded ---
     equipment.is_ready_to_fire = false;
     equipment.loaded_ammo_def_id = None;
     ctx.db.active_equipment().player_identity().update(equipment);
-    // --- End Ammunition Consumption & Weapon Unload ---
  
     let weapon_stats = ctx.db.ranged_weapon_stats().item_name().find(&item_def.name)
         .ok_or(format!("Ranged weapon stats not found for: {}", item_def.name))?;
 
-    // Check reload time
     if let Some(last_attack_record) = ctx.db.player_last_attack_timestamp().player_id().find(&player_id) {
         let time_since_last_attack = ctx.timestamp.to_micros_since_unix_epoch() - last_attack_record.last_attack_timestamp.to_micros_since_unix_epoch();
         let required_reload_time_micros = (weapon_stats.reload_time_secs * 1_000_000.0) as i64;
@@ -157,46 +154,119 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         }
     }
 
-    // Calculate direction vector
-    let dx = target_world_x - player.position_x;
-    let dy = target_world_y - player.position_y;
-    let distance = (dx * dx + dy * dy).sqrt();
-
-    if distance > weapon_stats.weapon_range {
-        return Err("Target is out of range".to_string());
-    }
-
-    if distance < 1.0 {
+    // --- Physics Calculation for Initial Velocity to Hit Target ---
+    let delta_x = target_world_x - player.position_x;
+    let delta_y = target_world_y - player.position_y;
+    let v0 = weapon_stats.projectile_speed;
+    let g = GRAVITY; // GRAVITY const defined at the top of the file
+    
+    let distance_sq = delta_x * delta_x + delta_y * delta_y;
+    if distance_sq < 1.0 { // distance < 1.0
         return Err("Target too close".to_string());
     }
+    // Optional: Keep existing weapon_range check as a preliminary filter
+    // let distance = distance_sq.sqrt();
+    // if distance > weapon_stats.weapon_range {
+    //     return Err(format!("Target distance {:.1} is out of weapon's effective range {:.1}", distance, weapon_stats.weapon_range));
+    // }
 
-    // Normalize direction and apply accuracy
-    let norm_dx = dx / distance;
-    let norm_dy = dy / distance;
+    let final_vx: f32;
+    let final_vy: f32;
 
-    // Apply accuracy spread (simple random spread)
-    let spread_angle = (1.0 - weapon_stats.accuracy) * PI / 4.0; // Max 45 degree spread for 0 accuracy
-    let spread = (ctx.timestamp.to_micros_since_unix_epoch() % 1000) as f32 / 1000.0 - 0.5; // Simple pseudo-random
-    let angle_offset = spread * spread_angle;
-    
-    let cos_offset = angle_offset.cos();
-    let sin_offset = angle_offset.sin();
-    
-    let final_dx = norm_dx * cos_offset - norm_dy * sin_offset;
-    let final_dy = norm_dx * sin_offset + norm_dy * cos_offset;
+    if delta_x.abs() < 1e-6 { // Target is (almost) vertically aligned
+        final_vx = 0.0;
+        if delta_y == 0.0 { // Target is at player's exact location (already handled by distance_sq < 1.0)
+             return Err("Target is at player position".to_string());
+        }
+        // Time to fall/rise delta_y: delta_y = v0y*T + 0.5*g*T^2
+        // If shooting straight up/down, v0x = 0, so |v0y| = v0
+        let discriminant_vertical = v0.powi(2) + 2.0 * g * delta_y; // For T = (v0y +/- sqrt(v0y^2 + 2g*delta_y))/g , if v0y is +/- v0
+                                                                 // Simplified: check if target is reachable vertically
+        if delta_y > 0.0 { // Target below
+            final_vy = v0; // Shoot straight down
+            // Check if it can even reach if v0 is too small against gravity for upward component
+            // For purely downward, it will always reach if T > 0.
+            // T = (-v0 + sqrt(v0^2 + 2g*delta_y))/g
+            if v0.powi(2) + 2.0 * g * delta_y < 0.0 { // Should not happen for delta_y > 0
+                 return Err("Error in vertical aiming (down)".to_string());
+            }
+
+        } else { // Target above (delta_y < 0)
+            if discriminant_vertical < 0.0 {
+                return Err("Target vertically unreachable (too high or gravity too strong)".to_string());
+            }
+            final_vy = -v0; // Shoot straight up
+        }
+    } else {
+        // Quadratic equation for T^2: A_z * (T^2)^2 + B_z * T^2 + C_z = 0
+        // A_z = 0.25 * g^2
+        // B_z = -(v0^2 + g * delta_y)
+        // C_z = delta_x^2 + delta_y^2
+        let a_z = 0.25 * g * g;
+        let b_z = -(v0.powi(2) + g * delta_y);
+        let c_z = distance_sq;
+
+        let discriminant_t_sq = b_z.powi(2) - 4.0 * a_z * c_z;
+
+        if discriminant_t_sq < 0.0 {
+            return Err(format!("Target is unreachable with current weapon arc (discriminant: {:.2})", discriminant_t_sq));
+        }
+
+        let sqrt_discriminant_t_sq = discriminant_t_sq.sqrt();
+        
+        // Two potential solutions for T^2
+        let t_sq1 = (-b_z + sqrt_discriminant_t_sq) / (2.0 * a_z);
+        let t_sq2 = (-b_z - sqrt_discriminant_t_sq) / (2.0 * a_z);
+
+        let mut chosen_t_sq = -1.0;
+
+        // Prefer the smaller positive T^2 (shorter time of flight, usually lower arc)
+        if t_sq2 > 1e-6 {
+            chosen_t_sq = t_sq2;
+        } else if t_sq1 > 1e-6 {
+            chosen_t_sq = t_sq1;
+        }
+
+        if chosen_t_sq < 1e-6 { // Ensure chosen_t_sq is positive and not extremely small
+            return Err(format!("Target is unreachable (no positive time of flight, T^2: {:.2})", chosen_t_sq));
+        }
+        
+        let t = chosen_t_sq.sqrt();
+        if t < 1e-3 { // Avoid division by very small T
+             return Err("Target too close for stable arc calculation".to_string());
+        }
+
+        final_vx = delta_x / t;
+        final_vy = (delta_y / t) - 0.5 * g * t;
+        
+        // Sanity check: ensure calculated speed is close to v0
+        let calculated_speed_sq = final_vx.powi(2) + final_vy.powi(2);
+        if (calculated_speed_sq - v0.powi(2)).abs() > 1.0 { // Allow some tolerance
+            // This might indicate an issue if chosen_t_sq was at limits or g=0 etc.
+            // but with g being non-zero and checks on T, this should hold.
+            log::warn!(
+                "Calculated speed ({:.2}) differs from v0 ({:.2}). dx:{:.1},dy:{:.1},T:{:.2},vX:{:.1},vY:{:.1}",
+                calculated_speed_sq.sqrt(), v0, delta_x, delta_y, t, final_vx, final_vy
+            );
+            // Optionally, could return an error here if strict speed adherence is critical
+            // return Err("Physics calculation resulted in inconsistent speed.".to_string());
+        }
+    }
+    // --- End Physics Calculation ---
+
 
     // Create projectile
     let projectile = Projectile {
         id: 0, // auto_inc
         owner_id: player_id,
         item_def_id: equipped_item_def_id,
-        ammo_def_id: loaded_ammo_def_id, // Store the ammunition type that was fired
+        ammo_def_id: loaded_ammo_def_id, 
         start_time: ctx.timestamp,
         start_pos_x: player.position_x,
         start_pos_y: player.position_y,
-        velocity_x: final_dx * weapon_stats.projectile_speed,
-        velocity_y: final_dy * weapon_stats.projectile_speed,
-        max_range: weapon_stats.weapon_range,
+        velocity_x: final_vx, // Use calculated velocity
+        velocity_y: final_vy, // Use calculated velocity
+        max_range: weapon_stats.weapon_range, // Keep max_range for flight limit
     };
 
     ctx.db.projectile().insert(projectile);
@@ -213,7 +283,8 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         ctx.db.player_last_attack_timestamp().insert(timestamp_record);
     }
 
-    log::info!("Projectile fired from player {} towards ({:.1}, {:.1})", player_id.to_string(), target_world_x, target_world_y);
+    log::info!("Projectile fired from player {} towards ({:.1}, {:.1}) with initial V_x={:.1}, V_y={:.1}", 
+        player_id.to_string(), target_world_x, target_world_y, final_vx, final_vy);
     Ok(())
 }
 
@@ -292,7 +363,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let elapsed_time = current_time_secs - start_time_secs;
         
         let current_x = projectile.start_pos_x + projectile.velocity_x * elapsed_time as f32;
-        let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32;
+        let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * (elapsed_time as f32).powi(2);
         
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         

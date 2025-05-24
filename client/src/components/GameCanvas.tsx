@@ -22,7 +22,8 @@ import {
   Cloud as SpacetimeDBCloud,
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
   Grass as SpacetimeDBGrass,
-  Projectile as SpacetimeDBProjectile
+  Projectile as SpacetimeDBProjectile,
+  DeathMarker as SpacetimeDBDeathMarker
 } from '../generated';
 
 // --- Core Hooks ---
@@ -125,6 +126,7 @@ interface GameCanvasProps {
   showInventory: boolean;
   gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   projectiles: Map<string, SpacetimeDBProjectile>;
+  minimapPlayerPin: SpacetimeDBPlayerPin | null;
 }
 
 /**
@@ -174,6 +176,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   grass,
   gameCanvasRef,
   projectiles,
+  minimapPlayerPin,
 }) => {
  // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -765,26 +768,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const validSleepingBags = sleepingBags instanceof Map ? sleepingBags : new Map();
         const validCampfires = campfires instanceof Map ? campfires : new Map();
 
-        drawMinimapOntoCanvas({ 
-            ctx: ctx!, // Use non-null assertion if context is guaranteed here
+        drawMinimapOntoCanvas({
+            ctx: ctx!,
             players: validPlayers, 
             trees: validTrees, 
             stones: validStones, 
             campfires: validCampfires,
             sleepingBags: validSleepingBags,
-            localPlayer, // Pass localPlayer directly
+            localPlayer,
             localPlayerId,
-            viewCenterOffset, // Pass pan offset
-            playerPin: localPlayerPin, // Pass pin data
+            viewCenterOffset,
+            playerPin: localPlayerPin,
             canvasWidth: currentCanvasWidth, 
             canvasHeight: currentCanvasHeight, 
-            isMouseOverMinimap, // Pass hover state
-            zoomLevel: minimapZoom, // Pass zoom level
-            sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'), // Pass image for regular map too
-            // --- Pass Death Marker Props ---
-            localPlayerCorpse: currentLocalPlayerCorpse, // Pass the found corpse
-            deathMarkerImage: deathMarkerImg,      // Pass the loaded image
-            worldState, // <-- Pass worldState for time of day
+            isMouseOverMinimap,
+            zoomLevel: minimapZoom,
+            sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'),
+            localPlayerDeathMarker: localPlayerDeathMarker,
+            deathMarkerImage: deathMarkerImg,
+            worldState: worldState,
         });
     }
 
@@ -815,6 +817,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       showInventory,
       gameCanvasRef,
       projectiles,
+      deathMarkerImg,
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
@@ -864,11 +867,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Call useSpacetimeTables (replacing the previous faulty call)
   // Ignore return values for now using placeholder {}
-  useSpacetimeTables({ 
+  const spacetimeTableHookStates = useSpacetimeTables({ 
       connection, 
       cancelPlacement: placementActions.cancelPlacement,
       viewport: worldViewport, // Pass calculated viewport (can be null)
   });
+
+  // CORRECTLY DERIVE localPlayerDeathMarker from the HOOK'S state
+  const localPlayerDeathMarker = useMemo(() => {
+    if (localPlayer && localPlayer.identity && spacetimeTableHookStates.deathMarkers) {
+      return spacetimeTableHookStates.deathMarkers.get(localPlayer.identity.toHexString()) || null;
+    }
+    return null;
+  }, [localPlayer, spacetimeTableHookStates.deathMarkers]);
 
   // --- Logic to detect player damage from campfires and trigger effects ---
   useEffect(() => {
@@ -944,11 +955,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           trees={trees}
           stones={stones}
           campfires={campfires}
-          playerPin={localPlayerPin}
+          playerPin={minimapPlayerPin}
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}
           // Pass the identified corpse and its image for the death screen minimap
-          localPlayerCorpse={currentLocalPlayerCorpse} // Pass the found corpse
-          deathMarkerImage={deathMarkerImg}      // Pass the loaded image
+          localPlayerDeathMarker={localPlayerDeathMarker}
+          deathMarkerImage={deathMarkerImg}
           worldState={worldState}
         />
       )}

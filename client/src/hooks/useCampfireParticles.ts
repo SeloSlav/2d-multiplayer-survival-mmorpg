@@ -22,17 +22,17 @@ export interface Particle {
 const PARTICLE_FIRE_LIFETIME_MIN = 80; // Shorter for faster turnover
 const PARTICLE_FIRE_LIFETIME_MAX = 200; // Shorter for faster turnover
 const PARTICLE_FIRE_SPEED_Y_MIN = -0.6; // Much faster upward movement
-const PARTICLE_FIRE_SPEED_Y_MAX = -1.5; // Much faster upward movement
+const PARTICLE_FIRE_SPEED_Y_MAX = -0.75; // Much faster upward movement
 const PARTICLE_FIRE_SPEED_X_SPREAD = 0.8; // More spread for liveliness
 const PARTICLE_FIRE_SIZE_MIN = 2; 
 const PARTICLE_FIRE_SIZE_MAX = 4;
-const PARTICLE_FIRE_COLORS = ["#FFD878", "#FFB04A", "#FF783C", "#FC9842"]; 
+const PARTICLE_FIRE_COLORS = ["#FFD878", "#FFB04A", "#FF783C", "#FC9842"];
 const FIRE_PARTICLES_PER_CAMPFIRE_FRAME = 0.6; // Reverted back to original value
 
 const PARTICLE_SMOKE_LIFETIME_MIN = 800; // Slightly shorter
 const PARTICLE_SMOKE_LIFETIME_MAX = 1800; // Shorter for faster turnover
-const PARTICLE_SMOKE_SPEED_Y_MIN = -0.2; // Slightly faster upward movement
-const PARTICLE_SMOKE_SPEED_Y_MAX = -0.6; // Slightly faster upward movement
+const PARTICLE_SMOKE_SPEED_Y_MIN = -0.1; // Slightly faster upward movement
+const PARTICLE_SMOKE_SPEED_Y_MAX = -0.3; // Slightly faster upward movement
 const PARTICLE_SMOKE_SPEED_X_SPREAD = 0.6; // More spread
 const PARTICLE_SMOKE_SIZE_MIN = 3;
 const PARTICLE_SMOKE_SIZE_MAX = 5; // Slightly larger

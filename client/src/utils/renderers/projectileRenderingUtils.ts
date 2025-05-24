@@ -4,6 +4,8 @@ const ARROW_SCALE = 0.04; // Back to smaller size for better gameplay
 const ARROW_SPRITE_OFFSET_X = 0; // Pixels to offset drawing from calculated center, if sprite isn't centered
 const ARROW_SPRITE_OFFSET_Y = 0; // Pixels to offset drawing from calculated center, if sprite isn't centered
 
+const GRAVITY: number = 600.0; // Same as server-side
+
 interface RenderProjectileProps {
   ctx: CanvasRenderingContext2D;
   projectile: SpacetimeDBProjectile;
@@ -29,12 +31,13 @@ export const renderProjectile = ({
   
   // Calculate current position with sub-pixel precision
   const currentX = projectile.startPosX + (projectile.velocityX * elapsedTimeSeconds);
-  const currentY = projectile.startPosY + (projectile.velocityY * elapsedTimeSeconds);
+  // Apply gravity to the y position
+  const currentY = projectile.startPosY + (projectile.velocityY * elapsedTimeSeconds) + 0.5 * GRAVITY * elapsedTimeSeconds * elapsedTimeSeconds;
 
-  // Calculate rotation based on velocity vector
-  // Assumes arrow image points to the right (0 radians)
+  // Calculate rotation based on instantaneous velocity vector considering gravity
+  const instantaneousVelocityY = projectile.velocityY + GRAVITY * elapsedTimeSeconds;
   // Add 45 degrees clockwise rotation for better visual appearance
-  const angle = Math.atan2(projectile.velocityY, projectile.velocityX) + (Math.PI / 4);
+  const angle = Math.atan2(instantaneousVelocityY, projectile.velocityX) + (Math.PI / 4);
 
   const drawWidth = arrowImage.naturalWidth * ARROW_SCALE;
   const drawHeight = arrowImage.naturalHeight * ARROW_SCALE;

@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker } from '../generated';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -82,7 +82,7 @@ interface MinimapProps {
   onSelectSleepingBag?: (bagId: number) => void; // Callback for clicking an owned bag (logic outside)
   sleepingBagImage?: HTMLImageElement | null; // Image asset for icons
   // --- New props for Death Marker ---
-  localPlayerCorpse?: SpacetimeDBCorpse | null; // Local player's last death corpse
+  localPlayerDeathMarker?: SpacetimeDBDeathMarker | null; // Changed from localPlayerCorpse
   deathMarkerImage?: HTMLImageElement | null; // Image asset for death marker
   worldState: WorldState | null; // <-- Add this
 }
@@ -111,13 +111,16 @@ export function drawMinimapOntoCanvas({
   onSelectSleepingBag, // Callback is optional, only needed if interactive
   sleepingBagImage = null, // Default to null
   // Destructure new death marker props
-  localPlayerCorpse = null,
+  localPlayerDeathMarker = null,
   deathMarkerImage = null,
   worldState, // <-- Add this
 }: MinimapProps) {
   const minimapWidth = MINIMAP_WIDTH;
   const minimapHeight = MINIMAP_HEIGHT;
   
+  // Log the received localPlayerDeathMarker prop at the beginning of the function
+  console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+
   // Calculate top-left corner for centering the minimap UI element
   const minimapX = (canvasWidth - minimapWidth) / 2;
   const minimapY = (canvasHeight - minimapHeight) / 2;
@@ -285,13 +288,13 @@ export function drawMinimapOntoCanvas({
   // --- End Grid Drawing ---
 
   // --- Draw Death Marker ---
-  // console.log('[Minimap] Checking for death marker. Corpse:', localPlayerCorpse, 'Image:', deathMarkerImage);
-  if (localPlayerCorpse && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
-    // console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.');
-    const screenCoords = worldToMinimap(localPlayerCorpse.posX, localPlayerCorpse.posY);
-    // console.log('[Minimap] Death marker screenCoords:', screenCoords, 'Corpse Pos:', localPlayerCorpse.posX, localPlayerCorpse.posY);
+  console.log('[Minimap] Checking for death marker. Marker data:', localPlayerDeathMarker, 'Image loaded:', deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0, 'Image Element:', deathMarkerImage);
+  if (localPlayerDeathMarker && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
+    console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.'); // Changed 'Corpse' to 'Marker' for clarity
+    const screenCoords = worldToMinimap(localPlayerDeathMarker.posX, localPlayerDeathMarker.posY);
+    console.log('[Minimap] Death marker worldPos:', { x: localPlayerDeathMarker.posX, y: localPlayerDeathMarker.posY }, 'screenCoords:', screenCoords, 'Zoom:', zoomLevel, 'Offset:', viewCenterOffset);
     if (screenCoords) {
-      // console.log('[Minimap] Drawing death marker at:', screenCoords);
+      console.log('[Minimap] Drawing death marker at:', screenCoords);
       const iconRadius = DEATH_MARKER_ICON_SIZE / 2;
       const iconDiameter = DEATH_MARKER_ICON_SIZE;
       const cx = screenCoords.x;
