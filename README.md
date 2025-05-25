@@ -103,16 +103,16 @@ npm run dev
 *   🌱 Resource Respawning: Trees, Stones, Mushrooms
 *   ❤️ Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn
 *   🗺️ World Discovery: Minimap
-*   🎮 Hotbar/Basic UI: Item selection, basic layout
+*   🎮 Hotbar: Item selection
 *   🎒 Inventory Management: Moving, swapping, stacking, stack splitting
-*   ⚔️ Item Equipping: Tools/Weapons (Hotbar), Armor (Slots)
+*   ⚔️ Armor: Defense bonuses, warmth protection
 *   🔥 Placeables: Campfire (Multi-slot placement & interaction)
 *   🛠️ Crafting System: Item recipes
 *   📦 Storage Containers (Chests)
 *   💰 Looting Mechanics (Containers)
 *   🔐 Authentication/Account System
-*   🍳 Cooking System: Preparing food using campfire
-*   ⚔️ Combat Improvements: New weapon types (melee, hybrid, ranged), improved hit detection, PvP balancing
+*   🍳 Cooking System: Food preparation using campfire with raw, cooked and burnt states
+*   ⚔️ Combat Improvements: New weapon types (melee, thrown, ranged), improved hit detection, PvP balancing
 
 **Planned (📓):** 
 *   **Core Systems & World:**
