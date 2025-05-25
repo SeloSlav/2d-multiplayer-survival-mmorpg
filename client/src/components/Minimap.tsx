@@ -6,7 +6,7 @@ const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
 const worldPixelHeight = gameConfig.worldHeight * gameConfig.tileSize;
 const worldAspectRatio = worldPixelHeight / worldPixelWidth;
 
-const BASE_MINIMAP_WIDTH = 400; // Base width for calculation
+const BASE_MINIMAP_WIDTH = 600; // Base width for calculation
 const calculatedMinimapHeight = BASE_MINIMAP_WIDTH * worldAspectRatio;
 
 // Minimap constants

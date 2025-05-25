@@ -158,8 +158,8 @@ pub const PLAYER_SPEED: f32 = 600.0; // Speed in pixels per second
 pub const PLAYER_SPRINT_MULTIPLIER: f32 = 1.6;
 
 // World Dimensions (example)
-pub const WORLD_WIDTH_TILES: u32 = 500;
-pub const WORLD_HEIGHT_TILES: u32 = 500;
+pub const WORLD_WIDTH_TILES: u32 = 250;
+pub const WORLD_HEIGHT_TILES: u32 = 250;
 // Change back to f32 as they are used in float calculations
 pub const WORLD_WIDTH_PX: f32 = (WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32;
 pub const WORLD_HEIGHT_PX: f32 = (WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32;
