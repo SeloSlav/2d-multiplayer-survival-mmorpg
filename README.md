@@ -97,42 +97,35 @@ npm run dev
 ## 🗺️ Roadmap
 
 **Completed (✅):**
-*   Real-time Multiplayer: Basic player movement synchronization
-*   Environment Systems: Day/night cycle, Full moon nights
-*   Survival Mechanics: Basic resource harvesting (wood/stone/mushrooms)
-*   Resource Respawning: Trees, Stones, Mushrooms
-*   Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn
-*   World Discovery: Minimap
-*   Hotbar/Basic UI: Item selection, basic layout
-*   Inventory Management: Moving, swapping, stacking, stack splitting
-*   Item Equipping: Tools/Weapons (Hotbar), Armor (Slots)
-*   Placeables: Campfire (Multi-slot placement & interaction)
-*   Crafting System: Item recipes
-*   Storage Containers (Chests)
-*   Looting Mechanics (Containers)
-*   Authentication/Account System
-
-**In Progress (🚧):**
-*   Performance Optimizations: Viewport culling, collision system improvements
-*   Code Refactoring: Breaking down large modules into smaller, more maintainable components
-*   Scaling Improvements: Optimizing data structures and algorithms for larger player counts
-*   Entity Component System: Laying groundwork for more efficient entity management
-*   Network Optimization: Reducing bandwidth usage through delta updates and prioritization
+*   🌐 Real-time Multiplayer: Basic player movement synchronization
+*   🌓 Environment Systems: Day/night cycle, Full moon nights
+*   🪓 Survival Mechanics: Basic resource harvesting (wood/stone/mushrooms)
+*   🌱 Resource Respawning: Trees, Stones, Mushrooms
+*   ❤️ Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn
+*   🗺️ World Discovery: Minimap
+*   🎮 Hotbar/Basic UI: Item selection, basic layout
+*   🎒 Inventory Management: Moving, swapping, stacking, stack splitting
+*   ⚔️ Item Equipping: Tools/Weapons (Hotbar), Armor (Slots)
+*   🔥 Placeables: Campfire (Multi-slot placement & interaction)
+*   🛠️ Crafting System: Item recipes
+*   📦 Storage Containers (Chests)
+*   💰 Looting Mechanics (Containers)
+*   🔐 Authentication/Account System
+*   🍳 Cooking System: Preparing food using campfire
+*   ⚔️ Combat Improvements: New weapon types (melee, hybrid, ranged), improved hit detection, PvP balancing
 
 **Planned (📓):** 
 *   **Core Systems & World:**
-    *   World Generation: Procedural generation, biomes, monuments
-    *   Terrain Autotiling: Edge detection, Wang tiles, seamless transitions between biomes
-    *   Advanced AI: Enemy behaviors, pathfinding
-    *   Team/Social Features
+    *   🌍 World Generation: Procedural generation, biomes, monuments
+    *   🎨 Terrain Autotiling: Edge detection, Wang tiles, seamless transitions between biomes
+    *   🤖 Advanced AI: Enemy behaviors, pathfinding
+    *   👥 Team/Social Features
 *   **Gameplay Loops & Interaction:**
-    *   Construction System: Base building (walls, floors, etc.)
-    *   Farming System: Planting, growing, harvesting crops
-    *   Cooking System: Preparing food using campfire
+    *   🏗️ Construction System: Base building (walls, floors, etc.)
+    *   🌱 Farming System: Planting, growing, harvesting crops
+    *   🦌 Hunting System: NPC animals (deer, wolves, etc.), tracking, hunting mechanics
 *   **Combat & Items:**
-    *   Combat Improvements: New weapon types (melee, hybrid, ranged), improved hit detection, PvP balancing
-    *   Tool/Weapon Durability
-    *   More Item Variety: Expanded tools, weapons, armor, resources, consumables
+    *   ⚔️ Tool/Weapon Durability
 
 ## 🛠️ Tech Stack
 
@@ -285,15 +278,19 @@ Changing the tile size or the overall world dimensions requires modifications in
 
 1.  **Client (`client/src/config/gameConfig.ts`):**
     *   Modify the `TILE_SIZE` constant at the top of the file.
-    *   Modify the `worldWidth` and `worldHeight` properties within the exported `gameConfig` object (these define dimensions in *tiles*).
+    *   **World Dimensions (in tiles):**
+        *   `SERVER_WORLD_WIDTH_TILES`: This constant represents the assumed width of the server's world in tiles. It should match `WORLD_WIDTH_TILES` in `server/src/lib.rs`.
+        *   `SERVER_WORLD_HEIGHT_TILES`: This constant represents the assumed height of the server's world in tiles. It should match `WORLD_HEIGHT_TILES` in `server/src/lib.rs`.
+    *   **Visual/Legacy World Dimensions (in tiles):**
+        *   The `worldWidth` and `worldHeight` properties within the exported `gameConfig` object are also present. Ensure these are consistent with `SERVER_WORLD_WIDTH_TILES` and `SERVER_WORLD_HEIGHT_TILES` respectively. These might be used for client-side rendering calculations that haven't been fully updated to use the `serverWorld...` prefixed variables.
     *   Other values like `minimapGridCellDiagonalTiles` might also need tuning depending on the new world size.
 
 2.  **Server (`server/src/lib.rs`):**
-    *   Modify the `TILE_SIZE_PX` constant.
-    *   Modify the `WORLD_WIDTH_TILES` constant.
-    *   Modify the `WORLD_HEIGHT_TILES` constant.
+    *   Modify the `TILE_SIZE_PX` constant (e.g., `pub const TILE_SIZE_PX: u32 = 48;`).
+    *   Modify the `WORLD_WIDTH_TILES` constant (e.g., `pub const WORLD_WIDTH_TILES: u32 = 250;`).
+    *   Modify the `WORLD_HEIGHT_TILES` constant (e.g., `pub const WORLD_HEIGHT_TILES: u32 = 250;`).
 
-**Important:** Ensure the `TILE_SIZE` / `TILE_SIZE_PX` and the `worldWidth`/`Height` / `WORLD_WIDTH`/`HEIGHT_TILES` values are kept consistent between the client and server configuration files.
+**Important:** Ensure the `TILE_SIZE` (in `gameConfig.ts`) / `TILE_SIZE_PX` (in `lib.rs`) and the `SERVER_WORLD_WIDTH_TILES`/`SERVER_WORLD_HEIGHT_TILES` (in `gameConfig.ts`) / `WORLD_WIDTH_TILES`/`WORLD_HEIGHT_TILES` (in `lib.rs`) values are kept consistent between the client and server configuration files. The `gameConfig.worldWidth` and `gameConfig.worldHeight` should also mirror these tile dimension values.
 
 After making server-side changes, remember to **re-publish** the module:
 
@@ -309,6 +306,11 @@ spacetime publish vibe-survival-game
 vibe-coding-starter-pack-2d-survival/
 ├── .cursor/        # Cursor AI configuration
 │   └── rules/      # *.mdc rule files for AI context
+├── auth-server-openauth/ # Node.js OpenID Connect authentication server
+│   ├── data/       # User data (users.json - gitignored)
+│   ├── public/     # HTML templates for login/register
+│   ├── src/        # Auth server logic (routes, OIDC implementation)
+│   └── package.json
 ├── client/         # React frontend (UI, rendering, input)
 │   ├── public/     # Static files (index.html, favicons)
 │   ├── src/
@@ -388,61 +390,3 @@ This guide assumes you have installed the prerequisites: Node.js v22+, Rust, and
         spacetime start # Restart the server
         # Then re-publish and re-generate (Step 4 above)
         ```
-*   **`spacetime publish` tries to publish to Maincloud instead of local:**
-    *   Ensure you are logged out: `spacetime logout`.
-    *   Ensure the `spacetime start` server is running *before* you publish.
-    *   Check your SpacetimeDB config file (`%LOCALAPPDATA%/SpacetimeDB/config/cli.toml` on Windows, `~/.local/share/spacetime/config/cli.toml` on Linux/macOS) and make sure `default_server` is set to `local` or commented out.
-
-## 🔄 Development Workflow
-
-1.  **Server Development (`server/src`)**:
-    *   Modify Rust code (add features, fix bugs).
-    *   **If schema changes (tables, reducer signatures):**
-        1.  Run `spacetime publish vibe-survival-game` (from `server/`).
-        2.  Run `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` (from `server/`).
-    *   **If only logic changes (no schema impact):**
-        1.  Run `spacetime publish vibe-survival-game` (from `server/`). (Generate is not strictly needed but doesn't hurt).
-2.  **Client Development (`client/src`)**:
-    *   Modify React/TypeScript code.
-    *   The Vite dev server (`npm run dev`) usually provides Hot Module Replacement (HMR) for fast updates. If things seem broken after large changes, try restarting the dev server.
-
-## 🤝 Contributing
-
-We welcome contributions to this project! To contribute, please follow the standard GitHub Fork & Pull Request workflow:
-
-1.  **Fork the Repository**: Click the 'Fork' button on the top right of the main repository page (`SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival`) to create your personal copy under your GitHub account.
-2.  **Clone Your Fork**: Clone *your forked repository* to your local machine:
-    ```bash
-    git clone https://github.com/YOUR_USERNAME/vibe-coding-starter-pack-2d-multiplayer-survival.git
-    cd vibe-coding-starter-pack-2d-multiplayer-survival
-    ```
-    (Replace `YOUR_USERNAME` with your actual GitHub username).
-3.  **Create a Branch**: Create a new branch for your feature or fix:
-    ```bash
-    git checkout -b feature/your-feature-name
-    ```
-4.  **Implement Your Changes**: Make your code changes, following project style guidelines.
-5.  **Test Thoroughly**: Ensure your changes work as expected and don't break existing functionality.
-6.  **Commit Your Changes**: Commit your work with a clear message:
-    ```bash
-    git commit -m "feat: Add awesome new feature"
-    ```
-7.  **Push Your Branch**: Push your changes *to your fork*:
-    ```bash
-    git push origin feature/your-feature-name
-    ```
-8.  **Open a Pull Request**: Go back to the *original* repository (`SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival`) on GitHub. You should see a prompt to create a Pull Request from your recently pushed branch. Click it, or navigate to the "Pull Requests" tab and click "New Pull Request".
-9.  **Configure the PR**: Ensure the base repository is `SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival` and the base branch is typically `main` (or the relevant development branch). Ensure the head repository is your fork and the compare branch is your feature branch (`feature/your-feature-name`).
-10. **Describe Your Changes**: Provide a clear title and description for your Pull Request, explaining the changes and their purpose.
-
-Whether you're interested in adding new gameplay mechanics, improving existing systems, or enhancing the codebase, your contributions are valuable to making this starter pack even better!
-
-For questions or discussions about potential contributions, feel free to open an issue first to discuss your ideas.
-
-## 📜 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-Created by SeloSlav
