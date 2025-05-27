@@ -37,7 +37,7 @@ const hempConfig: GroundEntityConfig<Hemp> = {
             imageDrawWidth,
             imageDrawHeight,
             cycleProgress,
-            maxStretchFactor: 1.0, // Similar to Corn
+            maxStretchFactor: 1.8, // Similar to Corn
             minStretchFactor: 0.1,
             shadowBlur: 3,
             pivotYOffset: 5

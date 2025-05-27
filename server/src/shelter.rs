@@ -60,6 +60,10 @@ pub(crate) const SHELTER_AABB_HALF_HEIGHT: f32 = SHELTER_COLLISION_HEIGHT / 2.0;
 /// AABB_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y.
 pub(crate) const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y: f32 = 200.0; // Keep the same offset to maintain position
 
+/// Buffer zone around shelter for resource clearing (in pixels)
+/// This extends the clearing area beyond the shelter's collision boundaries
+pub(crate) const SHELTER_RESOURCE_CLEARING_BUFFER: f32 = 100.0; // 100px buffer around shelter
+
 /// --- Shelter Data Structure ---
 /// Represents a player-built shelter in the game world.
 #[spacetimedb::table(name = shelter, public)]
@@ -698,18 +702,19 @@ pub fn can_player_interact_with_object_in_shelter(
 ///
 /// This function removes trees, stones, mushrooms, corn, pumpkins, hemp, grass,
 /// and their associated respawn schedules to prevent them from respawning inside the shelter.
+/// Uses a buffer zone around the shelter for a larger clearing area.
 fn clear_resources_in_shelter_footprint(ctx: &ReducerContext, shelter_x: f32, shelter_y: f32) {
-    // Calculate shelter AABB bounds
+    // Calculate shelter AABB bounds with buffer zone for resource clearing
     let shelter_aabb_center_x = shelter_x;
     let shelter_aabb_center_y = shelter_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
-    let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
-    let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
-    let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
-    let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+    let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH - SHELTER_RESOURCE_CLEARING_BUFFER;
+    let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH + SHELTER_RESOURCE_CLEARING_BUFFER;
+    let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT - SHELTER_RESOURCE_CLEARING_BUFFER;
+    let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT + SHELTER_RESOURCE_CLEARING_BUFFER;
     
     log::info!(
-        "[ShelterCleanup] Clearing resources in shelter footprint: AABB({:.1}-{:.1}, {:.1}-{:.1})",
-        aabb_left, aabb_right, aabb_top, aabb_bottom
+        "[ShelterCleanup] Clearing resources in expanded shelter footprint ({}px buffer): AABB({:.1}-{:.1}, {:.1}-{:.1})",
+        SHELTER_RESOURCE_CLEARING_BUFFER, aabb_left, aabb_right, aabb_top, aabb_bottom
     );
     
     let mut resources_cleared = 0;

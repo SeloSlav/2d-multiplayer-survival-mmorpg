@@ -68,32 +68,32 @@ export function applyStandardDropShadow(
   if (cycleProgress < 0.05) { // Dawn (0.0 - 0.05)
     const t = cycleProgress / 0.05;
     alphaMultiplier = lerp(minNightAlpha, maxDayAlpha, t);
-    currentOffsetX = lerp(12, 4, t); // Flipped from -12, -4
-    currentOffsetY = lerp(4, 2, t);    // Starts a bit further, moves closer
+    currentOffsetX = lerp(8, 12, t); // Behind and to the right (positive X)
+    currentOffsetY = lerp(8, 6, t);  // Behind (positive Y)
     currentBlur = lerp(sunriseSunsetBlur, defaultDayBlur, t);
   } else if (cycleProgress < 0.40) { // Morning to Pre-Noon (0.05 - 0.40)
     const t = (cycleProgress - 0.05) / (0.40 - 0.05);
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = lerp(8, 0, t);  // Flipped from -8, 0
-    currentOffsetY = lerp(3, 1, t);   // Shortening significantly
+    currentOffsetX = lerp(12, 6, t);  // Moving from far right to closer right
+    currentOffsetY = lerp(6, 3, t);   // Moving from far behind to closer behind
     currentBlur = defaultDayBlur;
   } else if (cycleProgress < 0.50) { // Noon-ish (0.40 - 0.50)
-    // Shadow directly underneath or very slightly offset, shortest and sharper
+    // Shadow slightly behind and to the right, shortest
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = 0; // Directly underneath or slightly offset - Remains 0
-    currentOffsetY = 1;   // Shortest
+    currentOffsetX = 6; // Slightly to the right
+    currentOffsetY = 3; // Slightly behind
     currentBlur = noonBlur;
   } else if (cycleProgress < 0.70) { // Afternoon (0.50 - 0.70)
     const t = (cycleProgress - 0.50) / (0.70 - 0.50);
     alphaMultiplier = maxDayAlpha;
-    currentOffsetX = lerp(0, -8, t);   // Flipped from 0, 8
-    currentOffsetY = lerp(1, 3, t);   // Lengthening
+    currentOffsetX = lerp(6, 12, t);   // Moving from closer right to far right
+    currentOffsetY = lerp(3, 6, t);    // Moving from closer behind to far behind
     currentBlur = defaultDayBlur;
   } else if (cycleProgress < 0.75) { // Dusk (0.70 - 0.75)
     const t = (cycleProgress - 0.70) / 0.05;
     alphaMultiplier = lerp(maxDayAlpha, minNightAlpha, t);
-    currentOffsetX = lerp(-4, -12, t);   // Flipped from 4, 12
-    currentOffsetY = lerp(2, 4, t);
+    currentOffsetX = lerp(12, 8, t);   // Moving back towards dawn position
+    currentOffsetY = lerp(6, 8, t);    // Moving back towards dawn position
     currentBlur = lerp(defaultDayBlur, sunriseSunsetBlur, t);
   } else { // Night (0.75 - 1.0)
     alphaMultiplier = minNightAlpha;
@@ -158,30 +158,30 @@ export function drawDynamicGroundShadow({
     const t = cycleProgress / 0.05;
     overallAlpha = lerp(0, maxShadowAlpha, t); // Fade in
     currentStretch = lerp(maxStretchFactor * 0.7, maxStretchFactor * 0.5, t); // Long, shortening
-    skewX = lerp(-0.4, -0.2, t);
+    skewX = lerp(0.3, 0.2, t); // Positive skew for behind-right orientation
   } else if (cycleProgress < 0.40) { // Morning to Pre-Noon (0.05 - 0.40)
     const t = (cycleProgress - 0.05) / (0.40 - 0.05);
     overallAlpha = maxShadowAlpha;
     currentStretch = lerp(maxStretchFactor * 0.5, minStretchFactor, t); // Shortening
-    skewX = lerp(-0.2, 0, t);
+    skewX = lerp(0.2, 0.1, t); // Moving towards minimal skew
   } else if (cycleProgress < 0.50) { // Noon-ish (0.40 - 0.50)
     overallAlpha = maxShadowAlpha;
     currentStretch = minStretchFactor; // Shortest
-    skewX = 0;
+    skewX = 0.1; // Slight skew to maintain behind-right orientation
   } else if (cycleProgress < 0.70) { // Afternoon (0.50 - 0.70)
     const t = (cycleProgress - 0.50) / (0.70 - 0.50);
     overallAlpha = maxShadowAlpha;
     currentStretch = lerp(minStretchFactor, maxStretchFactor * 0.5, t); // Lengthening
-    skewX = lerp(0, 0.2, t);
+    skewX = lerp(0.1, 0.2, t); // Increasing skew
   } else if (cycleProgress < 0.75) { // Dusk (0.70 - 0.75)
     const t = (cycleProgress - 0.70) / 0.05;
     overallAlpha = lerp(maxShadowAlpha, 0, t); // Fade out
     currentStretch = lerp(maxStretchFactor * 0.5, maxStretchFactor * 0.7, t); // Lengthening
-    skewX = lerp(0.2, 0.4, t);
+    skewX = lerp(0.2, 0.3, t); // Back towards dawn skew
   } else { // Night (0.75 - 1.0)
     overallAlpha = 0;
     currentStretch = maxStretchFactor * 0.7; // Doesn't matter if alpha is 0
-    skewX = 0.4;
+    skewX = 0.3;
   }
 
   if (overallAlpha < 0.01 || currentStretch < 0.01) {
@@ -222,14 +222,25 @@ export function drawDynamicGroundShadow({
   // --- Render onto the main canvas --- 
   ctx.save();
 
-  // Move origin to the entity's base center for easier shadow manipulation
+  // Move origin to the entity's base center for shadow manipulation
   ctx.translate(entityCenterX, entityBaseY - pivotYOffset);
 
-  // Apply vertical flip for reflection effect
-  ctx.scale(-1, -1);
-
-  // Apply transformations for skew and stretch
-  ctx.transform(1, skewX, 0, currentStretch, 0, 0);
+  // Create a proper cast shadow using shear transformation
+  // This projects the object onto the ground plane as if light is coming from upper-left
+  const shearX = -0.6; // Increased rightward shear for more visible silhouette (was -0.3)
+  const shearY = -0.1; // Reduced vertical compression (was -0.3)
+  const shadowScale = 0.9; // Less scaling to preserve shape (was 0.8)
+  
+  // Apply the shadow transformation matrix
+  // This creates a shear that makes the shadow appear cast on the ground
+  ctx.transform(
+    shadowScale,           // Scale X (make shadow slightly smaller)
+    shearY * shadowScale,  // Shear Y (compress vertically)
+    shearX * shadowScale,  // Shear X (lean to the right)
+    shadowScale * 0.6,     // Scale Y (less flattening to preserve shape, was 0.3)
+    0,                     // Translate X (no additional translation)
+    0                      // Translate Y (no additional translation)
+  );
 
   // Apply blur to the drawing of the offscreen (silhouette) canvas
   if (shadowBlur > 0) {
@@ -243,7 +254,7 @@ export function drawDynamicGroundShadow({
   ctx.drawImage(
     offscreenCanvas,     // Source is now the prepared offscreen canvas
     -imageDrawWidth / 2, // Centered horizontally
-    -imageDrawHeight,    // Adjusted Y for vertical flip to root base
+    -imageDrawHeight,    // Position at the base
     imageDrawWidth,
     imageDrawHeight
   );

@@ -37,10 +37,10 @@ const pumpkinConfig: GroundEntityConfig<Pumpkin> = {
             imageDrawWidth,
             imageDrawHeight,
             cycleProgress,
-            maxStretchFactor: 0.8, // Pumpkins are low and wide
-            minStretchFactor: 0.2, // Wider at noon
-            shadowBlur: 2,
-            pivotYOffset: 20       // Close to ground
+            maxStretchFactor: 1.0, // Pumpkins are low and wide
+            minStretchFactor: 0.1, // Wider at noon
+            shadowBlur: 3,
+            pivotYOffset: 10       // Close to ground
         });
     },
 

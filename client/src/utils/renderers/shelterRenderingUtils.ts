@@ -85,10 +85,10 @@ export const renderShelter = ({
     // Adjusted optional parameters for a shadow closer to the example image
     baseShadowColor: '0,0,0', 
     maxShadowAlpha: 0.5,          // Darker shadow
-    maxStretchFactor: 0.7,        // Less stretching at dawn/dusk
-    minStretchFactor: 0.6,        // Wider shadow at noon
-    shadowBlur: 4,                // Softer edges
-    pivotYOffset: 247.5, // Significantly reduced pivotYOffset, similar to tree's concept
+    maxStretchFactor: 1.8,        // Less stretching at dawn/dusk
+    minStretchFactor: 0.15,        // Wider shadow at noon
+    shadowBlur: 2,                // Softer edges
+    pivotYOffset: 100, // Significantly reduced pivotYOffset, similar to tree's concept
   });
 
   // --- Shelter Image Rendering ---

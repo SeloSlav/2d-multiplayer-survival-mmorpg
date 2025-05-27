@@ -40,10 +40,10 @@ const mushroomConfig: GroundEntityConfig<Mushroom> = {
             imageDrawWidth,
             imageDrawHeight,
             cycleProgress,
-            maxStretchFactor: 0.5, 
+            maxStretchFactor: 1.0, 
             minStretchFactor: 0.1,
-            shadowBlur: 1,
-            pivotYOffset: 20 // Using the value from user's previous edit
+            shadowBlur: 3,
+            pivotYOffset: 10 // Using the value from user's previous edit
         });
     },
 
