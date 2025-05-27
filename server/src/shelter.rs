@@ -38,14 +38,14 @@ pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 30000.0; // Adjusted for ~30 
 /// Width of the shelter's collision AABB.
 pub(crate) const SHELTER_COLLISION_WIDTH: f32 = 300.0;
 /// Height of the shelter's collision AABB.
-pub(crate) const SHELTER_COLLISION_HEIGHT: f32 = 300.0; // Increased from 125.0 to make it taller
+pub(crate) const SHELTER_COLLISION_HEIGHT: f32 = 125.0; // Reduced back to match visual representation
 /// Half-width of the shelter's collision AABB.
 pub(crate) const SHELTER_AABB_HALF_WIDTH: f32 = SHELTER_COLLISION_WIDTH / 2.0;
 /// Half-height of the shelter's collision AABB.
-pub(crate) const SHELTER_AABB_HALF_HEIGHT: f32 = SHELTER_COLLISION_HEIGHT / 2.0; // Now 300.0 / 2.0 = 150.0
+pub(crate) const SHELTER_AABB_HALF_HEIGHT: f32 = SHELTER_COLLISION_HEIGHT / 2.0; // Now 125.0 / 2.0 = 62.5
 /// Vertical offset from shelter.pos_y (base) to the center of the AABB.
 /// AABB_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y.
-pub(crate) const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y: f32 = 280.0; // Increased from 200.0 to shift AABB higher
+pub(crate) const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y: f32 = 200.0; // Keep the same offset to maintain position
 
 /// --- Shelter Data Structure ---
 /// Represents a player-built shelter in the game world.
