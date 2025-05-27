@@ -16,6 +16,7 @@ use crate::combat; // Import the combat module to use damage_player
 use crate::dropped_item; // Import the dropped item module for creating dropped items
 use crate::active_effects; // Import the active effects module for applying ammunition-based effects
 use crate::active_effects::active_consumable_effect; // Import the trait for the table
+use crate::shelter; // Import shelter module for collision detection
 
 const GRAVITY: f32 = 600.0; // Adjust this value to change the arc. Positive values pull downwards.
 
@@ -152,6 +153,17 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         if time_since_last_attack < required_reload_time_micros {
             return Err("Weapon is still reloading".to_string());
         }
+    }
+
+    // --- Check if projectile path would immediately hit a shelter wall ---
+    if let Some((shelter_id, _, _)) = shelter::check_projectile_shelter_collision(
+        ctx,
+        player.position_x,
+        player.position_y,
+        target_world_x,
+        target_world_y,
+    ) {
+        return Err(format!("Cannot fire projectile - path blocked by Shelter {}", shelter_id));
     }
 
     // --- Physics Calculation for Initial Velocity to Hit Target ---
@@ -366,6 +378,24 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * (elapsed_time as f32).powi(2);
         
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
+        
+        // Check for shelter wall collision first
+        if let Some((shelter_id, collision_x, collision_y)) = shelter::check_projectile_shelter_collision(
+            ctx, 
+            projectile.start_pos_x, 
+            projectile.start_pos_y, 
+            current_x, 
+            current_y
+        ) {
+            log::info!(
+                "[ProjectileUpdate] Projectile {} from owner {:?} hit Shelter {} wall at ({:.1}, {:.1})",
+                projectile.id, projectile.owner_id, shelter_id, collision_x, collision_y
+            );
+            // Projectile hit shelter wall - store info for dropped item creation
+            missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, collision_x, collision_y));
+            projectiles_to_delete.push(projectile.id);
+            continue;
+        }
         
         if travel_distance > projectile.max_range || elapsed_time > 10.0 {
             // Projectile missed - store info for dropped item creation

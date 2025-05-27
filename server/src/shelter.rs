@@ -516,3 +516,108 @@ pub fn damage_shelter(
         resource_granted: None, // No direct resource grant on hit, only on destruction (TODO)
     })
 }
+
+/// Checks if a projectile path intersects with any shelter walls
+///
+/// Returns Some((shelter_id, collision_x, collision_y)) if collision occurs, None otherwise
+pub fn check_projectile_shelter_collision(
+    ctx: &ReducerContext,
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+) -> Option<(u32, f32, f32)> {
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        // Calculate shelter AABB bounds
+        let shelter_aabb_center_x = shelter.pos_x;
+        let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+        let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+        let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+        let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+        
+        // Check if projectile line intersects with shelter AABB
+        if line_intersects_aabb(start_x, start_y, end_x, end_y, aabb_left, aabb_right, aabb_top, aabb_bottom) {
+            // Calculate collision point (approximate - could be more precise)
+            let collision_x = end_x.max(aabb_left).min(aabb_right);
+            let collision_y = end_y.max(aabb_top).min(aabb_bottom);
+            
+            log::info!(
+                "[ProjectileCollision] Projectile path from ({:.1}, {:.1}) to ({:.1}, {:.1}) hits Shelter {} at approximately ({:.1}, {:.1})",
+                start_x, start_y, end_x, end_y, shelter.id, collision_x, collision_y
+            );
+            
+            return Some((shelter.id, collision_x, collision_y));
+        }
+    }
+    
+    None
+}
+
+/// Checks if a projectile's current position intersects with any shelter walls
+///
+/// Returns Some(shelter_id) if collision occurs, None otherwise
+pub fn check_projectile_position_in_shelter(
+    ctx: &ReducerContext,
+    projectile_x: f32,
+    projectile_y: f32,
+) -> Option<u32> {
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        // Calculate shelter AABB bounds
+        let shelter_aabb_center_x = shelter.pos_x;
+        let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+        let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+        let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+        let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+        
+        // Check if projectile position is inside shelter AABB
+        if projectile_x >= aabb_left && projectile_x <= aabb_right && 
+           projectile_y >= aabb_top && projectile_y <= aabb_bottom {
+            
+            log::debug!(
+                "[ProjectileInShelter] Projectile at ({:.1}, {:.1}) is inside Shelter {}",
+                projectile_x, projectile_y, shelter.id
+            );
+            
+            return Some(shelter.id);
+        }
+    }
+    
+    None
+}
+
+/// Calculates warmth bonus for a player if they are inside their own shelter
+///
+/// Returns the warmth bonus per second (0.5 if inside own shelter, 0.0 otherwise)
+pub fn calculate_shelter_warmth_bonus(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    player_x: f32,
+    player_y: f32,
+) -> f32 {
+    const SHELTER_WARMTH_BONUS_PER_SECOND: f32 = 0.5;
+    
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { continue; }
+        
+        // Check if player is the owner and is inside the shelter
+        if shelter.placed_by == player_id && is_player_inside_shelter(player_x, player_y, &shelter) {
+            log::trace!(
+                "[ShelterWarmth] Player {:?} is inside their own Shelter {}, granting {:.1} warmth/sec",
+                player_id, shelter.id, SHELTER_WARMTH_BONUS_PER_SECOND
+            );
+            return SHELTER_WARMTH_BONUS_PER_SECOND;
+        }
+    }
+    
+    0.0 // No warmth bonus if not inside own shelter
+}

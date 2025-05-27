@@ -87,6 +87,7 @@ use crate::items::item_definition as ItemDefinitionTableTrait; // <<< ADDED miss
 use crate::armor; // <<< ADDED for warmth bonus
 use crate::death_marker; // <<< ADDED for DeathMarker
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
+use crate::shelter; // <<< ADDED for shelter warmth bonus
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
 
@@ -205,6 +206,17 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             );
         }
         // <<< END WARMTH BONUS FROM ARMOR >>>
+
+        // <<< ADD WARMTH BONUS FROM SHELTER >>>
+        let shelter_warmth_bonus = shelter::calculate_shelter_warmth_bonus(ctx, player_id, player.position_x, player.position_y);
+        if shelter_warmth_bonus > 0.0 {
+            total_warmth_change_per_sec += shelter_warmth_bonus;
+            log::trace!(
+                "Player {:?} gaining {:.2} warmth/sec from shelter bonus.", 
+                player_id, shelter_warmth_bonus
+            );
+        }
+        // <<< END WARMTH BONUS FROM SHELTER >>>
 
         let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);
