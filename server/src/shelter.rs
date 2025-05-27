@@ -20,6 +20,16 @@ use crate::environment::calculate_chunk_index;
 use crate::combat::AttackResult; // Import combat types
 use crate::models::TargetType; // Import TargetType directly from models
 
+// Import resource modules for cleanup
+use crate::tree::tree as TreeTableTrait;
+use crate::stone::stone as StoneTableTrait;
+use crate::mushroom::mushroom as MushroomTableTrait;
+use crate::corn::corn as CornTableTrait;
+use crate::pumpkin::pumpkin as PumpkinTableTrait;
+use crate::hemp::hemp as HempTableTrait;
+use crate::grass::grass as GrassTableTrait;
+use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
+
 // --- Constants ---
 // Visual/Collision constants (can be tuned)
 pub(crate) const SHELTER_VISUAL_WIDTH: f32 = 128.0; // For reference, actual collision might be different
@@ -184,6 +194,10 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
                 "Player {} ({:?}) placed a new Shelter (ID: {}) at ({:.1}, {:.1}).",
                 player.username, sender_id, inserted_shelter.id, world_x, world_y
             );
+            
+            // Clear all natural resources within the shelter's footprint
+            clear_resources_in_shelter_footprint(ctx, world_x, world_y);
+            
             // Future: Schedule any initial processing for the shelter if needed.
         }
         Err(e) => {
@@ -678,4 +692,177 @@ pub fn can_player_interact_with_object_in_shelter(
         object_x, object_y
     );
     true
+}
+
+/// Clears all natural resources within the shelter's footprint
+///
+/// This function removes trees, stones, mushrooms, corn, pumpkins, hemp, grass,
+/// and their associated respawn schedules to prevent them from respawning inside the shelter.
+fn clear_resources_in_shelter_footprint(ctx: &ReducerContext, shelter_x: f32, shelter_y: f32) {
+    // Calculate shelter AABB bounds
+    let shelter_aabb_center_x = shelter_x;
+    let shelter_aabb_center_y = shelter_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+    let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+    let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+    let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+    let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+    
+    log::info!(
+        "[ShelterCleanup] Clearing resources in shelter footprint: AABB({:.1}-{:.1}, {:.1}-{:.1})",
+        aabb_left, aabb_right, aabb_top, aabb_bottom
+    );
+    
+    let mut resources_cleared = 0;
+    
+    // Clear Trees
+    let trees_to_remove: Vec<u64> = ctx.db.tree().iter()
+        .filter(|tree| {
+            let inside = tree.pos_x >= aabb_left && tree.pos_x <= aabb_right && 
+                        tree.pos_y >= aabb_top && tree.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Tree {} at ({:.1}, {:.1})", tree.id, tree.pos_x, tree.pos_y);
+            }
+            inside
+        })
+        .map(|tree| tree.id)
+        .collect();
+    
+    for tree_id in trees_to_remove {
+        ctx.db.tree().id().delete(tree_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Stones
+    let stones_to_remove: Vec<u64> = ctx.db.stone().iter()
+        .filter(|stone| {
+            let inside = stone.pos_x >= aabb_left && stone.pos_x <= aabb_right && 
+                        stone.pos_y >= aabb_top && stone.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Stone {} at ({:.1}, {:.1})", stone.id, stone.pos_x, stone.pos_y);
+            }
+            inside
+        })
+        .map(|stone| stone.id)
+        .collect();
+    
+    for stone_id in stones_to_remove {
+        ctx.db.stone().id().delete(stone_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Mushrooms
+    let mushrooms_to_remove: Vec<u64> = ctx.db.mushroom().iter()
+        .filter(|mushroom| {
+            let inside = mushroom.pos_x >= aabb_left && mushroom.pos_x <= aabb_right && 
+                        mushroom.pos_y >= aabb_top && mushroom.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Mushroom {} at ({:.1}, {:.1})", mushroom.id, mushroom.pos_x, mushroom.pos_y);
+            }
+            inside
+        })
+        .map(|mushroom| mushroom.id)
+        .collect();
+    
+    for mushroom_id in mushrooms_to_remove {
+        ctx.db.mushroom().id().delete(mushroom_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Corn
+    let corn_to_remove: Vec<u64> = ctx.db.corn().iter()
+        .filter(|corn| {
+            let inside = corn.pos_x >= aabb_left && corn.pos_x <= aabb_right && 
+                        corn.pos_y >= aabb_top && corn.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Corn {} at ({:.1}, {:.1})", corn.id, corn.pos_x, corn.pos_y);
+            }
+            inside
+        })
+        .map(|corn| corn.id)
+        .collect();
+    
+    for corn_id in corn_to_remove {
+        ctx.db.corn().id().delete(corn_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Pumpkins
+    let pumpkins_to_remove: Vec<u64> = ctx.db.pumpkin().iter()
+        .filter(|pumpkin| {
+            let inside = pumpkin.pos_x >= aabb_left && pumpkin.pos_x <= aabb_right && 
+                        pumpkin.pos_y >= aabb_top && pumpkin.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Pumpkin {} at ({:.1}, {:.1})", pumpkin.id, pumpkin.pos_x, pumpkin.pos_y);
+            }
+            inside
+        })
+        .map(|pumpkin| pumpkin.id)
+        .collect();
+    
+    for pumpkin_id in pumpkins_to_remove {
+        ctx.db.pumpkin().id().delete(pumpkin_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Hemp
+    let hemp_to_remove: Vec<u64> = ctx.db.hemp().iter()
+        .filter(|hemp| {
+            let inside = hemp.pos_x >= aabb_left && hemp.pos_x <= aabb_right && 
+                        hemp.pos_y >= aabb_top && hemp.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Hemp {} at ({:.1}, {:.1})", hemp.id, hemp.pos_x, hemp.pos_y);
+            }
+            inside
+        })
+        .map(|hemp| hemp.id)
+        .collect();
+    
+    for hemp_id in hemp_to_remove {
+        ctx.db.hemp().id().delete(hemp_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Grass
+    let grass_to_remove: Vec<u64> = ctx.db.grass().iter()
+        .filter(|grass| {
+            let inside = grass.pos_x >= aabb_left && grass.pos_x <= aabb_right && 
+                        grass.pos_y >= aabb_top && grass.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Grass {} at ({:.1}, {:.1})", grass.id, grass.pos_x, grass.pos_y);
+            }
+            inside
+        })
+        .map(|grass| grass.id)
+        .collect();
+    
+    for grass_id in grass_to_remove {
+        ctx.db.grass().id().delete(grass_id);
+        resources_cleared += 1;
+    }
+    
+    // Clear Grass Respawn Schedules
+    // Note: Grass respawn schedules contain position data, so we can filter by position
+    let grass_respawn_schedules_to_remove: Vec<u64> = ctx.db.grass_respawn_schedule().iter()
+        .filter(|schedule| {
+            let grass_data = &schedule.respawn_data;
+            let inside = grass_data.pos_x >= aabb_left && grass_data.pos_x <= aabb_right && 
+                        grass_data.pos_y >= aabb_top && grass_data.pos_y <= aabb_bottom;
+            if inside {
+                log::debug!("[ShelterCleanup] Removing Grass respawn schedule {} for position ({:.1}, {:.1})", 
+                           schedule.schedule_id, grass_data.pos_x, grass_data.pos_y);
+            }
+            inside
+        })
+        .map(|schedule| schedule.schedule_id)
+        .collect();
+    
+    for schedule_id in grass_respawn_schedules_to_remove {
+        ctx.db.grass_respawn_schedule().schedule_id().delete(schedule_id);
+        resources_cleared += 1;
+    }
+    
+    log::info!(
+        "[ShelterCleanup] Cleared {} natural resources and schedules from shelter footprint at ({:.1}, {:.1})",
+        resources_cleared, shelter_x, shelter_y
+    );
 }
