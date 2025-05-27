@@ -50,6 +50,7 @@ use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::shelter::Shelter; // Ensure Shelter struct is imported
 use crate::shelter::shelter as ShelterTableTrait; // Ensure Shelter table trait is imported
+use crate::shelter::{SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT, SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y}; // Import AABB constants
 use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
 use crate::consumables::MAX_STAT_VALUE;
 // Import the armor module
@@ -121,6 +122,24 @@ pub fn get_player_forward_vector(direction: &str) -> (f32, f32) {
         _ => (0.0, 1.0), // Default to down
     }
 }
+
+/// Checks if a line of sight between two points is blocked by shelter walls
+///
+/// Returns true if the line is blocked by any shelter that neither player owns.
+fn is_line_blocked_by_shelter(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    target_id: Option<Identity>, // None for non-player targets
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+) -> bool {
+    // Delegate to shelter module
+    crate::shelter::is_line_blocked_by_shelter(ctx, attacker_id, target_id, start_x, start_y, end_x, end_y)
+}
+
+
 
 // --- Target Acquisition Functions ---
 
@@ -212,6 +231,33 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                log::debug!(
+                    "[TargetAcquisition] Checking line of sight from Player {:?} to Player {:?}",
+                    player.identity, other_player.identity
+                );
+                
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    Some(other_player.identity),
+                    player.position_x,
+                    player.position_y,
+                    other_player.position_x,
+                    other_player.position_y,
+                ) {
+                    log::info!(
+                        "[TargetAcquisition] TARGET FILTERED! Player {:?} cannot target Player {:?}: line of sight blocked by shelter",
+                        player.identity, other_player.identity
+                    );
+                    continue; // Skip this target - blocked by shelter
+                } else {
+                    log::debug!(
+                        "[TargetAcquisition] Line of sight clear - adding Player {:?} as target",
+                        other_player.identity
+                    );
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::Player,
                     id: TargetId::Player(other_player.identity),
@@ -243,6 +289,23 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for campfires
+                    player.position_x,
+                    player.position_y,
+                    campfire_entity.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack Campfire {}: line of sight blocked by shelter",
+                        player.identity, campfire_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::Campfire,
                     id: TargetId::Campfire(campfire_entity.id),
@@ -271,6 +334,23 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for storage boxes
+                    player.position_x,
+                    player.position_y,
+                    box_entity.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack WoodenStorageBox {}: line of sight blocked by shelter",
+                        player.identity, box_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::WoodenStorageBox,
                     id: TargetId::WoodenStorageBox(box_entity.id),
@@ -299,6 +379,23 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for stashes
+                    player.position_x,
+                    player.position_y,
+                    stash_entity.pos_x,
+                    stash_entity.pos_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack Stash {}: line of sight blocked by shelter",
+                        player.identity, stash_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::Stash,
                     id: TargetId::Stash(stash_entity.id),
@@ -327,6 +424,23 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for sleeping bags
+                    player.position_x,
+                    player.position_y,
+                    bag_entity.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack SleepingBag {}: line of sight blocked by shelter",
+                        player.identity, bag_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::SleepingBag,
                     id: TargetId::SleepingBag(bag_entity.id),
@@ -357,6 +471,23 @@ pub fn find_targets_in_cone(
             let angle_rad = dot_product.acos();
 
             if angle_rad <= half_attack_angle_rad {
+                // NEW: Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for corpses
+                    player.position_x,
+                    player.position_y,
+                    corpse_entity.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack PlayerCorpse {}: line of sight blocked by shelter",
+                        player.identity, corpse_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
                 targets.push(Target {
                     target_type: TargetType::PlayerCorpse,
                     id: TargetId::PlayerCorpse(corpse_entity.id),
@@ -399,6 +530,9 @@ pub fn find_targets_in_cone(
             }
         }
     }
+    
+    // Check Shelters - delegate to shelter module
+    crate::shelter::add_shelter_targets_to_cone(ctx, player, attack_range, half_attack_angle_rad, forward_x, forward_y, &mut targets);
     
     // Sort by distance (closest first)
     targets.sort_by(|a, b| a.distance_sq.partial_cmp(&b.distance_sq).unwrap());
@@ -1493,6 +1627,126 @@ pub fn process_attack(
     timestamp: Timestamp,
     rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
+    // NEW: Check line of sight before processing any attack
+    let (target_x, target_y, target_player_id) = match &target.id {
+        TargetId::Player(player_id) => {
+            if let Some(target_player) = ctx.db.player().identity().find(player_id) {
+                (target_player.position_x, target_player.position_y, Some(*player_id))
+            } else {
+                return Err("Target player not found".to_string());
+            }
+        },
+        TargetId::Tree(tree_id) => {
+            if let Some(tree) = ctx.db.tree().id().find(tree_id) {
+                (tree.pos_x, tree.pos_y - TREE_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target tree not found".to_string());
+            }
+        },
+        TargetId::Stone(stone_id) => {
+            if let Some(stone) = ctx.db.stone().id().find(stone_id) {
+                (stone.pos_x, stone.pos_y - STONE_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target stone not found".to_string());
+            }
+        },
+        TargetId::Campfire(campfire_id) => {
+            if let Some(campfire) = ctx.db.campfire().id().find(campfire_id) {
+                const VISUAL_CENTER_Y_OFFSET: f32 = 42.0;
+                (campfire.pos_x, campfire.pos_y - VISUAL_CENTER_Y_OFFSET, None)
+            } else {
+                return Err("Target campfire not found".to_string());
+            }
+        },
+        TargetId::WoodenStorageBox(box_id) => {
+            if let Some(storage_box) = ctx.db.wooden_storage_box().id().find(box_id) {
+                (storage_box.pos_x, storage_box.pos_y - BOX_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target storage box not found".to_string());
+            }
+        },
+        TargetId::Stash(stash_id) => {
+            if let Some(stash) = ctx.db.stash().id().find(stash_id) {
+                (stash.pos_x, stash.pos_y, None)
+            } else {
+                return Err("Target stash not found".to_string());
+            }
+        },
+        TargetId::SleepingBag(bag_id) => {
+            if let Some(bag) = ctx.db.sleeping_bag().id().find(bag_id) {
+                (bag.pos_x, bag.pos_y - SLEEPING_BAG_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target sleeping bag not found".to_string());
+            }
+        },
+        TargetId::PlayerCorpse(corpse_id) => {
+            if let Some(corpse) = ctx.db.player_corpse().id().find(corpse_id) {
+                (corpse.pos_x, corpse.pos_y - player_corpse::CORPSE_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target corpse not found".to_string());
+            }
+        },
+        TargetId::Grass(grass_id) => {
+            if let Some(grass) = ctx.db.grass().id().find(grass_id) {
+                (grass.pos_x, grass.pos_y, None)
+            } else {
+                return Err("Target grass not found".to_string());
+            }
+        },
+        TargetId::Shelter(shelter_id) => {
+            if let Some(shelter) = ctx.db.shelter().id().find(shelter_id) {
+                // Use shelter module function to get target coordinates
+                let (target_x, target_y) = crate::shelter::get_shelter_target_coordinates(&shelter);
+                (target_x, target_y, None)
+            } else {
+                return Err("Target shelter not found".to_string());
+            }
+        },
+    };
+
+    // Get attacker position
+    let attacker = ctx.db.player().identity().find(&attacker_id)
+        .ok_or_else(|| "Attacker not found".to_string())?;
+
+    // Check if line of sight is blocked by shelter walls
+    // EXCEPTION: If the target itself is a shelter, allow the attack (direct shelter damage)
+    let target_is_shelter = matches!(target.id, TargetId::Shelter(_));
+    
+    log::debug!(
+        "[ProcessAttack] Checking line of sight from Player {:?} at ({:.1}, {:.1}) to target {:?} at ({:.1}, {:.1}). Target is shelter: {}",
+        attacker_id, attacker.position_x, attacker.position_y, target.id, target_x, target_y, target_is_shelter
+    );
+    
+    if !target_is_shelter && is_line_blocked_by_shelter(
+        ctx,
+        attacker_id,
+        target_player_id,
+        attacker.position_x,
+        attacker.position_y,
+        target_x,
+        target_y,
+    ) {
+        log::info!(
+            "[ProcessAttack] ATTACK BLOCKED! Player {:?} cannot attack {:?} - line of sight blocked by shelter wall",
+            attacker_id, target.id
+        );
+        return Ok(AttackResult {
+            hit: false,
+            target_type: Some(target.target_type),
+            resource_granted: None,
+        });
+    } else if target_is_shelter {
+        log::debug!(
+            "[ProcessAttack] Direct shelter attack - bypassing line-of-sight check for Player {:?} attacking Shelter",
+            attacker_id
+        );
+    } else {
+        log::debug!(
+            "[ProcessAttack] Line of sight clear - proceeding with attack from Player {:?} to {:?}",
+            attacker_id, target.id
+        );
+    }
+
     let (damage, yield_amount, resource_name) = calculate_damage_and_yield(item_def, target.target_type, rng);
 
     match &target.id {
@@ -1525,7 +1779,7 @@ pub fn process_attack(
             damage_grass(ctx, attacker_id, *grass_id, damage, timestamp, rng)
         },
         TargetId::Shelter(shelter_id) => {
-            damage_shelter(ctx, attacker_id, *shelter_id, damage, timestamp, rng)
+            crate::shelter::damage_shelter(ctx, attacker_id, *shelter_id, damage, timestamp, rng)
         },
     }
 }
@@ -1679,58 +1933,3 @@ pub fn damage_grass(
     }
 }
 
-/// Applies damage to a shelter and handles destruction
-pub fn damage_shelter(
-    ctx: &ReducerContext,
-    attacker_id: Identity,
-    shelter_id: u32,
-    damage: f32,
-    timestamp: Timestamp,
-    rng: &mut impl Rng
-) -> Result<AttackResult, String> {
-    let mut shelters_table = ctx.db.shelter();
-    let mut shelter = shelters_table.id().find(shelter_id)
-        .ok_or_else(|| format!("Target shelter {} disappeared", shelter_id))?;
-
-    if shelter.is_destroyed {
-        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Shelter), resource_granted: None });
-    }
-
-    let old_health = shelter.health;
-    shelter.health = (shelter.health - damage).max(0.0);
-    shelter.last_hit_time = Some(timestamp);
-
-    log::info!(
-        "Player {:?} hit Shelter {} for {:.1} damage. Health: {:.1} -> {:.1}",
-        attacker_id, shelter_id, damage, old_health, shelter.health
-    );
-
-    if shelter.health <= 0.0 {
-        shelter.is_destroyed = true;
-        shelter.destroyed_at = Some(timestamp);
-        
-        // Update shelter to mark as destroyed before deleting, so clients see the state change
-        shelters_table.id().update(shelter.clone());
-        // Then delete the shelter entity
-        shelters_table.id().delete(shelter_id);
-
-        log::info!(
-            "Shelter {} destroyed by player {:?}. Consider dropping constituent materials.",
-            shelter_id, attacker_id
-        );
-
-        // TODO: Implement logic to drop some constituent materials (e.g., wood, stone, fiber)
-        // Example: grant_resource(ctx, attacker_id, "Wood", rng.gen_range(50..=150))?;
-        // This would require shelter to store its original crafter or make resources drop at location.
-        // For now, just logs a message.
-
-    } else {
-        shelters_table.id().update(shelter);
-    }
-
-    Ok(AttackResult {
-        hit: true,
-        target_type: Some(TargetType::Shelter),
-        resource_granted: None, // No direct resource grant on hit, only on destruction (TODO)
-    })
-} 

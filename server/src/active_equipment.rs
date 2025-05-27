@@ -577,7 +577,23 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     
     let targets = find_targets_in_cone(ctx, &player, actual_attack_range, actual_attack_angle_degrees);
     
+    log::info!(
+        "[UseEquippedItem] Player {:?} found {} targets with {} (range: {:.1}, angle: {:.1})",
+        sender_id, targets.len(), item_def.name, actual_attack_range, actual_attack_angle_degrees
+    );
+    
+    for (i, target) in targets.iter().enumerate() {
+        log::info!(
+            "[UseEquippedItem] Target {}: {:?} (distance: {:.1})",
+            i, target.id, target.distance_sq.sqrt()
+        );
+    }
+    
     if let Some(target) = find_best_target(&targets, &item_def) {
+        log::info!(
+            "[UseEquippedItem] Player {:?} selected best target: {:?}",
+            sender_id, target.id
+        );
         match process_attack(ctx, sender_id, &target, &item_def, now_ts, &mut rng) {
             Ok(result) => {
                 if result.hit {

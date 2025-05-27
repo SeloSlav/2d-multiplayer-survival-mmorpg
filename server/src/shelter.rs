@@ -6,6 +6,7 @@
  ******************************************************************************/
 
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, log};
+use rand::Rng;
 
 // Import table traits and concrete types
 use crate::Player; // Corrected import for Player struct
@@ -16,6 +17,8 @@ use crate::items::{
     InventoryItem, ItemDefinition,
 };
 use crate::environment::calculate_chunk_index;
+use crate::combat::AttackResult; // Import combat types
+use crate::models::TargetType; // Import TargetType directly from models
 
 // --- Constants ---
 // Visual/Collision constants (can be tuned)
@@ -32,7 +35,7 @@ pub(crate) const PLAYER_SHELTER_INTERACTION_DISTANCE_SQUARED: f32 =
     PLAYER_SHELTER_INTERACTION_DISTANCE * PLAYER_SHELTER_INTERACTION_DISTANCE;
 
 // Health
-pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 30000.0; // Adjusted for ~30 min destruction time with Wooden Spear
+pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 10000.0; // Adjusted for ~30 min destruction time with Wooden Spear
 
 // --- NEW: Shelter Collision Constants (AABB based) ---
 /// Width of the shelter's collision AABB.
@@ -200,4 +203,316 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
         }
     }
     Ok(())
+}
+
+// --- Shelter Combat Functions ---
+
+/// Checks if a line of sight between two points is blocked by shelter walls
+///
+/// Returns true if the line is blocked by any shelter wall.
+/// This function blocks ALL attacks through shelter walls regardless of ownership,
+/// EXCEPT when the attacker is the owner and is inside their own shelter.
+pub fn is_line_blocked_by_shelter(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    target_id: Option<Identity>, // None for non-player targets
+    start_x: f32,
+    start_y: f32,
+    end_x: f32,
+    end_y: f32,
+) -> bool {
+    log::debug!(
+        "[LineOfSight] Checking line from Player {:?} at ({:.1}, {:.1}) to target at ({:.1}, {:.1})",
+        attacker_id, start_x, start_y, end_x, end_y
+    );
+    
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        log::debug!(
+            "[LineOfSight] Checking Shelter {} placed by {:?} at ({:.1}, {:.1})",
+            shelter.id, shelter.placed_by, shelter.pos_x, shelter.pos_y
+        );
+        
+        // NEW: If the attacker is the owner and is inside their shelter, 
+        // their own shelter doesn't block their line of sight
+        if shelter.placed_by == attacker_id && is_player_inside_shelter(start_x, start_y, &shelter) {
+            log::debug!(
+                "[LineOfSight] Attacker {:?} is owner and inside Shelter {}, shelter does not block their line of sight",
+                attacker_id, shelter.id
+            );
+            continue; // Skip this shelter - owner inside can attack through their own walls
+        }
+        
+        // All other shelter walls block attacks regardless of ownership
+        // This creates complete separation - no attacks can pass through shelter walls in either direction
+        
+        // Calculate shelter AABB bounds
+        let shelter_aabb_center_x = shelter.pos_x;
+        let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+        let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+        let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+        let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+        
+        log::debug!(
+            "[LineOfSight] Shelter {} AABB: Center({:.1}, {:.1}), Bounds({:.1}-{:.1}, {:.1}-{:.1})",
+            shelter.id, shelter_aabb_center_x, shelter_aabb_center_y,
+            aabb_left, aabb_right, aabb_top, aabb_bottom
+        );
+        
+        // Check if line segment intersects with shelter AABB
+        if line_intersects_aabb(start_x, start_y, end_x, end_y, aabb_left, aabb_right, aabb_top, aabb_bottom) {
+            log::info!(
+                "[LineOfSight] BLOCKED! Line from ({:.1}, {:.1}) to ({:.1}, {:.1}) intersects Shelter {} AABB",
+                start_x, start_y, end_x, end_y, shelter.id
+            );
+            return true; // Line is blocked
+        } else {
+            log::debug!(
+                "[LineOfSight] Line does not intersect Shelter {} AABB",
+                shelter.id
+            );
+        }
+    }
+    
+    log::debug!(
+        "[LineOfSight] Line from ({:.1}, {:.1}) to ({:.1}, {:.1}) is NOT blocked by any shelter",
+        start_x, start_y, end_x, end_y
+    );
+    false // Line is not blocked
+}
+
+/// Checks if a line segment intersects with an AABB (Axis-Aligned Bounding Box)
+///
+/// Uses the Liang-Barsky line clipping algorithm to determine intersection.
+fn line_intersects_aabb(
+    x1: f32, y1: f32, x2: f32, y2: f32,
+    left: f32, right: f32, top: f32, bottom: f32
+) -> bool {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    
+    // If line is a point, check if it's inside the AABB
+    if dx.abs() < 0.001 && dy.abs() < 0.001 {
+        return x1 >= left && x1 <= right && y1 >= top && y1 <= bottom;
+    }
+    
+    let mut t_min: f32 = 0.0;
+    let mut t_max: f32 = 1.0;
+    
+    // Check X bounds
+    if dx.abs() > 0.001 {
+        let t1 = (left - x1) / dx;
+        let t2 = (right - x1) / dx;
+        let t_near = t1.min(t2);
+        let t_far = t1.max(t2);
+        
+        t_min = t_min.max(t_near);
+        t_max = t_max.min(t_far);
+        
+        if t_min > t_max {
+            return false;
+        }
+    } else {
+        // Line is vertical, check if it's within X bounds
+        if x1 < left || x1 > right {
+            return false;
+        }
+    }
+    
+    // Check Y bounds
+    if dy.abs() > 0.001 {
+        let t1 = (top - y1) / dy;
+        let t2 = (bottom - y1) / dy;
+        let t_near = t1.min(t2);
+        let t_far = t1.max(t2);
+        
+        t_min = t_min.max(t_near);
+        t_max = t_max.min(t_far);
+        
+        if t_min > t_max {
+            return false;
+        }
+    } else {
+        // Line is horizontal, check if it's within Y bounds
+        if y1 < top || y1 > bottom {
+            return false;
+        }
+    }
+    
+    true // Line intersects AABB
+}
+
+/// Adds shelter targets to the targeting cone if they are within range and angle
+///
+/// This function should be called from the main targeting logic in combat.rs
+pub fn add_shelter_targets_to_cone(
+    ctx: &ReducerContext,
+    player: &Player,
+    attack_range: f32,
+    half_attack_angle_rad: f32,
+    forward_x: f32,
+    forward_y: f32,
+    targets: &mut Vec<crate::combat::Target>
+) {
+    // Check Shelters
+    for shelter_entity in ctx.db.shelter().iter() {
+        if shelter_entity.is_destroyed { continue; } // Skip destroyed shelters
+        
+        // NEW: If player is the owner and is inside the shelter, they cannot attack their own shelter
+        if shelter_entity.placed_by == player.identity {
+            if is_player_inside_shelter(player.position_x, player.position_y, &shelter_entity) {
+                log::debug!(
+                    "[ShelterTargeting] Player {:?} is owner and inside Shelter {}, cannot attack own shelter from inside",
+                    player.identity, shelter_entity.id
+                );
+                continue; // Skip targeting this shelter
+            }
+        }
+        
+        // Use the collision center for targeting, not the base position
+        let shelter_collision_center_x = shelter_entity.pos_x;
+        let shelter_collision_center_y = shelter_entity.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        
+        let dx = shelter_collision_center_x - player.position_x;
+        let dy = shelter_collision_center_y - player.position_y; 
+        let dist_sq = dx * dx + dy * dy;
+        
+        log::debug!(
+            "[ShelterTargeting] Player {:?} checking Shelter {} at base({:.1}, {:.1}) collision_center({:.1}, {:.1}). Distance: {:.1}, Attack Range: {:.1}",
+            player.identity, shelter_entity.id, shelter_entity.pos_x, shelter_entity.pos_y, 
+            shelter_collision_center_x, shelter_collision_center_y, dist_sq.sqrt(), attack_range
+        );
+        
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            log::debug!(
+                "[ShelterTargeting] Shelter {} within range. Angle: {:.2} rad, Half attack angle: {:.2} rad",
+                shelter_entity.id, angle_rad, half_attack_angle_rad
+            );
+
+            if angle_rad <= half_attack_angle_rad {
+                log::info!(
+                    "[ShelterTargeting] Adding Shelter {} as target for Player {:?}",
+                    shelter_entity.id, player.identity
+                );
+                targets.push(crate::combat::Target {
+                    target_type: TargetType::Shelter,
+                    id: crate::combat::TargetId::Shelter(shelter_entity.id),
+                    distance_sq: dist_sq,
+                });
+            } else {
+                log::debug!(
+                    "[ShelterTargeting] Shelter {} outside attack angle for Player {:?}",
+                    shelter_entity.id, player.identity
+                );
+            }
+        } else {
+            log::debug!(
+                "[ShelterTargeting] Shelter {} outside attack range for Player {:?}",
+                shelter_entity.id, player.identity
+            );
+        }
+    }
+}
+
+/// Gets the target coordinates for a shelter (collision center)
+///
+/// Returns the collision center position for line-of-sight calculations
+pub fn get_shelter_target_coordinates(shelter: &Shelter) -> (f32, f32) {
+    let shelter_collision_center_x = shelter.pos_x;
+    let shelter_collision_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+    (shelter_collision_center_x, shelter_collision_center_y)
+}
+
+/// Checks if a player is inside a shelter's AABB
+///
+/// Returns true if the player's position is within the shelter's collision boundaries
+pub fn is_player_inside_shelter(player_x: f32, player_y: f32, shelter: &Shelter) -> bool {
+    let shelter_aabb_center_x = shelter.pos_x;
+    let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+    let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+    let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+    let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+    let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+    
+    player_x >= aabb_left && player_x <= aabb_right && player_y >= aabb_top && player_y <= aabb_bottom
+}
+
+/// Checks if a player is the owner of a shelter and is inside it
+///
+/// Returns true if the player owns the shelter and is currently inside its boundaries
+pub fn is_owner_inside_shelter(ctx: &ReducerContext, player_id: Identity, player_x: f32, player_y: f32) -> Option<u32> {
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { continue; }
+        if shelter.placed_by == player_id && is_player_inside_shelter(player_x, player_y, &shelter) {
+            return Some(shelter.id);
+        }
+    }
+    None
+}
+
+/// Applies damage to a shelter and handles destruction
+pub fn damage_shelter(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    shelter_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    let mut shelters_table = ctx.db.shelter();
+    let mut shelter = shelters_table.id().find(shelter_id)
+        .ok_or_else(|| format!("Target shelter {} disappeared", shelter_id))?;
+
+    if shelter.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Shelter), resource_granted: None });
+    }
+
+    let old_health = shelter.health;
+    shelter.health = (shelter.health - damage).max(0.0);
+    shelter.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit Shelter {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, shelter_id, damage, old_health, shelter.health
+    );
+
+    if shelter.health <= 0.0 {
+        shelter.is_destroyed = true;
+        shelter.destroyed_at = Some(timestamp);
+        
+        // Update shelter to mark as destroyed before deleting, so clients see the state change
+        shelters_table.id().update(shelter.clone());
+        // Then delete the shelter entity
+        shelters_table.id().delete(shelter_id);
+
+        log::info!(
+            "Shelter {} destroyed by player {:?}. Consider dropping constituent materials.",
+            shelter_id, attacker_id
+        );
+
+        // TODO: Implement logic to drop some constituent materials (e.g., wood, stone, fiber)
+        // Example: grant_resource(ctx, attacker_id, "Wood", rng.gen_range(50..=150))?;
+        // This would require shelter to store its original crafter or make resources drop at location.
+        // For now, just logs a message.
+
+    } else {
+        shelters_table.id().update(shelter);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Shelter),
+        resource_granted: None, // No direct resource grant on hit, only on destruction (TODO)
+    })
 }
