@@ -51,7 +51,8 @@ import {
     KnockedOutStatus as SpacetimeDBKnockedOutStatus,
     RangedWeaponStats,
     Projectile as SpacetimeDBProjectile,
-    DeathMarker as SpacetimeDBDeathMarker
+    DeathMarker as SpacetimeDBDeathMarker,
+    Shelter as SpacetimeDBShelter
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -83,6 +84,7 @@ interface GameScreenProps {
     playerPins: Map<string, PlayerPin>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
+    shelters: Map<string, SpacetimeDBShelter>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -140,6 +142,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     const {
         players, trees, stones, campfires, mushrooms, corns, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
+        shelters,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -226,6 +229,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 gameCanvasRef={gameCanvasRef}
                 projectiles={projectiles}
                 deathMarkers={deathMarkers}
+                shelters={shelters}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

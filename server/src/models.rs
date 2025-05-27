@@ -99,4 +99,8 @@ pub enum TargetType {
     Animal, // Added for animal targets
     PlayerCorpse,
     Grass,
+    Shelter, // ADDED Shelter TargetType
 }
+
+// Enum to represent the type of an active consumable effect
+// ... existing code ...

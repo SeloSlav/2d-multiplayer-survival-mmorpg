@@ -23,7 +23,8 @@ import {
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
   Grass as SpacetimeDBGrass,
   Projectile as SpacetimeDBProjectile,
-  DeathMarker as SpacetimeDBDeathMarker
+  DeathMarker as SpacetimeDBDeathMarker,
+  Shelter as SpacetimeDBShelter
 } from '../generated';
 
 // --- Core Hooks ---
@@ -65,6 +66,7 @@ import { renderPlayerTorchLight, renderCampfireLight } from '../utils/renderers/
 import { renderTree } from '../utils/renderers/treeRenderingUtils';
 import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
+import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
@@ -127,6 +129,7 @@ interface GameCanvasProps {
   gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   projectiles: Map<string, SpacetimeDBProjectile>;
   deathMarkers: Map<string, SpacetimeDBDeathMarker>;
+  shelters: Map<string, SpacetimeDBShelter>;
 }
 
 /**
@@ -177,6 +180,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   gameCanvasRef,
   projectiles,
   deathMarkers,
+  shelters,
 }) => {
  // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -198,7 +202,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [players, localPlayerId]);
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
-  const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef } = useAssetLoader();
+  const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   // Lift deathMarkerImg definition here
@@ -299,7 +303,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleTreesMap,
     ySortedEntities,
     visibleGrass,
-    visibleGrassMap
+    visibleGrassMap,
+    visibleShelters,
+    visibleSheltersMap
   } = useEntityFiltering(
     players,
     trees,
@@ -319,7 +325,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     canvasSize.width,
     canvasSize.height,
     interpolatedGrass, // Ensure this is the 18th argument
-    projectiles // Add projectiles as the 19th argument
+    projectiles, // Add projectiles as the 19th argument
+    shelters // ADDED shelters as argument to useEntityFiltering
   );
 
   // --- UI State ---
@@ -541,6 +548,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemDefinitions,
         inventoryItems,
         itemImagesRef,
+        shelterImage: shelterImageRef.current,
         worldMouseX: currentWorldMouseX,
         worldMouseY: currentWorldMouseY,
         localPlayerId: localPlayerId,
@@ -549,7 +557,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         hoveredPlayerIds,
         onPlayerHover: handlePlayerHover,
         cycleProgress: currentCycleProgress,
-        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef })
+        renderPlayerCorpse: (props) => renderPlayerCorpse({...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef }),
+        localPlayerPosition: localPlayer ? { x: localPlayer.positionX, y: localPlayer.positionY } : null
     });
     // --- End Y-Sorted Entities ---
 
@@ -782,6 +791,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       gameCanvasRef,
       projectiles,
       deathMarkerImg,
+      shelters,
+      visibleShelters,
+      visibleSheltersMap,
+      shelterImageRef.current,
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
@@ -839,10 +852,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
   const localPlayerDeathMarker = useMemo(() => {
+    // IMPORTANT: Do not uncomment this log or death markers won't be visible
     console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
     if (localPlayer && localPlayer.identity && deathMarkers) {
       const marker = deathMarkers.get(localPlayer.identity.toHexString());
-      console.log('[GameCanvas] Found death marker for player:', marker);
+      // console.log('[GameCanvas] Found death marker for player:', marker);
       return marker || null;
     }
     return null;

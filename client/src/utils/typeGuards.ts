@@ -12,7 +12,8 @@ import {
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
-  Grass as SpacetimeDBGrass
+  Grass as SpacetimeDBGrass,
+  Shelter // ADDED Shelter type
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
@@ -165,4 +166,8 @@ export function isGrass(entity: any): entity is SpacetimeDBGrass | InterpolatedG
          typeof entity.treeType === 'undefined' && // Not a Tree
          typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, Stash, SleepingBag
          typeof entity.itemDefId === 'undefined'; // Not a DroppedItem
+}
+
+export function isShelter(entity: any): entity is Shelter {
+    return entity && typeof entity === 'object' && 'placedBy' in entity && 'maxHealth' in entity && !('treeType' in entity) && !('isBurning' in entity) && !('itemDefId' in entity);
 } 

@@ -18,6 +18,7 @@ import {
     Pumpkin as SpacetimeDBPumpkin,
     Grass as SpacetimeDBGrass,
     Projectile as SpacetimeDBProjectile,
+    Shelter as SpacetimeDBShelter
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 // Import individual rendering functions
@@ -37,6 +38,7 @@ import { renderPumpkin } from './pumpkinRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
 import { renderProjectile } from './projectileRenderingUtils';
+import { renderShelter } from './shelterRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -66,6 +68,7 @@ interface RenderYSortedEntitiesProps {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>; // Add inventory items for validation
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+    shelterImage: HTMLImageElement | null;
     worldMouseX: number | null;
     worldMouseY: number | null;
     localPlayerId?: string;
@@ -81,6 +84,7 @@ interface RenderYSortedEntitiesProps {
         itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
         heroImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
+    localPlayerPosition?: { x: number; y: number } | null;
 }
 
 /**
@@ -97,6 +101,7 @@ export const renderYSortedEntities = ({
     itemDefinitions,
     inventoryItems,
     itemImagesRef,
+    shelterImage,
     worldMouseX,
     worldMouseY,
     localPlayerId,
@@ -106,6 +111,7 @@ export const renderYSortedEntities = ({
     onPlayerHover,
     cycleProgress,
     renderPlayerCorpse: renderCorpse,
+    localPlayerPosition,
 }: RenderYSortedEntitiesProps) => {
 
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
@@ -269,6 +275,21 @@ export const renderYSortedEntities = ({
         } else if (type === 'stone') {
             // Render stone, skip its dynamic shadow in this pass
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, true);
+        } else if (type === 'shelter') {
+            const shelter = entity as SpacetimeDBShelter;
+            if (shelterImage) { 
+                renderShelter({
+                    ctx,
+                    shelter,
+                    shelterImage: shelterImage, 
+                    nowMs,
+                    cycleProgress,
+                    localPlayerId,
+                    localPlayerPosition,
+                });
+            } else {
+                // console.warn('[renderYSortedEntities] Shelter image not available for shelter:', shelter.id); // DEBUG LOG
+            }
         } else if (type === 'corn') {
             renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, false, true);
         } else if (type === 'hemp') {
@@ -309,6 +330,9 @@ export const renderYSortedEntities = ({
                     currentTimeMs: nowMs,
                 });
             }
+        } else if (type === 'shelter') {
+            // Shelters are fully rendered in the first pass, including shadows.
+            // No action needed in this second (shadow-only) pass.
         } else {
             console.warn('Unhandled entity type for Y-sorting (first pass):', type, entity);
         } 
@@ -323,6 +347,9 @@ export const renderYSortedEntities = ({
             // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
         } else if (type === 'stone') {
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
+        } else if (type === 'shelter') {
+            // Shelters are fully rendered in the first pass, including shadows.
+            // No action needed in this second (shadow-only) pass.
         } else if (type === 'corn') {
             renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, true, false);
         } else if (type === 'hemp') {

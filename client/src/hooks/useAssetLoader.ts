@@ -6,6 +6,7 @@ import grassTexture from '../assets/tiles/grass.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
 import deathMarkerUrl from '../assets/items/death_marker.png';
+import shelterSpritePath from '../assets/doodads/shelter.png';
 
 // Import cloud image paths
 import cloud1Texture from '../assets/environment/clouds/cloud1.png';
@@ -22,6 +23,7 @@ interface AssetLoaderResult {
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
   burlapSackImageRef: React.RefObject<HTMLImageElement | null>;
   cloudImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+  shelterImageRef: React.RefObject<HTMLImageElement | null>;
   isLoadingAssets: boolean;
 }
 
@@ -35,6 +37,7 @@ export function useAssetLoader(): AssetLoaderResult {
   const burlapSackImageRef = useRef<HTMLImageElement | null>(null);
   const itemImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const cloudImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const shelterImageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     let loadedCount = 0;
@@ -86,6 +89,15 @@ export function useAssetLoader(): AssetLoaderResult {
         console.error("Error during entity preloading:", error);
     }
 
+    // ADDED: Preload shelter image
+    const shelterImg = new Image();
+    shelterImg.onload = () => {
+      shelterImageRef.current = shelterImg;
+      console.log('Shelter image loaded successfully.');
+    };
+    shelterImg.onerror = () => console.error('Failed to load shelter image.');
+    shelterImg.src = shelterSpritePath; // Assuming shelterSpritePath is defined or imported
+
   }, []); // Runs once on mount
 
   // Return the refs and loading state
@@ -96,6 +108,7 @@ export function useAssetLoader(): AssetLoaderResult {
     burlapSackImageRef,
     itemImagesRef, 
     cloudImagesRef,
+    shelterImageRef,
     isLoadingAssets,
   };
 } 

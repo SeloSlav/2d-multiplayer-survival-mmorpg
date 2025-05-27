@@ -113,6 +113,7 @@ function AppContent() {
       rangedWeaponStats, // Ensure this is destructured
       projectiles, // Ensure this is destructured
       deathMarkers, // Ensure this is destructured
+      shelters // <<< ADD shelters HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -396,6 +397,7 @@ function AppContent() {
                             sleepingBags={sleepingBags}
                             playerCorpses={playerCorpses}
                             stashes={stashes}
+                            shelters={shelters}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

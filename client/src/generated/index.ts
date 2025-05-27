@@ -130,6 +130,8 @@ import { PickupStorageBox } from "./pickup_storage_box_reducer.ts";
 export { PickupStorageBox };
 import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
+import { PlaceShelter } from "./place_shelter_reducer.ts";
+export { PlaceShelter };
 import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
 export { PlaceSleepingBag };
 import { PlaceStash } from "./place_stash_reducer.ts";
@@ -330,6 +332,8 @@ import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
+import { ShelterTableHandle } from "./shelter_table.ts";
+export { ShelterTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
 export { SleepingBagTableHandle };
 import { StashTableHandle } from "./stash_table.ts";
@@ -454,6 +458,8 @@ import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
+import { Shelter } from "./shelter_type.ts";
+export { Shelter };
 import { SleepingBag } from "./sleeping_bag_type.ts";
 export { SleepingBag };
 import { Stash } from "./stash_type.ts";
@@ -666,6 +672,11 @@ const REMOTE_MODULE = {
       tableName: "recipe",
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
+    },
+    shelter: {
+      tableName: "shelter",
+      rowType: Shelter.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     sleeping_bag: {
       tableName: "sleeping_bag",
@@ -899,6 +910,10 @@ const REMOTE_MODULE = {
     place_campfire: {
       reducerName: "place_campfire",
       argsType: PlaceCampfire.getTypeScriptAlgebraicType(),
+    },
+    place_shelter: {
+      reducerName: "place_shelter",
+      argsType: PlaceShelter.getTypeScriptAlgebraicType(),
     },
     place_sleeping_bag: {
       reducerName: "place_sleeping_bag",
@@ -1220,6 +1235,7 @@ export type Reducer = never
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
+| { name: "PlaceShelter", args: PlaceShelter }
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceStash", args: PlaceStash }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
@@ -2028,6 +2044,22 @@ export class RemoteReducers {
 
   removeOnPlaceCampfire(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_campfire", callback);
+  }
+
+  placeShelter(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceShelter.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_shelter", __argsBuffer, this.setCallReducerFlags.placeShelterFlags);
+  }
+
+  onPlaceShelter(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_shelter", callback);
+  }
+
+  removeOnPlaceShelter(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_shelter", callback);
   }
 
   placeSleepingBag(itemInstanceId: bigint, worldX: number, worldY: number) {
@@ -3208,6 +3240,11 @@ export class SetReducerFlags {
     this.placeCampfireFlags = flags;
   }
 
+  placeShelterFlags: CallReducerFlags = 'FullUpdate';
+  placeShelter(flags: CallReducerFlags) {
+    this.placeShelterFlags = flags;
+  }
+
   placeSleepingBagFlags: CallReducerFlags = 'FullUpdate';
   placeSleepingBag(flags: CallReducerFlags) {
     this.placeSleepingBagFlags = flags;
@@ -3668,6 +3705,10 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
+  }
+
+  get shelter(): ShelterTableHandle {
+    return new ShelterTableHandle(this.connection.clientCache.getOrCreateTable<Shelter>(REMOTE_MODULE.tables.shelter));
   }
 
   get sleepingBag(): SleepingBagTableHandle {

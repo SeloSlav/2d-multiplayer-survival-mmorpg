@@ -28,6 +28,8 @@ use crate::campfire::campfire as CampfireTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::mushroom::mushroom as MushroomTableTrait;
 use crate::dropped_item::dropped_item as DroppedItemTableTrait;
+use crate::shelter::shelter as ShelterTableTrait; // RE-ENABLE ShelterTableTrait import
+use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // ADDED PlayerCorpse table trait
 
 // Cell size should be larger than the largest collision radius to ensure
 // we only need to check adjacent cells. We use 4x the player radius as a safe default.
@@ -52,6 +54,8 @@ pub enum EntityType {
     WoodenStorageBox(u32),
     Mushroom(u32),
     DroppedItem(u64),
+    Shelter(u32), // RE-ENABLE Shelter from EntityType
+    PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
 }
 
 // Grid cell that stores entities
@@ -152,7 +156,9 @@ impl SpatialGrid {
     // Helper function to populate the grid with all world entities
     pub fn populate_from_world<DB: PlayerTableTrait + TreeTableTrait + StoneTableTrait 
                                   + CampfireTableTrait + WoodenStorageBoxTableTrait 
-                                  + MushroomTableTrait + DroppedItemTableTrait>
+                                  + MushroomTableTrait + DroppedItemTableTrait
+                                  + ShelterTableTrait 
+                                  + PlayerCorpseTableTrait> // ADDED PlayerCorpseTableTrait to bounds
                                  (&mut self, db: &DB) {
         self.clear();
         
@@ -195,6 +201,47 @@ impl SpatialGrid {
         // Add dropped items
         for item in db.dropped_item().iter() {
             self.add_entity(EntityType::DroppedItem(item.id), item.pos_x, item.pos_y);
+        }
+
+        // Add shelters (only non-destroyed) - RE-ENABLING THIS BLOCK
+        for shelter in db.shelter().iter() {
+            if !shelter.is_destroyed {
+                // For shelters, we need to add them to all cells their AABB overlaps
+                // since their collision area is larger than a single grid cell
+                use crate::shelter::{SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT, SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y};
+                
+                let shelter_aabb_center_x = shelter.pos_x;
+                let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+                
+                // Calculate AABB bounds
+                let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+                let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+                let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+                let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+                
+                // Calculate which grid cells the AABB overlaps
+                let start_cell_x = ((aabb_left / GRID_CELL_SIZE).floor() as isize).max(0) as usize;
+                let end_cell_x = ((aabb_right / GRID_CELL_SIZE).ceil() as isize).min(self.width as isize - 1) as usize;
+                let start_cell_y = ((aabb_top / GRID_CELL_SIZE).floor() as isize).max(0) as usize;
+                let end_cell_y = ((aabb_bottom / GRID_CELL_SIZE).ceil() as isize).min(self.height as isize - 1) as usize;
+                
+                // Add shelter to all overlapping cells
+                for cell_y in start_cell_y..=end_cell_y {
+                    for cell_x in start_cell_x..=end_cell_x {
+                        let index = cell_y * self.width + cell_x;
+                        if index < self.cells.len() {
+                            self.cells[index].entities.push(EntityType::Shelter(shelter.id));
+                        }
+                    }
+                }
+            }
+        }
+        
+        // ADDED: Add player corpses
+        for corpse in db.player_corpse().iter() {
+            // Assuming PlayerCorpse does not have an `is_destroyed` field, or we always add active ones.
+            // If there's a similar flag, add check: if !corpse.is_looted_or_despawned { ... }
+            self.add_entity(EntityType::PlayerCorpse(corpse.id), corpse.pos_x, corpse.pos_y);
         }
     }
 }

@@ -15,6 +15,7 @@ import {
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
   Projectile as SpacetimeDBProjectile,
+  Shelter as SpacetimeDBShelter,
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -25,7 +26,8 @@ import {
   isStash,
   isPumpkin,
   isPlayerCorpse,
-  isGrass // Type guard might need adjustment or can work if structure is similar enough
+  isGrass, // Type guard might need adjustment or can work if structure is similar enough
+  isShelter // ADDED Shelter type guard import (will be created in typeGuards.ts)
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
@@ -67,6 +69,8 @@ interface EntityFilteringResult {
   ySortedEntities: YSortedEntityType[];
   visibleGrass: InterpolatedGrassData[]; // Use InterpolatedGrassData
   visibleGrassMap: Map<string, InterpolatedGrassData>; // Use InterpolatedGrassData
+  visibleShelters: SpacetimeDBShelter[]; // ADDED
+  visibleSheltersMap: Map<string, SpacetimeDBShelter>; // ADDED
 }
 
 // Define a unified entity type for sorting
@@ -84,6 +88,7 @@ export type YSortedEntityType =
   | { type: 'mushroom'; entity: SpacetimeDBMushroom }
   | { type: 'pumpkin'; entity: SpacetimeDBPumpkin }
   | { type: 'projectile'; entity: SpacetimeDBProjectile }
+  | { type: 'shelter'; entity: SpacetimeDBShelter }
   | { type: 'grass'; entity: InterpolatedGrassData }; // Use InterpolatedGrassData
 
 export function useEntityFiltering(
@@ -105,10 +110,12 @@ export function useEntityFiltering(
   canvasWidth: number,
   canvasHeight: number,
   grass: Map<string, InterpolatedGrassData>, // Use InterpolatedGrassData
-  projectiles: Map<string, SpacetimeDBProjectile>
+  projectiles: Map<string, SpacetimeDBProjectile>,
+  shelters: Map<string, SpacetimeDBShelter> // ADDED shelters argument
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
+  console.log('[useEntityFiltering] Hook called. Raw shelters map size:', shelters?.size); // DEBUG LOG 1
 
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {
@@ -196,6 +203,11 @@ export function useEntityFiltering(
       y = projectile.startPosY + projectile.velocityY * elapsedSeconds;
       width = 32;
       height = 32;
+    } else if (isShelter(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 384; // Based on SHELTER_RENDER_WIDTH
+      height = 384; // Based on SHELTER_RENDER_HEIGHT
     } else if (isGrass(entity)) {
       // After isGrass, entity could be SpacetimeDBGrass or InterpolatedGrassData
       if ('serverPosX' in entity) { // It's InterpolatedGrassData
@@ -333,6 +345,13 @@ export function useEntityFiltering(
     [grass, isEntityInView, viewBounds, currentTime]
   ); // grass parameter is now Map<string, InterpolatedGrassData>
 
+  // ADDED: Filter visible shelters
+  const visibleShelters = useMemo(() => {
+    const filtered = shelters ? Array.from(shelters.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, currentTime)) : [];
+    // console.log('[useEntityFiltering] Filtered visibleShelters count:', filtered.length, filtered); // DEBUG LOG 2
+    return filtered;
+  }, [shelters, isEntityInView, viewBounds, currentTime]);
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -398,6 +417,12 @@ export function useEntityFiltering(
     [visibleGrass]
   ); // visibleGrass is now InterpolatedGrassData[]
 
+  // ADDED: Map for visible shelters
+  const visibleSheltersMap = useMemo(() =>
+    new Map(visibleShelters.map(s => [s.id.toString(), s])),
+    [visibleShelters]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleSleepingBags,
@@ -420,8 +445,10 @@ export function useEntityFiltering(
       ...visibleMushrooms.map(m => ({ type: 'mushroom' as const, entity: m })),
       ...visiblePumpkins.map(p => ({ type: 'pumpkin' as const, entity: p })),
       ...visibleProjectiles.map(p => ({ type: 'projectile' as const, entity: p })),
+      ...visibleShelters.map(s => ({ type: 'shelter' as const, entity: s })),
       ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
     ];
+    // console.log('[useEntityFiltering] Mapped entities before filtering nulls (shelter portion):', mappedEntities.filter(e => e.type === 'shelter')); // DEBUG LOG 3
 
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
     const validEntities = mappedEntities.filter(e => e && e.entity);
@@ -432,6 +459,13 @@ export function useEntityFiltering(
 
       if (isPlayer(entity)) {
         sortY = entity.positionY;
+        return sortY;
+      }
+
+      // Explicit handling for Shelter to ensure it uses its base posY
+      if (isShelter(entity)) {
+        const Y_OFFSET = 120; 
+        sortY = entity.posY - Y_OFFSET;
         return sortY;
       }
 
@@ -490,7 +524,8 @@ export function useEntityFiltering(
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, visibleCorns, visibleHemps,
     visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
-    visibleProjectiles, visibleGrass // visibleGrass is now InterpolatedGrassData[]
+    visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
+    visibleShelters // ADDED visibleShelters to dependencies
   ]);
 
   return {
@@ -523,6 +558,8 @@ export function useEntityFiltering(
     groundItems,
     ySortedEntities,
     visibleGrass,
-    visibleGrassMap
+    visibleGrassMap,
+    visibleShelters,
+    visibleSheltersMap
   };
 } 

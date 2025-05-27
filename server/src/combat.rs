@@ -48,6 +48,8 @@ use crate::environment::calculate_chunk_index;
 use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait, campfire_processing_schedule as CampfireProcessingScheduleTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
+use crate::shelter::Shelter; // Ensure Shelter struct is imported
+use crate::shelter::shelter as ShelterTableTrait; // Ensure Shelter table trait is imported
 use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
 use crate::consumables::MAX_STAT_VALUE;
 // Import the armor module
@@ -86,6 +88,7 @@ pub enum TargetId {
     SleepingBag(u32),
     PlayerCorpse(u32),
     Grass(u64),
+    Shelter(u32),
 }
 
 /// Represents a potential target within attack range
@@ -449,7 +452,8 @@ fn is_destructible_deployable(target_type: TargetType) -> bool {
         TargetType::Campfire | 
         TargetType::WoodenStorageBox | 
         TargetType::SleepingBag | 
-        TargetType::Stash
+        TargetType::Stash |
+        TargetType::Shelter
     )
 }
 
@@ -1519,7 +1523,10 @@ pub fn process_attack(
         },
         TargetId::Grass(grass_id) => {
             damage_grass(ctx, attacker_id, *grass_id, damage, timestamp, rng)
-        }
+        },
+        TargetId::Shelter(shelter_id) => {
+            damage_shelter(ctx, attacker_id, *shelter_id, damage, timestamp, rng)
+        },
     }
 }
 
@@ -1670,4 +1677,60 @@ pub fn damage_grass(
     } else {
         Err(format!("Grass with ID {} not found.", grass_id))
     }
+}
+
+/// Applies damage to a shelter and handles destruction
+pub fn damage_shelter(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    shelter_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    let mut shelters_table = ctx.db.shelter();
+    let mut shelter = shelters_table.id().find(shelter_id)
+        .ok_or_else(|| format!("Target shelter {} disappeared", shelter_id))?;
+
+    if shelter.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Shelter), resource_granted: None });
+    }
+
+    let old_health = shelter.health;
+    shelter.health = (shelter.health - damage).max(0.0);
+    shelter.last_hit_time = Some(timestamp);
+
+    log::info!(
+        "Player {:?} hit Shelter {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, shelter_id, damage, old_health, shelter.health
+    );
+
+    if shelter.health <= 0.0 {
+        shelter.is_destroyed = true;
+        shelter.destroyed_at = Some(timestamp);
+        
+        // Update shelter to mark as destroyed before deleting, so clients see the state change
+        shelters_table.id().update(shelter.clone());
+        // Then delete the shelter entity
+        shelters_table.id().delete(shelter_id);
+
+        log::info!(
+            "Shelter {} destroyed by player {:?}. Consider dropping constituent materials.",
+            shelter_id, attacker_id
+        );
+
+        // TODO: Implement logic to drop some constituent materials (e.g., wood, stone, fiber)
+        // Example: grant_resource(ctx, attacker_id, "Wood", rng.gen_range(50..=150))?;
+        // This would require shelter to store its original crafter or make resources drop at location.
+        // For now, just logs a message.
+
+    } else {
+        shelters_table.id().update(shelter);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Shelter),
+        resource_granted: None, // No direct resource grant on hit, only on destruction (TODO)
+    })
 } 

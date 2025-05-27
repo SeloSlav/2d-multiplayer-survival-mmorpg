@@ -43,8 +43,10 @@ pub fn init_stat_thresholds_config(ctx: &ReducerContext) -> Result<(), String> {
 // --- End StatThresholdsConfig Table Definition ---
 
 // Define Constants locally
-const HUNGER_DRAIN_PER_SECOND: f32 = 100.0 / (30.0 * 60.0);
-const THIRST_DRAIN_PER_SECOND: f32 = 100.0 / (20.0 * 60.0);
+// Hunger drains from 100 to 0 in 3 hours
+const HUNGER_DRAIN_PER_SECOND: f32 = 250.0 / (3.0 * 60.0 * 60.0);
+// Thirst drains from 100 to 0 in 2 hours
+const THIRST_DRAIN_PER_SECOND: f32 = 250.0 / (2.0 * 60.0 * 60.0);
 // Make stat constants pub(crate) as well for consistency, although not strictly needed if only used here
 pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 2.5;
 pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 1.0;
@@ -58,7 +60,7 @@ pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.6;
 // Add the constants moved from lib.rs and make them pub(crate)
 pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 1.5;
 pub(crate) const JUMP_COOLDOWN_MS: u64 = 500;
-pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.75;
+pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 
 // Import necessary items from the main lib module or other modules

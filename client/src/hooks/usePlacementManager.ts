@@ -81,6 +81,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeStash(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx will need a handleStashInsert callback to cancel placement on success
           break;
+        case 'Shelter':
+          // console.log(`[PlacementManager] Calling placeShelter reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeShelter(placementInfo.instanceId, worldX, worldY);
+          // Assume App.tsx will need a handleShelterInsert callback (added in useSpacetimeTables)
+          // which should call cancelPlacement on success.
+          break;
         // case 'Storage Box':
         //   console.log(`[PlacementManager] Calling placeStorageBox reducer.`);
         //   connection.reducers.placeStorageBox(worldX, worldY);

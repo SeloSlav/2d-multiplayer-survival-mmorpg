@@ -3,6 +3,7 @@ import { PlacementItemInfo } from '../../hooks/usePlacementManager';
 import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from './campfireRenderingUtils';
 import { SLEEPING_BAG_WIDTH, SLEEPING_BAG_HEIGHT } from './sleepingBagRenderingUtils';
 import { STASH_WIDTH, STASH_HEIGHT } from './stashRenderingUtils';
+import { SHELTER_RENDER_WIDTH, SHELTER_RENDER_HEIGHT } from './shelterRenderingUtils';
 
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
@@ -47,6 +48,9 @@ export function renderPlacementPreview({
     } else if (placementInfo.iconAssetName === 'stash.png') {
         drawWidth = STASH_WIDTH;
         drawHeight = STASH_HEIGHT;
+    } else if (placementInfo.iconAssetName === 'shelter.png') {
+        drawWidth = SHELTER_RENDER_WIDTH; 
+        drawHeight = SHELTER_RENDER_HEIGHT;
     }
 
     ctx.save();

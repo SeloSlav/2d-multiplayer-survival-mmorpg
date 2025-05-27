@@ -21,17 +21,17 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
     // Format: (item_name: &str, quantity: u32, hotbar_slot: Option<u8>, inventory_slot: Option<u16>)
     let starting_inv_items = [
         // Hotbar (Slots 0-5)
-        ("Torch", 1, Some(0u8), None), 
-        ("Sleeping Bag", 10, Some(1u8), None), 
-        ("Wooden Spear", 1, Some(2u8), None),
+        ("Stone Hatchet", 1, Some(0u8), None), 
+        ("Shelter", 10, Some(1u8), None), 
+        ("Sleeping Bag", 1, Some(2u8), None),
         ("Wooden Storage Box", 1, Some(3u8), None), 
         ("Camp Fire", 1, Some(4u8), None),
-        ("Stone Hatchet", 1, Some(5u8), None),
+        ("Torch", 1, Some(5u8), None),
         
         // Starting materials in Inventory (Slots 0-23 typically)
         ("Cloth", 100, None, Some(0u16)),
         ("Bone Arrow", 50, None, Some(1u16)),
-        ("Animal Fat", 1, None, Some(3u16)),
+        ("Shelter", 1, None, Some(3u16)),
         ("Animal Bone", 10, None, Some(4u16)),
         ("Bone Club", 1, None, Some(5u16)),
         ("Bone Knife", 1, None, Some(6u16)),

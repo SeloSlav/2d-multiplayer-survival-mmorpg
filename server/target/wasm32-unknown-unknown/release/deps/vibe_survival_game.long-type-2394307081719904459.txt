@@ -1,0 +1,1 @@
+for<'a> fn(&'a ReducerContext) -> ShelterAABBInfo {get_shelter_aabb_info}

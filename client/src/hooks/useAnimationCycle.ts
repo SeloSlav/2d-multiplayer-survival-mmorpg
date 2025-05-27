@@ -51,7 +51,11 @@ export function useWalkingAnimationCycle(interval: number = 120): number {
   const walkingFrames = [0, 1, 2, 1];
 
   useEffect(() => {
-    // Use requestAnimationFrame for better performance and consistency
+    // Reset/initialize refs when interval changes or component mounts
+    lastUpdateRef.current = performance.now();
+    accumulatedTimeRef.current = 0;
+    // setCycleIndex(0); // Optionally reset animation to start, or let it continue
+
     const updateWalkCycle = () => {
       const now = performance.now();
       const deltaTime = now - lastUpdateRef.current;
@@ -59,10 +63,23 @@ export function useWalkingAnimationCycle(interval: number = 120): number {
       
       accumulatedTimeRef.current += deltaTime;
       
-      // Check if enough time has passed for the next frame
+      // Check if at least one frame step is needed
       if (accumulatedTimeRef.current >= interval) {
-        setCycleIndex(index => (index + 1) % walkingFrames.length);
-        accumulatedTimeRef.current -= interval; // Keep remainder for smooth timing
+        let newCalculatedIndex = cycleIndex; // Start with current state's index
+        let timeToProcess = accumulatedTimeRef.current;
+        
+        // Process all full intervals that have passed
+        while (timeToProcess >= interval) {
+          newCalculatedIndex = (newCalculatedIndex + 1) % walkingFrames.length;
+          timeToProcess -= interval;
+        }
+        accumulatedTimeRef.current = timeToProcess; // Store the remainder
+
+        // Only update state if the calculated newIndex is different from the current cycleIndex
+        // This prevents unnecessary state updates if the animation hasn't actually advanced a frame.
+        if (newCalculatedIndex !== cycleIndex) {
+          setCycleIndex(newCalculatedIndex);
+        }
       }
       
       animationIdRef.current = requestAnimationFrame(updateWalkCycle);
@@ -75,7 +92,10 @@ export function useWalkingAnimationCycle(interval: number = 120): number {
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [interval]);
+    // cycleIndex is a dependency because it's read to determine newCalculatedIndex.
+    // This ensures that if cycleIndex were to be changed from outside (which it isn't here),
+    // the loop correctly uses the latest value.
+  }, [interval, cycleIndex]);
 
   return walkingFrames[cycleIndex];
 } 

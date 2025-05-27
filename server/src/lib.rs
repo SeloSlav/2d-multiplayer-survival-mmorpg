@@ -59,12 +59,19 @@ mod death_marker; // <<< ADDED death marker module
 mod torch; // <<< ADDED torch module
 mod respawn; // <<< ADDED respawn module
 mod player_collision; // <<< ADDED player_collision module
+mod shelter; // <<< ADDED shelter module
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
 
 // ADD: Re-export player movement reducers
 pub use player_movement::{set_sprinting, toggle_crouch, jump};
+
+// ADD: Re-export shelter placement reducer
+pub use shelter::place_shelter;
+
+// ADD: Re-export sleeping bag respawn reducer
+pub use sleeping_bag::respawn_at_sleeping_bag;
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;

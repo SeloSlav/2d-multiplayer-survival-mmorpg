@@ -39,6 +39,7 @@ export interface SpacetimeTableStates {
     rangedWeaponStats: Map<string, SpacetimeDBRangedWeaponStats>;
     projectiles: Map<string, SpacetimeDBProjectile>;
     deathMarkers: Map<string, SpacetimeDB.DeathMarker>;
+    shelters: Map<string, SpacetimeDB.Shelter>;
 }
 
 // Define the props the hook accepts
@@ -87,6 +88,7 @@ export const useSpacetimeTables = ({
     const [rangedWeaponStats, setRangedWeaponStats] = useState<Map<string, SpacetimeDBRangedWeaponStats>>(() => new Map());
     const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
     const [deathMarkers, setDeathMarkers] = useState<Map<string, SpacetimeDB.DeathMarker>>(() => new Map());
+    const [shelters, setShelters] = useState<Map<string, SpacetimeDB.Shelter>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -509,6 +511,21 @@ export const useSpacetimeTables = ({
                 setDeathMarkers(prev => { const newMap = new Map(prev); newMap.delete(marker.playerId.toHexString()); return newMap; });
             };
 
+            // --- Shelter Callbacks --- ADDED
+            const handleShelterInsert = (ctx: any, shelter: SpacetimeDB.Shelter) => {
+                setShelters(prev => new Map(prev).set(shelter.id.toString(), shelter));
+                // If this client placed the shelter, cancel placement mode
+                if (connection && connection.identity && shelter.placedBy.isEqual(connection.identity)) {
+                    cancelPlacementRef.current();
+                }
+            };
+            const handleShelterUpdate = (ctx: any, oldShelter: SpacetimeDB.Shelter, newShelter: SpacetimeDB.Shelter) => {
+                setShelters(prev => new Map(prev).set(newShelter.id.toString(), newShelter));
+            };
+            const handleShelterDelete = (ctx: any, shelter: SpacetimeDB.Shelter) => {
+                setShelters(prev => { const newMap = new Map(prev); newMap.delete(shelter.id.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -574,6 +591,11 @@ export const useSpacetimeTables = ({
             connection.db.deathMarker.onUpdate(handleDeathMarkerUpdate);
             connection.db.deathMarker.onDelete(handleDeathMarkerDelete);
 
+            // Register Shelter callbacks - ADDED
+            connection.db.shelter.onInsert(handleShelterInsert);
+            connection.db.shelter.onUpdate(handleShelterUpdate);
+            connection.db.shelter.onDelete(handleShelterDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -633,6 +655,8 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder().onError((err) => console.error("[RANGED_WEAPON_STATS Sub Error]:", err)).subscribe('SELECT * FROM ranged_weapon_stats'),
                  connection.subscriptionBuilder().onError((err) => console.error("[PROJECTILE Sub Error]:", err)).subscribe('SELECT * FROM projectile'),
                  connection.subscriptionBuilder().onError((err) => console.error("[DEATH_MARKER Sub Error]:", err)).subscribe('SELECT * FROM death_marker'),
+                 // ADDED Shelter subscription (non-spatial for now, can be made spatial later if needed)
+                 connection.subscriptionBuilder().onError((err) => console.error("[SHELTER Sub Error]:", err)).subscribe('SELECT * FROM shelter'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -790,6 +814,7 @@ export const useSpacetimeTables = ({
                  setRangedWeaponStats(new Map());
                  setProjectiles(new Map());
                  setDeathMarkers(new Map()); // Reset death markers state
+                 setShelters(new Map()); // ADDED: Reset shelter state
              }
         };
 
@@ -827,5 +852,6 @@ export const useSpacetimeTables = ({
         rangedWeaponStats,
         projectiles,
         deathMarkers, // Return death markers state
+        shelters, // ADDED: Return shelter state
     };
 }; 

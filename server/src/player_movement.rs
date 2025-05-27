@@ -5,8 +5,8 @@ use log;
 use crate::player as PlayerTableTrait;
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
-use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
-use crate::campfire::campfire as CampfireTableTrait;
+use crate::wooden_storage_box::{self as WoodenStorageBoxModule, wooden_storage_box as WoodenStorageBoxTableTrait, WoodenStorageBox, PLAYER_BOX_COLLISION_DISTANCE_SQUARED, BOX_COLLISION_Y_OFFSET};
+use crate::campfire::{self as CampfireModule, campfire as CampfireTableTrait, Campfire, PLAYER_CAMPFIRE_COLLISION_DISTANCE_SQUARED, CAMPFIRE_COLLISION_Y_OFFSET};
 use crate::grass::grass as GrassTableTrait;
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait;
 
@@ -18,9 +18,6 @@ use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, LOW_THIRST_SPEED_PENALTY, LOW
 
 // Import constants from environment module
 use crate::environment::{calculate_chunk_index, WORLD_WIDTH_CHUNKS};
-
-// Import spatial grid module
-// use crate::spatial_grid; // This will be used within player_collision
 
 // Import the new player_collision module
 use crate::player_collision;
@@ -45,8 +42,8 @@ pub fn update_player_position(
     let players = ctx.db.player();
     let trees = ctx.db.tree();
     let stones = ctx.db.stone();
-    let campfires = ctx.db.campfire(); // Get campfire table
-    let wooden_storage_boxes = ctx.db.wooden_storage_box(); // <<< ADDED
+    let campfires = ctx.db.campfire();
+    let wooden_storage_boxes = ctx.db.wooden_storage_box();
 
     let current_player = players.identity()
         .find(sender_id)
@@ -278,7 +275,7 @@ pub fn update_player_position(
     }
 
     // --- Final Update ---
-    let mut player_to_update = current_player; // Get a mutable copy from the initial read
+    let mut player_to_update = current_player.clone(); // Get a mutable copy by CLONING
 
     // Check if position or direction actually changed
     let position_changed = (resolved_x - player_to_update.position_x).abs() > 0.01 ||
@@ -302,12 +299,12 @@ pub fn update_player_position(
         player_to_update.direction = final_anim_direction; // Update animation direction
         player_to_update.last_update = now; // Update timestamp because state changed
 
-        players.identity().update(player_to_update); // Update the modified player struct
+        players.identity().update(player_to_update.clone()); // Update the modified player struct
     } else if needs_timestamp_update { // If no state changed, but time passed
          log::trace!("No movement state changes detected for player {:?}, but updating timestamp due to elapsed time.", sender_id);
          // Update only the timestamp on the existing player data
          player_to_update.last_update = now;
-         players.identity().update(player_to_update);
+         players.identity().update(player_to_update.clone()); // CLONE here too for consistency if player_to_update was a mutable borrow later
     } else {
          // This case should be rare (delta_time <= 0.0)
          log::trace!("No state changes and no time elapsed for player {:?}, skipping update.", sender_id);
