@@ -11,6 +11,7 @@ import {
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
+    Shelter as SpacetimeDBShelter,
 } from '../generated';
 import {
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
@@ -39,6 +40,7 @@ interface UseInteractionFinderProps {
     stashes: Map<string, SpacetimeDBStash>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     players: Map<string, SpacetimeDBPlayer>;
+    shelters: Map<string, SpacetimeDBShelter>;
 }
 
 // Define the hook's return type
@@ -76,6 +78,61 @@ export const CORN_VISUAL_HEIGHT_FOR_INTERACTION = 96;
 export const HEMP_VISUAL_HEIGHT_FOR_INTERACTION = 88;
 export const PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 
+// --- Shelter Access Control Constants ---
+const SHELTER_COLLISION_WIDTH = 300.0;
+const SHELTER_COLLISION_HEIGHT = 125.0;
+const SHELTER_AABB_HALF_WIDTH = SHELTER_COLLISION_WIDTH / 2.0;
+const SHELTER_AABB_HALF_HEIGHT = SHELTER_COLLISION_HEIGHT / 2.0;
+const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 200.0;
+
+// --- Shelter Access Control Helper Functions ---
+
+/**
+ * Checks if a player is inside a shelter's AABB
+ */
+function isPlayerInsideShelter(playerX: number, playerY: number, shelter: SpacetimeDBShelter): boolean {
+    const shelterAabbCenterX = shelter.posX;
+    const shelterAabbCenterY = shelter.posY - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+    const aabbLeft = shelterAabbCenterX - SHELTER_AABB_HALF_WIDTH;
+    const aabbRight = shelterAabbCenterX + SHELTER_AABB_HALF_WIDTH;
+    const aabbTop = shelterAabbCenterY - SHELTER_AABB_HALF_HEIGHT;
+    const aabbBottom = shelterAabbCenterY + SHELTER_AABB_HALF_HEIGHT;
+    
+    return playerX >= aabbLeft && playerX <= aabbRight && playerY >= aabbTop && playerY <= aabbBottom;
+}
+
+/**
+ * Checks if a player can interact with an object at a given position
+ * Returns true if:
+ * - The object is not inside any shelter, OR
+ * - The player is the owner of the shelter containing the object and is also inside that shelter
+ */
+function canPlayerInteractWithObjectInShelter(
+    playerX: number,
+    playerY: number,
+    playerId: string,
+    objectX: number,
+    objectY: number,
+    shelters: Map<string, SpacetimeDBShelter>
+): boolean {
+    for (const shelter of shelters.values()) {
+        if (shelter.isDestroyed) continue;
+        
+        // Check if the object is inside this shelter
+        if (isPlayerInsideShelter(objectX, objectY, shelter)) {
+            // Object is inside this shelter
+            // Only allow interaction if player is the owner and is also inside the shelter
+            const isOwner = shelter.placedBy.toHexString() === playerId;
+            const isPlayerInside = isPlayerInsideShelter(playerX, playerY, shelter);
+            
+            return isOwner && isPlayerInside;
+        }
+    }
+    
+    // Object is not inside any shelter, interaction is allowed
+    return true;
+}
+
 /**
  * Finds the closest interactable entity of each type within range of the local player.
  */
@@ -92,6 +149,7 @@ export function useInteractionFinder({
     stashes,
     sleepingBags,
     players,
+    shelters,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -208,8 +266,14 @@ export function useInteractionFinder({
                 const dy = playerY - visualCenterY;
                 const distSq = dx * dx + dy * dy;
                 if (distSq < closestCampfireDistSq) {
-                    closestCampfireDistSq = distSq;
-                    closestCampfireId = campfire.id;
+                    // Check shelter access control
+                    if (canPlayerInteractWithObjectInShelter(
+                        playerX, playerY, localPlayer.identity.toHexString(),
+                        campfire.posX, campfire.posY, shelters
+                    )) {
+                        closestCampfireDistSq = distSq;
+                        closestCampfireId = campfire.id;
+                    }
                 }
             });
 
@@ -230,18 +294,24 @@ export function useInteractionFinder({
                 const dy = playerY - box.posY;
                 const distSq = dx * dx + dy * dy;
                 if (distSq < closestBoxDistSq) {
-                    closestBoxDistSq = distSq;
-                    closestBoxId = box.id;
-                    // Check if this closest box is empty
-                    let isEmpty = true;
-                    for (let i = 0; i < NUM_BOX_SLOTS; i++) {
-                        const slotKey = `slotInstanceId${i}` as keyof SpacetimeDBWoodenStorageBox;
-                        if (box[slotKey] !== null && box[slotKey] !== undefined) {
-                            isEmpty = false;
-                            break;
+                    // Check shelter access control
+                    if (canPlayerInteractWithObjectInShelter(
+                        playerX, playerY, localPlayer.identity.toHexString(),
+                        box.posX, box.posY, shelters
+                    )) {
+                        closestBoxDistSq = distSq;
+                        closestBoxId = box.id;
+                        // Check if this closest box is empty
+                        let isEmpty = true;
+                        for (let i = 0; i < NUM_BOX_SLOTS; i++) {
+                            const slotKey = `slotInstanceId${i}` as keyof SpacetimeDBWoodenStorageBox;
+                            if (box[slotKey] !== null && box[slotKey] !== undefined) {
+                                isEmpty = false;
+                                break;
+                            }
                         }
+                        isClosestBoxEmpty = isEmpty;
                     }
-                    isClosestBoxEmpty = isEmpty;
                 }
             });
 
@@ -252,8 +322,14 @@ export function useInteractionFinder({
                     const dy = playerY - corpse.posY;
                     const distSq = dx * dx + dy * dy;
                     if (distSq < closestCorpseDistSq) {
-                        closestCorpseDistSq = distSq;
-                        closestCorpse = corpse.id as unknown as bigint;
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            corpse.posX, corpse.posY, shelters
+                        )) {
+                            closestCorpseDistSq = distSq;
+                            closestCorpse = corpse.id as unknown as bigint;
+                        }
                     }
                 });
             }
@@ -274,10 +350,16 @@ export function useInteractionFinder({
 
                     // Check if the stash is within its applicable interaction radius
                     if (distSq < interactionThresholdSq) {
-                        // If it's within the radius, check if it's closer than any previous candidate
-                        if (distSq < currentMinDistSq) {
-                            currentMinDistSq = distSq;
-                            closestStashId = stash.id; // Set the main closestStashId directly here
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            stash.posX, stash.posY, shelters
+                        )) {
+                            // If it's within the radius, check if it's closer than any previous candidate
+                            if (distSq < currentMinDistSq) {
+                                currentMinDistSq = distSq;
+                                closestStashId = stash.id; // Set the main closestStashId directly here
+                            }
                         }
                     }
                 });
@@ -292,8 +374,14 @@ export function useInteractionFinder({
                     const dy = playerY - bag.posY;
                     const distSq = dx * dx + dy * dy;
                     if (distSq < closestSleepingBagDistSq) {
-                        closestSleepingBagDistSq = distSq;
-                        closestSleepingBagId = bag.id;
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            bag.posX, bag.posY, shelters
+                        )) {
+                            closestSleepingBagDistSq = distSq;
+                            closestSleepingBagId = bag.id;
+                        }
                     }
                 });
             }
@@ -335,7 +423,7 @@ export function useInteractionFinder({
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players]);
+    }, [localPlayer, mushrooms, corns, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters]);
 
     // Effect to update state based on memoized results
     useEffect(() => {

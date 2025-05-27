@@ -244,6 +244,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     stashes,
     sleepingBags,
     players,
+    shelters,
   });
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
   const { 

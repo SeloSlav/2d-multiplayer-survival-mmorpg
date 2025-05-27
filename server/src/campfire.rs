@@ -1114,6 +1114,19 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
      if dist_sq > PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED {
          return Err("Too far away from campfire".to_string());
      }
+
+     // NEW: Check shelter access control
+     if !crate::shelter::can_player_interact_with_object_in_shelter(
+         ctx,
+         sender_id,
+         player.position_x,
+         player.position_y,
+         campfire.pos_x,
+         campfire.pos_y,
+     ) {
+         return Err("Cannot interact with campfire inside shelter - only the shelter owner can access it from inside".to_string());
+     }
+
      Ok((player, campfire))
  }
  

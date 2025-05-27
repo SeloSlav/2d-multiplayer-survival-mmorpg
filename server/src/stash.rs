@@ -316,11 +316,24 @@ pub fn toggle_stash_visibility(ctx: &ReducerContext, stash_id: u32) -> Result<()
 
 /// Helper to validate stash interaction for item operations (not hidden, player close).
 fn validate_stash_item_interaction(ctx: &ReducerContext, stash_id: u32) -> Result<(Player, Stash), String> {
-    let (_player, stash) = validate_basic_stash_interaction(ctx, stash_id, STASH_INTERACTION_DISTANCE_SQUARED)?;
+    let (player, stash) = validate_basic_stash_interaction(ctx, stash_id, STASH_INTERACTION_DISTANCE_SQUARED)?;
     if stash.is_hidden {
         return Err(format!("Stash {} is hidden.", stash_id));
     }
-    Ok((_player, stash))
+
+    // NEW: Check shelter access control
+    if !crate::shelter::can_player_interact_with_object_in_shelter(
+        ctx,
+        ctx.sender,
+        player.position_x,
+        player.position_y,
+        stash.pos_x,
+        stash.pos_y,
+    ) {
+        return Err("Cannot interact with stash inside shelter - only the shelter owner can access it from inside".to_string());
+    }
+
+    Ok((player, stash))
 }
 
 #[spacetimedb::reducer]

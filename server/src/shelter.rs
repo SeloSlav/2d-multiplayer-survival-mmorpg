@@ -621,3 +621,61 @@ pub fn calculate_shelter_warmth_bonus(
     
     0.0 // No warmth bonus if not inside own shelter
 }
+
+/// Checks if a player can interact with an object at a given position
+/// 
+/// Returns true if:
+/// - The object is not inside any shelter, OR
+/// - The player is the owner of the shelter containing the object and is also inside that shelter
+pub fn can_player_interact_with_object_in_shelter(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    player_x: f32,
+    player_y: f32,
+    object_x: f32,
+    object_y: f32,
+) -> bool {
+    // Check if the object is inside any shelter
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { continue; }
+        
+        // Check if the object is inside this shelter
+        if is_player_inside_shelter(object_x, object_y, &shelter) {
+            log::debug!(
+                "[ShelterInteraction] Object at ({:.1}, {:.1}) is inside Shelter {} owned by {:?}",
+                object_x, object_y, shelter.id, shelter.placed_by
+            );
+            
+            // Object is inside a shelter - check if player is the owner and is also inside
+            if shelter.placed_by == player_id {
+                // Player owns the shelter, check if they're inside it
+                if is_player_inside_shelter(player_x, player_y, &shelter) {
+                    log::debug!(
+                        "[ShelterInteraction] Player {:?} (owner) is inside Shelter {} and can interact with object",
+                        player_id, shelter.id
+                    );
+                    return true; // Owner inside their shelter can interact
+                } else {
+                    log::info!(
+                        "[ShelterInteraction] Player {:?} (owner) is outside Shelter {} and cannot interact with object inside",
+                        player_id, shelter.id
+                    );
+                    return false; // Owner outside their shelter cannot interact
+                }
+            } else {
+                log::info!(
+                    "[ShelterInteraction] Player {:?} is not the owner of Shelter {} and cannot interact with object inside",
+                    player_id, shelter.id
+                );
+                return false; // Non-owner cannot interact with objects inside shelter
+            }
+        }
+    }
+    
+    // Object is not inside any shelter, interaction is allowed
+    log::trace!(
+        "[ShelterInteraction] Object at ({:.1}, {:.1}) is not inside any shelter, interaction allowed",
+        object_x, object_y
+    );
+    true
+}

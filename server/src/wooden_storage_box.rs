@@ -755,5 +755,18 @@ fn validate_box_interaction(
     if (dx * dx + dy * dy) > BOX_INTERACTION_DISTANCE_SQUARED {
         return Err("Too far away".to_string());
     }
+
+    // NEW: Check shelter access control
+    if !crate::shelter::can_player_interact_with_object_in_shelter(
+        ctx,
+        sender_id,
+        player.position_x,
+        player.position_y,
+        storage_box.pos_x,
+        storage_box.pos_y,
+    ) {
+        return Err("Cannot interact with storage box inside shelter - only the shelter owner can access it from inside".to_string());
+    }
+
     Ok((player, storage_box))
 }
