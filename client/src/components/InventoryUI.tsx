@@ -29,6 +29,7 @@ import {
     CraftingQueueItem,
     PlayerCorpse,
     Stash as SpacetimeDBStash,
+    WorldState,
     // Import the generated types for ItemLocation variants
     ItemLocation,
     InventoryLocationData, // Assuming this is the type for ItemLocation.Inventory.value
@@ -76,6 +77,7 @@ interface InventoryUIProps {
     recipes: Map<string, Recipe>;
     craftingQueueItems: Map<string, CraftingQueueItem>;
     onCraftingSearchFocusChange?: (isFocused: boolean) => void;
+    worldState: WorldState | null;
 }
 
 // Represents an item instance with its definition for rendering
@@ -125,6 +127,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     recipes,
     craftingQueueItems,
     onCraftingSearchFocusChange,
+    worldState,
 }) => {
     const isPlacingItem = placementInfo !== null;
     const prevInteractionTargetRef = useRef<typeof interactionTarget | undefined>(undefined);
@@ -726,6 +729,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                     onExternalItemMouseEnter={handleExternalItemMouseEnter}
                     onExternalItemMouseLeave={handleExternalItemMouseLeave}
                     onExternalItemMouseMove={handleExternalItemMouseMove}
+                    worldState={worldState}
                 />
                 ) : (
                     // Otherwise, show the crafting UI

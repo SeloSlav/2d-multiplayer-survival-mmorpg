@@ -262,6 +262,8 @@ import { ActiveConsumableEffectTableHandle } from "./active_consumable_effect_ta
 export { ActiveConsumableEffectTableHandle };
 import { ActiveEquipmentTableHandle } from "./active_equipment_table.ts";
 export { ActiveEquipmentTableHandle };
+import { ArrowBreakEventTableHandle } from "./arrow_break_event_table.ts";
+export { ArrowBreakEventTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
 export { CampfireTableHandle };
 import { CampfireProcessingScheduleTableHandle } from "./campfire_processing_schedule_table.ts";
@@ -342,6 +344,8 @@ import { StatThresholdsConfigTableHandle } from "./stat_thresholds_config_table.
 export { StatThresholdsConfigTableHandle };
 import { StoneTableHandle } from "./stone_table.ts";
 export { StoneTableHandle };
+import { ThunderEventTableHandle } from "./thunder_event_table.ts";
+export { ThunderEventTableHandle };
 import { TreeTableHandle } from "./tree_table.ts";
 export { TreeTableHandle };
 import { WoodenStorageBoxTableHandle } from "./wooden_storage_box_table.ts";
@@ -356,6 +360,8 @@ import { ActiveConsumableEffect } from "./active_consumable_effect_type.ts";
 export { ActiveConsumableEffect };
 import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
+import { ArrowBreakEvent } from "./arrow_break_event_type.ts";
+export { ArrowBreakEvent };
 import { Campfire } from "./campfire_type.ts";
 export { Campfire };
 import { CampfireProcessingSchedule } from "./campfire_processing_schedule_type.ts";
@@ -470,12 +476,16 @@ import { Stone } from "./stone_type.ts";
 export { Stone };
 import { TargetType } from "./target_type_type.ts";
 export { TargetType };
+import { ThunderEvent } from "./thunder_event_type.ts";
+export { ThunderEvent };
 import { TimeOfDay } from "./time_of_day_type.ts";
 export { TimeOfDay };
 import { Tree } from "./tree_type.ts";
 export { Tree };
 import { TreeType } from "./tree_type_type.ts";
 export { TreeType };
+import { WeatherType } from "./weather_type_type.ts";
+export { WeatherType };
 import { WoodenStorageBox } from "./wooden_storage_box_type.ts";
 export { WoodenStorageBox };
 import { WorldState } from "./world_state_type.ts";
@@ -497,6 +507,11 @@ const REMOTE_MODULE = {
       tableName: "active_equipment",
       rowType: ActiveEquipment.getTypeScriptAlgebraicType(),
       primaryKey: "playerIdentity",
+    },
+    arrow_break_event: {
+      tableName: "arrow_break_event",
+      rowType: ArrowBreakEvent.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     campfire: {
       tableName: "campfire",
@@ -696,6 +711,11 @@ const REMOTE_MODULE = {
     stone: {
       tableName: "stone",
       rowType: Stone.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    thunder_event: {
+      tableName: "thunder_event",
+      rowType: ThunderEvent.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     tree: {
@@ -3567,6 +3587,10 @@ export class RemoteTables {
     return new ActiveEquipmentTableHandle(this.connection.clientCache.getOrCreateTable<ActiveEquipment>(REMOTE_MODULE.tables.active_equipment));
   }
 
+  get arrowBreakEvent(): ArrowBreakEventTableHandle {
+    return new ArrowBreakEventTableHandle(this.connection.clientCache.getOrCreateTable<ArrowBreakEvent>(REMOTE_MODULE.tables.arrow_break_event));
+  }
+
   get campfire(): CampfireTableHandle {
     return new CampfireTableHandle(this.connection.clientCache.getOrCreateTable<Campfire>(REMOTE_MODULE.tables.campfire));
   }
@@ -3725,6 +3749,10 @@ export class RemoteTables {
 
   get stone(): StoneTableHandle {
     return new StoneTableHandle(this.connection.clientCache.getOrCreateTable<Stone>(REMOTE_MODULE.tables.stone));
+  }
+
+  get thunderEvent(): ThunderEventTableHandle {
+    return new ThunderEventTableHandle(this.connection.clientCache.getOrCreateTable<ThunderEvent>(REMOTE_MODULE.tables.thunder_event));
   }
 
   get tree(): TreeTableHandle {

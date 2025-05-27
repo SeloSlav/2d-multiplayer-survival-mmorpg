@@ -296,11 +296,21 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     player.jump_start_time_ms = 0;
     player.is_sprinting = false;
     player.last_hit_time = None;
+    player.is_torch_lit = false; // Ensure torch is unlit on respawn
+    player.is_knocked_out = false; // Reset knocked out state
+    player.knocked_out_at = None; // Clear knocked out timestamp
+    player.direction = "down".to_string(); // Reset direction
     // Update timestamps
     player.last_update = ctx.timestamp;
     player.last_stat_update = ctx.timestamp;
 
     players.identity().update(player);
+
+    // Ensure item is unequipped on respawn
+    match crate::active_equipment::clear_active_item_reducer(ctx, sender_id) {
+        Ok(_) => log::info!("Ensured active item is cleared for respawned player {:?}", sender_id),
+        Err(e) => log::error!("Failed to clear active item for respawned player {:?}: {}", sender_id, e),
+    }
 
     log::info!(
         "[RespawnAtSleepingBag] Player {:?} respawned successfully at bag {} ({:.1}, {:.1})",

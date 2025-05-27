@@ -178,10 +178,16 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
     let current_time = ctx.timestamp;
     let chunk_idx = calculate_chunk_index(world_x, world_y);
 
+    // ⚠️ IMPORTANT: The shelter sprite is rendered 384px above its base position on the client
+    // We offset the placement position by half that height (192px) to align with the preview
+    // This offset MUST match the client-side rendering offset or shelters will appear misaligned!
+    const SHELTER_VISUAL_RENDER_OFFSET_Y: f32 = 192.0;
+    let adjusted_world_y = world_y + SHELTER_VISUAL_RENDER_OFFSET_Y;
+
     let new_shelter = Shelter {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y,
+        pos_y: adjusted_world_y, // Use adjusted Y position
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: current_time,
@@ -200,7 +206,7 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
             );
             
             // Clear all natural resources within the shelter's footprint
-            clear_resources_in_shelter_footprint(ctx, world_x, world_y);
+            clear_resources_in_shelter_footprint(ctx, world_x, adjusted_world_y);
             
             // Future: Schedule any initial processing for the shelter if needed.
         }

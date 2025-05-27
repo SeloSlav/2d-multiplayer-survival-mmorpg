@@ -899,7 +899,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Shelter".to_string(),
-            description: "A simple, sturdy shelter that provides a safe place to rest and respawn. Offers significant protection.".to_string(),
+            description: "A simple, sturdy shelter that provides a safe place to rest and warm up. Offers significant protection.".to_string(),
             category: ItemCategory::Placeable,
             icon_asset_name: "shelter.png".to_string(),
             is_stackable: false,

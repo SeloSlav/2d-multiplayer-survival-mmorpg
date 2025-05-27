@@ -119,7 +119,7 @@ export function drawMinimapOntoCanvas({
   const minimapHeight = MINIMAP_HEIGHT;
   
   // Log the received localPlayerDeathMarker prop at the beginning of the function
-  console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+  // console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
 
   // Calculate top-left corner for centering the minimap UI element
   const minimapX = (canvasWidth - minimapWidth) / 2;
@@ -288,7 +288,7 @@ export function drawMinimapOntoCanvas({
   // --- End Grid Drawing ---
 
   // --- Draw Death Marker ---
-  console.log('[Minimap] Checking for death marker. Marker data:', localPlayerDeathMarker, 'Image loaded:', deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0, 'Image Element:', deathMarkerImage);
+  // console.log('[Minimap] Checking for death marker. Marker data:', localPlayerDeathMarker, 'Image loaded:', deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0, 'Image Element:', deathMarkerImage);
   if (localPlayerDeathMarker && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
     console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.'); // Changed 'Corpse' to 'Marker' for clarity
     const screenCoords = worldToMinimap(localPlayerDeathMarker.posX, localPlayerDeathMarker.posY);

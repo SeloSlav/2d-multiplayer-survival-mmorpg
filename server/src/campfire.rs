@@ -34,6 +34,10 @@
  use crate::active_effects::{ActiveConsumableEffect, EffectType};
  use crate::active_effects::active_consumable_effect as ActiveConsumableEffectTableTrait; // Added trait import
  
+ // --- ADDED: Import for rain protection functionality ---
+ use crate::world_state::world_state as WorldStateTableTrait;
+ use crate::shelter::shelter as ShelterTableTrait;
+ 
  // --- Constants ---
  // Collision constants
  pub(crate) const CAMPFIRE_COLLISION_RADIUS: f32 = 20.0; // Increased from 12.0 to better match visual size
@@ -423,28 +427,35 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  }
  
  /// --- Campfire Burning State Toggle ---
- /// Toggles the burning state of the campfire (lights or extinguishes it).
- /// Relies on checking if *any* fuel slot has Wood with quantity > 0.
- #[spacetimedb::reducer]
- pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result<(), String> {
-     let (_player, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
-     if campfire.is_burning {
-         campfire.is_burning = false;
-         campfire.current_fuel_def_id = None;
-         campfire.remaining_fuel_burn_time_secs = None;
-         log::info!("Campfire {} extinguished by player {:?}.", campfire.id, ctx.sender);
-     } else {
-         if !check_if_campfire_has_fuel(ctx, &campfire) {
-             return Err("Cannot light campfire, requires fuel.".to_string());
-         }
-         campfire.is_burning = true;
-         // remaining_fuel_burn_time_secs will be set by the first call to process_campfire_logic_scheduled
-         log::info!("Campfire {} lit by player {:?}.", campfire.id, ctx.sender);
-     }
-     ctx.db.campfire().id().update(campfire.clone());
-     schedule_next_campfire_processing(ctx, campfire_id);
-     Ok(())
- }
+/// Toggles the burning state of the campfire (lights or extinguishes it).
+/// Relies on checking if *any* fuel slot has Wood with quantity > 0.
+/// Rain prevents lighting campfires unless they are inside a shelter.
+#[spacetimedb::reducer]
+pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result<(), String> {
+    let (_player, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
+    if campfire.is_burning {
+        campfire.is_burning = false;
+        campfire.current_fuel_def_id = None;
+        campfire.remaining_fuel_burn_time_secs = None;
+        log::info!("Campfire {} extinguished by player {:?}.", campfire.id, ctx.sender);
+    } else {
+        if !check_if_campfire_has_fuel(ctx, &campfire) {
+            return Err("Cannot light campfire, requires fuel.".to_string());
+        }
+        
+        // Check if it's raining and campfire is not protected by shelter
+        if is_raining(ctx) && !is_campfire_protected_from_rain(ctx, &campfire) {
+            return Err("Cannot light campfire in the rain unless it's inside a shelter.".to_string());
+        }
+        
+        campfire.is_burning = true;
+        // remaining_fuel_burn_time_secs will be set by the first call to process_campfire_logic_scheduled
+        log::info!("Campfire {} lit by player {:?}.", campfire.id, ctx.sender);
+    }
+    ctx.db.campfire().id().update(campfire.clone());
+    schedule_next_campfire_processing(ctx, campfire_id);
+    Ok(())
+}
 
  // Reducer to place a campfire
 #[spacetimedb::reducer]
@@ -1391,4 +1402,40 @@ impl crate::cooking::CookableAppliance for Campfire {
     fn get_appliance_container_type(&self) -> ContainerType {
         ContainerType::Campfire // Campfire's own container type
     }
+}
+
+/// Checks if it's currently raining by looking at the world state
+fn is_raining(ctx: &ReducerContext) -> bool {
+    if let Some(world_state) = ctx.db.world_state().iter().next() {
+        world_state.rain_intensity > 0.0
+    } else {
+        false
+    }
+}
+
+/// Checks if a campfire is protected from rain by being inside a shelter
+fn is_campfire_protected_from_rain(ctx: &ReducerContext, campfire: &Campfire) -> bool {
+    // Check if campfire is inside any shelter
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        // Use the same shelter collision detection logic as in shelter.rs
+        let shelter_aabb_center_x = shelter.pos_x;
+        let shelter_aabb_center_y = shelter.pos_y - crate::shelter::SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let aabb_left = shelter_aabb_center_x - crate::shelter::SHELTER_AABB_HALF_WIDTH;
+        let aabb_right = shelter_aabb_center_x + crate::shelter::SHELTER_AABB_HALF_WIDTH;
+        let aabb_top = shelter_aabb_center_y - crate::shelter::SHELTER_AABB_HALF_HEIGHT;
+        let aabb_bottom = shelter_aabb_center_y + crate::shelter::SHELTER_AABB_HALF_HEIGHT;
+        
+        // Check if campfire position is inside shelter AABB
+        if campfire.pos_x >= aabb_left && campfire.pos_x <= aabb_right &&
+           campfire.pos_y >= aabb_top && campfire.pos_y <= aabb_bottom {
+            log::debug!("Campfire {} is protected from rain by shelter {}", campfire.id, shelter.id);
+            return true;
+        }
+    }
+    
+    false
 }

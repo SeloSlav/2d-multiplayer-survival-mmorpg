@@ -19,7 +19,8 @@ import {
     Campfire as SpacetimeDBCampfire, 
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
     PlayerCorpse, 
-    Stash as SpacetimeDBStash // Added Stash type
+    Stash as SpacetimeDBStash, // Added Stash type
+    WorldState
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
@@ -51,6 +52,7 @@ interface ExternalContainerUIProps {
     onExternalItemMouseEnter: (item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => void;
     onExternalItemMouseLeave: () => void;
     onExternalItemMouseMove: (event: React.MouseEvent<HTMLDivElement>) => void;
+    worldState: WorldState | null;
 }
 
 const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
@@ -69,6 +71,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     onExternalItemMouseEnter,
     onExternalItemMouseLeave,
     onExternalItemMouseMove,
+    worldState,
 }) => {
     // Add ref to track when drag operations complete
     const lastDragCompleteTime = useRef<number>(0);
@@ -293,10 +296,19 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
     }, [connection, stashIdNum, currentStash]);
 
+    // Helper function to check if it's raining
+    const isRaining = useMemo(() => {
+        return worldState?.rainIntensity && worldState.rainIntensity > 0;
+    }, [worldState]);
+
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
         if (!isCampfireInteraction || !currentCampfire) return true;
         if (currentCampfire.isBurning) return false; // If already burning, can extinguish
+        
+        // If it's raining, disable lighting (but allow extinguishing)
+        if (isRaining) return true;
+        
         // If not burning, check for any valid fuel (has fuelBurnDurationSecs > 0)
         return !fuelItems.some(item => 
             item && 
@@ -304,7 +316,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             item.definition.fuelBurnDurationSecs > 0 && 
             item.instance.quantity > 0
         );
-    }, [isCampfireInteraction, currentCampfire, fuelItems]);
+    }, [isCampfireInteraction, currentCampfire, fuelItems, isRaining]);
 
     // --- Render Logic ---
     if (!interactionTarget) {
@@ -382,10 +394,26 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     ? styles.extinguishButton
                                     : styles.lightFireButton
                             }`}
-                            title={isToggleButtonDisabled && !currentCampfire.isBurning ? "Requires Fuel > 0" : ""}
+                            title={
+                                isToggleButtonDisabled && !currentCampfire.isBurning 
+                                    ? (isRaining ? "Cannot light while raining" : "Requires Fuel > 0")
+                                    : ""
+                            }
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
+                        {/* Rain warning message */}
+                        {isRaining && !currentCampfire.isBurning && (
+                            <div style={{ 
+                                marginTop: '8px', 
+                                color: '#87CEEB', 
+                                fontSize: '12px', 
+                                textAlign: 'center',
+                                fontStyle: 'italic'
+                            }}>
+                                🌧️ Cannot light while raining
+                            </div>
+                        )}
                     </div>
                 </>
             )}

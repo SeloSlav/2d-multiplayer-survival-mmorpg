@@ -47,6 +47,17 @@ pub struct ProjectileUpdateSchedule {
     pub scheduled_at: ScheduleAt,
 }
 
+#[table(name = arrow_break_event, public)]
+#[derive(Clone, Debug)]
+pub struct ArrowBreakEvent {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub timestamp: Timestamp,
+}
+
 #[reducer]
 pub fn init_projectile_system(ctx: &ReducerContext) -> Result<(), String> {
     // Only schedule if not already scheduled
@@ -391,6 +402,48 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 "[ProjectileUpdate] Projectile {} from owner {:?} hit Shelter {} wall at ({:.1}, {:.1})",
                 projectile.id, projectile.owner_id, shelter_id, collision_x, collision_y
             );
+            
+            // Apply damage to the shelter before handling the projectile
+            if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                // Use the weapon's PvP damage for shelter damage (arrows should do meaningful damage)
+                let damage = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                if damage > 0.0 {
+                    match crate::shelter::damage_shelter(
+                        ctx, 
+                        projectile.owner_id, 
+                        shelter_id, 
+                        damage, 
+                        current_time, 
+                        &mut rng
+                    ) {
+                        Ok(attack_result) => {
+                            if attack_result.hit {
+                                log::info!(
+                                    "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Shelter {}",
+                                    projectile.id, damage, shelter_id
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "[ProjectileUpdate] Error applying projectile damage to Shelter {}: {}",
+                                shelter_id, e
+                            );
+                        }
+                    }
+                } else {
+                    log::debug!(
+                        "[ProjectileUpdate] Weapon '{}' has no PvP damage defined, no damage applied to Shelter {}",
+                        weapon_item_def.name, shelter_id
+                    );
+                }
+            } else {
+                log::error!(
+                    "[ProjectileUpdate] ItemDefinition not found for projectile's weapon (ID: {}). Cannot apply shelter damage.",
+                    projectile.item_def_id
+                );
+            }
+            
             // Projectile hit shelter wall - store info for dropped item creation
             missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, collision_x, collision_y));
             projectiles_to_delete.push(projectile.id);
@@ -474,12 +527,29 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
     }
 
-    // Create dropped items for missed projectiles
+    // Create dropped items for missed projectiles (with 10% chance to break)
     for (projectile_id, ammo_def_id, pos_x, pos_y) in missed_projectiles_for_drops {
         // Get the ammunition name for better logging
         let ammo_name = item_defs_table.id().find(ammo_def_id)
             .map(|def| def.name.clone())
             .unwrap_or_else(|| format!("Unknown (ID: {})", ammo_def_id));
+        
+        // 20% chance for the projectile to break and be destroyed
+        if rng.gen::<f32>() < 0.15 {
+            log::info!("[ProjectileMiss] Projectile {} broke on impact - '{}' (def_id: {}) destroyed at ({:.1}, {:.1})", 
+                     projectile_id, ammo_name, ammo_def_id, pos_x, pos_y);
+            
+            // Create arrow break event for client particle effect
+            let break_event = ArrowBreakEvent {
+                id: 0, // auto_inc
+                pos_x,
+                pos_y,
+                timestamp: ctx.timestamp,
+            };
+            ctx.db.arrow_break_event().insert(break_event);
+            
+            continue; // Skip creating dropped item - projectile is destroyed
+        }
         
         match dropped_item::create_dropped_item_entity(ctx, ammo_def_id, 1, pos_x, pos_y) {
             Ok(_) => {

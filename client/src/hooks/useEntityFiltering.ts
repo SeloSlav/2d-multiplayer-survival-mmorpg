@@ -115,7 +115,7 @@ export function useEntityFiltering(
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
-  console.log('[useEntityFiltering] Hook called. Raw shelters map size:', shelters?.size); // DEBUG LOG 1
+  // Removed debug log that was causing excessive console output
 
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {

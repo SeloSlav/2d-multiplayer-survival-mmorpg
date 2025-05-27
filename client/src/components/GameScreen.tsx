@@ -272,6 +272,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 onToggleInventory={() => setShowInventoryState(prev => !prev)}
                 showInventory={showInventoryState}
                 knockedOutStatus={knockedOutStatus}
+                worldState={worldState}
             />
             <Hotbar
                 playerIdentity={playerIdentity}

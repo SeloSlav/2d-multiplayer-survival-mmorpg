@@ -31,6 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { TimeOfDay as __TimeOfDay } from "./time_of_day_type";
+import { WeatherType as __WeatherType } from "./weather_type_type";
 
 export type WorldState = {
   id: number,
@@ -39,6 +40,13 @@ export type WorldState = {
   cycleCount: number,
   isFullMoon: boolean,
   lastTick: Timestamp,
+  currentWeather: __WeatherType,
+  rainIntensity: number,
+  weatherStartTime: Timestamp | undefined,
+  weatherDuration: number | undefined,
+  lastRainEndTime: Timestamp | undefined,
+  lastThunderTime: Timestamp | undefined,
+  nextThunderTime: Timestamp | undefined,
 };
 
 /**
@@ -57,6 +65,13 @@ export namespace WorldState {
       new ProductTypeElement("cycleCount", AlgebraicType.createU32Type()),
       new ProductTypeElement("isFullMoon", AlgebraicType.createBoolType()),
       new ProductTypeElement("lastTick", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("currentWeather", __WeatherType.getTypeScriptAlgebraicType()),
+      new ProductTypeElement("rainIntensity", AlgebraicType.createF32Type()),
+      new ProductTypeElement("weatherStartTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("weatherDuration", AlgebraicType.createOptionType(AlgebraicType.createF32Type())),
+      new ProductTypeElement("lastRainEndTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastThunderTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("nextThunderTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

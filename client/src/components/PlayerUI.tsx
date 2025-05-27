@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -43,6 +43,7 @@ interface PlayerUIProps {
   showInventory: boolean;
   onToggleInventory: () => void;
   knockedOutStatus: Map<string, KnockedOutStatus>;
+  worldState: WorldState | null;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -71,7 +72,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     onCraftingSearchFocusChange,
     showInventory,
     onToggleInventory,
-    knockedOutStatus
+    knockedOutStatus,
+    worldState
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
     const [lowNeedThreshold, setLowNeedThreshold] = useState<number>(20.0);
@@ -614,6 +616,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     recipes={recipes}
                     craftingQueueItems={craftingQueueItems}
                     onCraftingSearchFocusChange={onCraftingSearchFocusChange}
+                    worldState={worldState}
                  />
              )}
 

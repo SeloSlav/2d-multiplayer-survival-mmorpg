@@ -149,7 +149,7 @@ export const useSpacetimeTables = ({
                 if (oldPlayer.isDead && !newPlayer.isDead) {
                     console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
                     console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                    console.log(`  newPlayer full object:`, JSON.parse(JSON.stringify(newPlayer))); // Can be too verbose
+                    // Removed JSON.stringify call that was causing BigInt serialization error
                 }
 
                 const EPSILON = 0.01;
@@ -657,6 +657,10 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder().onError((err) => console.error("[DEATH_MARKER Sub Error]:", err)).subscribe('SELECT * FROM death_marker'),
                  // ADDED Shelter subscription (non-spatial for now, can be made spatial later if needed)
                  connection.subscriptionBuilder().onError((err) => console.error("[SHELTER Sub Error]:", err)).subscribe('SELECT * FROM shelter'),
+                 // ADDED ArrowBreakEvent subscription for particle effects
+                 connection.subscriptionBuilder().onError((err) => console.error("[ARROW_BREAK_EVENT Sub Error]:", err)).subscribe('SELECT * FROM arrow_break_event'),
+                 // ADDED ThunderEvent subscription for thunder flash effects
+                 connection.subscriptionBuilder().onError((err) => console.error("[THUNDER_EVENT Sub Error]:", err)).subscribe('SELECT * FROM thunder_event'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;

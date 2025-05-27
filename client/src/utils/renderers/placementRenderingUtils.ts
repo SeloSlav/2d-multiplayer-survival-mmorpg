@@ -9,6 +9,7 @@ interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
     placementInfo: PlacementItemInfo | null;
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+    shelterImageRef?: React.RefObject<HTMLImageElement | null>;
     worldMouseX: number | null;
     worldMouseY: number | null;
     isPlacementTooFar: boolean;
@@ -22,6 +23,7 @@ export function renderPlacementPreview({
     ctx,
     placementInfo,
     itemImagesRef,
+    shelterImageRef,
     worldMouseX,
     worldMouseY,
     isPlacementTooFar,
@@ -31,7 +33,13 @@ export function renderPlacementPreview({
         return; // Nothing to render
     }
 
-    const previewImg = itemImagesRef.current?.get(placementInfo.iconAssetName);
+    // For shelters, use the shelter image from doodads folder, otherwise use items folder
+    let previewImg: HTMLImageElement | undefined;
+    if (placementInfo.iconAssetName === 'shelter.png' && shelterImageRef?.current) {
+        previewImg = shelterImageRef.current;
+    } else {
+        previewImg = itemImagesRef.current?.get(placementInfo.iconAssetName);
+    }
 
     // Determine width/height based on placement item
     let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire

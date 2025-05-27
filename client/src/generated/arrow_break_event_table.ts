@@ -30,26 +30,23 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-import { WorldState } from "./world_state_type";
-import { TimeOfDay as __TimeOfDay } from "./time_of_day_type";
-import { WeatherType as __WeatherType } from "./weather_type_type";
-
+import { ArrowBreakEvent } from "./arrow_break_event_type";
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**
- * Table handle for the table `world_state`.
+ * Table handle for the table `arrow_break_event`.
  *
- * Obtain a handle from the [`worldState`] property on [`RemoteTables`],
- * like `ctx.db.worldState`.
+ * Obtain a handle from the [`arrowBreakEvent`] property on [`RemoteTables`],
+ * like `ctx.db.arrowBreakEvent`.
  *
  * Users are encouraged not to explicitly reference this type,
  * but to directly chain method calls,
- * like `ctx.db.worldState.on_insert(...)`.
+ * like `ctx.db.arrowBreakEvent.on_insert(...)`.
  */
-export class WorldStateTableHandle {
-  tableCache: TableCache<WorldState>;
+export class ArrowBreakEventTableHandle {
+  tableCache: TableCache<ArrowBreakEvent>;
 
-  constructor(tableCache: TableCache<WorldState>) {
+  constructor(tableCache: TableCache<ArrowBreakEvent>) {
     this.tableCache = tableCache;
   }
 
@@ -57,24 +54,24 @@ export class WorldStateTableHandle {
     return this.tableCache.count();
   }
 
-  iter(): Iterable<WorldState> {
+  iter(): Iterable<ArrowBreakEvent> {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `id` unique index on the table `world_state`,
+   * Access to the `id` unique index on the table `arrow_break_event`,
    * which allows point queries on the field of the same name
-   * via the [`WorldStateIdUnique.find`] method.
+   * via the [`ArrowBreakEventIdUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.worldState.id().find(...)`.
+   * like `ctx.db.arrowBreakEvent.id().find(...)`.
    *
-   * Get a handle on the `id` unique index on the table `world_state`.
+   * Get a handle on the `id` unique index on the table `arrow_break_event`.
    */
   id = {
     // Find the subscribed row whose `id` column value is equal to `col_val`,
     // if such a row is present in the client cache.
-    find: (col_val: number): WorldState | undefined => {
+    find: (col_val: bigint): ArrowBreakEvent | undefined => {
       for (let row of this.tableCache.iter()) {
         if (deepEqual(row.id, col_val)) {
           return row;
@@ -83,27 +80,27 @@ export class WorldStateTableHandle {
     },
   };
 
-  onInsert = (cb: (ctx: EventContext, row: WorldState) => void) => {
+  onInsert = (cb: (ctx: EventContext, row: ArrowBreakEvent) => void) => {
     return this.tableCache.onInsert(cb);
   }
 
-  removeOnInsert = (cb: (ctx: EventContext, row: WorldState) => void) => {
+  removeOnInsert = (cb: (ctx: EventContext, row: ArrowBreakEvent) => void) => {
     return this.tableCache.removeOnInsert(cb);
   }
 
-  onDelete = (cb: (ctx: EventContext, row: WorldState) => void) => {
+  onDelete = (cb: (ctx: EventContext, row: ArrowBreakEvent) => void) => {
     return this.tableCache.onDelete(cb);
   }
 
-  removeOnDelete = (cb: (ctx: EventContext, row: WorldState) => void) => {
+  removeOnDelete = (cb: (ctx: EventContext, row: ArrowBreakEvent) => void) => {
     return this.tableCache.removeOnDelete(cb);
   }
 
   // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: WorldState, newRow: WorldState) => void) => {
+  onUpdate = (cb: (ctx: EventContext, oldRow: ArrowBreakEvent, newRow: ArrowBreakEvent) => void) => {
     return this.tableCache.onUpdate(cb);
   }
 
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: WorldState, newRow: WorldState) => void) => {
+  removeOnUpdate = (cb: (ctx: EventContext, onRow: ArrowBreakEvent, newRow: ArrowBreakEvent) => void) => {
     return this.tableCache.removeOnUpdate(cb);
   }}
