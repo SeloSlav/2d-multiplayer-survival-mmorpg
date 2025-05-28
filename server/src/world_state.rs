@@ -35,12 +35,9 @@ pub(crate) const WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK: f32 = 1.5;
 // --- Weather Constants ---
 const MIN_RAIN_DURATION_SECONDS: f32 = 300.0; // 5 minutes
 const MAX_RAIN_DURATION_SECONDS: f32 = 900.0; // 15 minutes
-const RAIN_PROBABILITY_BASE: f32 = 0.15; // 15% base chance per day
-const RAIN_PROBABILITY_SEASONAL_MODIFIER: f32 = 0.1; // Additional variability
-const MIN_TIME_BETWEEN_RAIN_CYCLES: f32 = 1800.0; // 30 minutes minimum between rain events
-
-// --- DEBUG FLAGS ---
-const DEBUG_FORCE_HEAVY_STORM: bool = false; // Set to true to always have heavy storm for testing
+const RAIN_PROBABILITY_BASE: f32 = 0.6; // 60% base chance per day (increased from 15%)
+const RAIN_PROBABILITY_SEASONAL_MODIFIER: f32 = 0.2; // Additional variability (increased from 0.1)
+const MIN_TIME_BETWEEN_RAIN_CYCLES: f32 = 600.0; // 10 minutes minimum between rain events (reduced from 30 minutes)
 
 #[derive(Clone, Debug, PartialEq, spacetimedb::SpacetimeType)]
 pub enum WeatherType {
@@ -203,62 +200,6 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
     let now = ctx.timestamp;
     let mut rng = ctx.rng();
     
-    // DEBUG: Force Heavy Storm if debug flag is enabled
-    if DEBUG_FORCE_HEAVY_STORM {
-        match world_state.current_weather {
-            WeatherType::Clear => {
-                // Force start Heavy Storm for testing
-                world_state.current_weather = WeatherType::HeavyStorm;
-                world_state.rain_intensity = 1.0; // Maximum intensity
-                world_state.weather_start_time = Some(now);
-                world_state.weather_duration = Some(9999.0); // Very long duration for testing
-                
-                // Schedule first thunder immediately for testing
-                world_state.next_thunder_time = Some(now + spacetimedb::TimeDuration::from_micros(5_000_000)); // 5 seconds
-                
-                log::info!("DEBUG: Forced Heavy Storm started with thunder in 5 seconds");
-                
-                // Extinguish all unprotected campfires when storm starts
-                extinguish_unprotected_campfires(ctx)?;
-            },
-            WeatherType::HeavyStorm => {
-                // Keep storm going and process thunder
-                world_state.rain_intensity = 1.0; // Maximum intensity
-                
-                // Process thunder
-                if let Some(next_thunder) = world_state.next_thunder_time {
-                    if now.to_micros_since_unix_epoch() >= next_thunder.to_micros_since_unix_epoch() {
-                        // Thunder occurs! Schedule next one
-                        world_state.last_thunder_time = Some(now);
-                        let next_thunder_delay = rng.gen_range(8.0..=20.0); // Faster thunder for testing: 8-20 seconds
-                        world_state.next_thunder_time = Some(now + spacetimedb::TimeDuration::from_micros((next_thunder_delay * 1_000_000.0) as i64));
-                        
-                        // Create thunder event for client
-                        let thunder_intensity = rng.gen_range(0.6..=1.0); // Higher intensity for testing
-                        let thunder_event = ThunderEvent {
-                            id: 0, // auto_inc
-                            timestamp: now,
-                            intensity: thunder_intensity,
-                        };
-                        ctx.db.thunder_event().insert(thunder_event);
-                        
-                        log::info!("⚡ DEBUG THUNDER! Intensity {:.2}, Next thunder in {:.1} seconds", thunder_intensity, next_thunder_delay);
-                    }
-                }
-            },
-            _ => {
-                // Force back to Heavy Storm if somehow it changed
-                world_state.current_weather = WeatherType::HeavyStorm;
-                world_state.rain_intensity = 1.0;
-            }
-        }
-        
-        // Update the world state and return early
-        ctx.db.world_state().id().update(world_state.clone());
-        return Ok(());
-    }
-    
-    // Normal weather logic (when DEBUG_FORCE_HEAVY_STORM is false)
     match world_state.current_weather {
         WeatherType::Clear => {
             // Check if we should start rain
@@ -381,8 +322,6 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
     ctx.db.world_state().id().update(world_state.clone());
     Ok(())
 }
-
-
 
 // Helper function potentially needed later for client-side interpolation/lighting
 pub fn get_light_intensity(progress: f32) -> f32 {

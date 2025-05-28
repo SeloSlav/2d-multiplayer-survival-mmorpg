@@ -45,7 +45,7 @@ pub(crate) const PLAYER_SHELTER_INTERACTION_DISTANCE_SQUARED: f32 =
     PLAYER_SHELTER_INTERACTION_DISTANCE * PLAYER_SHELTER_INTERACTION_DISTANCE;
 
 // Health
-pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 10000.0; // Adjusted for ~30 min destruction time with Wooden Spear
+pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 100000.0; // Adjusted for ~30 min destruction time with Wooden Spear
 
 // --- NEW: Shelter Collision Constants (AABB based) ---
 /// Width of the shelter's collision AABB.
@@ -236,6 +236,9 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
 /// Returns true if the line is blocked by any shelter wall.
 /// This function blocks ALL attacks through shelter walls regardless of ownership,
 /// EXCEPT when the attacker is the owner and is inside their own shelter.
+/// 
+/// NEW RULE: Players inside their own shelter CANNOT attack players or objects outside of it.
+/// This creates a safe zone mechanic where shelter owners must leave their shelter to attack.
 pub fn is_line_blocked_by_shelter(
     ctx: &ReducerContext,
     attacker_id: Identity,
@@ -250,6 +253,34 @@ pub fn is_line_blocked_by_shelter(
         attacker_id, start_x, start_y, end_x, end_y
     );
     
+    // NEW: Check if attacker is inside their own shelter and targeting something outside
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        // If attacker is the owner and is inside their shelter
+        if shelter.placed_by == attacker_id && is_player_inside_shelter(start_x, start_y, &shelter) {
+            // Check if the target is outside this shelter
+            let target_inside_same_shelter = is_player_inside_shelter(end_x, end_y, &shelter);
+            
+            if !target_inside_same_shelter {
+                log::info!(
+                    "[ShelterProtection] Player {:?} (owner) is inside Shelter {} but targeting outside - ATTACK BLOCKED for PvP protection",
+                    attacker_id, shelter.id
+                );
+                return true; // Block the attack - no attacking from inside shelter to outside
+            } else {
+                log::debug!(
+                    "[ShelterProtection] Player {:?} (owner) is inside Shelter {} targeting inside same shelter - attack allowed",
+                    attacker_id, shelter.id
+                );
+                // Target is also inside the same shelter, continue checking other shelters for wall blocking
+            }
+        }
+    }
+    
+    // Original wall blocking logic - check if any shelter walls physically block the line
     for shelter in ctx.db.shelter().iter() {
         if shelter.is_destroyed {
             continue;
@@ -260,18 +291,20 @@ pub fn is_line_blocked_by_shelter(
             shelter.id, shelter.placed_by, shelter.pos_x, shelter.pos_y
         );
         
-        // NEW: If the attacker is the owner and is inside their shelter, 
-        // their own shelter doesn't block their line of sight
+        // If the attacker is the owner and is inside their shelter, 
+        // their own shelter walls don't block their line of sight to targets INSIDE the same shelter
         if shelter.placed_by == attacker_id && is_player_inside_shelter(start_x, start_y, &shelter) {
-            log::debug!(
-                "[LineOfSight] Attacker {:?} is owner and inside Shelter {}, shelter does not block their line of sight",
-                attacker_id, shelter.id
-            );
-            continue; // Skip this shelter - owner inside can attack through their own walls
+            let target_inside_same_shelter = is_player_inside_shelter(end_x, end_y, &shelter);
+            if target_inside_same_shelter {
+                log::debug!(
+                    "[LineOfSight] Attacker {:?} is owner inside Shelter {} targeting inside same shelter, shelter walls do not block line of sight",
+                    attacker_id, shelter.id
+                );
+                continue; // Skip wall blocking check for this shelter - owner inside can attack targets inside
+            }
         }
         
-        // All other shelter walls block attacks regardless of ownership
-        // This creates complete separation - no attacks can pass through shelter walls in either direction
+        // All other cases: shelter walls block attacks (including owner inside attacking outside, handled above)
         
         // Calculate shelter AABB bounds
         let shelter_aabb_center_x = shelter.pos_x;

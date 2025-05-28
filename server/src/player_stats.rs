@@ -55,7 +55,7 @@ pub(crate) const HEALTH_LOSS_PER_SEC_LOW_HUNGER: f32 = 0.4;
 pub(crate) const HEALTH_LOSS_MULTIPLIER_AT_ZERO: f32 = 2.0;
 pub(crate) const HEALTH_RECOVERY_THRESHOLD: f32 = 51.0;
 pub(crate) const HEALTH_RECOVERY_PER_SEC: f32 = 1.0;
-pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.6;
+pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.25;
 
 // Add the constants moved from lib.rs and make them pub(crate)
 pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 1.5;

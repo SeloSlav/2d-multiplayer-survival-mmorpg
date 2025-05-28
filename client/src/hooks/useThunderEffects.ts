@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { triggerThunderFlash } from '../utils/renderers/rainRenderingUtils';
+import { handleServerThunderEvent } from '../utils/renderers/rainRenderingUtils';
 
 interface UseThunderEffectsProps {
   connection: any | null;
@@ -13,8 +13,8 @@ export function useThunderEffects({ connection }: UseThunderEffectsProps) {
     const handleThunderEvent = (ctx: any, thunderEvent: any) => {
       console.log(`[Thunder] Received thunder event with intensity ${thunderEvent.intensity}`);
       
-      // Trigger the client-side thunder flash effect
-      triggerThunderFlash(thunderEvent.intensity);
+      // Use the safe server thunder event handler
+      handleServerThunderEvent(thunderEvent);
     };
 
     // Subscribe to thunder events
@@ -30,14 +30,8 @@ export function useThunderEffects({ connection }: UseThunderEffectsProps) {
       console.error('[Thunder] Failed to subscribe to thunder events:', error);
     }
 
-    // Add manual test function for development
-    if (process.env.NODE_ENV === 'development') {
-      (window as any).testThunder = (intensity: number = 0.8) => {
-        console.log(`⚡ Testing thunder flash with intensity ${intensity}`);
-        triggerThunderFlash(intensity);
-      };
-      console.log('⚡ Test function available! Use: window.testThunder() or window.testThunder(0.9)');
-    }
+    // REMOVED: Manual test function for safety - prevents players from triggering epileptic seizures
+    // No debug commands that could be used to spam thunder flashes
 
     // Cleanup function
     return () => {
@@ -45,11 +39,6 @@ export function useThunderEffects({ connection }: UseThunderEffectsProps) {
         // Note: SpacetimeDB client doesn't have a direct unsubscribe method
         // The subscription will be cleaned up when the connection is closed
         console.log('[Thunder] Thunder effects hook cleanup');
-        
-        // Clean up test function
-        if (process.env.NODE_ENV === 'development') {
-          delete (window as any).testThunder;
-        }
       } catch (error) {
         console.error('[Thunder] Error during thunder effects cleanup:', error);
       }

@@ -17,8 +17,54 @@ use crate::dropped_item; // Import the dropped item module for creating dropped 
 use crate::active_effects; // Import the active effects module for applying ammunition-based effects
 use crate::active_effects::active_consumable_effect; // Import the trait for the table
 use crate::shelter; // Import shelter module for collision detection
+use crate::shelter::shelter as ShelterTableTrait; // Import shelter table trait
+
+// Import deployable entity modules for collision detection
+use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait};
+use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
+use crate::stash::{Stash, stash as StashTableTrait};
+use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
+use crate::player_corpse::{PlayerCorpse, CORPSE_COLLISION_RADIUS, CORPSE_COLLISION_Y_OFFSET, player_corpse as PlayerCorpseTableTrait};
 
 const GRAVITY: f32 = 600.0; // Adjust this value to change the arc. Positive values pull downwards.
+
+/// Helper function to check if a line segment intersects with a circle
+/// Returns true if the line from (x1,y1) to (x2,y2) intersects with circle at (cx,cy) with radius r
+fn line_intersects_circle(x1: f32, y1: f32, x2: f32, y2: f32, cx: f32, cy: f32, radius: f32) -> bool {
+    // Vector from line start to circle center
+    let ac_x = cx - x1;
+    let ac_y = cy - y1;
+    
+    // Vector of the line segment
+    let ab_x = x2 - x1;
+    let ab_y = y2 - y1;
+    
+    // Length squared of the line segment
+    let ab_length_sq = ab_x * ab_x + ab_y * ab_y;
+    
+    // If line segment has zero length, check point-to-circle distance
+    if ab_length_sq < 1e-8 {
+        let dist_sq = ac_x * ac_x + ac_y * ac_y;
+        return dist_sq <= radius * radius;
+    }
+    
+    // Project AC onto AB to find the closest point on the line segment
+    let t = (ac_x * ab_x + ac_y * ab_y) / ab_length_sq;
+    
+    // Clamp t to [0, 1] to stay within the line segment
+    let t_clamped = t.max(0.0).min(1.0);
+    
+    // Find the closest point on the line segment
+    let closest_x = x1 + t_clamped * ab_x;
+    let closest_y = y1 + t_clamped * ab_y;
+    
+    // Check if the closest point is within the circle
+    let dist_x = cx - closest_x;
+    let dist_y = cy - closest_y;
+    let dist_sq = dist_x * dist_x + dist_y * dist_y;
+    
+    dist_sq <= radius * radius
+}
 
 #[table(name = projectile, public)]
 #[derive(Clone, Debug)]
@@ -168,15 +214,35 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         }
     }
 
-    // --- Check if projectile path would immediately hit a shelter wall ---
-    if let Some((shelter_id, _, _)) = shelter::check_projectile_shelter_collision(
+    // --- NEW: Check shelter protection rule for ranged attacks ---
+    // Players inside their own shelter cannot fire projectiles outside
+    if let Some(shelter_id) = shelter::is_owner_inside_shelter(ctx, player_id, player.position_x, player.position_y) {
+        // Check if target is outside the shelter
+        if !shelter::is_player_inside_shelter(target_world_x, target_world_y, &ctx.db.shelter().id().find(shelter_id).unwrap()) {
+            return Err("Cannot fire from inside your shelter to targets outside. Leave your shelter to attack.".to_string());
+        }
+        log::debug!("Player {:?} firing from inside their shelter {} to target inside same shelter - allowed", player_id, shelter_id);
+    }
+
+    // --- Check if projectile path would immediately hit a shelter wall very close to player ---
+    if let Some((shelter_id, collision_x, collision_y)) = shelter::check_projectile_shelter_collision(
         ctx,
         player.position_x,
         player.position_y,
         target_world_x,
         target_world_y,
     ) {
-        return Err(format!("Cannot fire projectile - path blocked by Shelter {}", shelter_id));
+        // Only block the shot if the collision happens very close to the player
+        // This allows intentional targeting of shelters while preventing immediate wall hits
+        let collision_distance = ((collision_x - player.position_x).powi(2) + (collision_y - player.position_y).powi(2)).sqrt();
+        const MIN_FIRING_DISTANCE: f32 = 80.0; // About 2 tiles
+        
+        if collision_distance < MIN_FIRING_DISTANCE {
+            return Err(format!("Cannot fire projectile - shelter wall too close ({:.1} units)", collision_distance));
+        }
+        
+        // If collision is far enough away, allow the shot (player is intentionally targeting the shelter)
+        log::info!("Player {:?} targeting shelter {} at distance {:.1} - shot allowed", player_id, shelter_id, collision_distance);
     }
 
     // --- Physics Calculation for Initial Velocity to Hit Target ---
@@ -390,6 +456,11 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
     let mut projectiles_to_delete = Vec::new();
     let mut missed_projectiles_for_drops = Vec::new(); // Store missed projectiles for drop creation
 
+    let projectile_count = ctx.db.projectile().iter().count();
+    if projectile_count > 0 {
+        log::info!("DEBUG: update_projectiles running with {} active projectiles", projectile_count);
+    }
+
     for projectile in ctx.db.projectile().iter() {
         let start_time_secs = projectile.start_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0;
         let current_time_secs = current_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0; // Moved here for correct scope
@@ -407,8 +478,14 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             1.0 // Default to full gravity if weapon not found
         };
         
+        // Calculate current position
         let current_x = projectile.start_pos_x + projectile.velocity_x * elapsed_time as f32;
         let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * gravity_multiplier * (elapsed_time as f32).powi(2);
+        
+        // Calculate previous position (50ms ago) for line segment collision detection
+        let prev_time = (elapsed_time - 0.05).max(0.0); // 50ms ago, but not negative
+        let prev_x = projectile.start_pos_x + projectile.velocity_x * prev_time as f32;
+        let prev_y = projectile.start_pos_y + projectile.velocity_y * prev_time as f32 + 0.5 * GRAVITY * gravity_multiplier * (prev_time as f32).powi(2);
         
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         
@@ -420,6 +497,30 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             current_x, 
             current_y
         ) {
+            // NEW: Check if player is attacking their own shelter - prevent self-damage
+            if let Some(shelter) = ctx.db.shelter().id().find(shelter_id) {
+                if shelter.placed_by == projectile.owner_id {
+                    // Check if the projectile was fired from inside the shelter
+                    if shelter::is_player_inside_shelter(projectile.start_pos_x, projectile.start_pos_y, &shelter) {
+                        log::info!(
+                            "[ProjectileUpdate] Projectile {} from owner {:?} hit their own Shelter {} from inside - NO DAMAGE (self-protection)",
+                            projectile.id, projectile.owner_id, shelter_id
+                        );
+                        
+                        // Projectile hit own shelter from inside - consume projectile but don't damage shelter
+                        missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, collision_x, collision_y));
+                        projectiles_to_delete.push(projectile.id);
+                        continue;
+                    } else {
+                        log::info!(
+                            "[ProjectileUpdate] Projectile {} from owner {:?} hit their own Shelter {} from outside - DAMAGE ALLOWED",
+                            projectile.id, projectile.owner_id, shelter_id
+                        );
+                        // Allow damage to own shelter if fired from outside (e.g., accidentally)
+                    }
+                }
+            }
+            
             log::info!(
                 "[ProjectileUpdate] Projectile {} from owner {:?} hit Shelter {} wall at ({:.1}, {:.1})",
                 projectile.id, projectile.owner_id, shelter_id, collision_x, collision_y
@@ -507,29 +608,428 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             continue;
         }
         
+        // Check deployable entity collisions (campfires, boxes, stashes, sleeping bags)
+        let mut hit_deployable_this_tick = false;
+        
+        // Check campfire collisions
+        for campfire in ctx.db.campfire().iter() {
+            if campfire.is_destroyed {
+                continue;
+            }
+            
+            // Use a more generous hit radius for projectiles and reduce Y offset for easier targeting
+            const PROJECTILE_CAMPFIRE_HIT_RADIUS: f32 = 32.0; // Larger than collision radius (20.0)
+            const PROJECTILE_CAMPFIRE_Y_OFFSET: f32 = -5.0; // Slight upward offset for easier hits
+            
+            let campfire_hit_y = campfire.pos_y - PROJECTILE_CAMPFIRE_Y_OFFSET;
+            
+            // Use line segment collision detection instead of just checking current position
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, campfire.pos_x, campfire_hit_y, PROJECTILE_CAMPFIRE_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Campfire {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, campfire.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        // Calculate combined damage (same logic as shelter)
+                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                            weapon_damage_min
+                        } else {
+                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                        };
+
+                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                            ammo_damage_min
+                        } else {
+                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                        };
+
+                        let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                            ammo_damage
+                        } else {
+                            weapon_damage + ammo_damage
+                        };
+
+                        if final_damage > 0.0 {
+                            match combat::damage_campfire(ctx, projectile.owner_id, campfire.id, final_damage, current_time, &mut rng) {
+                                Ok(attack_result) => {
+                                    if attack_result.hit {
+                                        log::info!(
+                                            "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Campfire {}",
+                                            projectile.id, final_damage, campfire.id
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Campfire {}: {}",
+                                        campfire.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like shelters
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_deployable_this_tick {
+            continue;
+        }
+        
+        // Check wooden storage box collisions
+        for storage_box in ctx.db.wooden_storage_box().iter() {
+            if storage_box.is_destroyed {
+                continue;
+            }
+            
+            // Use a more generous hit radius for projectiles
+            const PROJECTILE_BOX_HIT_RADIUS: f32 = 28.0; // Larger than collision radius (18.0)
+            const PROJECTILE_BOX_Y_OFFSET: f32 = 5.0; // Reduced from 10.0 for easier hits
+            
+            let box_hit_y = storage_box.pos_y - PROJECTILE_BOX_Y_OFFSET;
+            
+            // Use line segment collision detection instead of just checking current position
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, storage_box.pos_x, box_hit_y, PROJECTILE_BOX_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Wooden Storage Box {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, storage_box.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        // Calculate combined damage (same logic as shelter)
+                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                            weapon_damage_min
+                        } else {
+                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                        };
+
+                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                            ammo_damage_min
+                        } else {
+                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                        };
+
+                        let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                            ammo_damage
+                        } else {
+                            weapon_damage + ammo_damage
+                        };
+
+                        if final_damage > 0.0 {
+                            match combat::damage_wooden_storage_box(ctx, projectile.owner_id, storage_box.id, final_damage, current_time, &mut rng) {
+                                Ok(attack_result) => {
+                                    if attack_result.hit {
+                                        log::info!(
+                                            "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Wooden Storage Box {}",
+                                            projectile.id, final_damage, storage_box.id
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Wooden Storage Box {}: {}",
+                                        storage_box.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like shelters
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_deployable_this_tick {
+            continue;
+        }
+        
+        // Check stash collisions (stashes are walkable but still damageable)
+        for stash in ctx.db.stash().iter() {
+            if stash.is_destroyed {
+                continue;
+            }
+            
+            // Stashes don't have collision radius since they're walkable, use a generous hit radius for projectiles
+            const PROJECTILE_STASH_HIT_RADIUS: f32 = 25.0; // Larger radius for easier hits
+            
+            // Use line segment collision detection instead of just checking current position
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, stash.pos_x, stash.pos_y, PROJECTILE_STASH_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Stash {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, stash.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        // Calculate combined damage (same logic as shelter)
+                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                            weapon_damage_min
+                        } else {
+                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                        };
+
+                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                            ammo_damage_min
+                        } else {
+                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                        };
+
+                        let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                            ammo_damage
+                        } else {
+                            weapon_damage + ammo_damage
+                        };
+
+                        if final_damage > 0.0 {
+                            match combat::damage_stash(ctx, projectile.owner_id, stash.id, final_damage, current_time, &mut rng) {
+                                Ok(attack_result) => {
+                                    if attack_result.hit {
+                                        log::info!(
+                                            "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Stash {}",
+                                            projectile.id, final_damage, stash.id
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Stash {}: {}",
+                                        stash.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like shelters
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_deployable_this_tick {
+            continue;
+        }
+        
+        // Check sleeping bag collisions
+        for sleeping_bag in ctx.db.sleeping_bag().iter() {
+            if sleeping_bag.is_destroyed {
+                continue;
+            }
+            
+            // Use a more generous hit radius for projectiles and reduce Y offset
+            const PROJECTILE_SLEEPING_BAG_HIT_RADIUS: f32 = 28.0; // Larger than collision radius (18.0)
+            const PROJECTILE_SLEEPING_BAG_Y_OFFSET: f32 = 0.0; // No Y offset for easier hits on low-profile items
+            
+            let bag_hit_y = sleeping_bag.pos_y - PROJECTILE_SLEEPING_BAG_Y_OFFSET;
+            
+            // Use line segment collision detection instead of just checking current position
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, sleeping_bag.pos_x, bag_hit_y, PROJECTILE_SLEEPING_BAG_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Sleeping Bag {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, sleeping_bag.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        // Calculate combined damage (same logic as shelter)
+                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                            weapon_damage_min
+                        } else {
+                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                        };
+
+                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                            ammo_damage_min
+                        } else {
+                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                        };
+
+                        let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                            ammo_damage
+                        } else {
+                            weapon_damage + ammo_damage
+                        };
+
+                        if final_damage > 0.0 {
+                            match combat::damage_sleeping_bag(ctx, projectile.owner_id, sleeping_bag.id, final_damage, current_time, &mut rng) {
+                                Ok(attack_result) => {
+                                    if attack_result.hit {
+                                        log::info!(
+                                            "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Sleeping Bag {}",
+                                            projectile.id, final_damage, sleeping_bag.id
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Sleeping Bag {}: {}",
+                                        sleeping_bag.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like shelters
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_deployable_this_tick {
+            continue;
+        }
+        
+        // Check player corpse collisions
+        for corpse in ctx.db.player_corpse().iter() {
+            if corpse.health == 0 {
+                continue; // Skip depleted corpses
+            }
+            
+            // Use generous hit radius for corpses and account for Y offset
+            const PROJECTILE_CORPSE_HIT_RADIUS: f32 = 25.0; // Generous radius for corpses
+            let corpse_hit_y = corpse.pos_y - CORPSE_COLLISION_Y_OFFSET;
+            
+            // Use line segment collision detection for corpses
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, corpse.pos_x, corpse_hit_y, PROJECTILE_CORPSE_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Player Corpse {} (player: {:?}) along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, corpse.id, corpse.player_identity, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        // Calculate combined damage (same logic as other entities)
+                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                            weapon_damage_min
+                        } else {
+                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                        };
+
+                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                            ammo_damage_min
+                        } else {
+                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                        };
+
+                        let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                            ammo_damage
+                        } else {
+                            weapon_damage + ammo_damage
+                        };
+
+                        if final_damage > 0.0 {
+                            match combat::damage_player_corpse(ctx, projectile.owner_id, corpse.id, final_damage, &weapon_item_def, current_time, &mut rng) {
+                                Ok(attack_result) => {
+                                    if attack_result.hit {
+                                        log::info!(
+                                            "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Player Corpse {}",
+                                            projectile.id, final_damage, corpse.id
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Player Corpse {}: {}",
+                                        corpse.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like other hits
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_deployable_this_tick {
+            continue;
+        }
+        
         if travel_distance > projectile.max_range || elapsed_time > 10.0 {
             // Projectile missed - store info for dropped item creation
+            log::info!("DEBUG: Projectile {} reached max range/time. Distance: {:.1}, Range: {:.1}, Time: {:.1}s", 
+                projectile.id, travel_distance, projectile.max_range, elapsed_time);
             missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
             projectiles_to_delete.push(projectile.id);
             continue;
         }
 
+        log::info!("DEBUG: Projectile {} checking player collisions at ({:.1}, {:.1})", projectile.id, current_x, current_y);
+
+        // Check living player collisions
         let mut hit_player_this_tick = false;
         for player_to_check in ctx.db.player().iter() {
-            if player_to_check.identity == projectile.owner_id || player_to_check.is_dead { // Also check if target is already dead
-                continue;
+            if player_to_check.identity == projectile.owner_id || player_to_check.is_dead {
+                continue; // Skip self and dead players (corpses handled above)
             }
             
-            let dx = current_x - player_to_check.position_x;
-            let dy = current_y - player_to_check.position_y;
-            let distance_sq = dx * dx + dy * dy;
+            // Use line segment collision detection for players
+            let player_radius = crate::PLAYER_RADIUS;
+            let collision_detected = line_intersects_circle(prev_x, prev_y, current_x, current_y, player_to_check.position_x, player_to_check.position_y, player_radius);
             
-            // Use PLAYER_RADIUS for collision detection
-            const PROJECTILE_HIT_PLAYER_RADIUS_SQ: f32 = crate::PLAYER_RADIUS * crate::PLAYER_RADIUS; 
-
-            if distance_sq < PROJECTILE_HIT_PLAYER_RADIUS_SQ { // Use player's actual radius
-                log::info!("Projectile {} from owner {:?} hit player {:?} at ({:.1}, {:.1}) with hit radius check against PLAYER_RADIUS ({:.1})", 
-                         projectile.id, projectile.owner_id, player_to_check.identity, current_x, current_y, crate::PLAYER_RADIUS);
+            // Debug logging for nearby collisions
+            if (prev_x - player_to_check.position_x).abs() < 100.0 && (prev_y - player_to_check.position_y).abs() < 100.0 {
+                log::info!("DEBUG: Checking collision for projectile {} with living player {:?}. Path: ({:.1},{:.1}) -> ({:.1},{:.1}), Player: ({:.1},{:.1}), Radius: {:.1}, Collision: {}", 
+                    projectile.id, player_to_check.identity, 
+                    prev_x, prev_y, current_x, current_y, 
+                    player_to_check.position_x, player_to_check.position_y, 
+                    player_radius, collision_detected);
+            }
+            
+            if collision_detected {
+                log::info!("Projectile {} from owner {:?} hit living player {:?} along path from ({:.1}, {:.1}) to ({:.1}, {:.1}) with PLAYER_RADIUS ({:.1})", 
+                         projectile.id, projectile.owner_id, player_to_check.identity, prev_x, prev_y, current_x, current_y, crate::PLAYER_RADIUS);
                 
                 // --- IMPROVED: Use combined weapon + ammunition damage ---
                 // Get weapon definition for base damage
@@ -609,6 +1109,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 }
                 // --- End Improved Combined Damage System ---
 
+                // Add projectile to dropped item system (with break chance) like other hits
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
                 projectiles_to_delete.push(projectile.id);
                 hit_player_this_tick = true;
                 break; // Projectile hits one player and is consumed

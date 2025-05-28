@@ -477,6 +477,12 @@ export function useEntityFiltering(
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
     // console.log('[DEBUG] visiblePotatoes count:', visiblePotatoes.length);
     
+    // Debug logging for shelters - only when shelters exist and every 60 frames
+    const shelterEntities = mappedEntities.filter(e => e.type === 'shelter');
+    if (shelterEntities.length > 0 && Math.floor(currentTime / 1000) % 3 === 0) {
+      // console.log('[Y-Sort] Shelters found:', shelterEntities.length, 'First shelter posY:', (shelterEntities[0].entity as any).posY);
+    }
+    
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
     const validEntities = mappedEntities.filter(e => e && e.entity);
 
@@ -485,47 +491,59 @@ export function useEntityFiltering(
       let sortY = 0;
 
       if (isPlayer(entity)) {
-        sortY = entity.positionY;
+        // Players sort by their foot position (bottom of sprite)
+        // Add offset to move from center to foot position
+        sortY = entity.positionY + 48 // Add half player height to get foot position
         return sortY;
       }
 
-      // Trees should appear behind most ground entities but still Y-sort properly
+      // Trees should sort by their base/trunk position (bottom of sprite)
       if (isTree(entity)) {
-        const Y_OFFSET = 64; // Trees get a larger offset to appear behind most entities
-        sortY = entity.posY + Y_OFFSET;
+        // Trees are tall, so we sort by their base position
+        // No offset needed - use the actual base position
+        sortY = entity.posY;
         return sortY;
       }
 
-      // Stones should also appear behind most ground entities
+      // Stones should sort by their base position
       if (isStone(entity)) {
-        const Y_OFFSET = 32; // Stones get a moderate offset
-        sortY = entity.posY + Y_OFFSET;
+        // Stones are ground-level objects
+        sortY = entity.posY;
+        return sortY;
+      }
+
+      // Wooden storage boxes should sort by their base position
+      if (isWoodenStorageBox(entity)) {
+        // Boxes are ground objects, sort by their base
+        sortY = entity.posY;
         return sortY;
       }
 
       // Explicit handling for Shelter to ensure it uses its base posY
       if (isShelter(entity)) {
-        const Y_OFFSET = 120; 
-        sortY = entity.posY - Y_OFFSET;
+        // Shelters are large structures, sort by their visual base (roots)
+        // The roots extend below shelter.posY, so we don't add offset
+        sortY = entity.posY; // Use the base position without offset
         return sortY;
       }
 
+      // Ground resources (crops, mushrooms, etc.) sort by their base
       if (isCorn(entity) || isHemp(entity) || isPotato(entity) || isMushroom(entity) || isPumpkin(entity) || isDroppedItem(entity)) {
-        const Y_OFFSET = 48; 
-        sortY = entity.posY - Y_OFFSET;
+        // These are ground-level resources
+        sortY = entity.posY;
         return sortY;
       }
  
       if (isCampfire(entity)) { 
-        const Y_OFFSET = 78; 
-        sortY = entity.posY - Y_OFFSET;
+        // Campfires are ground objects
+        sortY = entity.posY - 32;
         return sortY;
       }
 
       if (isGrass(entity)) {
-        const Y_OFFSET = 16;
+        // Grass/bushes are ground-level decorations
         // entity here is already InterpolatedGrassData due to how ySortedEntities is constructed
-        sortY = (entity as InterpolatedGrassData).serverPosY - Y_OFFSET;
+        sortY = (entity as InterpolatedGrassData).serverPosY;
         return sortY;
       }
 

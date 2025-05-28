@@ -138,45 +138,45 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   // Effect to track weapon cooldowns based on activeEquipment swingStartTimeMs - simplified
   useEffect(() => {
-    console.log('[Hotbar] Weapon cooldown useEffect triggered. activeEquipment:', activeEquipment);
+    // console.log('[Hotbar] Weapon cooldown useEffect triggered. activeEquipment:', activeEquipment);
     
     if (!activeEquipment || !playerIdentity) {
-      console.log('[Hotbar] No activeEquipment or playerIdentity, skipping weapon cooldown tracking');
+      // console.log('[Hotbar] No activeEquipment or playerIdentity, skipping weapon cooldown tracking');
       return;
     }
 
     const now = Date.now();
     const swingStartTime = Number(activeEquipment.swingStartTimeMs);
     
-    console.log('[Hotbar] Weapon cooldown check - swingStartTime:', swingStartTime, 'now:', now, 'diff:', now - swingStartTime);
+    // console.log('[Hotbar] Weapon cooldown check - swingStartTime:', swingStartTime, 'now:', now, 'diff:', now - swingStartTime);
     
     // Only process if there was a recent swing (within last 10 seconds to avoid stale data)
     if (swingStartTime > 0 && (now - swingStartTime) < 10000) {
-      console.log('[Hotbar] Recent swing detected, checking for equipped item...');
+      // console.log('[Hotbar] Recent swing detected, checking for equipped item...');
       
       // Find which hotbar slot contains the equipped item
       if (activeEquipment.equippedItemInstanceId) {
-        console.log('[Hotbar] Looking for equipped item with ID:', activeEquipment.equippedItemInstanceId);
+        // console.log('[Hotbar] Looking for equipped item with ID:', activeEquipment.equippedItemInstanceId);
         
         for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
           const itemInSlot = findItemForSlot(slotIndex);
           if (itemInSlot) {
-            console.log(`[Hotbar] Slot ${slotIndex}: ${itemInSlot.definition.name} (ID: ${itemInSlot.instance.instanceId})`);
+            // console.log(`[Hotbar] Slot ${slotIndex}: ${itemInSlot.definition.name} (ID: ${itemInSlot.instance.instanceId})`);
             
             if (BigInt(itemInSlot.instance.instanceId) === activeEquipment.equippedItemInstanceId) {
-              console.log(`[Hotbar] Found equipped item in slot ${slotIndex}: ${itemInSlot.definition.name}`);
+              // console.log(`[Hotbar] Found equipped item in slot ${slotIndex}: ${itemInSlot.definition.name}`);
               
               if (isWeaponWithCooldown(itemInSlot.definition)) {
-                console.log(`[Hotbar] Item is weapon with cooldown. attackIntervalSecs:`, itemInSlot.definition.attackIntervalSecs);
+                // console.log(`[Hotbar] Item is weapon with cooldown. attackIntervalSecs:`, itemInSlot.definition.attackIntervalSecs);
                 
                 const attackIntervalMs = (itemInSlot.definition.attackIntervalSecs || 0) * 1000;
                 const cooldownEndTime = swingStartTime + attackIntervalMs;
                 
-                console.log(`[Hotbar] Cooldown timing - start: ${swingStartTime}, duration: ${attackIntervalMs}ms, end: ${cooldownEndTime}, now: ${now}`);
+                // console.log(`[Hotbar] Cooldown timing - start: ${swingStartTime}, duration: ${attackIntervalMs}ms, end: ${cooldownEndTime}, now: ${now}`);
                 
                 // Only start cooldown if it's still active
                 if (now < cooldownEndTime) {
-                  console.log(`[Hotbar] Starting weapon cooldown for ${itemInSlot.definition.name} in slot ${slotIndex}, duration: ${attackIntervalMs}ms`);
+                  // console.log(`[Hotbar] Starting weapon cooldown for ${itemInSlot.definition.name} in slot ${slotIndex}, duration: ${attackIntervalMs}ms`);
                   
                   // Clear any existing weapon cooldown
                   if (weaponCooldownTimeoutRef.current) {
@@ -193,7 +193,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                   // Set timeout to clear weapon cooldown when it expires
                   const remainingTime = cooldownEndTime - now;
                   weaponCooldownTimeoutRef.current = setTimeout(() => {
-                    console.log('[Hotbar] Weapon cooldown timeout completed for slot:', slotIndex);
+                    // console.log('[Hotbar] Weapon cooldown timeout completed for slot:', slotIndex);
                     setIsWeaponCooldownActive(false);
                     setWeaponCooldownStartTime(null);
                     setWeaponCooldownProgress(0);
@@ -201,20 +201,20 @@ const Hotbar: React.FC<HotbarProps> = ({
                   }, remainingTime);
                   
                 } else {
-                  console.log('[Hotbar] Cooldown already expired, not starting animation');
+                  // console.log('[Hotbar] Cooldown already expired, not starting animation');
                 }
               } else {
-                console.log(`[Hotbar] Item ${itemInSlot.definition.name} is not a weapon with cooldown`);
+                // console.log(`[Hotbar] Item ${itemInSlot.definition.name} is not a weapon with cooldown`);
               }
               break;
             }
           }
         }
       } else {
-        console.log('[Hotbar] No equippedItemInstanceId in activeEquipment');
+        // console.log('[Hotbar] No equippedItemInstanceId in activeEquipment');
       }
     } else {
-      console.log('[Hotbar] No recent swing or invalid swingStartTime');
+      // console.log('[Hotbar] No recent swing or invalid swingStartTime');
     }
   }, [activeEquipment, findItemForSlot, isWeaponWithCooldown, playerIdentity, numSlots]);
 
@@ -232,7 +232,7 @@ const Hotbar: React.FC<HotbarProps> = ({
         const currentProgress = Math.min(1, elapsedTimeMs / weaponCooldownDuration); 
         setWeaponCooldownProgress(currentProgress);
         
-        console.log(`[Hotbar] Weapon cooldown progress: ${(currentProgress * 100).toFixed(1)}%`);
+        // console.log(`[Hotbar] Weapon cooldown progress: ${(currentProgress * 100).toFixed(1)}%`);
 
         if (currentProgress < 1) {
           weaponCooldownAnimationRef.current = requestAnimationFrame(animate);

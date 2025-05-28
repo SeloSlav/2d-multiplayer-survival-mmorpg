@@ -403,9 +403,9 @@ function renderRainDrops(
 }
 
 /**
- * Triggers a thunder flash effect
+ * Triggers a thunder flash effect (INTERNAL USE ONLY - not exported for safety)
  */
-export function triggerThunderFlash(intensity: number = 0.8): void {
+function triggerThunderFlash(intensity: number = 0.8): void {
   const duration = 150 + Math.random() * 100; // 150-250ms flash duration
   rainSystem.thunderFlash = {
     startTime: performance.now(),
@@ -503,4 +503,22 @@ export function getRainDropCount(): number {
  */
 export function getSplashCount(): number {
   return rainSystem.splashes.length;
+}
+
+/**
+ * Safe function to handle server thunder events only (exported for legitimate use)
+ * This validates the input and prevents abuse
+ */
+export function handleServerThunderEvent(serverThunderEvent: { intensity: number; timestamp: any }): void {
+  // Validate that this looks like a legitimate server thunder event
+  if (!serverThunderEvent || typeof serverThunderEvent.intensity !== 'number') {
+    console.warn('[Thunder] Invalid thunder event received from server');
+    return;
+  }
+  
+  // Clamp intensity to safe range
+  const safeIntensity = Math.max(0.3, Math.min(0.8, serverThunderEvent.intensity));
+  
+  // Call the internal thunder function
+  triggerThunderFlash(safeIntensity);
 } 

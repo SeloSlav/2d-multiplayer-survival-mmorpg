@@ -293,9 +293,9 @@ export const renderYSortedEntities = ({
                 // console.warn('[renderYSortedEntities] Shelter image not available for shelter:', shelter.id); // DEBUG LOG
             }
         } else if (type === 'corn') {
-            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, false, true);
+            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress);
         } else if (type === 'hemp') {
-            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress, false, true);
+            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress);
         } else if (type === 'campfire') {
             renderCampfire(ctx, entity as SpacetimeDBCampfire, nowMs, cycleProgress);
         } else if (type === 'dropped_item') {
@@ -303,11 +303,11 @@ export const renderYSortedEntities = ({
             const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
             renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
         } else if (type === 'mushroom') {
-            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, false, true);
+            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress);
         } else if (type === 'potato') {
-            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress, false, true);
+            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress);
         } else if (type === 'pumpkin') {
-            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, false, true);
+            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress);
         } else if (type === 'stash') {
             renderStash(ctx, entity as SpacetimeDBStash, nowMs, cycleProgress);
         } else if (type === 'wooden_storage_box') {
@@ -365,19 +365,19 @@ export const renderYSortedEntities = ({
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
         } else if (type === 'corn') {
-            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress, true, false);
+            // Corn is fully rendered in the first pass - no second pass needed
         } else if (type === 'hemp') {
-            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress, true, false);
+            // Hemp is fully rendered in the first pass - no second pass needed
         } else if (type === 'campfire') {
             // Campfires handle their own shadows, no separate pass needed here generally
         } else if (type === 'dropped_item') {
             // Dropped items handle their own shadows
         } else if (type === 'mushroom') {
-            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, true, false);
+            // Mushrooms are fully rendered in the first pass - no second pass needed
         } else if (type === 'potato') {
-            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress, true, false);
+            // Potatoes are fully rendered in the first pass - no second pass needed
         } else if (type === 'pumpkin') {
-            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, true, false);
+            // Pumpkins are fully rendered in the first pass - no second pass needed
         } else if (type === 'stash') {
             // Stashes handle their own shadows within their main render function
         } else if (type === 'wooden_storage_box') {
@@ -390,10 +390,7 @@ export const renderYSortedEntities = ({
             // Players are fully rendered in the first pass, including their shadows.
             // No action needed for players in this second (shadow-only) pass.
         } else if (type === 'grass') {
-            // Grass is PIXI based and doesn't have a separate canvas shadow pass in this system
-            // Ensure shadows are also skipped in the second pass if grass were to be rendered here
-            // Cast to InterpolatedGrassData as that's what YSortedEntityType provides for grass
-            renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, true, true);
+            // Grass is fully rendered in the first pass - no second pass needed
         } else if (type === 'projectile') {
             // Projectiles are fully rendered in the first pass and don't have separate shadows
             // No action needed in the shadow-only pass

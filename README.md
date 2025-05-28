@@ -120,7 +120,7 @@ npm run dev
 *   🏠 Player Shelter: Personal shelter system where only the owner can enter and keep their campfire safe from the rain
 *   🛏️ Sleeping Bags: Placeable respawn points that persist between deaths
 
-**On Hold (⏸️):** 
+**Planned (📋):** 
 *   **Core Systems & World:**
     *   🌍 World Generation: Procedural generation, biomes, monuments
     *   🎨 Terrain Autotiling: Edge detection, Wang tiles, seamless transitions between biomes
@@ -134,7 +134,7 @@ npm run dev
     *   ⚔️ Tool/Weapon Durability
     *   🔫 Firearm System: Guns with ammo types, reloading mechanics, and recoil
 
-> **Note:** This project is open for community contributions! While I'll continue maintaining the core systems, I welcome pull requests and feature additions from the community. Feel free to implement any of the planned systems listed above or suggest new features. Let's build something amazing together!
+> **Note:** I'm currently spending most of my time working on a personal fork of this project, focusing on optimizing existing systems and refactoring for better performance. If you're interested in contributing to the main project, the planned features listed above would be fantastic starting points! I'd love to see what the community builds with this foundation. 🎮
 
 *   🛒 **Selo Olive Oil Discount:** Use code `VIBE15` for 15% off at [seloolive.com/discount/VIBE15](https://seloolive.com/discount/VIBE15)
 

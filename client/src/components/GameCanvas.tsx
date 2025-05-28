@@ -237,7 +237,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Lift deathMarkerImg definition here - reactive to image loading
   const deathMarkerImg = useMemo(() => {
     const img = itemImagesRef.current?.get('death_marker.png');
-    console.log('[GameCanvas] Computing deathMarkerImg. itemImagesRef keys:', Array.from(itemImagesRef.current?.keys() || []), 'death_marker.png found:', !!img, 'trigger:', imageLoadTrigger);
+    // console.log('[GameCanvas] Computing deathMarkerImg. itemImagesRef keys:', Array.from(itemImagesRef.current?.keys() || []), 'death_marker.png found:', !!img, 'trigger:', imageLoadTrigger);
     return img;
   }, [itemImagesRef, imageLoadTrigger]);
 
@@ -391,7 +391,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
   const localPlayerDeathMarker = useMemo(() => {
-    console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
+    // console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
     if (localPlayer && localPlayer.identity && deathMarkers) {
       const marker = deathMarkers.get(localPlayer.identity.toHexString());
       // console.log('[GameCanvas] Found death marker for player:', marker);
@@ -401,13 +401,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [localPlayer, deathMarkers]);
   
   // Add debug logging for death screen
-  console.log('[GameCanvas] Death screen check:', {
-    localPlayerIsDead: localPlayer?.isDead,
-    hasConnection: !!connection,
-    shouldShowDeathScreen,
-    localPlayerDeathMarker: localPlayerDeathMarker ? 'present' : 'null',
-    deathMarkerImg: deathMarkerImg ? 'loaded' : 'null'
-  });
+  // console.log('[GameCanvas] Death screen check:', {
+  //   localPlayerIsDead: localPlayer?.isDead,
+  //   hasConnection: !!connection,
+  //   shouldShowDeathScreen,
+  //   localPlayerDeathMarker: localPlayerDeathMarker ? 'present' : 'null',
+  //   deathMarkerImg: deathMarkerImg ? 'loaded' : 'null'
+  // });
 
   // --- Effects ---
   useEffect(() => {
