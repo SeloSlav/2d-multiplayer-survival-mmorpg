@@ -98,12 +98,12 @@ npm run dev
 
 **Completed (✅):**
 *   🌐 Real-time Multiplayer: Basic player movement synchronization
-*   🌓 Environment Systems: Day/night cycle, Full moon nights
-*   🪓 Survival Mechanics: Basic resource harvesting (wood/stone/mushrooms)
-*   🌱 Resource Respawning: Trees, Stones, Mushrooms
+*   🌓 Environment Systems: Day/night cycle, Full moon nights, Rain system that affects gameplay and atmosphere
+*   🪓 Survival Mechanics: Basic resource harvesting
+*   🌱 Resource Respawning: Trees, Stones, Plants
 *   ❤️ Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn
 *   🗺️ World Discovery: Minimap
-*   🎮 Hotbar: Item selection
+*   🎮 Hotbar: Item selection, weapon cooldown indicators
 *   🎒 Inventory Management: Moving, swapping, stacking, stack splitting
 *   ⚔️ Armor: Defense bonuses, warmth protection
 *   🔥 Placeables: Campfire (Multi-slot placement & interaction)
@@ -112,20 +112,32 @@ npm run dev
 *   💰 Looting Mechanics (Containers)
 *   🔐 Authentication/Account System
 *   🍳 Cooking System: Food preparation using campfire with raw, cooked and burnt states
-*   ⚔️ Combat Improvements: New weapon types (melee, thrown, ranged), improved hit detection, PvP balancing
+*   ⚔️ Combat System: Multiple weapon types (melee, thrown, ranged), improved hit detection, PvP balancing
+*   🏹 Ranged Weapons & Ammunition: Bow combat with different arrow types (stone, iron, fire arrows), arrow cycling system
+*   🩸 Active Effects System: Bleed damage, burn damage, and other status effects
+*   💀 Player Corpses: Harvestable corpses that yield primitive resources when players die
+*   😵 Knock Out System: Combat state with temporary incapacitation and a chance to spontaneously recover
+*   🏠 Player Shelter: Personal shelter system where only the owner can enter and keep their campfire safe from the rain
+*   🛏️ Sleeping Bags: Placeable respawn points that persist between deaths
 
-**Planned (📓):** 
+**On Hold (⏸️):** 
 *   **Core Systems & World:**
     *   🌍 World Generation: Procedural generation, biomes, monuments
     *   🎨 Terrain Autotiling: Edge detection, Wang tiles, seamless transitions between biomes
-    *   🤖 Advanced AI: Enemy behaviors, pathfinding
-    *   👥 Team/Social Features
+    *   🤖 Advanced AI: Hostile NPCs behaviors, pathfinding
+    *   👥 Team/Social Features: Shared map markers, team chat, private messaging, player notes, and group formation
 *   **Gameplay Loops & Interaction:**
     *   🏗️ Construction System: Base building (walls, floors, etc.)
     *   🌱 Farming System: Planting, growing, harvesting crops
     *   🦌 Hunting System: NPC animals (deer, wolves, etc.), tracking, hunting mechanics
 *   **Combat & Items:**
     *   ⚔️ Tool/Weapon Durability
+    *   🔫 Firearm System: Guns with ammo types, reloading mechanics, and recoil
+
+> **Note:** This project is open for community contributions! While I'll continue maintaining the core systems, I welcome pull requests and feature additions from the community. Feel free to implement any of the planned systems listed above or suggest new features. Let's build something amazing together!
+
+*   🛒 **Selo Olive Oil Discount:** Use code `VIBE15` for 15% off at [seloolive.com/discount/VIBE15](https://seloolive.com/discount/VIBE15)
+
 
 ## 🛠️ Tech Stack
 
@@ -283,110 +295,4 @@ Changing the tile size or the overall world dimensions requires modifications in
         *   `SERVER_WORLD_HEIGHT_TILES`: This constant represents the assumed height of the server's world in tiles. It should match `WORLD_HEIGHT_TILES` in `server/src/lib.rs`.
     *   **Visual/Legacy World Dimensions (in tiles):**
         *   The `worldWidth` and `worldHeight` properties within the exported `gameConfig` object are also present. Ensure these are consistent with `SERVER_WORLD_WIDTH_TILES` and `SERVER_WORLD_HEIGHT_TILES` respectively. These might be used for client-side rendering calculations that haven't been fully updated to use the `serverWorld...` prefixed variables.
-    *   Other values like `minimapGridCellDiagonalTiles` might also need tuning depending on the new world size.
-
-2.  **Server (`server/src/lib.rs`):**
-    *   Modify the `TILE_SIZE_PX` constant (e.g., `pub const TILE_SIZE_PX: u32 = 48;`).
-    *   Modify the `WORLD_WIDTH_TILES` constant (e.g., `pub const WORLD_WIDTH_TILES: u32 = 250;`).
-    *   Modify the `WORLD_HEIGHT_TILES` constant (e.g., `pub const WORLD_HEIGHT_TILES: u32 = 250;`).
-
-**Important:** Ensure the `TILE_SIZE` (in `gameConfig.ts`) / `TILE_SIZE_PX` (in `lib.rs`) and the `SERVER_WORLD_WIDTH_TILES`/`SERVER_WORLD_HEIGHT_TILES` (in `gameConfig.ts`) / `WORLD_WIDTH_TILES`/`WORLD_HEIGHT_TILES` (in `lib.rs`) values are kept consistent between the client and server configuration files. The `gameConfig.worldWidth` and `gameConfig.worldHeight` should also mirror these tile dimension values.
-
-After making server-side changes, remember to **re-publish** the module:
-
-```bash
-# From the server/ directory
-spacetime publish vibe-survival-game
-# No need to regenerate client bindings for changing only these constants
-```
-
-## 📁 Project Structure
-
-```
-vibe-coding-starter-pack-2d-survival/
-├── .cursor/        # Cursor AI configuration
-│   └── rules/      # *.mdc rule files for AI context
-├── auth-server-openauth/ # Node.js OpenID Connect authentication server
-│   ├── data/       # User data (users.json - gitignored)
-│   ├── public/     # HTML templates for login/register
-│   ├── src/        # Auth server logic (routes, OIDC implementation)
-│   └── package.json
-├── client/         # React frontend (UI, rendering, input)
-│   ├── public/     # Static files (index.html, favicons)
-│   ├── src/
-│   │   ├── assets/ # Sprites, textures, sounds
-│   │   ├── components/ # React components (UI, Canvas)
-│   │   ├── config/     # Client-side game configuration
-│   │   ├── generated/  # Auto-generated SpacetimeDB bindings
-│   │   ├── hooks/      # Custom React hooks
-│   │   ├── types/      # Shared TypeScript types (e.g., drag/drop)
-│   │   └── utils/      # Helper functions (rendering, logic)
-│   └── package.json
-├── server/         # SpacetimeDB server logic (Rust)
-│   ├── src/        # Server code (lib.rs, modules)
-│   └── Cargo.toml
-├── github.png      # Banner image
-├── preview.png     # Gameplay preview image
-├── README.md
-└── LICENSE
-```
-
-## 🚀 Running the Project Locally
-
-This guide assumes you have installed the prerequisites: Node.js v22+, Rust, and the SpacetimeDB CLI.
-
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival.git
-    cd vibe-coding-starter-pack-2d-multiplayer-survival
-    ```
-
-2.  **Install Client Dependencies:**
-    ```bash
-    # From the project root directory
-    npm install
-    ```
-
-3.  **Start Local SpacetimeDB Server:**
-    Open a **separate terminal** window and run:
-    ```bash
-    spacetime start
-    ```
-    Keep this terminal running in the background. It hosts your local game database.
-
-4.  **Build, Publish Server Module & Generate Client Bindings:**
-    Open **another terminal** window, navigate to the `server` directory, and run these commands:
-    ```bash
-    cd server
-    spacetime publish vibe-survival-game
-    spacetime generate --lang typescript --out-dir ../client/src/generated
-    ```
-    *   **Note:** You need to re-run these two commands *every time* you change the server schema (e.g., modify tables or reducers in `server/src/lib.rs` or other `.rs` files).
-
-5.  **Run the Client:**
-    In the **same terminal** as step 4 (or a new one, just make sure you are in the project root directory `vibe-coding-starter-pack-2d-survival`), run:
-    ```bash
-    npm run dev
-    ```
-
-6.  **Access the Game:**
-    Open your browser and navigate to the local address provided by Vite (usually `http://localhost:5173` or similar).
-
-## 🔧 Troubleshooting Local Setup
-
-*   **`Cannot find module './generated'` error in client:**
-    *   Ensure you ran `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` from the `server` directory *after* the last `spacetime publish` was **successful**. Check the publish output for errors.
-    *   Make sure the `client/src/generated` folder was actually created and contains `.ts` files, including `index.ts`.
-    *   Restart the Vite dev server (`npm run dev`). Sometimes Vite needs a restart after significant file changes.
-*   **Client connects but game doesn't load / players don't appear:**
-    *   Check the browser console (F12) for JavaScript errors (e.g., subscription failures, rendering issues).
-    *   Check the terminal running `spacetime start` for server-side Rust errors (e.g., reducer panics, assertion failures).
-*   **Old players/data still appearing after disconnect/refresh:**
-    *   Verify the `identity_disconnected` logic in `server/src/lib.rs` is correctly deleting the player, inventory, and equipment.
-    *   For a guaranteed clean slate during development, delete and recreate the local database:
-        ```bash
-        # Stop spacetime start (Ctrl+C in its terminal)
-        spacetime delete vibe-survival-game # Run from any directory
-        spacetime start # Restart the server
-        # Then re-publish and re-generate (Step 4 above)
-        ```
+        *   Other values like `minimapGridCellDiagonalTiles`
