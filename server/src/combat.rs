@@ -1083,6 +1083,8 @@ pub fn damage_player(
             pos_x: target_player.position_x,
             pos_y: target_player.position_y,
             death_timestamp: timestamp, // Use the combat timestamp
+            killed_by: Some(attacker_id), // Track who killed this player
+            death_cause: "Combat".to_string(), // Death due to PvP combat
         };
         let death_marker_table = ctx.db.death_marker();
         if death_marker_table.player_id().find(&target_player.identity).is_some() {

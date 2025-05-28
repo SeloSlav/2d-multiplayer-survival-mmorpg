@@ -86,6 +86,8 @@ import { InteractWithHemp } from "./interact_with_hemp_reducer.ts";
 export { InteractWithHemp };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
+import { InteractWithPotato } from "./interact_with_potato_reducer.ts";
+export { InteractWithPotato };
 import { InteractWithPumpkin } from "./interact_with_pumpkin_reducer.ts";
 export { InteractWithPumpkin };
 import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
@@ -320,6 +322,8 @@ import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
+import { PotatoTableHandle } from "./potato_table.ts";
+export { PotatoTableHandle };
 import { PrivateMessageTableHandle } from "./private_message_table.ts";
 export { PrivateMessageTableHandle };
 import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
@@ -448,6 +452,8 @@ import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
 export { PlayerStatSchedule };
+import { Potato } from "./potato_type.ts";
+export { Potato };
 import { PrivateMessage } from "./private_message_type.ts";
 export { PrivateMessage };
 import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
@@ -653,6 +659,11 @@ const REMOTE_MODULE = {
       rowType: PlayerStatSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    potato: {
+      tableName: "potato",
+      rowType: Potato.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     private_message: {
       tableName: "private_message",
       rowType: PrivateMessage.getTypeScriptAlgebraicType(),
@@ -842,6 +853,10 @@ const REMOTE_MODULE = {
     interact_with_mushroom: {
       reducerName: "interact_with_mushroom",
       argsType: InteractWithMushroom.getTypeScriptAlgebraicType(),
+    },
+    interact_with_potato: {
+      reducerName: "interact_with_potato",
+      argsType: InteractWithPotato.getTypeScriptAlgebraicType(),
     },
     interact_with_pumpkin: {
       reducerName: "interact_with_pumpkin",
@@ -1233,6 +1248,7 @@ export type Reducer = never
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithHemp", args: InteractWithHemp }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
+| { name: "InteractWithPotato", args: InteractWithPotato }
 | { name: "InteractWithPumpkin", args: InteractWithPumpkin }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
@@ -1720,6 +1736,22 @@ export class RemoteReducers {
 
   removeOnInteractWithMushroom(callback: (ctx: ReducerEventContext, mushroomId: bigint) => void) {
     this.connection.offReducer("interact_with_mushroom", callback);
+  }
+
+  interactWithPotato(potatoId: bigint) {
+    const __args = { potatoId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithPotato.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_potato", __argsBuffer, this.setCallReducerFlags.interactWithPotatoFlags);
+  }
+
+  onInteractWithPotato(callback: (ctx: ReducerEventContext, potatoId: bigint) => void) {
+    this.connection.onReducer("interact_with_potato", callback);
+  }
+
+  removeOnInteractWithPotato(callback: (ctx: ReducerEventContext, potatoId: bigint) => void) {
+    this.connection.offReducer("interact_with_potato", callback);
   }
 
   interactWithPumpkin(pumpkinId: bigint) {
@@ -3150,6 +3182,11 @@ export class SetReducerFlags {
     this.interactWithMushroomFlags = flags;
   }
 
+  interactWithPotatoFlags: CallReducerFlags = 'FullUpdate';
+  interactWithPotato(flags: CallReducerFlags) {
+    this.interactWithPotatoFlags = flags;
+  }
+
   interactWithPumpkinFlags: CallReducerFlags = 'FullUpdate';
   interactWithPumpkin(flags: CallReducerFlags) {
     this.interactWithPumpkinFlags = flags;
@@ -3701,6 +3738,10 @@ export class RemoteTables {
 
   get playerStatSchedule(): PlayerStatScheduleTableHandle {
     return new PlayerStatScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStatSchedule>(REMOTE_MODULE.tables.player_stat_schedule));
+  }
+
+  get potato(): PotatoTableHandle {
+    return new PotatoTableHandle(this.connection.clientCache.getOrCreateTable<Potato>(REMOTE_MODULE.tables.potato));
   }
 
   get privateMessage(): PrivateMessageTableHandle {

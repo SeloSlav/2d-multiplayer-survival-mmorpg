@@ -103,6 +103,8 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                         pos_x: death_marker_pos_x,
                         pos_y: death_marker_pos_y,
                         death_timestamp: current_time, // Use current_time from the command context
+                        killed_by: None, // Self-inflicted death via command
+                        death_cause: "Suicide".to_string(), // Death via /kill or /respawn command is suicide
                     };
                     let death_marker_table = ctx.db.death_marker();
                     if death_marker_table.player_id().find(&sender_id).is_some() {

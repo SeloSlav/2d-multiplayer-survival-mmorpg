@@ -5,6 +5,7 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
     Corn as SpacetimeDBCorn,
+    Potato as SpacetimeDBPotato,
     Hemp as SpacetimeDBHemp,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
@@ -17,12 +18,16 @@ import {
 import {
     MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION,
     CORN_VISUAL_HEIGHT_FOR_INTERACTION,
+    POTATO_VISUAL_HEIGHT_FOR_INTERACTION,
     HEMP_VISUAL_HEIGHT_FOR_INTERACTION,
     PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION
 } from '../../hooks/useInteractionFinder';
 
 import { CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './campfireRenderingUtils';
 import { BOX_HEIGHT } from './woodenStorageBoxRenderingUtils';
+
+// Import resource configuration helper to get proper interaction labels
+import { getResourceInteractionLabel } from './resourceConfigurations';
 
 // Define Sleeping Bag dimensions locally for label positioning
 const SLEEPING_BAG_HEIGHT = 64;
@@ -31,6 +36,7 @@ interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     corns: Map<string, SpacetimeDBCorn>;
+    potatoes: Map<string, SpacetimeDBPotato>;
     pumpkins: Map<string, SpacetimeDBPumpkin>;
     hemps: Map<string, SpacetimeDBHemp>;
     campfires: Map<string, SpacetimeDBCampfire>;
@@ -43,6 +49,7 @@ interface RenderLabelsParams {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
@@ -68,6 +75,7 @@ export function renderInteractionLabels({
     ctx,
     mushrooms,
     corns,
+    potatoes,
     pumpkins,
     hemps,
     campfires,
@@ -80,9 +88,10 @@ export function renderInteractionLabels({
     itemDefinitions,
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractablePotatoId,
+    closestInteractablePumpkinId,
     closestInteractableHempId,
     closestInteractableCampfireId,
-    closestInteractablePumpkinId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
     isClosestInteractableBoxEmpty,
@@ -103,7 +112,7 @@ export function renderInteractionLabels({
     if (closestInteractableMushroomId !== null) {
         const mushroom = mushrooms.get(closestInteractableMushroomId.toString());
         if (mushroom) {
-            const text = "Press E to Collect";
+            const text = getResourceInteractionLabel('mushroom');
             const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = mushroom.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -116,9 +125,22 @@ export function renderInteractionLabels({
     if (closestInteractableCornId !== null) {
         const corn = corns.get(closestInteractableCornId.toString());
         if (corn) {
-            const text = "Press E to Harvest";
+            const text = getResourceInteractionLabel('corn');
             const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = corn.posX;
+            const textY = visualCenterY - 30; // Offset above visual center
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Potato Label
+    if (closestInteractablePotatoId !== null) {
+        const potato = potatoes.get(closestInteractablePotatoId.toString());
+        if (potato) {
+            const text = getResourceInteractionLabel('potato');
+            const visualCenterY = potato.posY - (POTATO_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+            const textX = potato.posX;
             const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
@@ -129,7 +151,7 @@ export function renderInteractionLabels({
     if (closestInteractablePumpkinId !== null) {
         const pumpkin = pumpkins.get(closestInteractablePumpkinId.toString());
         if (pumpkin) {
-            const text = "Press E to Harvest";
+            const text = getResourceInteractionLabel('pumpkin');
             const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = pumpkin.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -142,7 +164,7 @@ export function renderInteractionLabels({
     if (closestInteractableHempId !== null) {
         const hemp = hemps.get(closestInteractableHempId.toString());
         if (hemp) {
-            const text = "Press E to Harvest";
+            const text = getResourceInteractionLabel('hemp');
             const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = hemp.posX;
             const textY = visualCenterY - 30; // Offset above visual center

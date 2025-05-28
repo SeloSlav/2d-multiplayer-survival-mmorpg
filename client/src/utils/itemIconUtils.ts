@@ -19,6 +19,7 @@ import burlapSackIcon from '../assets/items/burlap_sack.png';
 import burlapBackpackIcon from '../assets/items/burlap_backpack.png';
 import mushroomIcon from '../assets/items/mushroom.png';
 import cornIcon from '../assets/items/corn.png';
+import potatoIcon from '../assets/items/potato.png';
 import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
 import sleepingBagIcon from '../assets/items/sleeping_bag.png';
 import clothIcon from '../assets/items/cloth.png';
@@ -33,6 +34,8 @@ import cookedMushroomIcon from '../assets/items/cooked_mushroom.png';
 import burntMushroomIcon from '../assets/items/burnt_mushroom.png';
 import cookedCornIcon from '../assets/items/cooked_corn.png';
 import burntCornIcon from '../assets/items/burnt_corn.png';
+import cookedPotatoIcon from '../assets/items/cooked_potato.png';
+import burntPotatoIcon from '../assets/items/burnt_potato.png';
 import pumpkinIcon from '../assets/items/pumpkin.png';
 import cookedPumpkinIcon from '../assets/items/cooked_pumpkin.png';
 import burntPumpkinIcon from '../assets/items/burnt_pumpkin.png';
@@ -83,6 +86,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'burlap_backpack.png': burlapBackpackIcon,
   'mushroom.png': mushroomIcon,
   'corn.png': cornIcon,
+  'potato.png': potatoIcon,
   'wooden_storage_box.png': woodenStorageBoxIcon,
   'sleeping_bag.png': sleepingBagIcon,
   'cloth.png': clothIcon,
@@ -97,6 +101,8 @@ const iconMap: { [key: string]: string | undefined } = {
   'burnt_mushroom.png': burntMushroomIcon,
   'cooked_corn.png': cookedCornIcon,
   'burnt_corn.png': burntCornIcon,
+  'cooked_potato.png': cookedPotatoIcon,
+  'burnt_potato.png': burntPotatoIcon,
   'pumpkin.png': pumpkinIcon,
   'cooked_pumpkin.png': cookedPumpkinIcon,
   'burnt_pumpkin.png': burntPumpkinIcon,

@@ -30,40 +30,38 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type DeathMarker = {
-  playerId: Identity,
+export type Potato = {
+  id: bigint,
   posX: number,
   posY: number,
-  deathTimestamp: Timestamp,
-  killedBy: Identity | undefined,
-  deathCause: string,
+  chunkIndex: number,
+  respawnAt: Timestamp | undefined,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace DeathMarker {
+export namespace Potato {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("playerId", AlgebraicType.createIdentityType()),
+      new ProductTypeElement("id", AlgebraicType.createU64Type()),
       new ProductTypeElement("posX", AlgebraicType.createF32Type()),
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("deathTimestamp", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("killedBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
-      new ProductTypeElement("deathCause", AlgebraicType.createStringType()),
+      new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
+      new ProductTypeElement("respawnAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: DeathMarker): void {
-    DeathMarker.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: Potato): void {
+    Potato.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): DeathMarker {
-    return DeathMarker.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): Potato {
+    return Potato.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

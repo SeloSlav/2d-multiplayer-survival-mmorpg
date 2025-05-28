@@ -122,20 +122,20 @@ export function useFireArrowParticles({
                     // Calculate bow position and arrow tip offset
                     switch (player.direction) {
                         case 'up':
-                            arrowTipX = playerWorldX + gameConfig.spriteWidth * 0.3 - 15; // Bow offset + arrow tip
-                            arrowTipY = playerWorldY - gameConfig.spriteHeight * 0.0 - 25; // Arrow tip extends up
+                            arrowTipX = playerWorldX + gameConfig.spriteWidth * 0.25 + 25; // Crossbow offset + bolt tip
+                            arrowTipY = playerWorldY - gameConfig.spriteHeight * 0.05 - 25; // Bolt tip extends up
                             break;
                         case 'down':
-                            arrowTipX = playerWorldX + gameConfig.spriteWidth * -0.3 + 15; // Bow offset + arrow tip
-                            arrowTipY = playerWorldY + gameConfig.spriteHeight * 0.2 + 25; // Arrow tip extends down
+                            arrowTipX = playerWorldX + gameConfig.spriteWidth * -0.25 - 25; // Crossbow offset + bolt tip
+                            arrowTipY = playerWorldY + gameConfig.spriteHeight * 0.25 + 25; // Bolt tip extends down
                             break;
                         case 'left':
-                            arrowTipX = playerWorldX - gameConfig.spriteWidth * 0.2 - 25; // Arrow tip extends left
-                            arrowTipY = playerWorldY + 0;
+                            arrowTipX = playerWorldX - gameConfig.spriteWidth * 0.25 - 25; // Bolt tip extends left
+                            arrowTipY = playerWorldY + 15;
                             break;
                         case 'right':
-                            arrowTipX = playerWorldX - gameConfig.spriteWidth * -0.2 + 25; // Arrow tip extends right
-                            arrowTipY = playerWorldY + 4.0;
+                            arrowTipX = playerWorldX - gameConfig.spriteWidth * -0.25 - 5; // Bolt tip extends right
+                            arrowTipY = playerWorldY + 20.0;
                             break;
                     }
                 } else if (weaponDef.name === "Crossbow") {

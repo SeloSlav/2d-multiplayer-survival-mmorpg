@@ -23,6 +23,7 @@ use crate::tree;
 use crate::stone;
 use crate::mushroom;
 use crate::corn;
+use crate::potato;
 use crate::hemp;
 use crate::pumpkin;
 use crate::cloud;
@@ -33,6 +34,7 @@ use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::mushroom::mushroom as MushroomTableTrait;
 use crate::corn::corn as CornTableTrait;
+use crate::potato::potato as PotatoTableTrait;
 use crate::pumpkin::pumpkin as PumpkinTableTrait;
 use crate::hemp::hemp as HempTableTrait;
 use crate::items::ItemDefinition;
@@ -82,15 +84,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let stones = ctx.db.stone();
     let mushrooms = ctx.db.mushroom();
     let corns = ctx.db.corn();
+    let potatoes = ctx.db.potato();
     let pumpkins = ctx.db.pumpkin();
     let hemps = ctx.db.hemp();
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 || grasses.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 || grasses.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Hemps: {}, Pumpkins: {}, Clouds: {}, Grass: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count(), grasses.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Clouds: {}, Grass: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count(), grasses.iter().count()
         );
         return Ok(());
     }
@@ -111,6 +114,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_mushroom_attempts = target_mushroom_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
     let target_corn_count = (total_tiles as f32 * crate::corn::CORN_DENSITY_PERCENT) as u32;
     let max_corn_attempts = target_corn_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+    let target_potato_count = (total_tiles as f32 * crate::potato::POTATO_DENSITY_PERCENT) as u32;
+    let max_potato_attempts = target_potato_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_pumpkin_count = (total_tiles as f32 * crate::pumpkin::PUMPKIN_DENSITY_PERCENT) as u32;
     let max_pumpkin_attempts = target_pumpkin_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_hemp_count = (total_tiles as f32 * crate::hemp::HEMP_DENSITY_PERCENT) as u32;
@@ -139,6 +144,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Stones: {}, Max Attempts: {}", target_stone_count, max_stone_attempts);
     log::info!("Target Mushrooms: {}, Max Attempts: {}", target_mushroom_count, max_mushroom_attempts);
     log::info!("Target Corns: {}, Max Attempts: {}", target_corn_count, max_corn_attempts);
+    log::info!("Target Potatoes: {}, Max Attempts: {}", target_potato_count, max_potato_attempts);
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
@@ -153,6 +159,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_stone_positions = Vec::<(f32, f32)>::new();
     let mut spawned_mushroom_positions = Vec::<(f32, f32)>::new();
     let mut spawned_corn_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_potato_positions = Vec::<(f32, f32)>::new();
     let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
@@ -166,6 +173,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut mushroom_attempts = 0;
     let mut spawned_corn_count = 0;
     let mut corn_attempts = 0;
+    let mut spawned_potato_count = 0;
+    let mut potato_attempts = 0;
     let mut spawned_hemp_count = 0;
     let mut hemp_attempts = 0;
     let mut spawned_pumpkin_count = 0;
@@ -363,9 +372,52 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_corn_count, target_corn_count, corn_attempts
     );
 
+    // --- Seed Potatoes --- Use helper function ---
+    log::info!("Seeding Potatoes...");
+    let potato_noise_threshold = 0.65; // Lowered from 0.72 to match mushrooms
+    while spawned_potato_count < target_potato_count && potato_attempts < max_potato_attempts {
+        potato_attempts += 1;
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_potato_positions,
+            &spawned_tree_positions,
+            &spawned_stone_positions,
+            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+            &fbm,
+            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
+            potato_noise_threshold,
+            crate::potato::MIN_POTATO_DISTANCE_SQ,
+            crate::potato::MIN_POTATO_TREE_DISTANCE_SQ,
+            crate::potato::MIN_POTATO_STONE_DISTANCE_SQ,
+            |pos_x, pos_y, _extra: ()| {
+                // Calculate chunk index for the potato
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                crate::potato::Potato {
+                    id: 0,
+                    pos_x,
+                    pos_y,
+                    chunk_index: chunk_idx, // Set the chunk index
+                    respawn_at: None,
+                }
+            },
+            (),
+            potatoes,
+        ) {
+            Ok(true) => spawned_potato_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} potatoes (target: {}, attempts: {}).",
+        spawned_potato_count, target_potato_count, potato_attempts
+    );
+
     // --- Seed Pumpkins --- Use helper function ---
     log::info!("Seeding Pumpkins...");
-    let pumpkin_noise_threshold = 0.75; // Specific threshold for pumpkins
+    let pumpkin_noise_threshold = 0.67; // Lowered from 0.75 to be more reasonable
     while spawned_pumpkin_count < target_pumpkin_count && pumpkin_attempts < max_pumpkin_attempts {
         pumpkin_attempts += 1;
         match attempt_single_spawn(
@@ -722,6 +774,18 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |_c: &crate::corn::Corn| true, // Filter: Always check corn if respawn_at is set (handled internally by macro)
         |c: &mut crate::corn::Corn| {
             c.respawn_at = None;
+        }
+    );
+
+    // Respawn Potatoes
+    check_and_respawn_resource!(
+        ctx,
+        potato,
+        crate::potato::Potato,
+        "Potato",
+        |_p: &crate::potato::Potato| true, // Filter: Always check potatoes if respawn_at is set (handled internally by macro)
+        |p: &mut crate::potato::Potato| {
+            p.respawn_at = None;
         }
     );
 

@@ -108,6 +108,24 @@ export function renderMushroom(
   renderHarvestableResourceWithType(ctx, mushroom, 'mushroom', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
 }
 
+export function renderPotato(
+  ctx: CanvasRenderingContext2D,
+  potato: HarvestableResource,
+  nowMs: number,
+  cycleProgress: number,
+  onlyDrawShadow?: boolean,
+  skipDrawingShadow?: boolean
+) {
+  // console.log('[DEBUG] renderPotato called:', { 
+  //   id: potato.id, 
+  //   posX: potato.posX, 
+  //   posY: potato.posY, 
+  //   onlyDrawShadow, 
+  //   skipDrawingShadow 
+  // });
+  renderHarvestableResourceWithType(ctx, potato, 'potato', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
+}
+
 export function renderPumpkin(
   ctx: CanvasRenderingContext2D,
   pumpkin: HarvestableResource,

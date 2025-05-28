@@ -7,6 +7,7 @@ import {
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   Corn as SpacetimeDBCorn,
+  Potato as SpacetimeDBPotato,
   Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
   SleepingBag as SpacetimeDBSleepingBag,
@@ -43,6 +44,23 @@ export function isCampfire(entity: any): entity is SpacetimeDBCampfire {
 
 // Type guard for Mushroom
 export function isMushroom(entity: any): entity is SpacetimeDBMushroom {
+    const result = entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' && 
+           // Ensure it doesn't match others
+           typeof entity.identity === 'undefined' && 
+           typeof entity.treeType === 'undefined' &&
+           typeof entity.health === 'undefined' && 
+           typeof entity.placedBy === 'undefined' &&
+           typeof entity.itemDefId === 'undefined'
+           ;
+
+    return result;
+}
+
+// Type guard for Potato
+export function isPotato(entity: any): entity is SpacetimeDBPotato {
     const result = entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 

@@ -241,6 +241,21 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       <div style={styles.container}>
         <h1 style={styles.title}>Select Respawn Point</h1>
         
+        {/* Death Cause Information */}
+        {localPlayerDeathMarker && (
+          <div style={styles.deathInfo}>
+            {localPlayerDeathMarker.killedBy ? (
+              <p style={styles.deathMessage}>
+                Killed by {players.get(localPlayerDeathMarker.killedBy.toHexString())?.username || 'Unknown Player'}
+              </p>
+            ) : (
+              <p style={styles.deathMessage}>
+                Died from {localPlayerDeathMarker.deathCause}
+              </p>
+            )}
+          </div>
+        )}
+        
         {/* Minimap Canvas */} 
         <canvas
           ref={canvasRef}
@@ -331,6 +346,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '15px',
     fontSize: '0.9em',
     color: '#cccccc',
+  },
+  deathInfo: {
+    marginBottom: '20px',
+  },
+  deathMessage: {
+    fontSize: '1.2em',
+    marginBottom: '10px',
+    color: '#ffcccc',
   },
 };
 

@@ -39,6 +39,7 @@ mod player_pin; // ADD: Player pin module for minimap
 pub mod combat; // Add the new combat module
 mod collectible_resources; // Add the new collectible resources system
 mod corn; // Add the new corn resource module
+mod potato; // Add the new potato resource module
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
@@ -124,6 +125,7 @@ use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::corn::corn as CornTableTrait;
+use crate::potato::potato as PotatoTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;

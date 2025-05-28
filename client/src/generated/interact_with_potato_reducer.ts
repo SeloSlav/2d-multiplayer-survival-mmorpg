@@ -30,42 +30,32 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type DeathMarker = {
-  playerId: Identity,
-  posX: number,
-  posY: number,
-  deathTimestamp: Timestamp,
-  killedBy: Identity | undefined,
-  deathCause: string,
+
+export type InteractWithPotato = {
+  potatoId: bigint,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace DeathMarker {
+export namespace InteractWithPotato {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("playerId", AlgebraicType.createIdentityType()),
-      new ProductTypeElement("posX", AlgebraicType.createF32Type()),
-      new ProductTypeElement("posY", AlgebraicType.createF32Type()),
-      new ProductTypeElement("deathTimestamp", AlgebraicType.createTimestampType()),
-      new ProductTypeElement("killedBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
-      new ProductTypeElement("deathCause", AlgebraicType.createStringType()),
+      new ProductTypeElement("potatoId", AlgebraicType.createU64Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: DeathMarker): void {
-    DeathMarker.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: InteractWithPotato): void {
+    InteractWithPotato.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): DeathMarker {
-    return DeathMarker.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): InteractWithPotato {
+    return InteractWithPotato.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }
-
 

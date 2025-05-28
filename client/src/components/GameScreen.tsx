@@ -29,6 +29,7 @@ import {
     Mushroom as SpacetimeDBMushroom,
     Hemp as SpacetimeDBHemp,
     Corn as SpacetimeDBCorn,
+    Potato as SpacetimeDBPotato,
     Pumpkin as SpacetimeDBPumpkin,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
@@ -77,6 +78,7 @@ interface GameScreenProps {
     mushrooms: Map<string, SpacetimeDBMushroom>;
     hemps: Map<string, SpacetimeDBHemp>;
     corns: Map<string, SpacetimeDBCorn>;
+    potatoes: Map<string, SpacetimeDBPotato>;
     pumpkins: Map<string, SpacetimeDBPumpkin>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -140,7 +142,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, mushrooms, corns, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
+        players, trees, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         shelters,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
@@ -197,6 +199,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 mushrooms={mushrooms}
                 hemps={hemps}
                 corns={corns}
+                potatoes={potatoes}
                 pumpkins={pumpkins}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
@@ -289,6 +292,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 campfires={campfires}
                 stashes={stashes}
                 activeConsumableEffects={activeConsumableEffects}
+                activeEquipment={localPlayerId ? activeEquipments.get(localPlayerId) || null : null}
             />
             <DayNightCycleTracker worldState={worldState} />
             <Chat 

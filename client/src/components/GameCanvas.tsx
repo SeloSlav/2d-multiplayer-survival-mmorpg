@@ -24,7 +24,8 @@ import {
   Grass as SpacetimeDBGrass,
   Projectile as SpacetimeDBProjectile,
   DeathMarker as SpacetimeDBDeathMarker,
-  Shelter as SpacetimeDBShelter
+  Shelter as SpacetimeDBShelter,
+  Potato as SpacetimeDBPotato
 } from '../generated';
 
 // --- Core Hooks ---
@@ -97,6 +98,7 @@ interface GameCanvasProps {
   campfires: Map<string, SpacetimeDBCampfire>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
   corns: Map<string, SpacetimeDBCorn>;
+  potatoes: Map<string, SpacetimeDBPotato>;
   pumpkins: Map<string, SpacetimeDBPumpkin>;
   hemps: Map<string, SpacetimeDBHemp>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -148,6 +150,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   campfires,
   mushrooms,
   corns,
+  potatoes,
   pumpkins,
   hemps,
   droppedItems,
@@ -222,6 +225,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
     closestInteractableCampfireId,
@@ -236,6 +240,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     localPlayer,
     mushrooms,
     corns,
+    potatoes,
     pumpkins,
     hemps,
     campfires,
@@ -257,7 +262,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     canvasRef: gameCanvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
     activeEquipments, itemDefinitions,
     placementInfo, placementActions, worldMousePos,
-    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId,
+    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
     closestInteractableCampfireId, closestInteractableDroppedItemId,
     closestInteractableBoxId, isClosestInteractableBoxEmpty,
     woodenStorageBoxes,
@@ -285,6 +290,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSleepingBags,
     visibleMushrooms,
     visibleCorns,
+    visiblePotatoes,
     visiblePumpkins,
     visibleHemps,
     visibleDroppedItems,
@@ -294,6 +300,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
+    visiblePotatoesMap,
     visiblePumpkinsMap,
     visibleHempsMap,
     visiblePlayerCorpses,
@@ -315,6 +322,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     campfires,
     mushrooms,
     corns,
+    potatoes,
     pumpkins,
     hemps,
     droppedItems,
@@ -326,9 +334,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetY,
     canvasSize.width,
     canvasSize.height,
-    interpolatedGrass, // Ensure this is the 18th argument
-    projectiles, // Add projectiles as the 19th argument
-    shelters // ADDED shelters as argument to useEntityFiltering
+    interpolatedGrass,
+    projectiles,
+    shelters
   );
 
   // --- UI State ---
@@ -595,6 +603,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx,
       mushrooms: visibleMushroomsMap,
       corns: visibleCornsMap,
+      potatoes: visiblePotatoesMap,
       pumpkins: visiblePumpkinsMap,
       hemps: visibleHempsMap,
       campfires: visibleCampfiresMap,
@@ -607,6 +616,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       itemDefinitions,
       closestInteractableMushroomId,
       closestInteractableCornId,
+      closestInteractablePotatoId,
       closestInteractablePumpkinId,
       closestInteractableHempId,
       closestInteractableCampfireId,
@@ -807,8 +817,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     itemImagesRef, heroImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
     canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
-    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableCampfireId,
-    closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
+    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
+    closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
     interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
     isMinimapOpen, isMouseOverMinimap, minimapZoom,
     activeConnections,

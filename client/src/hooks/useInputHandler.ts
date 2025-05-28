@@ -30,6 +30,7 @@ interface UseInputHandlerProps {
     // Closest interactables (passed in for now)
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
@@ -83,6 +84,7 @@ export const useInputHandler = ({
     worldMousePos,
     closestInteractableMushroomId,
     closestInteractableCornId,
+    closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
     closestInteractableCampfireId,
@@ -133,6 +135,7 @@ export const useInputHandler = ({
     const closestIdsRef = useRef({
         mushroom: null as bigint | null,
         corn: null as bigint | null,
+        potato: null as bigint | null,
         pumpkin: null as bigint | null,
         hemp: null as bigint | null,
         campfire: null as number | null,
@@ -180,6 +183,7 @@ export const useInputHandler = ({
         closestIdsRef.current = {
             mushroom: closestInteractableMushroomId,
             corn: closestInteractableCornId,
+            potato: closestInteractablePotatoId,
             pumpkin: closestInteractablePumpkinId,
             hemp: closestInteractableHempId,
             campfire: closestInteractableCampfireId,
@@ -193,6 +197,7 @@ export const useInputHandler = ({
     }, [
         closestInteractableMushroomId, 
         closestInteractableCornId,
+        closestInteractablePotatoId,
         closestInteractablePumpkinId,
         closestInteractableHempId,
         closestInteractableCampfireId, 
@@ -501,6 +506,14 @@ export const useInputHandler = ({
                         currentConnection.reducers.interactWithCorn(closest.corn);
                     } catch (err) {
                         console.error("Error calling interactWithCorn reducer:", err);
+                    }
+                    return; 
+                }
+                if (closest.potato !== null) {
+                    try {
+                        currentConnection.reducers.interactWithPotato(closest.potato);
+                    } catch (err) {
+                        console.error("Error calling interactWithPotato reducer:", err);
                     }
                     return; 
                 }
@@ -1063,7 +1076,7 @@ export const useInputHandler = ({
     }, [
         isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePumpkinId, closestInteractableHempId, 
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
         isClosestInteractableBoxEmpty, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setSprinting, isInventoryOpen 

@@ -3,6 +3,7 @@ import {
     Player as SpacetimeDBPlayer,
     Mushroom as SpacetimeDBMushroom,
     Pumpkin as SpacetimeDBPumpkin,
+    Potato as SpacetimeDBPotato,
     Campfire as SpacetimeDBCampfire,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
@@ -21,6 +22,7 @@ import {
 
 // Define the constant for food item interactions (larger radius for easier pickup)
 const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+const PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
 const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
 const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
@@ -31,6 +33,7 @@ interface UseInteractionFinderProps {
     localPlayer: SpacetimeDBPlayer | null | undefined;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     corns: Map<string, SpacetimeDBCorn>;
+    potatoes: Map<string, SpacetimeDBPotato>;
     pumpkins: Map<string, SpacetimeDBPumpkin>;
     hemps: Map<string, SpacetimeDBHemp>;
     campfires: Map<string, SpacetimeDBCampfire>;
@@ -47,6 +50,7 @@ interface UseInteractionFinderProps {
 interface UseInteractionFinderResult {
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
+    closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableCampfireId: number | null;
@@ -75,6 +79,7 @@ export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 24.0 * 24.0;
 // --- Locally Defined Visual Heights for Interaction (formerly in gameConfig.ts) ---
 export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 export const CORN_VISUAL_HEIGHT_FOR_INTERACTION = 96;
+export const POTATO_VISUAL_HEIGHT_FOR_INTERACTION = 32;
 export const HEMP_VISUAL_HEIGHT_FOR_INTERACTION = 88;
 export const PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 
@@ -140,6 +145,7 @@ export function useInteractionFinder({
     localPlayer,
     mushrooms,
     corns,
+    potatoes,
     pumpkins,
     hemps,
     campfires,
@@ -155,6 +161,7 @@ export function useInteractionFinder({
     // State for closest interactable IDs
     const [closestInteractableMushroomId, setClosestInteractableMushroomId] = useState<bigint | null>(null);
     const [closestInteractableCornId, setClosestInteractableCornId] = useState<bigint | null>(null);
+    const [closestInteractablePotatoId, setClosestInteractablePotatoId] = useState<bigint | null>(null);
     const [closestInteractablePumpkinId, setClosestInteractablePumpkinId] = useState<bigint | null>(null);
     const [closestInteractableHempId, setClosestInteractableHempId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
@@ -173,6 +180,9 @@ export function useInteractionFinder({
 
         let closestCornId: bigint | null = null;
         let closestCornDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
+
+        let closestPotatoId: bigint | null = null;
+        let closestPotatoDistSq = PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED;
 
         let closestPumpkinId: bigint | null = null;
         let closestPumpkinDistSq = PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED;
@@ -206,42 +216,62 @@ export function useInteractionFinder({
             const playerY = localPlayer.positionY;
 
             // Find closest mushroom
-            mushrooms.forEach((mushroom) => {
-                if (mushroom.respawnAt !== null && mushroom.respawnAt !== undefined) return;
-                const visualCenterY = mushroom.posY - (64 / 2);
-                const dx = playerX - mushroom.posX;
-                const dy = playerY - visualCenterY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestMushroomDistSq) {
-                    closestMushroomDistSq = distSq;
-                    closestMushroomId = mushroom.id;
-                }
-            });
+            if (mushrooms) {
+                mushrooms.forEach((mushroom) => {
+                    if (mushroom.respawnAt !== null && mushroom.respawnAt !== undefined) return;
+                    const visualCenterY = mushroom.posY - (64 / 2);
+                    const dx = playerX - mushroom.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestMushroomDistSq) {
+                        closestMushroomDistSq = distSq;
+                        closestMushroomId = mushroom.id;
+                    }
+                });
+            }
 
             // Find closest corn
-            corns.forEach((corn) => {
-                if (corn.respawnAt !== null && corn.respawnAt !== undefined) return;
-                const visualCenterY = corn.posY - (96 / 2);
-                const dx = playerX - corn.posX;
-                const dy = playerY - visualCenterY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestCornDistSq) {
-                    closestCornDistSq = distSq;
-                    closestCornId = corn.id;
-                }
-            });
+            if (corns) {
+                corns.forEach((corn) => {
+                    if (corn.respawnAt !== null && corn.respawnAt !== undefined) return;
+                    const visualCenterY = corn.posY - (96 / 2);
+                    const dx = playerX - corn.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestCornDistSq) {
+                        closestCornDistSq = distSq;
+                        closestCornId = corn.id;
+                    }
+                });
+            }
+
+            // Find closest potato
+            if (potatoes) {
+                potatoes.forEach((potato) => {
+                    const visualCenterY = potato.posY - (32 / 2);
+                    const dx = playerX - potato.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestPotatoDistSq) {
+                        closestPotatoDistSq = distSq;
+                        closestPotatoId = potato.id;
+                    }
+                });
+            }
 
             // Find closest pumpkin
-            pumpkins.forEach((pumpkin) => {
-                const visualCenterY = pumpkin.posY - (64 / 2);
-                const dx = playerX - pumpkin.posX;
-                const dy = playerY - visualCenterY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestPumpkinDistSq) {
-                    closestPumpkinDistSq = distSq;
-                    closestPumpkinId = pumpkin.id;
-                }
-            });
+            if (pumpkins) {
+                pumpkins.forEach((pumpkin) => {
+                    const visualCenterY = pumpkin.posY - (64 / 2);
+                    const dx = playerX - pumpkin.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestPumpkinDistSq) {
+                        closestPumpkinDistSq = distSq;
+                        closestPumpkinId = pumpkin.id;
+                    }
+                });
+            }
 
             // Find closest hemp
             if (hemps) {
@@ -259,61 +289,67 @@ export function useInteractionFinder({
             }
 
             // Find closest campfire
-            campfires.forEach((campfire) => {
-                const visualCenterY = campfire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
-                
-                const dx = playerX - campfire.posX;
-                const dy = playerY - visualCenterY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestCampfireDistSq) {
-                    // Check shelter access control
-                    if (canPlayerInteractWithObjectInShelter(
-                        playerX, playerY, localPlayer.identity.toHexString(),
-                        campfire.posX, campfire.posY, shelters
-                    )) {
-                        closestCampfireDistSq = distSq;
-                        closestCampfireId = campfire.id;
+            if (campfires) {
+                campfires.forEach((campfire) => {
+                    const visualCenterY = campfire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+                    
+                    const dx = playerX - campfire.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestCampfireDistSq) {
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            campfire.posX, campfire.posY, shelters
+                        )) {
+                            closestCampfireDistSq = distSq;
+                            closestCampfireId = campfire.id;
+                        }
                     }
-                }
-            });
+                });
+            }
 
             // Find closest dropped item
-            droppedItems.forEach((item) => {
-                const dx = playerX - item.posX;
-                const dy = playerY - item.posY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestDroppedItemDistSq) {
-                    closestDroppedItemDistSq = distSq;
-                    closestDroppedItemId = item.id;
-                }
-            });
+            if (droppedItems) {
+                droppedItems.forEach((item) => {
+                    const dx = playerX - item.posX;
+                    const dy = playerY - item.posY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestDroppedItemDistSq) {
+                        closestDroppedItemDistSq = distSq;
+                        closestDroppedItemId = item.id;
+                    }
+                });
+            }
 
             // Find closest wooden storage box and check emptiness
-            woodenStorageBoxes.forEach((box) => {
-                const dx = playerX - box.posX;
-                const dy = playerY - box.posY;
-                const distSq = dx * dx + dy * dy;
-                if (distSq < closestBoxDistSq) {
-                    // Check shelter access control
-                    if (canPlayerInteractWithObjectInShelter(
-                        playerX, playerY, localPlayer.identity.toHexString(),
-                        box.posX, box.posY, shelters
-                    )) {
-                        closestBoxDistSq = distSq;
-                        closestBoxId = box.id;
-                        // Check if this closest box is empty
-                        let isEmpty = true;
-                        for (let i = 0; i < NUM_BOX_SLOTS; i++) {
-                            const slotKey = `slotInstanceId${i}` as keyof SpacetimeDBWoodenStorageBox;
-                            if (box[slotKey] !== null && box[slotKey] !== undefined) {
-                                isEmpty = false;
-                                break;
+            if (woodenStorageBoxes) {
+                woodenStorageBoxes.forEach((box) => {
+                    const dx = playerX - box.posX;
+                    const dy = playerY - box.posY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestBoxDistSq) {
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            box.posX, box.posY, shelters
+                        )) {
+                            closestBoxDistSq = distSq;
+                            closestBoxId = box.id;
+                            // Check if this closest box is empty
+                            let isEmpty = true;
+                            for (let i = 0; i < NUM_BOX_SLOTS; i++) {
+                                const slotKey = `slotInstanceId${i}` as keyof SpacetimeDBWoodenStorageBox;
+                                if (box[slotKey] !== null && box[slotKey] !== undefined) {
+                                    isEmpty = false;
+                                    break;
+                                }
                             }
+                            isClosestBoxEmpty = isEmpty;
                         }
-                        isClosestBoxEmpty = isEmpty;
                     }
-                }
-            });
+                });
+            }
 
             // Find closest player corpse
             if (playerCorpses) {
@@ -411,6 +447,7 @@ export function useInteractionFinder({
         return {
             closestInteractableMushroomId: closestMushroomId,
             closestInteractableCornId: closestCornId,
+            closestInteractablePotatoId: closestPotatoId,
             closestInteractablePumpkinId: closestPumpkinId,
             closestInteractableHempId: closestHempId,
             closestInteractableCampfireId: closestCampfireId,
@@ -423,7 +460,7 @@ export function useInteractionFinder({
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters]);
+    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -433,6 +470,9 @@ export function useInteractionFinder({
         }
         if (interactionResult.closestInteractableCornId !== closestInteractableCornId) {
             setClosestInteractableCornId(interactionResult.closestInteractableCornId);
+        }
+        if (interactionResult.closestInteractablePotatoId !== closestInteractablePotatoId) {
+            setClosestInteractablePotatoId(interactionResult.closestInteractablePotatoId);
         }
         if (interactionResult.closestInteractablePumpkinId !== closestInteractablePumpkinId) {
             setClosestInteractablePumpkinId(interactionResult.closestInteractablePumpkinId);
@@ -471,6 +511,7 @@ export function useInteractionFinder({
     return {
         closestInteractableMushroomId,
         closestInteractableCornId,
+        closestInteractablePotatoId,
         closestInteractablePumpkinId,
         closestInteractableHempId,
         closestInteractableCampfireId,

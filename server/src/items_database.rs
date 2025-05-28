@@ -1197,9 +1197,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(3.0),      
-            consumable_hunger_satiated: Some(5.0),  
-            consumable_thirst_quenched: Some(-1.0), 
+            consumable_health_gain: Some(2.0),      // Minimal health (early game food)
+            consumable_hunger_satiated: Some(8.0),  // Low hunger value
+            consumable_thirst_quenched: Some(-3.0), // Makes you thirsty (raw mushrooms)
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1234,9 +1234,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(10.0),     
-            consumable_hunger_satiated: Some(20.0), 
-            consumable_thirst_quenched: Some(2.0),  
+            consumable_health_gain: Some(8.0),      // Good early-game health
+            consumable_hunger_satiated: Some(25.0), // Decent hunger (10% of max)
+            consumable_thirst_quenched: Some(5.0),  // Small thirst bonus when cooked
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1271,9 +1271,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(-2.0),    
-            consumable_hunger_satiated: Some(2.0),  
-            consumable_thirst_quenched: Some(-10.0),
+            consumable_health_gain: Some(-3.0),     // Damages health
+            consumable_hunger_satiated: Some(3.0),  // Minimal hunger value
+            consumable_thirst_quenched: Some(-15.0), // Makes you very thirsty
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1308,9 +1308,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(2.0),
-            consumable_hunger_satiated: Some(10.0),
-            consumable_thirst_quenched: Some(5.0), 
+            consumable_health_gain: Some(1.0),      // Minimal health (raw corn is hard to digest)
+            consumable_hunger_satiated: Some(12.0), // Moderate hunger
+            consumable_thirst_quenched: Some(8.0),  // Good thirst value (corn has water)
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1345,10 +1345,10 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(15.0),
-            consumable_hunger_satiated: Some(40.0), 
-            consumable_thirst_quenched: Some(10.0), 
-            consumable_stamina_gain: None,          
+            consumable_health_gain: Some(12.0),     // Good health restoration
+            consumable_hunger_satiated: Some(35.0), // Solid hunger value (14% of max)
+            consumable_thirst_quenched: Some(20.0), // Excellent thirst value (corn's specialty)
+            consumable_stamina_gain: Some(10.0),    // Energy boost from carbs
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
@@ -1382,9 +1382,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(-5.0),
-            consumable_hunger_satiated: Some(5.0),
-            consumable_thirst_quenched: Some(-15.0),
+            consumable_health_gain: Some(-5.0),     // Damages health
+            consumable_hunger_satiated: Some(5.0),  // Minimal hunger
+            consumable_thirst_quenched: Some(-20.0), // Makes you very thirsty
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1419,9 +1419,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(5.0),
-            consumable_hunger_satiated: Some(15.0),
-            consumable_thirst_quenched: Some(10.0), 
+            consumable_health_gain: Some(3.0),      // Low health (raw pumpkin)
+            consumable_hunger_satiated: Some(18.0), // Moderate hunger
+            consumable_thirst_quenched: Some(15.0), // Good thirst (pumpkins are watery)
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -1456,10 +1456,10 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(20.0),
-            consumable_hunger_satiated: Some(50.0), 
-            consumable_thirst_quenched: Some(15.0), 
-            consumable_stamina_gain: Some(5.0),    
+            consumable_health_gain: Some(25.0),     // Excellent health (pumpkin's specialty - 25% of max)
+            consumable_hunger_satiated: Some(50.0), // High hunger value (20% of max)
+            consumable_thirst_quenched: Some(30.0), // Great thirst value
+            consumable_stamina_gain: Some(15.0),    // Good stamina boost
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
@@ -1493,9 +1493,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(-10.0),
-            consumable_hunger_satiated: Some(5.0),
-            consumable_thirst_quenched: Some(-5.0),
+            consumable_health_gain: Some(-8.0),     // Damages health
+            consumable_hunger_satiated: Some(8.0),  // Minimal hunger
+            consumable_thirst_quenched: Some(-10.0), // Makes you thirsty
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
             bleed_damage_per_tick: None,
@@ -2206,6 +2206,117 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: Some(100.0), // This provides warmth bonus when equipped/consumed
             respawn_time_seconds: Some(1800), // 30 minutes respawn time for such a powerful item
+            attack_interval_secs: None,
+        },
+        ItemDefinition {
+            id: 0,
+            name: "Potato".to_string(),
+            description: "A raw potato. Starchy and filling when cooked.".to_string(),
+            category: ItemCategory::Consumable,
+            icon_asset_name: "potato.png".to_string(),
+            is_stackable: true,
+            stack_size: 20,
+            is_equippable: false,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: None,
+            pvp_damage_max: None,
+            crafting_cost: None,
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: Some(2.0),      // Low health (raw potato is hard to digest)
+            consumable_hunger_satiated: Some(15.0), // Good hunger value (potatoes are filling)
+            consumable_thirst_quenched: Some(2.0),  // Minimal thirst (raw potatoes are dry)
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: None,
+            bleed_duration_seconds: None,
+            bleed_tick_interval_seconds: None,
+            cook_time_secs: Some(30.0),
+            cooked_item_def_name: Some("Cooked Potato".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: Some(200),
+            attack_interval_secs: None,
+        },
+        ItemDefinition {
+            id: 0,
+            name: "Cooked Potato".to_string(),
+            description: "Fluffy and satisfying. A hearty source of energy.".to_string(),
+            category: ItemCategory::Consumable,
+            icon_asset_name: "cooked_potato.png".to_string(),
+            is_stackable: true,
+            stack_size: 20,
+            is_equippable: false,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: None,
+            pvp_damage_max: None,
+            crafting_cost: None,
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: Some(15.0),     // Good health restoration
+            consumable_hunger_satiated: Some(60.0), // Excellent hunger value (24% of max - potato's specialty)
+            consumable_thirst_quenched: Some(12.0), // Moderate thirst value
+            consumable_stamina_gain: Some(20.0),    // Excellent stamina boost (carb energy)
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: None,
+            bleed_duration_seconds: None,
+            bleed_tick_interval_seconds: None,
+            cook_time_secs: Some(40.0), 
+            cooked_item_def_name: Some("Burnt Potato".to_string()),
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: Some(260),
+            attack_interval_secs: None,
+        },
+        ItemDefinition {
+            id: 0,
+            name: "Burnt Potato".to_string(),
+            description: "Charred and bitter. Barely edible.".to_string(),
+            category: ItemCategory::Consumable,
+            icon_asset_name: "burnt_potato.png".to_string(),
+            is_stackable: true,
+            stack_size: 20,
+            is_equippable: false,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: None,
+            pvp_damage_max: None,
+            crafting_cost: None,
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: Some(-4.0),     // Damages health
+            consumable_hunger_satiated: Some(10.0), // Some hunger value
+            consumable_thirst_quenched: Some(-12.0), // Makes you thirsty
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: None,
+            bleed_duration_seconds: None,
+            bleed_tick_interval_seconds: None,
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: Some(80),
             attack_interval_secs: None,
         },
     ];

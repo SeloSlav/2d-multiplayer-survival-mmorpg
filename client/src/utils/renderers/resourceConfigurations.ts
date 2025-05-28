@@ -7,6 +7,7 @@ import { drawDynamicGroundShadow } from './shadowUtils';
 import cornImageSource from '../../assets/doodads/corn_stalk.png';
 import hempImageSource from '../../assets/doodads/hemp.png';
 import mushroomImageSource from '../../assets/doodads/mushroom.png';
+import potatoImageSource from '../../assets/doodads/potato.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin.png';
 
 // Resource-specific configuration interface
@@ -87,6 +88,21 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     harvestAmount: { min: 1, max: 2 },
     fallbackColor: '#8B4513'
     // No animation config - mushroom is now static
+  },
+  
+  potato: {
+    imageSource: potatoImageSource,
+    targetWidth: 60,
+    shadowConfig: {
+      maxStretchFactor: 1.7,
+      shadowBlur: 8,
+      pivotYOffset: 0.16,
+      opacity: 0.42
+    },
+    interactionLabel: "Press E to Harvest Potato",
+    harvestAmount: { min: 1, max: 3 },
+    fallbackColor: '#8B7355'
+    // No animation config - potato is now static
   },
   
   pumpkin: {

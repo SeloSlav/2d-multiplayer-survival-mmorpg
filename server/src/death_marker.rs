@@ -8,6 +8,8 @@ pub struct DeathMarker {
     pub pos_x: f32,
     pub pos_y: f32,
     pub death_timestamp: Timestamp,
+    pub killed_by: Option<Identity>, // The player who killed this player (None for environmental deaths)
+    pub death_cause: String, // "Combat", "Starvation", "Dehydration", "Exposure", "Bleeding", "Knocked Out", "Command", etc.
 }
 
 // The upsert logic is now handled directly in player_stats.rs and combat.rs

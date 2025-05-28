@@ -316,6 +316,8 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                 pos_x: player.position_x,
                 pos_y: player.position_y,
                 death_timestamp: ctx.timestamp,
+                killed_by: None, // Environmental death - no killer
+                death_cause: "Environment".to_string(), // Simple environmental death cause
             };
             let death_marker_table = ctx.db.death_marker();
             if death_marker_table.player_id().find(&player.identity).is_some() {

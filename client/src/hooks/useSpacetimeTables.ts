@@ -15,6 +15,7 @@ export interface SpacetimeTableStates {
     campfires: Map<string, SpacetimeDB.Campfire>;
     mushrooms: Map<string, SpacetimeDB.Mushroom>;
     corns: Map<string, SpacetimeDB.Corn>;
+    potatoes: Map<string, SpacetimeDB.Potato>;
     pumpkins: Map<string, SpacetimeDB.Pumpkin>;
     hemps: Map<string, SpacetimeDB.Hemp>;
     itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
@@ -64,6 +65,7 @@ export const useSpacetimeTables = ({
     const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
     const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(() => new Map());
     const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(() => new Map());
+    const [potatoes, setPotatoes] = useState<Map<string, SpacetimeDB.Potato>>(() => new Map());
     const [pumpkins, setPumpkins] = useState<Map<string, SpacetimeDB.Pumpkin>>(() => new Map());
     const [hemps, setHemps] = useState<Map<string, SpacetimeDB.Hemp>>(() => new Map());
     const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(() => new Map());
@@ -311,6 +313,22 @@ export const useSpacetimeTables = ({
             };
             const handleCornDelete = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => { const newMap = new Map(prev); newMap.delete(corn.id.toString()); return newMap; });
             
+            // --- Potato Subscriptions ---
+            const handlePotatoInsert = (ctx: any, potato: SpacetimeDB.Potato) => {
+                setPotatoes(prev => new Map(prev).set(potato.id.toString(), potato));
+            };
+            const handlePotatoUpdate = (ctx: any, oldPotato: SpacetimeDB.Potato, newPotato: SpacetimeDB.Potato) => {
+                const changed = oldPotato.posX !== newPotato.posX ||
+                                oldPotato.posY !== newPotato.posY ||
+                                oldPotato.respawnAt !== newPotato.respawnAt;
+                if (changed) {
+                    setPotatoes(prev => new Map(prev).set(newPotato.id.toString(), newPotato));
+                }
+            };
+            const handlePotatoDelete = (ctx: any, potato: SpacetimeDB.Potato) => {
+                setPotatoes(prev => { const newMap = new Map(prev); newMap.delete(potato.id.toString()); return newMap; });
+            };
+            
             // --- Pumpkin Subscriptions ---
             const handlePumpkinInsert = (ctx: any, pumpkin: SpacetimeDB.Pumpkin) => setPumpkins(prev => new Map(prev).set(pumpkin.id.toString(), pumpkin));
             const handlePumpkinUpdate = (ctx: any, oldPumpkin: SpacetimeDB.Pumpkin, newPumpkin: SpacetimeDB.Pumpkin) => {
@@ -537,6 +555,7 @@ export const useSpacetimeTables = ({
             connection.db.activeEquipment.onInsert(handleActiveEquipmentInsert); connection.db.activeEquipment.onUpdate(handleActiveEquipmentUpdate); connection.db.activeEquipment.onDelete(handleActiveEquipmentDelete);
             connection.db.mushroom.onInsert(handleMushroomInsert); connection.db.mushroom.onUpdate(handleMushroomUpdate); connection.db.mushroom.onDelete(handleMushroomDelete);
             connection.db.corn.onInsert(handleCornInsert); connection.db.corn.onUpdate(handleCornUpdate); connection.db.corn.onDelete(handleCornDelete);
+            connection.db.potato.onInsert(handlePotatoInsert); connection.db.potato.onUpdate(handlePotatoUpdate); connection.db.potato.onDelete(handlePotatoDelete);
             connection.db.pumpkin.onInsert(handlePumpkinInsert); connection.db.pumpkin.onUpdate(handlePumpkinUpdate); connection.db.pumpkin.onDelete(handlePumpkinDelete);
             connection.db.hemp.onInsert(handleHempInsert); connection.db.hemp.onUpdate(handleHempUpdate); connection.db.hemp.onDelete(handleHempDelete);
             connection.db.droppedItem.onInsert(handleDroppedItemInsert); connection.db.droppedItem.onUpdate(handleDroppedItemUpdate); connection.db.droppedItem.onDelete(handleDroppedItemDelete);
@@ -724,6 +743,9 @@ export const useSpacetimeTables = ({
                             // Corn
                             const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
+                            // Potato
+                            const potatoQuery = `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Potato Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(potatoQuery));
                             // Pumpkin
                             const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
@@ -802,7 +824,7 @@ export const useSpacetimeTables = ({
                  setLocalPlayerRegistered(false);
                  // Reset table states
                  setPlayers(new Map()); setTrees(new Map()); setStones(new Map()); setCampfires(new Map());
-                 setMushrooms(new Map()); setItemDefinitions(new Map()); setRecipes(new Map());
+                 setMushrooms(new Map()); setCorns(new Map()); setPotatoes(new Map()); setItemDefinitions(new Map()); setRecipes(new Map());
                  setInventoryItems(new Map()); setWorldState(null); setActiveEquipments(new Map());
                  setDroppedItems(new Map()); setWoodenStorageBoxes(new Map()); setCraftingQueueItems(new Map());
                  setMessages(new Map());
@@ -812,13 +834,13 @@ export const useSpacetimeTables = ({
                  setPlayerCorpses(new Map());
                  setStashes(new Map());
                  setActiveConsumableEffects(new Map());
-                 setClouds(new Map()); // <<< ADDED: Reset clouds state
-                 setGrass(new Map()); // <<< ADDED: Reset grass state
-                 setKnockedOutStatus(new Map()); // <<< ADDED: Reset knocked out status state
+                 setClouds(new Map());
+                 setGrass(new Map());
+                 setKnockedOutStatus(new Map());
                  setRangedWeaponStats(new Map());
                  setProjectiles(new Map());
-                 setDeathMarkers(new Map()); // Reset death markers state
-                 setShelters(new Map()); // ADDED: Reset shelter state
+                 setDeathMarkers(new Map());
+                 setShelters(new Map());
              }
         };
 
@@ -832,6 +854,7 @@ export const useSpacetimeTables = ({
         campfires,
         mushrooms,
         corns,
+        potatoes,
         pumpkins,
         hemps,
         itemDefinitions,
@@ -850,12 +873,12 @@ export const useSpacetimeTables = ({
         playerCorpses,
         stashes,
         activeConsumableEffects,
-        clouds, // <<< ADDED: Return clouds state
-        grass, // <<< ADDED: Return grass state
-        knockedOutStatus, // <<< ADDED: Return knocked out status state
+        clouds,
+        grass,
+        knockedOutStatus,
         rangedWeaponStats,
         projectiles,
-        deathMarkers, // Return death markers state
-        shelters, // ADDED: Return shelter state
+        deathMarkers,
+        shelters,
     };
 }; 

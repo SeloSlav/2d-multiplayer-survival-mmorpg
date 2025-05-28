@@ -15,6 +15,7 @@ import {
     Corn as SpacetimeDBCorn,
     Hemp as SpacetimeDBHemp,
     Mushroom as SpacetimeDBMushroom,
+    Potato as SpacetimeDBPotato,
     Pumpkin as SpacetimeDBPumpkin,
     Grass as SpacetimeDBGrass,
     Projectile as SpacetimeDBProjectile,
@@ -29,7 +30,7 @@ import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
 // Import unified resource renderer instead of individual ones
-import { renderCorn, renderHemp, renderMushroom, renderPumpkin } from './unifiedResourceRenderer';
+import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin } from './unifiedResourceRenderer';
 import { renderCampfire } from './campfireRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
@@ -303,6 +304,8 @@ export const renderYSortedEntities = ({
             renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
         } else if (type === 'mushroom') {
             renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, false, true);
+        } else if (type === 'potato') {
+            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress, false, true);
         } else if (type === 'pumpkin') {
             renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, false, true);
         } else if (type === 'stash') {
@@ -371,6 +374,8 @@ export const renderYSortedEntities = ({
             // Dropped items handle their own shadows
         } else if (type === 'mushroom') {
             renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, true, false);
+        } else if (type === 'potato') {
+            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress, true, false);
         } else if (type === 'pumpkin') {
             renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, true, false);
         } else if (type === 'stash') {
