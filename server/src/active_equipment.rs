@@ -585,12 +585,12 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let mut actual_attack_range = PLAYER_RADIUS * 4.0;
     let mut actual_attack_angle_degrees = 90.0;
 
-    // Check if the item is a Wooden Spear and adjust its properties
-    if item_def.name == "Wooden Spear" {
+    // Check if the item is a spear and adjust its properties
+    if item_def.name == "Wooden Spear" || item_def.name == "Stone Spear" {
         // Spears have a longer range and a narrower cone for a thrust-like attack
         actual_attack_range = PLAYER_RADIUS * 6.0; // Further increased range for better standoff
         actual_attack_angle_degrees = 30.0;      // Narrow 30-degree cone for thrust
-        log::debug!("Wooden Spear detected: Using custom range {:.1}, angle {:.1}", actual_attack_range, actual_attack_angle_degrees);
+        log::debug!("{} detected: Using custom range {:.1}, angle {:.1}", item_def.name, actual_attack_range, actual_attack_angle_degrees);
     }
 
     let mut current_equipment_mut = current_equipment.clone(); // Clone to modify for swing time
