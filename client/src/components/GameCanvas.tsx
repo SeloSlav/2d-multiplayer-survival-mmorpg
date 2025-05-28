@@ -209,8 +209,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { heroImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
-  // Lift deathMarkerImg definition here
-  const deathMarkerImg = useMemo(() => itemImagesRef.current?.get('death_marker.png'), [itemImagesRef]);
+  // Add a state to track when images are loaded to trigger re-renders
+  const [imageLoadTrigger, setImageLoadTrigger] = useState(0);
+  
+  // Effect to trigger re-render when images are loaded
+  useEffect(() => {
+    const checkImages = () => {
+      if (itemImagesRef.current && itemImagesRef.current.size > 0) {
+        setImageLoadTrigger(prev => prev + 1);
+      }
+    };
+    
+    // Check immediately
+    checkImages();
+    
+    // Set up an interval to check periodically (will be cleaned up when images are loaded)
+    const interval = setInterval(checkImages, 100);
+    
+    // Clean up interval when we have images
+    if (itemImagesRef.current && itemImagesRef.current.size > 0) {
+      clearInterval(interval);
+    }
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Lift deathMarkerImg definition here - reactive to image loading
+  const deathMarkerImg = useMemo(() => {
+    const img = itemImagesRef.current?.get('death_marker.png');
+    console.log('[GameCanvas] Computing deathMarkerImg. itemImagesRef keys:', Array.from(itemImagesRef.current?.keys() || []), 'death_marker.png found:', !!img, 'trigger:', imageLoadTrigger);
+    return img;
+  }, [itemImagesRef, imageLoadTrigger]);
 
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({
     worldState,
@@ -356,9 +385,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- Should show death screen ---
   // Show death screen only based on isDead flag now
   const shouldShowDeathScreen = !!(localPlayer?.isDead && connection);
-
+  
   // Set cursor style based on placement
   const cursorStyle = placementInfo ? 'cell' : 'crosshair';
+
+  // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
+  const localPlayerDeathMarker = useMemo(() => {
+    console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
+    if (localPlayer && localPlayer.identity && deathMarkers) {
+      const marker = deathMarkers.get(localPlayer.identity.toHexString());
+      // console.log('[GameCanvas] Found death marker for player:', marker);
+      return marker || null;
+    }
+    return null;
+  }, [localPlayer, deathMarkers]);
+  
+  // Add debug logging for death screen
+  console.log('[GameCanvas] Death screen check:', {
+    localPlayerIsDead: localPlayer?.isDead,
+    hasConnection: !!connection,
+    shouldShowDeathScreen,
+    localPlayerDeathMarker: localPlayerDeathMarker ? 'present' : 'null',
+    deathMarkerImg: deathMarkerImg ? 'loaded' : 'null'
+  });
 
   // --- Effects ---
   useEffect(() => {
@@ -836,6 +885,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     gameCanvasRef,
     projectiles,
     deathMarkerImg,
+    localPlayerDeathMarker,
     shelters,
     visibleShelters,
     visibleSheltersMap,
@@ -894,18 +944,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cancelPlacement: placementActions.cancelPlacement,
     viewport: worldViewport, // Pass calculated viewport (can be null)
   });
-
-  // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
-  const localPlayerDeathMarker = useMemo(() => {
-    // IMPORTANT: Do not uncomment this log or death markers won't be visible
-    console.log('[GameCanvas] Computing localPlayerDeathMarker. localPlayer:', localPlayer?.identity?.toHexString(), 'deathMarkers size:', deathMarkers?.size, 'all markers:', Array.from(deathMarkers?.keys() || []));
-    if (localPlayer && localPlayer.identity && deathMarkers) {
-      const marker = deathMarkers.get(localPlayer.identity.toHexString());
-      // console.log('[GameCanvas] Found death marker for player:', marker);
-      return marker || null;
-    }
-    return null;
-  }, [localPlayer, deathMarkers]);
 
   // --- Logic to detect player damage from campfires and trigger effects ---
   useEffect(() => {

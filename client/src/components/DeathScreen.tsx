@@ -41,6 +41,14 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   deathMarkerImage,
   worldState, // <-- Correct type
 }) => {
+  // Add debug logging
+  console.log('[DeathScreen] Rendering with props:', {
+    localPlayerIdentity,
+    localPlayerDeathMarker: localPlayerDeathMarker ? 'present' : 'null',
+    deathMarkerImage: deathMarkerImage ? 'loaded' : 'null',
+    sleepingBagsSize: sleepingBags.size
+  });
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: MINIMAP_DIMENSIONS.width, height: MINIMAP_DIMENSIONS.height });
   const [hoveredBagId, setHoveredBagId] = useState<number | null>(null);

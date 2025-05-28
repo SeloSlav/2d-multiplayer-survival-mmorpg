@@ -119,7 +119,7 @@ export function drawMinimapOntoCanvas({
   const minimapHeight = MINIMAP_HEIGHT;
   
   // Log the received localPlayerDeathMarker prop at the beginning of the function
-  // console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+  console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
 
   // Calculate top-left corner for centering the minimap UI element
   const minimapX = (canvasWidth - minimapWidth) / 2;
