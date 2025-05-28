@@ -23,7 +23,7 @@ use crate::combat::{
 };
 
 // Consumable and active effects imports
-use crate::consumables::MAX_STAT_VALUE;
+use crate::consumables::MAX_HEALTH_VALUE;
 use crate::consumables::apply_item_effects_and_consume;
 use crate::active_effects::{ActiveConsumableEffect, EffectType, cancel_bleed_effects, cancel_health_regen_effects, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bandage_burst_effects};
 
@@ -75,6 +75,7 @@ pub struct ActiveEquipment {
     // Ranged weapon ammunition tracking
     pub loaded_ammo_def_id: Option<u64>, // ID of loaded ammunition (e.g., arrow)
     pub is_ready_to_fire: bool, // Whether the ranged weapon is loaded and ready
+    pub preferred_arrow_type: Option<String>, // Player's preferred arrow type for cycling (e.g., "Wooden Arrow")
     // Fields for worn armor
     pub head_item_instance_id: Option<u64>,
     pub chest_item_instance_id: Option<u64>,
@@ -266,10 +267,11 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
     Ok(())
 }
 
-/// Loads ammunition for ranged weapons (e.g., arrows for bows)
-/// 
-/// Checks player inventory for compatible ammunition and sets the ranged weapon to ready state.
-/// This is typically triggered by right-click when a ranged weapon is equipped.
+/// Loads a ranged weapon with ammunition or cycles through available arrow types
+///
+/// If the weapon is not loaded, loads it with the player's preferred arrow type (or first available).
+/// If the weapon is already loaded, cycles to the next available arrow type.
+/// Remembers the player's preferred arrow type for future loading.
 #[spacetimedb::reducer]
 pub fn load_ranged_weapon(ctx: &ReducerContext) -> Result<(), String> {
     let sender_id = ctx.sender;
@@ -306,44 +308,76 @@ pub fn load_ranged_weapon(ctx: &ReducerContext) -> Result<(), String> {
         return Err("Equipped item is not a ranged weapon.".to_string());
     }
 
-    // Check if already loaded
-    if current_equipment.is_ready_to_fire {
-        return Err("Weapon is already loaded.".to_string());
+    // Define all available arrow types in order
+    let arrow_types = vec!["Wooden Arrow", "Bone Arrow", "Fire Arrow"];
+    
+    // Find all available arrow types in player's inventory/hotbar
+    let mut available_arrows: Vec<(String, u64)> = Vec::new(); // (name, def_id)
+    
+    for arrow_name in &arrow_types {
+        if let Some(ammo_def) = item_defs.iter().find(|def| def.name == *arrow_name) {
+            // Check if player has at least 1 of this ammo in inventory/hotbar
+            let has_ammo = inventory_items.iter().any(|item| {
+                item.item_def_id == ammo_def.id 
+                && item.quantity > 0
+                && match &item.location {
+                    crate::models::ItemLocation::Inventory(data) => data.owner_id == sender_id,
+                    crate::models::ItemLocation::Hotbar(data) => data.owner_id == sender_id,
+                    _ => false,
+                }
+            });
+            
+            if has_ammo {
+                available_arrows.push((arrow_name.to_string(), ammo_def.id));
+            }
+        }
     }
 
-    // Find compatible ammunition in player inventory
-    // For now, we'll hardcode "Wooden Arrow" for "Hunting Bow"
-    let compatible_ammo_name = match item_def.name.as_str() {
-        "Hunting Bow" => "Wooden Arrow",
-        _ => return Err("No compatible ammunition type defined for this weapon.".to_string()),
+    if available_arrows.is_empty() {
+        return Err("You need at least 1 arrow to load the weapon.".to_string());
+    }
+
+    let selected_arrow = if current_equipment.is_ready_to_fire {
+        // Weapon is already loaded - cycle to next arrow type
+        if let Some(current_ammo_id) = current_equipment.loaded_ammo_def_id {
+            // Find current arrow in available list
+            let current_index = available_arrows.iter()
+                .position(|(_, id)| *id == current_ammo_id);
+            
+            if let Some(index) = current_index {
+                // Cycle to next arrow type (wrap around to beginning if at end)
+                let next_index = (index + 1) % available_arrows.len();
+                available_arrows[next_index].clone()
+            } else {
+                // Current arrow not in available list, use first available
+                available_arrows[0].clone()
+            }
+        } else {
+            // Somehow ready to fire but no ammo loaded, use first available
+            available_arrows[0].clone()
+        }
+    } else {
+        // Weapon is not loaded - use preferred arrow type if available, otherwise first available
+        if let Some(preferred_type) = &current_equipment.preferred_arrow_type {
+            // Try to find preferred arrow type in available arrows
+            available_arrows.iter()
+                .find(|(name, _)| name == preferred_type)
+                .cloned()
+                .unwrap_or_else(|| available_arrows[0].clone()) // Fall back to first available
+        } else {
+            // No preference set, use first available
+            available_arrows[0].clone()
+        }
     };
 
-    // Find the ammo item definition
-    let ammo_def = item_defs.iter()
-        .find(|def| def.name == compatible_ammo_name)
-        .ok_or_else(|| format!("Ammunition type '{}' not found in item definitions.", compatible_ammo_name))?;
-
-    // Check if player has at least 1 of this ammo in inventory/hotbar
-    let has_ammo = inventory_items.iter().any(|item| {
-        item.item_def_id == ammo_def.id 
-        && item.quantity > 0
-        && match &item.location {
-            crate::models::ItemLocation::Inventory(data) => data.owner_id == sender_id,
-            crate::models::ItemLocation::Hotbar(data) => data.owner_id == sender_id,
-            _ => false,
-        }
-    });
-
-    if !has_ammo {
-        return Err(format!("You need at least 1 {} to load the {}.", compatible_ammo_name, item_def.name));
-    }
-
-    // Load the weapon
-    current_equipment.loaded_ammo_def_id = Some(ammo_def.id);
+    // Load the weapon with selected arrow
+    current_equipment.loaded_ammo_def_id = Some(selected_arrow.1);
     current_equipment.is_ready_to_fire = true;
+    current_equipment.preferred_arrow_type = Some(selected_arrow.0.clone());
     active_equipments.player_identity().update(current_equipment);
 
-    log::info!("[LoadRangedWeapon] Player {:?} loaded {} with {} (ready to fire).", sender_id, item_def.name, compatible_ammo_name);
+    log::info!("[LoadRangedWeapon] Player {:?} loaded {} with {} (ready to fire).", 
+        sender_id, item_def.name, selected_arrow.0);
     Ok(())
 }
 
@@ -455,19 +489,17 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
         let mut nearest_wounded_player: Option<(Identity, f32)> = None; // (player_id, distance)
 
         for other_player in players_table.iter() {
-            if other_player.identity == sender_id || other_player.is_dead || other_player.health >= 100.0 {
-                continue; // Skip self, dead players, and fully healthy players
-            }
+            if other_player.identity == sender_id { continue; } // Skip self
+            if other_player.is_dead { continue; } // Skip dead players
+            if other_player.health >= 100.0 { continue; } // Skip players at full health
 
             let dx = other_player.position_x - player_pos.position_x;
             let dy = other_player.position_y - player_pos.position_y;
             let distance = (dx * dx + dy * dy).sqrt();
 
             if distance <= HEALING_RANGE {
-                // If we find a wounded player in range, and they're either closer than our current nearest
-                // or we haven't found anyone yet
-                if let Some((_, current_nearest_dist)) = nearest_wounded_player {
-                    if distance < current_nearest_dist {
+                if let Some((_, current_nearest_distance)) = nearest_wounded_player {
+                    if distance < current_nearest_distance {
                         nearest_wounded_player = Some((other_player.identity, distance));
                     }
                 } else {
@@ -476,15 +508,7 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
             }
         }
 
-        // Player state is needed for apply_item_effects_and_consume
-        let mut player_stats = players_table.identity().find(sender_id)
-            .ok_or_else(|| "Player not found for bandage use".to_string())?;
-
-        // If we found a nearby wounded player, heal them instead of self
         if let Some((target_id, _)) = nearest_wounded_player {
-            let mut target_player = players_table.identity().find(&target_id)
-                .ok_or_else(|| "Target player not found".to_string())?;
-
             // Create a RemoteBandageBurst effect for the target
             let effect = ActiveConsumableEffect {
                 effect_id: 0, // Will be auto-incremented
@@ -506,9 +530,9 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
                 sender_id, target_id);
 
             // Update player's last_consumed_at
-            player_stats.last_consumed_at = Some(ctx.timestamp);
-            players_table.identity().update(player_stats);
-
+            let mut player_to_update = player_pos.clone();
+            player_to_update.last_consumed_at = Some(ctx.timestamp);
+            players_table.identity().update(player_to_update);
         } else {
             // No nearby wounded players, apply to self as normal
             log::info!("[UseEquippedItem] No nearby wounded players found, applying bandage to self (Player {:?})", sender_id);
@@ -534,12 +558,28 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
                 sender_id, equipped_item_instance_id, item_def.consumable_health_gain);
 
             // Update player's last_consumed_at
-            player_stats.last_consumed_at = Some(ctx.timestamp);
-            players_table.identity().update(player_stats);
+            let mut player_to_update = player_pos.clone();
+            player_to_update.last_consumed_at = Some(ctx.timestamp);
+            players_table.identity().update(player_to_update);
         }
         return Ok(()); // Bandage handling complete
     }
-    // --- END BANDAGE HANDLING ---
+
+    if item_def.name == "Selo Olive Oil" {
+        log::info!("[UseEquippedItem] Player {:?} is using equipped Selo Olive Oil (Instance: {}, Def: {}).", 
+            sender_id, equipped_item_instance_id, item_def.id);
+
+        // Use the consumables helper function to apply effects and consume the item
+        let mut player_to_update = players_table.identity().find(&sender_id)
+            .ok_or_else(|| "Player not found for Selo Olive Oil use".to_string())?;
+
+        crate::consumables::apply_item_effects_and_consume(ctx, sender_id, &item_def, equipped_item_instance_id, &mut player_to_update)?;
+
+        // Update player in database
+        players_table.identity().update(player_to_update);
+
+        return Ok(()); // Selo Olive Oil handling complete
+    }
 
     // Default values for attack cone
     let mut actual_attack_range = PLAYER_RADIUS * 4.0;
@@ -627,6 +667,7 @@ fn get_or_create_active_equipment(ctx: &ReducerContext, player_id: Identity) -> 
             swing_start_time_ms: 0,
             loaded_ammo_def_id: None,
             is_ready_to_fire: false,
+            preferred_arrow_type: None,
             head_item_instance_id: None,
             chest_item_instance_id: None,
             legs_item_instance_id: None,

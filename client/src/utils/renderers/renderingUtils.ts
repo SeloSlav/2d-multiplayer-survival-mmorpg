@@ -247,7 +247,9 @@ export const renderYSortedEntities = ({
                   jumpOffset,
                   isPersistentlyHovered,
                   activeConsumableEffects,
-                  localPlayerId
+                  localPlayerId,
+                  false, // isCorpse
+                  cycleProgress // cycleProgress
                 );
               }
             } else { // This covers 'down' or 'right'
@@ -262,7 +264,9 @@ export const renderYSortedEntities = ({
                   jumpOffset,
                   isPersistentlyHovered,
                   activeConsumableEffects,
-                  localPlayerId
+                  localPlayerId,
+                  false, // isCorpse
+                  cycleProgress // cycleProgress
                 );
               }
               if (canRenderItem && equipment) {
@@ -321,7 +325,17 @@ export const renderYSortedEntities = ({
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);
         } else if (type === 'projectile') {
             const projectile = entity as SpacetimeDBProjectile;
-            const arrowImage = itemImagesRef.current?.get('wooden_arrow.png');
+            
+            // Get the ammunition definition to determine the correct arrow image
+            const ammoDef = itemDefinitions.get(projectile.ammoDefId.toString());
+            let arrowImageName = 'wooden_arrow.png'; // Default fallback
+            
+            if (ammoDef) {
+                // Use the icon asset name from the ammunition definition
+                arrowImageName = ammoDef.iconAssetName;
+            }
+            
+            const arrowImage = itemImagesRef.current?.get(arrowImageName);
             if (arrowImage) {
                 renderProjectile({
                     ctx,

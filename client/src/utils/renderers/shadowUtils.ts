@@ -112,7 +112,7 @@ export function applyStandardDropShadow(
  */
 export interface DynamicGroundShadowParams {
   ctx: CanvasRenderingContext2D;
-  entityImage: HTMLImageElement; // The actual image for silhouette
+  entityImage: HTMLImageElement | HTMLCanvasElement; // Accept both image and canvas
   entityCenterX: number;      // World X-coordinate of the entity's center
   entityBaseY: number;        // World Y-coordinate of the entity's ground base
   imageDrawWidth: number;    // The width the entity image is drawn on screen
@@ -189,8 +189,10 @@ export function drawDynamicGroundShadow({
   }
 
   // Generate a cache key for the silhouette
-  const cacheKey = `${entityImage.src}-${baseShadowColor}`;
-  let offscreenCanvas = silhouetteCache.get(cacheKey);
+  const cacheKey = entityImage instanceof HTMLImageElement 
+    ? `${entityImage.src}-${baseShadowColor}`
+    : null; // Don't cache canvas elements (they're already processed sprite frames)
+  let offscreenCanvas = cacheKey ? silhouetteCache.get(cacheKey) : null;
 
   if (!offscreenCanvas) {
     // Create an offscreen canvas to prepare the sharp silhouette if not cached
@@ -212,8 +214,10 @@ export function drawDynamicGroundShadow({
     offscreenCtx.fillStyle = `rgba(${baseShadowColor}, 1.0)`; // Tint with full opacity base color
     offscreenCtx.fillRect(0, 0, imageDrawWidth, imageDrawHeight);
 
-    // Store in cache
-    silhouetteCache.set(cacheKey, newOffscreenCanvas);
+    // Store in cache only for HTMLImageElement (not for canvas)
+    if (cacheKey) {
+      silhouetteCache.set(cacheKey, newOffscreenCanvas);
+    }
     offscreenCanvas = newOffscreenCanvas;
   }
   

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash, Player, ActiveConsumableEffect } from '../generated';
+import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash, Player, ActiveConsumableEffect, ActiveEquipment } from '../generated';
 import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
 
 // Import Custom Components
@@ -24,6 +24,13 @@ const CONSUMPTION_COOLDOWN_MICROS = 1_000_000; // 1 second, matches server
 const DEFAULT_CLIENT_ANIMATION_DURATION_MS = CONSUMPTION_COOLDOWN_MICROS / 1000; // Duration for client animation
 const BANDAGE_CLIENT_ANIMATION_DURATION_MS = 5000; // 5 seconds for bandage visual cooldown
 
+// Weapon cooldown state interface - simplified
+interface WeaponCooldownState {
+  slotIndex: number;
+  startTime: number;
+  duration: number;
+}
+
 // Update HotbarProps
 interface HotbarProps {
   playerIdentity: Identity | null;
@@ -40,6 +47,7 @@ interface HotbarProps {
   startPlacement: (itemInfo: PlacementItemInfo) => void;
   cancelPlacement: () => void;
   activeConsumableEffects: Map<string, ActiveConsumableEffect>;
+  activeEquipment: ActiveEquipment | null;
 }
 
 // --- Hotbar Component ---
@@ -56,6 +64,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     startPlacement,
     cancelPlacement,
     activeConsumableEffects,
+    activeEquipment,
 }) => {
   // console.log('[Hotbar] Rendering. CLIENT_ANIMATION_DURATION_MS:', CLIENT_ANIMATION_DURATION_MS); // Added log
   const [selectedSlot, setSelectedSlot] = useState<number>(0);
@@ -65,8 +74,18 @@ const Hotbar: React.FC<HotbarProps> = ({
   const [currentAnimationDuration, setCurrentAnimationDuration] = useState<number>(DEFAULT_CLIENT_ANIMATION_DURATION_MS);
   const [cooldownSlot, setCooldownSlot] = useState<number | null>(null); // Track which slot has the active cooldown
   const [forceRender, setForceRender] = useState<number>(0); // Force re-render counter
+  
+  // Weapon cooldown state - simplified to match consumable system
+  const [isWeaponCooldownActive, setIsWeaponCooldownActive] = useState<boolean>(false);
+  const [weaponCooldownStartTime, setWeaponCooldownStartTime] = useState<number | null>(null);
+  const [weaponCooldownProgress, setWeaponCooldownProgress] = useState<number>(0);
+  const [weaponCooldownDuration, setWeaponCooldownDuration] = useState<number>(1000);
+  const [weaponCooldownSlot, setWeaponCooldownSlot] = useState<number | null>(null);
+  
   const visualCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const weaponCooldownAnimationRef = useRef<number | null>(null);
+  const weaponCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const numSlots = 6;
   const prevSelectedSlotRef = useRef<number>(selectedSlot);
   const prevActiveEffectsRef = useRef<Set<string>>(new Set());
@@ -79,6 +98,12 @@ const Hotbar: React.FC<HotbarProps> = ({
       }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (weaponCooldownAnimationRef.current) {
+        cancelAnimationFrame(weaponCooldownAnimationRef.current);
+      }
+      if (weaponCooldownTimeoutRef.current) {
+        clearTimeout(weaponCooldownTimeoutRef.current);
       }
     };
   }, []);
@@ -99,6 +124,140 @@ const Hotbar: React.FC<HotbarProps> = ({
     }
     return null;
   }, [playerIdentity, inventoryItems, itemDefinitions]);
+
+  // Helper function to check if an item is a weapon/tool with attack interval
+  const isWeaponWithCooldown = useCallback((itemDef: ItemDefinition): boolean => {
+    return itemDef.attackIntervalSecs !== null && 
+           itemDef.attackIntervalSecs !== undefined && 
+           itemDef.attackIntervalSecs > 0 &&
+           (itemDef.category.tag === 'Weapon' || 
+            itemDef.category.tag === 'RangedWeapon' || 
+            itemDef.category.tag === 'Tool') &&
+           itemDef.isEquippable;
+  }, []);
+
+  // Effect to track weapon cooldowns based on activeEquipment swingStartTimeMs - simplified
+  useEffect(() => {
+    console.log('[Hotbar] Weapon cooldown useEffect triggered. activeEquipment:', activeEquipment);
+    
+    if (!activeEquipment || !playerIdentity) {
+      console.log('[Hotbar] No activeEquipment or playerIdentity, skipping weapon cooldown tracking');
+      return;
+    }
+
+    const now = Date.now();
+    const swingStartTime = Number(activeEquipment.swingStartTimeMs);
+    
+    console.log('[Hotbar] Weapon cooldown check - swingStartTime:', swingStartTime, 'now:', now, 'diff:', now - swingStartTime);
+    
+    // Only process if there was a recent swing (within last 10 seconds to avoid stale data)
+    if (swingStartTime > 0 && (now - swingStartTime) < 10000) {
+      console.log('[Hotbar] Recent swing detected, checking for equipped item...');
+      
+      // Find which hotbar slot contains the equipped item
+      if (activeEquipment.equippedItemInstanceId) {
+        console.log('[Hotbar] Looking for equipped item with ID:', activeEquipment.equippedItemInstanceId);
+        
+        for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
+          const itemInSlot = findItemForSlot(slotIndex);
+          if (itemInSlot) {
+            console.log(`[Hotbar] Slot ${slotIndex}: ${itemInSlot.definition.name} (ID: ${itemInSlot.instance.instanceId})`);
+            
+            if (BigInt(itemInSlot.instance.instanceId) === activeEquipment.equippedItemInstanceId) {
+              console.log(`[Hotbar] Found equipped item in slot ${slotIndex}: ${itemInSlot.definition.name}`);
+              
+              if (isWeaponWithCooldown(itemInSlot.definition)) {
+                console.log(`[Hotbar] Item is weapon with cooldown. attackIntervalSecs:`, itemInSlot.definition.attackIntervalSecs);
+                
+                const attackIntervalMs = (itemInSlot.definition.attackIntervalSecs || 0) * 1000;
+                const cooldownEndTime = swingStartTime + attackIntervalMs;
+                
+                console.log(`[Hotbar] Cooldown timing - start: ${swingStartTime}, duration: ${attackIntervalMs}ms, end: ${cooldownEndTime}, now: ${now}`);
+                
+                // Only start cooldown if it's still active
+                if (now < cooldownEndTime) {
+                  console.log(`[Hotbar] Starting weapon cooldown for ${itemInSlot.definition.name} in slot ${slotIndex}, duration: ${attackIntervalMs}ms`);
+                  
+                  // Clear any existing weapon cooldown
+                  if (weaponCooldownTimeoutRef.current) {
+                    clearTimeout(weaponCooldownTimeoutRef.current);
+                  }
+                  
+                  // Start weapon cooldown using the same pattern as consumables
+                  setIsWeaponCooldownActive(true);
+                  setWeaponCooldownStartTime(swingStartTime);
+                  setWeaponCooldownProgress(0);
+                  setWeaponCooldownDuration(attackIntervalMs);
+                  setWeaponCooldownSlot(slotIndex);
+                  
+                  // Set timeout to clear weapon cooldown when it expires
+                  const remainingTime = cooldownEndTime - now;
+                  weaponCooldownTimeoutRef.current = setTimeout(() => {
+                    console.log('[Hotbar] Weapon cooldown timeout completed for slot:', slotIndex);
+                    setIsWeaponCooldownActive(false);
+                    setWeaponCooldownStartTime(null);
+                    setWeaponCooldownProgress(0);
+                    setWeaponCooldownSlot(null);
+                  }, remainingTime);
+                  
+                } else {
+                  console.log('[Hotbar] Cooldown already expired, not starting animation');
+                }
+              } else {
+                console.log(`[Hotbar] Item ${itemInSlot.definition.name} is not a weapon with cooldown`);
+              }
+              break;
+            }
+          }
+        }
+      } else {
+        console.log('[Hotbar] No equippedItemInstanceId in activeEquipment');
+      }
+    } else {
+      console.log('[Hotbar] No recent swing or invalid swingStartTime');
+    }
+  }, [activeEquipment, findItemForSlot, isWeaponWithCooldown, playerIdentity, numSlots]);
+
+  // Weapon cooldown animation loop - simplified to match consumable system
+  useEffect(() => {
+    if (isWeaponCooldownActive && weaponCooldownStartTime !== null) {
+      const animate = () => {
+        if (weaponCooldownStartTime === null) { 
+            if (weaponCooldownAnimationRef.current) cancelAnimationFrame(weaponCooldownAnimationRef.current);
+            setIsWeaponCooldownActive(false);
+            setWeaponCooldownProgress(0);
+            return;
+        }
+        const elapsedTimeMs = Date.now() - weaponCooldownStartTime;
+        const currentProgress = Math.min(1, elapsedTimeMs / weaponCooldownDuration); 
+        setWeaponCooldownProgress(currentProgress);
+        
+        console.log(`[Hotbar] Weapon cooldown progress: ${(currentProgress * 100).toFixed(1)}%`);
+
+        if (currentProgress < 1) {
+          weaponCooldownAnimationRef.current = requestAnimationFrame(animate);
+        } else {
+          setIsWeaponCooldownActive(false);
+          setWeaponCooldownStartTime(null);
+          setWeaponCooldownProgress(0);
+          setWeaponCooldownSlot(null);
+        }
+      };
+      weaponCooldownAnimationRef.current = requestAnimationFrame(animate);
+    } else {
+      if (weaponCooldownAnimationRef.current) {
+        cancelAnimationFrame(weaponCooldownAnimationRef.current);
+        weaponCooldownAnimationRef.current = null;
+      }
+    }
+
+    return () => {
+      if (weaponCooldownAnimationRef.current) {
+        cancelAnimationFrame(weaponCooldownAnimationRef.current);
+        weaponCooldownAnimationRef.current = null;
+      }
+    };
+  }, [isWeaponCooldownActive, weaponCooldownStartTime, weaponCooldownDuration]);
 
   // useEffect for the cooldown animation progress - MOVED AFTER findItemForSlot
   useEffect(() => {
@@ -603,6 +762,18 @@ const Hotbar: React.FC<HotbarProps> = ({
                 overflow: 'hidden',
             }}
             isDraggingOver={false}
+            overlayProgress={
+              (isVisualCooldownActive && cooldownSlot === index) ? animationProgress :
+              undefined
+            }
+            overlayColor={
+              (isVisualCooldownActive && cooldownSlot === index) ? 'rgba(0, 0, 0, 0.4)' :
+              'rgba(0, 0, 0, 0.4)'
+            }
+            overlayType={
+              (isVisualCooldownActive && cooldownSlot === index) ? 'consumable' :
+              'consumable'
+            }
           >
             <span
                 style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)', userSelect: 'none', pointerEvents: 'none', zIndex: 3 }}
@@ -612,47 +783,15 @@ const Hotbar: React.FC<HotbarProps> = ({
 
             {populatedItem && (
                 <DraggableItem
-                    key={`draggable-${index}-${isVisualCooldownActive}-${cooldownSlot}`} // Force re-render when overlay state changes
+                    key={`draggable-${index}-${isVisualCooldownActive}-${cooldownSlot}`}
                     item={populatedItem}
                     sourceSlot={currentSlotInfo}
                     onItemDragStart={onItemDragStart}
                     onItemDrop={onItemDrop}
                     onContextMenu={(event) => handleHotbarItemContextMenu(event, populatedItem)}
-                    cooldownOverlay={
-                      isVisualCooldownActive && cooldownSlot === index ? (
-                        <div 
-                          style={{
-                            position: 'absolute',
-                            top: '0px',
-                            left: '0px',
-                            right: '0px',
-                            bottom: '0px',
-                            width: '100%',
-                            height: '100%',
-                            zIndex: 99999, // Maximum possible z-index
-                            pointerEvents: 'none',
-                            isolation: 'isolate', // Force new stacking context
-                            transform: 'translateZ(0)', // Force hardware layer
-                          }}
-                        >
-                          <div 
-                            style={{
-                              position: 'absolute',
-                              top: '0px',
-                              left: '0px',
-                              width: '100%',
-                              height: `${(1 - animationProgress) * 100}%`, // Shrinks from top to bottom
-                              backgroundColor: 'rgba(0, 0, 0, 0.4)', // Lighter overlay with slight opacity
-                              borderRadius: '2px',
-                            }}
-                            title={`Cooldown: ${Math.round((1 - animationProgress) * 100)}% remaining`} 
-                          />
-                        </div>
-                      ) : undefined
-                    }
                  />
             )}
-            {/* Debug info */}
+            {/* Debug info for consumable cooldowns */}
             {cooldownSlot === index && (
               <div style={{
                 position: 'absolute',
@@ -664,6 +803,20 @@ const Hotbar: React.FC<HotbarProps> = ({
                 zIndex: 10
               }}>
                 {isVisualCooldownActive ? `${Math.round(animationProgress * 100)}%` : 'inactive'}
+              </div>
+            )}
+            {/* Debug info for weapon cooldowns */}
+            {weaponCooldownSlot === index && (
+              <div style={{
+                position: 'absolute',
+                top: '-35px',
+                left: '0px',
+                fontSize: '8px',
+                color: 'orange',
+                pointerEvents: 'none',
+                zIndex: 10
+              }}>
+                Weapon: {isWeaponCooldownActive ? `${Math.round(weaponCooldownProgress * 100)}%` : 'inactive'}
               </div>
             )}
           </DroppableSlot>
@@ -697,6 +850,37 @@ const Hotbar: React.FC<HotbarProps> = ({
                 borderRadius: '2px',
               }}
               title={`Server Cooldown: ${Math.round((1 - animationProgress) * 100)}% remaining`}
+            />
+          </div>
+        );
+      })()}
+      
+      {/* Weapon cooldown overlay using the exact same system as consumables */}
+      {isWeaponCooldownActive && weaponCooldownSlot !== null && (() => {
+        const slotPos = getSlotPosition(weaponCooldownSlot);
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: `${slotPos.left}px`,
+              bottom: `${slotPos.bottom}px`,
+              width: `${slotPos.width}px`,
+              height: `${slotPos.height}px`,
+              zIndex: 9999, // Just below consumable cooldowns
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '0px',
+                left: '0px',
+                width: '100%',
+                height: `${(1 - weaponCooldownProgress) * 100}%`,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                borderRadius: '2px',
+              }}
+              title={`Weapon Cooldown: ${Math.round((1 - weaponCooldownProgress) * 100)}% remaining`}
             />
           </div>
         );

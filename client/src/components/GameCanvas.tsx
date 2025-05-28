@@ -47,6 +47,7 @@ import { useCloudInterpolation, InterpolatedCloudData } from '../hooks/useCloudI
 import { useGrassInterpolation, InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 import { useArrowBreakEffects } from '../hooks/useArrowBreakEffects';
 import { useThunderEffects } from '../hooks/useThunderEffects';
+import { useFireArrowParticles } from '../hooks/useFireArrowParticles';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -390,14 +391,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     itemDefinitions,
     deltaTime: stableDeltaTime,
   });
+  const latestFireArrowParticles = useFireArrowParticles({
+    players,
+    activeEquipments,
+    itemDefinitions,
+    deltaTime: stableDeltaTime,
+  });
 
   // Store particles in refs to decouple from render cycle
   const campfireParticlesRef = useRef<Particle[]>([]);
   const torchParticlesRef = useRef<Particle[]>([]);
+  const fireArrowParticlesRef = useRef<Particle[]>([]);
 
   // Update particle refs without causing re-renders
   campfireParticlesRef.current = latestCampfireParticles;
   torchParticlesRef.current = latestTorchParticles;
+  fireArrowParticlesRef.current = latestFireArrowParticles;
 
   // New function to render particles
   const renderParticlesToCanvas = useCallback((ctx: CanvasRenderingContext2D, particlesToRender: Particle[]) => {
@@ -591,6 +600,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       // Call without camera offsets, as ctx is already translated
       renderParticlesToCanvas(ctx, campfireParticlesRef.current);
       renderParticlesToCanvas(ctx, torchParticlesRef.current);
+      renderParticlesToCanvas(ctx, fireArrowParticlesRef.current);
 
       // Render cut grass effects
       renderCutGrassEffects(ctx, now_ms);

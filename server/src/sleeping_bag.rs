@@ -289,8 +289,8 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     player.position_y = sleeping_bag.pos_y;
     player.death_timestamp = None; // Clear death timestamp
     // Reset other stats like in respawn_randomly
-    player.hunger = 100.0;
-    player.thirst = 100.0;
+    player.hunger = 250.0;
+    player.thirst = 250.0;
     player.warmth = 100.0;
     player.stamina = 100.0;
     player.jump_start_time_ms = 0;

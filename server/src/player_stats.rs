@@ -43,9 +43,9 @@ pub fn init_stat_thresholds_config(ctx: &ReducerContext) -> Result<(), String> {
 // --- End StatThresholdsConfig Table Definition ---
 
 // Define Constants locally
-// Hunger drains from 100 to 0 in 3 hours
+// Hunger drains from 250 to 0 in 3 hours
 const HUNGER_DRAIN_PER_SECOND: f32 = 250.0 / (3.0 * 60.0 * 60.0);
-// Thirst drains from 100 to 0 in 2 hours
+// Thirst drains from 250 to 0 in 2 hours
 const THIRST_DRAIN_PER_SECOND: f32 = 250.0 / (2.0 * 60.0 * 60.0);
 // Make stat constants pub(crate) as well for consistency, although not strictly needed if only used here
 pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 2.5;
@@ -62,6 +62,12 @@ pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 1.5;
 pub(crate) const JUMP_COOLDOWN_MS: u64 = 500;
 pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
+
+// Add constants for max values
+pub(crate) const PLAYER_MAX_HUNGER: f32 = 250.0;
+pub(crate) const PLAYER_MAX_THIRST: f32 = 250.0;
+pub(crate) const HUNGER_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
+pub(crate) const THIRST_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
 
 // Import necessary items from the main lib module or other modules
 use crate::{
@@ -161,8 +167,8 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let elapsed_seconds = (elapsed_micros as f64 / 1_000_000.0) as f32;
 
         // --- Calculate Stat Changes ---
-        let new_hunger = (player.hunger - (elapsed_seconds * HUNGER_DRAIN_PER_SECOND)).max(0.0);
-        let new_thirst = (player.thirst - (elapsed_seconds * THIRST_DRAIN_PER_SECOND)).max(0.0);
+        let new_hunger = (player.hunger - (elapsed_seconds * HUNGER_DRAIN_PER_SECOND)).max(0.0).min(PLAYER_MAX_HUNGER);
+        let new_thirst = (player.thirst - (elapsed_seconds * THIRST_DRAIN_PER_SECOND)).max(0.0).min(PLAYER_MAX_THIRST);
 
         // Calculate Warmth
         // NEW WARMTH LOGIC: Base warmth change per second based on TimeOfDay
@@ -261,8 +267,8 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         // Health recovery only if needs are met and not taking damage
         if health_change_per_sec == 0.0 && // No damage from needs
            player.health >= HEALTH_RECOVERY_THRESHOLD && // ADDED: Only regen if health is already high
-           new_hunger >= HEALTH_RECOVERY_THRESHOLD &&
-           new_thirst >= HEALTH_RECOVERY_THRESHOLD &&
+           new_hunger >= HUNGER_RECOVERY_THRESHOLD &&
+           new_thirst >= THIRST_RECOVERY_THRESHOLD &&
            new_warmth >= low_need_threshold { // Ensure warmth is also at a decent level (using low_need_threshold for now)
             health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
         }

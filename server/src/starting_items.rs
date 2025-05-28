@@ -24,28 +24,28 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
     // Format: (item_name: &str, quantity: u32, hotbar_slot: Option<u8>, inventory_slot: Option<u16>)
     let starting_inv_items = [
         // Hotbar (Slots 0-5)
-        ("Rock", 1, Some(0u8), None), 
-        ("Torch", 10, Some(1u8), None), 
-        
-        // Starting materials in Inventory (Slots 0-23 typically)
-        // ("Cloth", 100, None, Some(0u16)),
-        // ("Wooden Spear", 50, None, Some(1u16)),
-        // ("Shelter", 1, None, Some(3u16)),
-        // ("Animal Bone", 10, None, Some(4u16)),
-        // ("Bone Club", 1, None, Some(5u16)),
-        // ("Bone Knife", 1, None, Some(6u16)),
-        // ("Human Skull", 1, None, Some(7u16)),
-        // ("Wooden Arrow", 50, None, Some(8u16)),
-        // ("Stone Pickaxe", 1, None, Some(14u16)),
-        // ("Cooked Mushroom", 20, None, Some(16u16)),
-        // ("Cooked Corn", 20, None, Some(17u16)),
-        // ("Bandage", 10, None, Some(18u16)),
-        // ("Wood", 500, None, Some(19u16)), 
-        // ("Stone", 500, None, Some(21u16)),
-        // ("Hunting Bow", 1, None, Some(22u16)),
-        // ("Bone Fragments", 100, None, Some(23u16)),
+        // ("Rock", 1, Some(0u8), None), 
+        // ("Torch", 10, Some(1u8), None),
+        ("Bone Knife", 1, Some(0u8), None),
+        ("Wooden Spear", 1, Some(1u8), None),
+        ("Hunting Bow", 1, Some(2u8), None),
+        ("Crossbow", 1, Some(3u8), None),
+        ("Bandage", 99, Some(4u8), None),
+        ("Selo Olive Oil", 99, Some(5u8), None),
 
-        
+        // Starting materials in Inventory (Slots 0-23 typically)
+        ("Wooden Arrow", 50, None, Some(0u16)),
+        ("Stone Spear", 1, None, Some(1u16)),
+        ("Combat Ladle", 1, None, Some(2u16)),
+        ("Human Skull", 1, None, Some(3u16)),
+        ("Repair Hammer", 1, None, Some(4u16)),
+        ("Rock", 1, None, Some(5u16)),
+        ("Torch", 1, None, Some(6u16)),
+        ("Stone Pickaxe", 1, None, Some(7u16)),
+        ("Stone Hatchet", 1, None, Some(8u16)),
+        ("Bone Club", 50, None, Some(9u16)),
+        ("Bone Arrow", 50, None, Some(10u16)),
+        ("Fire Arrow", 50, None, Some(11u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());
@@ -102,6 +102,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
                     swing_start_time_ms: 0,
                     loaded_ammo_def_id: None,
                     is_ready_to_fire: false,
+                    preferred_arrow_type: None,
                     head_item_instance_id: None,
                     chest_item_instance_id: None,
                     legs_item_instance_id: None,

@@ -4,10 +4,8 @@ use crate::Player; // For the struct
 use crate::player; // For the table trait
 use crate::items::{ItemDefinition, item_definition as ItemDefinitionTableTrait}; // To check item properties
 use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait}; // Added for item consumption
+use crate::consumables::{MAX_HEALTH_VALUE, MIN_STAT_VALUE}; // Import constants from consumables
 use log;
-
-const MAX_STAT_VALUE: f32 = 100.0;
-const MIN_STAT_VALUE: f32 = 0.0;
 
 #[table(name = active_consumable_effect, public)] // public for client UI if needed
 #[derive(Clone, Debug)]
@@ -105,7 +103,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                 log::trace!("[EffectTick] ENV_BURN Pre-Damage for Player {:?}: Health {:.2}, DamageThisTick {:.2}",
                     effect.player_id, player_to_update.health, damage_to_apply);
                 let health_before_env_damage = player_to_update.health;
-                player_to_update.health = (player_to_update.health - damage_to_apply).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                player_to_update.health = (player_to_update.health - damage_to_apply).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                 log::trace!("[EffectTick] ENV_BURN Post-Damage for Player {:?}: Health now {:.2}",
                     effect.player_id, player_to_update.health);
 
@@ -198,7 +196,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         log::info!("[EffectTick] BANDAGE_BURST Effect Type: {:?}, Target {:?}: Effect ended. Applying burst heal: {:.2}. Old health: {:.2}", 
                             effect.effect_type, target_id, burst_heal_amount, old_health);
                         
-                        target_player_to_update.health = (target_player_to_update.health + burst_heal_amount).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                        target_player_to_update.health = (target_player_to_update.health + burst_heal_amount).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                         current_effect_applied_so_far = burst_heal_amount; // Mark as fully applied for consistency in logging/consumption
                         
                         log::info!("[EffectTick] BANDAGE_BURST Effect Type: {:?}, Target {:?}: Health now {:.2} (change: {:.2})", 
@@ -260,7 +258,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         EffectType::HealthRegen => {
                             log::trace!("[EffectTick] HealthRegen for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
                                 effect.player_id, player_to_update.health, amount_this_tick);
-                            player_to_update.health = (player_to_update.health + amount_this_tick).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                            player_to_update.health = (player_to_update.health + amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                             log::trace!("[EffectTick] HealthRegen Post-Heal for Player {:?}: Health now {:.2}",
                                 effect.player_id, player_to_update.health);
                         }
@@ -290,7 +288,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                                 }
                             } else {
                                 // Normal damage application for non-knocked out players or non-bleed effects
-                                player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                                player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                             }
                             // --- END BLEED PROTECTION ---
                             

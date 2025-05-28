@@ -56,6 +56,14 @@ import repairHammerIcon from '../assets/items/repair_hammer.png';
 import cookedHumanFleshIcon from '../assets/items/cooked_human_meat.png';
 import burntHumanFleshIcon from '../assets/items/burnt_human_meat.png';
 import shelterIcon from '../assets/items/shelter.png';
+import fireArrowIcon from '../assets/items/fire_arrow.png';
+import tallowLampIcon from '../assets/items/tallow_lamp.png';
+import tallowHeadLampIcon from '../assets/items/tallow_head_lamp.png';
+import crossbowIcon from '../assets/items/crossbow.png';
+import flashlightIcon from '../assets/items/flashlight.png';
+import metalOreIcon from '../assets/items/metal_ore.png';
+import metalFragmentsIcon from '../assets/items/metal_fragments.png';
+import seloOliveOilIcon from '../assets/items/selo_olive_oil.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -112,6 +120,14 @@ const iconMap: { [key: string]: string | undefined } = {
   'cooked_human_meat.png': cookedHumanFleshIcon,
   'burnt_human_meat.png': burntHumanFleshIcon,
   'shelter.png': shelterIcon,
+  'fire_arrow.png': fireArrowIcon,
+  'tallow_lamp.png': tallowLampIcon,
+  'tallow_head_lamp.png': tallowHeadLampIcon,
+  'crossbow.png': crossbowIcon,
+  'flashlight.png': flashlightIcon,
+  'metal_ore.png': metalOreIcon,
+  'metal_fragments.png': metalFragmentsIcon,
+  'selo_olive_oil.png': seloOliveOilIcon,
 };
 
 // Export a function that provides the fallback logic

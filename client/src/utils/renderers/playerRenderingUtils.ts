@@ -1,6 +1,6 @@
 import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
-import { drawShadow } from './shadowUtils';
+import { drawShadow, drawDynamicGroundShadow } from './shadowUtils';
 
 // --- Constants --- 
 export const IDLE_FRAME_INDEX = 1; // Second frame is idle
@@ -141,7 +141,8 @@ export const renderPlayer = (
   shouldShowLabel: boolean = false,
   activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
   localPlayerId?: string,
-  isCorpse?: boolean // New flag for corpse rendering
+  isCorpse?: boolean, // New flag for corpse rendering
+  cycleProgress: number = 0.375 // Day/night cycle progress (0.0 to 1.0), default to noon-ish
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -234,6 +235,7 @@ export const renderPlayer = (
   // --- End Knockback Interpolation Logic ---
 
   let isUsingItem = false;
+  let isUsingSeloOliveOil = false;
   if (!isCorpse && activeConsumableEffects && player.identity) {
     const playerHexId = player.identity.toHexString();
     for (const effect of activeConsumableEffects.values()) {
@@ -247,13 +249,22 @@ export const renderPlayer = (
         isUsingItem = true;
         break;
       }
+      // Check if this player is using Selo Olive Oil (HealthRegen effect with 2-second duration)
+      if (effect.effectType.tag === "HealthRegen" && effect.playerId.toHexString() === playerHexId) {
+        // Check if this is a short-duration effect (2 seconds for Selo Olive Oil vs longer for other items)
+        const effectDurationMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n) - Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        if (effectDurationMs <= 2500) { // 2.5 seconds to account for slight timing variations
+          isUsingSeloOliveOil = true;
+          break;
+        }
+      }
     }
   }
 
   const finalIsMoving = isCorpse ? false : isMoving;
   const finalAnimationFrame = isCorpse ? IDLE_FRAME_INDEX : currentAnimationFrame;
 
-  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem);
+  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
   
   // Shake Logic (directly uses elapsedSinceServerHitMs)
   let shakeX = 0;
@@ -276,6 +287,49 @@ export const renderPlayer = (
   // Define shadow base offset here to be used by both online/offline
   const shadowBaseYOffset = drawHeight * 0.4; 
   const finalIsOnline = isCorpse ? false : isOnline;
+
+  // --- Draw Dynamic Ground Shadow (for all players) ---
+  if (heroImg instanceof HTMLImageElement) {
+    // Extract the specific sprite frame for shadow rendering
+    const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
+    
+    // Create a temporary canvas with just the current sprite frame
+    const spriteCanvas = document.createElement('canvas');
+    spriteCanvas.width = gameConfig.spriteWidth;
+    spriteCanvas.height = gameConfig.spriteHeight;
+    const spriteCtx = spriteCanvas.getContext('2d');
+    
+    if (spriteCtx) {
+      // Draw just the current sprite frame to the temporary canvas
+      spriteCtx.drawImage(
+        heroImg,
+        sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source: specific frame from spritesheet
+        0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight    // Destination: full temporary canvas
+      );
+      
+      // Adjust shadow parameters based on player state
+      const shadowAlpha = isCorpse ? 0.25 : (finalIsOnline ? 0.35 : 0.30); // Lighter for corpses and offline players
+      const shadowStretchMax = isCorpse ? 1.8 : 2.5; // Increased for wider shadows
+      const shadowStretchMin = isCorpse ? 0.25 : 0.2; // Increased for wider minimum shadows
+      
+      drawDynamicGroundShadow({
+        ctx,
+        entityImage: spriteCanvas, // Use the extracted sprite frame instead of full spritesheet
+        entityCenterX: currentDisplayX,
+        entityBaseY: currentDisplayY + shadowBaseYOffset, // Align with where normal shadow starts
+        imageDrawWidth: drawWidth,
+        imageDrawHeight: drawHeight,
+        cycleProgress,
+        baseShadowColor: '0,0,0',
+        maxShadowAlpha: shadowAlpha,
+        maxStretchFactor: shadowStretchMax,
+        minStretchFactor: shadowStretchMin,
+        shadowBlur: 2,
+        pivotYOffset: 0,
+      });
+    }
+  }
+  // --- End Dynamic Ground Shadow ---
 
   // --- Draw Offline Shadow (or Corpse Shadow) --- 
   if (!finalIsOnline) { // This covers corpses (finalIsOnline = false) and offline players
@@ -337,6 +391,17 @@ export const renderPlayer = (
       const currentGlowAlpha = minGlowAlpha + (maxGlowAlpha - minGlowAlpha) * pulseFactor;
 
       ctx.shadowColor = `rgba(0, 255, 0, ${currentGlowAlpha})`; // Green glow
+      ctx.shadowBlur = 8 + (pulseFactor * 8);
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    } else if (isUsingSeloOliveOil) { // Selo Olive Oil glow
+      const pulseSpeed = 800; // Slightly faster pulse for Selo Olive Oil
+      const minGlowAlpha = 0.3;
+      const maxGlowAlpha = 0.7;
+      const pulseFactor = (Math.sin(nowMs / pulseSpeed * Math.PI * 2) + 1) / 2; 
+      const currentGlowAlpha = minGlowAlpha + (maxGlowAlpha - minGlowAlpha) * pulseFactor;
+
+      ctx.shadowColor = `rgba(255, 255, 0, ${currentGlowAlpha})`; // Yellow glow
       ctx.shadowBlur = 8 + (pulseFactor * 8);
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
@@ -447,7 +512,7 @@ export const renderPlayer = (
     }
 
     // --- MODIFICATION: Reset shadow properties after drawing the potentially glowing sprite ---
-    if ((!isCorpse && player.isKnockedOut) || isUsingItem) {
+    if ((!isCorpse && player.isKnockedOut) || isUsingItem || isUsingSeloOliveOil) {
       ctx.shadowColor = 'transparent'; // Or 'rgba(0,0,0,0)'
       ctx.shadowBlur = 0;
       ctx.shadowOffsetX = 0;

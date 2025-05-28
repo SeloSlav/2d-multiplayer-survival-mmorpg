@@ -252,8 +252,8 @@ export const useInputHandler = ({
         }
 
         // Check if the equipped item is a Bandage (handled by right-click/context menu)
-        if (itemDef.name === "Bandage") {
-            // console.log("[AttemptSwing] Bandage equipped, preventing use via attemptSwing (left-click).");
+        if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil") {
+            // console.log("[AttemptSwing] Bandage/Selo Olive Oil equipped, preventing use via attemptSwing (left-click).");
             return;
         }
 
@@ -839,7 +839,7 @@ export const useInputHandler = ({
             } else {
                 // Armed (melee/tool)
                 if (!itemDef) return;
-                if (itemDef.name === "Bandage" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
+                if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
                     // Ranged/Bandage already handled or should not be triggered by this melee path
                     return; 
                 }
@@ -900,6 +900,16 @@ export const useInputHandler = ({
                             connectionRef.current.reducers.useEquippedItem(); 
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Bandage.");
+                        }
+                        return; 
+                    } else if (equippedItemDef.name === "Selo Olive Oil") {
+                        // console.log("[InputHandler CTXMENU] Selo Olive Oil equipped. Attempting to use.");
+                        event.preventDefault();
+                        if (connectionRef.current?.reducers) {
+                            // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Selo Olive Oil.");
+                            connectionRef.current.reducers.useEquippedItem(); 
+                        } else {
+                            console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Selo Olive Oil.");
                         }
                         return; 
                     }

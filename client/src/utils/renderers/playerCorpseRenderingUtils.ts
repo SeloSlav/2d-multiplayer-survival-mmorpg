@@ -69,7 +69,6 @@ export function renderPlayerCorpse({
     positionX: renderPosX, // Use potentially shaken position
     positionY: renderPosY, // Use potentially shaken position
     direction: 'up', // Corpses usually face up or a fixed direction
-    color: '#CCCCCC', // Desaturated color for dead state
     health: 0, // Mock player health is 0 as it's a corpse
     isDead: true,
     lastHitTime: undefined, // Mock player doesn't have its own last hit time for rendering
@@ -86,21 +85,24 @@ export function renderPlayerCorpse({
     isTorchLit: false,
     lastConsumedAt: defaultTimestamp,
     isCrouching: false,
+    isKnockedOut: false,
+    knockedOutAt: undefined,
   };
 
   renderPlayer(
     ctx,
     mockPlayerForCorpse,
     heroImg,
-    false, // isHero
-    false, // isJumping
+    false, // isOnline
     false, // isMoving (corpse is static)
-    IDLE_FRAME_INDEX, // Use idle frame, or a specific death frame if available
+    false, // isHovered
+    IDLE_FRAME_INDEX, // currentAnimationFrame
     nowMs,
-    0, // worldTime (not critical for static corpse visual)
-    false, // isCrouching (corpse is not crouching)
-    undefined, // activeTool (corpse has no tool)
-    undefined, // equippedArmor (corpse armor handled by inventory if looted)
-    true // isCorpseOrSleeping (true to use death/sleeping pose)
+    0, // jumpOffsetY (corpse doesn't jump)
+    false, // shouldShowLabel
+    undefined, // activeConsumableEffects
+    undefined, // localPlayerId
+    true, // isCorpse
+    cycleProgress // cycleProgress
   );
 } 

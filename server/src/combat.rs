@@ -52,7 +52,7 @@ use crate::shelter::Shelter; // Ensure Shelter struct is imported
 use crate::shelter::shelter as ShelterTableTrait; // Ensure Shelter table trait is imported
 use crate::shelter::{SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT, SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y}; // Import AABB constants
 use crate::active_effects::{self, ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait};
-use crate::consumables::MAX_STAT_VALUE;
+use crate::consumables::MAX_HEALTH_VALUE;
 // Import the armor module
 use crate::armor;
 // Player inventory imports (commented out previously, keeping them commented if unresolved)
@@ -889,7 +889,7 @@ pub fn damage_player(
     target_player.last_hit_time = Some(timestamp);
 
     let old_health = target_player.health;
-    target_player.health = (target_player.health - final_damage).clamp(0.0, MAX_STAT_VALUE);
+    target_player.health = (target_player.health - final_damage).clamp(0.0, MAX_HEALTH_VALUE);
     let actual_damage_applied = old_health - target_player.health; // This is essentially final_damage clamped by remaining health
 
     // --- APPLY KNOCKBACK and update timestamp if damage was dealt ---

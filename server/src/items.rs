@@ -165,6 +165,13 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
             accuracy: 0.8,            // 80% accuracy base
             reload_time_secs: 1.0,    // 1 second between shots
         },
+        RangedWeaponStats {
+            item_name: "Crossbow".to_string(),
+            weapon_range: 700.0,      // Longer range than hunting bow
+            projectile_speed: 1200.0, // Much faster projectile - travels in straight line
+            accuracy: 0.95,           // 95% accuracy - very precise
+            reload_time_secs: 2.0,    // Slower reload time (2 seconds)
+        },
     ];
 
     let mut seeded_count = 0;

@@ -466,6 +466,12 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         onSetInteractingWith(null); // Clear interaction state when closing
     };
 
+    // Get the current player's active equipment
+    const localPlayerActiveEquipment = React.useMemo(() => {
+        if (!identity) return null;
+        return activeEquipments.get(identity.toHexString()) || null;
+    }, [identity, activeEquipments]);
+
     if (!localPlayer) {
         return null;
     }
@@ -587,8 +593,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                   matching server logic for stat penalties/health loss. This helps players realize
                   why they're thirsty/hungry/cold and should take action soon.
                 */}
-                <StatusBar label="Thirst" icon="💧" value={localPlayer.thirst} maxValue={100} barColor="#40a0ff" glow={localPlayer.thirst < lowNeedThreshold} />
-                <StatusBar label="Hunger" icon="🍖" value={localPlayer.hunger} maxValue={100} barColor="#ffa040" glow={localPlayer.hunger < lowNeedThreshold} />
+                <StatusBar label="Thirst" icon="💧" value={localPlayer.thirst} maxValue={250} barColor="#40a0ff" glow={localPlayer.thirst < lowNeedThreshold} />
+                <StatusBar label="Hunger" icon="🍖" value={localPlayer.hunger} maxValue={250} barColor="#ffa040" glow={localPlayer.hunger < lowNeedThreshold} />
                 <StatusBar label="Warmth" icon="🔥" value={localPlayer.warmth} maxValue={100} barColor="#ffcc00" glow={localPlayer.warmth < lowNeedThreshold} />
             </div>
 
@@ -637,6 +643,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     startPlacement={startPlacement}
                     cancelPlacement={cancelPlacement}
                     activeConsumableEffects={activeConsumableEffects}
+                    activeEquipment={localPlayerActiveEquipment}
                 />
             )}
 

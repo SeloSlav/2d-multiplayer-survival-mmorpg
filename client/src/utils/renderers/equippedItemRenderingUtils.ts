@@ -14,6 +14,11 @@ const BANDAGING_ANIMATION_DURATION_MS = 5000; // Duration of the bandaging anima
 const BANDAGING_MAX_ROTATION_RAD = Math.PI / 12; // Max rotation angle (e.g., 15 degrees)
 const BANDAGING_WOBBLES = 20; // Number of full back-and-forth wobbles (10 * 2 for twice as fast)
 
+// Selo Olive Oil animation constants
+const SELO_OLIVE_OIL_ANIMATION_DURATION_MS = 2000; // Duration of the Selo Olive Oil animation (MATCHES SERVER: 2 seconds)
+const SELO_OLIVE_OIL_MAX_ROTATION_RAD = Math.PI / 16; // Much gentler rotation than bandage (was Math.PI / 10)
+const SELO_OLIVE_OIL_WOBBLES = 8; // Fewer wobbles for a gentler shake (was 15)
+
 // --- Helper Function for Rendering Equipped Item ---
 export const renderEquippedItem = (
   ctx: CanvasRenderingContext2D,
@@ -191,6 +196,39 @@ export const renderEquippedItem = (
     pivotX = player.positionX + shakeX + itemOffsetX;
     pivotY = player.positionY - jumpOffset + shakeY + itemOffsetY;
 
+  } else if (itemDef.name === "Crossbow") {
+
+    // Crossbow scale - slightly larger than bow to show its more substantial nature
+    const crossbowScale = 0.06; // Slightly larger than bow scale
+    displayItemWidth = itemImgFromCaller.width * crossbowScale;
+    displayItemHeight = itemImgFromCaller.height * crossbowScale;
+
+    switch (player.direction) {
+      case 'up':
+        itemOffsetX = gameConfig.spriteWidth * 0.25;
+        itemOffsetY = -gameConfig.spriteHeight * 0.05;
+        rotation = -Math.PI / 2; // Point crossbow upward
+        break;
+      case 'down':
+        itemOffsetX = gameConfig.spriteWidth * -0.25;
+        itemOffsetY = gameConfig.spriteHeight * 0.25;
+        rotation = Math.PI / 2; // Point crossbow downward
+        break;
+      case 'left':
+        itemOffsetX = -gameConfig.spriteWidth * 0.25;
+        itemOffsetY = 0;
+        rotation = Math.PI / 2; // Rotate crossbow 270 degrees counterclockwise
+        break;
+      case 'right':
+        itemOffsetX = gameConfig.spriteWidth * -0.25;
+        itemOffsetY = 2.0;
+        rotation = 0; // Point crossbow right (default)
+        break;
+    }
+    
+    pivotX = player.positionX + shakeX + itemOffsetX;
+    pivotY = player.positionY - jumpOffset + shakeY + itemOffsetY;
+
   } else {
     // Original logic for other items' pivot and default orientation
     switch (player.direction) {
@@ -226,9 +264,9 @@ export const renderEquippedItem = (
   const preAnimationPivotX = pivotX;
   const preAnimationPivotY = pivotY;
 
-  // --- NEW: Arrow Rendering for Loaded Bow ---
+  // --- NEW: Arrow Rendering for Loaded Bow/Crossbow ---
   let loadedArrowImage: HTMLImageElement | undefined = undefined;
-  if (itemDef.name === "Hunting Bow" && equipment.isReadyToFire && equipment.loadedAmmoDefId && itemDefinitions) {
+  if ((itemDef.name === "Hunting Bow" || itemDef.name === "Crossbow") && equipment.isReadyToFire && equipment.loadedAmmoDefId && itemDefinitions) {
     const ammoDef = itemDefinitions.get(String(equipment.loadedAmmoDefId));
     if (ammoDef && ammoDef.iconAssetName) {
         loadedArrowImage = itemImages.get(ammoDef.iconAssetName); // Use ammo's icon
@@ -298,11 +336,14 @@ export const renderEquippedItem = (
   } else if (itemDef.name === "Hunting Bow") {
     ctx.rotate(rotation); // Apply calculated bow rotation
     ctx.scale(-1, 1); // Flip horizontally
+  } else if (itemDef.name === "Crossbow") {
+    ctx.rotate(rotation); // Apply calculated crossbow rotation
+    ctx.scale(-1, 1); // Flip horizontally
   } else {
     // Non-spear items might have a different base orientation/flip before animation
     // Ensure this scale doesn't affect bandage animation logic if it's drawn separately with its own save/restore
     if (player.direction === 'right' || player.direction === 'up') {
-       if (itemDef.name !== "Bandage") { // Don't apply this generic flip if it's a bandage that will handle its own drawing
+       if (itemDef.name !== "Bandage" && itemDef.name !== "Selo Olive Oil") { // Don't apply this generic flip if it's a bandage or Selo Olive Oil that will handle its own drawing
             ctx.scale(-1, 1); 
        }
     }
@@ -342,10 +383,47 @@ export const renderEquippedItem = (
   }
   // --- END BANDAGE ANIMATION & DRAWING --- 
 
+  // --- SELO OLIVE OIL ANIMATION & DRAWING --- 
+  let seloOliveOilDrawnWithAnimation = false;
+  let seloOliveOilStartTimeMs: number | null = null;
+
+  // Only show Selo Olive Oil animation if we have both an active effect AND the Selo Olive Oil is actually equipped
+  if (itemDef.name === "Selo Olive Oil" && activeConsumableEffects && player.identity) {
+    const playerHexId = player.identity.toHexString();
+    for (const effect of activeConsumableEffects.values()) {
+      // Show animation if player is using Selo Olive Oil (HealthRegen effect with 2-second duration)
+      if (effect.effectType.tag === "HealthRegen" && effect.playerId.toHexString() === playerHexId) {
+        // Check if this is a short-duration effect (2 seconds for Selo Olive Oil vs longer for other items)
+        const effectDurationMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n) - Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        if (effectDurationMs <= 2500) { // 2.5 seconds to account for slight timing variations
+          seloOliveOilStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+          break;
+        }
+      }
+    }
+  }
+
+  if (itemDef.name === "Selo Olive Oil" && seloOliveOilStartTimeMs !== null) {
+    const elapsedSeloOliveOilTime = now_ms - seloOliveOilStartTimeMs;
+    if (elapsedSeloOliveOilTime >= 0 && elapsedSeloOliveOilTime < SELO_OLIVE_OIL_ANIMATION_DURATION_MS) {
+      const animationProgress = elapsedSeloOliveOilTime / SELO_OLIVE_OIL_ANIMATION_DURATION_MS;
+      const seloOliveOilRotation = Math.sin(animationProgress * Math.PI * SELO_OLIVE_OIL_WOBBLES * 2) * SELO_OLIVE_OIL_MAX_ROTATION_RAD;
+      
+      ctx.save(); // Save for Selo Olive Oil specific animation transforms
+      // Selo Olive Oil rotation is applied here. Pivot is already at item center due to prior ctx.translate(pivotX, pivotY)
+      // and items are drawn relative to -itemWidth/2, -itemHeight/2.
+      ctx.rotate(seloOliveOilRotation); // Apply the wobble
+      ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight); // Draw centered & rotated Selo Olive Oil
+      ctx.restore(); // Restore from Selo Olive Oil specific animation
+      seloOliveOilDrawnWithAnimation = true;
+    }
+  }
+  // --- END SELO OLIVE OIL ANIMATION & DRAWING ---
+
   // --- REGULAR ITEM DRAWING (AND SWING FOR NON-SPEAR/NON-BANDAGE-ANIMATING) --- 
-  if (!bandageDrawnWithAnimation) {
+  if (!bandageDrawnWithAnimation && !seloOliveOilDrawnWithAnimation) {
     ctx.save(); // Save for regular item drawing / swing
-    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage" 
+    if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage" && itemDef.name !== "Selo Olive Oil"
         && itemDef.name?.toLowerCase() !== "hunting bow" && itemDef.category?.tag !== "RangedWeapon") {
       ctx.rotate(currentAngle); 
     }
@@ -382,7 +460,6 @@ export const renderEquippedItem = (
                 arrowOffsetX = -displayItemWidth * 0.0; 
                 arrowOffsetY = -displayItemHeight * 0.0;
                 arrowRotation = Math.PI + (Math.PI / 2); // Point arrow left and rotate 45 degrees counterclockwise
-
                 break;
         }
         
@@ -390,6 +467,47 @@ export const renderEquippedItem = (
         ctx.save(); // Save current context for arrow-specific transforms
         ctx.translate(arrowOffsetX, arrowOffsetY); // Move to arrow position
         ctx.rotate(arrowRotation); // Apply independent arrow rotation
+        ctx.drawImage(loadedArrowImage, -arrowWidth / 2, -arrowHeight / 2, arrowWidth, arrowHeight);
+        ctx.restore(); // Restore context
+    }
+    
+    // --- NEW: Draw Loaded Arrow on Crossbow ---
+    if (loadedArrowImage && itemDef.name === "Crossbow") {
+        const arrowScale = 0.04; // Slightly smaller for crossbow bolts
+        const arrowWidth = loadedArrowImage.width * arrowScale;
+        const arrowHeight = loadedArrowImage.height * arrowScale;
+        // Arrow position and rotation settings per player direction
+        let arrowOffsetX = 0; // Independent arrow position
+        let arrowOffsetY = 0;
+        let arrowRotation = 0; // Independent arrow rotation
+        
+        switch (player.direction) {
+            case 'up':
+                arrowOffsetX = -displayItemWidth * 0.15; 
+                arrowOffsetY = -displayItemHeight * -0.15; // Arrow nocked further up
+                arrowRotation = -Math.PI / 2; // Point arrow upward
+                break;
+            case 'down':
+                arrowOffsetX = displayItemWidth * -0.15;  // Mirrored horizontally
+                arrowOffsetY = -displayItemHeight * -0.15; // Mirrored vertically
+                arrowRotation = -Math.PI / 2; // Mirrored rotation
+                break;
+            case 'left':
+                arrowOffsetX = displayItemWidth * 0.0; 
+                arrowOffsetY = -displayItemHeight * -0.15;
+                arrowRotation = Math.PI + (Math.PI / 2); // Point arrow left and rotate 45 degrees counterclockwise
+                break;
+            case 'right':
+                arrowOffsetX = -displayItemWidth * 0.0; 
+                arrowOffsetY = -displayItemHeight * 0.0;
+                arrowRotation = Math.PI + (Math.PI / 2); // Point arrow left and rotate 45 degrees counterclockwise
+                break;
+        }
+        
+        // Draw bolt with independent rotation
+        ctx.save(); // Save current context for bolt-specific transforms
+        ctx.translate(arrowOffsetX, arrowOffsetY); // Move to bolt position
+        ctx.rotate(arrowRotation); // Apply independent bolt rotation
         ctx.drawImage(loadedArrowImage, -arrowWidth / 2, -arrowHeight / 2, arrowWidth, arrowHeight);
         ctx.restore(); // Restore context
     }

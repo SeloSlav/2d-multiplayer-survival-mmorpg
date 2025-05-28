@@ -15,8 +15,12 @@ use crate::models::ItemLocation; // Added import
 use crate::active_effects::{ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bleed_effects, cancel_health_regen_effects};
 
 // --- Max Stat Value ---
-pub const MAX_STAT_VALUE: f32 = 100.0; // Max value for health, hunger, thirst
-const MIN_STAT_VALUE: f32 = 0.0;   // Min value for stats like health
+pub const MAX_HEALTH_VALUE: f32 = 100.0; // Max value for health
+pub const MAX_HUNGER_VALUE: f32 = 250.0; // Max value for hunger
+pub const MAX_THIRST_VALUE: f32 = 250.0; // Max value for thirst
+pub const MAX_STAMINA_VALUE: f32 = 100.0; // Max value for stamina
+pub const MAX_WARMTH_VALUE: f32 = 100.0; // Max value for warmth
+pub const MIN_STAT_VALUE: f32 = 0.0;   // Min value for stats like health
 const CONSUMPTION_COOLDOWN_MICROS: u64 = 1_000_000; // 1 second cooldown
 
 #[spacetimedb::reducer]
@@ -118,6 +122,7 @@ pub fn apply_item_effects_and_consume(
     let old_health = player_to_update.health;
     let old_hunger = player_to_update.hunger;
     let old_thirst = player_to_update.thirst;
+    let old_warmth = player_to_update.warmth;
 
     if let Some(duration_secs) = item_def.consumable_duration_secs {
         if duration_secs > 0.0 { // This branch handles timed effects
@@ -135,6 +140,36 @@ pub fn apply_item_effects_and_consume(
                         apply_timed_effect_for_helper(ctx, player_id, item_def, item_instance_id, EffectType::BandageBurst, total_bandage_heal, duration_secs, 1.0)?;
                     }
                 }
+            } else if item_def.name == "Selo Olive Oil" {
+                // Handle Selo Olive Oil with instant effects for all stats
+                if let Some(health_gain) = item_def.consumable_health_gain {
+                    if health_gain != 0.0 {
+                        cancel_health_regen_effects(ctx, player_id);
+                        log::info!("[EffectsHelper] Player {:?} using Selo Olive Oil. Creating HealthRegen effect.", player_id);
+                        apply_timed_effect_for_helper(ctx, player_id, item_def, item_instance_id, EffectType::HealthRegen, health_gain, duration_secs, 1.0)?;
+                    }
+                }
+                
+                // Apply instant effects for other stats during timed effect
+                if let Some(hunger_satiated) = item_def.consumable_hunger_satiated {
+                    let old_val = player_to_update.hunger;
+                    player_to_update.hunger = (player_to_update.hunger + hunger_satiated).clamp(MIN_STAT_VALUE, MAX_HUNGER_VALUE);
+                    if player_to_update.hunger != old_val { stat_changed_instantly = true; }
+                }
+                if let Some(thirst_quenched) = item_def.consumable_thirst_quenched {
+                    let old_val = player_to_update.thirst;
+                    player_to_update.thirst = (player_to_update.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
+                    if player_to_update.thirst != old_val { stat_changed_instantly = true; }
+                }
+                if let Some(stamina_gain) = item_def.consumable_stamina_gain {
+                    player_to_update.stamina = (player_to_update.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
+                    stat_changed_instantly = true;
+                }
+                if let Some(warmth_gain) = item_def.warmth_bonus {
+                    let old_val = player_to_update.warmth;
+                    player_to_update.warmth = (player_to_update.warmth + warmth_gain).clamp(MIN_STAT_VALUE, MAX_WARMTH_VALUE);
+                    if player_to_update.warmth != old_val { stat_changed_instantly = true; }
+                }
             } else {
                 // Logic for other timed consumable effects (non-bandage)
                 if let Some(total_health_regen) = item_def.consumable_health_gain {
@@ -148,16 +183,16 @@ pub fn apply_item_effects_and_consume(
             // Instant effects that can accompany timed effects (e.g., food gives instant hunger + HoT)
             if let Some(hunger_satiated) = item_def.consumable_hunger_satiated {
                 let old_val = player_to_update.hunger;
-                player_to_update.hunger = (player_to_update.hunger + hunger_satiated).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                player_to_update.hunger = (player_to_update.hunger + hunger_satiated).clamp(MIN_STAT_VALUE, MAX_HUNGER_VALUE);
                 if player_to_update.hunger != old_val { stat_changed_instantly = true; }
             }
             if let Some(thirst_quenched) = item_def.consumable_thirst_quenched {
                 let old_val = player_to_update.thirst;
-                player_to_update.thirst = (player_to_update.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                player_to_update.thirst = (player_to_update.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
                 if player_to_update.thirst != old_val { stat_changed_instantly = true; }
             }
             if let Some(stamina_gain) = item_def.consumable_stamina_gain {
-                player_to_update.stamina = (player_to_update.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+                player_to_update.stamina = (player_to_update.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
                 stat_changed_instantly = true;
             }
         } else {
@@ -169,11 +204,12 @@ pub fn apply_item_effects_and_consume(
 
     if stat_changed_instantly {
         log::info!(
-            "[EffectsHelper] Player {:?} instantly changed stats with {}. Stats: H {:.1}->{:.1}, Hu {:.1}->{:.1}, T {:.1}->{:.1}",
+            "[EffectsHelper] Player {:?} instantly changed stats with {}. Stats: H {:.1}->{:.1}, Hu {:.1}->{:.1}, T {:.1}->{:.1}, W {:.1}->{:.1}",
             player_id, item_def.name,
             old_health, player_to_update.health,
             old_hunger, player_to_update.hunger,
-            old_thirst, player_to_update.thirst
+            old_thirst, player_to_update.thirst,
+            old_warmth, player_to_update.warmth
         );
     }
 
@@ -188,23 +224,28 @@ fn apply_instant_effects_for_helper(item_def: &ItemDefinition, player: &mut Play
     if let Some(health_gain) = item_def.consumable_health_gain {
         if item_def.consumable_duration_secs.map_or(true, |d| d <= 0.0) {
             let old_val = player.health;
-            player.health = (player.health + health_gain).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+            player.health = (player.health + health_gain).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
             if player.health != old_val { *stat_changed = true; }
         }
     }
     if let Some(hunger_satiated) = item_def.consumable_hunger_satiated {
         let old_val = player.hunger;
-        player.hunger = (player.hunger + hunger_satiated).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+        player.hunger = (player.hunger + hunger_satiated).clamp(MIN_STAT_VALUE, MAX_HUNGER_VALUE);
         if player.hunger != old_val { *stat_changed = true; }
     }
     if let Some(thirst_quenched) = item_def.consumable_thirst_quenched {
         let old_val = player.thirst;
-        player.thirst = (player.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+        player.thirst = (player.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
         if player.thirst != old_val { *stat_changed = true; }
     }
     if let Some(stamina_gain) = item_def.consumable_stamina_gain {
-        player.stamina = (player.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAT_VALUE);
+        player.stamina = (player.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
         *stat_changed = true;
+    }
+    if let Some(warmth_gain) = item_def.warmth_bonus {
+        let old_val = player.warmth;
+        player.warmth = (player.warmth + warmth_gain).clamp(MIN_STAT_VALUE, MAX_WARMTH_VALUE);
+        if player.warmth != old_val { *stat_changed = true; }
     }
 }
 

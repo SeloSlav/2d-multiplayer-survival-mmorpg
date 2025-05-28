@@ -152,6 +152,8 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
 
     equipment.is_ready_to_fire = false;
     equipment.loaded_ammo_def_id = None;
+    // Update swing_start_time_ms for weapon cooldown tracking (same as melee weapons)
+    equipment.swing_start_time_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64; // Convert to milliseconds and cast to u64
     ctx.db.active_equipment().player_identity().update(equipment);
  
     let weapon_stats = ctx.db.ranged_weapon_stats().item_name().find(&item_def.name)
@@ -187,92 +189,100 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
     if distance_sq < 1.0 { // distance < 1.0
         return Err("Target too close".to_string());
     }
-    // Optional: Keep existing weapon_range check as a preliminary filter
-    // let distance = distance_sq.sqrt();
-    // if distance > weapon_stats.weapon_range {
-    //     return Err(format!("Target distance {:.1} is out of weapon's effective range {:.1}", distance, weapon_stats.weapon_range));
-    // }
 
     let final_vx: f32;
     let final_vy: f32;
 
-    if delta_x.abs() < 1e-6 { // Target is (almost) vertically aligned
-        final_vx = 0.0;
-        if delta_y == 0.0 { // Target is at player's exact location (already handled by distance_sq < 1.0)
-             return Err("Target is at player position".to_string());
-        }
-        // Time to fall/rise delta_y: delta_y = v0y*T + 0.5*g*T^2
-        // If shooting straight up/down, v0x = 0, so |v0y| = v0
-        let discriminant_vertical = v0.powi(2) + 2.0 * g * delta_y; // For T = (v0y +/- sqrt(v0y^2 + 2g*delta_y))/g , if v0y is +/- v0
-                                                                 // Simplified: check if target is reachable vertically
-        if delta_y > 0.0 { // Target below
-            final_vy = v0; // Shoot straight down
-            // Check if it can even reach if v0 is too small against gravity for upward component
-            // For purely downward, it will always reach if T > 0.
-            // T = (-v0 + sqrt(v0^2 + 2g*delta_y))/g
-            if v0.powi(2) + 2.0 * g * delta_y < 0.0 { // Should not happen for delta_y > 0
-                 return Err("Error in vertical aiming (down)".to_string());
-            }
-
-        } else { // Target above (delta_y < 0)
-            if discriminant_vertical < 0.0 {
-                return Err("Target vertically unreachable (too high or gravity too strong)".to_string());
-            }
-            final_vy = -v0; // Shoot straight up
-        }
+    // Crossbows fire in a straight line with minimal gravity effect
+    if item_def.name == "Crossbow" {
+        let distance = distance_sq.sqrt();
+        let time_to_target = distance / v0;
+        
+        // Direct line calculation with minimal gravity compensation
+        final_vx = delta_x / time_to_target;
+        final_vy = delta_y / time_to_target + 0.5 * g * time_to_target * 0.1; // Reduced gravity effect (10% of normal)
+        
+        log::info!("Crossbow fired: straight-line trajectory with minimal gravity. Distance: {:.1}, Time: {:.3}s", distance, time_to_target);
     } else {
-        // Quadratic equation for T^2: A_z * (T^2)^2 + B_z * T^2 + C_z = 0
-        // A_z = 0.25 * g^2
-        // B_z = -(v0^2 + g * delta_y)
-        // C_z = delta_x^2 + delta_y^2
-        let a_z = 0.25 * g * g;
-        let b_z = -(v0.powi(2) + g * delta_y);
-        let c_z = distance_sq;
+        // Existing bow physics with full gravity arc
+        if delta_x.abs() < 1e-6 { // Target is (almost) vertically aligned
+            final_vx = 0.0;
+            if delta_y == 0.0 { // Target is at player's exact location (already handled by distance_sq < 1.0)
+                 return Err("Target is at player position".to_string());
+            }
+            // Time to fall/rise delta_y: delta_y = v0y*T + 0.5*g*T^2
+            // If shooting straight up/down, v0x = 0, so |v0y| = v0
+            let discriminant_vertical = v0.powi(2) + 2.0 * g * delta_y; // For T = (v0y +/- sqrt(v0y^2 + 2g*delta_y))/g , if v0y is +/- v0
+                                                                     // Simplified: check if target is reachable vertically
+            if delta_y > 0.0 { // Target below
+                final_vy = v0; // Shoot straight down
+                // Check if it can even reach if v0 is too small against gravity for upward component
+                // For purely downward, it will always reach if T > 0.
+                // T = (-v0 + sqrt(v0^2 + 2g*delta_y))/g
+                if v0.powi(2) + 2.0 * g * delta_y < 0.0 { // Should not happen for delta_y > 0
+                     return Err("Error in vertical aiming (down)".to_string());
+                }
 
-        let discriminant_t_sq = b_z.powi(2) - 4.0 * a_z * c_z;
+            } else { // Target above (delta_y < 0)
+                if discriminant_vertical < 0.0 {
+                    return Err("Target vertically unreachable (too high or gravity too strong)".to_string());
+                }
+                final_vy = -v0; // Shoot straight up
+            }
+        } else {
+            // Quadratic equation for T^2: A_z * (T^2)^2 + B_z * T^2 + C_z = 0
+            // A_z = 0.25 * g^2
+            // B_z = -(v0^2 + g * delta_y)
+            // C_z = delta_x^2 + delta_y^2
+            let a_z = 0.25 * g * g;
+            let b_z = -(v0.powi(2) + g * delta_y);
+            let c_z = distance_sq;
 
-        if discriminant_t_sq < 0.0 {
-            return Err(format!("Target is unreachable with current weapon arc (discriminant: {:.2})", discriminant_t_sq));
-        }
+            let discriminant_t_sq = b_z.powi(2) - 4.0 * a_z * c_z;
 
-        let sqrt_discriminant_t_sq = discriminant_t_sq.sqrt();
-        
-        // Two potential solutions for T^2
-        let t_sq1 = (-b_z + sqrt_discriminant_t_sq) / (2.0 * a_z);
-        let t_sq2 = (-b_z - sqrt_discriminant_t_sq) / (2.0 * a_z);
+            if discriminant_t_sq < 0.0 {
+                return Err(format!("Target is unreachable with current weapon arc (discriminant: {:.2})", discriminant_t_sq));
+            }
 
-        let mut chosen_t_sq = -1.0;
+            let sqrt_discriminant_t_sq = discriminant_t_sq.sqrt();
+            
+            // Two potential solutions for T^2
+            let t_sq1 = (-b_z + sqrt_discriminant_t_sq) / (2.0 * a_z);
+            let t_sq2 = (-b_z - sqrt_discriminant_t_sq) / (2.0 * a_z);
 
-        // Prefer the smaller positive T^2 (shorter time of flight, usually lower arc)
-        if t_sq2 > 1e-6 {
-            chosen_t_sq = t_sq2;
-        } else if t_sq1 > 1e-6 {
-            chosen_t_sq = t_sq1;
-        }
+            let mut chosen_t_sq = -1.0;
 
-        if chosen_t_sq < 1e-6 { // Ensure chosen_t_sq is positive and not extremely small
-            return Err(format!("Target is unreachable (no positive time of flight, T^2: {:.2})", chosen_t_sq));
-        }
-        
-        let t = chosen_t_sq.sqrt();
-        if t < 1e-3 { // Avoid division by very small T
-             return Err("Target too close for stable arc calculation".to_string());
-        }
+            // Prefer the smaller positive T^2 (shorter time of flight, usually lower arc)
+            if t_sq2 > 1e-6 {
+                chosen_t_sq = t_sq2;
+            } else if t_sq1 > 1e-6 {
+                chosen_t_sq = t_sq1;
+            }
 
-        final_vx = delta_x / t;
-        final_vy = (delta_y / t) - 0.5 * g * t;
-        
-        // Sanity check: ensure calculated speed is close to v0
-        let calculated_speed_sq = final_vx.powi(2) + final_vy.powi(2);
-        if (calculated_speed_sq - v0.powi(2)).abs() > 1.0 { // Allow some tolerance
-            // This might indicate an issue if chosen_t_sq was at limits or g=0 etc.
-            // but with g being non-zero and checks on T, this should hold.
-            log::warn!(
-                "Calculated speed ({:.2}) differs from v0 ({:.2}). dx:{:.1},dy:{:.1},T:{:.2},vX:{:.1},vY:{:.1}",
-                calculated_speed_sq.sqrt(), v0, delta_x, delta_y, t, final_vx, final_vy
-            );
-            // Optionally, could return an error here if strict speed adherence is critical
-            // return Err("Physics calculation resulted in inconsistent speed.".to_string());
+            if chosen_t_sq < 1e-6 { // Ensure chosen_t_sq is positive and not extremely small
+                return Err(format!("Target is unreachable (no positive time of flight, T^2: {:.2})", chosen_t_sq));
+            }
+            
+            let t = chosen_t_sq.sqrt();
+            if t < 1e-3 { // Avoid division by very small T
+                 return Err("Target too close for stable arc calculation".to_string());
+            }
+
+            final_vx = delta_x / t;
+            final_vy = (delta_y / t) - 0.5 * g * t;
+            
+            // Sanity check: ensure calculated speed is close to v0
+            let calculated_speed_sq = final_vx.powi(2) + final_vy.powi(2);
+            if (calculated_speed_sq - v0.powi(2)).abs() > 1.0 { // Allow some tolerance
+                // This might indicate an issue if chosen_t_sq was at limits or g=0 etc.
+                // but with g being non-zero and checks on T, this should hold.
+                log::warn!(
+                    "Calculated speed ({:.2}) differs from v0 ({:.2}). dx:{:.1},dy:{:.1},T:{:.2},vX:{:.1},vY:{:.1}",
+                    calculated_speed_sq.sqrt(), v0, delta_x, delta_y, t, final_vx, final_vy
+                );
+                // Optionally, could return an error here if strict speed adherence is critical
+                // return Err("Physics calculation resulted in inconsistent speed.".to_string());
+            }
         }
     }
     // --- End Physics Calculation ---
@@ -385,8 +395,20 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let current_time_secs = current_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0; // Moved here for correct scope
         let elapsed_time = current_time_secs - start_time_secs;
         
+        // Get weapon definition to determine gravity effect
+        let weapon_item_def = item_defs_table.id().find(projectile.item_def_id);
+        let gravity_multiplier = if let Some(weapon_def) = weapon_item_def {
+            if weapon_def.name == "Crossbow" {
+                0.1 // Crossbow projectiles have 10% gravity effect
+            } else {
+                1.0 // Bow projectiles have full gravity effect
+            }
+        } else {
+            1.0 // Default to full gravity if weapon not found
+        };
+        
         let current_x = projectile.start_pos_x + projectile.velocity_x * elapsed_time as f32;
-        let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * (elapsed_time as f32).powi(2);
+        let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * gravity_multiplier * (elapsed_time as f32).powi(2);
         
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         
@@ -405,36 +427,71 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             
             // Apply damage to the shelter before handling the projectile
             if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
-                // Use the weapon's PvP damage for shelter damage (arrows should do meaningful damage)
-                let damage = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                if damage > 0.0 {
-                    match crate::shelter::damage_shelter(
-                        ctx, 
-                        projectile.owner_id, 
-                        shelter_id, 
-                        damage, 
-                        current_time, 
-                        &mut rng
-                    ) {
-                        Ok(attack_result) => {
-                            if attack_result.hit {
-                                log::info!(
-                                    "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Shelter {}",
-                                    projectile.id, damage, shelter_id
+                if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                    // Calculate base weapon damage
+                    let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                    let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                    let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                        weapon_damage_min
+                    } else {
+                        rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                    };
+
+                    // Calculate ammunition damage
+                    let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                    let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                    let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                        ammo_damage_min
+                    } else {
+                        rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                    };
+
+                    // Combine weapon and ammunition damage (special handling for fire arrows)
+                    let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                        // Fire arrows use their own damage instead of adding to weapon damage
+                        ammo_damage
+                    } else {
+                        // Other arrows add to weapon damage
+                        weapon_damage + ammo_damage
+                    };
+
+                    log::info!("Projectile damage calculation: Weapon '{}' ({:.1}) + Ammo '{}' ({:.1}) = {:.1} total damage", 
+                             weapon_item_def.name, weapon_damage, ammo_item_def.name, ammo_damage, final_damage);
+
+                    if final_damage > 0.0 {
+                        match crate::shelter::damage_shelter(
+                            ctx, 
+                            projectile.owner_id, 
+                            shelter_id, 
+                            final_damage, 
+                            current_time, 
+                            &mut rng
+                        ) {
+                            Ok(attack_result) => {
+                                if attack_result.hit {
+                                    log::info!(
+                                        "[ProjectileUpdate] Projectile {} (weapon: {} + ammo: {}) dealt {:.1} damage to Shelter {}",
+                                        projectile.id, weapon_item_def.name, ammo_item_def.name, final_damage, shelter_id
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[ProjectileUpdate] Error applying projectile damage to Shelter {}: {}",
+                                    shelter_id, e
                                 );
                             }
                         }
-                        Err(e) => {
-                            log::error!(
-                                "[ProjectileUpdate] Error applying projectile damage to Shelter {}: {}",
-                                shelter_id, e
-                            );
-                        }
+                    } else {
+                        log::debug!(
+                            "[ProjectileUpdate] Combined damage from weapon '{}' and ammunition '{}' is 0, no damage applied to Shelter {}",
+                            weapon_item_def.name, ammo_item_def.name, shelter_id
+                        );
                     }
                 } else {
-                    log::debug!(
-                        "[ProjectileUpdate] Weapon '{}' has no PvP damage defined, no damage applied to Shelter {}",
-                        weapon_item_def.name, shelter_id
+                    log::error!(
+                        "[ProjectileUpdate] ItemDefinition not found for projectile's ammunition (ID: {}). Cannot apply shelter damage.",
+                        projectile.ammo_def_id
                     );
                 }
             } else {
@@ -474,7 +531,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 log::info!("Projectile {} from owner {:?} hit player {:?} at ({:.1}, {:.1}) with hit radius check against PLAYER_RADIUS ({:.1})", 
                          projectile.id, projectile.owner_id, player_to_check.identity, current_x, current_y, crate::PLAYER_RADIUS);
                 
-                // Fetch the ItemDefinition for the weapon that fired the projectile (e.g., the bow)
+                // --- IMPROVED: Use combined weapon + ammunition damage ---
+                // Get weapon definition for base damage
                 let weapon_item_def = match item_defs_table.id().find(projectile.item_def_id) {
                     Some(def) => def,
                     None => {
@@ -485,27 +543,62 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     }
                 };
 
-                // --- IMPROVED: Use ammunition-based damage and effects ---
-                // First apply weapon-based damage via combat::damage_player
-                match combat::damage_player(ctx, projectile.owner_id, player_to_check.identity, weapon_item_def.pvp_damage_min.unwrap_or(0) as f32, &weapon_item_def, current_time) {
+                // Get ammunition definition for damage calculation
+                let ammo_item_def = match item_defs_table.id().find(projectile.ammo_def_id) {
+                    Some(def) => def,
+                    None => {
+                        log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's ammunition (ID: {}). Cannot apply damage.", projectile.ammo_def_id);
+                        projectiles_to_delete.push(projectile.id); // Delete projectile if ammo def is missing
+                        hit_player_this_tick = true; // Mark as handled to prevent further processing for this projectile
+                        break; // Stop checking other players for this projectile
+                    }
+                };
+
+                // Calculate base weapon damage
+                let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+                let weapon_damage = if weapon_damage_min == weapon_damage_max {
+                    weapon_damage_min
+                } else {
+                    rng.gen_range(weapon_damage_min..=weapon_damage_max)
+                };
+
+                // Calculate ammunition damage
+                let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+                let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+                let ammo_damage = if ammo_damage_min == ammo_damage_max {
+                    ammo_damage_min
+                } else {
+                    rng.gen_range(ammo_damage_min..=ammo_damage_max)
+                };
+
+                // Combine weapon and ammunition damage (special handling for fire arrows)
+                let final_damage = if ammo_item_def.name == "Fire Arrow" {
+                    // Fire arrows use their own damage instead of adding to weapon damage
+                    ammo_damage
+                } else {
+                    // Other arrows add to weapon damage
+                    weapon_damage + ammo_damage
+                };
+
+                log::info!("Projectile damage calculation: Weapon '{}' ({:.1}) + Ammo '{}' ({:.1}) = {:.1} total damage", 
+                         weapon_item_def.name, weapon_damage, ammo_item_def.name, ammo_damage, final_damage);
+
+                // Apply combined damage via combat::damage_player
+                match combat::damage_player(ctx, projectile.owner_id, player_to_check.identity, final_damage, &ammo_item_def, current_time) {
                     Ok(attack_result) => {
                         if attack_result.hit {
-                            log::info!("Projectile from {:?} (weapon: {}) successfully processed damage on player {:?}.", 
-                                     projectile.owner_id, weapon_item_def.name, player_to_check.identity);
+                            log::info!("Projectile from {:?} (weapon: {} + ammo: {}) dealt {:.1} damage to player {:?}.", 
+                                     projectile.owner_id, weapon_item_def.name, ammo_item_def.name, final_damage, player_to_check.identity);
                             
-                            // Now apply ammunition-based bleed effects
-                            if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                                // Call the new helper to apply bleed
-                                if let Err(e) = apply_projectile_bleed_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {
-                                    log::error!("Error applying projectile bleed effect for ammo '{}' on player {:?}: {}", 
-                                        ammo_item_def.name, player_to_check.identity, e);
-                                }
-                            } else {
-                                log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's ammunition (ID: {}). Cannot apply ammo effects.", projectile.ammo_def_id);
+                            // Apply ammunition-based bleed/burn effects
+                            if let Err(e) = apply_projectile_bleed_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {
+                                log::error!("Error applying projectile bleed effect for ammo '{}' on player {:?}: {}", 
+                                    ammo_item_def.name, player_to_check.identity, e);
                             }
                         } else {
-                            log::info!("Projectile from {:?} (weapon: {}) hit player {:?}, but combat::damage_player reported no effective damage (e.g., target already dead).", 
-                                     projectile.owner_id, weapon_item_def.name, player_to_check.identity);
+                            log::info!("Projectile from {:?} (weapon: {} + ammo: {}) hit player {:?}, but combat::damage_player reported no effective damage (e.g., target already dead).", 
+                                     projectile.owner_id, weapon_item_def.name, ammo_item_def.name, player_to_check.identity);
                         }
                     }
                     Err(e) => {
@@ -514,7 +607,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                         // Even if damage_player fails, we should consume the projectile.
                     }
                 }
-                // --- End Improved Ammunition-Based Effects ---
+                // --- End Improved Combined Damage System ---
 
                 projectiles_to_delete.push(projectile.id);
                 hit_player_this_tick = true;

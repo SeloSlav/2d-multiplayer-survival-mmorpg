@@ -89,8 +89,8 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
 
     // --- Reset Stats and State ---
     player.health = 100.0;
-    player.hunger = 100.0;
-    player.thirst = 100.0;
+    player.hunger = 250.0;
+    player.thirst = 250.0;
     player.warmth = 100.0;
     player.stamina = 100.0;
     player.jump_start_time_ms = 0;
