@@ -141,6 +141,11 @@ pub fn apply_item_effects_and_consume(
                     }
                 }
             } else if item_def.name == "Selo Olive Oil" {
+                // SECURITY CHECK: Selo Olive Oil can only heal the consuming player (yourself)
+                if player_id != ctx.sender {
+                    return Err("Selo Olive Oil can only be used on yourself.".to_string());
+                }
+                
                 // Handle Selo Olive Oil with instant effects for all stats
                 if let Some(health_gain) = item_def.consumable_health_gain {
                     if health_gain != 0.0 {

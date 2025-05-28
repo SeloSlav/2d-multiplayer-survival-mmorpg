@@ -777,6 +777,11 @@ export const useInputHandler = ({
                             // console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
                             return; 
                         }
+                        // 4. Selo Olive Oil: Prevent left-click swing (only right-click allowed)
+                        else if (equippedItemDef.name === "Selo Olive Oil") {
+                            // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
+                            return; 
+                        }
                         // If none of the above special cases, fall through to default item use (melee/tool)
                     } else {
                         // console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
@@ -853,7 +858,7 @@ export const useInputHandler = ({
                 // Armed (melee/tool)
                 if (!itemDef) return;
                 if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
-                    // Ranged/Bandage already handled or should not be triggered by this melee path
+                    // Ranged/Bandage/Selo Olive Oil already handled or should not be triggered by this melee path
                     return; 
                 }
                 const now = Date.now();

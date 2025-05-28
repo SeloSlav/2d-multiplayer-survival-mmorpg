@@ -122,7 +122,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                         }
                     }
                 }
-            } else if (effectTypeTag === 'HealthRegen' || 
+            } else if ((effectTypeTag === 'HealthRegen' && effectPlayerIdHex === localPlayerIdHex) || 
                       (effectTypeTag === 'BandageBurst' && effectPlayerIdHex === localPlayerIdHex)) {
                 foundMatch = true;
             }
