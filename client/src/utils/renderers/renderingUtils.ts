@@ -326,21 +326,30 @@ export const renderYSortedEntities = ({
         } else if (type === 'projectile') {
             const projectile = entity as SpacetimeDBProjectile;
             
-            // Get the ammunition definition to determine the correct arrow image
-            const ammoDef = itemDefinitions.get(projectile.ammoDefId.toString());
-            let arrowImageName = 'wooden_arrow.png'; // Default fallback
+            // Check if this is a thrown weapon (ammo_def_id == item_def_id)
+            const isThrown = projectile.ammoDefId === projectile.itemDefId;
             
-            if (ammoDef) {
-                // Use the icon asset name from the ammunition definition
-                arrowImageName = ammoDef.iconAssetName;
+            // Get the appropriate definition and image
+            const ammoDef = itemDefinitions.get(projectile.ammoDefId.toString());
+            let projectileImageName: string;
+            
+            if (isThrown && ammoDef) {
+                // For thrown weapons, use the weapon's icon
+                projectileImageName = ammoDef.iconAssetName;
+            } else if (ammoDef) {
+                // For regular projectiles (arrows), use the ammunition's icon
+                projectileImageName = ammoDef.iconAssetName;
+            } else {
+                // Fallback for missing definitions
+                projectileImageName = 'wooden_arrow.png';
             }
             
-            const arrowImage = itemImagesRef.current?.get(arrowImageName);
-            if (arrowImage) {
+            const projectileImage = itemImagesRef.current?.get(projectileImageName);
+            if (projectileImage) {
                 renderProjectile({
                     ctx,
                     projectile,
-                    arrowImage,
+                    arrowImage: projectileImage, // Note: parameter name is still 'arrowImage' but now handles both
                     currentTimeMs: nowMs,
                 });
             }

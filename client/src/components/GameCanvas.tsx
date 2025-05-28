@@ -425,8 +425,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
   }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
 
-
-
   // Use arrow break effects hook
   useArrowBreakEffects({ connection });
   

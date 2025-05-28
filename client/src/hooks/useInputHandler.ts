@@ -153,6 +153,9 @@ export const useInputHandler = ({
     const playersRef = useRef(players); // Added playersRef for knocked out revive
     const itemDefinitionsRef = useRef(itemDefinitions); // <<< ADDED Ref
 
+    // Add after existing refs in the hook
+    const isRightMouseDownRef = useRef<boolean>(false);
+
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
 
@@ -303,6 +306,8 @@ export const useInputHandler = ({
     // --- Input Handling useEffect (Listeners only) ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            const key = event.key.toLowerCase();
+
             // MODIFIED: Block if player is dead, chatting, or searching recipes
             // REMOVED isInventoryOpen from this top-level guard for general keydown events
             if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
@@ -314,7 +319,6 @@ export const useInputHandler = ({
                 // No, PlayerUI handles tab. Escape here if inventory is open should only be for placement.
                 return;
             }
-            const key = event.key.toLowerCase();
 
             // Placement cancellation (checked before general input disabled)
             // This check is fine as is, if placement is active, escape should cancel it.
@@ -740,8 +744,8 @@ export const useInputHandler = ({
             if (isActivelyHolding) return; 
 
             if (event.button === 0) { // Left Click
-                isMouseDownRef.current = true; 
-                // console.log("[InputHandler MOUSEDOWN] Left-click detected.");
+                // Normal left click logic for attacks, interactions, etc.
+                isMouseDownRef.current = true;
 
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
                 // console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
@@ -796,20 +800,30 @@ export const useInputHandler = ({
                 } else {
                      console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
                 }
+            } else if (event.button === 2) { // Right Click
+                if (isPlayerDead) return;
+                if (isInventoryOpen) return;
+                
+                console.log("[InputHandler] Right mouse button pressed");
+                isRightMouseDownRef.current = true;
+                
+                // Normal right-click logic for context menu, etc.
             }
         };
 
         const handleMouseUp = (event: MouseEvent) => {
-            // MODIFIED: Only care about left mouse button for releasing isMouseDownRef.
-            // No special blocking needed for mouseUp if inventory is open, as mouseDown is already blocked.
-            if (event.button === 0) {
+            // Handle both left and right mouse button releases
+            if (event.button === 0) { // Left mouse
                 isMouseDownRef.current = false;
+            } else if (event.button === 2) { // Right mouse
+                isRightMouseDownRef.current = false;
             }
         };
 
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
             if (isPlayerDead) return;
+            
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                 return; 
@@ -878,8 +892,7 @@ export const useInputHandler = ({
         const handleContextMenu = (event: MouseEvent) => {
             if (isPlayerDead) return;
             if (isInventoryOpen) return; 
-            // console.log("[InputHandler] handleContextMenu triggered."); 
-
+            
             const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
             // console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
@@ -941,6 +954,85 @@ export const useInputHandler = ({
                  // console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
             }
 
+            // Check if the equipped item is throwable and handle throwing
+            if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
+                const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
+                
+                if (equippedItemDef && isItemThrowable(equippedItemDef)) {
+                    console.log("[InputHandler] Right-click - attempting to throw item:", equippedItemDef.name);
+                    event.preventDefault();
+                    
+                    // Quick checks
+                    if (!connectionRef.current?.reducers || !localPlayerId || isPlayerDead) {
+                        console.log("[InputHandler] Right-click throw - basic requirements not met");
+                        return;
+                    }
+                    
+                    const player = localPlayerRef.current;
+                    if (!player) {
+                        console.log("[InputHandler] Right-click throw - no local player found");
+                        return;
+                    }
+                    
+                    // Determine throwing direction based on movement or facing direction
+                    let throwingDirection = { dx: 0, dy: 1 }; // Default: facing down
+                    
+                    // Check if player is currently moving
+                    const isCurrentlyMoving = (
+                        keysPressed.current.has('w') || keysPressed.current.has('arrowup') ||
+                        keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ||
+                        keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ||
+                        keysPressed.current.has('d') || keysPressed.current.has('arrowright') ||
+                        isAutoWalkingRef.current
+                    );
+                    
+                    if (isCurrentlyMoving) {
+                        // Use current movement direction
+                        if (isAutoWalkingRef.current) {
+                            throwingDirection = autoWalkDirectionRef.current;
+                        } else {
+                            const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                                       (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+                            const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                                       (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+                            
+                            if (dx !== 0 || dy !== 0) {
+                                throwingDirection = { dx, dy };
+                            }
+                        }
+                        console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
+                    } else {
+                        // Use last movement direction if available
+                        if (lastMovementDirectionRef.current.dx !== 0 || lastMovementDirectionRef.current.dy !== 0) {
+                            throwingDirection = lastMovementDirectionRef.current;
+                            console.log("[InputHandler] Right-click throw - using last movement direction:", throwingDirection);
+                        } else {
+                            console.log("[InputHandler] Right-click throw - using default direction (down):", throwingDirection);
+                        }
+                    }
+                    
+                    // Calculate target position based on direction and throwing distance
+                    const THROWING_DISTANCE = 400.0;
+                    const magnitude = Math.sqrt(throwingDirection.dx * throwingDirection.dx + throwingDirection.dy * throwingDirection.dy);
+                    const normalizedDx = magnitude > 0 ? throwingDirection.dx / magnitude : 0;
+                    const normalizedDy = magnitude > 0 ? throwingDirection.dy / magnitude : 1;
+                    
+                    const targetX = player.positionX + (normalizedDx * THROWING_DISTANCE);
+                    const targetY = player.positionY + (normalizedDy * THROWING_DISTANCE);
+                    
+                    console.log("[InputHandler] Right-click - THROWING:", equippedItemDef.name, "from", player.positionX, player.positionY, "to", targetX, targetY, "direction:", throwingDirection);
+                    
+                    try {
+                        connectionRef.current.reducers.throwItem(targetX, targetY);
+                        console.log("[InputHandler] Right-click throw - throwItem called successfully!");
+                    } catch (err) {
+                        console.error("[InputHandler] Right-click throw - Error throwing item:", err);
+                    }
+                    
+                    return; // Always return after handling throw
+                }
+            }
+
             if (placementInfo) {
                 console.log("[InputHandler CTXMENU] Right-click during placement - cancelling placement.");
                 event.preventDefault();
@@ -964,6 +1056,7 @@ export const useInputHandler = ({
             }
             // keysPressed.current.clear(); // Keep this commented out
             isMouseDownRef.current = false;
+            isRightMouseDownRef.current = false; // Reset right mouse state
             isEHeldDownRef.current = false;
             if(eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
             eKeyHoldTimerRef.current = null;
@@ -1086,6 +1179,48 @@ export const useInputHandler = ({
         isClosestInteractableBoxEmpty, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setSprinting, isInventoryOpen 
     ]);
+
+    // Helper function to check if an item is throwable
+    const isItemThrowable = useCallback((itemDef: SpacetimeDB.ItemDefinition | undefined): boolean => {
+        if (!itemDef) {
+            console.log("[isItemThrowable] No item definition provided");
+            return false;
+        }
+        
+        console.log("[isItemThrowable] Checking item:", itemDef.name, "category:", itemDef.category);
+        
+        // Don't allow throwing ranged weapons, bandages, or consumables
+        if (itemDef.category?.tag === "RangedWeapon") {
+            console.log("[isItemThrowable] Rejected: RangedWeapon");
+            return false;
+        }
+        if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil") {
+            console.log("[isItemThrowable] Rejected: Bandage/Selo Olive Oil");
+            return false;
+        }
+        if (itemDef.name === "Torch") {
+            console.log("[isItemThrowable] Rejected: Torch");
+            return false;
+        }
+        
+        // Allow throwing tools and melee weapons
+        const throwableNames = [
+            "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle", 
+            "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
+            "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife"
+        ];
+        
+        const nameMatch = throwableNames.includes(itemDef.name);
+        const categoryMatch = itemDef.category?.tag === "Weapon" || itemDef.category?.tag === "Tool";
+        
+        console.log("[isItemThrowable] Name match:", nameMatch, "Category match:", categoryMatch);
+        console.log("[isItemThrowable] Category tag:", itemDef.category?.tag);
+        
+        const result = nameMatch || categoryMatch;
+        console.log("[isItemThrowable] Final result:", result);
+        
+        return result;
+    }, []);
 
     // --- Return State & Actions ---
     return {

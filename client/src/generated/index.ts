@@ -236,6 +236,8 @@ import { StartCrafting } from "./start_crafting_reducer.ts";
 export { StartCrafting };
 import { StartCraftingMultiple } from "./start_crafting_multiple_reducer.ts";
 export { StartCraftingMultiple };
+import { ThrowItem } from "./throw_item_reducer.ts";
+export { ThrowItem };
 import { TickWorldState } from "./tick_world_state_reducer.ts";
 export { TickWorldState };
 import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
@@ -1154,6 +1156,10 @@ const REMOTE_MODULE = {
       reducerName: "start_crafting_multiple",
       argsType: StartCraftingMultiple.getTypeScriptAlgebraicType(),
     },
+    throw_item: {
+      reducerName: "throw_item",
+      argsType: ThrowItem.getTypeScriptAlgebraicType(),
+    },
     tick_world_state: {
       reducerName: "tick_world_state",
       argsType: TickWorldState.getTypeScriptAlgebraicType(),
@@ -1323,6 +1329,7 @@ export type Reducer = never
 | { name: "SplitStackWithinStash", args: SplitStackWithinStash }
 | { name: "StartCrafting", args: StartCrafting }
 | { name: "StartCraftingMultiple", args: StartCraftingMultiple }
+| { name: "ThrowItem", args: ThrowItem }
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
 | { name: "ToggleCrouch", args: ToggleCrouch }
@@ -2906,6 +2913,22 @@ export class RemoteReducers {
     this.connection.offReducer("start_crafting_multiple", callback);
   }
 
+  throwItem(targetWorldX: number, targetWorldY: number) {
+    const __args = { targetWorldX, targetWorldY };
+    let __writer = new BinaryWriter(1024);
+    ThrowItem.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("throw_item", __argsBuffer, this.setCallReducerFlags.throwItemFlags);
+  }
+
+  onThrowItem(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
+    this.connection.onReducer("throw_item", callback);
+  }
+
+  removeOnThrowItem(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
+    this.connection.offReducer("throw_item", callback);
+  }
+
   tickWorldState(timestamp: Timestamp) {
     const __args = { timestamp };
     let __writer = new BinaryWriter(1024);
@@ -3555,6 +3578,11 @@ export class SetReducerFlags {
   startCraftingMultipleFlags: CallReducerFlags = 'FullUpdate';
   startCraftingMultiple(flags: CallReducerFlags) {
     this.startCraftingMultipleFlags = flags;
+  }
+
+  throwItemFlags: CallReducerFlags = 'FullUpdate';
+  throwItem(flags: CallReducerFlags) {
+    this.throwItemFlags = flags;
   }
 
   tickWorldStateFlags: CallReducerFlags = 'FullUpdate';

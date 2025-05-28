@@ -30,8 +30,10 @@ const TargetingReticle: React.FC<TargetingReticleProps> = ({
 
   // Check if we should show the reticle
   const shouldShowReticle = (
-    activeItemDef && (activeItemDef.category?.tag === 'RangedWeapon' || activeItemDef.name === 'Hunting Bow') &&
-    localPlayer && !localPlayer.isDead
+    localPlayer && !localPlayer.isDead && (
+      // Show for ranged weapons
+      (activeItemDef && (activeItemDef.category?.tag === 'RangedWeapon' || activeItemDef.name === 'Hunting Bow'))
+    )
   );
   
   // useEffect(() => {
@@ -51,7 +53,7 @@ const TargetingReticle: React.FC<TargetingReticleProps> = ({
   
   // Get weapon stats
   const weaponStats = activeItemDef ? rangedWeaponStats.get(activeItemDef.name || '') : null;
-  const weaponRange = weaponStats?.weaponRange || 500; // Default to 500 if not found or name is empty
+  const weaponRange = 500; // Default ranged weapon range 500
 
   // Update rotation continuously for animation
   useEffect(() => {

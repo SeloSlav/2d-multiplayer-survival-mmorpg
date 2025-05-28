@@ -65,7 +65,7 @@ import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
 // Import other necessary imports
 import { useInteractionManager } from '../hooks/useInteractionManager';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // Define props required by GameScreen and its children
 interface GameScreenProps {
@@ -139,7 +139,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // ADD THIS LOG AT THE VERY BEGINNING OF THE COMPONENT
     // console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
     const [showInventoryState, setShowInventoryState] = useState(false);
-
+    
     // Destructure props for cleaner usage
     const {
         players, trees, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
