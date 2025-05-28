@@ -28,13 +28,10 @@ import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
-// Import Corn and Hemp renderers
-import { renderCorn } from './cornRenderingUtils';
-import { renderHemp } from './hempRenderingUtils';
+// Import unified resource renderer instead of individual ones
+import { renderCorn, renderHemp, renderMushroom, renderPumpkin } from './unifiedResourceRenderer';
 import { renderCampfire } from './campfireRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
-import { renderMushroom } from './mushroomRenderingUtils';
-import { renderPumpkin } from './pumpkinRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
 import { renderProjectile } from './projectileRenderingUtils';
@@ -305,9 +302,9 @@ export const renderYSortedEntities = ({
             const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
             renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
         } else if (type === 'mushroom') {
-            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress);
+            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, false, true);
         } else if (type === 'pumpkin') {
-            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress);
+            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, false, true);
         } else if (type === 'stash') {
             renderStash(ctx, entity as SpacetimeDBStash, nowMs, cycleProgress);
         } else if (type === 'wooden_storage_box') {
@@ -373,9 +370,9 @@ export const renderYSortedEntities = ({
         } else if (type === 'dropped_item') {
             // Dropped items handle their own shadows
         } else if (type === 'mushroom') {
-            // Mushrooms handle their own shadows
+            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress, true, false);
         } else if (type === 'pumpkin') {
-            // Pumpkins handle their own shadows
+            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress, true, false);
         } else if (type === 'stash') {
             // Stashes handle their own shadows within their main render function
         } else if (type === 'wooden_storage_box') {

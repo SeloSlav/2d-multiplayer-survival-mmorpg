@@ -57,10 +57,6 @@ import { renderPlacementPreview } from '../utils/renderers/placementRenderingUti
 import { drawInteractionIndicator } from '../utils/interactionIndicator';
 import { drawMinimapOntoCanvas } from './Minimap';
 import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
-import { renderMushroom } from '../utils/renderers/mushroomRenderingUtils';
-import { renderCorn } from '../utils/renderers/cornRenderingUtils';
-import { renderPumpkin } from '../utils/renderers/pumpkinRenderingUtils';
-import { renderHemp } from '../utils/renderers/hempRenderingUtils';
 import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.ts';
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
@@ -503,14 +499,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCampfires.forEach(campfire => {
       renderCampfire(ctx, campfire, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
     });
-    // Render Pumpkin Shadows
-    visiblePumpkins.forEach(pumpkin => {
-      renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
-    });
-    // Render Mushroom Shadows - RE-ADDED
-    visibleMushrooms.forEach(mushroom => {
-      renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
-    });
+    // Note: Pumpkin and Mushroom shadows are now handled by the unified resource renderer
+    // through the Y-sorted entities system
     // --- BEGIN ADDED: Render Tree Shadows ---
     if (visibleTrees) {
       visibleTrees.forEach(tree => {
@@ -548,16 +538,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       const itemDef = itemDefinitions.get(item.itemDefId.toString());
       renderDroppedItem({ ctx, item, itemDef, nowMs: now_ms, cycleProgress: currentCycleProgress });
     });
-    // Render Mushrooms
-    /*visibleMushrooms.forEach(mushroom => {
-        renderMushroom(ctx, mushroom, now_ms, currentCycleProgress, false, true);
-    });*/
-    // Render Corn - Already removed
-    // Render Pumpkins
-    /*visiblePumpkins.forEach(pumpkin => {
-        renderPumpkin(ctx, pumpkin, now_ms, currentCycleProgress, false, true );
-    });*/
-    // Render Hemp - Already removed
+    // Note: Mushrooms, Corn, Pumpkins, and Hemp are now handled by the unified resource renderer
+    // through the Y-sorted entities system
     // Render Sleeping Bags
     visibleSleepingBags.forEach(sleepingBag => {
       renderSleepingBag(ctx, sleepingBag, now_ms, currentCycleProgress);

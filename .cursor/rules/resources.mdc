@@ -1,5 +1,5 @@
 ---
-description: Guide outlining the steps to add new consumable resources or gatherable nodes.
+description: 
 globs: 
 alwaysApply: false
 ---
@@ -14,20 +14,16 @@ This guide outlines the steps required to add new consumable resources (like Pum
 3.  **Integrate (Server):** Update server logic (seeding, respawning) to include the new resource.
 4.  **Generate Bindings (CLI):** Run `spacetime generate` **before** making client-side changes that depend on new server types or reducers.
 5.  **Add Assets (Client):** Place images for the resource doodad and its corresponding item.
-6.  **Client-Side State Management:**
+6.  **Configure Resource (Client):** Add configuration to the unified resource system.
+7.  **Client-Side State Management:**
     *   Update `useSpacetimeTables.ts` to manage the new entity's state.
     *   Update `App.tsx` to fetch and pass the new entity's data.
     *   Update `GameScreen.tsx` to receive and pass down the new entity's data.
-7.  **Client Rendering & Logic (Client):**
-    *   Create rendering utilities (e.g., `pumpkinRenderingUtils.ts`) including image preloading.
-    *   Update type guards (`typeGuards.ts`).
-    *   Update entity filtering (`useEntityFiltering.ts`).
-    *   Integrate into the main rendering loop (`GameCanvas.tsx`).
-    *   Update interaction finding (`useInteractionFinder.ts`).
-    *   Update interaction labels (`labelRenderingUtils.ts`).
-    *   Update input handling (`useInputHandler.ts`) to call server reducers.
-    *   Update item icon mapping (`itemIconUtils.ts`).
-8.  **Testing:** Test spawning, interaction/harvesting, item yield, respawning, and UI rendering thoroughly.
+8.  **Client Integration (Client):**
+    *   Update type guards and entity filtering.
+    *   Update interaction finding and input handling.
+    *   Update item icon mapping.
+9.  **Testing:** Test spawning, interaction/harvesting, item yield, respawning, and UI rendering thoroughly.
 
 ---
 
@@ -180,227 +176,137 @@ This resource type is picked up directly by the player, disappears, and respawns
 1.  **Add Assets:**
     *   Place the resource doodad image (e.g., `pumpkin_doodad.png`) in `client/src/assets/doodads/`.
     *   Place the item icon image (e.g., `pumpkin_item.png`) in `client/src/assets/items/`. *(Note: the `icon_asset_name` in `items_database.rs` should match this filename, e.g., "pumpkin.png")*.
-2.  **Create Rendering Utils (`client/src/utils/renderers/pumpkinRenderingUtils.ts`):**
-    *   This file will handle pumpkin-specific rendering and image preloading.
+
+2.  **Configure Resource in Unified System (`client/src/utils/renderers/resourceConfigurations.ts`):**
+    *   Import the doodad image:
         ```typescript
-        import { Pumpkin } from '../../generated'; // Import generated Pumpkin type
-        import pumpkinImageSource from '../../assets/doodads/pumpkin_doodad.png'; // Import doodad image
-        import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Or your specific rendering approach
-        import { imageManager } from './imageManager'; // Use the global imageManager
-
-        // Define constants (optional, if using generic renderer with config)
-        const TARGET_PUMPKIN_WIDTH_PX = 64; // Adjust as needed
-
-        // Configuration for the generic renderer (if used)
-        const pumpkinConfig: GroundEntityConfig<Pumpkin> = {
-            getImageSource: (_entity) => pumpkinImageSource,
-            getTargetWidth: (_entity) => TARGET_PUMPKIN_WIDTH_PX,
-            getShadowOpacity: (_entity) => 0.3,
-            getShadowOffsetRatio: (_entity) => ({ x: 0.05, y: 0.1 }),
-            // Add other properties as required by your generic renderer
-        };
-
-        // Preload the pumpkin doodad image using the global imageManager
-        imageManager.preloadImage('pumpkin_doodad', pumpkinImageSource);
-
-        // Rendering function
-        export function renderPumpkin(
-            ctx: CanvasRenderingContext2D,
-            pumpkin: Pumpkin,
-            nowMs: number, // If needed for animations
-            worldToScreen: (worldX: number, worldY: number) => { screenX: number; screenY: number }, // Pass conversion
-            tileSize: number // Pass tileSize
-        ) {
-            // Example using the generic renderer:
-            renderConfiguredGroundEntity(ctx, pumpkin, pumpkinConfig, worldToScreen, tileSize, nowMs);
-
-            // OR, implement custom rendering logic:
-            // const { screenX, screenY } = worldToScreen(pumpkin.posX, pumpkin.posY);
-            // const image = imageManager.getImage('pumpkin_doodad');
-            // if (image && image.complete) {
-            //     const aspectRatio = image.naturalWidth / image.naturalHeight;
-            //     const height = TARGET_PUMPKIN_WIDTH_PX / aspectRatio;
-            //     ctx.drawImage(image, screenX - TARGET_PUMPKIN_WIDTH_PX / 2, screenY - height, TARGET_PUMPKIN_WIDTH_PX, height);
-            //     // drawShadow(ctx, image, screenX - TARGET_PUMPKIN_WIDTH_PX / 2, screenY - height, TARGET_PUMPKIN_WIDTH_PX, height, 0.3, 0.05, 0.1);
-            // }
+        import pumpkinImageSource from '../../assets/doodads/pumpkin_doodad.png';
+        ```
+    *   Add the resource type to the `ResourceType` union in `client/src/types/resourceTypes.ts`:
+        ```typescript
+        export type ResourceType = 'corn' | 'hemp' | 'mushroom' | 'pumpkin' | 'your_new_resource';
+        ```
+    *   Add configuration to `RESOURCE_CONFIGS`:
+        ```typescript
+        your_new_resource: {
+          imageSource: pumpkinImageSource,
+          targetWidth: 64,
+          shadowConfig: {
+            maxStretchFactor: 1.6,
+            shadowBlur: 12,
+            pivotYOffset: 0.18,
+            opacity: 0.45
+          },
+          interactionLabel: "Press E to Harvest Pumpkin",
+          harvestAmount: { min: 1, max: 1 },
+          fallbackColor: '#FF8C00'
+          // No animation config - resources are static by default
         }
         ```
-3.  **Update Type Guards (`client/src/utils/typeGuards.ts`):**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../generated`.
-    *   Add the type guard function:
+
+3.  **Update Type System (`client/src/types/resourceTypes.ts`):**
+    *   Add type guard function:
         ```typescript
         export function isPumpkin(entity: any): entity is SpacetimeDBPumpkin {
-            // Check for entity type marker first if you add it later (see useEntityFiltering step)
-            if (entity && entity.__entityType === 'pumpkin') {
-                return true;
-            }
-            // Fallback to property checking if no __entityType marker is present
-            // (or if you only use property checking)
-            return entity &&
-                   typeof entity.posX === 'number' &&
-                   typeof entity.posY === 'number' &&
-                   typeof entity.id !== 'undefined' && // Assuming 'id' is a u64, it will be a BigInt in TS
-                   typeof entity.chunk_index === 'number' &&
-                   // Check for a distinguishing property if needed, or ensure other type guards exclude it
-                   (entity.respawn_at === null || entity.respawn_at instanceof Date || typeof entity.respawn_at === 'undefined');
+          if (entity && entity.__resourceType === 'pumpkin') {
+            return true;
+          }
+          // Fallback to property checking
+          return entity &&
+                 typeof entity.posX === 'number' &&
+                 typeof entity.posY === 'number' &&
+                 typeof entity.id !== 'undefined' &&
+                 typeof entity.chunkIndex === 'number' &&
+                 (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
         }
         ```
-4.  **Update `useSpacetimeTables.ts`:**
-    *   Import `Pumpkin` from `../generated`.
-    *   Add `pumpkins: Map<string, SpacetimeDB.Pumpkin>;` to the `SpacetimeTableStates` interface.
-    *   Initialize in the state: `pumpkins: new Map<string, SpacetimeDB.Pumpkin>()`.
-    *   Define and register table callbacks (`handlePumpkinInsert`, `handlePumpkinUpdate`, `handlePumpkinDelete`) to manage the `pumpkins` state, similar to other entities like `mushrooms` or `corns`.
+    *   Add to `addResourceTypeMarker` function:
         ```typescript
-        // Inside useSpacetimeTables hook
-        const [pumpkins, setPumpkins] = useState<Map<string, SpacetimeDB.Pumpkin>>(new Map());
+        export function addResourceTypeMarker<T extends HarvestableResource>(
+          entity: T, 
+          type: ResourceType
+        ): TypedHarvestableResource {
+          return { ...entity, __resourceType: type };
+        }
+        ```
 
-        // ...
-        // In registerTableCallbacks:
-        const unregisterPumpkinInsert = SpacetimeDB.Pumpkin.onInsert((pumpkin) => {
-            setPumpkins(prev => new Map(prev).set(pumpkin.id.toString(), pumpkin));
-        });
-        const unregisterPumpkinUpdate = SpacetimeDB.Pumpkin.onUpdate((oldPumpkin, newPumpkin) => {
-            setPumpkins(prev => new Map(prev).set(newPumpkin.id.toString(), newPumpkin));
-        });
-        const unregisterPumpkinDelete = SpacetimeDB.Pumpkin.onDelete((pumpkin) => {
-            setPumpkins(prev => {
-                const next = new Map(prev);
-                next.delete(pumpkin.id.toString());
-                return next;
-            });
-        });
-        // ...
-        // In cleanup: unregisterPumpkinInsert(); unregisterPumpkinUpdate(); unregisterPumpkinDelete();
-        ```
-    *   If your game uses chunk-based subscriptions (likely):
-        *   In the `useEffect` that handles `activeSubscriptionQueries`, add `"Pumpkin"` to the list of tables to check for spatial queries if necessary.
-        *   When building `newQueries`, add: `newSubscriptions.add(\`SELECT * FROM Pumpkin WHERE chunk_index = \${chunkIndex}\`);` for each relevant `chunkIndex`.
-    *   Return `pumpkins` in the hook's return object.
-5.  **Update `App.tsx` (specifically the `AppContent` component):**
-    *   Destructure `pumpkins` from the `useSpacetimeTables()` hook call:
+4.  **Update Unified Resource Renderer (`client/src/utils/renderers/unifiedResourceRenderer.ts`):**
+    *   Add specific render function:
         ```typescript
-        const {
-          players, trees, stones, campfires, mushrooms, corns, pumpkins, // <<< ADD pumpkins
-          // ... other states
-        } = useSpacetimeTables({ /* ...props... */ });
+        export function renderPumpkin(
+          ctx: CanvasRenderingContext2D,
+          entity: SpacetimeDBPumpkin,
+          nowMs: number,
+          cycleProgress: number,
+          onlyDrawShadow: boolean = false,
+          skipShadow: boolean = false
+        ) {
+          const typedEntity = addResourceTypeMarker(entity, 'pumpkin');
+          return renderHarvestableResource(ctx, typedEntity, nowMs, cycleProgress, onlyDrawShadow, skipShadow);
+        }
         ```
-    *   Pass `pumpkins` as a prop to the `<GameScreen />` component:
-        ```tsx
-        <GameScreen
-          // ... other props
-          pumpkins={pumpkins} // <<< ADD pumpkins
-        />
-        ```
-6.  **Update `GameScreen.tsx`:**
-    *   Add `pumpkins: ReadonlyMap<string, SpacetimeDBPumpkin>;` to the `GameScreenProps` interface.
-    *   Destructure `pumpkins` from `props`:
-        ```typescript
-        const GameScreen: React.FC<GameScreenProps> = (props) => {
-            const {
-              players, trees, stones, campfires, mushrooms, corns, pumpkins, // <<< ADD pumpkins
-              // ... other props
-            } = props;
-        ```
-    *   Pass `pumpkins` as a prop to the `<GameCanvas />` component:
-        ```tsx
-        <GameCanvas
-          // ... other props
-          pumpkins={pumpkins} // <<< ADD pumpkins
-        />
-        ```
-7.  **Update `useEntityFiltering.ts`:**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../generated` and `isPumpkin` from `../utils/typeGuards`.
-    *   Add `pumpkins: ReadonlyMap<string, SpacetimeDBPumpkin>;` to `UseEntityFilteringProps`.
-    *   Add `visiblePumpkins: SpacetimeDBPumpkin[];` and `visiblePumpkinsMap: Map<string, SpacetimeDBPumpkin>;` to `EntityFilteringResult`.
-    *   In the `useMemo` block that calculates `visibleEntities`:
-        ```typescript
-        const visiblePumpkins = useMemo(() =>
-            Array.from(props.pumpkins.values())
-              .filter(p => !p.respawn_at && isEntityInView(p, viewBoundsRef.current))
-              .map(p => ({ ...p, __entityType: 'pumpkin' as const })), // Add __entityType
-            [props.pumpkins, isEntityInView, viewBoundsRef]
-        );
 
-        const visiblePumpkinsMap = useMemo(() =>
-            new Map(visiblePumpkins.map(p => [p.id.toString(), p])),
-            [visiblePumpkins]
-        );
-        ```
-    *   Add `...visiblePumpkins,` to the `groundItems` array concatenation.
-    *   Return `visiblePumpkins` and `visiblePumpkinsMap` in the hook's return object.
-8.  **Update `GameCanvas.tsx`:**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../generated`.
-    *   Import `renderPumpkin` from `../utils/renderers/pumpkinRenderingUtils.ts`.
-    *   Destructure `pumpkins` and `visiblePumpkinsMap` from the `useEntityFiltering()` hook call.
-    *   Pass `pumpkins={visiblePumpkinsMap}` (or `props.pumpkins` if `useInteractionFinder` needs all of them) to the `useInteractionFinder()` hook call.
-    *   In the `renderGame` function, within the loop that iterates over `groundItems` (or a similar consolidated list of entities to render):
+5.  **Update Main Rendering (`client/src/utils/renderers/renderingUtils.ts`):**
+    *   Import the new render function:
         ```typescript
-        // Inside renderGame, after other 'else if' blocks for rendering entities
-        else if (isPumpkin(entity)) { // Use the type guard
-            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, worldToScreenPosition, tileSize);
-        }
+        import { renderCorn, renderHemp, renderMushroom, renderPumpkin, renderYourNewResource } from './unifiedResourceRenderer';
         ```
-9.  **Update `useInteractionFinder.ts`:**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../generated`.
-    *   Define a constant for interaction distance if it's unique, or use a shared one: `const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED;` (assuming you've imported `PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED`).
-    *   Add `pumpkins: ReadonlyMap<string, SpacetimeDBPumpkin>;` to `UseInteractionFinderProps`.
-    *   Add `closestInteractablePumpkinId: number | null;` to the `InteractionFinderResult` interface.
-    *   In the `useMemo` block that calculates closest interactable entities:
-        *   Initialize `let closestPumpkinId: number | null = null;` and `let closestPumpkinDistSq = PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED;`.
-        *   Add a loop:
-            ```typescript
-            if (props.pumpkins) { // Null check
-                props.pumpkins.forEach((pumpkin) => {
-                    if (pumpkin.respawn_at !== null && typeof pumpkin.respawn_at !== 'undefined') return; // Skip if respawning
-                    const dx = playerX - pumpkin.posX;
-                    const dy = playerY - pumpkin.posY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestPumpkinDistSq) {
-                        closestPumpkinDistSq = distSq;
-                        closestPumpkinId = Number(pumpkin.id); // Ensure 'id' is converted to number if it's BigInt
-                    }
-                });
-            }
-            ```
-    *   Return `closestInteractablePumpkinId: closestPumpkinId,` in the hook's return object.
-    *   Pass `closestInteractablePumpkinId` from `useInteractionFinder` to `useInputHandler` (via `GameCanvas.tsx`).
-10. **Update `labelRenderingUtils.ts`:**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../../generated`.
-    *   Add `pumpkins: ReadonlyMap<string, SpacetimeDBPumpkin>;` and `closestInteractablePumpkinId: number | null;` to `RenderLabelsParams`.
-    *   In the `renderInteractionLabels` function, add logic for pumpkins:
+    *   Add rendering case in the entity loop:
         ```typescript
-        if (params.closestInteractablePumpkinId !== null) {
-            const pumpkin = params.pumpkins.get(params.closestInteractablePumpkinId.toString());
-            if (pumpkin) {
-                const { screenX, screenY } = params.worldToScreen(pumpkin.posX, pumpkin.posY);
-                // Adjust labelY based on pumpkin sprite height if necessary
-                const labelY = screenY - (params.tileSize / 2); // Example offset
-                renderLabel(params.ctx, "Press E to Harvest", screenX, labelY);
-                return; // Assuming only one label is shown at a time
-            }
-        }
+        } else if (type === 'your_new_resource') {
+            renderYourNewResource(ctx, entity as SpacetimeDBYourNewResource, nowMs, cycleProgress, onlyDrawShadow, skipShadow);
         ```
-11. **Update `useInputHandler.ts`:**
-    *   Import `Pumpkin as SpacetimeDBPumpkin` from `../generated` (if not already via `* as SpacetimeDB`).
-    *   Add `closestInteractablePumpkinId?: number | null;` to `UseInputHandlerProps`.
-    *   Update the `closestIdsRef.current` object to include `pumpkin: props.closestInteractablePumpkinId ?? null,`.
-    *   In the `handleKeyDown` function for the 'e' key, add a condition to handle pumpkin interaction, ensuring correct priority:
-        ```typescript
-        // Inside 'e' key down handler, after checking other interactables like dropped items
-        else if (closest.pumpkin !== null) {
-            try {
-                // Ensure reducer name matches exactly what's generated in ../generated/index.ts
-                currentConnection.reducers.interactWithPumpkin(BigInt(closest.pumpkin));
-            } catch (err) {
-                console.error("Error calling interactWithPumpkin reducer:", err);
-            }
-            return; // Processed interaction
-        }
-        ```
-        *   **Note:** The `id` for `Pumpkin` is `u64` on the server, which becomes `bigint` in TypeScript. Ensure you pass a `BigInt` to the reducer.
-12. **Update Item Icons (`client/src/utils/itemIconUtils.ts`):**
-    *   Import the item icon: `import pumpkinItemIcon from '../assets/items/pumpkin_item.png';`
-    *   Add to the `iconMap`: `'pumpkin.png': pumpkinItemIcon,` (key should match `icon_asset_name` from `items_database.rs`).
+
+6.  **Update State Management (`client/src/hooks/useSpacetimeTables.ts`):**
+    *   Import `YourNewResource` from `../generated`.
+    *   Add to state interface and initialization.
+    *   Add table callbacks for insert/update/delete.
+    *   Add to subscription queries if using chunk-based subscriptions.
+
+7.  **Update Component Props Flow:**
+    *   **`App.tsx`:** Add `yourNewResources` to destructuring and pass to `<GameScreen />`.
+    *   **`GameScreen.tsx`:** Add to props interface, destructure, and pass to `<GameCanvas />`.
+    *   **`GameCanvas.tsx`:** Add to props interface and pass to `useEntityFiltering` and `useInteractionFinder`.
+
+8.  **Update Entity Filtering (`client/src/hooks/useEntityFiltering.ts`):**
+    *   Add to props interface and filtering logic.
+    *   Add `__resourceType` marker when creating visible entities.
+
+9.  **Update Interaction System:**
+    *   **`useInteractionFinder.ts`:** Add interaction distance checking and closest entity finding.
+    *   **`labelRenderingUtils.ts`:** Add label rendering for the new resource.
+    *   **`useInputHandler.ts`:** Add interaction handling for 'e' key press.
+
+10. **Update Item Icons (`client/src/utils/itemIconUtils.ts`):**
+    *   Import the item icon and add to the `iconMap`.
+
+---
+
+## Key Advantages of the New System
+
+### Simplified Resource Addition
+The unified resource rendering system provides several major advantages:
+
+1. **No Individual Rendering Files:** No need to create separate `pumpkinRenderingUtils.ts` files.
+2. **Configuration-Based:** All visual properties are defined in a single configuration object.
+3. **Consistent Behavior:** All resources automatically get the same shadow system, interaction handling, and rendering pipeline.
+4. **Easy Customization:** Adjust size, shadows, animations, and interaction labels through simple configuration.
+5. **Automatic Integration:** Once configured, resources automatically work with the Y-sorted rendering system.
+
+### What You No Longer Need to Do
+- ❌ Create individual rendering utility files
+- ❌ Manually implement shadow rendering for each resource
+- ❌ Handle image preloading separately for each resource
+- ❌ Implement custom animation systems per resource
+- ❌ Manually integrate with the main rendering loop
+
+### What the System Handles Automatically
+- ✅ Image preloading and caching
+- ✅ Consistent shadow rendering with day/night cycle
+- ✅ Y-sorted rendering integration
+- ✅ Fallback rendering if images fail to load
+- ✅ Consistent interaction label positioning
+- ✅ Performance optimizations (cached configurations, efficient rendering)
 
 ---
 
@@ -456,13 +362,11 @@ This resource type has health, is harvested with tools, yields resources over ti
 
 ### Client (`client/`)
 
-1.  **Add Asset:** Place the `metal_node.png` (or similar) in `public/assets/`.
-2.  **Update Icons (`src/utils/itemIconUtils.ts`):** Add an entry for `"metal_ore"` if needed (and any new tools).
-3.  **Update Rendering (`src/components/GameScene.tsx`):**
-    *   Add `metal_node: MetalNode[]` to the `useSpacetimeDb` state.
-    *   Include `"metal_node"` in the `TABLE_NAMES` array.
-    *   In the rendering loop, add a case to render `MetalNode` entities, filtering out those with `respawn_at` set. Consider adding visual feedback (shake?) based on `last_hit_time`.
-4.  **Interaction:** No specific client interaction change is needed for harvesting, as it's handled by the server's `use_equipped_item` reducer when the player clicks/uses their tool.
+1.  **Add Asset:** Place the `metal_node.png` (or similar) in `client/src/assets/doodads/`.
+2.  **Configure in Unified System:** Add configuration to `resourceConfigurations.ts` (similar to consumable resources).
+3.  **Update State Management:** Add to `useSpacetimeTables.ts`, component prop flow, and entity filtering.
+4.  **Update Icons (`src/utils/itemIconUtils.ts`):** Add an entry for `"metal_ore"` if needed (and any new tools).
+5.  **Interaction:** No specific client interaction change is needed for harvesting, as it's handled by the server's `use_equipped_item` reducer when the player clicks/uses their tool.
 
 ---
 
@@ -474,46 +378,45 @@ Remember to run `spacetime publish ...` and `spacetime generate --lang typescrip
     *   `Property '<new_entity_name>' does not exist on type 'RemoteReducers'.` OR `Module '"../generated"' has no exported member '<NewEntityType>'.`
         *   **Solution:** You likely forgot to run `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server` **after** making server-side changes to tables or reducers. Run this command and restart your client development server.
     *   `Type 'string' is not assignable to type '"mushroom" | "pumpkin" | ...'`
-        *   **Solution:** When adding the `__entityType` marker in `useEntityFiltering.ts` (or similar places), use `as const`:
+        *   **Solution:** When adding the `__resourceType` marker in `useEntityFiltering.ts` (or similar places), use `as const`:
             ```typescript
-            .map(pumpkin => ({...pumpkin, __entityType: 'pumpkin' as const}))
+            .map(pumpkin => ({...pumpkin, __resourceType: 'pumpkin' as const}))
             ```
-2.  **Image Loading/Rendering Issues:**
+2.  **Resource Configuration Issues:**
+    *   **Resource Not Rendering Correctly:**
+        *   Check that the resource type is added to the `ResourceType` union in `resourceTypes.ts`.
+        *   Verify the configuration in `RESOURCE_CONFIGS` has all required properties.
+        *   Ensure the image import path is correct in `resourceConfigurations.ts`.
+    *   **All Resources Look the Same:**
+        *   This usually means the type detection is failing. Check that `addResourceTypeMarker` is being called correctly in `useEntityFiltering.ts`.
+        *   Verify that the specific render function (e.g., `renderPumpkin`) is being called in `renderingUtils.ts`.
+3.  **Image Loading/Rendering Issues:**
     *   **Resource Not Appearing:**
         *   Check server logs for seeding errors.
         *   Verify `environment.rs` correctly calls `attempt_single_spawn` for the new resource.
-        *   Ensure the `render<ResourceName>` function is called in `GameCanvas.tsx` (or your main rendering loop) and that the type guard `is<ResourceName>` is working.
+        *   Ensure the unified resource renderer is being called in the main rendering loop.
     *   **Image Not Displayed (Broken Image or Invisible):**
-        *   Verify the image path in your `pumpkinRenderingUtils.ts` (or equivalent) `import ... from '...'` statement is correct.
-        *   Ensure you are calling the image preloading function (e.g., `imageManager.preloadImage(...)` or your specific `preloadPumpkinImages()`) correctly. Check the browser console for "Image not preloaded" warnings from `imageManager`.
+        *   Verify the image path in `resourceConfigurations.ts` import statement is correct.
+        *   Check the browser console for image loading errors.
         *   Confirm the image asset exists in the specified path in `client/src/assets/doodads/`.
     *   **Item Icon Not Displayed:**
         *   Verify the `icon_asset_name` in `server/src/items_database.rs` matches the filename in `client/src/assets/items/`.
         *   Ensure you've added the mapping in `client/src/utils/itemIconUtils.ts`.
-3.  **Interaction Issues:**
+4.  **Interaction Issues:**
     *   **"Press E" Label Not Showing:**
-        *   Check `useInteractionFinder.ts`: Is `closestInteractablePumpkinId` being set correctly? Log its value.
-        *   Check `labelRenderingUtils.ts`: Is it receiving the correct `closestInteractablePumpkinId` and the `pumpkins` map?
+        *   Check `useInteractionFinder.ts`: Is the closest interactable ID being set correctly?
+        *   Check `labelRenderingUtils.ts`: Is it receiving the correct data and using the right interaction label from the configuration?
     *   **Interaction Reducer Not Called / Error on Call:**
-        *   `TypeError: Cannot convert undefined to a BigInt` or similar errors when calling the reducer.
-            *   **Solution:** This often means an ID (like `closest.pumpkin`) is `null` or `undefined` when the reducer is called. Double-check the logic in `useInputHandler.ts` that sets this ID and ensure the interaction priorities are correct. Verify `closestInteractablePumpkinId` is correctly passed from `useInteractionFinder` through `GameCanvas.tsx` to `useInputHandler.ts`.
-        *   Verify the reducer name in `useInputHandler.ts` (e.g., `currentConnection.reducers.interactWithPumpkin(...)`) **exactly** matches the function name generated in `client/src/generated/index.ts`.
+        *   Verify the reducer name in `useInputHandler.ts` exactly matches the function name generated in `client/src/generated/index.ts`.
         *   Ensure the arguments passed to the reducer (especially IDs) are of the correct type (e.g., `BigInt` for `u64`).
-4.  **Data Not Flowing to Components:**
-    *   `ReferenceError: pumpkins is not defined` (or similar for your new entity):
-        *   **Solution:** This is a common issue with prop drilling. Systematically check the data flow:
-            1.  `useSpacetimeTables.ts`: Is it fetching, storing, and returning the `pumpkins` map?
-            2.  `App.tsx` (`AppContent`): Is it destructuring `pumpkins` from `useSpacetimeTables` and passing it as a prop to `<GameScreen />`?
-            3.  `GameScreen.tsx`: Is it defining `pumpkins` in its `props` interface, destructuring it, and passing it to `<GameCanvas />`?
-            4.  `GameCanvas.tsx`: Is it receiving `pumpkins` as a prop? Is it passing it to hooks like `useEntityFiltering` and `useInteractionFinder`?
-            5.  Other Hooks (`useEntityFiltering`, `useInteractionFinder`, etc.): Are they defining `pumpkins` in their props and using it correctly?
-5.  **Consumable Effects Not Applied (Server-Side):**
-    *   Check `consumables.rs` for proper string matching in the item name comparison (e.g., `match item_def.name.as_str()`).
-    *   Verify constants for effects are defined and the logic for applying them is correct.
-6.  **Resource Not Respawning (Server-Side):**
-    *   Verify the `respawn_at` field is being set correctly in the interaction reducer in `src/pumpkin.rs` (via `collect_resource_and_schedule_respawn`).
-    *   Ensure `check_resource_respawns` in `src/environment.rs` has the correct `check_and_respawn_resource!` macro call for your new resource, and the conditions/reset logic are correct.
-    *   Check server logs for any errors during the respawn check.
+5.  **Data Not Flowing to Components:**
+    *   **ReferenceError: resource is not defined:**
+        *   This is a prop drilling issue. Systematically check the data flow:
+            1.  `useSpacetimeTables.ts`: Is it fetching, storing, and returning the resource map?
+            2.  `App.tsx`: Is it destructuring and passing the resource to `<GameScreen />`?
+            3.  `GameScreen.tsx`: Is it receiving and passing the resource to `<GameCanvas />`?
+            4.  `GameCanvas.tsx`: Is it receiving and passing the resource to the relevant hooks?
 
-By following these detailed steps and using the troubleshooting guide, adding new resources should become a more streamlined process.
+By following these updated steps with the unified resource system, adding new resources becomes much more streamlined and less error-prone. The configuration-based approach ensures consistency while reducing boilerplate code significantly.
+
 
