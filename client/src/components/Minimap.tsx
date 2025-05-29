@@ -25,8 +25,8 @@ const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 // Water tile rendering on minimap
 const WATER_TILE_COLOR = '#1E90FF'; // Bright blue for water features
 const BEACH_TILE_COLOR = '#F4A460'; // Sandy beach color
-const DIRT_ROAD_COLOR = '#8B4513'; // Brown for dirt roads
-const DIRT_COLOR = '#8B7355'; // Slightly lighter brown for regular dirt
+const DIRT_ROAD_COLOR = '#8B7355'; // Brown for dirt roads
+const DIRT_COLOR = '#8B4513'; // Slightly lighter brown for regular dirt
 const ENTITY_DOT_SIZE = 2; // Slightly smaller dot size for world objects
 const LIT_ENTITY_DOT_SIZE = 4; // Larger size for lit campfires and players with torches
 const OWNED_BAG_DOT_SIZE = 24; // Make owned bags larger

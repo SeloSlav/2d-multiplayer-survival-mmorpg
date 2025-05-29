@@ -126,10 +126,11 @@ export class ProceduralWorldRenderer {
         const tileKey = `${tileX}_${tileY}`;
         const tile = this.tileCache.tiles.get(tileKey);
         
-        // Calculate pixel-perfect positions to avoid gaps
+        // Calculate pixel-perfect positions with overlap to prevent gaps
         const pixelX = Math.floor(tileX * tileSize);
         const pixelY = Math.floor(tileY * tileSize);
-        const pixelSize = Math.ceil(tileSize); // Ensure we cover the full tile area
+        const overlap = 1; // Add 1 pixel overlap to prevent gaps between tiles
+        const pixelSize = Math.ceil(tileSize) + overlap; // Add overlap to size
         
         if (!tile) {
             // Fallback to grass if no tile data
