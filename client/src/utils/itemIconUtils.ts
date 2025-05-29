@@ -67,6 +67,7 @@ import flashlightIcon from '../assets/items/flashlight.png';
 import metalOreIcon from '../assets/items/metal_ore.png';
 import metalFragmentsIcon from '../assets/items/metal_fragments.png';
 import seloOliveOilIcon from '../assets/items/selo_olive_oil.png';
+import ropeIcon from '../assets/items/rope.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -134,6 +135,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'metal_ore.png': metalOreIcon,
   'metal_fragments.png': metalFragmentsIcon,
   'selo_olive_oil.png': seloOliveOilIcon,
+  'rope.png': ropeIcon,
 };
 
 // Export a function that provides the fallback logic

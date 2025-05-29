@@ -106,9 +106,9 @@ pub fn is_respawn_position_clear(ctx: &ReducerContext, target_x: f32, target_y: 
 }
 
 /// Attempts one resource spawn at a random valid tile.
-/// Handles noise check, distance checks, and insertion.
-/// Returns Ok(true) if successful, Ok(false) if conditions not met (e.g., tile occupied, too close), Err on DB error.
-pub fn attempt_single_spawn<T, F, N, R, A>(
+/// Handles noise check, distance checks, water check, and insertion.
+/// Returns Ok(true) if successful, Ok(false) if conditions not met (e.g., tile occupied, too close, on water), Err on DB error.
+pub fn attempt_single_spawn<T, F, N, R, A, W>(
     rng: &mut R, // Generic RNG type
     occupied_tiles: &mut HashSet<(u32, u32)>,
     spawned_positions: &mut Vec<(f32, f32)>, // Keep mutable for adding
@@ -126,6 +126,7 @@ pub fn attempt_single_spawn<T, F, N, R, A>(
     min_dist_sq_stone: f32,
     create_entity: F,
     extra_arg: A, // Add generic argument for extra data needed by create_entity
+    water_check_fn: W, // NEW: Water check function
     table: &impl Table<Row = T>, // Use `impl Trait` for the table
 ) -> Result<bool, String> // Return standard String error
 where
@@ -133,6 +134,7 @@ where
     F: FnOnce(f32, f32, A) -> T, // Closure now accepts extra_arg
     N: NoiseFn<f64, 2>, // Correct NoiseFn signature
     R: Rng + ?Sized, // Make RNG generic
+    W: Fn(f32, f32) -> bool, // NEW: Water check function type
 {
     // Generate random tile coordinates
     if min_tile_x >= max_tile_x || min_tile_y >= max_tile_y {
@@ -150,6 +152,11 @@ where
     // Calculate position
     let pos_x = (tile_x as f32 + 0.5) * TILE_SIZE_PX as f32;
     let pos_y = (tile_y as f32 + 0.5) * TILE_SIZE_PX as f32;
+
+    // **NEW: Water check**
+    if water_check_fn(pos_x, pos_y) {
+        return Ok(false); // Skip spawning on water
+    }
 
     // Noise check
     let noise_val = noise_fn.get([

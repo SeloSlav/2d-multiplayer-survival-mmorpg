@@ -43,6 +43,8 @@ use crate::utils::*;
 use crate::cloud::cloud as CloudTableTrait;
 use crate::cloud::cloud_update_schedule as CloudUpdateScheduleTableTrait;
 use crate::grass::grass as GrassTableTrait;
+use crate::world_tile as WorldTileTableTrait; // Added for tile checking
+use crate::{TileType, WorldTile}; // Added for tile type checking
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -74,6 +76,34 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
     
     // Calculate 1D chunk index (row-major ordering)
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
+}
+
+// --- Helper function to check if a position is on water ---
+/// Checks if the given world position is on a water tile (Sea)
+/// Returns true if the position is on water and resources should NOT spawn there
+fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check bounds
+    if tile_x < 0 || tile_y < 0 || 
+       tile_x >= WORLD_WIDTH_TILES as i32 || tile_y >= WORLD_HEIGHT_TILES as i32 {
+        return true; // Treat out-of-bounds as water
+    }
+    
+    // OPTIMIZED: Use the idx_world_position index for efficient lookup
+    let world_tiles = ctx.db.world_tile();
+    
+    // Use the multi-column index to efficiently find the tile at (world_x, world_y)
+    // The idx_world_position index allows us to query by both world_x and world_y efficiently
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        return tile.tile_type == TileType::Sea;
+    }
+    
+    // If no tile found at these exact coordinates, default to non-water
+    // This allows resources to spawn in areas where tiles haven't been generated yet
+    return false;
 }
 
 // --- Environment Seeding ---
@@ -230,6 +260,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             tree_type_roll_for_this_attempt, // Pass the roll as extra_args
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             trees,
         ) {
             Ok(true) => spawned_tree_count += 1,
@@ -274,6 +305,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             stones,
         ) {
             Ok(true) => spawned_stone_count += 1,
@@ -317,6 +349,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             mushrooms,
         ) {
             Ok(true) => spawned_mushroom_count += 1,
@@ -360,6 +393,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             corns,
         ) {
             Ok(true) => spawned_corn_count += 1,
@@ -403,6 +437,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             potatoes,
         ) {
             Ok(true) => spawned_potato_count += 1,
@@ -446,6 +481,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             pumpkins,
         ) {
             Ok(true) => spawned_pumpkin_count += 1,
@@ -487,6 +523,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             hemps, 
         ) {
             Ok(true) => spawned_hemp_count += 1,
@@ -602,6 +639,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (appearance_roll_for_this_attempt, sway_offset_seed_for_this_attempt), // Pass the rolls as a tuple
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
             grasses, // Pass the grass table handle
         ) {
             Ok(true) => spawned_grass_count += 1,
