@@ -26,6 +26,7 @@ const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 const WATER_TILE_COLOR = '#1E90FF'; // Bright blue for water features
 const BEACH_TILE_COLOR = '#F4A460'; // Sandy beach color
 const DIRT_ROAD_COLOR = '#8B4513'; // Brown for dirt roads
+const DIRT_COLOR = '#8B7355'; // Slightly lighter brown for regular dirt
 const ENTITY_DOT_SIZE = 2; // Slightly smaller dot size for world objects
 const LIT_ENTITY_DOT_SIZE = 4; // Larger size for lit campfires and players with torches
 const OWNED_BAG_DOT_SIZE = 24; // Make owned bags larger
@@ -310,9 +311,12 @@ export function drawMinimapOntoCanvas({
         case 'DirtRoad':
           tileColor = DIRT_ROAD_COLOR;
           break;
-        // Don't render grass or dirt as they're the default terrain
+        case 'Dirt':
+          tileColor = DIRT_COLOR;
+          break;
+        // Don't render grass as it's the default terrain
         default:
-          return; // Skip rendering for grass/dirt tiles
+          return; // Skip rendering for grass tiles
       }
       
       if (tileColor) {

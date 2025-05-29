@@ -1,5 +1,6 @@
 import grassTile from '../../assets/tiles/grass.png';
 import dirtTile from '../../assets/tiles/dirt.png';
+import dirtRoadTile from '../../assets/tiles/dirt_road.png';
 import seaTile from '../../assets/tiles/sea.png';
 import beachTile from '../../assets/tiles/beach.png';
 
@@ -22,7 +23,7 @@ export const TILE_ASSETS: Record<string, TileAssetConfig> = {
         // variants: ['../../assets/tiles/dirt_variant1.png']
     },
     'DirtRoad': { 
-        baseTexture: dirtTile, // Use dirt texture for roads for now
+        baseTexture: dirtRoadTile,
     },
     'Sea': { 
         baseTexture: seaTile,

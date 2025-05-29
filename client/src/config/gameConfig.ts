@@ -13,8 +13,8 @@ const MINIMAP_GRID_DIAGONAL_TILES = 51; // Use the user's desired value (tunable
 
 // --- Server World & Chunk Configuration (Client-Side Assumption - TODO: Make Server-Driven) ---
 // These values MUST match the server's current world generation settings.
-const SERVER_WORLD_WIDTH_TILES = 250; // Assumed width of the server world in tiles (matches lib.rs)
-const SERVER_WORLD_HEIGHT_TILES = 250; // Assumed height of the server world in tiles (matches lib.rs)
+const SERVER_WORLD_WIDTH_TILES = 500; // Assumed width of the server world in tiles (matches lib.rs)
+const SERVER_WORLD_HEIGHT_TILES = 500; // Assumed height of the server world in tiles (matches lib.rs)
 const CHUNK_SIZE_TILES = 20;         // Number of tiles along one edge of a square chunk
 
 // Calculate derived values
@@ -39,8 +39,8 @@ export const gameConfig = {
   chunkSizePx: CHUNK_SIZE_PX,
   worldWidthChunks: WORLD_WIDTH_CHUNKS,
   worldHeightChunks: WORLD_HEIGHT_CHUNKS,
-  worldWidth: 250,
-  worldHeight: 250,
+  worldWidth: 500,
+  worldHeight: 500,
   // --- End World & Chunk Config ---
 
   // Intrinsic pixel dimensions of a single frame within player/entity spritesheets.
