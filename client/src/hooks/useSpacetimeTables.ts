@@ -112,8 +112,8 @@ export const useSpacetimeTables = ({
     const spatialSubHandlesMapRef = useRef<Map<number, SubscriptionHandle[]>>(new Map()); 
     const callbacksRegisteredRef = useRef(false);
     
-    // --- REMOVED Flag ---
-    // const spatialSubscriptionsActiveRef = useRef(false);
+    // --- Performance Optimization: Use ref for worldTiles to avoid React re-renders ---
+    const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
 
     // Helper function for safely unsubscribing
     const safeUnsubscribe = (sub: SubscriptionHandle) => {
@@ -548,18 +548,16 @@ export const useSpacetimeTables = ({
                 setShelters(prev => { const newMap = new Map(prev); newMap.delete(shelter.id.toString()); return newMap; });
             };
 
-            // --- WorldTile Handlers ---
+            // --- WorldTile Handlers (Optimized to avoid React re-renders) ---
             const handleWorldTileInsert = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                console.log('[useSpacetimeTables] WorldTile Inserted:', tile.id);
-                setWorldTiles(prev => new Map(prev).set(tile.id.toString(), tile));
+                // Use ref directly to avoid triggering React re-renders
+                worldTilesRef.current.set(tile.id.toString(), tile);
             };
             const handleWorldTileUpdate = (ctx: any, oldTile: SpacetimeDB.WorldTile, newTile: SpacetimeDB.WorldTile) => {
-                console.log('[useSpacetimeTables] WorldTile Updated:', newTile.id);
-                setWorldTiles(prev => new Map(prev).set(newTile.id.toString(), newTile));
+                worldTilesRef.current.set(newTile.id.toString(), newTile);
             };
             const handleWorldTileDelete = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                console.log('[useSpacetimeTables] WorldTile Deleted:', tile.id);
-                setWorldTiles(prev => { const newMap = new Map(prev); newMap.delete(tile.id.toString()); return newMap; });
+                worldTilesRef.current.delete(tile.id.toString());
             };
 
             // --- Register Callbacks ---
@@ -872,6 +870,8 @@ export const useSpacetimeTables = ({
                  setDeathMarkers(new Map());
                  setShelters(new Map());
                  setWorldTiles(new Map());
+                 // Clear the worldTiles ref as well
+                 worldTilesRef.current.clear();
              }
         };
 
@@ -911,6 +911,6 @@ export const useSpacetimeTables = ({
         projectiles,
         deathMarkers,
         shelters,
-        worldTiles,
+        worldTiles: worldTilesRef.current,
     };
 }; 
