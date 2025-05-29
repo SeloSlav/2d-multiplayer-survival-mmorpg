@@ -6,6 +6,7 @@ import {
     Projectile as SpacetimeDBProjectile
 } from '../generated';
 import { getChunkIndicesForViewport } from '../utils/chunkUtils';
+import { gameConfig } from '../config/gameConfig';
 
 // Define the shape of the state returned by the hook
 export interface SpacetimeTableStates {
@@ -41,6 +42,7 @@ export interface SpacetimeTableStates {
     projectiles: Map<string, SpacetimeDBProjectile>;
     deathMarkers: Map<string, SpacetimeDB.DeathMarker>;
     shelters: Map<string, SpacetimeDB.Shelter>;
+    worldTiles: Map<string, SpacetimeDB.WorldTile>;
 }
 
 // Define the props the hook accepts
@@ -91,6 +93,7 @@ export const useSpacetimeTables = ({
     const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
     const [deathMarkers, setDeathMarkers] = useState<Map<string, SpacetimeDB.DeathMarker>>(() => new Map());
     const [shelters, setShelters] = useState<Map<string, SpacetimeDB.Shelter>>(() => new Map());
+    const [worldTiles, setWorldTiles] = useState<Map<string, SpacetimeDB.WorldTile>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -541,7 +544,22 @@ export const useSpacetimeTables = ({
                 setShelters(prev => new Map(prev).set(newShelter.id.toString(), newShelter));
             };
             const handleShelterDelete = (ctx: any, shelter: SpacetimeDB.Shelter) => {
+                console.log('[useSpacetimeTables] Shelter Deleted:', shelter.id);
                 setShelters(prev => { const newMap = new Map(prev); newMap.delete(shelter.id.toString()); return newMap; });
+            };
+
+            // --- WorldTile Handlers ---
+            const handleWorldTileInsert = (ctx: any, tile: SpacetimeDB.WorldTile) => {
+                console.log('[useSpacetimeTables] WorldTile Inserted:', tile.id);
+                setWorldTiles(prev => new Map(prev).set(tile.id.toString(), tile));
+            };
+            const handleWorldTileUpdate = (ctx: any, oldTile: SpacetimeDB.WorldTile, newTile: SpacetimeDB.WorldTile) => {
+                console.log('[useSpacetimeTables] WorldTile Updated:', newTile.id);
+                setWorldTiles(prev => new Map(prev).set(newTile.id.toString(), newTile));
+            };
+            const handleWorldTileDelete = (ctx: any, tile: SpacetimeDB.WorldTile) => {
+                console.log('[useSpacetimeTables] WorldTile Deleted:', tile.id);
+                setWorldTiles(prev => { const newMap = new Map(prev); newMap.delete(tile.id.toString()); return newMap; });
             };
 
             // --- Register Callbacks ---
@@ -614,6 +632,11 @@ export const useSpacetimeTables = ({
             connection.db.shelter.onInsert(handleShelterInsert);
             connection.db.shelter.onUpdate(handleShelterUpdate);
             connection.db.shelter.onDelete(handleShelterDelete);
+
+            // Register WorldTile callbacks - ADDED
+            connection.db.worldTile.onInsert(handleWorldTileInsert);
+            connection.db.worldTile.onUpdate(handleWorldTileUpdate);
+            connection.db.worldTile.onDelete(handleWorldTileDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -774,6 +797,13 @@ export const useSpacetimeTables = ({
                             const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
 
+                            // WorldTile (Spatial Subscription) - Only load tiles for visible chunks
+                            const worldWidthChunks = gameConfig.worldWidthChunks; // Should match server's WORLD_WIDTH_CHUNKS constant (250 tiles / 20 chunk_size = 12.5 -> 13)
+                            const chunkX = chunkIndex % worldWidthChunks;
+                            const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                            const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
+
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
                             console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
@@ -841,6 +871,7 @@ export const useSpacetimeTables = ({
                  setProjectiles(new Map());
                  setDeathMarkers(new Map());
                  setShelters(new Map());
+                 setWorldTiles(new Map());
              }
         };
 
@@ -880,5 +911,6 @@ export const useSpacetimeTables = ({
         projectiles,
         deathMarkers,
         shelters,
+        worldTiles,
     };
 }; 

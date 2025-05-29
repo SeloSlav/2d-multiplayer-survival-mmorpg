@@ -1,4 +1,5 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, ConnectionId};
+use rand::Rng; // Add Rng trait for ctx.rng().gen()
 use log;
 use std::time::Duration;
 use crate::environment::calculate_chunk_index; // Make sure this helper is available
@@ -61,6 +62,7 @@ mod torch; // <<< ADDED torch module
 mod respawn; // <<< ADDED respawn module
 mod player_collision; // <<< ADDED player_collision module
 mod shelter; // <<< ADDED shelter module
+mod world_generation; // <<< ADDED world generation module
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -73,6 +75,9 @@ pub use shelter::place_shelter;
 
 // ADD: Re-export sleeping bag respawn reducer
 pub use sleeping_bag::respawn_at_sleeping_bag;
+
+// ADD: Re-export world generation reducer
+pub use world_generation::generate_world;
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -138,6 +143,7 @@ use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
 use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
 use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait
+use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -262,6 +268,31 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::active_effects::schedule_effect_processing(ctx)?;
     crate::projectile::init_projectile_system(ctx)?;
 
+    // ADD: Generate world automatically on first startup
+    let existing_tiles_count = ctx.db.world_tile().iter().count();
+    if existing_tiles_count == 0 {
+        log::info!("No world tiles found, generating initial world...");
+        // Generate world with smaller size for better performance
+        let world_config = crate::WorldGenConfig {
+            seed: ctx.rng().gen::<u64>(), // Random seed each time using ctx.rng()
+            world_width_tiles: 250,  // Reduced from 250 for performance
+            world_height_tiles: 250, // Reduced from 250 for performance  
+            chunk_size: 20,
+            island_border_width: 5,  // Adjusted for smaller world
+            beach_width: 3,          // Adjusted for smaller world
+            river_frequency: 0.3,
+            dirt_patch_frequency: 0.2,
+            road_density: 0.1,
+        };
+        
+        match crate::world_generation::generate_world(ctx, world_config) {
+            Ok(_) => log::info!("Initial world generation completed successfully"),
+            Err(e) => log::error!("Failed to generate initial world: {}", e),
+        }
+    } else {
+        log::info!("World tiles already exist ({}), skipping world generation", existing_tiles_count);
+    }
+
     log::info!("Module initialization complete.");
     Ok(())
 }
@@ -281,9 +312,10 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     crate::crafting::seed_recipes(ctx)?; // Seed the crafting recipes
     crate::items::seed_ranged_weapon_stats(ctx)?; // Seed the ranged weapon stats
     crate::projectile::init_projectile_system(ctx)?; // Initialize projectile collision detection system
+    
     // No seeder needed for Campfire yet, table will be empty initially
 
-    // --- Track Active Connection --- 
+    // --- Track Active Connection ---
     let client_identity = ctx.sender;
     let connection_id = ctx.connection_id.ok_or_else(|| {
         log::error!("[Connect] Missing ConnectionId in client_connected context for {:?}", client_identity);
@@ -639,4 +671,50 @@ pub fn update_viewport(ctx: &ReducerContext, min_x: f32, min_y: f32, max_x: f32,
         }
     }
     Ok(())
+}
+
+// ADD: Tile types and world generation structures
+#[derive(spacetimedb::SpacetimeType, Clone, Debug, PartialEq)]
+pub enum TileType {
+    Grass,
+    Dirt, 
+    DirtRoad,
+    Sea,
+    Beach,
+    Sand,
+}
+
+#[derive(spacetimedb::SpacetimeType, Clone, Debug)]
+pub struct WorldGenConfig {
+    pub seed: u64,
+    pub world_width_tiles: u32,   // 250
+    pub world_height_tiles: u32,  // 250
+    pub chunk_size: u32,          // 8
+    pub island_border_width: u32, // Sea border thickness
+    pub beach_width: u32,         // Beach border thickness
+    pub river_frequency: f32,     // 0.0-1.0
+    pub dirt_patch_frequency: f32,
+    pub road_density: f32,
+}
+
+#[spacetimedb::table(
+    name = world_tile, 
+    public,
+    index(name = idx_chunk_position, btree(columns = [chunk_x, chunk_y])),
+    index(name = idx_world_position, btree(columns = [world_x, world_y]))
+)]
+#[derive(Clone, Debug)]
+pub struct WorldTile {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub chunk_x: i32,
+    pub chunk_y: i32,
+    pub tile_x: i32,  // Local tile position within chunk
+    pub tile_y: i32,  // Local tile position within chunk
+    pub world_x: i32, // Global world position for easier queries
+    pub world_y: i32, // Global world position for easier queries
+    pub tile_type: TileType,
+    pub variant: u8,  // For tile variations (0-255)
+    pub biome_data: Option<String>, // JSON for future biome properties
 }

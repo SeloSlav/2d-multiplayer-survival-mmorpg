@@ -87,6 +87,7 @@ interface GameScreenProps {
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
     shelters: Map<string, SpacetimeDBShelter>;
+    worldTiles: Map<string, any>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -145,6 +146,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         players, trees, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         shelters,
+        worldTiles,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -190,6 +192,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     return (
         <div className="game-container">
+            {/* Removed temporary world generation button - world generation now happens automatically on server startup */}
+            
             <GameCanvas
                 players={players}
                 trees={trees}
@@ -229,6 +233,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeConsumableEffects={activeConsumableEffects}
                 showInventory={showInventoryState}
                 grass={grass}
+                worldTiles={worldTiles}
                 gameCanvasRef={gameCanvasRef}
                 projectiles={projectiles}
                 deathMarkers={deathMarkers}

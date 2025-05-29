@@ -49,6 +49,7 @@ import { useGrassInterpolation, InterpolatedGrassData } from '../hooks/useGrassI
 import { useArrowBreakEffects } from '../hooks/useArrowBreakEffects';
 import { useThunderEffects } from '../hooks/useThunderEffects';
 import { useFireArrowParticles } from '../hooks/useFireArrowParticles';
+import { useWorldTileCache } from '../hooks/useWorldTileCache';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -116,6 +117,7 @@ interface GameCanvasProps {
   connection: any | null;
   activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
   grass: Map<string, SpacetimeDBGrass>;
+  worldTiles: Map<string, any>; // Add this for procedural world tiles
   placementInfo: PlacementItemInfo | null;
   placementActions: PlacementActions;
   placementError: string | null;
@@ -181,6 +183,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isSearchingCraftRecipes,
   showInventory,
   grass,
+  worldTiles,
   gameCanvasRef,
   projectiles,
   deathMarkers,
@@ -195,6 +198,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const placementActionsRef = useRef(placementActions);
   const prevPlayerHealthRef = useRef<number | undefined>(undefined);
   const [damagingCampfireIds, setDamagingCampfireIds] = useState<Set<string>>(new Set());
+  
+  // Particle system refs
+  const campfireParticlesRef = useRef<Particle[]>([]);
+  const torchParticlesRef = useRef<Particle[]>([]);
+  const fireArrowParticlesRef = useRef<Particle[]>([]);
+  
   useEffect(() => {
     placementActionsRef.current = placementActions;
   }, [placementActions]);
@@ -251,6 +260,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetY,
     canvasSize
   });
+  
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
@@ -281,6 +291,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     players,
     shelters,
   });
+  
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
   const {
     interactionProgress,
@@ -374,13 +385,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
     canvasRef: gameCanvasRef,
+    localPlayer,
     isMinimapOpen,
     connection,
-    localPlayer,
     playerPins,
     localPlayerId,
-    canvasSize,
+    canvasSize
   });
+
+  // --- Procedural World Tile Management ---
+  const { proceduralRenderer, isInitialized: isWorldRendererInitialized, updateTileCache } = useWorldTileCache();
+  
+  // Update world tile cache when worldTiles data changes
+  useEffect(() => {
+    if (worldTiles && worldTiles.size > 0) {
+      updateTileCache(worldTiles);
+    }
+  }, [worldTiles, updateTileCache]);
+
+  // Define camera and canvas dimensions for rendering
+  const camera = { x: cameraOffsetX, y: cameraOffsetY };
+  const currentCanvasWidth = canvasSize.width;
+  const currentCanvasHeight = canvasSize.height;
+  
+  // Audio enabled state
+  const audioEnabled = true; // You can make this configurable later
 
   // --- Should show death screen ---
   // Show death screen only based on isDead flag now
@@ -428,69 +457,64 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Use arrow break effects hook
   useArrowBreakEffects({ connection });
   
-  // Use thunder effects hook
-  useThunderEffects({ connection });
-
-  // Use the particle hooks - but store results in refs to avoid re-render cascades
-  const latestCampfireParticles = useCampfireParticles({
+  // Use the particle hooks with correct signatures
+  const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
     deltaTime: stableDeltaTime,
   });
-  const latestTorchParticles = useTorchParticles({
+  
+  const torchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
     deltaTime: stableDeltaTime,
   });
-  const latestFireArrowParticles = useFireArrowParticles({
+  
+  // Fire arrow particle effects
+  useFireArrowParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: stableDeltaTime,
+    deltaTime: stableDeltaTime
   });
 
-  // Store particles in refs to decouple from render cycle
-  const campfireParticlesRef = useRef<Particle[]>([]);
-  const torchParticlesRef = useRef<Particle[]>([]);
-  const fireArrowParticlesRef = useRef<Particle[]>([]);
-
-  // Update particle refs without causing re-renders
-  campfireParticlesRef.current = latestCampfireParticles;
-  torchParticlesRef.current = latestTorchParticles;
-  fireArrowParticlesRef.current = latestFireArrowParticles;
-
-  // New function to render particles
-  const renderParticlesToCanvas = useCallback((ctx: CanvasRenderingContext2D, particlesToRender: Particle[]) => {
-    if (!particlesToRender.length) return;
-
-    particlesToRender.forEach(p => {
-      // Use p.x and p.y directly as ctx is already translated by camera offsets
-      const screenX = Math.floor(p.x);
-      const screenY = Math.floor(p.y);
-      const size = Math.max(1, Math.floor(p.size));
-
-      // --- ADDED: Debugging for smoke burst particles ---
-      if (p.type === 'smoke' && p.color === "#000000") { // Check if it's a black smoke burst particle
-        // console.log(`[RenderParticles] Rendering SMOKE BURST particle: ID=${p.id}, X=${screenX}, Y=${screenY}, Size=${size}, Alpha=${p.alpha}, Color=${p.color}`);
-      }
-      // --- END ADDED ---
-
-      ctx.globalAlpha = p.alpha;
-
-      if (p.type === 'fire' && p.color) {
-        ctx.fillStyle = p.color;
-        ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
-      } else if (p.type === 'smoke') {
-        // Regular smoke still uses the default light grey
-        ctx.fillStyle = `rgba(160, 160, 160, 1)`;
-        ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
-      } else if (p.type === 'smoke_burst' && p.color) { // MODIFIED: Added condition for 'smoke_burst'
-        ctx.fillStyle = p.color; // This will be black (#000000)
-        ctx.fillRect(screenX - Math.floor(size / 2), screenY - Math.floor(size / 2), size, size);
-      }
+  // Simple particle renderer function
+  const renderParticlesToCanvas = (ctx: CanvasRenderingContext2D, particles: any[]) => {
+    particles.forEach(particle => {
+      ctx.save();
+      ctx.globalAlpha = particle.alpha || 1;
+      ctx.fillStyle = particle.color || '#ff4500';
+      ctx.fillRect(
+        particle.x - particle.size / 2,
+        particle.y - particle.size / 2,
+        particle.size,
+        particle.size
+      );
+      ctx.restore();
     });
-    ctx.globalAlpha = 1.0;
-  }, []);
+  };
+
+  // Used to trigger cloud fetching and updating -- keep this logic at the top level
+  useEffect(() => {
+    if (connection) {
+      // Update viewport in the database so server knows what's visible to this client
+      // This informs the server about the client's view bounds for cloud generation
+      const viewportMinX = camera.x - currentCanvasWidth / 2;
+      const viewportMinY = camera.y - currentCanvasHeight / 2;
+      const viewportMaxX = camera.x + currentCanvasWidth / 2;
+      const viewportMaxY = camera.y + currentCanvasHeight / 2;
+
+      // Call reducer to update the server-side viewport
+      try {
+        connection.reducers.updateViewport(viewportMinX, viewportMinY, viewportMaxX, viewportMaxY);
+      } catch (error) {
+        console.error('[GameCanvas] Failed to update viewport on server:', error);
+      }
+    }
+  }, [connection, camera.x, camera.y, currentCanvasWidth, currentCanvasHeight]);
+
+  // Hook for thunder effects
+  useThunderEffects({ connection });
 
   const renderGame = useCallback(() => {
     const canvas = gameCanvasRef.current;
@@ -525,7 +549,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.save();
     ctx.translate(cameraOffsetX, cameraOffsetY);
     // Pass the necessary viewport parameters to the optimized background renderer
-    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight);
+    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles);
 
     let isPlacementTooFar = false;
     if (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) {
@@ -635,8 +659,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Render campfire particles here, after other world entities but before labels/UI
     if (ctx) { // Ensure context is still valid
       // Call without camera offsets, as ctx is already translated
-      renderParticlesToCanvas(ctx, campfireParticlesRef.current);
-      renderParticlesToCanvas(ctx, torchParticlesRef.current);
+      renderParticlesToCanvas(ctx, campfireParticles);
+      renderParticlesToCanvas(ctx, torchParticles);
       renderParticlesToCanvas(ctx, fireArrowParticlesRef.current);
 
       // Render cut grass effects
@@ -836,6 +860,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         localPlayerDeathMarker: localPlayerDeathMarker,
         deathMarkerImage: deathMarkerImg,
         worldState: worldState,
+        worldTiles: worldTiles,
       });
     }
 

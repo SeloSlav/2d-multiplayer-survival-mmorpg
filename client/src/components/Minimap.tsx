@@ -22,6 +22,10 @@ const TREE_DOT_COLOR = '#008000'; // Green
 const ROCK_DOT_COLOR = '#808080'; // Grey
 const CAMPFIRE_DOT_COLOR = '#FFA500'; // Orange for campfires and lit players
 const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
+// Water tile rendering on minimap
+const WATER_TILE_COLOR = '#1E90FF'; // Bright blue for water features
+const BEACH_TILE_COLOR = '#F4A460'; // Sandy beach color
+const DIRT_ROAD_COLOR = '#8B4513'; // Brown for dirt roads
 const ENTITY_DOT_SIZE = 2; // Slightly smaller dot size for world objects
 const LIT_ENTITY_DOT_SIZE = 4; // Larger size for lit campfires and players with torches
 const OWNED_BAG_DOT_SIZE = 24; // Make owned bags larger
@@ -76,6 +80,7 @@ interface MinimapProps {
   isMouseOverMinimap: boolean; // To change background on hover
   zoomLevel: number; // Current zoom level
   viewCenterOffset: { x: number; y: number }; // Panning offset from hook
+  worldTiles?: Map<string, any>; // Add procedural world tiles
   // --- New props for Death Screen ---
   isDeathScreen?: boolean; // Optional flag for death screen mode
   ownedSleepingBagIds?: Set<number>; // Set of owned sleeping bag IDs
@@ -105,6 +110,7 @@ export function drawMinimapOntoCanvas({
   isMouseOverMinimap,
   zoomLevel, // Destructure zoomLevel
   viewCenterOffset, // Destructure pan offset
+  worldTiles, // Destructure worldTiles
   // Destructure new props with defaults
   isDeathScreen = false,
   ownedSleepingBagIds = new Set(),
@@ -119,7 +125,7 @@ export function drawMinimapOntoCanvas({
   const minimapHeight = MINIMAP_HEIGHT;
   
   // Log the received localPlayerDeathMarker prop at the beginning of the function
-  console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+  // console.log('[Minimap.tsx] drawMinimapOntoCanvas called. Received localPlayerDeathMarker:', JSON.stringify(localPlayerDeathMarker, (key, value) => typeof value === 'bigint' ? value.toString() : value));
 
   // Calculate top-left corner for centering the minimap UI element
   const minimapX = (canvasWidth - minimapWidth) / 2;
@@ -287,14 +293,58 @@ export function drawMinimapOntoCanvas({
   }
   // --- End Grid Drawing ---
 
+  // --- Draw World Tiles (Water Features, Roads, etc.) ---
+  if (worldTiles && worldTiles.size > 0) {
+    worldTiles.forEach(tile => {
+      // Only render special tile types that are visually important on the minimap
+      const tileTypeName = tile.tileType?.tag;
+      let tileColor: string | null = null;
+      
+      switch (tileTypeName) {
+        case 'Sea':
+          tileColor = WATER_TILE_COLOR;
+          break;
+        case 'Beach':
+          tileColor = BEACH_TILE_COLOR;
+          break;
+        case 'DirtRoad':
+          tileColor = DIRT_ROAD_COLOR;
+          break;
+        // Don't render grass or dirt as they're the default terrain
+        default:
+          return; // Skip rendering for grass/dirt tiles
+      }
+      
+      if (tileColor) {
+        // Convert tile coordinates to world coordinates
+        const worldX = tile.worldX * gameConfig.tileSize + gameConfig.tileSize / 2;
+        const worldY = tile.worldY * gameConfig.tileSize + gameConfig.tileSize / 2;
+        
+        const screenCoords = worldToMinimap(worldX, worldY);
+        if (screenCoords) {
+          ctx.fillStyle = tileColor;
+          // Render tiles as small squares that scale with zoom
+          const tileScreenSize = Math.max(1, Math.floor(gameConfig.tileSize * currentScale));
+          ctx.fillRect(
+            screenCoords.x - tileScreenSize / 2,
+            screenCoords.y - tileScreenSize / 2,
+            tileScreenSize,
+            tileScreenSize
+          );
+        }
+      }
+    });
+  }
+  // --- End World Tiles ---
+
   // --- Draw Death Marker ---
   // console.log('[Minimap] Checking for death marker. Marker data:', localPlayerDeathMarker, 'Image loaded:', deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0, 'Image Element:', deathMarkerImage);
   if (localPlayerDeathMarker && deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0) {
-    console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.'); // Changed 'Corpse' to 'Marker' for clarity
+    // console.log('[Minimap] Corpse and loaded image found, attempting to draw death marker.'); // Changed 'Corpse' to 'Marker' for clarity
     const screenCoords = worldToMinimap(localPlayerDeathMarker.posX, localPlayerDeathMarker.posY);
-    console.log('[Minimap] Death marker worldPos:', { x: localPlayerDeathMarker.posX, y: localPlayerDeathMarker.posY }, 'screenCoords:', screenCoords, 'Zoom:', zoomLevel, 'Offset:', viewCenterOffset);
+    //console.log('[Minimap] Death marker worldPos:', { x: localPlayerDeathMarker.posX, y: localPlayerDeathMarker.posY }, 'screenCoords:', screenCoords, 'Zoom:', zoomLevel, 'Offset:', viewCenterOffset);
     if (screenCoords) {
-      console.log('[Minimap] Drawing death marker at:', screenCoords);
+      // console.log('[Minimap] Drawing death marker at:', screenCoords);
       const iconRadius = DEATH_MARKER_ICON_SIZE / 2;
       const iconDiameter = DEATH_MARKER_ICON_SIZE;
       const cx = screenCoords.x;

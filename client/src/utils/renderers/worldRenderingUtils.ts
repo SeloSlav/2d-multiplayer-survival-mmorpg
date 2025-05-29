@@ -1,4 +1,8 @@
 import { gameConfig } from '../../config/gameConfig';
+import { ProceduralWorldRenderer } from './proceduralWorldRenderer';
+
+// Global instance for now - can be optimized later
+let globalProceduralRenderer: ProceduralWorldRenderer | null = null;
 
 /**
  * Renders the tiled world background onto the canvas, optimized to draw only visible tiles.
@@ -8,6 +12,7 @@ import { gameConfig } from '../../config/gameConfig';
  * @param cameraOffsetY - The camera's Y offset in pixels.
  * @param canvasWidth - The width of the canvas.
  * @param canvasHeight - The height of the canvas.
+ * @param worldTiles - Optional procedural world tiles data.
  */
 export function renderWorldBackground(
     ctx: CanvasRenderingContext2D,
@@ -15,8 +20,35 @@ export function renderWorldBackground(
     cameraOffsetX: number,
     cameraOffsetY: number,  
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
+    worldTiles?: Map<string, any>
 ): void {
+    // Try to use procedural world renderer if world tiles are available
+    if (worldTiles && worldTiles.size > 0) {
+        if (!globalProceduralRenderer) {
+            globalProceduralRenderer = new ProceduralWorldRenderer();
+        }
+        
+        // Update the tile cache if needed
+        globalProceduralRenderer.updateTileCache(worldTiles);
+        
+        // Try to render with procedural renderer
+        try {
+            globalProceduralRenderer.renderProceduralWorld(
+                ctx, 
+                cameraOffsetX, 
+                cameraOffsetY, 
+                canvasWidth, 
+                canvasHeight, 
+                16.67 // default deltaTime
+            );
+            return; // Successfully rendered procedural world
+        } catch (error) {
+            console.warn('[renderWorldBackground] Procedural renderer failed, falling back to grass tiles:', error);
+        }
+    }
+
+    // Fallback to original grass tile rendering
     const grassImg = grassImageRef.current;
     const { tileSize } = gameConfig;
 

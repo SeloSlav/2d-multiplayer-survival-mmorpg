@@ -1,0 +1,1 @@
+for<'a> fn(&'a ReducerContext, WorldGenConfig) -> Result<(), std::string::String> {generate_world}

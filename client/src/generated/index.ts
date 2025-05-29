@@ -70,6 +70,10 @@ import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts
 export { EquipArmorFromInventory };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
 export { FireProjectile };
+import { GenerateDefaultWorld } from "./generate_default_world_reducer.ts";
+export { GenerateDefaultWorld };
+import { GenerateWorld } from "./generate_world_reducer.ts";
+export { GenerateWorld };
 import { GetKnockedOutStatus } from "./get_knocked_out_status_reducer.ts";
 export { GetKnockedOutStatus };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
@@ -358,6 +362,8 @@ import { WoodenStorageBoxTableHandle } from "./wooden_storage_box_table.ts";
 export { WoodenStorageBoxTableHandle };
 import { WorldStateTableHandle } from "./world_state_table.ts";
 export { WorldStateTableHandle };
+import { WorldTileTableHandle } from "./world_tile_table.ts";
+export { WorldTileTableHandle };
 
 // Import and reexport all types
 import { ActiveConnection } from "./active_connection_type.ts";
@@ -486,6 +492,8 @@ import { TargetType } from "./target_type_type.ts";
 export { TargetType };
 import { ThunderEvent } from "./thunder_event_type.ts";
 export { ThunderEvent };
+import { TileType } from "./tile_type_type.ts";
+export { TileType };
 import { TimeOfDay } from "./time_of_day_type.ts";
 export { TimeOfDay };
 import { Tree } from "./tree_type.ts";
@@ -496,8 +504,12 @@ import { WeatherType } from "./weather_type_type.ts";
 export { WeatherType };
 import { WoodenStorageBox } from "./wooden_storage_box_type.ts";
 export { WoodenStorageBox };
+import { WorldGenConfig } from "./world_gen_config_type.ts";
+export { WorldGenConfig };
 import { WorldState } from "./world_state_type.ts";
 export { WorldState };
+import { WorldTile } from "./world_tile_type.ts";
+export { WorldTile };
 
 const REMOTE_MODULE = {
   tables: {
@@ -746,6 +758,11 @@ const REMOTE_MODULE = {
       rowType: WorldState.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    world_tile: {
+      tableName: "world_tile",
+      rowType: WorldTile.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
   },
   reducers: {
     add_fuel_to_campfire: {
@@ -823,6 +840,14 @@ const REMOTE_MODULE = {
     fire_projectile: {
       reducerName: "fire_projectile",
       argsType: FireProjectile.getTypeScriptAlgebraicType(),
+    },
+    generate_default_world: {
+      reducerName: "generate_default_world",
+      argsType: GenerateDefaultWorld.getTypeScriptAlgebraicType(),
+    },
+    generate_world: {
+      reducerName: "generate_world",
+      argsType: GenerateWorld.getTypeScriptAlgebraicType(),
     },
     get_knocked_out_status: {
       reducerName: "get_knocked_out_status",
@@ -1246,6 +1271,8 @@ export type Reducer = never
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
 | { name: "FireProjectile", args: FireProjectile }
+| { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
+| { name: "GenerateWorld", args: GenerateWorld }
 | { name: "GetKnockedOutStatus", args: GetKnockedOutStatus }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
@@ -1639,6 +1666,34 @@ export class RemoteReducers {
 
   removeOnFireProjectile(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
     this.connection.offReducer("fire_projectile", callback);
+  }
+
+  generateDefaultWorld() {
+    this.connection.callReducer("generate_default_world", new Uint8Array(0), this.setCallReducerFlags.generateDefaultWorldFlags);
+  }
+
+  onGenerateDefaultWorld(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("generate_default_world", callback);
+  }
+
+  removeOnGenerateDefaultWorld(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("generate_default_world", callback);
+  }
+
+  generateWorld(config: WorldGenConfig) {
+    const __args = { config };
+    let __writer = new BinaryWriter(1024);
+    GenerateWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("generate_world", __argsBuffer, this.setCallReducerFlags.generateWorldFlags);
+  }
+
+  onGenerateWorld(callback: (ctx: ReducerEventContext, config: WorldGenConfig) => void) {
+    this.connection.onReducer("generate_world", callback);
+  }
+
+  removeOnGenerateWorld(callback: (ctx: ReducerEventContext, config: WorldGenConfig) => void) {
+    this.connection.offReducer("generate_world", callback);
   }
 
   getKnockedOutStatus() {
@@ -3175,6 +3230,16 @@ export class SetReducerFlags {
     this.fireProjectileFlags = flags;
   }
 
+  generateDefaultWorldFlags: CallReducerFlags = 'FullUpdate';
+  generateDefaultWorld(flags: CallReducerFlags) {
+    this.generateDefaultWorldFlags = flags;
+  }
+
+  generateWorldFlags: CallReducerFlags = 'FullUpdate';
+  generateWorld(flags: CallReducerFlags) {
+    this.generateWorldFlags = flags;
+  }
+
   getKnockedOutStatusFlags: CallReducerFlags = 'FullUpdate';
   getKnockedOutStatus(flags: CallReducerFlags) {
     this.getKnockedOutStatusFlags = flags;
@@ -3834,6 +3899,10 @@ export class RemoteTables {
 
   get worldState(): WorldStateTableHandle {
     return new WorldStateTableHandle(this.connection.clientCache.getOrCreateTable<WorldState>(REMOTE_MODULE.tables.world_state));
+  }
+
+  get worldTile(): WorldTileTableHandle {
+    return new WorldTileTableHandle(this.connection.clientCache.getOrCreateTable<WorldTile>(REMOTE_MODULE.tables.world_tile));
   }
 }
 
