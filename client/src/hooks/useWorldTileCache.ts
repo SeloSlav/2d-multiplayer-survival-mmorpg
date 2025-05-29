@@ -24,6 +24,9 @@ export function useWorldTileCache(): WorldTileCacheHook {
         isInitialized: false,
         lastUpdate: 0
     });
+    
+    // Use a ref to track initialization to avoid stale closure issues
+    const isInitializedRef = useRef(false);
 
     // Initialize the procedural renderer on first mount
     useEffect(() => {
@@ -35,7 +38,9 @@ export function useWorldTileCache(): WorldTileCacheHook {
             const stats = renderer.getCacheStats();
             setCacheStats(stats);
             
-            if (stats.isInitialized && !isInitialized) {
+            // Use ref instead of state to avoid stale closure
+            if (stats.isInitialized && !isInitializedRef.current) {
+                isInitializedRef.current = true;
                 setIsInitialized(true);
                 console.log('[useWorldTileCache] Procedural world renderer initialized');
             }
@@ -47,7 +52,7 @@ export function useWorldTileCache(): WorldTileCacheHook {
         return () => {
             clearInterval(intervalId);
         };
-    }, [isInitialized]);
+    }, []); // FIXED: Empty dependency array to prevent infinite loop
 
     const updateTileCache = (worldTiles: Map<string, WorldTile>) => {
         if (proceduralRenderer) {

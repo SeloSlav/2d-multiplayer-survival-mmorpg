@@ -18,7 +18,7 @@ export interface Particle {
   alpha: number;
 }
 
-// Adjusted for 2D Pixel Art style & much higher intensity for smoothness
+// Adjusted for 2D Pixel Art style & reduced intensity for better visual balance
 const PARTICLE_FIRE_LIFETIME_MIN = 80; // Shorter for faster turnover
 const PARTICLE_FIRE_LIFETIME_MAX = 200; // Shorter for faster turnover
 const PARTICLE_FIRE_SPEED_Y_MIN = -0.6; // Much faster upward movement
@@ -27,27 +27,30 @@ const PARTICLE_FIRE_SPEED_X_SPREAD = 0.8; // More spread for liveliness
 const PARTICLE_FIRE_SIZE_MIN = 2; 
 const PARTICLE_FIRE_SIZE_MAX = 4;
 const PARTICLE_FIRE_COLORS = ["#FFD878", "#FFB04A", "#FF783C", "#FC9842"];
-const FIRE_PARTICLES_PER_CAMPFIRE_FRAME = 0.6; // Reverted back to original value
+const FIRE_PARTICLES_PER_CAMPFIRE_FRAME = 0.15; // REDUCED: Much lower emission rate for less intense fire
 
 const PARTICLE_SMOKE_LIFETIME_MIN = 800; // Slightly shorter
 const PARTICLE_SMOKE_LIFETIME_MAX = 1800; // Shorter for faster turnover
 const PARTICLE_SMOKE_SPEED_Y_MIN = -0.1; // Slightly faster upward movement
 const PARTICLE_SMOKE_SPEED_Y_MAX = -0.3; // Slightly faster upward movement
-const PARTICLE_SMOKE_SPEED_X_SPREAD = 0.6; // More spread
+const PARTICLE_SMOKE_SPEED_X_SPREAD = 0.3; // REDUCED: Less horizontal spread for more concentrated smoke
 const PARTICLE_SMOKE_SIZE_MIN = 3;
 const PARTICLE_SMOKE_SIZE_MAX = 5; // Slightly larger
 const PARTICLE_SMOKE_GROWTH_RATE = 0.03; // Faster growth
-const SMOKE_PARTICLES_PER_CAMPFIRE_FRAME = 0.25; // Increased emission rate for more visible smoke
-const SMOKE_INITIAL_ALPHA = 0.5; // Higher initial alpha
-const SMOKE_TARGET_ALPHA = 0.05; 
+const SMOKE_PARTICLES_PER_CAMPFIRE_FRAME = 0.12; // REDUCED: Lower emission rate for less smoke
+const SMOKE_INITIAL_ALPHA = 0.4; // REDUCED: Lower initial alpha for more subtle smoke
+const SMOKE_TARGET_ALPHA = 0.05;
 const SMOKE_LINGER_DURATION_MS = 2000; // Shorter linger time
+
+// ADDED: Smoke colors - gray variations for realistic smoke
+const PARTICLE_SMOKE_COLORS = ["#666666", "#777777", "#888888", "#999999", "#555555"];
 
 // --- ADDED: Smoke Burst Constants ---
 const SMOKE_BURST_PARTICLE_COUNT = 15; // Reduced for performance, adjust as needed
-const SMOKE_BURST_COLOR = "#000000";
+const SMOKE_BURST_COLORS = ["#444444", "#555555", "#666666"]; // CHANGED: Use dark gray instead of pure black
 const SMOKE_BURST_LIFETIME_MIN = 500;
 const SMOKE_BURST_LIFETIME_MAX = 1200;
-const SMOKE_BURST_SPEED_X_SPREAD = 0.4;
+const SMOKE_BURST_SPEED_X_SPREAD = 0.2; // REDUCED: Less horizontal spread for burst smoke
 const SMOKE_BURST_SPEED_Y_MIN = -0.1;
 const SMOKE_BURST_SPEED_Y_MAX = -0.3;
 const SMOKE_BURST_SIZE_MIN = 2;
@@ -204,12 +207,13 @@ export function useCampfireParticles({
                         const lifetime = PARTICLE_SMOKE_LIFETIME_MIN + Math.random() * (PARTICLE_SMOKE_LIFETIME_MAX - PARTICLE_SMOKE_LIFETIME_MIN);
                         newGeneratedParticles.push({
                             id: `smoke_${now}_${Math.random()}`, type: 'smoke',
-                            x: smokeEmissionX + (Math.random() - 0.5) * 8, 
-                            y: smokeEmissionY + (Math.random() - 0.5) * 8,
+                            x: smokeEmissionX + (Math.random() - 0.5) * 4, // REDUCED: Smaller position spread
+                            y: smokeEmissionY + (Math.random() - 0.5) * 4, // REDUCED: Smaller position spread
                             vx: (Math.random() - 0.5) * PARTICLE_SMOKE_SPEED_X_SPREAD,
                             vy: PARTICLE_SMOKE_SPEED_Y_MIN + Math.random() * (PARTICLE_SMOKE_SPEED_Y_MAX - PARTICLE_SMOKE_SPEED_Y_MIN),
                             spawnTime: now, initialLifetime: lifetime, lifetime,
                             size: Math.floor(PARTICLE_SMOKE_SIZE_MIN + Math.random() * (PARTICLE_SMOKE_SIZE_MAX - PARTICLE_SMOKE_SIZE_MIN)) + 1,
+                            color: PARTICLE_SMOKE_COLORS[Math.floor(Math.random() * PARTICLE_SMOKE_COLORS.length)], // FIXED: Use gray smoke colors
                             alpha: SMOKE_INITIAL_ALPHA,
                         });
                     }
@@ -221,21 +225,21 @@ export function useCampfireParticles({
                 // --- Continuous Smoke Burst Logic (if player is in hot zone) ---
                 if (campfire.isPlayerInHotZone) {
                     let burstAcc = smokeBurstEmissionAccumulatorRef.current.get(campfireId) || 0;
-                    // Adjust emission rate for burst, e.g., 2 particles per frame equivalent
-                    burstAcc += 2.0 * (deltaTime / 16.667); // Back to original approach
+                    // REDUCED: Lower emission rate for burst smoke
+                    burstAcc += 1.0 * (deltaTime / 16.667); // Reduced from 2.0 to 1.0
                     while (burstAcc >= 1) {
                         burstAcc -= 1;
                         const lifetime = SMOKE_BURST_LIFETIME_MIN + Math.random() * (SMOKE_BURST_LIFETIME_MAX - SMOKE_BURST_LIFETIME_MIN);
                         newGeneratedParticles.push({
                             id: `smokeburst_${campfireId}_${now}_${Math.random()}`,
                             type: 'smoke_burst',
-                            x: visualCenterX + (Math.random() - 0.5) * 20, // Smaller spread for continuous effect
-                            y: visualCenterY + (Math.random() - 0.5) * 15, // Smaller spread
+                            x: visualCenterX + (Math.random() - 0.5) * 12, // REDUCED: Smaller spread for more concentrated effect
+                            y: visualCenterY + (Math.random() - 0.5) * 8, // REDUCED: Smaller spread
                             vx: (Math.random() - 0.5) * SMOKE_BURST_SPEED_X_SPREAD,
                             vy: SMOKE_BURST_SPEED_Y_MIN + Math.random() * (SMOKE_BURST_SPEED_Y_MAX - SMOKE_BURST_SPEED_Y_MIN),
                             spawnTime: now, initialLifetime: lifetime, lifetime,
                             size: SMOKE_BURST_SIZE_MIN + Math.floor(Math.random() * (SMOKE_BURST_SIZE_MAX - SMOKE_BURST_SIZE_MIN + 1)),
-                            color: SMOKE_BURST_COLOR,
+                            color: SMOKE_BURST_COLORS[Math.floor(Math.random() * SMOKE_BURST_COLORS.length)],
                             alpha: SMOKE_BURST_INITIAL_ALPHA,
                         });
                     }

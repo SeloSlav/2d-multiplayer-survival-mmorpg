@@ -202,7 +202,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Particle system refs
   const campfireParticlesRef = useRef<Particle[]>([]);
   const torchParticlesRef = useRef<Particle[]>([]);
-  const fireArrowParticlesRef = useRef<Particle[]>([]);
   
   useEffect(() => {
     placementActionsRef.current = placementActions;
@@ -320,7 +319,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
   // Add stable deltaTime state for particle systems
-  const [stableDeltaTime, setStableDeltaTime] = useState<number>(16.667);
+  const stableDeltaTimeRef = useRef<number>(16.667);
 
   const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime: deltaTimeRef.current });
   const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime: deltaTimeRef.current });
@@ -460,22 +459,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Use the particle hooks with correct signatures
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
-    deltaTime: stableDeltaTime,
+    deltaTime: stableDeltaTimeRef.current,
   });
   
   const torchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: stableDeltaTime,
+    deltaTime: stableDeltaTimeRef.current,
   });
   
   // Fire arrow particle effects
-  useFireArrowParticles({
+  const fireArrowParticles = useFireArrowParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: stableDeltaTime
+    deltaTime: stableDeltaTimeRef.current
   });
 
   // Simple particle renderer function
@@ -661,7 +660,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       // Call without camera offsets, as ctx is already translated
       renderParticlesToCanvas(ctx, campfireParticles);
       renderParticlesToCanvas(ctx, torchParticles);
-      renderParticlesToCanvas(ctx, fireArrowParticlesRef.current);
+      renderParticlesToCanvas(ctx, fireArrowParticles);
 
       // Render cut grass effects
       renderCutGrassEffects(ctx, now_ms);
@@ -919,9 +918,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Update deltaTime ref directly to avoid re-renders
     deltaTimeRef.current = frameInfo.deltaTime;
 
+    // FIXED: Use ref instead of state to avoid re-renders on every frame
     // Update stable deltaTime for particle systems less frequently to avoid render storms
     if (frameInfo.deltaTime > 0 && frameInfo.deltaTime < 100) { // Reasonable deltaTime range
-      setStableDeltaTime(frameInfo.deltaTime);
+      stableDeltaTimeRef.current = frameInfo.deltaTime;
     }
 
     processInputsAndActions();
