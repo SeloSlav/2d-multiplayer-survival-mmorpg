@@ -1,7 +1,8 @@
 import { gameConfig } from '../../config/gameConfig';
-import { TILE_ASSETS, getTileAssetKey } from './tileRenderingUtils';
+import { TILE_ASSETS, getTileAssetKey, hasAutotileSupport, getAutotileConfig } from './tileRenderingUtils';
 import { WorldTile } from '../../generated/world_tile_type';
 import { TileType } from '../../generated/tile_type_type';
+import { shouldUseAutotiling, getAutotileSpriteCoords, debugAutotileBitmask, getDebugTileInfo } from '../autotileUtils';
 
 interface TileCache {
     tiles: Map<string, WorldTile>;
@@ -39,6 +40,11 @@ export class ProceduralWorldRenderer {
             config.animationFrames?.forEach((frame, index) => {
                 promises.push(this.loadImage(frame, `${tileType}_frame${index}`));
             });
+            
+            // Load autotile sheets if they exist
+            if (config.autotileSheet) {
+                promises.push(this.loadImage(config.autotileSheet, `${tileType}_autotile`));
+            }
         });
         
         try {
@@ -83,13 +89,26 @@ export class ProceduralWorldRenderer {
         cameraOffsetY: number,
         canvasWidth: number,
         canvasHeight: number,
-        deltaTime: number
+        deltaTime: number,
+        showDebugOverlay: boolean = false
     ) {
         if (!this.isInitialized) {
             // Fallback to simple grass color if assets not loaded yet
             ctx.fillStyle = '#8FBC8F';
             ctx.fillRect(0, 0, canvasWidth, canvasHeight);
             return;
+        }
+        
+        // Enable pixel-perfect rendering for crisp autotiles
+        ctx.imageSmoothingEnabled = false;
+        if ('webkitImageSmoothingEnabled' in ctx) {
+            (ctx as any).webkitImageSmoothingEnabled = false;
+        }
+        if ('mozImageSmoothingEnabled' in ctx) {
+            (ctx as any).mozImageSmoothingEnabled = false;
+        }
+        if ('msImageSmoothingEnabled' in ctx) {
+            (ctx as any).msImageSmoothingEnabled = false;
         }
         
         this.animationTime += deltaTime;
@@ -111,7 +130,7 @@ export class ProceduralWorldRenderer {
         let tilesRendered = 0;
         for (let y = startTileY; y < endTileY; y++) {
             for (let x = startTileX; x < endTileX; x++) {
-                this.renderTileAt(ctx, x, y, tileSize);
+                this.renderTileAt(ctx, x, y, tileSize, showDebugOverlay);
                 tilesRendered++;
             }
         }
@@ -121,16 +140,16 @@ export class ProceduralWorldRenderer {
         ctx: CanvasRenderingContext2D, 
         tileX: number, 
         tileY: number, 
-        tileSize: number
+        tileSize: number,
+        showDebugOverlay: boolean = false
     ) {
         const tileKey = `${tileX}_${tileY}`;
         const tile = this.tileCache.tiles.get(tileKey);
         
-        // Calculate pixel-perfect positions with overlap to prevent gaps
+        // Calculate pixel-perfect positions - use exact pixel alignment
         const pixelX = Math.floor(tileX * tileSize);
         const pixelY = Math.floor(tileY * tileSize);
-        const overlap = 1; // Add 1 pixel overlap to prevent gaps between tiles
-        const pixelSize = Math.ceil(tileSize) + overlap; // Add overlap to size
+        const pixelSize = Math.floor(tileSize) + 1; // Add 1 pixel to eliminate gaps between tiles
         
         if (!tile) {
             // Fallback to grass if no tile data
@@ -145,12 +164,113 @@ export class ProceduralWorldRenderer {
             return;
         }
         
-        const image = this.getTileImage(tile);
-        if (image && image.complete && image.naturalHeight !== 0) {
-            ctx.drawImage(image, pixelX, pixelY, pixelSize, pixelSize);
+        // Check if this tile should use autotiling
+        const tileTypeName = tile.tileType.tag;
+        const autotileResult = shouldUseAutotiling(tileTypeName, this.tileCache.tiles, tileX, tileY);
+        
+        if (autotileResult && hasAutotileSupport(tileTypeName)) {
+            // Render autotile
+            this.renderAutotile(ctx, tile, autotileResult.bitmask, pixelX, pixelY, pixelSize, showDebugOverlay);
         } else {
-            // Fallback based on tile type
-            this.renderFallbackTile(ctx, tile, pixelX, pixelY, pixelSize);
+            // Render regular tile
+            const image = this.getTileImage(tile);
+            if (image && image.complete && image.naturalHeight !== 0) {
+                ctx.drawImage(image, pixelX, pixelY, pixelSize, pixelSize);
+            } else {
+                // Fallback based on tile type
+                this.renderFallbackTile(ctx, tile, pixelX, pixelY, pixelSize);
+            }
+        }
+    }
+    
+    private renderAutotile(
+        ctx: CanvasRenderingContext2D,
+        tile: WorldTile,
+        bitmask: number,
+        pixelX: number,
+        pixelY: number,
+        pixelSize: number,
+        showDebugOverlay: boolean = false
+    ) {
+        const tileTypeName = tile.tileType.tag;
+        const autotileImg = this.tileCache.images.get(`${tileTypeName}_autotile`);
+        
+        if (!autotileImg || !autotileImg.complete || autotileImg.naturalHeight === 0) {
+            // Fallback to regular tile if autotile image not available
+            const regularImg = this.getTileImage(tile);
+            if (regularImg && regularImg.complete && regularImg.naturalHeight !== 0) {
+                ctx.drawImage(regularImg, pixelX, pixelY, pixelSize, pixelSize);
+            } else {
+                this.renderFallbackTile(ctx, tile, pixelX, pixelY, pixelSize);
+            }
+            return;
+        }
+        
+        const autotileConfig = getAutotileConfig(tileTypeName);
+        if (!autotileConfig) {
+            console.warn(`[ProceduralWorldRenderer] No autotile config for ${tileTypeName}`);
+            return;
+        }
+        
+        // Get sprite coordinates from the autotile sheet
+        const spriteCoords = getAutotileSpriteCoords({
+            primaryType: tileTypeName,
+            secondaryType: 'Dirt', // This should be dynamic based on neighbors
+            tilesetPath: autotileConfig.sheet,
+            tileSize: autotileConfig.size,
+            columns: autotileConfig.columns,
+            rows: autotileConfig.rows
+        }, bitmask);
+        
+        // Debug logging for autotile rendering (enable for debugging)
+        // if (false) { // Temporarily disabled
+        //     console.log(`[Autotile] ${tileTypeName} at (${tile.worldX}, ${tile.worldY}): ${debugAutotileBitmask(bitmask)}`);
+        //     console.log(`[Autotile] Sprite coords:`, spriteCoords);
+        //     console.log(`[Autotile] Autotile config:`, autotileConfig);
+        //     console.log(`[Autotile] Autotile image dimensions:`, autotileImg.naturalWidth, 'x', autotileImg.naturalHeight);
+        // }
+        
+        // Render the specific sprite from the autotile sheet with pixel-perfect alignment
+        // Use exact source dimensions and destination dimensions
+        ctx.drawImage(
+            autotileImg,
+            Math.floor(spriteCoords.x), Math.floor(spriteCoords.y), 
+            Math.floor(spriteCoords.width), Math.floor(spriteCoords.height), // Source rectangle (16x16 from autotile sheet)
+            Math.floor(pixelX), Math.floor(pixelY), 
+            Math.floor(pixelSize), Math.floor(pixelSize) // Destination rectangle (game tile size)
+        );
+        
+        // DEBUG: Draw bitmask and tile info on tile for easy debugging
+        if (showDebugOverlay) { // Enable visual debugging
+            const debugInfo = getDebugTileInfo(bitmask);
+            
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            
+            // Show bitmask number
+            ctx.fillText(
+                `${bitmask}`,
+                Math.floor(pixelX + pixelSize/2), 
+                Math.floor(pixelY + pixelSize/4)
+            );
+            
+            // Show tile index and row/col
+            ctx.fillText(
+                `T${debugInfo.tileIndex}`,
+                Math.floor(pixelX + pixelSize/2), 
+                Math.floor(pixelY + pixelSize/2)
+            );
+            
+            // Show row,col  
+            ctx.fillText(
+                `${debugInfo.row},${debugInfo.col}`,
+                Math.floor(pixelX + pixelSize/2), 
+                Math.floor(pixelY + 3*pixelSize/4)
+            );
+            
+            ctx.restore();
         }
     }
     
@@ -198,18 +318,22 @@ export class ProceduralWorldRenderer {
                 ctx.fillStyle = '#8FBC8F';
                 break;
             case 'Dirt':
+                ctx.fillStyle = '#8B7355';
+                break;
             case 'DirtRoad':
-                ctx.fillStyle = '#8B4513';
+                ctx.fillStyle = '#6B4E3D';
                 break;
             case 'Sea':
-                ctx.fillStyle = '#4682B4';
+                ctx.fillStyle = '#1E90FF';
                 break;
             case 'Beach':
+                ctx.fillStyle = '#F5DEB3';
+                break;
             case 'Sand':
                 ctx.fillStyle = '#F4A460';
                 break;
             default:
-                ctx.fillStyle = '#8FBC8F'; // Default to grass color
+                ctx.fillStyle = '#808080'; // Gray fallback
         }
         
         ctx.fillRect(x, y, size, size);
@@ -217,10 +341,10 @@ export class ProceduralWorldRenderer {
     
     public getCacheStats() {
         return {
-            tilesLoaded: this.tileCache.tiles.size,
-            imagesLoaded: this.tileCache.images.size,
-            isInitialized: this.isInitialized,
-            lastUpdate: this.tileCache.lastUpdate
+            tileCount: this.tileCache.tiles.size,
+            imageCount: this.tileCache.images.size,
+            lastUpdate: this.tileCache.lastUpdate,
+            initialized: this.isInitialized
         };
     }
 } 

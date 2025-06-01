@@ -13,6 +13,7 @@ let globalProceduralRenderer: ProceduralWorldRenderer | null = null;
  * @param canvasWidth - The width of the canvas.
  * @param canvasHeight - The height of the canvas.
  * @param worldTiles - Optional procedural world tiles data.
+ * @param showDebugOverlay - Whether to show a debug overlay.
  */
 export function renderWorldBackground(
     ctx: CanvasRenderingContext2D,
@@ -21,8 +22,21 @@ export function renderWorldBackground(
     cameraOffsetY: number,  
     canvasWidth: number,
     canvasHeight: number,
-    worldTiles?: Map<string, any>
+    worldTiles?: Map<string, any>,
+    showDebugOverlay: boolean = false
 ): void {
+    // Enable pixel-perfect rendering for all tile rendering
+    ctx.imageSmoothingEnabled = false;
+    if ('webkitImageSmoothingEnabled' in ctx) {
+        (ctx as any).webkitImageSmoothingEnabled = false;
+    }
+    if ('mozImageSmoothingEnabled' in ctx) {
+        (ctx as any).mozImageSmoothingEnabled = false;
+    }
+    if ('msImageSmoothingEnabled' in ctx) {
+        (ctx as any).msImageSmoothingEnabled = false;
+    }
+
     // Try to use procedural world renderer if world tiles are available
     if (worldTiles && worldTiles.size > 0) {
         if (!globalProceduralRenderer) {
@@ -40,7 +54,8 @@ export function renderWorldBackground(
                 cameraOffsetY, 
                 canvasWidth, 
                 canvasHeight, 
-                16.67 // default deltaTime
+                16.67, // default deltaTime
+                showDebugOverlay
             );
             return; // Successfully rendered procedural world
         } catch (error) {
@@ -74,19 +89,18 @@ export function renderWorldBackground(
     const endTileY = Math.min(gameConfig.worldHeight, Math.ceil(viewMaxY / tileSize));
 
     const drawGridLines = false; // Keep grid lines off
-    const overlap = 1; // Overlap tiles slightly to prevent gaps
 
     // console.log(`Drawing tiles X: ${startTileX}-${endTileX}, Y: ${startTileY}-${endTileY}`);
 
-    // --- Draw ONLY visible tiles --- 
+    // --- Draw ONLY visible tiles with pixel-perfect alignment --- 
     for (let y = startTileY; y < endTileY; y++) {
         for (let x = startTileX; x < endTileX; x++) {
             ctx.drawImage(
                 grassImg,
-                x * tileSize,
-                y * tileSize,
-                tileSize + overlap,
-                tileSize + overlap
+                Math.floor(x * tileSize),
+                Math.floor(y * tileSize),
+                Math.floor(tileSize),
+                Math.floor(tileSize)
             );
         }
     }

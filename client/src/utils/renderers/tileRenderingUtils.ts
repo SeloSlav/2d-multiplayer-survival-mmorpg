@@ -3,17 +3,29 @@ import dirtTile from '../../assets/tiles/dirt.png';
 import dirtRoadTile from '../../assets/tiles/dirt_road.png';
 import seaTile from '../../assets/tiles/sea.png';
 import beachTile from '../../assets/tiles/beach.png';
+// Import autotile assets
+import grassDirtAutotile from '../../assets/tiles/tileset_grass_dirt_autotile2.png';
 
 export interface TileAssetConfig {
     baseTexture: string;
     variants?: string[]; // For tile variations
     animationFrames?: string[]; // For animated tiles like water
     animationSpeed?: number; // Animation speed in ms per frame
+    // New: Autotile support
+    autotileSheet?: string; // Path to autotile sheet for transitions
+    autotileSize?: number;  // Size of each autotile in pixels
+    autotileColumns?: number; // Number of columns in autotile sheet
+    autotileRows?: number;    // Number of rows in autotile sheet
 }
 
 export const TILE_ASSETS: Record<string, TileAssetConfig> = {
     'Grass': { 
         baseTexture: grassTile,
+        // Autotile configuration for grass-dirt transitions
+        autotileSheet: grassDirtAutotile,
+        autotileSize: 213, // 1280 ÷ 6 ≈ 213 pixels per sprite
+        autotileColumns: 6,
+        autotileRows: 6,
         // Could add grass variants here later
         // variants: ['../../assets/tiles/grass_variant1.png']
     },
@@ -43,7 +55,10 @@ export const TILE_ASSETS: Record<string, TileAssetConfig> = {
     },
 };
 
-export function getTileAssetKey(tileTypeName: string, variant?: number, frameIndex?: number): string {
+export function getTileAssetKey(tileTypeName: string, variant?: number, frameIndex?: number, autotileKey?: string): string {
+    if (autotileKey) {
+        return `${tileTypeName}_autotile_${autotileKey}`;
+    }
     if (frameIndex !== undefined) {
         return `${tileTypeName}_frame${frameIndex}`;
     }
@@ -66,7 +81,42 @@ export function getAllTileAssetPaths(): string[] {
         if (config.animationFrames) {
             paths.push(...config.animationFrames);
         }
+        
+        // Add autotile sheets
+        if (config.autotileSheet) {
+            paths.push(config.autotileSheet);
+        }
     });
     
     return paths;
+}
+
+/**
+ * Check if a tile type supports autotiling
+ */
+export function hasAutotileSupport(tileTypeName: string): boolean {
+    const config = TILE_ASSETS[tileTypeName];
+    return config && !!config.autotileSheet;
+}
+
+/**
+ * Get autotile configuration for a tile type
+ */
+export function getAutotileConfig(tileTypeName: string): {
+    sheet: string;
+    size: number;
+    columns: number;
+    rows: number;
+} | null {
+    const config = TILE_ASSETS[tileTypeName];
+    if (!config || !config.autotileSheet) {
+        return null;
+    }
+    
+    return {
+        sheet: config.autotileSheet,
+        size: config.autotileSize || 16,
+        columns: config.autotileColumns || 6,
+        rows: config.autotileRows || 8
+    };
 } 

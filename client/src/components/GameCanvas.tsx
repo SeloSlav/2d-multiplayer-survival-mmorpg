@@ -135,6 +135,7 @@ interface GameCanvasProps {
   projectiles: Map<string, SpacetimeDBProjectile>;
   deathMarkers: Map<string, SpacetimeDBDeathMarker>;
   shelters: Map<string, SpacetimeDBShelter>;
+  showAutotileDebug: boolean;
 }
 
 /**
@@ -188,6 +189,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   projectiles,
   deathMarkers,
   shelters,
+  showAutotileDebug,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -548,7 +550,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.save();
     ctx.translate(cameraOffsetX, cameraOffsetY);
     // Pass the necessary viewport parameters to the optimized background renderer
-    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles);
+    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
     let isPlacementTooFar = false;
     if (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) {

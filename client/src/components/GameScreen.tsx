@@ -67,6 +67,9 @@ import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 import { useInteractionManager } from '../hooks/useInteractionManager';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+// Import debug context
+import { useDebug } from '../contexts/DebugContext';
+
 // Define props required by GameScreen and its children
 interface GameScreenProps {
     // Core Game State (from useSpacetimeTables)
@@ -141,6 +144,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
     const [showInventoryState, setShowInventoryState] = useState(false);
     
+    // Debug context
+    const { showAutotileDebug, toggleAutotileDebug } = useDebug();
+    
     // Destructure props for cleaner usage
     const {
         players, trees, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, droppedItems, woodenStorageBoxes, sleepingBags,
@@ -194,6 +200,36 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         <div className="game-container">
             {/* Removed temporary world generation button - world generation now happens automatically on server startup */}
             
+            {/* Debug Controls */}
+            {process.env.NODE_ENV === 'development' && (
+                <div style={{ 
+                    position: 'absolute', 
+                    top: '10px', 
+                    left: '10px', 
+                    zIndex: 1000,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    color: 'white',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                }}>
+                    <button 
+                        onClick={toggleAutotileDebug}
+                        style={{
+                            backgroundColor: showAutotileDebug ? '#4CAF50' : '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '2px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Debug Overlay: {showAutotileDebug ? 'ON' : 'OFF'}
+                    </button>
+                </div>
+            )}
+            
             <GameCanvas
                 players={players}
                 trees={trees}
@@ -238,6 +274,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 projectiles={projectiles}
                 deathMarkers={deathMarkers}
                 shelters={shelters}
+                showAutotileDebug={showAutotileDebug}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

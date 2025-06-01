@@ -19,6 +19,7 @@ import GameScreen from './components/GameScreen';
 // Context Providers
 import { GameContextsProvider } from './contexts/GameContexts';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DebugProvider } from './contexts/DebugContext';
 
 // Hooks
 import { useGameConnection } from './contexts/GameConnectionContext';
@@ -449,7 +450,9 @@ function App() {
     return (
         <AuthProvider>
             <GameContextsProvider>
-                <AppContent />
+                <DebugProvider>
+                    <AppContent />
+                </DebugProvider>
             </GameContextsProvider>
         </AuthProvider>
     );
