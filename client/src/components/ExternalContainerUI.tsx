@@ -307,7 +307,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (currentCampfire.isBurning) return false; // If already burning, can extinguish
         
         // If it's raining, disable lighting (but allow extinguishing)
-        if (isRaining) return true;
+        if (!!isRaining) return true;
         
         // If not burning, check for any valid fuel (has fuelBurnDurationSecs > 0)
         return !fuelItems.some(item => 
@@ -396,14 +396,14 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             }`}
                             title={
                                 isToggleButtonDisabled && !currentCampfire.isBurning 
-                                    ? (isRaining ? "Cannot light while raining" : "Requires Fuel > 0")
+                                    ? (!!isRaining ? "Cannot light while raining" : "Requires Fuel > 0")
                                     : ""
                             }
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
                         {/* Rain warning message */}
-                        {isRaining && !currentCampfire.isBurning && (
+                        {!!isRaining && !currentCampfire.isBurning && (
                             <div style={{ 
                                 marginTop: '8px', 
                                 color: '#87CEEB', 

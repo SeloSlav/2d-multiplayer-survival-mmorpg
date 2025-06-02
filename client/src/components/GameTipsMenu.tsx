@@ -109,7 +109,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
             <div
                 className={styles.menuContainer}
                 style={{
-                    maxWidth: '700px',
+                    maxWidth: '500px',
                     maxHeight: '80vh',
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -151,7 +151,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '14px',
+                                                fontSize: '16px',
                                                 color: '#ffdd44',
                                                 marginRight: '10px',
                                                 marginTop: '2px',
@@ -162,11 +162,14 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '12px',
+                                                fontSize: '14px',
                                                 color: 'white',
-                                                lineHeight: '1.6',
+                                                lineHeight: '1.7',
                                                 flex: 1,
                                                 textAlign: 'left',
+                                                wordWrap: 'break-word',
+                                                overflowWrap: 'break-word',
+                                                hyphens: 'auto',
                                             }}
                                         >
                                             {tip}
