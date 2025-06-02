@@ -334,7 +334,7 @@ export function drawMinimapOntoCanvas({
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Generating minimap...', minimapX + minimapWidth/2, minimapY + minimapHeight/2);
+    // ctx.fillText('Generating minimap...', minimapX + minimapWidth/2, minimapY + minimapHeight/2);
   }
 
   // --- Calculate Grid Divisions Dynamically (Based on current view) ---

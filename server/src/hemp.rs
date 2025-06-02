@@ -39,15 +39,14 @@ pub const MIN_HEMP_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0;
 pub const MIN_HEMP_STONE_DISTANCE_SQ: f32 = 20.0 * 20.0; 
 
 // NEW Respawn Time Constants for Hemp
-pub const MIN_HEMP_RESPAWN_TIME_SECS: u64 = 300; // 5 minutes
-pub const MAX_HEMP_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
+pub const MIN_HEMP_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes (CHANGED from 5)
+pub const MAX_HEMP_RESPAWN_TIME_SECS: u64 = 900; // 15 minutes (CHANGED from 10)
 
 // --- Hemp Yield Constants ---
-const HEMP_PRIMARY_YIELD_ITEM_NAME: &str = "Plant Fiber"; // CHANGED from "Cloth"
-const HEMP_PRIMARY_YIELD_MIN_AMOUNT: u32 = 20; // NEW
-const HEMP_PRIMARY_YIELD_MAX_AMOUNT: u32 = 30; // NEW
+const HEMP_PRIMARY_YIELD_ITEM_NAME: &str = "Raw Fiber"; // CHANGED from "Cloth" to "Raw Fiber"
+const HEMP_PRIMARY_YIELD_AMOUNT: u32 = 50; // CHANGED: From 10 to 50 raw fiber
 // Secondary yield for Hemp (optional, can be None if primary is already fiber)
-const HEMP_SECONDARY_YIELD_ITEM_NAME: Option<&str> = None; // No secondary Plant Fiber
+const HEMP_SECONDARY_YIELD_ITEM_NAME: Option<&str> = None; // No secondary yield
 const HEMP_SECONDARY_YIELD_MIN_AMOUNT: u32 = 0;
 const HEMP_SECONDARY_YIELD_MAX_AMOUNT: u32 = 0;
 const HEMP_SECONDARY_YIELD_CHANCE: f32 = 0.0;
@@ -93,7 +92,7 @@ pub fn interact_with_hemp(ctx: &ReducerContext, hemp_id: u64) -> Result<(), Stri
     }
 
     // Calculate primary yield amount for Hemp
-    let primary_yield_amount = ctx.rng().gen_range(HEMP_PRIMARY_YIELD_MIN_AMOUNT..=HEMP_PRIMARY_YIELD_MAX_AMOUNT);
+    let primary_yield_amount = HEMP_PRIMARY_YIELD_AMOUNT;
 
     // Call the generic resource collection and respawn scheduling function
     collect_resource_and_schedule_respawn(

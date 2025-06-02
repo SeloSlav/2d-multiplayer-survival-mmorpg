@@ -51,11 +51,12 @@ pub(crate) const MAX_MUSHROOM_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
 
 // --- Mushroom Yield Constants ---
 const MUSHROOM_PRIMARY_YIELD_ITEM_NAME: &str = "Mushroom";
-const MUSHROOM_PRIMARY_YIELD_AMOUNT: u32 = 1;
-const MUSHROOM_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
-const MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT: u32 = 0;
-const MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT: u32 = 1;
-const MUSHROOM_SECONDARY_YIELD_CHANCE: f32 = 0.33; // 33% chance
+const MUSHROOM_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1;
+const MUSHROOM_PRIMARY_YIELD_MAX_AMOUNT: u32 = 2;
+const MUSHROOM_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber");
+const MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
+const MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
+const MUSHROOM_SECONDARY_YIELD_CHANCE: f32 = 0.85;
 
 /// Represents a mushroom resource in the game world
 #[spacetimedb::table(name = mushroom, public)]
@@ -115,12 +116,15 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
     // Validate player can interact with this mushroom (distance check)
     let _player = validate_player_resource_interaction(ctx, sender_id, mushroom.pos_x, mushroom.pos_y)?;
 
+    // Calculate primary yield amount for Mushrooms
+    let primary_yield_amount = ctx.rng().gen_range(MUSHROOM_PRIMARY_YIELD_MIN_AMOUNT..=MUSHROOM_PRIMARY_YIELD_MAX_AMOUNT);
+
     // Use the generic collect_resource function
     collect_resource_and_schedule_respawn(
         ctx,
         sender_id,
         MUSHROOM_PRIMARY_YIELD_ITEM_NAME,
-        MUSHROOM_PRIMARY_YIELD_AMOUNT,
+        primary_yield_amount,
         MUSHROOM_SECONDARY_YIELD_ITEM_NAME,
         MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT,
         MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT,

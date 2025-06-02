@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: false
 ---
-# 2D Survival Multiplayer Architecture Guidelines
+# 2D Multiplayer Survival Architecture Guidelines
 
 This rules file specifies the architecture, patterns, and conventions for the Vibe Coding 2D Survival Multiplayer project. AI assistants should use this information to understand the codebase structure and make appropriate recommendations.
 

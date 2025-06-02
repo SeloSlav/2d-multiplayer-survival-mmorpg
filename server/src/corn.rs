@@ -40,16 +40,17 @@ pub const MIN_CORN_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0; // Min distance from tre
 pub const MIN_CORN_STONE_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance from stones squared
 
 // NEW Respawn Time Constants for Corn
-pub const MIN_CORN_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
-pub const MAX_CORN_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
+pub const MIN_CORN_RESPAWN_TIME_SECS: u64 = 900; // 15 minutes (CHANGED from 10)
+pub const MAX_CORN_RESPAWN_TIME_SECS: u64 = 1500; // 25 minutes (CHANGED from 20)
 
 // --- Corn Yield Constants ---
 const CORN_PRIMARY_YIELD_ITEM_NAME: &str = "Corn";
-const CORN_PRIMARY_YIELD_AMOUNT: u32 = 1;
-const CORN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
-const CORN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
-const CORN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
-const CORN_SECONDARY_YIELD_CHANCE: f32 = 0.50; // 50% chance
+const CORN_PRIMARY_YIELD_MIN_AMOUNT: u32 = 2; // CHANGED: Min amount for range
+const CORN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 6; // CHANGED: Max amount for range
+const CORN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from corn husks/stalks
+const CORN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 2; // CHANGED: Moderate amount from corn plants
+const CORN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 4; // CHANGED: 2-4 raw fiber from husks/stalks
+const CORN_SECONDARY_YIELD_CHANCE: f32 = 0.90; // CHANGED: 90% chance for fiber yield
 
 /// Represents a corn resource in the game world
 #[spacetimedb::table(name = corn, public)]
@@ -108,12 +109,15 @@ pub fn interact_with_corn(ctx: &ReducerContext, corn_id: u64) -> Result<(), Stri
     // Validate player can interact with this corn (distance check)
     let _player = validate_player_resource_interaction(ctx, player_id, corn.pos_x, corn.pos_y)?;
 
+    // Calculate primary yield amount for Corn
+    let primary_yield_amount = ctx.rng().gen_range(CORN_PRIMARY_YIELD_MIN_AMOUNT..=CORN_PRIMARY_YIELD_MAX_AMOUNT);
+
     // Add to inventory and schedule respawn
     collect_resource_and_schedule_respawn(
         ctx,
         player_id,
         CORN_PRIMARY_YIELD_ITEM_NAME,
-        CORN_PRIMARY_YIELD_AMOUNT,
+        primary_yield_amount, // CHANGED: Use calculated amount
         CORN_SECONDARY_YIELD_ITEM_NAME,
         CORN_SECONDARY_YIELD_MIN_AMOUNT,
         CORN_SECONDARY_YIELD_MAX_AMOUNT,

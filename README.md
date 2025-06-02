@@ -1,6 +1,6 @@
 ![Vibe Coding Starter Pack Banner](./github.png)
 
-# Vibe Coding Starter Pack: 2D Survival Multiplayer
+# Vibe Coding Starter Pack: 2D Multiplayer Survival 
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![React](https://img.shields.io/badge/React-19-blue.svg)

@@ -106,6 +106,189 @@ fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     return false;
 }
 
+// --- NEW: Helper functions for location-specific spawning ---
+
+/// Checks if position is suitable for mushroom spawning (forested grass tiles)
+/// Mushrooms prefer areas with grass tiles that are near trees (forest-like areas)
+fn is_mushroom_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)]) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check if position is on grass tile
+    let world_tiles = ctx.db.world_tile();
+    let mut is_grass = false;
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        is_grass = tile.tile_type == TileType::Grass;
+        break;
+    }
+    
+    if !is_grass {
+        return false;
+    }
+    
+    // Check if near trees (within forested areas)
+    let forest_check_distance_sq = 150.0 * 150.0; // Within 150 pixels of trees for forest feel
+    for &(tree_x, tree_y) in tree_positions {
+        let dx = pos_x - tree_x;
+        let dy = pos_y - tree_y;
+        if dx * dx + dy * dy <= forest_check_distance_sq {
+            return true; // Near trees, good for mushrooms
+        }
+    }
+    
+    false // Not in forested area
+}
+
+/// Checks if position is suitable for hemp spawning (open plains - grass, dirt)
+/// Hemp prefers open areas away from trees and stones
+fn is_hemp_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)], stone_positions: &[(f32, f32)]) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check if position is on grass or dirt tile
+    let world_tiles = ctx.db.world_tile();
+    let mut suitable_tile = false;
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        suitable_tile = matches!(tile.tile_type, TileType::Grass | TileType::Dirt);
+        break;
+    }
+    
+    if !suitable_tile {
+        return false;
+    }
+    
+    // Check if NOT too close to trees (open plains requirement)
+    let min_tree_distance_sq = 100.0 * 100.0; // Stay 100 pixels away from trees
+    for &(tree_x, tree_y) in tree_positions {
+        let dx = pos_x - tree_x;
+        let dy = pos_y - tree_y;
+        if dx * dx + dy * dy < min_tree_distance_sq {
+            return false; // Too close to trees, not open plains
+        }
+    }
+    
+    // Check if NOT too close to stones
+    let min_stone_distance_sq = 80.0 * 80.0; // Stay 80 pixels away from stones
+    for &(stone_x, stone_y) in stone_positions {
+        let dx = pos_x - stone_x;
+        let dy = pos_y - stone_y;
+        if dx * dx + dy * dy < min_stone_distance_sq {
+            return false; // Too close to stones, not open plains
+        }
+    }
+    
+    true
+}
+
+/// Checks if position is suitable for corn spawning (near water/sand tiles)
+/// Corn prefers areas close to water sources or sandy areas
+fn is_corn_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check surrounding area for water or sand within reasonable distance
+    let search_radius = 3; // Check 3 tiles in each direction
+    let world_tiles = ctx.db.world_tile();
+    
+    for dy in -search_radius..=search_radius {
+        for dx in -search_radius..=search_radius {
+            let check_x = tile_x + dx;
+            let check_y = tile_y + dy;
+            
+            // Check if this nearby tile is water, beach, or sand
+            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                if matches!(tile.tile_type, TileType::Sea | TileType::Beach | TileType::Sand) {
+                    return true; // Found water/sand nearby
+                }
+            }
+        }
+    }
+    
+    false // No water/sand nearby
+}
+
+/// Checks if position is suitable for potato spawning (dirt roads, clearings)
+/// Potatoes prefer dirt roads and open cleared areas
+fn is_potato_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)]) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    let world_tiles = ctx.db.world_tile();
+    
+    // First check: Is this on a dirt road? (preferred)
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        if tile.tile_type == TileType::DirtRoad {
+            return true; // Perfect for potatoes
+        }
+    }
+    
+    // Second check: Is this in a clearing? (open dirt or grass areas away from trees)
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        if matches!(tile.tile_type, TileType::Dirt | TileType::Grass) {
+            // Check if it's a clearing (away from trees)
+            let clearing_distance_sq = 80.0 * 80.0; // 80 pixels away from trees for clearing
+            let mut is_clearing = true;
+            
+            for &(tree_x, tree_y) in tree_positions {
+                let dx = pos_x - tree_x;
+                let dy = pos_y - tree_y;
+                if dx * dx + dy * dy < clearing_distance_sq {
+                    is_clearing = false;
+                    break;
+                }
+            }
+            
+            return is_clearing;
+        }
+    }
+    
+    false
+}
+
+/// Checks if position is suitable for pumpkin spawning (riversides, ruins/coastal)
+/// Pumpkins prefer coastal areas, beach regions, and areas near water
+fn is_pumpkin_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    let world_tiles = ctx.db.world_tile();
+    
+    // Check if directly on beach/sand (coastal areas)
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        if matches!(tile.tile_type, TileType::Beach | TileType::Sand) {
+            return true; // Perfect coastal location
+        }
+    }
+    
+    // Check if very close to water (riverside)
+    let search_radius = 2; // Check 2 tiles in each direction for water proximity
+    for dy in -search_radius..=search_radius {
+        for dx in -search_radius..=search_radius {
+            let check_x = tile_x + dx;
+            let check_y = tile_y + dy;
+            
+            // Check if this nearby tile is water
+            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                if tile.tile_type == TileType::Sea {
+                    // Make sure we're on a reasonable tile ourselves (not water)
+                    for own_tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+                        if matches!(own_tile.tile_type, TileType::Grass | TileType::Dirt | TileType::Beach) {
+                            return true; // Near water and on good tile
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    false
+}
+
 // --- Environment Seeding ---
 
 #[spacetimedb::reducer]
@@ -349,7 +532,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for mushrooms
+                is_position_on_water(ctx, pos_x, pos_y) || 
+                !is_mushroom_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions)
+            },
             mushrooms,
         ) {
             Ok(true) => spawned_mushroom_count += 1,
@@ -393,7 +580,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for corn
+                is_position_on_water(ctx, pos_x, pos_y) || 
+                !is_corn_location_suitable(ctx, pos_x, pos_y)
+            },
             corns,
         ) {
             Ok(true) => spawned_corn_count += 1,
@@ -437,7 +628,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for potatoes
+                is_position_on_water(ctx, pos_x, pos_y) || 
+                !is_potato_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions)
+            },
             potatoes,
         ) {
             Ok(true) => spawned_potato_count += 1,
@@ -481,7 +676,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for pumpkins
+                is_position_on_water(ctx, pos_x, pos_y) || 
+                !is_pumpkin_location_suitable(ctx, pos_x, pos_y)
+            },
             pumpkins,
         ) {
             Ok(true) => spawned_pumpkin_count += 1,
@@ -523,7 +722,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for hemp
+                is_position_on_water(ctx, pos_x, pos_y) || 
+                !is_hemp_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions, &spawned_stone_positions)
+            },
             hemps, 
         ) {
             Ok(true) => spawned_hemp_count += 1,

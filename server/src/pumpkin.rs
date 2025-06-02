@@ -40,16 +40,17 @@ pub const MIN_PUMPKIN_TREE_DISTANCE_SQ: f32 = 20.0 * 20.0; // Min distance from 
 pub const MIN_PUMPKIN_STONE_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance from stones squared
 
 // NEW Respawn Time Constants for Pumpkins
-pub const MIN_PUMPKIN_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
-pub const MAX_PUMPKIN_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
+pub const MIN_PUMPKIN_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes (CHANGED from 10)
+pub const MAX_PUMPKIN_RESPAWN_TIME_SECS: u64 = 1800; // 30 minutes (CHANGED from 20)
 
 // --- Pumpkin Yield Constants ---
 const PUMPKIN_PRIMARY_YIELD_ITEM_NAME: &str = "Pumpkin";
-const PUMPKIN_PRIMARY_YIELD_AMOUNT: u32 = 1;
-const PUMPKIN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
-const PUMPKIN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
-const PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
-const PUMPKIN_SECONDARY_YIELD_CHANCE: f32 = 0.50; // 50% chance
+const PUMPKIN_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Min amount for range
+const PUMPKIN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 3; // CHANGED: Max amount for range
+const PUMPKIN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from pumpkin vines/stems
+const PUMPKIN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 3; // CHANGED: Moderate amount from vines/stems
+const PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 5; // CHANGED: 3-5 raw fiber from plant matter
+const PUMPKIN_SECONDARY_YIELD_CHANCE: f32 = 0.85; // CHANGED: 85% chance for fiber yield
 
 /// Represents a pumpkin resource in the game world
 #[spacetimedb::table(name = pumpkin, public)]
@@ -108,12 +109,15 @@ pub fn interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64) -> Result<()
     // Validate player can interact with this pumpkin (distance check)
     let _player = validate_player_resource_interaction(ctx, player_id, pumpkin.pos_x, pumpkin.pos_y)?;
 
+    // Calculate primary yield amount for Pumpkin
+    let primary_yield_amount = ctx.rng().gen_range(PUMPKIN_PRIMARY_YIELD_MIN_AMOUNT..=PUMPKIN_PRIMARY_YIELD_MAX_AMOUNT);
+
     // Add to inventory and schedule respawn
     collect_resource_and_schedule_respawn(
         ctx,
         player_id,
         PUMPKIN_PRIMARY_YIELD_ITEM_NAME,
-        PUMPKIN_PRIMARY_YIELD_AMOUNT,
+        primary_yield_amount, // CHANGED: Use calculated amount
         PUMPKIN_SECONDARY_YIELD_ITEM_NAME,
         PUMPKIN_SECONDARY_YIELD_MIN_AMOUNT,
         PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT,

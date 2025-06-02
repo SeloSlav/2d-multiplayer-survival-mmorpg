@@ -160,7 +160,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     color: '#b0b0c0',
                     fontFamily: UI_FONT_FAMILY,
                 }}>
-                    2D Survival Multiplayer
+                    2D Multiplayer Survival 
                 </div>
                 
                 {/* Display based on authentication and player existence */}

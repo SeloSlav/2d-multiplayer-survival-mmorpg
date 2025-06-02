@@ -3,9 +3,9 @@ description:
 globs: 
 alwaysApply: true
 ---
-# 2D Survival Multiplayer Architecture Guidelines
+# 2D Multiplayer Survival Architecture Guidelines
 
-This document specifies the architecture, patterns, and conventions for the Vibe Coding 2D Survival Multiplayer project. It should be used to understand the codebase structure and make appropriate recommendations.
+This document specifies the architecture, patterns, and conventions for the Vibe Coding 2D Multiplayer Survival project. It should be used to understand the codebase structure and make appropriate recommendations.
 
 ## Core Architecture
 
@@ -147,5 +147,5 @@ AI should be aware of these technical constraints:
    - Public tables are accessible to all clients.
    - Identity handling is required for player authentication.
 
-This documentation should be consulted when analyzing code structure, suggesting improvements, or implementing new features in the 2D Survival Multiplayer project.
+This documentation should be consulted when analyzing code structure, suggesting improvements, or implementing new features in the 2D Multiplayer Survival project.
 

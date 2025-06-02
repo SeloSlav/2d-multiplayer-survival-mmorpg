@@ -216,83 +216,32 @@ fn generate_river_network(config: &WorldGenConfig, noise: &Perlin, shore_distanc
         return rivers;
     }
     
-    log::info!("Generating clean, non-overlapping river network with substantial tributaries");
+    log::info!("Generating clean main rivers with natural meanders (NO tributaries)");
     
     // Scale river parameters with map size - all rivers same width for consistency
     let map_scale = ((width * height) as f64 / (500.0 * 500.0)).sqrt();
     let river_width = (3.0 * map_scale).max(2.0) as i32; // Same width for all rivers
     
-    // Store main river paths for tributary generation
-    let mut main_river_points = Vec::new();
-    
-    // Generate 2 main rivers with MUCH more meandering (avoiding center)
+    // Generate ONLY 2 main rivers with beautiful meandering (avoiding center)
     // River 1: Flows from north highlands to southeast coast
-    let river1_points = trace_highly_meandering_river(&mut rivers, noise, 
-                          width / 2 - width / 8, height / 5,     // Start: North area
-                          width * 4 / 5, height * 4 / 5,         // End: Southeast area
-                          width, height, river_width, 1000);
-    main_river_points.extend(river1_points);
+    trace_highly_meandering_river(&mut rivers, noise, 
+                      width / 2 - width / 8, height / 5,     // Start: North area
+                      width * 4 / 5, height * 4 / 5,         // End: Southeast area
+                      width, height, river_width, 1000);
     
     // River 2: Flows from northwest highlands to south coast
-    let river2_points = trace_highly_meandering_river(&mut rivers, noise,
-                          width / 4, height / 3,                 // Start: Northwest area  
-                          width / 2 + width / 6, height * 5 / 6, // End: South area
-                          width, height, river_width, 2000);
-    main_river_points.extend(river2_points);
+    trace_highly_meandering_river(&mut rivers, noise,
+                      width / 4, height / 3,                 // Start: Northwest area  
+                      width / 2 + width / 6, height * 5 / 6, // End: South area
+                      width, height, river_width, 2000);
     
-    // Generate well-spaced substantial tributaries (same width as main rivers)
-    generate_spaced_tributaries(&mut rivers, noise, shore_distance, &main_river_points, 
-                               width, height, river_width);
+    // REMOVED: All tributary and distributary generation
+    // NO MORE: generate_spaced_tributaries()
+    // NO MORE: generate_spaced_distributaries()
     
-    // Generate well-spaced prominent distributaries near coast
-    generate_spaced_distributaries(&mut rivers, noise, shore_distance, &main_river_points, 
-                                  width, height, river_width);
-    
-    log::info!("Generated clean river network with non-overlapping tributaries (all width: {})", river_width);
+    log::info!("Generated 2 clean main rivers with natural meanders (width: {})", river_width);
     
     rivers
-}
-
-// Helper function to check if area around a point has existing rivers
-fn has_nearby_rivers(rivers: &[Vec<bool>], x: usize, y: usize, check_radius: usize, width: usize, height: usize) -> bool {
-    for dy in -(check_radius as i32)..=(check_radius as i32) {
-        for dx in -(check_radius as i32)..=(check_radius as i32) {
-            let check_x = (x as i32 + dx) as usize;
-            let check_y = (y as i32 + dy) as usize;
-            
-            if check_x < width && check_y < height {
-                if rivers[check_y][check_x] {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
-// Helper function to check if a river path would be valid (no major overlaps)
-fn is_valid_river_path(rivers: &[Vec<bool>], start_x: usize, start_y: usize, end_x: usize, end_y: usize, 
-                      width: usize, height: usize, min_distance: usize) -> bool {
-    let dx = end_x as i32 - start_x as i32;
-    let dy = end_y as i32 - start_y as i32;
-    let steps = (dx.abs().max(dy.abs())) as usize;
-    
-    if steps == 0 {
-        return false;
-    }
-    
-    // Check key points along the path
-    for i in 0..=steps.min(10) { // Check up to 10 points
-        let progress = i as f64 / steps as f64;
-        let check_x = (start_x as f64 + dx as f64 * progress) as usize;
-        let check_y = (start_y as f64 + dy as f64 * progress) as usize;
-        
-        if has_nearby_rivers(rivers, check_x, check_y, min_distance, width, height) {
-            return false;
-        }
-    }
-    
-    true
 }
 
 // Helper function to check if a point is too close to the center compound
@@ -310,26 +259,31 @@ fn is_too_close_to_center_compound(x: usize, y: usize, width: usize, height: usi
     x >= min_x && x <= max_x && y >= min_y && y <= max_y
 }
 
-fn trace_highly_meandering_river(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, start_x: usize, start_y: usize, end_x: usize, end_y: usize, width: usize, height: usize, river_width: i32, noise_seed: i32) -> Vec<(usize, usize)> {
+fn trace_highly_meandering_river(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, start_x: usize, start_y: usize, end_x: usize, end_y: usize, width: usize, height: usize, river_width: i32, noise_seed: i32) {
     let mut current_x = start_x as f64;
     let mut current_y = start_y as f64;
-    let mut river_points = Vec::new();
     
     let total_distance = ((end_x as f64 - start_x as f64).powi(2) + (end_y as f64 - start_y as f64).powi(2)).sqrt();
-    let num_steps = (total_distance * 2.5) as usize; // More steps for more curves
+    let num_steps = (total_distance * 4.0) as usize; // Keep the high step count for smooth curves
+    
+    // Track our general flow direction but allow huge deviations
+    let overall_dx = end_x as f64 - start_x as f64;
+    let overall_dy = end_y as f64 - start_y as f64;
     
     for step in 0..num_steps {
         let progress = step as f64 / num_steps as f64;
         
-        // Linear interpolation toward target
-        let target_x = start_x as f64 + (end_x as f64 - start_x as f64) * progress;
-        let target_y = start_y as f64 + (end_y as f64 - start_y as f64) * progress;
+        // LOOSE target guidance - much less direct than before
+        let loose_target_x = start_x as f64 + overall_dx * progress;
+        let loose_target_y = start_y as f64 + overall_dy * progress;
         
-        // MUCH stronger meandering with multiple noise octaves for natural curves
-        let meander_scale1 = 0.006; // Large curves
-        let meander_scale2 = 0.015; // Medium curves  
-        let meander_scale3 = 0.025; // Small curves
+        // Create LARGE, flowing meanders with very low frequency noise for big curves
+        let meander_scale1 = 0.0008; // Huge sweeping curves
+        let meander_scale2 = 0.002;  // Large secondary curves
+        let meander_scale3 = 0.006;  // Medium curves
+        let meander_scale4 = 0.015;  // Fine detail
         
+        // Multiple noise octaves for complex, natural meandering
         let noise1_x = noise.get([current_x * meander_scale1, current_y * meander_scale1, noise_seed as f64]);
         let noise1_y = noise.get([current_x * meander_scale1, current_y * meander_scale1, (noise_seed + 500) as f64]);
         
@@ -339,243 +293,47 @@ fn trace_highly_meandering_river(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, st
         let noise3_x = noise.get([current_x * meander_scale3, current_y * meander_scale3, (noise_seed + 2000) as f64]);
         let noise3_y = noise.get([current_x * meander_scale3, current_y * meander_scale3, (noise_seed + 2500) as f64]);
         
-        // Combine multiple noise octaves for complex meandering
-        let meander_x = noise1_x * 35.0 + noise2_x * 20.0 + noise3_x * 10.0; // Much stronger meandering
-        let meander_y = noise1_y * 35.0 + noise2_y * 20.0 + noise3_y * 10.0;
+        let noise4_x = noise.get([current_x * meander_scale4, current_y * meander_scale4, (noise_seed + 3000) as f64]);
+        let noise4_y = noise.get([current_x * meander_scale4, current_y * meander_scale4, (noise_seed + 3500) as f64]);
         
-        // Calculate potential new position
-        let lerp_factor = 0.4; // Less direct movement, more meandering
-        let new_x = current_x * (1.0 - lerp_factor) + (target_x + meander_x) * lerp_factor;
-        let new_y = current_y * (1.0 - lerp_factor) + (target_y + meander_y) * lerp_factor;
+        // Create natural meandering but with CONTROLLED amplitudes to prevent gaps
+        let meander_x = noise1_x * 25.0 + noise2_x * 15.0 + noise3_x * 8.0 + noise4_x * 3.0; // REDUCED: Still large but controlled (was 50.0 + 35.0 + 20.0 + 8.0)
+        let meander_y = noise1_y * 25.0 + noise2_y * 15.0 + noise3_y * 8.0 + noise4_y * 3.0; // Prevents huge jumps
+        
+        // Add directional bias that changes over time for realistic river behavior
+        let flow_bias = (progress * std::f64::consts::PI * 3.0).sin() * 8.0; // REDUCED: Still oscillating but controlled (was 15.0)
+        let perpendicular_bias = (progress * std::f64::consts::PI * 2.5).cos() * 6.0; // REDUCED: Cross-flow (was 12.0)
+        
+        // Calculate flow direction with controlled meandering
+        let flow_x = meander_x + flow_bias;
+        let flow_y = meander_y + perpendicular_bias;
+        
+        // VERY loose guidance toward target - allow large deviations
+        let target_pull_strength = 0.12; // SLIGHTLY INCREASED: Better connectivity (was 0.08)
+        let target_pull_x = (loose_target_x - current_x) * target_pull_strength;
+        let target_pull_y = (loose_target_y - current_y) * target_pull_strength;
+        
+        // Combine organic flow with minimal target guidance
+        let desired_x = current_x + flow_x + target_pull_x;
+        let desired_y = current_y + flow_y + target_pull_y;
+        
+        // CRITICAL FIX: Limit maximum step size to prevent gaps
+        let max_step_size = 3.5; // ADDED: Maximum distance per step to ensure connectivity
+        let step_dx = desired_x - current_x;
+        let step_dy = desired_y - current_y;
+        let step_distance = (step_dx * step_dx + step_dy * step_dy).sqrt();
+        
+        let (new_x, new_y) = if step_distance > max_step_size {
+            // Scale down the step to maximum allowed size while preserving direction
+            let scale = max_step_size / step_distance;
+            (current_x + step_dx * scale, current_y + step_dy * scale)
+        } else {
+            (desired_x, desired_y)
+        };
         
         // Check if new position is too close to center compound
         if is_too_close_to_center_compound(new_x as usize, new_y as usize, width, height) {
-            // Add stronger repulsion force away from center
-            let center_x = width as f64 / 2.0;
-            let center_y = height as f64 / 2.0;
-            let repulsion_strength = 40.0;
-            
-            let dx_from_center = new_x - center_x;
-            let dy_from_center = new_y - center_y;
-            let distance_from_center = (dx_from_center * dx_from_center + dy_from_center * dy_from_center).sqrt();
-            
-            if distance_from_center > 0.0 {
-                let repulsion_x = (dx_from_center / distance_from_center) * repulsion_strength;
-                let repulsion_y = (dy_from_center / distance_from_center) * repulsion_strength;
-                
-                current_x = new_x + repulsion_x;
-                current_y = new_y + repulsion_y;
-            } else {
-                // Move in a random direction if exactly at center (unlikely)
-                current_x = new_x + repulsion_strength;
-                current_y = new_y + repulsion_strength;
-            }
-        } else {
-            current_x = new_x;
-            current_y = new_y;
-        }
-        
-        // Ensure we stay within bounds with some buffer
-        current_x = current_x.max(20.0).min(width as f64 - 20.0);
-        current_y = current_y.max(20.0).min(height as f64 - 20.0);
-        
-        // Store point for tributary generation (sample every 3rd point to reduce density)
-        if step % 3 == 0 {
-            river_points.push((current_x as usize, current_y as usize));
-        }
-        
-        // Draw river with full width
-        draw_river_segment(rivers, current_x as i32, current_y as i32, river_width, width, height);
-    }
-    
-    river_points
-}
-
-fn generate_spaced_tributaries(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, shore_distance: &[Vec<f64>], 
-                              main_river_points: &[(usize, usize)], width: usize, height: usize, river_width: i32) {
-    
-    // Generate well-spaced substantial tributaries
-    let mut tributaries_created = 0;
-    let min_distance_between_tributaries = 15; // Minimum distance between river segments
-    
-    for (river_idx, &(river_x, river_y)) in main_river_points.iter().enumerate() {
-        // More selective - every 50th point to reduce density
-        if river_idx % 50 != 0 {
-            continue;
-        }
-        
-        // Higher threshold for cleaner generation
-        let tributary_noise = noise.get([river_x as f64 * 0.02, river_y as f64 * 0.02, 8000.0]);
-        if tributary_noise < 0.3 { // More selective
-            continue;
-        }
-        
-        // Limit total number of tributaries
-        if tributaries_created >= 8 { // Max 8 tributaries total
-            break;
-        }
-        
-        // Find highland areas for tributary source (larger search radius)
-        let search_radius = 70; // Larger search for better tributaries
-        let mut best_source: Option<(usize, usize)> = None;
-        let mut best_elevation_diff = 0.0;
-        
-        for dy in -(search_radius as i32)..=(search_radius as i32) {
-            for dx in -(search_radius as i32)..=(search_radius as i32) {
-                let source_x = (river_x as i32 + dx) as usize;
-                let source_y = (river_y as i32 + dy) as usize;
-                
-                if source_x >= width || source_y >= height {
-                    continue;
-                }
-                
-                // Don't start tributaries from center compound area
-                if is_too_close_to_center_compound(source_x, source_y, width, height) {
-                    continue;
-                }
-                
-                let distance = ((dx * dx + dy * dy) as f64).sqrt();
-                if distance < 40.0 || distance > search_radius as f64 {
-                    continue; // Minimum distance for substantial tributaries
-                }
-                
-                // Check if this location already has rivers nearby
-                if has_nearby_rivers(rivers, source_x, source_y, min_distance_between_tributaries, width, height) {
-                    continue;
-                }
-                
-                let source_shore_distance = shore_distance[source_y][source_x];
-                let river_shore_distance = shore_distance[river_y][river_x];
-                
-                // Source should be significantly further inland
-                let elevation_diff = source_shore_distance - river_shore_distance;
-                if elevation_diff > 25.0 && elevation_diff > best_elevation_diff {
-                    // Check if the path would be valid (no major overlaps)
-                    if is_valid_river_path(rivers, source_x, source_y, river_x, river_y, 
-                                         width, height, min_distance_between_tributaries / 2) {
-                        let placement_noise = noise.get([source_x as f64 * 0.03, source_y as f64 * 0.03, 8500.0]);
-                        if placement_noise > 0.2 {
-                            best_source = Some((source_x, source_y));
-                            best_elevation_diff = elevation_diff;
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Generate substantial tributary (same width as main river)
-        if let Some((source_x, source_y)) = best_source {
-            trace_collision_aware_tributary(rivers, noise, source_x, source_y, river_x, river_y, 
-                                           width, height, river_width, river_idx + 9000, min_distance_between_tributaries);
-            tributaries_created += 1;
-        }
-    }
-    
-    log::info!("Generated {} well-spaced tributaries", tributaries_created);
-}
-
-fn generate_spaced_distributaries(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, shore_distance: &[Vec<f64>], 
-                                 main_river_points: &[(usize, usize)], width: usize, height: usize, river_width: i32) {
-    
-    // Generate well-spaced prominent distributaries near coast
-    let mut distributaries_created = 0;
-    let min_distance_between_distributaries = 12;
-    
-    for (river_idx, &(river_x, river_y)) in main_river_points.iter().enumerate() {
-        let shore_dist = shore_distance[river_y][river_x];
-        if shore_dist > 35.0 { // Only very close to coast
-            continue;
-        }
-        
-        // Much more selective - every 80th point
-        if river_idx % 80 != 0 {
-            continue;
-        }
-        
-        // Limit total distributaries
-        if distributaries_created >= 6 { // Max 6 distributaries total
-            break;
-        }
-        
-        let distributary_noise = noise.get([river_x as f64 * 0.025, river_y as f64 * 0.025, 9000.0]);
-        if distributary_noise < 0.2 { // More selective
-            continue;
-        }
-        
-        // Create only 1 substantial distributary branch
-        let branch_angle = distributary_noise * std::f64::consts::PI * 0.6;
-        
-        // Find target toward sea
-        let mut target_x = river_x;
-        let mut target_y = river_y;
-        
-        for distance in 25..90 { // Longer distributaries
-            let test_x = river_x as f64 + (branch_angle.cos() * distance as f64);
-            let test_y = river_y as f64 + (branch_angle.sin() * distance as f64);
-            
-            let test_x_i = test_x as usize;
-            let test_y_i = test_y as usize;
-            
-            if test_x_i < width && test_y_i < height {
-                if shore_distance[test_y_i][test_x_i] < -5.0 {
-                    target_x = test_x_i;
-                    target_y = test_y_i;
-                    break;
-                }
-            }
-        }
-        
-        // Create substantial distributary only if path is clear
-        if target_x != river_x || target_y != river_y {
-            if is_valid_river_path(rivers, river_x, river_y, target_x, target_y, 
-                                 width, height, min_distance_between_distributaries / 2) {
-                trace_collision_aware_distributary(rivers, noise, river_x, river_y, target_x, target_y, 
-                                                  width, height, river_width, river_idx + 10000, min_distance_between_distributaries);
-                distributaries_created += 1;
-            }
-        }
-    }
-    
-    log::info!("Generated {} well-spaced distributaries", distributaries_created);
-}
-
-fn trace_collision_aware_tributary(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, start_x: usize, start_y: usize, 
-                                  end_x: usize, end_y: usize, width: usize, height: usize, river_width: i32, 
-                                  noise_seed: usize, min_distance: usize) {
-    let mut current_x = start_x as f64;
-    let mut current_y = start_y as f64;
-    
-    let distance = ((end_x as f64 - start_x as f64).powi(2) + (end_y as f64 - start_y as f64).powi(2)).sqrt();
-    let num_steps = (distance * 1.2) as usize; // Fewer steps for cleaner rivers
-    
-    if num_steps < 10 {
-        return; // Only create substantial tributaries
-    }
-    
-    for step in 0..num_steps {
-        let progress = step as f64 / num_steps as f64;
-        
-        let target_x = start_x as f64 + (end_x as f64 - start_x as f64) * progress;
-        let target_y = start_y as f64 + (end_y as f64 - start_y as f64) * progress;
-        
-        // Reduced meandering for cleaner look
-        let meander_noise = noise.get([current_x * 0.01, current_y * 0.01, noise_seed as f64]);
-        let meander_offset = meander_noise * 8.0; // Less meandering
-        
-        // Calculate potential new position
-        let lerp_factor = 0.6; // More direct movement
-        let new_x = current_x * (1.0 - lerp_factor) + (target_x + meander_offset) * lerp_factor;
-        let new_y = current_y * (1.0 - lerp_factor) + (target_y + meander_offset * 0.8) * lerp_factor;
-        
-        // Check for collisions before placing
-        if has_nearby_rivers(rivers, new_x as usize, new_y as usize, min_distance / 2, width, height) {
-            // Skip this segment if it would cause overlap
-            continue;
-        }
-        
-        // Avoid center compound
-        if is_too_close_to_center_compound(new_x as usize, new_y as usize, width, height) {
-            // Add repulsion from center
+            // Add gentle repulsion force away from center
             let center_x = width as f64 / 2.0;
             let center_y = height as f64 / 2.0;
             let repulsion_strength = 25.0;
@@ -599,53 +357,20 @@ fn trace_collision_aware_tributary(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, 
             current_y = new_y;
         }
         
-        current_x = current_x.max(5.0).min(width as f64 - 5.0);
-        current_y = current_y.max(5.0).min(height as f64 - 5.0);
+        // Keep within bounds with buffer
+        current_x = current_x.max(25.0).min(width as f64 - 25.0);
+        current_y = current_y.max(25.0).min(height as f64 - 25.0);
         
-        // Draw with full river width
-        draw_river_segment(rivers, current_x as i32, current_y as i32, river_width, width, height);
-    }
-}
-
-fn trace_collision_aware_distributary(rivers: &mut Vec<Vec<bool>>, noise: &Perlin, start_x: usize, start_y: usize, 
-                                     end_x: usize, end_y: usize, width: usize, height: usize, river_width: i32, 
-                                     noise_seed: usize, min_distance: usize) {
-    let mut current_x = start_x as f64;
-    let mut current_y = start_y as f64;
-    
-    let distance = ((end_x as f64 - start_x as f64).powi(2) + (end_y as f64 - start_y as f64).powi(2)).sqrt();
-    let num_steps = (distance * 1.5) as usize; // Moderate number of steps
-    
-    if num_steps < 8 {
-        return;
-    }
-    
-    for step in 0..num_steps {
-        let progress = step as f64 / num_steps as f64;
-        
-        let target_x = start_x as f64 + (end_x as f64 - start_x as f64) * progress;
-        let target_y = start_y as f64 + (end_y as f64 - start_y as f64) * progress;
-        
-        // Minimal meandering for clean distributaries
-        let flow_noise = noise.get([current_x * 0.015, current_y * 0.015, noise_seed as f64]);
-        let flow_offset = flow_noise * 5.0; // Very minimal meandering
-        
-        let lerp_factor = 0.8; // Very direct flow
-        let new_x = current_x * (1.0 - lerp_factor) + (target_x + flow_offset) * lerp_factor;
-        let new_y = current_y * (1.0 - lerp_factor) + (target_y + flow_offset * 0.6) * lerp_factor;
-        
-        // Check for collisions
-        if has_nearby_rivers(rivers, new_x as usize, new_y as usize, min_distance / 2, width, height) {
-            continue; // Skip overlapping segments
+        // Stronger guidance in final 20% to ensure we reach target
+        if progress > 0.8 {
+            let final_guidance_strength = (progress - 0.8) * 0.6; // Gradually increase guidance
+            let final_pull_x = (end_x as f64 - current_x) * final_guidance_strength;
+            let final_pull_y = (end_y as f64 - current_y) * final_guidance_strength;
+            current_x += final_pull_x;
+            current_y += final_pull_y;
         }
         
-        current_x = new_x;
-        current_y = new_y;
-        
-        current_x = current_x.max(5.0).min(width as f64 - 5.0);
-        current_y = current_y.max(5.0).min(height as f64 - 5.0);
-        
-        // Draw with full river width
+        // Draw river with full width
         draw_river_segment(rivers, current_x as i32, current_y as i32, river_width, width, height);
     }
 }

@@ -40,16 +40,17 @@ pub const MIN_POTATO_TREE_DISTANCE_SQ: f32 = 18.0 * 18.0; // Min distance from t
 pub const MIN_POTATO_STONE_DISTANCE_SQ: f32 = 22.0 * 22.0; // Min distance from stones squared
 
 // Respawn Time Constants for Potato
-pub const MIN_POTATO_RESPAWN_TIME_SECS: u64 = 480; // 8 minutes
-pub const MAX_POTATO_RESPAWN_TIME_SECS: u64 = 960; // 16 minutes
+pub const MIN_POTATO_RESPAWN_TIME_SECS: u64 = 900; // 15 minutes (CHANGED from 8)
+pub const MAX_POTATO_RESPAWN_TIME_SECS: u64 = 1800; // 30 minutes (CHANGED from 16)
 
 // --- Potato Yield Constants ---
 const POTATO_PRIMARY_YIELD_ITEM_NAME: &str = "Potato";
-const POTATO_PRIMARY_YIELD_AMOUNT: u32 = 1;
-const POTATO_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
-const POTATO_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
-const POTATO_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
-const POTATO_SECONDARY_YIELD_CHANCE: f32 = 0.40; // 40% chance (slightly lower than corn)
+const POTATO_PRIMARY_YIELD_MIN_AMOUNT: u32 = 10; // CHANGED: Min amount for range
+const POTATO_PRIMARY_YIELD_MAX_AMOUNT: u32 = 12; // CHANGED: Max amount for range
+const POTATO_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from potato plants
+const POTATO_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Small amount from potato plant matter
+const POTATO_SECONDARY_YIELD_MAX_AMOUNT: u32 = 3; // CHANGED: 1-3 raw fiber from plants
+const POTATO_SECONDARY_YIELD_CHANCE: f32 = 0.80; // CHANGED: 80% chance for fiber yield
 
 /// Represents a potato resource in the game world
 #[spacetimedb::table(name = potato, public)]
@@ -108,12 +109,15 @@ pub fn interact_with_potato(ctx: &ReducerContext, potato_id: u64) -> Result<(), 
     // Validate player can interact with this potato (distance check)
     let _player = validate_player_resource_interaction(ctx, player_id, potato.pos_x, potato.pos_y)?;
 
+    // Calculate primary yield amount for Potato
+    let primary_yield_amount = ctx.rng().gen_range(POTATO_PRIMARY_YIELD_MIN_AMOUNT..=POTATO_PRIMARY_YIELD_MAX_AMOUNT);
+
     // Add to inventory and schedule respawn
     collect_resource_and_schedule_respawn(
         ctx,
         player_id,
         POTATO_PRIMARY_YIELD_ITEM_NAME,
-        POTATO_PRIMARY_YIELD_AMOUNT,
+        primary_yield_amount, // CHANGED: Use calculated amount
         POTATO_SECONDARY_YIELD_ITEM_NAME,
         POTATO_SECONDARY_YIELD_MIN_AMOUNT,
         POTATO_SECONDARY_YIELD_MAX_AMOUNT,

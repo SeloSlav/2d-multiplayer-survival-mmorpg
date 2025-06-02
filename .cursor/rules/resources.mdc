@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 # Guide: Adding New Resources and Nodes
 
-This guide outlines the steps required to add new consumable resources (like Pumpkins) or gatherable nodes (like Metal Ore) to the 2D Survival Multiplayer game. Follow these steps to ensure consistency with the existing architecture.
+This guide outlines the steps required to add new consumable resources (like Pumpkins) or gatherable nodes (like Metal Ore) to the 2D Multiplayer Survival game. Follow these steps to ensure consistency with the existing architecture.
 
 ## General Workflow
 
