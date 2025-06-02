@@ -30,7 +30,7 @@ const HEMP_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.1; // Slightly smaller than co
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing hemp plants
-pub const HEMP_DENSITY_PERCENT: f32 = 0.002; // Similar to mushrooms
+pub const HEMP_DENSITY_PERCENT: f32 = 0.0004; // Reduced from 0.002 to 0.04% of tiles for better game balance
 /// Minimum distance between hemp plants to prevent clustering
 pub const MIN_HEMP_DISTANCE_SQ: f32 = 35.0 * 35.0; 
 /// Minimum distance from trees for better distribution

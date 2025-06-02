@@ -31,7 +31,7 @@ const PUMPKIN_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.25; // Slightly bigger than
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing pumpkin plants
-pub const PUMPKIN_DENSITY_PERCENT: f32 = 0.001; // Reduced to 0.1% of tiles (very rare)
+pub const PUMPKIN_DENSITY_PERCENT: f32 = 0.0002; // Reduced from 0.001 to 0.02% of tiles for better game balance (very rare)
 /// Minimum distance between pumpkin plants to prevent clustering
 pub const MIN_PUMPKIN_DISTANCE_SQ: f32 = 40.0 * 40.0; // Min distance between pumpkin plants squared
 /// Minimum distance from trees for better distribution

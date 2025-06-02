@@ -72,10 +72,14 @@ import { FireProjectile } from "./fire_projectile_reducer.ts";
 export { FireProjectile };
 import { GenerateDefaultWorld } from "./generate_default_world_reducer.ts";
 export { GenerateDefaultWorld };
+import { GenerateMinimapData } from "./generate_minimap_data_reducer.ts";
+export { GenerateMinimapData };
 import { GenerateWorld } from "./generate_world_reducer.ts";
 export { GenerateWorld };
 import { GetKnockedOutStatus } from "./get_knocked_out_status_reducer.ts";
 export { GetKnockedOutStatus };
+import { GetMinimapData } from "./get_minimap_data_reducer.ts";
+export { GetMinimapData };
 import { IdentityConnected } from "./identity_connected_reducer.ts";
 export { IdentityConnected };
 import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
@@ -312,6 +316,8 @@ import { KnockedOutStatusTableHandle } from "./knocked_out_status_table.ts";
 export { KnockedOutStatusTableHandle };
 import { MessageTableHandle } from "./message_table.ts";
 export { MessageTableHandle };
+import { MinimapCacheTableHandle } from "./minimap_cache_table.ts";
+export { MinimapCacheTableHandle };
 import { MushroomTableHandle } from "./mushroom_table.ts";
 export { MushroomTableHandle };
 import { PlayerTableHandle } from "./player_table.ts";
@@ -444,6 +450,8 @@ import { KnockedOutStatus } from "./knocked_out_status_type.ts";
 export { KnockedOutStatus };
 import { Message } from "./message_type.ts";
 export { Message };
+import { MinimapCache } from "./minimap_cache_type.ts";
+export { MinimapCache };
 import { Mushroom } from "./mushroom_type.ts";
 export { Mushroom };
 import { Player } from "./player_type.ts";
@@ -631,6 +639,11 @@ const REMOTE_MODULE = {
     message: {
       tableName: "message",
       rowType: Message.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    minimap_cache: {
+      tableName: "minimap_cache",
+      rowType: MinimapCache.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     mushroom: {
@@ -845,6 +858,10 @@ const REMOTE_MODULE = {
       reducerName: "generate_default_world",
       argsType: GenerateDefaultWorld.getTypeScriptAlgebraicType(),
     },
+    generate_minimap_data: {
+      reducerName: "generate_minimap_data",
+      argsType: GenerateMinimapData.getTypeScriptAlgebraicType(),
+    },
     generate_world: {
       reducerName: "generate_world",
       argsType: GenerateWorld.getTypeScriptAlgebraicType(),
@@ -852,6 +869,10 @@ const REMOTE_MODULE = {
     get_knocked_out_status: {
       reducerName: "get_knocked_out_status",
       argsType: GetKnockedOutStatus.getTypeScriptAlgebraicType(),
+    },
+    get_minimap_data: {
+      reducerName: "get_minimap_data",
+      argsType: GetMinimapData.getTypeScriptAlgebraicType(),
     },
     identity_connected: {
       reducerName: "identity_connected",
@@ -1272,8 +1293,10 @@ export type Reducer = never
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
 | { name: "FireProjectile", args: FireProjectile }
 | { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
+| { name: "GenerateMinimapData", args: GenerateMinimapData }
 | { name: "GenerateWorld", args: GenerateWorld }
 | { name: "GetKnockedOutStatus", args: GetKnockedOutStatus }
+| { name: "GetMinimapData", args: GetMinimapData }
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InitProjectileSystem", args: InitProjectileSystem }
@@ -1680,6 +1703,22 @@ export class RemoteReducers {
     this.connection.offReducer("generate_default_world", callback);
   }
 
+  generateMinimapData(minimapWidth: number, minimapHeight: number) {
+    const __args = { minimapWidth, minimapHeight };
+    let __writer = new BinaryWriter(1024);
+    GenerateMinimapData.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("generate_minimap_data", __argsBuffer, this.setCallReducerFlags.generateMinimapDataFlags);
+  }
+
+  onGenerateMinimapData(callback: (ctx: ReducerEventContext, minimapWidth: number, minimapHeight: number) => void) {
+    this.connection.onReducer("generate_minimap_data", callback);
+  }
+
+  removeOnGenerateMinimapData(callback: (ctx: ReducerEventContext, minimapWidth: number, minimapHeight: number) => void) {
+    this.connection.offReducer("generate_minimap_data", callback);
+  }
+
   generateWorld(config: WorldGenConfig) {
     const __args = { config };
     let __writer = new BinaryWriter(1024);
@@ -1706,6 +1745,18 @@ export class RemoteReducers {
 
   removeOnGetKnockedOutStatus(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("get_knocked_out_status", callback);
+  }
+
+  getMinimapData() {
+    this.connection.callReducer("get_minimap_data", new Uint8Array(0), this.setCallReducerFlags.getMinimapDataFlags);
+  }
+
+  onGetMinimapData(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("get_minimap_data", callback);
+  }
+
+  removeOnGetMinimapData(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("get_minimap_data", callback);
   }
 
   onIdentityConnected(callback: (ctx: ReducerEventContext) => void) {
@@ -3235,6 +3286,11 @@ export class SetReducerFlags {
     this.generateDefaultWorldFlags = flags;
   }
 
+  generateMinimapDataFlags: CallReducerFlags = 'FullUpdate';
+  generateMinimapData(flags: CallReducerFlags) {
+    this.generateMinimapDataFlags = flags;
+  }
+
   generateWorldFlags: CallReducerFlags = 'FullUpdate';
   generateWorld(flags: CallReducerFlags) {
     this.generateWorldFlags = flags;
@@ -3243,6 +3299,11 @@ export class SetReducerFlags {
   getKnockedOutStatusFlags: CallReducerFlags = 'FullUpdate';
   getKnockedOutStatus(flags: CallReducerFlags) {
     this.getKnockedOutStatusFlags = flags;
+  }
+
+  getMinimapDataFlags: CallReducerFlags = 'FullUpdate';
+  getMinimapData(flags: CallReducerFlags) {
+    this.getMinimapDataFlags = flags;
   }
 
   initProjectileSystemFlags: CallReducerFlags = 'FullUpdate';
@@ -3799,6 +3860,10 @@ export class RemoteTables {
 
   get message(): MessageTableHandle {
     return new MessageTableHandle(this.connection.clientCache.getOrCreateTable<Message>(REMOTE_MODULE.tables.message));
+  }
+
+  get minimapCache(): MinimapCacheTableHandle {
+    return new MinimapCacheTableHandle(this.connection.clientCache.getOrCreateTable<MinimapCache>(REMOTE_MODULE.tables.minimap_cache));
   }
 
   get mushroom(): MushroomTableHandle {

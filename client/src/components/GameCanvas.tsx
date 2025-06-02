@@ -25,7 +25,8 @@ import {
   Projectile as SpacetimeDBProjectile,
   DeathMarker as SpacetimeDBDeathMarker,
   Shelter as SpacetimeDBShelter,
-  Potato as SpacetimeDBPotato
+  Potato as SpacetimeDBPotato,
+  MinimapCache as SpacetimeDBMinimapCache
 } from '../generated';
 
 // --- Core Hooks ---
@@ -136,6 +137,7 @@ interface GameCanvasProps {
   deathMarkers: Map<string, SpacetimeDBDeathMarker>;
   shelters: Map<string, SpacetimeDBShelter>;
   showAutotileDebug: boolean;
+  minimapCache: any; // Add this for minimapCache
 }
 
 /**
@@ -190,6 +192,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   deathMarkers,
   shelters,
   showAutotileDebug,
+  minimapCache,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -861,7 +864,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         localPlayerDeathMarker: localPlayerDeathMarker,
         deathMarkerImage: deathMarkerImg,
         worldState: worldState,
-        worldTiles: worldTiles,
+        minimapCache: minimapCache,
       });
     }
 
@@ -914,6 +917,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleShelters,
     visibleSheltersMap,
     shelterImageRef.current,
+    minimapCache,
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {

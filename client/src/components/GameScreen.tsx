@@ -53,7 +53,8 @@ import {
     RangedWeaponStats,
     Projectile as SpacetimeDBProjectile,
     DeathMarker as SpacetimeDBDeathMarker,
-    Shelter as SpacetimeDBShelter
+    Shelter as SpacetimeDBShelter,
+    MinimapCache as SpacetimeDBMinimapCache
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -91,6 +92,7 @@ interface GameScreenProps {
     stashes: Map<string, SpacetimeDBStash>;
     shelters: Map<string, SpacetimeDBShelter>;
     worldTiles: Map<string, any>;
+    minimapCache: SpacetimeDBMinimapCache | null;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -153,6 +155,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         playerPins, playerCorpses, stashes,
         shelters,
         worldTiles,
+        minimapCache,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -275,6 +278,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 deathMarkers={deathMarkers}
                 shelters={shelters}
                 showAutotileDebug={showAutotileDebug}
+                minimapCache={minimapCache}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

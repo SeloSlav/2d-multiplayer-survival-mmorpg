@@ -33,7 +33,7 @@ const MUSHROOM_RADIUS: f32 = BASE_RESOURCE_RADIUS;
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing mushrooms
-pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.0025; // Reduced to 0.25% of map tiles
+pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.0008; // Reduced from 0.0025 to 0.08% of map tiles for better game balance
 /// Minimum distance between mushrooms to prevent clustering
 pub(crate) const MIN_MUSHROOM_DISTANCE_PX: f32 = 60.0;
 pub(crate) const MIN_MUSHROOM_DISTANCE_SQ: f32 = MIN_MUSHROOM_DISTANCE_PX * MIN_MUSHROOM_DISTANCE_PX;

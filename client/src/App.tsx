@@ -115,7 +115,8 @@ function AppContent() {
       projectiles, // Ensure this is destructured
       deathMarkers, // Ensure this is destructured
       shelters, // <<< ADD shelters HERE
-      worldTiles // <<< ADD worldTiles HERE
+      worldTiles, // <<< ADD worldTiles HERE
+      minimapCache // <<< ADD minimapCache HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -402,6 +403,7 @@ function AppContent() {
                             stashes={stashes}
                             shelters={shelters}
                             worldTiles={worldTiles}
+                            minimapCache={minimapCache}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

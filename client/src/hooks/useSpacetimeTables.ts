@@ -43,6 +43,7 @@ export interface SpacetimeTableStates {
     deathMarkers: Map<string, SpacetimeDB.DeathMarker>;
     shelters: Map<string, SpacetimeDB.Shelter>;
     worldTiles: Map<string, SpacetimeDB.WorldTile>;
+    minimapCache: SpacetimeDB.MinimapCache | null;
 }
 
 // Define the props the hook accepts
@@ -94,6 +95,7 @@ export const useSpacetimeTables = ({
     const [deathMarkers, setDeathMarkers] = useState<Map<string, SpacetimeDB.DeathMarker>>(() => new Map());
     const [shelters, setShelters] = useState<Map<string, SpacetimeDB.Shelter>>(() => new Map());
     const [worldTiles, setWorldTiles] = useState<Map<string, SpacetimeDB.WorldTile>>(() => new Map());
+    const [minimapCache, setMinimapCache] = useState<SpacetimeDB.MinimapCache | null>(null);
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -560,6 +562,20 @@ export const useSpacetimeTables = ({
                 worldTilesRef.current.delete(tile.id.toString());
             };
 
+            // --- MinimapCache Handlers ---
+            const handleMinimapCacheInsert = (ctx: any, cache: SpacetimeDB.MinimapCache) => {
+                console.log('[useSpacetimeTables] Minimap cache received:', cache.width, 'x', cache.height, 'data length:', cache.data.length);
+                setMinimapCache(cache);
+            };
+            const handleMinimapCacheUpdate = (ctx: any, oldCache: SpacetimeDB.MinimapCache, newCache: SpacetimeDB.MinimapCache) => {
+                console.log('[useSpacetimeTables] Minimap cache updated:', newCache.width, 'x', newCache.height);
+                setMinimapCache(newCache);
+            };
+            const handleMinimapCacheDelete = (ctx: any, cache: SpacetimeDB.MinimapCache) => {
+                console.log('[useSpacetimeTables] Minimap cache deleted');
+                setMinimapCache(null);
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -636,6 +652,11 @@ export const useSpacetimeTables = ({
             connection.db.worldTile.onUpdate(handleWorldTileUpdate);
             connection.db.worldTile.onDelete(handleWorldTileDelete);
 
+            // Register MinimapCache callbacks - ADDED
+            connection.db.minimapCache.onInsert(handleMinimapCacheInsert);
+            connection.db.minimapCache.onUpdate(handleMinimapCacheUpdate);
+            connection.db.minimapCache.onDelete(handleMinimapCacheDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -644,27 +665,23 @@ export const useSpacetimeTables = ({
             
             // console.log("[useSpacetimeTables] Setting up initial non-spatial subscriptions.");
             const currentInitialSubs = [
+                 connection.subscriptionBuilder().onError((err) => console.error("[PLAYER Sub Error]:", err))
+                    .subscribe('SELECT * FROM player'),
+                 connection.subscriptionBuilder().subscribe('SELECT * FROM item_definition'),
+                 connection.subscriptionBuilder().subscribe('SELECT * FROM recipe'),
+                 connection.subscriptionBuilder().subscribe('SELECT * FROM world_state'),
+                 connection.subscriptionBuilder().onError((err) => console.error("[MINIMAP_CACHE Sub Error]:", err))
+                    .subscribe('SELECT * FROM minimap_cache'),
                  connection.subscriptionBuilder()
-                    // .onApplied(() => console.log("[useSpacetimeTables] Non-spatial PLAYER subscription applied.")) 
-                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial PLAYER subscription error:", err)) 
-                    .subscribe('SELECT * FROM player'), 
-                 connection.subscriptionBuilder().subscribe('SELECT * FROM item_definition'), 
-                 connection.subscriptionBuilder().subscribe('SELECT * FROM recipe'), 
-                 connection.subscriptionBuilder().subscribe('SELECT * FROM world_state'), 
-                 connection.subscriptionBuilder()
-                    // .onApplied(() => console.log("[useSpacetimeTables] Non-spatial INVENTORY subscription applied.")) 
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial INVENTORY subscription error:", err))
                     .subscribe('SELECT * FROM inventory_item'), 
                  connection.subscriptionBuilder()
-                    // .onApplied(() => console.log("[useSpacetimeTables] Non-spatial EQUIPMENT subscription applied.")) 
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial EQUIPMENT subscription error:", err))
                     .subscribe('SELECT * FROM active_equipment'), 
                  connection.subscriptionBuilder()
-                    // .onApplied(() => console.log("[useSpacetimeTables] Non-spatial CRAFTING subscription applied.")) 
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial CRAFTING subscription error:", err))
                     .subscribe('SELECT * FROM crafting_queue_item'), 
                  connection.subscriptionBuilder()
-                    // .onApplied(() => console.log("[useSpacetimeTables] Non-spatial MESSAGE subscription applied.")) 
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial MESSAGE subscription error:", err))
                     .subscribe('SELECT * FROM message'), 
                  connection.subscriptionBuilder()
@@ -684,11 +701,9 @@ export const useSpacetimeTables = ({
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial STASH subscription error:", err))
                     .subscribe('SELECT * FROM stash'),
                  connection.subscriptionBuilder() // Added for ActiveConsumableEffect
-                    // .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'active_consumable_effect' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'active_consumable_effect' ERROR:", err))
                     .subscribe('SELECT * FROM active_consumable_effect'),
                  connection.subscriptionBuilder() // Added for KnockedOutStatus
-                    // .onApplied(() => console.log("[useSpacetimeTables] Subscription for 'knocked_out_status' APPLIED."))
                     .onError((err) => console.error("[useSpacetimeTables] Subscription for 'knocked_out_status' ERROR:", err))
                     .subscribe('SELECT * FROM knocked_out_status'),
                  // Added subscriptions for new tables
@@ -912,5 +927,6 @@ export const useSpacetimeTables = ({
         deathMarkers,
         shelters,
         worldTiles: worldTilesRef.current,
+        minimapCache,
     };
 }; 

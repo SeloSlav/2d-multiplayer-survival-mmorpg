@@ -1,5 +1,6 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag as SpacetimeDBSleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated';
+import { useRef, useCallback } from 'react';
 
 // --- Calculate Proportional Dimensions ---
 const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -17,9 +18,9 @@ const MINIMAP_BG_COLOR_HOVER = 'rgba(60, 60, 80, 0.2)';
 const MINIMAP_BORDER_COLOR = '#a0a0c0';
 const PLAYER_DOT_SIZE = 3;
 const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
-// Add colors for trees and rocks
-const TREE_DOT_COLOR = '#008000'; // Green
-const ROCK_DOT_COLOR = '#808080'; // Grey
+// Add colors for trees and rocks - UPDATED to be much darker and more visible
+const TREE_DOT_COLOR = '#1A4D1A'; // Much darker forest green (was #008000)
+const ROCK_DOT_COLOR = '#2C2C2C'; // Much darker grey (was #808080)
 const CAMPFIRE_DOT_COLOR = '#FFA500'; // Orange for campfires and lit players
 const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 // Water tile rendering on minimap
@@ -55,6 +56,36 @@ const DEATH_MARKER_BORDER_WIDTH = 2;
 const DEATH_MARKER_BORDER_COLOR = '#FFFFFF'; // White border, same as regular bags
 const DEATH_MARKER_BG_COLOR = 'rgba(139, 0, 0, 0.5)'; // Dark red, semi-transparent
 
+// Opacity animation constants
+const OPACITY_TRANSITION_SPEED = 0.08; // Higher = faster transition
+const OPACITY_HIDDEN = 0.5; // 30% opacity when not hovered
+const OPACITY_VISIBLE = 1.0; // 100% opacity when hovered
+
+// Global ref to track animated opacity (shared across all minimap instances)
+let animatedOpacity = OPACITY_HIDDEN;
+let targetOpacity = OPACITY_HIDDEN;
+let animationFrameId: number | null = null;
+
+// Function to smoothly animate opacity
+const animateOpacity = () => {
+  const diff = targetOpacity - animatedOpacity;
+  if (Math.abs(diff) > 0.01) {
+    animatedOpacity += diff * OPACITY_TRANSITION_SPEED;
+    animationFrameId = requestAnimationFrame(animateOpacity);
+  } else {
+    animatedOpacity = targetOpacity;
+    animationFrameId = null;
+  }
+};
+
+// Function to set target opacity and start animation if needed
+const setTargetOpacity = (newTarget: number) => {
+  targetOpacity = newTarget;
+  if (animationFrameId === null && Math.abs(targetOpacity - animatedOpacity) > 0.01) {
+    animateOpacity();
+  }
+};
+
 // Add helper to check if it's night/evening
 function isNightTimeOfDay(tag: string): boolean {
   return (
@@ -70,27 +101,47 @@ interface MinimapProps {
   ctx: CanvasRenderingContext2D;
   players: Map<string, SpacetimeDBPlayer>; // Map of player identities to player data
   trees: Map<string, Tree>; // Map of tree identities/keys to tree data
-  stones: Map<string, SpacetimeDBStone>; // Add stones prop
-  campfires: Map<string, SpacetimeDBCampfire>; // Add campfires prop
-  sleepingBags: Map<number, SleepingBag>; // Map of sleeping bag IDs to data
-  localPlayer?: SpacetimeDBPlayer; // Pass the full local player object
-  localPlayerId?: string; // Revert to string only, Identity type is not exported
-  playerPin: PlayerPin | null; // Local player's pin data
-  canvasWidth: number; // Width of the main game canvas
-  canvasHeight: number; // Height of the main game canvas
-  isMouseOverMinimap: boolean; // To change background on hover
-  zoomLevel: number; // Current zoom level
-  viewCenterOffset: { x: number; y: number }; // Panning offset from hook
-  worldTiles?: Map<string, any>; // Add procedural world tiles
-  // --- New props for Death Screen ---
-  isDeathScreen?: boolean; // Optional flag for death screen mode
-  ownedSleepingBagIds?: Set<number>; // Set of owned sleeping bag IDs
-  onSelectSleepingBag?: (bagId: number) => void; // Callback for clicking an owned bag (logic outside)
-  sleepingBagImage?: HTMLImageElement | null; // Image asset for icons
-  // --- New props for Death Marker ---
-  localPlayerDeathMarker?: SpacetimeDBDeathMarker | null; // Changed from localPlayerCorpse
-  deathMarkerImage?: HTMLImageElement | null; // Image asset for death marker
-  worldState: WorldState | null; // <-- Add this
+  stones: Map<string, SpacetimeDBStone>; // Add stones
+  campfires: Map<string, SpacetimeDBCampfire>; // Add campfires
+  sleepingBags: Map<string, SpacetimeDBSleepingBag>; // Add sleeping bags
+  localPlayer: SpacetimeDBPlayer | undefined; // Extracted local player
+  localPlayerId?: string;
+  viewCenterOffset: { x: number; y: number }; // pan offset
+  playerPin: PlayerPin | null; // Player pin
+  canvasWidth: number; // Canvas width for calculating minimap position
+  canvasHeight: number; // Canvas height for calculating minimap position
+  isMouseOverMinimap: boolean; // Whether the mouse is over the minimap
+  zoomLevel: number; // Zoom level for minimap
+  minimapCache: MinimapCache | null; // Cached minimap data
+  // Add new props with defaults
+  isDeathScreen?: boolean; // Whether this is being rendered in the death screen
+  ownedSleepingBagIds?: Set<number>; // IDs of sleeping bags owned by the player
+  onSelectSleepingBag?: (bagId: number) => void; // Callback when a sleeping bag is selected
+  sleepingBagImage?: HTMLImageElement | null; // Sleeping bag image for rendering
+  // Add new death marker props
+  localPlayerDeathMarker?: SpacetimeDBDeathMarker | null; // Death marker for the local player
+  deathMarkerImage?: HTMLImageElement | null; // Death marker image for rendering
+  worldState?: WorldState | null; // World state for various info
+}
+
+// Helper function to map color values to terrain colors (UPDATED with Rust-style colors)
+function getTerrainColor(colorValue: number): [number, number, number] {
+  switch (colorValue) {
+    case 0:   // Sea - Darker, more realistic ocean blue
+      return [19, 69, 139]; // Dark blue like Rust's ocean
+    case 64:  // Beach - More muted sandy color
+      return [194, 154, 108]; // Muted sand brown
+    case 96:  // Sand - Slightly different from beach
+      return [180, 142, 101]; // Darker sand
+    case 128: // Grass - More realistic forest green  
+      return [76, 110, 72]; // Muted forest green like Rust
+    case 192: // Dirt - Realistic brown dirt
+      return [101, 67, 33]; // Dark brown dirt
+    case 224: // DirtRoad - Even darker brown for roads
+      return [71, 47, 24]; // Very dark brown roads
+    default:  // Fallback for unknown values
+      return [76, 110, 72]; // Default to grass green
+  }
 }
 
 /**
@@ -111,7 +162,7 @@ export function drawMinimapOntoCanvas({
   isMouseOverMinimap,
   zoomLevel, // Destructure zoomLevel
   viewCenterOffset, // Destructure pan offset
-  worldTiles, // Destructure worldTiles
+  minimapCache, // Destructure minimapCache
   // Destructure new props with defaults
   isDeathScreen = false,
   ownedSleepingBagIds = new Set(),
@@ -186,6 +237,13 @@ export function drawMinimapOntoCanvas({
   // --- Apply Retro Styling --- 
   ctx.save(); // Save context before applying shadow/styles
 
+  // --- Apply Smooth Animated Transparency Based on Hover State ---
+  // Set target opacity based on hover state
+  setTargetOpacity(isMouseOverMinimap ? OPACITY_VISIBLE : OPACITY_HIDDEN);
+  
+  // Apply current animated opacity (smoothly transitioning)
+  ctx.globalAlpha = animatedOpacity;
+
   // Apply shadow (draw rectangle slightly offset first, then the main one)
   const shadowOffset = 2;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -220,6 +278,65 @@ export function drawMinimapOntoCanvas({
   ctx.fillStyle = MINIMAP_WORLD_BG_COLOR; 
   ctx.fillRect(worldRectScreenX, worldRectScreenY, worldRectScreenWidth, worldRectScreenHeight);
 
+  // --- Draw Cached Minimap Background ---
+  if (minimapCache && minimapCache.data && minimapCache.data.length > 0) {
+    console.log(`[Minimap] Using cached minimap data: ${minimapCache.width}x${minimapCache.height}, ${minimapCache.data.length} bytes`);
+    
+    // Create an ImageData object from the cached minimap data
+    const canvas = document.createElement('canvas');
+    canvas.width = minimapCache.width;
+    canvas.height = minimapCache.height;
+    const tempCtx = canvas.getContext('2d');
+    
+    if (tempCtx) {
+      const imageData = tempCtx.createImageData(minimapCache.width, minimapCache.height);
+      
+      // Convert color values to RGBA pixels
+      for (let i = 0; i < minimapCache.data.length; i++) {
+        const colorValue = minimapCache.data[i];
+        const pixelIndex = i * 4;
+        
+        // Map color values to terrain colors
+        const [r, g, b] = getTerrainColor(colorValue);
+        imageData.data[pixelIndex] = r;     // Red
+        imageData.data[pixelIndex + 1] = g; // Green  
+        imageData.data[pixelIndex + 2] = b; // Blue
+        imageData.data[pixelIndex + 3] = 255; // Alpha (fully opaque)
+      }
+      
+      tempCtx.putImageData(imageData, 0, 0);
+      
+      // Calculate the world bounds within the minimap
+      // The cached minimap represents the entire game world
+      const worldWidthPx = 500 * 48; // 500 tiles * 48 pixels per tile = 24000 pixels
+      const worldHeightPx = 500 * 48; // 500 tiles * 48 pixels per tile = 24000 pixels
+      
+      // Calculate where the world bounds appear in the current minimap view
+      const worldRectScreenX = drawOffsetX + 0 * currentScale; // World X=0
+      const worldRectScreenY = drawOffsetY + 0 * currentScale; // World Y=0
+      const worldRectScreenWidth = worldPixelWidth * currentScale;
+      const worldRectScreenHeight = worldPixelHeight * currentScale;
+      
+      // Draw the cached minimap scaled to fit the world bounds area
+      ctx.drawImage(
+        canvas,
+        worldRectScreenX,
+        worldRectScreenY, 
+        worldRectScreenWidth,
+        worldRectScreenHeight
+      );
+    }
+  } else {
+    // Debug: Show what we actually have
+    console.log(`[Minimap] No cached minimap data available. minimapCache:`, minimapCache);
+    
+    // Show a message that minimap cache is not ready
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Generating minimap...', minimapX + minimapWidth/2, minimapY + minimapHeight/2);
+  }
+
   // --- Calculate Grid Divisions Dynamically (Based on current view) ---
   // Adjust grid rendering based on zoom level - maybe show finer grid when zoomed?
   // For now, keep it simple: calculate grid lines based on visible world area.
@@ -230,7 +347,7 @@ export function drawMinimapOntoCanvas({
   const startGridYWorld = Math.floor(viewMinYWorld / gridCellSizeWorld) * gridCellSizeWorld;
   const endGridYWorld = Math.ceil((viewMinYWorld + viewHeightWorld) / gridCellSizeWorld) * gridCellSizeWorld;
 
-  // --- Draw Grid ---
+  // --- Draw Grid (MOVED AFTER TERRAIN) ---
   ctx.strokeStyle = GRID_LINE_COLOR;
   ctx.lineWidth = 0.5;
   ctx.fillStyle = GRID_TEXT_COLOR;
@@ -293,53 +410,6 @@ export function drawMinimapOntoCanvas({
     }
   }
   // --- End Grid Drawing ---
-
-  // --- Draw World Tiles (Water Features, Roads, etc.) ---
-  if (worldTiles && worldTiles.size > 0) {
-    worldTiles.forEach(tile => {
-      // Only render special tile types that are visually important on the minimap
-      const tileTypeName = tile.tileType?.tag;
-      let tileColor: string | null = null;
-      
-      switch (tileTypeName) {
-        case 'Sea':
-          tileColor = WATER_TILE_COLOR;
-          break;
-        case 'Beach':
-          tileColor = BEACH_TILE_COLOR;
-          break;
-        case 'DirtRoad':
-          tileColor = DIRT_ROAD_COLOR;
-          break;
-        case 'Dirt':
-          tileColor = DIRT_COLOR;
-          break;
-        // Don't render grass as it's the default terrain
-        default:
-          return; // Skip rendering for grass tiles
-      }
-      
-      if (tileColor) {
-        // Convert tile coordinates to world coordinates
-        const worldX = tile.worldX * gameConfig.tileSize + gameConfig.tileSize / 2;
-        const worldY = tile.worldY * gameConfig.tileSize + gameConfig.tileSize / 2;
-        
-        const screenCoords = worldToMinimap(worldX, worldY);
-        if (screenCoords) {
-          ctx.fillStyle = tileColor;
-          // Render tiles as small squares that scale with zoom
-          const tileScreenSize = Math.max(1, Math.floor(gameConfig.tileSize * currentScale));
-          ctx.fillRect(
-            screenCoords.x - tileScreenSize / 2,
-            screenCoords.y - tileScreenSize / 2,
-            tileScreenSize,
-            tileScreenSize
-          );
-        }
-      }
-    });
-  }
-  // --- End World Tiles ---
 
   // --- Draw Death Marker ---
   // console.log('[Minimap] Checking for death marker. Marker data:', localPlayerDeathMarker, 'Image loaded:', deathMarkerImage && deathMarkerImage.complete && deathMarkerImage.naturalHeight !== 0, 'Image Element:', deathMarkerImage);

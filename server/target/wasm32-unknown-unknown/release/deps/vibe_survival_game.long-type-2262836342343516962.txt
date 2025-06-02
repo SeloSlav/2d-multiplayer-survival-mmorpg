@@ -1,0 +1,1 @@
+RangedIndex<world_tile__TableHandle, (i32, i32), idx_world_position>

@@ -144,6 +144,7 @@ use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrai
 use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
 use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait
 use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile table trait
+use crate::minimap_cache as MinimapCacheTableTrait; // <<< ADDED: Import MinimapCache table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -286,11 +287,32 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
         };
         
         match crate::world_generation::generate_world(ctx, world_config) {
-            Ok(_) => log::info!("Initial world generation completed successfully"),
+            Ok(_) => {
+                log::info!("Initial world generation completed successfully");
+                
+                // Generate minimap cache after world generation
+                log::info!("Generating minimap cache...");
+                match crate::world_generation::generate_minimap_data(ctx, 300, 300) {
+                    Ok(_) => log::info!("Minimap cache generated successfully"),
+                    Err(e) => log::error!("Failed to generate minimap cache: {}", e),
+                }
+            },
             Err(e) => log::error!("Failed to generate initial world: {}", e),
         }
     } else {
         log::info!("World tiles already exist ({}), skipping world generation", existing_tiles_count);
+        
+        // Check if minimap cache exists, generate if missing
+        let existing_minimap_count = ctx.db.minimap_cache().iter().count();
+        if existing_minimap_count == 0 {
+            log::info!("No minimap cache found, generating...");
+            match crate::world_generation::generate_minimap_data(ctx, 300, 300) {
+                Ok(_) => log::info!("Minimap cache generated successfully"),
+                Err(e) => log::error!("Failed to generate minimap cache: {}", e),
+            }
+        } else {
+            log::info!("Minimap cache already exists ({}), skipping generation", existing_minimap_count);
+        }
     }
 
     log::info!("Module initialization complete.");
@@ -837,4 +859,16 @@ pub struct WorldTile {
     pub tile_type: TileType,
     pub variant: u8,  // For tile variations (0-255)
     pub biome_data: Option<String>, // JSON for future biome properties
+}
+
+#[spacetimedb::table(name = minimap_cache, public)]
+#[derive(Clone, Debug)]
+pub struct MinimapCache {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u8>, // Compressed minimap data as color values
+    pub generated_at: Timestamp,
 }

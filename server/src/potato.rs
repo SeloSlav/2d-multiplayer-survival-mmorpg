@@ -31,7 +31,7 @@ const POTATO_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.15; // Slightly smaller than
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing potato plants
-pub const POTATO_DENSITY_PERCENT: f32 = 0.002; // Increased from 0.0008 to make potatoes more common for testing
+pub const POTATO_DENSITY_PERCENT: f32 = 0.0005; // Reduced from 0.002 to 0.05% of tiles for better game balance
 /// Minimum distance between potato plants to prevent clustering
 pub const MIN_POTATO_DISTANCE_SQ: f32 = 35.0 * 35.0; // Min distance between potato plants squared
 /// Minimum distance from trees for better distribution
