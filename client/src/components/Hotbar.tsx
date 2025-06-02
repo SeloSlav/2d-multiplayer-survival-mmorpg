@@ -67,7 +67,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     activeEquipment,
 }) => {
   // console.log('[Hotbar] Rendering. CLIENT_ANIMATION_DURATION_MS:', CLIENT_ANIMATION_DURATION_MS); // Added log
-  const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  const [selectedSlot, setSelectedSlot] = useState<number>(-1);
   const [isVisualCooldownActive, setIsVisualCooldownActive] = useState<boolean>(false);
   const [visualCooldownStartTime, setVisualCooldownStartTime] = useState<number | null>(null);
   const [animationProgress, setAnimationProgress] = useState<number>(0);
@@ -495,10 +495,8 @@ const Hotbar: React.FC<HotbarProps> = ({
           // console.log('[Hotbar] Triggering consumable animation (1 second) on slot:', slotIndex);
           triggerClientCooldownAnimation(false, slotIndex); // Use default duration, specify the clicked slot
         } catch (err) { console.error(`Error consuming item ${instanceId}:`, err); }
-      } else {
-        // First click/press - just select the slot
-        // console.log('[Hotbar] Selected consumable:', itemInSlot.definition.name, '- click again to consume');
       }
+      // Note: Slot selection for consumables happens outside this function (handled by caller)
     } else if (categoryTag === 'Armor') {
       // console.log(`[Hotbar] Handling armor: ${itemInSlot.definition.name}`);
       cancelPlacement();
@@ -528,22 +526,65 @@ const Hotbar: React.FC<HotbarProps> = ({
       // console.log(`[Hotbar] Ranged weapon category tag: ${categoryTag}`);
       // console.log(`[Hotbar] Instance ID: ${instanceId}`);
       cancelPlacement();
-      try { 
-        connection.reducers.setActiveItemReducer(instanceId); 
-        // console.log(`[Hotbar] Successfully set active ranged weapon: ${itemInSlot.definition.name}`);
-        // console.log(`[Hotbar] Ranged weapon should now be equipped and ready to fire`);
-        // TODO: Activate targeting reticle system here
-      } catch (err) { 
-        console.error("Error setActiveItemReducer for ranged weapon:", err); 
+      
+      // Check if this is a second click on the same ranged weapon slot (similar to weapon logic)
+      const actualCurrentSlot = currentSelectedSlot !== undefined ? currentSelectedSlot : selectedSlot;
+      const isCurrentlySelected = actualCurrentSlot === slotIndex;
+      
+      if (isCurrentlySelected && !isMouseWheelScroll) {
+        // Second click on already selected ranged weapon - unequip it and deselect slot
+        try {
+          if (playerIdentity) {
+            connection.reducers.clearActiveItemReducer(playerIdentity);
+            // console.log(`[Hotbar] Unequipped ranged weapon: ${itemInSlot.definition.name}`);
+            setSelectedSlot(-1);
+          }
+        } catch (err) {
+          console.error("Error clearActiveItemReducer on second click for ranged weapon:", err);
+        }
+      } else {
+        // First click - equip the ranged weapon
+        try { 
+          connection.reducers.setActiveItemReducer(instanceId); 
+          // console.log(`[Hotbar] Successfully set active ranged weapon: ${itemInSlot.definition.name}`);
+          // console.log(`[Hotbar] Ranged weapon should now be equipped and ready to fire`);
+          // TODO: Activate targeting reticle system here
+          // Select this slot since we're equipping the ranged weapon
+          setSelectedSlot(slotIndex);
+        } catch (err) { 
+          console.error("Error setActiveItemReducer for ranged weapon:", err); 
+        }
       }
     } else if (categoryTag === 'Tool' || categoryTag === 'Weapon' || isEquippable) {
       // console.log(`[Hotbar] Handling tool/weapon/equippable: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
       cancelPlacement();
-      try { 
-        connection.reducers.setActiveItemReducer(instanceId); 
-        // console.log(`[Hotbar] Successfully set active item: ${itemInSlot.definition.name}`);
-      } catch (err) { 
-        console.error("Error setActiveItemReducer:", err); 
+      
+      // Check if this is a second click on the same weapon/tool slot (similar to consumables logic)
+      const actualCurrentSlot = currentSelectedSlot !== undefined ? currentSelectedSlot : selectedSlot;
+      const isCurrentlySelected = actualCurrentSlot === slotIndex;
+      
+      if (isCurrentlySelected && !isMouseWheelScroll) {
+        // Second click on already selected weapon/tool - unequip it and deselect slot
+        try {
+          if (playerIdentity) {
+            connection.reducers.clearActiveItemReducer(playerIdentity);
+            // console.log(`[Hotbar] Unequipped weapon/tool: ${itemInSlot.definition.name}`);
+            // Deselect the hotbar slot by setting it to -1
+            setSelectedSlot(-1);
+          }
+        } catch (err) {
+          console.error("Error clearActiveItemReducer on second click:", err);
+        }
+      } else {
+        // First click - equip the weapon/tool
+        try { 
+          connection.reducers.setActiveItemReducer(instanceId); 
+          // console.log(`[Hotbar] Successfully set active item: ${itemInSlot.definition.name}`);
+          // Select this slot since we're equipping the weapon/tool
+          setSelectedSlot(slotIndex);
+        } catch (err) { 
+          console.error("Error setActiveItemReducer:", err); 
+        }
       }
     } else {
       // console.log(`[Hotbar] Unhandled category or non-equippable item: ${itemInSlot.definition.name} (Category: ${categoryTag})`);
@@ -576,11 +617,25 @@ const Hotbar: React.FC<HotbarProps> = ({
       const newSlotIndex = keyNum - 1;
       const currentSlot = selectedSlot; // Capture current value before state update
       // console.log(`[Hotbar] Keyboard ${keyNum} pressed: newSlotIndex=${newSlotIndex}, currentSlot=${currentSlot}, selectedSlot state=${selectedSlot}`);
-      setSelectedSlot(newSlotIndex);
+      
+      // Check if this is a weapon/tool slot that might unequip
+      const itemInSlot = findItemForSlot(newSlotIndex);
+      const isWeaponOrTool = itemInSlot && (
+        itemInSlot.definition.category.tag === 'Tool' || 
+        itemInSlot.definition.category.tag === 'Weapon' || 
+        itemInSlot.definition.category.tag === 'RangedWeapon' ||
+        itemInSlot.definition.isEquippable
+      );
+      
+      if (!isWeaponOrTool) {
+        // For non-weapon items, always select the slot
+        setSelectedSlot(newSlotIndex);
+      }
+      
       // console.log(`[Hotbar] Called setSelectedSlot(${newSlotIndex})`);
       activateHotbarSlot(newSlotIndex, false, currentSlot);
     }
-  }, [numSlots, activateHotbarSlot, selectedSlot]); // Updated dependencies
+  }, [numSlots, activateHotbarSlot, selectedSlot, findItemForSlot]); // Updated dependencies
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -592,7 +647,21 @@ const Hotbar: React.FC<HotbarProps> = ({
   const handleSlotClick = (index: number) => {
       // console.log('[Hotbar] Slot clicked:', index);
       const currentSlot = selectedSlot; // Capture current value before state update
-      setSelectedSlot(index);
+      // For most items, we want to select the slot, but weapons/tools might unequip and deselect
+      // Let activateHotbarSlot handle the selection logic
+      const itemInSlot = findItemForSlot(index);
+      const isWeaponOrTool = itemInSlot && (
+        itemInSlot.definition.category.tag === 'Tool' || 
+        itemInSlot.definition.category.tag === 'Weapon' || 
+        itemInSlot.definition.category.tag === 'RangedWeapon' ||
+        itemInSlot.definition.isEquippable
+      );
+      
+      if (!isWeaponOrTool) {
+        // For non-weapon items, always select the slot
+        setSelectedSlot(index);
+      }
+      
       activateHotbarSlot(index, false, currentSlot); // Pass the current slot
   };
 
