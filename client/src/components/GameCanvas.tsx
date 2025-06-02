@@ -323,8 +323,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
-  // Add stable deltaTime state for particle systems
-  const stableDeltaTimeRef = useRef<number>(16.667);
 
   const interpolatedClouds = useCloudInterpolation({ serverClouds: clouds, deltaTime: deltaTimeRef.current });
   const interpolatedGrass = useGrassInterpolation({ serverGrass: grass, deltaTime: deltaTimeRef.current });
@@ -461,17 +459,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Use arrow break effects hook
   useArrowBreakEffects({ connection });
   
-  // Use the particle hooks with correct signatures
+  // Use the particle hooks - they now run independently
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
-    deltaTime: stableDeltaTimeRef.current,
+    deltaTime: 0, // Not used anymore, but kept for compatibility
   });
   
   const torchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: stableDeltaTimeRef.current,
+    deltaTime: 0, // Not used anymore, but kept for compatibility
   });
   
   // Fire arrow particle effects
@@ -479,7 +477,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     players,
     activeEquipments,
     itemDefinitions,
-    deltaTime: stableDeltaTimeRef.current
+    projectiles,
+    deltaTime: 0 // Not used anymore, but kept for compatibility
   });
 
   // Simple particle renderer function
@@ -922,12 +921,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {
     // Update deltaTime ref directly to avoid re-renders
-    deltaTimeRef.current = frameInfo.deltaTime;
-
-    // FIXED: Use ref instead of state to avoid re-renders on every frame
-    // Update stable deltaTime for particle systems less frequently to avoid render storms
-    if (frameInfo.deltaTime > 0 && frameInfo.deltaTime < 100) { // Reasonable deltaTime range
-      stableDeltaTimeRef.current = frameInfo.deltaTime;
+    // Clamp deltaTime to reasonable bounds for consistent particle behavior
+    if (frameInfo.deltaTime > 0 && frameInfo.deltaTime < 100) {
+      deltaTimeRef.current = frameInfo.deltaTime;
+    } else {
+      // Use fallback deltaTime for extreme cases (pause/resume, tab switching, etc.)
+      deltaTimeRef.current = 16.667; // 60fps fallback
     }
 
     processInputsAndActions();

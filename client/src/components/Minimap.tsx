@@ -333,7 +333,7 @@ export function drawMinimapOntoCanvas({
 
   // --- Draw Cached Minimap Background ---
   if (minimapCache && minimapCache.data && minimapCache.data.length > 0) {
-    console.log(`[Minimap] Using cached minimap data: ${minimapCache.width}x${minimapCache.height}, ${minimapCache.data.length} bytes`);
+    // console.log(`[Minimap] Using cached minimap data: ${minimapCache.width}x${minimapCache.height}, ${minimapCache.data.length} bytes`);
     
     // Create an ImageData object from the cached minimap data
     const canvas = document.createElement('canvas');

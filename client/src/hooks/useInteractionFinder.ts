@@ -444,18 +444,6 @@ export function useInteractionFinder({
             }
         }
 
-        // Debug log the found closest resources (only log when something is found to avoid spam)
-        if (closestMushroomId || closestCornId || closestPotatoId || closestPumpkinId || closestHempId) {
-            console.log('[DEBUG InteractionFinder] Found closest resources:', {
-                mushroom: closestMushroomId,
-                corn: closestCornId,
-                potato: closestPotatoId,
-                pumpkin: closestPumpkinId,
-                hemp: closestHempId,
-                playerPos: localPlayer ? `(${localPlayer.positionX.toFixed(1)}, ${localPlayer.positionY.toFixed(1)})` : 'none'
-            });
-        }
-
         return {
             closestInteractableMushroomId: closestMushroomId,
             closestInteractableCornId: closestCornId,

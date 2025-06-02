@@ -419,20 +419,7 @@ export const useInputHandler = ({
                 const closest = closestIdsRef.current;
                 const currentStashes = stashesRef.current;
                 const currentClosestStashId = closest.stash;
-
-                console.log('[DEBUG E-Press] Closest IDs:', {
-                    mushroom: closest.mushroom,
-                    corn: closest.corn,
-                    potato: closest.potato,
-                    pumpkin: closest.pumpkin,
-                    hemp: closest.hemp,
-                    campfire: closest.campfire,
-                    droppedItem: closest.droppedItem,
-                    box: closest.box,
-                    stash: closest.stash,
-                    knockedOutPlayer: closest.knockedOutPlayer
-                });
-
+                
                 // --- Stash Interaction ---
                 if (currentClosestStashId !== null && currentStashes) {
                     const stashEntity = currentStashes.get(currentClosestStashId.toString());
