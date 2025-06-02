@@ -1,0 +1,90 @@
+/* Menu Components CSS Module */
+
+.scrollableSection {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+    padding-right: 10px;
+}
+
+.scrollableSection::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollableSection::-webkit-scrollbar-track {
+    background: rgba(40, 40, 60, 0.5);
+    border-radius: 4px;
+}
+
+.scrollableSection::-webkit-scrollbar-thumb {
+    background: #a0a0c0;
+    border-radius: 4px;
+}
+
+.scrollableSection::-webkit-scrollbar-thumb:hover {
+    background: #c0c0e0;
+}
+
+.menuContainer {
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(40, 40, 60, 0.95);
+    border: 3px solid #a0a0c0;
+    border-radius: 8px;
+    padding: 40px;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.8);
+}
+
+.menuTitle {
+    font-family: "Press Start 2P", cursive;
+    font-size: 18px;
+    color: white;
+    text-align: center;
+    margin-bottom: 30px;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+    flex-shrink: 0;
+}
+
+.menuContent {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.menuButtons {
+    display: flex;
+    justify-content: center;
+    margin-top: 30px;
+    gap: 15px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.menuButton {
+    background-color: rgba(60, 60, 80, 0.8);
+    color: white;
+    border: 2px solid #a0a0c0;
+    border-radius: 4px;
+    padding: 12px 20px;
+    font-family: "Press Start 2P", cursive;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+}
+
+.menuButton:hover {
+    background-color: rgba(80, 80, 100, 0.9);
+    transform: translateY(-1px);
+}
+
+.menuButtonPrimary {
+    background-color: rgba(60, 80, 60, 0.8);
+    border: 2px solid #a0c0a0;
+}
+
+.menuButtonPrimary:hover {
+    background-color: rgba(80, 100, 80, 0.9);
+    transform: translateY(-1px);
+} 

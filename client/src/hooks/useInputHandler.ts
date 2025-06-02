@@ -53,6 +53,7 @@ interface UseInputHandlerProps {
     isChatting: boolean;
     isSearchingCraftRecipes?: boolean;
     isInventoryOpen: boolean; // Prop to indicate if inventory is open
+    isGameMenuOpen: boolean; // Prop to indicate if game menu is open
 }
 
 // --- Hook Return Value Interface ---
@@ -103,6 +104,7 @@ export const useInputHandler = ({
     isChatting,
     isSearchingCraftRecipes,
     isInventoryOpen, // Destructure new prop
+    isGameMenuOpen, // Destructure new prop
 }: UseInputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
@@ -155,6 +157,10 @@ export const useInputHandler = ({
 
     // Add after existing refs in the hook
     const isRightMouseDownRef = useRef<boolean>(false);
+    
+    // --- No longer needed since we removed throttling for super smooth facing ---
+    // const lastMouseFacingUpdateRef = useRef<number>(0);
+    // const MOUSE_FACING_UPDATE_INTERVAL_MS = 16;
 
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
@@ -407,6 +413,25 @@ export const useInputHandler = ({
 
             // Jump
             if (key === ' ' && !event.repeat) {
+                // Don't trigger jump when game menus are open
+                if (isGameMenuOpen) {
+                    return; // Let menus handle spacebar for scrolling
+                }
+                
+                // Don't trigger jump when in menu components (to prevent interfering with scrolling)
+                const target = event.target as Element;
+                if (target) {
+                    const isInMenu = target.closest('[data-scrollable-region]') || 
+                                    target.closest('.menuContainer') ||
+                                    target.closest('[style*="zIndex: 2000"]') ||
+                                    target.closest('[style*="z-index: 2000"]') ||
+                                    document.querySelector('[style*="zIndex: 2000"]') ||
+                                    document.querySelector('[style*="z-index: 2000"]');
+                    if (isInMenu) {
+                        return; // Let the menu handle spacebar for scrolling
+                    }
+                }
+                
                 if (localPlayerRef.current && !localPlayerRef.current.isDead) { // Check player exists and is not dead
                     jump();
                 }
@@ -814,7 +839,7 @@ export const useInputHandler = ({
                 }
             } else if (event.button === 2) { // Right Click
                 if (isPlayerDead) return;
-                if (isInventoryOpen) return;
+                if (isInventoryOpen) return; 
                 
                 console.log("[InputHandler] Right mouse button pressed");
                 isRightMouseDownRef.current = true;
@@ -1054,6 +1079,11 @@ export const useInputHandler = ({
 
         // --- Wheel for Placement Cancellation (optional) ---
         const handleWheel = (event: WheelEvent) => {
+            // Don't interfere with scrolling when game menus are open
+            if (isGameMenuOpen) {
+                return; // Let menus handle their own scrolling
+            }
+            
             if (placementInfo) {
                 placementActionsRef.current?.cancelPlacement();
             }
@@ -1114,17 +1144,45 @@ export const useInputHandler = ({
                 eKeyHoldTimerRef.current = null;
             }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
 
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
         const currentConnection = connectionRef.current;
-        const player = localPlayerRef.current; // Get the current player state
+        const currentLocalPlayer = localPlayerRef.current;
+        const currentActiveEquipments = activeEquipmentsRef.current;
+
+        if (!currentConnection?.reducers || !localPlayerId || !currentLocalPlayer) {
+            return; // Early return if dependencies aren't ready
+        }
+
+        // Get input disabled state based ONLY on player death
+        const isInputDisabledState = currentLocalPlayer.isDead;
+        
+        // --- Update mouse-based facing direction ---
+        // Send mouse position to server to update player facing direction (overrides movement-based direction)
+        // No throttling for super smooth facing direction like Blazing Beaks
+        if (!isInputDisabledState && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
+            try {
+                currentConnection.reducers.updatePlayerFacingDirection(
+                    worldMousePosRefInternal.current.x,
+                    worldMousePosRefInternal.current.y
+                );
+            } catch (err) {
+                console.error("[InputHandler] Error calling updatePlayerFacingDirection reducer:", err);
+            }
+        }
+
+        // Input is disabled if the player is dead
+        // Do not process any game-related input if disabled
+        if (isInputDisabledState) {
+            return; // Early return - player is dead, skip all input processing
+        }
 
         // MODIFIED: Do nothing if player is dead, or if chatting/searching
-        if (!player || player.isDead || isChatting || isSearchingCraftRecipes) {
+        if (!currentLocalPlayer || currentLocalPlayer.isDead || isChatting || isSearchingCraftRecipes) {
              // Reset sprint state on death if not already handled by useEffect
-            if (isSprintingRef.current && player?.isDead) { // Only reset sprint due to death
+            if (isSprintingRef.current && currentLocalPlayer?.isDead) { // Only reset sprint due to death
                 isSprintingRef.current = false;
                 // No need to call reducer here, useEffect for player.isDead handles it for death
             } else if (isSprintingRef.current && (isChatting || isSearchingCraftRecipes)) {
@@ -1140,9 +1198,9 @@ export const useInputHandler = ({
         }
         
         // --- Jump Offset Calculation (moved here for per-frame update) ---
-        if (player && player.jumpStartTimeMs > 0) {
+        if (currentLocalPlayer && currentLocalPlayer.jumpStartTimeMs > 0) {
             const nowMs = Date.now();
-            const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
+            const elapsedJumpTime = nowMs - Number(currentLocalPlayer.jumpStartTimeMs);
 
             if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
                 const t = elapsedJumpTime / JUMP_DURATION_MS;

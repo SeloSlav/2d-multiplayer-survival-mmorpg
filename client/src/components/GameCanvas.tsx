@@ -138,6 +138,7 @@ interface GameCanvasProps {
   shelters: Map<string, SpacetimeDBShelter>;
   showAutotileDebug: boolean;
   minimapCache: any; // Add this for minimapCache
+  isGameMenuOpen: boolean; // Add this prop
 }
 
 /**
@@ -193,6 +194,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   shelters,
   showAutotileDebug,
   minimapCache,
+  isGameMenuOpen,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -319,6 +321,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isInventoryOpen: showInventory,
     closestInteractableKnockedOutPlayerId,
     players,
+    isGameMenuOpen,
   });
 
   // Use ref instead of state to avoid re-renders every frame

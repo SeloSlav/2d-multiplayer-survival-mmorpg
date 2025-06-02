@@ -38,6 +38,7 @@ export namespace TreeType {
   export type AleppoPine = { tag: "AleppoPine" };
   export type MannaAsh = { tag: "MannaAsh" };
   export type DownyOak = { tag: "DownyOak" };
+  export type StonePine = { tag: "StonePine" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -48,12 +49,14 @@ export namespace TreeType {
   export const AleppoPine = { tag: "AleppoPine" };
   export const MannaAsh = { tag: "MannaAsh" };
   export const DownyOak = { tag: "DownyOak" };
+  export const StonePine = { tag: "StonePine" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
       new SumTypeVariant("AleppoPine", AlgebraicType.createProductType([])),
       new SumTypeVariant("MannaAsh", AlgebraicType.createProductType([])),
       new SumTypeVariant("DownyOak", AlgebraicType.createProductType([])),
+      new SumTypeVariant("StonePine", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -68,7 +71,7 @@ export namespace TreeType {
 }
 
 // The tagged union or sum type for the algebraic type `TreeType`.
-export type TreeType = TreeType.AleppoPine | TreeType.MannaAsh | TreeType.DownyOak;
+export type TreeType = TreeType.AleppoPine | TreeType.MannaAsh | TreeType.DownyOak | TreeType.StonePine;
 
 export default TreeType;
 

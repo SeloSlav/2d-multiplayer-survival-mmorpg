@@ -2,6 +2,7 @@ import { Tree } from '../../generated'; // Import generated types
 import aleppoPineImage from '../../assets/doodads/aleppo_pine.png';
 import mannaAshImage from '../../assets/doodads/manna_ash.png';
 import downyOakImage from '../../assets/doodads/downy_oak.png';
+import stonePineImage from '../../assets/doodads/stone_pine.png'; // New import for stone pine
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
 import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
@@ -28,6 +29,8 @@ const treeConfig: GroundEntityConfig<Tree> = {
                     return mannaAshImage;
                 case 'DownyOak':
                     return downyOakImage;
+                case 'StonePine':
+                    return stonePineImage;
                 default:
                     console.warn(`Unknown tree type tag: ${(entity.treeType as any).tag}, falling back to Downy Oak.`);
                     return downyOakImage;
@@ -40,6 +43,8 @@ const treeConfig: GroundEntityConfig<Tree> = {
                     return mannaAshImage;
                 case 'DownyOak':
                     return downyOakImage;
+                case 'StonePine':
+                    return stonePineImage;
                 default:
                     console.warn(`Unknown tree type string: ${entity.treeType}, falling back to Downy Oak.`);
                     return downyOakImage;
@@ -108,6 +113,7 @@ const treeConfig: GroundEntityConfig<Tree> = {
 imageManager.preloadImage(aleppoPineImage);
 imageManager.preloadImage(mannaAshImage);
 imageManager.preloadImage(downyOakImage);
+imageManager.preloadImage(stonePineImage);
 // TODO: Preload other variants if added
 
 // Refactored rendering function

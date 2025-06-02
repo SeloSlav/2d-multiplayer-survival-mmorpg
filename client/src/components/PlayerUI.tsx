@@ -44,6 +44,7 @@ interface PlayerUIProps {
   onToggleInventory: () => void;
   knockedOutStatus: Map<string, KnockedOutStatus>;
   worldState: WorldState | null;
+  isGameMenuOpen?: boolean;
 }
 
 const PlayerUI: React.FC<PlayerUIProps> = ({
@@ -73,7 +74,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     showInventory,
     onToggleInventory,
     knockedOutStatus,
-    worldState
+    worldState,
+    isGameMenuOpen
  }) => {
     const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
     const [lowNeedThreshold, setLowNeedThreshold] = useState<number>(20.0);
@@ -644,6 +646,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     cancelPlacement={cancelPlacement}
                     activeConsumableEffects={activeConsumableEffects}
                     activeEquipment={localPlayerActiveEquipment}
+                    isGameMenuOpen={isGameMenuOpen}
                 />
             )}
 

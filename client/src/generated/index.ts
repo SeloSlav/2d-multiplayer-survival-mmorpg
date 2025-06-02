@@ -258,6 +258,8 @@ import { ToggleTorch } from "./toggle_torch_reducer.ts";
 export { ToggleTorch };
 import { UpdateCloudPositions } from "./update_cloud_positions_reducer.ts";
 export { UpdateCloudPositions };
+import { UpdatePlayerFacingDirection } from "./update_player_facing_direction_reducer.ts";
+export { UpdatePlayerFacingDirection };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
 import { UpdateProjectiles } from "./update_projectiles_reducer.ts";
@@ -1230,6 +1232,10 @@ const REMOTE_MODULE = {
       reducerName: "update_cloud_positions",
       argsType: UpdateCloudPositions.getTypeScriptAlgebraicType(),
     },
+    update_player_facing_direction: {
+      reducerName: "update_player_facing_direction",
+      argsType: UpdatePlayerFacingDirection.getTypeScriptAlgebraicType(),
+    },
     update_player_position: {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
@@ -1386,6 +1392,7 @@ export type Reducer = never
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
+| { name: "UpdatePlayerFacingDirection", args: UpdatePlayerFacingDirection }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
 | { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
@@ -3123,6 +3130,22 @@ export class RemoteReducers {
     this.connection.offReducer("update_cloud_positions", callback);
   }
 
+  updatePlayerFacingDirection(mouseWorldX: number, mouseWorldY: number) {
+    const __args = { mouseWorldX, mouseWorldY };
+    let __writer = new BinaryWriter(1024);
+    UpdatePlayerFacingDirection.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_player_facing_direction", __argsBuffer, this.setCallReducerFlags.updatePlayerFacingDirectionFlags);
+  }
+
+  onUpdatePlayerFacingDirection(callback: (ctx: ReducerEventContext, mouseWorldX: number, mouseWorldY: number) => void) {
+    this.connection.onReducer("update_player_facing_direction", callback);
+  }
+
+  removeOnUpdatePlayerFacingDirection(callback: (ctx: ReducerEventContext, mouseWorldX: number, mouseWorldY: number) => void) {
+    this.connection.offReducer("update_player_facing_direction", callback);
+  }
+
   updatePlayerPosition(moveX: number, moveY: number) {
     const __args = { moveX, moveY };
     let __writer = new BinaryWriter(1024);
@@ -3739,6 +3762,11 @@ export class SetReducerFlags {
   updateCloudPositionsFlags: CallReducerFlags = 'FullUpdate';
   updateCloudPositions(flags: CallReducerFlags) {
     this.updateCloudPositionsFlags = flags;
+  }
+
+  updatePlayerFacingDirectionFlags: CallReducerFlags = 'FullUpdate';
+  updatePlayerFacingDirection(flags: CallReducerFlags) {
+    this.updatePlayerFacingDirectionFlags = flags;
   }
 
   updatePlayerPositionFlags: CallReducerFlags = 'FullUpdate';

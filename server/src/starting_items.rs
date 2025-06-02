@@ -31,7 +31,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Hunting Bow", 1, Some(2u8), None),
         ("Crossbow", 1, Some(3u8), None),
         ("Bandage", 99, Some(4u8), None),
-        ("Selo Olive Oil", 99, Some(5u8), None),
+        ("Stone Hatchet", 1, Some(5u8), None),
 
         // Starting materials in Inventory (Slots 0-23 typically)
         ("Wooden Arrow", 50, None, Some(0u16)),
@@ -43,6 +43,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Fire Arrow", 50, None, Some(6u16)),
         ("Rock", 1, None, Some(7u16)),
         ("Torch", 1, None, Some(8u16)),
+        ("Stone Pickaxe", 1, None, Some(9u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

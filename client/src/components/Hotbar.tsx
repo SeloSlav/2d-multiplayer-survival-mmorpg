@@ -48,6 +48,7 @@ interface HotbarProps {
   cancelPlacement: () => void;
   activeConsumableEffects: Map<string, ActiveConsumableEffect>;
   activeEquipment: ActiveEquipment | null;
+  isGameMenuOpen?: boolean;
 }
 
 // --- Hotbar Component ---
@@ -65,6 +66,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     cancelPlacement,
     activeConsumableEffects,
     activeEquipment,
+    isGameMenuOpen,
 }) => {
   // console.log('[Hotbar] Rendering. CLIENT_ANIMATION_DURATION_MS:', CLIENT_ANIMATION_DURATION_MS); // Added log
   const [selectedSlot, setSelectedSlot] = useState<number>(-1);
@@ -743,12 +745,12 @@ const Hotbar: React.FC<HotbarProps> = ({
   const handleWheel = useCallback((event: WheelEvent) => {
     const inventoryPanel = document.querySelector('[data-id="inventory-panel"]'); // Use the data-id selector
     
-    // If inventory is open, or chat input is focused, or other UI elements that might use wheel scroll, do nothing.
+    // If inventory is open, or chat input is focused, or other UI elements that might use wheel scroll, or game menu is open, do nothing.
     const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
     const craftSearchIsFocused = document.activeElement?.id === 'craftSearchInput'; // Example ID
 
-    if (inventoryPanel || chatInputIsFocused || craftSearchIsFocused || event.deltaY === 0) {
-      return; // Don't interfere if inventory/chat/search is open, or no vertical scroll
+    if (inventoryPanel || chatInputIsFocused || craftSearchIsFocused || isGameMenuOpen || event.deltaY === 0) {
+      return; // Don't interfere if inventory/chat/search/game menu is open, or no vertical scroll
     }
 
     event.preventDefault(); // Prevent page scrolling (only if inventory is NOT open)
@@ -763,7 +765,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       activateHotbarSlot(newSlot, true, prevSlot); // Pass true for isMouseWheelScroll and current slot
       return newSlot;
     });
-  }, [numSlots, activateHotbarSlot]); // activateHotbarSlot is a dependency
+  }, [numSlots, activateHotbarSlot, isGameMenuOpen]); // activateHotbarSlot is a dependency
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

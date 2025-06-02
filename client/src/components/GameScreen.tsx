@@ -20,6 +20,13 @@ import Chat from './Chat';
 import SpeechBubbleManager from './SpeechBubbleManager';
 import TargetingReticle from './TargetingReticle';
 
+// Import menu components
+import GameMenuButton from './GameMenuButton';
+import GameMenu from './GameMenu';
+import ControlsMenu from './ControlsMenu';
+import GameTipsMenu from './GameTipsMenu';
+import type { MenuType } from './GameMenu';
+
 // Import types used by props
 import { 
     Player as SpacetimeDBPlayer,
@@ -146,6 +153,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // console.log("[GameScreen.tsx] Received props including activeConsumableEffects:", props.activeConsumableEffects);
     const [showInventoryState, setShowInventoryState] = useState(false);
     
+    // Add menu state management
+    const [currentMenu, setCurrentMenu] = useState<MenuType>(null);
+    
     // Debug context
     const { showAutotileDebug, toggleAutotileDebug } = useDebug();
     
@@ -199,17 +209,58 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         ? itemDefinitions.get(localPlayerActiveEquipment.equippedItemDefId.toString()) || null
         : null;
 
+    // Menu handlers
+    const handleMenuOpen = () => {
+        setCurrentMenu('main');
+    };
+
+    const handleMenuClose = () => {
+        setCurrentMenu(null);
+    };
+
+    const handleMenuNavigate = (menu: MenuType) => {
+        setCurrentMenu(menu);
+    };
+
+    const handleMenuBack = () => {
+        setCurrentMenu('main');
+    };
+
+    // Add escape key handler for game menu
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                if (currentMenu === null) {
+                    // No menu open - open main menu
+                    setCurrentMenu('main');
+                } else if (currentMenu === 'main') {
+                    // Main menu open - close menu entirely
+                    setCurrentMenu(null);
+                } else {
+                    // Sub-menu open (controls/tips) - return to main menu
+                    setCurrentMenu('main');
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [currentMenu]);
+
     return (
         <div className="game-container">
-            {/* Removed temporary world generation button - world generation now happens automatically on server startup */}
+            {/* Game Menu Button */}
+            <GameMenuButton onClick={handleMenuOpen} />
             
-            {/* Debug Controls */}
+            {/* Debug Controls - positioned beneath menu button in dev mode */}
             {process.env.NODE_ENV === 'development' && (
                 <div style={{ 
                     position: 'absolute', 
-                    top: '10px', 
-                    left: '10px', 
-                    zIndex: 1000,
+                    top: '70px', // Positioned below the menu button
+                    left: '15px', 
+                    zIndex: 998, // Below menu button but above other elements
                     backgroundColor: 'rgba(0, 0, 0, 0.7)',
                     color: 'white',
                     padding: '8px',
@@ -231,6 +282,26 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                         Debug Overlay: {showAutotileDebug ? 'ON' : 'OFF'}
                     </button>
                 </div>
+            )}
+
+            {/* Game Menu Overlays */}
+            {currentMenu === 'main' && (
+                <GameMenu 
+                    onClose={handleMenuClose} 
+                    onNavigate={handleMenuNavigate} 
+                />
+            )}
+            {currentMenu === 'controls' && (
+                <ControlsMenu 
+                    onBack={handleMenuBack} 
+                    onClose={handleMenuClose} 
+                />
+            )}
+            {currentMenu === 'tips' && (
+                <GameTipsMenu 
+                    onBack={handleMenuBack} 
+                    onClose={handleMenuClose} 
+                />
             )}
             
             <GameCanvas
@@ -279,6 +350,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 shelters={shelters}
                 showAutotileDebug={showAutotileDebug}
                 minimapCache={minimapCache}
+                isGameMenuOpen={currentMenu !== null}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -322,23 +394,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 showInventory={showInventoryState}
                 knockedOutStatus={knockedOutStatus}
                 worldState={worldState}
-            />
-            <Hotbar
-                playerIdentity={playerIdentity}
-                localPlayer={localPlayer || null}
-                itemDefinitions={itemDefinitions}
-                inventoryItems={inventoryItems}
-                onItemDragStart={onItemDragStart}
-                onItemDrop={onItemDrop}
-                draggedItemInfo={draggedItemInfo}
-                interactingWith={interactingWith}
-                startPlacement={startPlacement}
-                cancelPlacement={cancelPlacement}
-                connection={connection}
-                campfires={campfires}
-                stashes={stashes}
-                activeConsumableEffects={activeConsumableEffects}
-                activeEquipment={localPlayerId ? activeEquipments.get(localPlayerId) || null : null}
+                isGameMenuOpen={currentMenu !== null}
             />
             <DayNightCycleTracker worldState={worldState} />
             <Chat 
