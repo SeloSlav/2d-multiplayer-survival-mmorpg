@@ -54,7 +54,8 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                 'Craft weapons and armor to defend yourself from threats.',
                 'Bandages can heal you over time - keep some in your hotbar.',
                 'If knocked out, other players can revive you by holding E.',
-                'Store valuable items in wooden storage boxes to keep them safe.',
+                'Store valuable items in wooden storage boxes inside shelters to protect them from other players.',
+                'Shelters are cheap to make and difficult to destroy, but have limited space and you cannot attack enemies from inside them.',
             ]
         },
         {
