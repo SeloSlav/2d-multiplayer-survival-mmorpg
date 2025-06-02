@@ -32,6 +32,7 @@ pub enum TreeType {
     AleppoPine,
     MannaAsh,
     DownyOak,
+    StonePine, // New variant for trees that spawn on beach tiles
 }
 
 #[spacetimedb::table(name = tree, public)]

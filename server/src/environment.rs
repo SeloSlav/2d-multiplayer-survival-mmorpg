@@ -78,7 +78,22 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
 }
 
-// --- Helper function to check if a position is on water ---
+/// Checks if position is on a beach tile
+fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / crate::TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / crate::TILE_SIZE_PX as f32).floor() as i32;
+    
+    let world_tiles = ctx.db.world_tile();
+    
+    // Check if the position is on a beach tile
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        return tile.tile_type == crate::TileType::Beach;
+    }
+    
+    false
+}
+
 /// Checks if the given world position is on a water tile (Sea)
 /// Returns true if the position is on water and resources should NOT spawn there
 fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
@@ -422,13 +437,19 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 // Calculate chunk index for the tree
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
-                // Determine tree type with weighted probability using the passed-in roll
-                let tree_type = if tree_type_roll < 0.6 { // 60% chance for DownyOak
-                    crate::tree::TreeType::DownyOak
-                } else if tree_type_roll < 0.8 { // 20% chance for AleppoPine
-                    crate::tree::TreeType::AleppoPine
-                } else { // 20% chance for MannaAsh
-                    crate::tree::TreeType::MannaAsh
+                // Check if position is on a beach tile first
+                let tree_type = if is_position_on_beach_tile(ctx, pos_x, pos_y) {
+                    // If on beach tile, use StonePine
+                    crate::tree::TreeType::StonePine
+                } else {
+                    // Otherwise, determine tree type with weighted probability using the passed-in roll
+                    if tree_type_roll < 0.6 { // 60% chance for DownyOak
+                        crate::tree::TreeType::DownyOak
+                    } else if tree_type_roll < 0.8 { // 20% chance for AleppoPine
+                        crate::tree::TreeType::AleppoPine
+                    } else { // 20% chance for MannaAsh
+                        crate::tree::TreeType::MannaAsh
+                    }
                 };
                 
                 crate::tree::Tree {
