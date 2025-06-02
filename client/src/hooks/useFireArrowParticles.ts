@@ -243,8 +243,6 @@ export function useFireArrowParticles({
                     return;
                 }
 
-                console.log('[useFireArrowParticles] Found fire arrow projectile:', projectileId);
-
                 // Calculate projectile's current position using server physics
                 const startTimeMs = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
                 const currentTime = Date.now(); // Use Date.now() for Unix timestamp comparison
@@ -278,7 +276,6 @@ export function useFireArrowParticles({
 
                 while (projAcc >= 1) {
                     projAcc -= 1;
-                    console.log('[useFireArrowParticles] Generating projectile fire particle at:', currentX, currentY);
                     const lifetime = PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MIN + Math.random() * (PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MAX - PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MIN);
                     newGeneratedParticlesThisFrame.push({
                         id: `projectile_fire_arrow_${projectileId}_${currentTime}_${Math.random()}`,

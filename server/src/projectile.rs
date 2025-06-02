@@ -26,6 +26,10 @@ use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::player_corpse::{PlayerCorpse, CORPSE_COLLISION_RADIUS, CORPSE_COLLISION_Y_OFFSET, player_corpse as PlayerCorpseTableTrait};
 
+// Import natural obstacle modules for collision detection
+use crate::tree::{Tree, tree as TreeTableTrait};
+use crate::stone::{Stone, stone as StoneTableTrait};
+
 const GRAVITY: f32 = 600.0; // Adjust this value to change the arc. Positive values pull downwards.
 
 /// Helper function to check if a line segment intersects with a circle
@@ -612,6 +616,63 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             // Projectile hit shelter wall - store info for dropped item creation
             missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, collision_x, collision_y));
             projectiles_to_delete.push(projectile.id);
+            continue;
+        }
+        
+        // Check for natural obstacle collisions (trees and stones)
+        let mut hit_natural_obstacle_this_tick = false;
+        
+        // Check tree collisions
+        for tree in ctx.db.tree().iter() {
+            // Trees have a generous collision radius for projectiles
+            const PROJECTILE_TREE_HIT_RADIUS: f32 = 30.0; // Generous radius for tree trunks
+            const PROJECTILE_TREE_Y_OFFSET: f32 = 10.0; // Slight offset for tree base
+            
+            let tree_hit_y = tree.pos_y - PROJECTILE_TREE_Y_OFFSET;
+            
+            // Use line segment collision detection for trees
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, tree.pos_x, tree_hit_y, PROJECTILE_TREE_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Tree {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, tree.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Trees block projectiles but don't take damage - projectile becomes dropped item
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_natural_obstacle_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_natural_obstacle_this_tick {
+            continue;
+        }
+        
+        // Check stone collisions
+        for stone in ctx.db.stone().iter() {
+            // Stones have a generous collision radius for projectiles
+            const PROJECTILE_STONE_HIT_RADIUS: f32 = 25.0; // Generous radius for stone rocks
+            const PROJECTILE_STONE_Y_OFFSET: f32 = 5.0; // Slight offset for stone base
+            
+            let stone_hit_y = stone.pos_y - PROJECTILE_STONE_Y_OFFSET;
+            
+            // Use line segment collision detection for stones
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, stone.pos_x, stone_hit_y, PROJECTILE_STONE_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Stone {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, stone.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Stones block projectiles but don't take damage - projectile becomes dropped item
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_natural_obstacle_this_tick = true;
+                break;
+            }
+        }
+        
+        if hit_natural_obstacle_this_tick {
             continue;
         }
         

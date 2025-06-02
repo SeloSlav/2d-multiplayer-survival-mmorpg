@@ -2,7 +2,6 @@ import { DroppedItem as SpacetimeDBDroppedItem, ItemDefinition as SpacetimeDBIte
 import burlapSackImage from '../../assets/doodads/burlap_sack.png'; // Import the sack image as fallback
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager'; 
-import { applyStandardDropShadow } from './shadowUtils'; // Added import
 import { getItemIcon } from '../itemIconUtils'; // Import item icon utility
 
 // --- Constants --- 
@@ -51,12 +50,74 @@ const droppedItemConfig: GroundEntityConfig<SpacetimeDBDroppedItem & { itemDef?:
         drawY: entity.posY - drawHeight / 2, 
     }),
 
-    getShadowParams: undefined, // Removed to use applyEffects for shadow
+    getShadowParams: undefined, // No shadow params needed for glow effect
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        // Apply shadow
-        applyStandardDropShadow(ctx, { cycleProgress, blur: 3, offsetY: 2 });
-        // No other effects for now, so return default offsets
+        // Save the current context state
+        ctx.save();
+        
+        // Create a soft glow effect with pulsing animation
+        const time = nowMs * 0.003; // Slow pulse animation
+        const pulseIntensity = 0.3 + 0.2 * Math.sin(time); // Pulse between 0.3 and 0.5
+        
+        // Set up the glow effect
+        ctx.shadowColor = `rgba(255, 255, 255, ${pulseIntensity})`;
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        // Draw multiple glow layers for a more intense effect
+        // Outer glow (larger, more transparent)
+        ctx.save();
+        ctx.shadowColor = `rgba(100, 200, 255, ${pulseIntensity * 0.4})`;
+        ctx.shadowBlur = 25;
+        
+        // Create a temporary canvas for the outline effect
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempCtx) {
+            tempCanvas.width = 60; // Slightly larger than item
+            tempCanvas.height = 60;
+            
+            // Draw a rounded rectangle outline
+            tempCtx.strokeStyle = `rgba(255, 255, 255, ${pulseIntensity * 0.8})`;
+            tempCtx.lineWidth = 2;
+            tempCtx.lineCap = 'round';
+            tempCtx.lineJoin = 'round';
+            
+            const outlineSize = 50;
+            const radius = 8;
+            const x = 5;
+            const y = 5;
+            
+            // Draw rounded rectangle outline
+            tempCtx.beginPath();
+            tempCtx.moveTo(x + radius, y);
+            tempCtx.lineTo(x + outlineSize - radius, y);
+            tempCtx.quadraticCurveTo(x + outlineSize, y, x + outlineSize, y + radius);
+            tempCtx.lineTo(x + outlineSize, y + outlineSize - radius);
+            tempCtx.quadraticCurveTo(x + outlineSize, y + outlineSize, x + outlineSize - radius, y + outlineSize);
+            tempCtx.lineTo(x + radius, y + outlineSize);
+            tempCtx.quadraticCurveTo(x, y + outlineSize, x, y + outlineSize - radius);
+            tempCtx.lineTo(x, y + radius);
+            tempCtx.quadraticCurveTo(x, y, x + radius, y);
+            tempCtx.closePath();
+            tempCtx.stroke();
+            
+            // Draw the outline on the main canvas with glow
+            ctx.drawImage(tempCanvas, baseDrawX - 6, baseDrawY - 6);
+        }
+        
+        ctx.restore();
+        
+        // Inner glow (smaller, more intense)
+        ctx.shadowColor = `rgba(255, 255, 255, ${pulseIntensity * 0.6})`;
+        ctx.shadowBlur = 8;
+        
+        // Reset to the saved state
+        ctx.restore();
+        
+        // Return no additional offsets since we want the glow centered
         return { offsetX: 0, offsetY: 0 };
     },
 
