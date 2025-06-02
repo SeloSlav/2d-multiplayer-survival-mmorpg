@@ -33,7 +33,7 @@ const MUSHROOM_RADIUS: f32 = BASE_RESOURCE_RADIUS;
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing mushrooms
-pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.0008; // Reduced from 0.0025 to 0.08% of map tiles for better game balance
+pub(crate) const MUSHROOM_DENSITY_PERCENT: f32 = 0.002; // 0.2% - targets ~150 mushrooms on 75k land tiles
 /// Minimum distance between mushrooms to prevent clustering
 pub(crate) const MIN_MUSHROOM_DISTANCE_PX: f32 = 60.0;
 pub(crate) const MIN_MUSHROOM_DISTANCE_SQ: f32 = MIN_MUSHROOM_DISTANCE_PX * MIN_MUSHROOM_DISTANCE_PX;
@@ -53,7 +53,7 @@ pub(crate) const MAX_MUSHROOM_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
 const MUSHROOM_PRIMARY_YIELD_ITEM_NAME: &str = "Mushroom";
 const MUSHROOM_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1;
 const MUSHROOM_PRIMARY_YIELD_MAX_AMOUNT: u32 = 2;
-const MUSHROOM_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber");
+const MUSHROOM_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber");
 const MUSHROOM_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1;
 const MUSHROOM_SECONDARY_YIELD_MAX_AMOUNT: u32 = 2;
 const MUSHROOM_SECONDARY_YIELD_CHANCE: f32 = 0.85;

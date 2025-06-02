@@ -21,10 +21,10 @@ import {
 } from '../utils/renderers/campfireRenderingUtils';
 
 // Define the constant for food item interactions (larger radius for easier pickup)
-const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
-const PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
-const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
-const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+const PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
 const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; // Doubled distance for easier revive access
 
@@ -69,12 +69,12 @@ const NUM_BOX_SLOTS = 18;
 const INTERACTION_CHECK_INTERVAL = 100; // ms
 
 // --- Locally Defined Interaction Distance Constants (formerly in gameConfig.ts) ---
-export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
-export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
-export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
-export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
-export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 48.0 * 48.0;
-export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 24.0 * 24.0;
+export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 100.0 * 100.0;
+export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
+export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 32.0 * 32.0;
 
 // --- Locally Defined Visual Heights for Interaction (formerly in gameConfig.ts) ---
 export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
@@ -176,7 +176,7 @@ export function useInteractionFinder({
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
         let closestMushroomId: bigint | null = null;
-        let closestMushroomDistSq = 64.0 * 64.0;
+        let closestMushroomDistSq = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
 
         let closestCornId: bigint | null = null;
         let closestCornDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
@@ -194,14 +194,14 @@ export function useInteractionFinder({
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
 
         let closestDroppedItemId: bigint | null = null;
-        let closestDroppedItemDistSq = 64.0 * 64.0;
+        let closestDroppedItemDistSq = PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED;
 
         let closestBoxId: number | null = null;
-        let closestBoxDistSq = 64.0 * 64.0;
+        let closestBoxDistSq = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED;
         let isClosestBoxEmpty = false;
 
         let closestCorpse: bigint | null = null;
-        let closestCorpseDistSq = 64.0 * 64.0;
+        let closestCorpseDistSq = PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED;
 
         let closestStashId: number | null = null;
 
@@ -219,7 +219,7 @@ export function useInteractionFinder({
             if (mushrooms) {
                 mushrooms.forEach((mushroom) => {
                     if (mushroom.respawnAt !== null && mushroom.respawnAt !== undefined) return;
-                    const visualCenterY = mushroom.posY - (64 / 2);
+                    const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
                     const dx = playerX - mushroom.posX;
                     const dy = playerY - visualCenterY;
                     const distSq = dx * dx + dy * dy;
@@ -442,6 +442,18 @@ export function useInteractionFinder({
                     }
                 });
             }
+        }
+
+        // Debug log the found closest resources (only log when something is found to avoid spam)
+        if (closestMushroomId || closestCornId || closestPotatoId || closestPumpkinId || closestHempId) {
+            console.log('[DEBUG InteractionFinder] Found closest resources:', {
+                mushroom: closestMushroomId,
+                corn: closestCornId,
+                potato: closestPotatoId,
+                pumpkin: closestPumpkinId,
+                hemp: closestHempId,
+                playerPos: localPlayer ? `(${localPlayer.positionX.toFixed(1)}, ${localPlayer.positionY.toFixed(1)})` : 'none'
+            });
         }
 
         return {

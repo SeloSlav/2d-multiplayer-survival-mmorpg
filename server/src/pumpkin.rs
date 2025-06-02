@@ -31,7 +31,7 @@ const PUMPKIN_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.25; // Slightly bigger than
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing pumpkin plants
-pub const PUMPKIN_DENSITY_PERCENT: f32 = 0.0002; // Reduced from 0.001 to 0.02% of tiles for better game balance (very rare)
+pub const PUMPKIN_DENSITY_PERCENT: f32 = 0.0004; // 0.04% - targets ~30 pumpkin plants on 75k land tiles (rare)
 /// Minimum distance between pumpkin plants to prevent clustering
 pub const MIN_PUMPKIN_DISTANCE_SQ: f32 = 40.0 * 40.0; // Min distance between pumpkin plants squared
 /// Minimum distance from trees for better distribution
@@ -46,10 +46,10 @@ pub const MAX_PUMPKIN_RESPAWN_TIME_SECS: u64 = 1800; // 30 minutes (CHANGED from
 // --- Pumpkin Yield Constants ---
 const PUMPKIN_PRIMARY_YIELD_ITEM_NAME: &str = "Pumpkin";
 const PUMPKIN_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Min amount for range
-const PUMPKIN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 3; // CHANGED: Max amount for range
-const PUMPKIN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from pumpkin vines/stems
+const PUMPKIN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 1; // CHANGED: Max amount for range
+const PUMPKIN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber"); // CHANGED: Added plant fiber from pumpkin vines/stems
 const PUMPKIN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 3; // CHANGED: Moderate amount from vines/stems
-const PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 5; // CHANGED: 3-5 raw fiber from plant matter
+const PUMPKIN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 5; // CHANGED: 3-5 plant fiber from plant matter
 const PUMPKIN_SECONDARY_YIELD_CHANCE: f32 = 0.85; // CHANGED: 85% chance for fiber yield
 
 /// Represents a pumpkin resource in the game world

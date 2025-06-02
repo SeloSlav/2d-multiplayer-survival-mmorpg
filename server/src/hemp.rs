@@ -30,7 +30,7 @@ const HEMP_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.1; // Slightly smaller than co
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing hemp plants
-pub const HEMP_DENSITY_PERCENT: f32 = 0.0004; // Reduced from 0.002 to 0.04% of tiles for better game balance
+pub const HEMP_DENSITY_PERCENT: f32 = 0.00133; // 0.133% - targets ~100 hemp plants on 75k land tiles
 /// Minimum distance between hemp plants to prevent clustering
 pub const MIN_HEMP_DISTANCE_SQ: f32 = 35.0 * 35.0; 
 /// Minimum distance from trees for better distribution
@@ -43,8 +43,8 @@ pub const MIN_HEMP_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes (CHANGED from 5)
 pub const MAX_HEMP_RESPAWN_TIME_SECS: u64 = 900; // 15 minutes (CHANGED from 10)
 
 // --- Hemp Yield Constants ---
-const HEMP_PRIMARY_YIELD_ITEM_NAME: &str = "Raw Fiber"; // CHANGED from "Cloth" to "Raw Fiber"
-const HEMP_PRIMARY_YIELD_AMOUNT: u32 = 50; // CHANGED: From 10 to 50 raw fiber
+const HEMP_PRIMARY_YIELD_ITEM_NAME: &str = "Plant Fiber"; // CHANGED from "Cloth" to "Plant Fiber"
+const HEMP_PRIMARY_YIELD_AMOUNT: u32 = 50; // CHANGED: From 10 to 50 plant fiber
 // Secondary yield for Hemp (optional, can be None if primary is already fiber)
 const HEMP_SECONDARY_YIELD_ITEM_NAME: Option<&str> = None; // No secondary yield
 const HEMP_SECONDARY_YIELD_MIN_AMOUNT: u32 = 0;

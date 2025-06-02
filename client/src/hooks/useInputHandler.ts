@@ -420,11 +420,24 @@ export const useInputHandler = ({
                 const currentStashes = stashesRef.current;
                 const currentClosestStashId = closest.stash;
 
+                console.log('[DEBUG E-Press] Closest IDs:', {
+                    mushroom: closest.mushroom,
+                    corn: closest.corn,
+                    potato: closest.potato,
+                    pumpkin: closest.pumpkin,
+                    hemp: closest.hemp,
+                    campfire: closest.campfire,
+                    droppedItem: closest.droppedItem,
+                    box: closest.box,
+                    stash: closest.stash,
+                    knockedOutPlayer: closest.knockedOutPlayer
+                });
+
                 // --- Stash Interaction ---
                 if (currentClosestStashId !== null && currentStashes) {
                     const stashEntity = currentStashes.get(currentClosestStashId.toString());
                     if (stashEntity) {
-                        // console.log(`[Stash E-Down] Stash ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}. About to setInteractionProgress.`);
+                        console.log(`[DEBUG E-Press] Stash interaction - ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}`);
                         
                         isEHeldDownRef.current = true; 
                         eKeyDownTimestampRef.current = Date.now();
@@ -432,9 +445,7 @@ export const useInputHandler = ({
                         setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
                         setIsActivelyHolding(true);
                         
-                        // console.log(`[Stash E-Down] setInteractionProgress CALLED. interactionProgress in this closure:`, interactionProgress);
-                        
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = setTimeout(() => {
                             if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestStashId !== null) {
                                 try {
@@ -459,7 +470,7 @@ export const useInputHandler = ({
                 if (currentClosestKnockedOutPlayerId !== null && currentPlayers) {
                     const knockedOutPlayer = currentPlayers.get(currentClosestKnockedOutPlayerId);
                     if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
-                        // console.log(`[KnockedOut E-Down] Player ID: ${currentClosestKnockedOutPlayerId}, Username: ${knockedOutPlayer.username}. Starting revive hold.`);
+                        console.log(`[DEBUG E-Press] Knocked out player interaction - ID: ${currentClosestKnockedOutPlayerId}`);
                         
                         isEHeldDownRef.current = true; 
                         eKeyDownTimestampRef.current = Date.now();
@@ -467,13 +478,12 @@ export const useInputHandler = ({
                         setInteractionProgress({ targetId: currentClosestKnockedOutPlayerId, targetType: 'knocked_out_player', startTime: Date.now() });
                         setIsActivelyHolding(true);
                         
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
+                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = setTimeout(() => {
                             if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestKnockedOutPlayerId !== null) {
                                 try {
                                     // Convert hex string back to Identity for the reducer call
                                     currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(currentClosestKnockedOutPlayerId));
-                                    // console.log(`[KnockedOut E-Hold COMPLETED] Reviving player: ${currentClosestKnockedOutPlayerId}`);
                                 } catch (error) {
                                     console.error("[InputHandler] Error calling reviveKnockedOutPlayer in timer:", error);
                                 }
@@ -490,6 +500,7 @@ export const useInputHandler = ({
 
                 // Pure Tap Actions (If no stash or knocked out player interaction was initiated)
                 if (closest.droppedItem !== null) {
+                    console.log(`[DEBUG E-Press] Dropped item interaction - ID: ${closest.droppedItem}`);
                     try {
                         currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
                     } catch (err) {
@@ -497,41 +508,52 @@ export const useInputHandler = ({
                     }
                     return; 
                 }
+
                 if (closest.mushroom !== null) {
+                    console.log(`[DEBUG E-Press] Mushroom interaction - ID: ${closest.mushroom}`);
                     try {
-                        currentConnection.reducers.interactWithMushroom(closest.mushroom);
+                        const result = currentConnection.reducers.interactWithMushroom(closest.mushroom);
+                        console.log(`[DEBUG E-Press] Mushroom reducer called successfully:`, result);
                     } catch (err) {
                         console.error("Error calling interactWithMushroom reducer:", err);
                     }
                     return; 
                 }
                 if (closest.corn !== null) {
+                    console.log(`[DEBUG E-Press] Corn interaction - ID: ${closest.corn}`);
                     try {
-                        currentConnection.reducers.interactWithCorn(closest.corn);
+                        const result = currentConnection.reducers.interactWithCorn(closest.corn);
+                        console.log(`[DEBUG E-Press] Corn reducer called successfully:`, result);
                     } catch (err) {
                         console.error("Error calling interactWithCorn reducer:", err);
                     }
                     return; 
                 }
                 if (closest.potato !== null) {
+                    console.log(`[DEBUG E-Press] Potato interaction - ID: ${closest.potato}`);
                     try {
-                        currentConnection.reducers.interactWithPotato(closest.potato);
+                        const result = currentConnection.reducers.interactWithPotato(closest.potato);
+                        console.log(`[DEBUG E-Press] Potato reducer called successfully:`, result);
                     } catch (err) {
                         console.error("Error calling interactWithPotato reducer:", err);
                     }
                     return; 
                 }
                 if (closest.pumpkin !== null) {
+                    console.log(`[DEBUG E-Press] Pumpkin interaction - ID: ${closest.pumpkin}`);
                     try {
-                        currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
+                        const result = currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
+                        console.log(`[DEBUG E-Press] Pumpkin reducer called successfully:`, result);
                     } catch (err) {
                         console.error("Error calling interactWithPumpkin reducer:", err);
                     }
                     return; 
                 }
                 if (closest.hemp !== null) {
+                    console.log(`[DEBUG E-Press] Hemp interaction - ID: ${closest.hemp}`);
                     try {
-                        currentConnection.reducers.interactWithHemp(closest.hemp);
+                        const result = currentConnection.reducers.interactWithHemp(closest.hemp);
+                        console.log(`[DEBUG E-Press] Hemp reducer called successfully:`, result);
                     } catch (err) {
                         console.error("Error calling interactWithHemp reducer:", err);
                     }
@@ -540,6 +562,7 @@ export const useInputHandler = ({
                 
                 // Tap-or-Hold Actions for other entities (Box, Campfire)
                 if (closest.box !== null) {
+                    console.log(`[DEBUG E-Press] Box interaction - ID: ${closest.box}, Empty: ${closest.boxEmpty}`);
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
                     if (closest.boxEmpty) { 
@@ -566,6 +589,7 @@ export const useInputHandler = ({
                 }
                 
                 if (closest.campfire !== null) {
+                    console.log(`[DEBUG E-Press] Campfire interaction - ID: ${closest.campfire}`);
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
                     setInteractionProgress({ targetId: closest.campfire, targetType: 'campfire', startTime: Date.now() });
@@ -590,6 +614,7 @@ export const useInputHandler = ({
                 }
 
                 if (closest.corpse !== null) {
+                    console.log(`[DEBUG E-Press] Corpse interaction - ID: ${closest.corpse}`);
                     isEHeldDownRef.current = true;
                     eKeyDownTimestampRef.current = Date.now();
                     return; 

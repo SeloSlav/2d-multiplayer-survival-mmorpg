@@ -1093,6 +1093,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           localPlayerDeathMarker={localPlayerDeathMarker}
           deathMarkerImage={deathMarkerImg}
           worldState={worldState}
+          minimapCache={minimapCache} // Add minimapCache prop
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker } from '../generated'; // Corrected import
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -23,6 +23,7 @@ interface DeathScreenProps {
   localPlayerDeathMarker?: SpacetimeDBDeathMarker | null;
   deathMarkerImage?: HTMLImageElement | null;
   worldState: WorldState | null; // <-- Fix type here
+  minimapCache: MinimapCache | null; // Add minimapCache prop
 }
 
 const DeathScreen: React.FC<DeathScreenProps> = ({
@@ -40,6 +41,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   localPlayerDeathMarker,
   deathMarkerImage,
   worldState, // <-- Correct type
+  minimapCache, // <-- Correct type
 }) => {
   // Add debug logging
   console.log('[DeathScreen] Rendering with props:', {
@@ -60,6 +62,15 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   const viewCenterOffset = { x: 0, y: 0 };
   // Player data is not strictly needed if we center the world
   const localPlayer = localPlayerIdentity ? players.get(localPlayerIdentity) : undefined;
+
+  // --- Convert sleepingBags Map to use string keys for compatibility with drawMinimapOntoCanvas ---
+  const sleepingBagsStringKeys = useMemo(() => {
+    const converted: Map<string, SleepingBag> = new Map();
+    sleepingBags.forEach((bag, id) => {
+      converted.set(id.toString(), bag);
+    });
+    return converted;
+  }, [sleepingBags]);
 
   // --- Calculate Owned Sleeping Bags --- 
   const ownedBags = useMemo(() => {
@@ -107,7 +118,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       trees,
       stones,
       campfires,
-      sleepingBags,
+      sleepingBags: sleepingBagsStringKeys, // Use converted map with string keys
       localPlayer: undefined, // Explicitly pass undefined for localPlayer
       localPlayerId: localPlayerIdentity ?? undefined,
       playerPin: null, // No player pin needed when dead/world centered
@@ -116,6 +127,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       isMouseOverMinimap: false, // Not interactive hover state needed here
       zoomLevel: minimapZoom,
       viewCenterOffset,
+      minimapCache, // Pass the minimap cache for terrain rendering
       // Pass death screen specific props
       isDeathScreen: true,
       ownedSleepingBagIds,
@@ -145,12 +157,13 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     }
 
   }, [
-    players, trees, stones, sleepingBags, ownedSleepingBagIds, hoveredBagId,
+    players, trees, stones, sleepingBagsStringKeys, ownedSleepingBagIds, hoveredBagId,
     canvasSize.width, canvasSize.height, localPlayer, localPlayerIdentity, minimapZoom, viewCenterOffset, sleepingBagImage,
     campfires,
     localPlayerDeathMarker,
     deathMarkerImage,
     worldState,
+    minimapCache,
   ]);
 
   // --- Click Handler for Minimap Canvas ---
@@ -247,7 +260,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   return (
     <div style={styles.overlay}>
       <div style={styles.container}>
-        <h1 style={styles.title}>Select Respawn Point</h1>
+      
         
         {/* Death Cause Information */}
         {localPlayerDeathMarker && (

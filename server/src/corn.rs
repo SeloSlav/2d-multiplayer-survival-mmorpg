@@ -31,7 +31,7 @@ const CORN_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.25; // Slightly bigger than mu
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing corn plants
-pub const CORN_DENSITY_PERCENT: f32 = 0.0003; // Reduced from 0.001 to 0.03% of tiles for better game balance
+pub const CORN_DENSITY_PERCENT: f32 = 0.0008; // 0.08% - targets ~60 corn plants on 75k land tiles
 /// Minimum distance between corn plants to prevent clustering
 pub const MIN_CORN_DISTANCE_SQ: f32 = 40.0 * 40.0; // Min distance between corn plants squared
 /// Minimum distance from trees for better distribution
@@ -45,11 +45,11 @@ pub const MAX_CORN_RESPAWN_TIME_SECS: u64 = 1500; // 25 minutes (CHANGED from 20
 
 // --- Corn Yield Constants ---
 const CORN_PRIMARY_YIELD_ITEM_NAME: &str = "Corn";
-const CORN_PRIMARY_YIELD_MIN_AMOUNT: u32 = 2; // CHANGED: Min amount for range
-const CORN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 6; // CHANGED: Max amount for range
-const CORN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from corn husks/stalks
+const CORN_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Min amount for range
+const CORN_PRIMARY_YIELD_MAX_AMOUNT: u32 = 2; // CHANGED: Max amount for range
+const CORN_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber"); // CHANGED: Added plant fiber from corn husks/stalks
 const CORN_SECONDARY_YIELD_MIN_AMOUNT: u32 = 2; // CHANGED: Moderate amount from corn plants
-const CORN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 4; // CHANGED: 2-4 raw fiber from husks/stalks
+const CORN_SECONDARY_YIELD_MAX_AMOUNT: u32 = 4; // CHANGED: 2-4 plant fiber from husks/stalks
 const CORN_SECONDARY_YIELD_CHANCE: f32 = 0.90; // CHANGED: 90% chance for fiber yield
 
 /// Represents a corn resource in the game world

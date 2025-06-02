@@ -31,7 +31,7 @@ const POTATO_RADIUS: f32 = BASE_RESOURCE_RADIUS * 1.15; // Slightly smaller than
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing potato plants
-pub const POTATO_DENSITY_PERCENT: f32 = 0.0005; // Reduced from 0.002 to 0.05% of tiles for better game balance
+pub const POTATO_DENSITY_PERCENT: f32 = 0.0006; // 0.06% - targets ~45 potato plants on 75k land tiles
 /// Minimum distance between potato plants to prevent clustering
 pub const MIN_POTATO_DISTANCE_SQ: f32 = 35.0 * 35.0; // Min distance between potato plants squared
 /// Minimum distance from trees for better distribution
@@ -45,11 +45,11 @@ pub const MAX_POTATO_RESPAWN_TIME_SECS: u64 = 1800; // 30 minutes (CHANGED from 
 
 // --- Potato Yield Constants ---
 const POTATO_PRIMARY_YIELD_ITEM_NAME: &str = "Potato";
-const POTATO_PRIMARY_YIELD_MIN_AMOUNT: u32 = 10; // CHANGED: Min amount for range
-const POTATO_PRIMARY_YIELD_MAX_AMOUNT: u32 = 12; // CHANGED: Max amount for range
-const POTATO_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Raw Fiber"); // CHANGED: Added raw fiber from potato plants
+const POTATO_PRIMARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Min amount for range
+const POTATO_PRIMARY_YIELD_MAX_AMOUNT: u32 = 2; // CHANGED: Max amount for range
+const POTATO_SECONDARY_YIELD_ITEM_NAME: Option<&str> = Some("Plant Fiber"); // CHANGED: Added plant fiber from potato plants
 const POTATO_SECONDARY_YIELD_MIN_AMOUNT: u32 = 1; // CHANGED: Small amount from potato plant matter
-const POTATO_SECONDARY_YIELD_MAX_AMOUNT: u32 = 3; // CHANGED: 1-3 raw fiber from plants
+const POTATO_SECONDARY_YIELD_MAX_AMOUNT: u32 = 3; // CHANGED: 1-3 plant fiber from plants
 const POTATO_SECONDARY_YIELD_CHANCE: f32 = 0.80; // CHANGED: 80% chance for fiber yield
 
 /// Represents a potato resource in the game world
