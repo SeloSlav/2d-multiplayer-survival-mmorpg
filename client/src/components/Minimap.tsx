@@ -18,9 +18,16 @@ const MINIMAP_BG_COLOR_HOVER = 'rgba(60, 60, 80, 0.2)';
 const MINIMAP_BORDER_COLOR = '#a0a0c0';
 const PLAYER_DOT_SIZE = 3;
 const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
+// Player icon constants - Updated for directional triangular icons
+const PLAYER_ICON_SIZE = 6; // Slightly larger than tree/stone icons (which are 4px)
+const PLAYER_ICON_OUTLINE_COLOR = '#333333'; // Dark grey outline for visibility
+const PLAYER_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
+const REMOTE_PLAYER_DOT_COLOR = '#00AAFF'; // Light blue for other players
 // Add colors for trees and rocks - UPDATED to be much darker and more visible
-const TREE_DOT_COLOR = '#1A4D1A'; // Much darker forest green (was #008000)
-const ROCK_DOT_COLOR = '#2C2C2C'; // Much darker grey (was #808080)
+const TREE_DOT_COLOR = '#37ff7a'; // Bright emerald green with excellent visibility
+const ROCK_DOT_COLOR = '#bbbbff'; // Light slate blue for rocks
+const RESOURCE_ICON_OUTLINE_COLOR = '#000000'; // Black outline for resource icons
+const RESOURCE_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
 const CAMPFIRE_DOT_COLOR = '#FFA500'; // Orange for campfires and lit players
 const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 // Water tile rendering on minimap
@@ -94,6 +101,52 @@ function isNightTimeOfDay(tag: string): boolean {
     tag === 'Night' ||
     tag === 'Midnight'
   );
+}
+
+// Helper function to draw a directional triangular player icon
+function drawPlayerIcon(
+  ctx: CanvasRenderingContext2D, 
+  x: number, 
+  y: number, 
+  rotation: number, 
+  fillColor: string, 
+  size: number = PLAYER_ICON_SIZE
+) {
+  ctx.save();
+  
+  // Move to the player position and rotate
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  
+  const halfSize = size / 2;
+  const cornerRadius = size * 0.15; // Small corner radius for slight rounding
+  
+  // Draw the triangular caret pointing right (will be rotated to correct direction)
+  ctx.beginPath();
+  
+  // Start at the tip (right point)
+  ctx.moveTo(halfSize, 0);
+  
+  // Draw to bottom-left with slight rounding
+  ctx.lineTo(-halfSize * 0.6, halfSize * 0.8);
+  ctx.arcTo(-halfSize, halfSize * 0.8, -halfSize, 0, cornerRadius);
+  
+  // Draw to top-left with slight rounding  
+  ctx.lineTo(-halfSize, -halfSize * 0.8);
+  ctx.arcTo(-halfSize * 0.6, -halfSize * 0.8, halfSize, 0, cornerRadius);
+  
+  ctx.closePath();
+  
+  // Draw outline first
+  ctx.strokeStyle = PLAYER_ICON_OUTLINE_COLOR;
+  ctx.lineWidth = PLAYER_ICON_OUTLINE_WIDTH;
+  ctx.stroke();
+  
+  // Fill with player color
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  
+  ctx.restore();
 }
 
 // Props required for drawing the minimap
@@ -458,31 +511,58 @@ export function drawMinimapOntoCanvas({
   }
 
   // --- Draw Trees ---
-  ctx.fillStyle = TREE_DOT_COLOR;
   trees.forEach(tree => {
     const screenCoords = worldToMinimap(tree.posX, tree.posY);
     if (screenCoords) {
-      ctx.fillRect(
-        screenCoords.x - ENTITY_DOT_SIZE / 2,
-        screenCoords.y - ENTITY_DOT_SIZE / 2,
-        ENTITY_DOT_SIZE,
-        ENTITY_DOT_SIZE
-      );
+      const iconSize = ENTITY_DOT_SIZE * 2; // Make trees slightly larger for visibility
+      const halfSize = iconSize / 2;
+      const x = screenCoords.x;
+      const y = screenCoords.y;
+      
+      // Draw triangular tree icon (▲)
+      ctx.save();
+      
+      // Draw black outline first
+      ctx.strokeStyle = RESOURCE_ICON_OUTLINE_COLOR;
+      ctx.lineWidth = RESOURCE_ICON_OUTLINE_WIDTH;
+      ctx.beginPath();
+      ctx.moveTo(x, y - halfSize); // Top point
+      ctx.lineTo(x - halfSize, y + halfSize); // Bottom left
+      ctx.lineTo(x + halfSize, y + halfSize); // Bottom right
+      ctx.closePath();
+      ctx.stroke();
+      
+      // Fill with tree color
+      ctx.fillStyle = TREE_DOT_COLOR;
+      ctx.fill();
+      
+      ctx.restore();
     }
   });
 
   // --- Draw Stones ---
-  ctx.fillStyle = ROCK_DOT_COLOR; // Use ROCK_DOT_COLOR
   stones.forEach(stone => { // Use stones prop (type SpacetimeDBStone)
     const screenCoords = worldToMinimap(stone.posX, stone.posY);
     if (screenCoords) {
-        ctx.fillRect(
-          screenCoords.x - ENTITY_DOT_SIZE / 2,
-          screenCoords.y - ENTITY_DOT_SIZE / 2,
-          ENTITY_DOT_SIZE,
-          ENTITY_DOT_SIZE
-        );
-      }
+      const iconSize = ENTITY_DOT_SIZE * 2; // Make stones slightly larger for visibility
+      const halfSize = iconSize / 2;
+      const x = screenCoords.x;
+      const y = screenCoords.y;
+      
+      // Draw square stone icon (■)
+      ctx.save();
+      
+      // Draw black outline first
+      ctx.strokeStyle = RESOURCE_ICON_OUTLINE_COLOR;
+      ctx.lineWidth = RESOURCE_ICON_OUTLINE_WIDTH;
+      ctx.strokeRect(x - halfSize, y - halfSize, iconSize, iconSize);
+      
+      // Fill with stone color
+      ctx.fillStyle = ROCK_DOT_COLOR;
+      ctx.fillRect(x - halfSize, y - halfSize, iconSize, iconSize);
+      
+      ctx.restore();
+    }
   });
 
   // --- Draw Campfires ---
@@ -504,21 +584,36 @@ export function drawMinimapOntoCanvas({
     });
   }
 
-  // --- Draw Remote Players with Torch ON ---
+  // --- Draw Remote Players ---
+  // Remote players are only visible if they have torch lit AND it's night time
   if (showNightLights) {
     players.forEach((player, playerId) => {
       if (localPlayerId && playerId === localPlayerId) {
         return; // Skip local player, handled separately
       }
+      
+      // Only show remote players if they have torch lit
       if (player.isTorchLit) {
         const screenCoords = worldToMinimap(player.positionX, player.positionY);
         if (screenCoords) {
-          ctx.fillStyle = CAMPFIRE_DOT_COLOR; // Use shared color
-          ctx.fillRect(
-            screenCoords.x - LIT_ENTITY_DOT_SIZE / 2, // Use shared larger size
-            screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
-            LIT_ENTITY_DOT_SIZE,
-            LIT_ENTITY_DOT_SIZE
+          // Convert player direction to rotation angle (radians)
+          let rotation = 0;
+          switch (player.direction) {
+            case 'right': rotation = 0; break;           // Point right (0°)
+            case 'down': rotation = Math.PI / 2; break;  // Point down (90°)
+            case 'left': rotation = Math.PI; break;      // Point left (180°)
+            case 'up': rotation = -Math.PI / 2; break;   // Point up (-90°)
+            default: rotation = 0; break;                // Default to right
+          }
+          
+          // Draw torch-lit players with larger, orange icons for visibility
+          drawPlayerIcon(
+            ctx, 
+            screenCoords.x, 
+            screenCoords.y, 
+            rotation, 
+            CAMPFIRE_DOT_COLOR, 
+            PLAYER_ICON_SIZE * 1.5 // Larger for torch-lit players
           );
         }
       }
@@ -635,13 +730,25 @@ export function drawMinimapOntoCanvas({
   if (localPlayer) {
     const screenCoords = worldToMinimap(localPlayer.positionX, localPlayer.positionY);
     if (screenCoords) { // Should generally be true unless player is somehow off-world
-        ctx.fillStyle = LOCAL_PLAYER_DOT_COLOR;
-        ctx.fillRect(
-          screenCoords.x - PLAYER_DOT_SIZE / 2,
-          screenCoords.y - PLAYER_DOT_SIZE / 2,
-          PLAYER_DOT_SIZE,
-          PLAYER_DOT_SIZE
-        );
+      // Convert player direction to rotation angle (radians)
+      let rotation = 0;
+      switch (localPlayer.direction) {
+        case 'right': rotation = 0; break;           // Point right (0°)
+        case 'down': rotation = Math.PI / 2; break;  // Point down (90°)
+        case 'left': rotation = Math.PI; break;      // Point left (180°)
+        case 'up': rotation = -Math.PI / 2; break;   // Point up (-90°)
+        default: rotation = 0; break;                // Default to right
+      }
+      
+      // Draw local player with directional triangular icon
+      drawPlayerIcon(
+        ctx, 
+        screenCoords.x, 
+        screenCoords.y, 
+        rotation, 
+        LOCAL_PLAYER_DOT_COLOR, 
+        PLAYER_ICON_SIZE
+      );
     }
   }
 

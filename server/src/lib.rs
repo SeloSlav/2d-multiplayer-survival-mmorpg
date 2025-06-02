@@ -528,10 +528,17 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
     // Find beach tiles that are adjacent to sea/water tiles
     let mut total_beach_tiles = 0;
     let mut coastal_beach_count = 0;
+    let map_height_half = (WORLD_HEIGHT_TILES / 2) as i32;
     
     for tile in world_tiles.iter() {
         if tile.tile_type == TileType::Beach {
             total_beach_tiles += 1;
+            
+            // CONSTRAINT: Only consider tiles in the SOUTH HALF of the map for initial spawn
+            // CORRECTED: Keep south half (larger Y values), skip north half (smaller Y values)
+            if tile.world_y < map_height_half {
+                continue; // Skip tiles in north half (smaller Y values)
+            }
             
             // Check if this beach tile is adjacent to sea/water
             let mut is_coastal = false;
