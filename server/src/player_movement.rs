@@ -61,24 +61,25 @@ pub fn update_player_position(
         current_sprinting_state = false; // Force sprinting off for knocked out players
     }
 
-    // --- Determine Animation Direction from Input Vector ---
-    let mut final_anim_direction = current_player.direction.clone();
-    // Basic check: If there's significant movement
-    if move_x.abs() > 0.01 || move_y.abs() > 0.01 {
-        // Prioritize horizontal or vertical based on magnitude
-        if move_x.abs() > move_y.abs() {
-            final_anim_direction = if move_x > 0.0 { "right".to_string() } else { "left".to_string() };
+    // --- Movement-based Facing Direction ---
+    // When player is actively moving, face the direction of movement
+    // This prevents mouse-based direction flipping while moving
+    let dx = move_x;
+    let dy = move_y;
+    let final_anim_direction = if dx != 0.0 || dy != 0.0 {
+        // Player is actively moving - face movement direction
+        if dx.abs() > dy.abs() {
+            // Horizontal movement dominates
+            if dx > 0.0 { "right" } else { "left" }
         } else {
-            final_anim_direction = if move_y > 0.0 { "down".to_string() } else { "up".to_string() };
+            // Vertical movement dominates
+            if dy > 0.0 { "down" } else { "up" }
         }
-    }
-    // If input is (0,0), keep the previous direction
-
-    if final_anim_direction != current_player.direction {
-        log::trace!("Player {:?} animation direction set to: {}", sender_id, final_anim_direction);
-    }
-    // --- End Animation Direction ---
-
+    } else {
+        // No movement - keep current direction (mouse-based updates will handle this)
+        current_player.direction.as_str()
+    };
+    
     let now = ctx.timestamp;
 
     // --- Calculate Delta Time ---
@@ -280,9 +281,7 @@ pub fn update_player_position(
     // Check if position or direction actually changed
     let position_changed = (resolved_x - player_to_update.position_x).abs() > 0.01 ||
                            (resolved_y - player_to_update.position_y).abs() > 0.01;
-    // Check against the animation direction determined earlier
     let direction_changed = player_to_update.direction != final_anim_direction;
-    // Don't check stamina/sprint changes here, they are handled by player_stats
     let should_update_state = position_changed || direction_changed;
 
     // Always update timestamp if delta_time > 0 to prevent accumulation on next tick
@@ -296,7 +295,7 @@ pub fn update_player_position(
 
         player_to_update.position_x = resolved_x;
         player_to_update.position_y = resolved_y;
-        player_to_update.direction = final_anim_direction; // Update animation direction
+        player_to_update.direction = final_anim_direction.to_string();
         player_to_update.last_update = now; // Update timestamp because state changed
 
         players.identity().update(player_to_update.clone()); // Update the modified player struct
@@ -439,4 +438,70 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
    } else {
        Err("Player not found".to_string())
    }
+}
+
+/// Updates player facing direction based on mouse position.
+/// 
+/// This allows the player's facing direction to be controlled by the mouse cursor
+/// position relative to the player, but only when the player is not actively moving.
+/// When the player is moving, their direction is controlled by movement instead.
+/// 
+/// # Arguments
+/// * `mouse_world_x` - The world X coordinate of the mouse cursor
+/// * `mouse_world_y` - The world Y coordinate of the mouse cursor
+#[spacetimedb::reducer]
+pub fn update_player_facing_direction(
+    ctx: &ReducerContext,
+    mouse_world_x: f32,
+    mouse_world_y: f32,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+
+    let mut current_player = players.identity()
+        .find(sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    // --- If player is dead, don't update facing direction ---
+    if current_player.is_dead {
+        log::trace!("Ignoring facing direction update for dead player {:?}", sender_id);
+        return Ok(());
+    }
+
+    // --- Check if player is actively moving ---
+    // If the player moved recently (within the last 100ms), skip mouse direction update
+    // This prevents direction flipping while moving
+    let now_micros = ctx.timestamp.to_micros_since_unix_epoch();
+    let last_update_micros = current_player.last_update.to_micros_since_unix_epoch();
+    let time_since_last_update_ms = (now_micros.saturating_sub(last_update_micros) / 1000) as u64;
+    
+    // If player moved within the last 100ms, they're considered "actively moving"
+    const MOVEMENT_TIMEOUT_MS: u64 = 100;
+    if time_since_last_update_ms < MOVEMENT_TIMEOUT_MS {
+        // Player is actively moving, skip mouse direction update to prevent flipping
+        return Ok(());
+    }
+
+    // Calculate direction vector from player to mouse cursor
+    let dx = mouse_world_x - current_player.position_x;
+    let dy = mouse_world_y - current_player.position_y;
+
+    // Simple, pure mouse-based direction - no complex logic
+    let new_direction = if dx.abs() > dy.abs() {
+        // Mouse is more horizontal than vertical
+        if dx > 0.0 { "right" } else { "left" }
+    } else {
+        // Mouse is more vertical than horizontal
+        if dy > 0.0 { "down" } else { "up" }
+    };
+
+    // Only update if direction actually changed
+    if current_player.direction != new_direction {
+        current_player.direction = new_direction.to_string();
+        current_player.last_update = ctx.timestamp;
+        players.identity().update(current_player);
+        log::trace!("Player {:?} facing direction updated to: {} (mouse-based, not moving)", sender_id, new_direction);
+    }
+
+    Ok(())
 }
