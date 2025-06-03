@@ -16,6 +16,7 @@ use crate::items::{
     item_definition as ItemDefinitionTableTrait,
     InventoryItem, ItemDefinition,
 };
+use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::environment::calculate_chunk_index;
 use crate::combat::AttackResult; // Import combat types
 use crate::models::TargetType; // Import TargetType directly from models
@@ -46,6 +47,10 @@ pub(crate) const PLAYER_SHELTER_INTERACTION_DISTANCE_SQUARED: f32 =
 
 // Health
 pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 100000.0; // Adjusted for ~30 min destruction time with Wooden Spear
+
+// --- Health constants for consistency ---
+pub const SHELTER_INITIAL_HEALTH: f32 = SHELTER_INITIAL_MAX_HEALTH;
+pub const SHELTER_MAX_HEALTH: f32 = SHELTER_INITIAL_MAX_HEALTH;
 
 // --- NEW: Shelter Collision Constants (AABB based) ---
 /// Width of the shelter's collision AABB.
@@ -82,6 +87,7 @@ pub struct Shelter {
     pub is_destroyed: bool,
     pub destroyed_at: Option<Timestamp>,
     pub last_hit_time: Option<Timestamp>,
+    pub last_damaged_by: Option<Identity>,
 }
 
 // --- Reducer to Place a Shelter ---
@@ -196,6 +202,7 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
         is_destroyed: false,
         destroyed_at: None,
         last_hit_time: None,
+        last_damaged_by: None,
     };
 
     match shelters.try_insert(new_shelter) {
@@ -527,6 +534,21 @@ pub fn damage_shelter(
     timestamp: Timestamp,
     rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_shelter(ctx, attacker_id, shelter_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
     let mut shelters_table = ctx.db.shelter();
     let mut shelter = shelters_table.id().find(shelter_id)
         .ok_or_else(|| format!("Target shelter {} disappeared", shelter_id))?;
@@ -538,6 +560,7 @@ pub fn damage_shelter(
     let old_health = shelter.health;
     shelter.health = (shelter.health - damage).max(0.0);
     shelter.last_hit_time = Some(timestamp);
+    shelter.last_damaged_by = Some(attacker_id);
 
     log::info!(
         "Player {:?} hit Shelter {} for {:.1} damage. Health: {:.1} -> {:.1}",

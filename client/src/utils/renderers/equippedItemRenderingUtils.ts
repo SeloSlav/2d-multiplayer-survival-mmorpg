@@ -71,6 +71,12 @@ export const renderEquippedItem = (
   let displayItemWidth = itemWidth;
   let displayItemHeight = itemHeight;
 
+  // Make repair hammer twice as small
+  if (itemDef.name === "Repair Hammer") {
+    displayItemWidth = itemWidth * 0.5;
+    displayItemHeight = itemHeight * 0.5;
+  }
+
   let rotation = 0;
   let isSwinging = false;
   let isSpearThrusting = false;

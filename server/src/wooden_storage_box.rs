@@ -18,6 +18,10 @@ const BOX_INTERACTION_DISTANCE_SQUARED: f32 = 96.0 * 96.0; // Increased from 64.
 pub const NUM_BOX_SLOTS: usize = 18;
 pub(crate) const BOX_BOX_COLLISION_DISTANCE_SQUARED: f32 = (BOX_COLLISION_RADIUS * 2.0) * (BOX_COLLISION_RADIUS * 2.0);
 
+// --- Health constants ---
+pub const WOODEN_STORAGE_BOX_INITIAL_HEALTH: f32 = 750.0;
+pub const WOODEN_STORAGE_BOX_MAX_HEALTH: f32 = 750.0;
+
 // --- Import Table Traits and Concrete Types ---
 // Import necessary table traits and concrete types for working with players,
 // items, inventory management, and environment calculations
@@ -89,12 +93,12 @@ pub struct WoodenStorageBox {
     pub slot_def_id_16: Option<u64>,
     pub slot_instance_id_17: Option<u64>,
     pub slot_def_id_17: Option<u64>,
-
     pub health: f32,
     pub max_health: f32,
     pub is_destroyed: bool,
     pub destroyed_at: Option<Timestamp>,
     pub last_hit_time: Option<Timestamp>,
+    pub last_damaged_by: Option<Identity>, // ADDED: Track who last damaged this storage box
 }
 
 /******************************************************************************
@@ -433,11 +437,12 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
         slot_instance_id_15: None, slot_def_id_15: None,
         slot_instance_id_16: None, slot_def_id_16: None,
         slot_instance_id_17: None, slot_def_id_17: None,
-        health: 750.0,
-        max_health: 750.0,
+        health: WOODEN_STORAGE_BOX_INITIAL_HEALTH,
+        max_health: WOODEN_STORAGE_BOX_MAX_HEALTH,
         is_destroyed: false,
         destroyed_at: None,
         last_hit_time: None,
+        last_damaged_by: None,
     };
     let inserted_box = boxes.insert(new_box);
     log::info!("Player {:?} placed new Wooden Storage Box with ID {}.\nLocation: {:?}", sender_id, inserted_box.id, item_to_place.location);

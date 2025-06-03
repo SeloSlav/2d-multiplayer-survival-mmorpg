@@ -1144,6 +1144,21 @@ pub fn damage_campfire(
     timestamp: Timestamp,
     rng: &mut impl Rng // Added RNG for item scattering
 ) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_campfire(ctx, attacker_id, campfire_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
     let mut campfires_table = ctx.db.campfire();
     let mut campfire = campfires_table.id().find(campfire_id)
         .ok_or_else(|| format!("Target campfire {} disappeared", campfire_id))?;
@@ -1155,6 +1170,7 @@ pub fn damage_campfire(
     let old_health = campfire.health;
     campfire.health = (campfire.health - damage).max(0.0);
     campfire.last_hit_time = Some(timestamp);
+    campfire.last_damaged_by = Some(attacker_id);
 
     log::info!(
         "Player {:?} hit Campfire {} for {:.1} damage. Health: {:.1} -> {:.1}",
@@ -1222,6 +1238,21 @@ pub fn damage_wooden_storage_box(
     timestamp: Timestamp,
     rng: &mut impl Rng // Added RNG for item scattering
 ) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_wooden_storage_box(ctx, attacker_id, box_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
     let mut boxes_table = ctx.db.wooden_storage_box();
     let mut wooden_box = boxes_table.id().find(box_id)
         .ok_or_else(|| format!("Target wooden storage box {} disappeared", box_id))?;
@@ -1233,6 +1264,7 @@ pub fn damage_wooden_storage_box(
     let old_health = wooden_box.health;
     wooden_box.health = (wooden_box.health - damage).max(0.0);
     wooden_box.last_hit_time = Some(timestamp);
+    wooden_box.last_damaged_by = Some(attacker_id);
 
     log::info!(
         "Player {:?} hit WoodenStorageBox {} for {:.1} damage. Health: {:.1} -> {:.1}",

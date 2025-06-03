@@ -54,6 +54,10 @@ pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 =
  // --- Initial amounts ---
  pub const INITIAL_CAMPFIRE_FUEL_AMOUNT: u32 = 50; // Starting wood amount for new campfires
 
+ // --- Health constants ---
+ pub const CAMPFIRE_INITIAL_HEALTH: f32 = 100.0;
+ pub const CAMPFIRE_MAX_HEALTH: f32 = 100.0;
+
  // Interaction constants
  pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE: f32 = 96.0; // New radius: 96px
  pub(crate) const PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED: f32 = 
@@ -110,6 +114,7 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
      pub is_destroyed: bool,
      pub destroyed_at: Option<Timestamp>,
      pub last_hit_time: Option<Timestamp>, // ADDED
+     pub last_damaged_by: Option<Identity>, // ADDED: Track who last damaged this campfire
 
      // --- ADDED: Cooking progress for each slot ---
      pub slot_0_cooking_progress: Option<CookingProgress>,
@@ -576,11 +581,12 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
         fuel_def_id_4: None,
         current_fuel_def_id: None, 
         remaining_fuel_burn_time_secs: None,
-        health: 100.0, // Example initial health
-        max_health: 100.0, // Example max health
+        health: CAMPFIRE_INITIAL_HEALTH, // Example initial health
+        max_health: CAMPFIRE_MAX_HEALTH, // Example max health
         is_destroyed: false,
         destroyed_at: None,
         last_hit_time: None,
+        last_damaged_by: None, // ADDED: Track who last damaged this campfire
         // Initialize cooking progress to None
         slot_0_cooking_progress: None,
         slot_1_cooking_progress: None,

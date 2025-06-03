@@ -77,6 +77,7 @@ export type WoodenStorageBox = {
   isDestroyed: boolean,
   destroyedAt: Timestamp | undefined,
   lastHitTime: Timestamp | undefined,
+  lastDamagedBy: Identity | undefined,
 };
 
 /**
@@ -135,6 +136,7 @@ export namespace WoodenStorageBox {
       new ProductTypeElement("isDestroyed", AlgebraicType.createBoolType()),
       new ProductTypeElement("destroyedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastDamagedBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
     ]);
   }
 
