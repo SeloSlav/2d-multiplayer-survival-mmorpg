@@ -14,6 +14,7 @@ import { InteractionTarget } from '../hooks/useInteractionManager';
 // --- NEW IMPORTS ---
 import { NotificationItem } from '../types/notifications';
 import ItemAcquisitionNotificationUI from './ItemAcquisitionNotificationUI';
+import ActiveCraftingQueueUI from './ActiveCraftingQueueUI';
 // --- END NEW IMPORTS ---
 
 interface PlayerUIProps {
@@ -474,6 +475,13 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         return activeEquipments.get(identity.toHexString()) || null;
     }, [identity, activeEquipments]);
 
+    // Helper to determine if there's an active crafting item for positioning
+    const hasActiveCrafting = React.useMemo(() => {
+        if (!identity || !craftingQueueItems) return false;
+        return Array.from(craftingQueueItems.values())
+            .some(item => item.playerIdentity.isEqual(identity));
+    }, [identity, craftingQueueItems]);
+
     if (!localPlayer) {
         return null;
     }
@@ -483,7 +491,18 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
       // <DndContext...> // Remove wrapper
         <>
             {/* --- NEW: Render Item Acquisition Notifications --- */}
-            <ItemAcquisitionNotificationUI notifications={acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED)} />
+            <ItemAcquisitionNotificationUI 
+                notifications={acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED)} 
+                hasActiveCrafting={hasActiveCrafting}
+            />
+            {/* --- END NEW --- */}
+
+            {/* --- NEW: Active Crafting Queue UI --- */}
+            <ActiveCraftingQueueUI 
+                craftingQueueItems={craftingQueueItems}
+                itemDefinitions={itemDefinitions}
+                playerIdentity={identity}
+            />
             {/* --- END NEW --- */}
 
             {/* --- NEW: Knocked Out Status Overlay --- */}

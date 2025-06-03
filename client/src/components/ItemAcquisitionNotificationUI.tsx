@@ -4,12 +4,16 @@ import { itemIcons } from '../utils/itemIconUtils'; // Assuming you have this fo
 
 interface ItemAcquisitionNotificationUIProps {
   notifications: NotificationItem[];
+  hasActiveCrafting?: boolean;
 }
 
 const MAX_NOTIFICATIONS = 5;
 const NOTIFICATION_TIMEOUT_MS = 3000; // Notifications stay for 3 seconds
 
-const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps> = ({ notifications }) => {
+const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps> = ({ 
+  notifications,
+  hasActiveCrafting = false
+}) => {
   const [visibleNotifications, setVisibleNotifications] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
@@ -22,10 +26,21 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
     return null;
   }
 
+  // Calculate dynamic positioning based on whether there's active crafting
+  const getBottomPosition = (): string => {
+    if (hasActiveCrafting) {
+      // Position above the crafting queue (which is at 170px, plus some height for the crafting UI)
+      return '230px';
+    } else {
+      // Normal position when no crafting is active
+      return '160px';
+    }
+  };
+
   return (
     <div style={{
       position: 'fixed',
-      bottom: '160px', // Adjusted: Was 140px, moved up by 20px
+      bottom: getBottomPosition(),
       right: '15px',
       display: 'flex',
       flexDirection: 'column-reverse', // New items appear at the bottom and push others up
