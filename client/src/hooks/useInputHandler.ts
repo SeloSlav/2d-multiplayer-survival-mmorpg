@@ -835,13 +835,13 @@ export const useInputHandler = ({
                     // console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
                     connectionRef.current.reducers.useEquippedItem(); 
                 } else {
-                     console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
+                     // console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
                 }
             } else if (event.button === 2) { // Right Click
                 if (isPlayerDead) return;
                 if (isInventoryOpen) return; 
                 
-                console.log("[InputHandler] Right mouse button pressed");
+                // console.log("[InputHandler] Right mouse button pressed");
                 isRightMouseDownRef.current = true;
                 
                 // Normal right-click logic for context menu, etc.

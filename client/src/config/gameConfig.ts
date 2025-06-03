@@ -15,7 +15,7 @@ const MINIMAP_GRID_DIAGONAL_TILES = 51; // Use the user's desired value (tunable
 // These values MUST match the server's current world generation settings.
 const SERVER_WORLD_WIDTH_TILES = 500; // Assumed width of the server world in tiles (matches lib.rs)
 const SERVER_WORLD_HEIGHT_TILES = 500; // Assumed height of the server world in tiles (matches lib.rs)
-const CHUNK_SIZE_TILES = 20;         // Number of tiles along one edge of a square chunk
+const CHUNK_SIZE_TILES = 10;         // Number of tiles along one edge of a square chunk
 
 // Calculate derived values
 const CHUNK_SIZE_PX = CHUNK_SIZE_TILES * TILE_SIZE; // Size of a chunk in pixels (960)

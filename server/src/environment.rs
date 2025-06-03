@@ -58,7 +58,7 @@ use log;
 
 // --- Constants for Chunk Calculation ---
 // Size of a chunk in tiles (e.g., 20x20 tiles per chunk)
-pub const CHUNK_SIZE_TILES: u32 = 20;
+pub const CHUNK_SIZE_TILES: u32 = 10;
 // World width in chunks
 pub const WORLD_WIDTH_CHUNKS: u32 = (WORLD_WIDTH_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;
 // Size of a chunk in pixels

@@ -50,9 +50,9 @@ export class ProceduralWorldRenderer {
         try {
             await Promise.all(promises);
             this.isInitialized = true;
-            console.log('[ProceduralWorldRenderer] All tile assets preloaded successfully');
+            // console.log('[ProceduralWorldRenderer] All tile assets preloaded successfully');
         } catch (error) {
-            console.error('[ProceduralWorldRenderer] Failed to preload tile assets:', error);
+            // console.error('[ProceduralWorldRenderer] Failed to preload tile assets:', error);
         }
     }
     
@@ -64,7 +64,7 @@ export class ProceduralWorldRenderer {
                 resolve();
             };
             img.onerror = (error) => {
-                console.error(`[ProceduralWorldRenderer] Failed to load image ${key} from ${src}:`, error);
+                // console.error(`[ProceduralWorldRenderer] Failed to load image ${key} from ${src}:`, error);
                 reject(error);
             };
             img.src = src;

@@ -58,7 +58,7 @@ export function useAssetLoader(): AssetLoaderResult {
         if (ref) ref.current = img;
         if (mapRef && mapKey) {
           mapRef.current.set(mapKey, img);
-          console.log(`[useAssetLoader] Successfully loaded image: ${mapKey}`);
+          // console.log(`[useAssetLoader] Successfully loaded image: ${mapKey}`);
         }
         loadedCount++;
         checkLoadingComplete();

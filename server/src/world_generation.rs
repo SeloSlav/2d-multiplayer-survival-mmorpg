@@ -710,7 +710,7 @@ pub fn generate_default_world(ctx: &ReducerContext) -> Result<(), String> {
         seed: 12345,
         world_width_tiles: 500,
         world_height_tiles: 500,
-        chunk_size: 20,
+        chunk_size: 10,
         island_border_width: 8,
         beach_width: 6,
         river_frequency: 0.8,
