@@ -63,6 +63,9 @@ pub(crate) const JUMP_COOLDOWN_MS: u64 = 500;
 pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 
+// Add torch warmth constant
+pub(crate) const TORCH_WARMTH_PER_SECOND: f32 = 0.5;
+
 // Add constants for max values
 pub(crate) const PLAYER_MAX_HUNGER: f32 = 250.0;
 pub(crate) const PLAYER_MAX_THIRST: f32 = 250.0;
@@ -197,6 +200,13 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                 }
             }
         }
+
+        // <<< ADD WARMTH BONUS FROM LIT TORCH >>>
+        if player.is_torch_lit {
+            total_warmth_change_per_sec += TORCH_WARMTH_PER_SECOND;
+            log::trace!("Player {:?} gaining {:.2} warmth/sec from lit torch.", player_id, TORCH_WARMTH_PER_SECOND);
+        }
+        // <<< END WARMTH BONUS FROM LIT TORCH >>>
 
         // <<< ADD WARMTH BONUS FROM ARMOR >>>
         let armor_warmth_bonus_per_interval = armor::calculate_total_warmth_bonus(ctx, player_id);

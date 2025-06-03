@@ -555,31 +555,98 @@
 
 /* Styles for Crafting Search Bar */
 .craftingSearchBarContainer {
-  margin-bottom: 10px; /* Space below the search bar */
-  padding: 0 5px; /* Slight horizontal padding to align with content below if needed */
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .craftingSearchInput {
-  width: 100%; /* Make input take full width of its container */
-  padding: 8px 10px;
-  font-family: inherit; /* Use panel font */
-  font-size: 11px;
-  background-color: rgba(0, 0, 0, 0.3); /* Dark background */
-  color: #eee; /* Light text */
-  border: 1px solid #555; /* Border similar to other elements */
+  flex: 1;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #555;
   border-radius: 3px;
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  padding: 6px 8px;
+  color: #eee;
+  font-family: inherit;
+  font-size: 10px;
 }
 
 .craftingSearchInput::placeholder {
-  color: #888; /* Lighter placeholder text */
-  opacity: 1; /* Ensure placeholder is fully visible */
+  color: #999;
+  font-style: italic;
 }
 
 .craftingSearchInput:focus {
-  outline: none; /* Remove default focus outline */
-  border-color: #7799dd; /* Highlight border on focus - matches Max button */
-  box-shadow: 0 0 0 2px rgba(119, 153, 221, 0.3); /* Subtle glow on focus */
+  outline: none;
+  border-color: #777;
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* New Filter Button Styles */
+.filterButtonContainer {
+  position: relative;
+  margin-left: 6px;
+}
+
+.filterButton {
+  background: rgba(60, 60, 80, 0.9);
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 6px 8px;
+  color: #eee;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filterButton:hover {
+  background: rgba(80, 80, 100, 0.9);
+  border-color: #777;
+}
+
+.filterDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 2px;
+  background: rgba(40, 40, 60, 0.95);
+  border: 1px solid #777;
+  border-radius: 3px;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.6);
+  z-index: 150;
+  min-width: 140px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.filterOption {
+  padding: 8px 12px;
+  color: #eee;
+  font-size: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filterOption:last-child {
+  border-bottom: none;
+}
+
+.filterOption:hover {
+  background: rgba(100, 100, 120, 0.6);
+}
+
+.filterOptionSelected {
+  background: rgba(80, 120, 160, 0.8);
+  color: #fff;
+}
+
+.filterOptionSelected:hover {
+  background: rgba(90, 130, 170, 0.8);
 }
 
 .equipmentSlot {

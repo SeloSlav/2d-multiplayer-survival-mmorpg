@@ -9,6 +9,7 @@ import {
     DbConnection,
     InventoryLocationData,
     HotbarLocationData,
+    ItemCategory,
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PopulatedItem } from './InventoryUI'; // Reuse PopulatedItem type
@@ -42,6 +43,10 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [craftQuantities, setCraftQuantities] = useState<Map<string, number>>(new Map()); // State for quantity input
     const [searchTerm, setSearchTerm] = useState(''); // State for the search term
+    // Initialize selectedCategory from localStorage, fallback to 'All'
+    const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+        return localStorage.getItem('craftingCategoryFilter') || 'All';
+    });
     const [craftedRecipeIdsThisSession, setCraftedRecipeIdsThisSession] = useState<Set<string>>(new Set()); // New state
 
     // Timer to update queue times
@@ -167,49 +172,54 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
         setSearchTerm(newSearchTerm);
     };
 
-    // Filter recipes based on search term
+    // --- Category Filter Handler with localStorage persistence ---
+    const handleCategoryChange = (category: string) => {
+        setSelectedCategory(category);
+        // Save to localStorage for persistence
+        localStorage.setItem('craftingCategoryFilter', category);
+    };
+
+    // Helper function to check if a recipe matches the selected category
+    const matchesCategory = (recipe: Recipe): boolean => {
+        if (selectedCategory === 'All') return true;
+        
+        const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
+        if (!outputDef) return false;
+        
+        return outputDef.category.tag === selectedCategory;
+    };
+
+    // Filter recipes based on search term and category
     const filteredRecipes = useMemo(() => {
-        if (!searchTerm.trim()) {
-            // If no search term, sort all recipes
-            return Array.from(recipes.values()).sort((a, b) => {
-                const canCraftA = canCraft(a);
-                const canCraftB = canCraft(b);
-                const notCraftedThisSessionA = !craftedRecipeIdsThisSession.has(a.recipeId.toString());
-                const notCraftedThisSessionB = !craftedRecipeIdsThisSession.has(b.recipeId.toString());
+        const baseRecipes = Array.from(recipes.values()).filter(recipe => {
+            // First filter by category
+            if (!matchesCategory(recipe)) return false;
 
-                // Priority 1: Craftable items
-                if (canCraftA && !canCraftB) return -1;
-                if (!canCraftA && canCraftB) return 1;
+            // Then filter by search term if present
+            if (!searchTerm.trim()) return true;
 
-                if (canCraftA && canCraftB) {
-                    // Priority 2: Within craftable, "new" (not crafted this session) items first
-                    if (notCraftedThisSessionA && !notCraftedThisSessionB) return -1;
-                    if (!notCraftedThisSessionA && notCraftedThisSessionB) return 1;
-                }
-
-                // Fallback: Alphabetical by output item name
-                const outputDefA = itemDefinitions.get(a.outputItemDefId.toString());
-                const outputDefB = itemDefinitions.get(b.outputItemDefId.toString());
-                const nameA = outputDefA?.name.toLowerCase() || '';
-                const nameB = outputDefB?.name.toLowerCase() || '';
-                return nameA.localeCompare(nameB);
-            });
-        }
-        const lowerSearchTerm = searchTerm.toLowerCase();
-        return Array.from(recipes.values()).filter(recipe => {
+            const lowerSearchTerm = searchTerm.toLowerCase();
             const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
+            
+            // Search in output item name
             if (outputDef && outputDef.name.toLowerCase().includes(lowerSearchTerm)) {
                 return true;
             }
+            
+            // Search in ingredient names
             for (const ingredient of recipe.ingredients) {
                 const ingDef = itemDefinitions.get(ingredient.itemDefId.toString());
                 if (ingDef && ingDef.name.toLowerCase().includes(lowerSearchTerm)) {
                     return true;
                 }
             }
+            
             // TODO: Add search by description if item definitions get a description field
             return false;
-        }).sort((a, b) => {
+        });
+
+        // Sort the filtered recipes
+        return baseRecipes.sort((a, b) => {
             const canCraftA = canCraft(a);
             const canCraftB = canCraft(b);
             const notCraftedThisSessionA = !craftedRecipeIdsThisSession.has(a.recipeId.toString());
@@ -232,7 +242,7 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             const nameB = outputDefB?.name.toLowerCase() || '';
             return nameA.localeCompare(nameB);
         });
-    }, [recipes, itemDefinitions, searchTerm, playerInventoryResources, craftedRecipeIdsThisSession]);
+    }, [recipes, itemDefinitions, searchTerm, selectedCategory, playerInventoryResources, craftedRecipeIdsThisSession]);
 
     return (
         <div className={styles.rightPane}> {/* Use existing right pane style */}
@@ -240,10 +250,12 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
             <div className={styles.craftingHeader}>
                 <h3 className={styles.sectionTitle}>CRAFTING</h3>
             </div>
-            {/* Add Search Bar */}
+            {/* Add Search Bar with Category Filter */}
             <CraftingSearchBar 
                 searchTerm={searchTerm}
                 onSearchChange={handleSearchChange}
+                selectedCategory={selectedCategory}
+                onCategoryChange={handleCategoryChange}
                 placeholder="Search by item or ingredient name..."
                 onFocus={() => onCraftingSearchFocusChange?.(true)}
                 onBlur={() => onCraftingSearchFocusChange?.(false)}

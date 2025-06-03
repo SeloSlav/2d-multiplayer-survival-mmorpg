@@ -660,7 +660,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Torch".to_string(),
-            description: "Provides light and some warmth. Can be used as a makeshift weapon.".to_string(),
+            description: "Provides light and warmth (+0.5/sec when lit). Can be used as a makeshift weapon.".to_string(),
             category: ItemCategory::Tool,
             icon_asset_name: "torch.png".to_string(),
             is_stackable: false,
@@ -693,7 +693,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             cook_time_secs: None,
             cooked_item_def_name: None,
             damage_resistance: None,
-            warmth_bonus: None,
+            warmth_bonus: None, // Note: Dynamic warmth from torch is handled in player_stats.rs when lit
             respawn_time_seconds: Some(30),
             attack_interval_secs: Some(0.5),
         },

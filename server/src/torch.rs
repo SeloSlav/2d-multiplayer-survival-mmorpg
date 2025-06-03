@@ -4,6 +4,9 @@ use crate::player;
 use crate::active_equipment::active_equipment;
 use crate::items::item_definition;
 
+// Torch warmth constant (matches player_stats.rs)
+pub const TORCH_WARMTH_PER_SECOND: f32 = 0.5;
+
 #[spacetimedb::reducer]
 pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {
     let sender_id = ctx.sender;
