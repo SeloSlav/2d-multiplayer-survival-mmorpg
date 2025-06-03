@@ -123,7 +123,7 @@ export const useSpacetimeTables = ({
             try {
                 sub.unsubscribe();
             } catch (e) {
-                console.warn('[useSpacetimeTables] Error unsubscribing:', e);
+                // console.warn('[useSpacetimeTables] Error unsubscribing:', e);
             }
         }
     };
@@ -132,7 +132,7 @@ export const useSpacetimeTables = ({
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
         if (connection && !callbacksRegisteredRef.current) {
-            console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions.");
+            // console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions.");
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
              
@@ -153,11 +153,10 @@ export const useSpacetimeTables = ({
                 const playerHexId = newPlayer.identity.toHexString();
                 
                 // Log newPlayer's lastHitTime when a respawn might be happening
-                if (oldPlayer.isDead && !newPlayer.isDead) {
-                    console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
-                    console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                    // Removed JSON.stringify call that was causing BigInt serialization error
-                }
+                // if (oldPlayer.isDead && !newPlayer.isDead) {
+                //     console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn detected for ${playerHexId}. newPlayer.lastHitTime (raw object):`, newPlayer.lastHitTime);
+                //     console.log(`  newPlayer.lastHitTime converted to micros: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                // }
 
                 const EPSILON = 0.01;
                 const posChanged = Math.abs(oldPlayer.positionX - newPlayer.positionX) > EPSILON || Math.abs(oldPlayer.positionY - newPlayer.positionY) > EPSILON;
@@ -173,37 +172,24 @@ export const useSpacetimeTables = ({
                 const usernameChanged = oldPlayer.username !== newPlayer.username;
 
                 if (posChanged || statsChanged || stateChanged || onlineStatusChanged || usernameChanged || lastHitTimeChanged) { 
-                    if (lastHitTimeChanged) {
-                         console.log(`[useSpacetimeTables] handlePlayerUpdate: lastHitTime CHANGED for ${playerHexId}. Old micros: ${oldLastHitTimeMicros}, New micros: ${newLastHitTimeMicros}`);
-                    }
-                    if (oldPlayer.isDead && !newPlayer.isDead && lastHitTimeChanged) {
-
-                        // ⚠️ IMPORTANT: DO NOT COMMENT OUT THIS LOG STATEMENT ⚠️
-                        // Removing this log will break death marker functionality
-                        console.log(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} also has lastHitTimeChanged. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. APPLYING UPDATE.`);
-
-                    } else if (oldPlayer.isDead && !newPlayer.isDead && !lastHitTimeChanged) {
-                        // This case should ideally not happen if server sends null for last_hit_time on respawn and SDK passes it through.
-                        console.warn(`[useSpacetimeTables] handlePlayerUpdate: Respawn for ${playerHexId} BUT lastHitTime DID NOT CHANGE. Old: ${oldLastHitTimeMicros}, New: ${newLastHitTimeMicros}. This might be an issue.`);
-                    }
 
                     setPlayers(prev => {
                         const newMap = new Map(prev);
                         newMap.set(playerHexId, newPlayer); // Use playerHexId here
                         // Optional: Log details of what's being set
-                        if (oldPlayer.isDead && !newPlayer.isDead) {
-                            console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
-                        }
+                        // if (oldPlayer.isDead && !newPlayer.isDead) {
+                        //     console.log(`[useSpacetimeTables] setPlayers (for respawn of ${playerHexId}): Updating map with lastHitTime: ${newPlayer.lastHitTime ? newPlayer.lastHitTime.__timestamp_micros_since_unix_epoch__ : 'null'}`);
+                        // }
                         return newMap;
                     });
                 }
             };
             const handlePlayerDelete = (ctx: any, deletedPlayer: SpacetimeDB.Player) => {
-                console.log('[useSpacetimeTables] Player Deleted:', deletedPlayer.username, deletedPlayer.identity.toHexString());
+                // console.log('[useSpacetimeTables] Player Deleted:', deletedPlayer.username, deletedPlayer.identity.toHexString());
                 setPlayers(prev => { const newMap = new Map(prev); newMap.delete(deletedPlayer.identity.toHexString()); return newMap; });
                 if (connection && connection.identity && deletedPlayer.identity.isEqual(connection.identity)) {
                     if (localPlayerRegistered) {
-                       console.warn('[useSpacetimeTables] Local player deleted from server.');
+                       // console.warn('[useSpacetimeTables] Local player deleted from server.');
                        setLocalPlayerRegistered(false);
                     }
                 }
@@ -428,15 +414,15 @@ export const useSpacetimeTables = ({
 
             // --- Player Corpse Subscriptions ---
             const handlePlayerCorpseInsert = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
-                console.log("[useSpacetimeTables] PlayerCorpse INSERT received:", corpse);
+                // console.log("[useSpacetimeTables] PlayerCorpse INSERT received:", corpse);
                 setPlayerCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
             };
             const handlePlayerCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.PlayerCorpse, newCorpse: SpacetimeDB.PlayerCorpse) => {
-                console.log("[useSpacetimeTables] PlayerCorpse UPDATE received:", newCorpse);
+                // console.log("[useSpacetimeTables] PlayerCorpse UPDATE received:", newCorpse);
                 setPlayerCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
             };
             const handlePlayerCorpseDelete = (ctx: any, corpse: SpacetimeDB.PlayerCorpse) => {
-                console.log("[useSpacetimeTables] PlayerCorpse DELETE received for ID:", corpse.id.toString(), "Object:", corpse);
+                // console.log("[useSpacetimeTables] PlayerCorpse DELETE received for ID:", corpse.id.toString(), "Object:", corpse);
                 setPlayerCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
             };
 
@@ -522,15 +508,15 @@ export const useSpacetimeTables = ({
 
             // --- DeathMarker Callbacks --- Added
             const handleDeathMarkerInsert = (ctx: any, marker: SpacetimeDB.DeathMarker) => {
-                console.log("[useSpacetimeTables] DeathMarker INSERT received:", marker);
+                // console.log("[useSpacetimeTables] DeathMarker INSERT received:", marker);
                 setDeathMarkers(prev => new Map(prev).set(marker.playerId.toHexString(), marker));
             };
             const handleDeathMarkerUpdate = (ctx: any, oldMarker: SpacetimeDB.DeathMarker, newMarker: SpacetimeDB.DeathMarker) => {
-                console.log("[useSpacetimeTables] DeathMarker UPDATE received:", newMarker);
+                // console.log("[useSpacetimeTables] DeathMarker UPDATE received:", newMarker);
                 setDeathMarkers(prev => new Map(prev).set(newMarker.playerId.toHexString(), newMarker));
             };
             const handleDeathMarkerDelete = (ctx: any, marker: SpacetimeDB.DeathMarker) => {
-                console.log("[useSpacetimeTables] DeathMarker DELETE received for player ID:", marker.playerId.toHexString());
+                // console.log("[useSpacetimeTables] DeathMarker DELETE received for player ID:", marker.playerId.toHexString());
                 setDeathMarkers(prev => { const newMap = new Map(prev); newMap.delete(marker.playerId.toHexString()); return newMap; });
             };
 
@@ -546,7 +532,7 @@ export const useSpacetimeTables = ({
                 setShelters(prev => new Map(prev).set(newShelter.id.toString(), newShelter));
             };
             const handleShelterDelete = (ctx: any, shelter: SpacetimeDB.Shelter) => {
-                console.log('[useSpacetimeTables] Shelter Deleted:', shelter.id);
+                // console.log('[useSpacetimeTables] Shelter Deleted:', shelter.id);
                 setShelters(prev => { const newMap = new Map(prev); newMap.delete(shelter.id.toString()); return newMap; });
             };
 
@@ -564,15 +550,15 @@ export const useSpacetimeTables = ({
 
             // --- MinimapCache Handlers ---
             const handleMinimapCacheInsert = (ctx: any, cache: SpacetimeDB.MinimapCache) => {
-                console.log('[useSpacetimeTables] Minimap cache received:', cache.width, 'x', cache.height, 'data length:', cache.data.length);
+                // console.log('[useSpacetimeTables] Minimap cache received:', cache.width, 'x', cache.height, 'data length:', cache.data.length);
                 setMinimapCache(cache);
             };
             const handleMinimapCacheUpdate = (ctx: any, oldCache: SpacetimeDB.MinimapCache, newCache: SpacetimeDB.MinimapCache) => {
-                console.log('[useSpacetimeTables] Minimap cache updated:', newCache.width, 'x', newCache.height);
+                // console.log('[useSpacetimeTables] Minimap cache updated:', newCache.width, 'x', newCache.height);
                 setMinimapCache(newCache);
             };
             const handleMinimapCacheDelete = (ctx: any, cache: SpacetimeDB.MinimapCache) => {
-                console.log('[useSpacetimeTables] Minimap cache deleted');
+                // console.log('[useSpacetimeTables] Minimap cache deleted');
                 setMinimapCache(null);
             };
 
@@ -819,7 +805,7 @@ export const useSpacetimeTables = ({
 
                             spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
-                            console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
+                            // console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
                             // Attempt to clean up any partial subscriptions for this chunk if error occurred mid-way
                             newHandlesForChunk.forEach(safeUnsubscribe);
                         }

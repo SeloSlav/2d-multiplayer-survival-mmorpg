@@ -41,9 +41,10 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stash", 1, None, Some(4u16)),
         ("Shelter", 1, None, Some(5u16)),
         ("Fire Arrow", 50, None, Some(6u16)),
-        ("Rock", 1, None, Some(7u16)),
         ("Torch", 1, None, Some(8u16)),
         ("Stone Pickaxe", 1, None, Some(9u16)),
+        ("Repair Hammer", 1, None, Some(10u16)),
+        ("Bone Arrow", 1, None, Some(11u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

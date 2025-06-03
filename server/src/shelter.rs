@@ -46,7 +46,7 @@ pub(crate) const PLAYER_SHELTER_INTERACTION_DISTANCE_SQUARED: f32 =
     PLAYER_SHELTER_INTERACTION_DISTANCE * PLAYER_SHELTER_INTERACTION_DISTANCE;
 
 // Health
-pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 100000.0; // Adjusted for ~30 min destruction time with Wooden Spear
+pub(crate) const SHELTER_INITIAL_MAX_HEALTH: f32 = 25000.0; // Adjusted for ~6 min destruction time with Wooden Spear
 
 // --- Health constants for consistency ---
 pub const SHELTER_INITIAL_HEALTH: f32 = SHELTER_INITIAL_MAX_HEALTH;
