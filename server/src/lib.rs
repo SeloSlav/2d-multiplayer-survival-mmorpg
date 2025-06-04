@@ -174,12 +174,44 @@ pub const PLAYER_RADIUS: f32 = 32.0; // Player collision radius
 pub const PLAYER_SPEED: f32 = 600.0; // Speed in pixels per second
 pub const PLAYER_SPRINT_MULTIPLIER: f32 = 1.6;
 
+// ADD: Water movement constants
+pub const WATER_SPEED_PENALTY: f32 = 0.5; // 50% speed reduction (50% of normal speed)
+
 // World Dimensions (example)
 pub const WORLD_WIDTH_TILES: u32 = 500;
 pub const WORLD_HEIGHT_TILES: u32 = 500;
 // Change back to f32 as they are used in float calculations
 pub const WORLD_WIDTH_PX: f32 = (WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32;
 pub const WORLD_HEIGHT_PX: f32 = (WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32;
+
+// ADD: Helper functions for water detection
+/// Converts world pixel coordinates to tile coordinates
+pub fn world_pos_to_tile_coords(world_x: f32, world_y: f32) -> (i32, i32) {
+    let tile_x = (world_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (world_y / TILE_SIZE_PX as f32).floor() as i32;
+    (tile_x, tile_y)
+}
+
+/// Checks if a player is standing on a water tile (Sea type)
+/// This is highly optimized using direct tile coordinate lookup
+pub fn is_player_on_water(ctx: &ReducerContext, player_x: f32, player_y: f32) -> bool {
+    // Convert player position to tile coordinates
+    let (tile_x, tile_y) = world_pos_to_tile_coords(player_x, player_y);
+    
+    // Direct lookup using indexed world coordinates - O(log n) performance
+    let world_tiles = ctx.db.world_tile();
+    
+    // Use the indexed world_position btree for fast lookup
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        match tile.tile_type {
+            TileType::Sea => return true,
+            _ => return false,
+        }
+    }
+    
+    // No tile found at this position, assume land (safety fallback)
+    false
+}
 
 // Player table to store position
 #[spacetimedb::table(
@@ -214,6 +246,7 @@ pub struct Player {
     pub is_crouching: bool, // RENAMED: For crouching speed control
     pub is_knocked_out: bool, // NEW: Tracks if the player is in knocked out state
     pub knocked_out_at: Option<Timestamp>, // NEW: When the player was knocked out
+    pub is_on_water: bool, // NEW: Tracks if the player is currently standing on water
 }
 
 // Table to store the last attack timestamp for each player
@@ -738,6 +771,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         is_crouching: false, // Initialize is_crouching
         is_knocked_out: false, // NEW: Initialize knocked out state
         knocked_out_at: None, // NEW: Initialize knocked out time
+        is_on_water: false, // NEW: Initialize is_on_water
     };
 
     // Insert the new player

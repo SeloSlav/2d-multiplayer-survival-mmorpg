@@ -289,7 +289,7 @@ export const renderPlayer = (
   const finalIsOnline = isCorpse ? false : isOnline;
 
   // --- Draw Dynamic Ground Shadow (for all players) ---
-  if (heroImg instanceof HTMLImageElement) {
+  if (heroImg instanceof HTMLImageElement && !player.isOnWater) {
     // Extract the specific sprite frame for shadow rendering
     const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
     
@@ -332,7 +332,7 @@ export const renderPlayer = (
   // --- End Dynamic Ground Shadow ---
 
   // --- Draw Offline Shadow (or Corpse Shadow) --- 
-  if (!finalIsOnline) { // This covers corpses (finalIsOnline = false) and offline players
+  if (!finalIsOnline && !player.isOnWater) { // This covers corpses (finalIsOnline = false) and offline players
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       drawShadow(
@@ -346,7 +346,7 @@ export const renderPlayer = (
   // --- End Shadow ---
 
   // --- Draw Shadow (Only if alive and online, and not a corpse) ---
-  if (!isCorpse && !player.isDead && finalIsOnline) {
+  if (!isCorpse && !player.isDead && finalIsOnline && !player.isOnWater) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 

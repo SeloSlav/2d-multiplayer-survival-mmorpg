@@ -14,6 +14,7 @@ interface RenderPlayerCorpseProps {
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
   cycleProgress: number;
   heroImageRef: React.RefObject<HTMLImageElement | null>;
+  heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
 }
 
 export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
@@ -28,17 +29,12 @@ export function renderPlayerCorpse({
   itemImagesRef,
   cycleProgress,
   heroImageRef,
+  heroWaterImageRef,
 }: RenderPlayerCorpseProps): void {
   
   // 1. Corpse Disappearance on Zero Health
   if (corpse.health === 0) {
     return; // Don't render if health is zero
-  }
-
-  const heroImg = heroImageRef.current;
-  if (!heroImg) {
-    console.warn("[renderPlayerCorpse] Hero image not loaded, cannot render corpse sprite.");
-    return;
   }
 
   // Revert to using __timestamp_micros_since_unix_epoch__ as per the linter error
@@ -62,6 +58,10 @@ export function renderPlayerCorpse({
       renderPosY += shakeOffsetY;
     }
   }
+
+  // For now, we'll assume corpses don't change their water status - they use normal sprite
+  // In the future, we could add water detection logic for corpses if needed
+  const isCorpseOnWater = false; // TODO: Implement water detection for corpses if needed
 
   const mockPlayerForCorpse: SpacetimeDBPlayer = {
     identity: corpse.playerIdentity as Identity,
@@ -87,7 +87,15 @@ export function renderPlayerCorpse({
     isCrouching: false,
     isKnockedOut: false,
     knockedOutAt: undefined,
+    isOnWater: isCorpseOnWater, // ADD: Water status for sprite selection
   };
+
+  // Choose the appropriate hero sprite based on water status
+  const heroImg = isCorpseOnWater ? heroWaterImageRef.current : heroImageRef.current;
+  if (!heroImg) {
+    console.warn("[renderPlayerCorpse] Hero image not loaded, cannot render corpse sprite.");
+    return;
+  }
 
   renderPlayer(
     ctx,

@@ -54,6 +54,7 @@ export type Player = {
   isCrouching: boolean,
   isKnockedOut: boolean,
   knockedOutAt: Timestamp | undefined,
+  isOnWater: boolean,
 };
 
 /**
@@ -89,6 +90,7 @@ export namespace Player {
       new ProductTypeElement("isCrouching", AlgebraicType.createBoolType()),
       new ProductTypeElement("isKnockedOut", AlgebraicType.createBoolType()),
       new ProductTypeElement("knockedOutAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("isOnWater", AlgebraicType.createBoolType()),
     ]);
   }
 

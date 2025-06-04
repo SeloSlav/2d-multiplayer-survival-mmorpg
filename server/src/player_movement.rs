@@ -11,7 +11,7 @@ use crate::grass::grass as GrassTableTrait;
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait;
 
 // Import constants from lib.rs
-use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX};
+use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water};
 
 // Import constants from player_stats module
 use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, LOW_THIRST_SPEED_PENALTY, LOW_WARMTH_SPEED_PENALTY, JUMP_COOLDOWN_MS};
@@ -82,6 +82,12 @@ pub fn update_player_position(
     
     let now = ctx.timestamp;
 
+    // --- ADD: Water Detection ---
+    let is_on_water = is_player_on_water(ctx, current_player.position_x, current_player.position_y);
+    if is_on_water {
+        log::trace!("Player {:?} is on water tile at ({:.1}, {:.1})", sender_id, current_player.position_x, current_player.position_y);
+    }
+
     // --- Calculate Delta Time ---
     let elapsed_micros = now.to_micros_since_unix_epoch().saturating_sub(current_player.last_update.to_micros_since_unix_epoch());
     // Clamp max delta time to avoid huge jumps on first update or after lag spikes (e.g., 100ms)
@@ -93,6 +99,12 @@ pub fn update_player_position(
     // Movement now depends only on having a direction input from the client
     let is_moving = move_x.abs() > 0.01 || move_y.abs() > 0.01;
     let mut current_sprinting_state = current_player.is_sprinting;
+
+    // ADD: Disable sprinting on water
+    if is_on_water && current_sprinting_state {
+        current_sprinting_state = false;
+        log::trace!("Player {:?} sprinting disabled due to water", sender_id);
+    }
 
     // Determine speed multiplier based on current sprint state and stamina
     if current_sprinting_state && new_stamina > 0.0 { // Check current stamina > 0
@@ -118,6 +130,12 @@ pub fn update_player_position(
     if current_player.is_crouching {
         final_speed_multiplier *= 0.5; // Reduce speed by 50%
         log::trace!("Player {:?} crouching active. Speed multiplier adjusted to: {}", sender_id, final_speed_multiplier);
+    }
+
+    // ADD: Apply water speed penalty
+    if is_on_water {
+        final_speed_multiplier *= WATER_SPEED_PENALTY; // 30% speed reduction
+        log::trace!("Player {:?} water speed penalty applied. Speed multiplier: {}", sender_id, final_speed_multiplier);
     }
 
     // --- <<< UPDATED: Read LOW_NEED_THRESHOLD from StatThresholdsConfig table >>> ---
@@ -282,7 +300,11 @@ pub fn update_player_position(
     let position_changed = (resolved_x - player_to_update.position_x).abs() > 0.01 ||
                            (resolved_y - player_to_update.position_y).abs() > 0.01;
     let direction_changed = player_to_update.direction != final_anim_direction;
-    let should_update_state = position_changed || direction_changed;
+    
+    // ADD: Check if water status changed
+    let water_status_changed = player_to_update.is_on_water != is_on_water;
+    
+    let should_update_state = position_changed || direction_changed || water_status_changed;
 
     // Always update timestamp if delta_time > 0 to prevent accumulation on next tick
     // This ensures last_update reflects the time this reducer processed movement,
@@ -290,12 +312,13 @@ pub fn update_player_position(
     let needs_timestamp_update = delta_time_secs > 0.0;
 
     if should_update_state {
-        log::trace!("Updating player {:?} - PosChange: {}, DirChange: {}",
-            sender_id, position_changed, direction_changed);
+        log::trace!("Updating player {:?} - PosChange: {}, DirChange: {}, WaterChange: {}",
+            sender_id, position_changed, direction_changed, water_status_changed);
 
         player_to_update.position_x = resolved_x;
         player_to_update.position_y = resolved_y;
         player_to_update.direction = final_anim_direction.to_string();
+        player_to_update.is_on_water = is_on_water; // ADD: Update water status
         player_to_update.last_update = now; // Update timestamp because state changed
 
         players.identity().update(player_to_update.clone()); // Update the modified player struct
@@ -352,6 +375,11 @@ pub fn set_sprinting(ctx: &ReducerContext, sprinting: bool) -> Result<(), String
             return Err("Cannot sprint while knocked out.".to_string());
         }
 
+        // ADD: Don't allow sprinting on water
+        // if sprinting && is_player_on_water(ctx, player.position_x, player.position_y) {
+        //     return Err("Cannot sprint on water.".to_string());
+        // }
+
         // Only update if the state is actually changing
         if player.is_sprinting != sprinting {
             player.is_sprinting = sprinting;
@@ -382,6 +410,11 @@ pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
         }
         if player.is_knocked_out {
             return Err("Cannot crouch while knocked out.".to_string());
+        }
+
+        // ADD: Don't allow crouching on water
+        if !player.is_crouching && is_player_on_water(ctx, player.position_x, player.position_y) {
+            return Err("Cannot crouch on water.".to_string());
         }
 
         player.is_crouching = !player.is_crouching;
@@ -420,6 +453,11 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
        // Don't allow jumping if knocked out
        if player.is_knocked_out {
            return Err("Cannot jump while knocked out.".to_string());
+       }
+
+       // ADD: Don't allow jumping on water
+       if is_player_on_water(ctx, player.position_x, player.position_y) {
+           return Err("Cannot jump on water.".to_string());
        }
 
        let now_micros = ctx.timestamp.to_micros_since_unix_epoch();

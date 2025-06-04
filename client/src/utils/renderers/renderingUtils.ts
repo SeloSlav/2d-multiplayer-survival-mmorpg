@@ -59,6 +59,7 @@ interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
     ySortedEntities: YSortedEntityType[];
     heroImageRef: React.RefObject<HTMLImageElement | null>;
+    heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
     lastPositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
@@ -81,6 +82,7 @@ interface RenderYSortedEntitiesProps {
         nowMs: number; 
         itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
         heroImageRef: React.RefObject<HTMLImageElement | null>;
+        heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
     localPlayerPosition?: { x: number; y: number } | null;
 }
@@ -92,6 +94,7 @@ export const renderYSortedEntities = ({
     ctx,
     ySortedEntities,
     heroImageRef,
+    heroWaterImageRef,
     lastPositionsRef,
     activeConnections,
     activeEquipments,
@@ -207,7 +210,8 @@ export const renderYSortedEntities = ({
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
-           const heroImg = heroImageRef.current;
+           // ADD: Choose sprite based on water status
+           const heroImg = player.isOnWater ? heroWaterImageRef.current : heroImageRef.current;
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
            const equipment = activeEquipments.get(playerId);
@@ -319,7 +323,8 @@ export const renderYSortedEntities = ({
                 corpse: entity as SpacetimeDBPlayerCorpse, 
                 nowMs, 
                 itemImagesRef,
-                heroImageRef
+                heroImageRef,
+                heroWaterImageRef
             });
         } else if (type === 'grass') {
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);
