@@ -97,9 +97,13 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     if (err) {
                         const errorMessage = err.message || 'Unknown reason';
                         setConnectionError(`SpacetimeDB Disconnected: ${errorMessage}`);
-                        // If disconnect error indicates an auth issue, invalidate the token.
-                        if (errorMessage.includes("401") || errorMessage.toLowerCase().includes("unauthorized")) {
-                            console.warn("[GameConn LOG] onDisconnect: Error suggests auth issue, invalidating token.");
+                        // Improved 401/auth error detection - check multiple patterns
+                        if (errorMessage.includes("401") || 
+                            errorMessage.toLowerCase().includes("unauthorized") ||
+                            errorMessage.toLowerCase().includes("websocket-token") ||
+                            errorMessage.toLowerCase().includes("authentication") ||
+                            errorMessage.toLowerCase().includes("auth")) {
+                            console.warn("[GameConn LOG] onDisconnect: Error suggests auth issue, invalidating token. Error:", errorMessage);
                             invalidateCurrentToken();
                         }
                     } else {
@@ -113,10 +117,19 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     setDbIdentity(null);
                     setIsConnected(false);
                     setIsConnecting(false); 
-                    setConnectionError(`SpacetimeDB Connection failed: ${err.message || err}`);
-                    // Directly invalidate token on connection error, as this is a common symptom of bad token
-                    console.warn("[GameConn LOG] onConnectError: Invalidating token due to connection failure.");
-                    invalidateCurrentToken(); 
+                    const errorMessage = err.message || err.toString();
+                    setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
+                    // Improved error detection - be more aggressive about auth failures
+                    if (errorMessage.includes("401") || 
+                        errorMessage.toLowerCase().includes("unauthorized") ||
+                        errorMessage.toLowerCase().includes("websocket-token") ||
+                        errorMessage.toLowerCase().includes("authentication") ||
+                        errorMessage.toLowerCase().includes("auth") ||
+                        errorMessage.toLowerCase().includes("forbidden") ||
+                        errorMessage.toLowerCase().includes("invalid token")) {
+                        console.warn("[GameConn LOG] onConnectError: Error suggests auth issue, invalidating token. Error:", errorMessage);
+                        invalidateCurrentToken(); 
+                    }
                 })
                 .build();
         } catch (err: any) { 

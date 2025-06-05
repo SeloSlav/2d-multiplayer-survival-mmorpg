@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 export type MenuType = 'main' | 'controls' | 'tips' | null;
 
@@ -8,16 +9,24 @@ interface GameMenuProps {
 }
 
 const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
+    const { logout } = useAuth();
+    
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
             onClose();
         }
     };
 
+    const handleSignOut = async () => {
+        onClose(); // Close the menu first
+        await logout(); // Then sign out
+    };
+
     const menuOptions = [
         { label: 'Back to Game', action: () => onClose() },
         { label: 'Controls', action: () => onNavigate('controls') },
         { label: 'Game Tips', action: () => onNavigate('tips') },
+        { label: 'Sign Out', action: handleSignOut, isSignOut: true },
     ];
 
     return (
@@ -66,9 +75,9 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                             key={index}
                             onClick={option.action}
                             style={{
-                                backgroundColor: 'rgba(60, 60, 80, 0.8)',
+                                backgroundColor: option.isSignOut ? 'rgba(120, 40, 40, 0.8)' : 'rgba(60, 60, 80, 0.8)',
                                 color: 'white',
-                                border: '2px solid #a0a0c0',
+                                border: option.isSignOut ? '2px solid #ff6666' : '2px solid #a0a0c0',
                                 borderRadius: '4px',
                                 padding: '12px 20px',
                                 fontFamily: '"Press Start 2P", cursive',
@@ -78,11 +87,11 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                                 boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(80, 80, 100, 0.9)';
+                                e.currentTarget.style.backgroundColor = option.isSignOut ? 'rgba(150, 50, 50, 0.9)' : 'rgba(80, 80, 100, 0.9)';
                                 e.currentTarget.style.transform = 'translateY(-1px)';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(60, 60, 80, 0.8)';
+                                e.currentTarget.style.backgroundColor = option.isSignOut ? 'rgba(120, 40, 40, 0.8)' : 'rgba(60, 60, 80, 0.8)';
                                 e.currentTarget.style.transform = 'translateY(0px)';
                             }}
                         >

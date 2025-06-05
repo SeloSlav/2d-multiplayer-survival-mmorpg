@@ -28,6 +28,7 @@ import { useSpacetimeTables } from './hooks/useSpacetimeTables';
 import { usePlacementManager } from './hooks/usePlacementManager';
 import { useDragDropManager } from './hooks/useDragDropManager';
 import { useInteractionManager } from './hooks/useInteractionManager';
+import { useAuthErrorHandler } from './hooks/useAuthErrorHandler';
 
 // Assets & Styles
 import './App.css';
@@ -51,6 +52,9 @@ import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/pl
 import { initCutGrassEffectSystem, cleanupCutGrassEffectSystem } from './effects/cutGrassEffect';
 
 function AppContent() {
+    // --- Global Auth Error Handler ---
+    useAuthErrorHandler(); // This will automatically handle 401 errors and invalidate tokens
+    
     // --- Auth Hook ---
     const { 
         userProfile, 

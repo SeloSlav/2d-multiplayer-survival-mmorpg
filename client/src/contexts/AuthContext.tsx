@@ -295,6 +295,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const parseToken = (token: string): UserProfile | null => {
        try {
             const decoded = parseJwt(token);
+            
+            // Check if token is expired
+            const now = Math.floor(Date.now() / 1000);
+            if (decoded.exp && decoded.exp < now) {
+                console.warn("[AuthContext] Token is expired");
+                return null;
+            }
+            
             const userId = decoded.sub || decoded.userId; 
             if (!userId) {
                  console.error("Could not find userId (sub or userId) in token payload:", decoded);
@@ -308,6 +316,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
        }
   };
 
+  // Helper function to validate if current token is still valid
+  const isTokenValid = useCallback(() => {
+    if (!spacetimeToken) return false;
+    
+    try {
+      const decoded = parseJwt(spacetimeToken);
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Check expiration
+      if (decoded.exp && decoded.exp < now) {
+        console.warn("[AuthContext] Token validation failed: Token is expired");
+        return false;
+      }
+      
+      // Check required fields
+      if (!decoded.sub && !decoded.userId) {
+        console.warn("[AuthContext] Token validation failed: Missing user ID");
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.warn("[AuthContext] Token validation failed: Parse error", error);
+      return false;
+    }
+  }, [spacetimeToken]);
+
   const invalidateCurrentToken = useCallback(() => {
     console.warn("[AuthContext LOG] Current token is being invalidated, likely due to rejection by a service (e.g., SpacetimeDB).");
     // Read the token BEFORE clearing it
@@ -317,7 +352,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Set error only if a token actually existed and was just cleared by this invalidation call.
     if (tokenExistedPriorToInvalidation) {
-        setAuthError("Your session was rejected or has expired.");
+        setAuthError("Your session was rejected or has expired. Please sign in again.");
     } else {
         // Optionally, set a different error or no error if no token was present to invalidate
         // For now, let's assume invalidating a non-existent token is not an error from AuthContext's perspective,
@@ -325,6 +360,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn("[AuthContext LOG] invalidateCurrentToken called, but no token was present in storage to invalidate (or was cleared just before check). No authError set by this path unless one already existed.");
     }
     setIsLoading(false); // Ensure UI is not stuck in loading state
+    
+    // Force a page reload to ensure clean state
+    setTimeout(() => {
+        console.log("[AuthContext LOG] Forcing page reload after token invalidation to ensure clean state");
+        window.location.assign(window.location.origin);
+    }, 100);
   }, [setAuthError, setIsLoading]); // clearTokens is stable as it's defined in the same scope and its own dependencies (setters) are stable
 
   // --- Effect for Initial Load / Handling Redirect ---
@@ -359,7 +400,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // console.log("[AuthContext LOG] spacetimeToken STATE CHANGED to:", spacetimeToken ? `token starting with ${spacetimeToken.substring(0, 10)}...` : null);
   }, [spacetimeToken]); 
 
-  const isAuthenticated = !!spacetimeToken;
+  const isAuthenticated = !!spacetimeToken && isTokenValid();
+
+  // Effect to check token validity periodically and clear invalid tokens
+  useEffect(() => {
+    if (spacetimeToken && !isTokenValid()) {
+      console.warn("[AuthContext] Invalid token detected, clearing...");
+      clearTokens();
+    }
+  }, [spacetimeToken, isTokenValid]);
 
   return (
     <AuthContext.Provider

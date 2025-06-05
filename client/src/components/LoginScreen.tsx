@@ -211,30 +211,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             Welcome back, {loggedInPlayer.username}!
                         </p>
                     ) : (
-                        // New Player: Show username input
-                        <input
-                            ref={usernameInputRef}
-                            type="text"
-                            placeholder="Choose Your Username"
-                            value={inputUsername}
-                            onChange={(e) => setInputUsername(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            // disabled is implicitly handled by not rendering if authError
-                            style={{
-                                padding: '10px',
+                        // New Player: Show username input ONLY if no authError
+                        !authError ? (
+                            <input
+                                ref={usernameInputRef}
+                                type="text"
+                                placeholder="Choose Your Username"
+                                value={inputUsername}
+                                onChange={(e) => setInputUsername(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                style={{
+                                    padding: '10px',
+                                    marginBottom: '20px',
+                                    border: `1px solid ${UI_BORDER_COLOR}`,
+                                    backgroundColor: '#333',
+                                    color: 'white',
+                                    fontFamily: UI_FONT_FAMILY,
+                                    fontSize: '14px',
+                                    display: 'block',
+                                    width: 'calc(100% - 22px)',
+                                    textAlign: 'center',
+                                    boxSizing: 'border-box',
+                                    borderRadius: '2px',
+                                }}
+                            />
+                        ) : (
+                            // Show a message that authentication is being verified
+                            <p style={{
                                 marginBottom: '20px',
-                                border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: '#333',
-                                color: 'white',
-                                fontFamily: UI_FONT_FAMILY,
                                 fontSize: '14px',
-                                display: 'block',
-                                width: 'calc(100% - 22px)',
-                                textAlign: 'center',
-                                boxSizing: 'border-box',
-                                borderRadius: '2px',
-                            }}
-                        />
+                                color: '#ccc'
+                            }}>
+                                Verifying authentication...
+                            </p>
+                        )
                     )
                 ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
@@ -243,16 +253,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     <form onSubmit={handleSubmit}>
                         <button
                             type="submit"
-                            // disabled logic from previous step is still relevant if this form is shown
-                            disabled={isAuthenticated && !!authError} //This condition is less likely to be met now due to parent check
+                            // Disable if there's any auth error, even if technically "authenticated"
+                            disabled={authError !== null}
                             style={{
                                 padding: '12px 20px', // Consistent button padding
                                 border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: (isAuthenticated && !!authError) ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
-                                color: (isAuthenticated && !!authError) ? '#aaa' : 'white',
+                                backgroundColor: authError ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
+                                color: authError ? '#aaa' : 'white',
                                 fontFamily: UI_FONT_FAMILY,
                                 fontSize: '14px',
-                                cursor: (isAuthenticated && !!authError) ? 'not-allowed' : 'pointer',
+                                cursor: authError ? 'not-allowed' : 'pointer',
                                 boxShadow: UI_SHADOW,
                                 display: 'inline-block', // ADDED for non-full-width
                                 boxSizing: 'border-box', // Ensure box-sizing
