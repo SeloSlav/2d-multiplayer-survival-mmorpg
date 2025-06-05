@@ -728,6 +728,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     ctx.restore(); // This is the restore from translate(cameraOffsetX, cameraOffsetY)
 
+    // --- Render Rain Before Color Overlay ---
+    // Rain should be rendered before the day/night overlay so it doesn't show above the darkness at night
+    const rainIntensity = worldState?.rainIntensity ?? 0.0;
+    if (rainIntensity > 0) {
+      renderRain(
+        ctx,
+        -cameraOffsetX, // Convert screen offset to world camera position
+        -cameraOffsetY, // Convert screen offset to world camera position
+        currentCanvasWidth,
+        currentCanvasHeight,
+        rainIntensity,
+        deltaTimeRef.current / 1000 // Convert milliseconds to seconds
+      );
+    }
+    // --- End Rain Rendering ---
+
     // --- Post-Processing (Day/Night, Indicators, Lights, Minimap) ---
     // Day/Night mask overlay
     if (overlayRgba !== 'transparent' && overlayRgba !== 'rgba(0,0,0,0.00)' && maskCanvas) {
@@ -871,21 +887,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-    // --- Render Rain as Top Layer ---
-    // Rain should be rendered last so it appears on top of everything
-    const rainIntensity = worldState?.rainIntensity ?? 0.0;
-    if (rainIntensity > 0) {
-      renderRain(
-        ctx,
-        -cameraOffsetX, // Convert screen offset to world camera position
-        -cameraOffsetY, // Convert screen offset to world camera position
-        currentCanvasWidth,
-        currentCanvasHeight,
-        rainIntensity,
-        deltaTimeRef.current / 1000 // Convert milliseconds to seconds
-      );
-    }
-    // --- End Rain Rendering ---
+
 
   }, [
     // Dependencies
