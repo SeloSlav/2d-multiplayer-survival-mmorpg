@@ -128,6 +128,111 @@ fn generate_world_features(config: &WorldGenConfig, noise: &Perlin) -> WorldFeat
     }
 }
 
+fn generate_scattered_islands(
+    shore_distance: &mut Vec<Vec<f64>>, 
+    noise: &Perlin, 
+    width: usize, 
+    height: usize, 
+    base_island_radius: f64,
+    center_x: f64,
+    center_y: f64
+) {
+    log::info!("Generating a few scattered small islands throughout the sea (3-5 total)");
+    
+    // Generate only small islands (no mini/tiny - just 3-5 scattered islands)
+    generate_island_layer(shore_distance, noise, width, height, base_island_radius, center_x, center_y,
+                         base_island_radius * 0.12, // 12% of main island size - nice medium size
+                         80.0, // Minimum distance from main island (stay well away)
+                         80.0, // Large minimum distance between islands (spread them out)
+                         0.015, // Much lower frequency for fewer placements
+                         0.3,   // Very high threshold (much more selective)
+                         4000.0); // Noise seed offset
+}
+
+fn generate_island_layer(
+    shore_distance: &mut Vec<Vec<f64>>, 
+    noise: &Perlin, 
+    width: usize, 
+    height: usize, 
+    base_island_radius: f64,
+    center_x: f64,
+    center_y: f64,
+    island_radius: f64,
+    min_distance_from_main: f64,
+    min_distance_between: f64,
+    noise_frequency: f64,
+    noise_threshold: f64,
+    noise_seed: f64
+) {
+    let mut island_positions = Vec::new();
+    
+    // First pass: Find potential island positions using noise
+    for y in 30..height-30 { // Stay away from edges
+        for x in 30..width-30 {
+            // Check if this point is in deep water (far from any existing land)
+            if shore_distance[y][x] < -15.0 { // Deep water only
+                let distance_from_main = ((x as f64 - center_x).powi(2) + (y as f64 - center_y).powi(2)).sqrt();
+                
+                // Check minimum distance from main island
+                if distance_from_main > min_distance_from_main {
+                    // Use noise to determine if an island should be here
+                    let island_noise = noise.get([x as f64 * noise_frequency, y as f64 * noise_frequency, noise_seed]);
+                    
+                    if island_noise > noise_threshold {
+                        // Check distance from other islands of this layer
+                        let mut too_close = false;
+                        for (other_x, other_y, _) in &island_positions {
+                            let distance = ((x as f64 - other_x).powi(2) + (y as f64 - other_y).powi(2)).sqrt();
+                            if distance < min_distance_between {
+                                too_close = true;
+                                break;
+                            }
+                        }
+                        
+                        if !too_close {
+                            island_positions.push((x as f64, y as f64, island_radius));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    log::info!("Placing {} islands of radius {:.1}", island_positions.len(), island_radius);
+    
+    // Second pass: Actually create the islands
+    for (island_x, island_y, radius) in island_positions {
+        let search_radius = (radius + 5.0) as usize;
+        
+        for y in ((island_y as usize).saturating_sub(search_radius))..=((island_y as usize) + search_radius).min(height - 1) {
+            for x in ((island_x as usize).saturating_sub(search_radius))..=((island_x as usize) + search_radius).min(width - 1) {
+                let dx = x as f64 - island_x;
+                let dy = y as f64 - island_y;
+                let distance_from_island_center = (dx * dx + dy * dy).sqrt();
+                
+                // Add organic shape variation
+                let shape_noise = noise.get([x as f64 * 0.08, y as f64 * 0.08, noise_seed + 1000.0]);
+                let shape_variation = shape_noise * (radius * 0.3); // Vary shape by up to 30% of radius
+                let adjusted_radius = radius + shape_variation;
+                
+                if distance_from_island_center < adjusted_radius {
+                    // Only create island if this point is currently water
+                    if shore_distance[y][x] < 0.0 {
+                        // Create a smooth falloff from center to edge
+                        let falloff = 1.0 - (distance_from_island_center / adjusted_radius);
+                        let new_shore_distance = falloff * radius * 0.8; // Make it slightly smaller than the radius for natural look
+                        
+                        // Only update if this would create land or make existing land more prominent
+                        if new_shore_distance > shore_distance[y][x] {
+                            shore_distance[y][x] = new_shore_distance;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn generate_wavy_shore_distance(config: &WorldGenConfig, noise: &Perlin, width: usize, height: usize) -> Vec<Vec<f64>> {
     let mut shore_distance = vec![vec![-100.0; width]; height]; // Start with deep water everywhere
     let center_x = width as f64 / 2.0;
@@ -204,6 +309,9 @@ fn generate_wavy_shore_distance(config: &WorldGenConfig, noise: &Perlin, width: 
             }
         }
     }
+    
+    // Generate scattered small and mini islands throughout the sea
+    generate_scattered_islands(&mut shore_distance, noise, width, height, base_island_radius, center_x, center_y);
     
     shore_distance
 }

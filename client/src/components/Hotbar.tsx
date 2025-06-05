@@ -138,6 +138,20 @@ const Hotbar: React.FC<HotbarProps> = ({
            itemDef.isEquippable;
   }, []);
 
+  // Helper function to check if a slot should be disabled due to water
+  const isSlotDisabledByWater = useCallback((slotIndex: number): boolean => {
+    if (!localPlayer?.isOnWater) return false;
+    
+    const itemInSlot = findItemForSlot(slotIndex);
+    if (!itemInSlot) return false;
+    
+    const categoryTag = itemInSlot.definition.category.tag;
+    return categoryTag === 'Weapon' || 
+           categoryTag === 'RangedWeapon' || 
+           categoryTag === 'Tool' ||
+           itemInSlot.definition.isEquippable;
+  }, [localPlayer?.isOnWater, findItemForSlot]);
+
   // Effect to track weapon cooldowns based on activeEquipment swingStartTimeMs - simplified
   useEffect(() => {
     // console.log('[Hotbar] Weapon cooldown useEffect triggered. activeEquipment:', activeEquipment);
@@ -359,6 +373,36 @@ const Hotbar: React.FC<HotbarProps> = ({
     }, timeoutDuration);
   }, [numSlots, findItemForSlot, cooldownSlot]); // Added cooldownSlot to dependencies
 
+  // Effect to auto-unequip weapons when entering water
+  useEffect(() => {
+    if (!localPlayer || !playerIdentity || !connection?.reducers) return;
+
+    // If player just entered water and has an active weapon equipped, unequip it
+    if (localPlayer.isOnWater) {
+      // Check if any weapon/ranged weapon/tool is currently selected in hotbar
+      if (selectedSlot >= 0 && selectedSlot < numSlots) {
+        const currentItem = findItemForSlot(selectedSlot);
+        if (currentItem) {
+          const categoryTag = currentItem.definition.category.tag;
+          const isWeaponType = categoryTag === 'Weapon' || 
+                              categoryTag === 'RangedWeapon' || 
+                              categoryTag === 'Tool' ||
+                              currentItem.definition.isEquippable;
+          
+          if (isWeaponType) {
+            console.log('[Hotbar] Player entered water with weapon equipped. Auto-unequipping:', currentItem.definition.name);
+            try {
+              connection.reducers.clearActiveItemReducer(playerIdentity);
+              setSelectedSlot(-1); // Clear hotbar selection
+            } catch (err) {
+              console.error("Error auto-unequipping weapon when entering water:", err);
+            }
+          }
+        }
+      }
+    }
+  }, [localPlayer?.isOnWater, playerIdentity, connection, selectedSlot, findItemForSlot, numSlots]);
+
   // Effect to watch for new bandage effects and trigger animation DURING usage
   useEffect(() => {
     if (!playerIdentity || !activeConsumableEffects) return;
@@ -465,6 +509,17 @@ const Hotbar: React.FC<HotbarProps> = ({
     const categoryTag = itemInSlot.definition.category.tag;
     const instanceId = BigInt(itemInSlot.instance.instanceId);
     const isEquippable = itemInSlot.definition.isEquippable;
+
+    // Check if player is in water and trying to use a weapon
+    const isWeaponType = categoryTag === 'Weapon' || 
+                        categoryTag === 'RangedWeapon' || 
+                        categoryTag === 'Tool' ||
+                        isEquippable;
+    
+    if (localPlayer?.isOnWater && isWeaponType) {
+      console.log('[Hotbar] Cannot use weapons while in water:', itemInSlot.definition.name);
+      return; // Prevent weapon activation in water
+    }
 
     // console.log(`[Hotbar] Activating slot ${slotIndex}: "${itemInSlot.definition.name}" (Category: ${categoryTag}, Equippable: ${isEquippable})`);
 
@@ -601,7 +656,7 @@ const Hotbar: React.FC<HotbarProps> = ({
         console.error("Error clearActiveItemReducer:", err); 
       }
     }
-  }, [findItemForSlot, connection, playerIdentity, cancelPlacement, startPlacement, triggerClientCooldownAnimation, isVisualCooldownActive, cooldownSlot]);
+  }, [findItemForSlot, connection, playerIdentity, cancelPlacement, startPlacement, triggerClientCooldownAnimation, isVisualCooldownActive, cooldownSlot, localPlayer]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const inventoryPanel = document.querySelector('.inventoryPanel');
@@ -808,6 +863,7 @@ const Hotbar: React.FC<HotbarProps> = ({
       {Array.from({ length: numSlots }).map((_, index) => {
         const populatedItem = findItemForSlot(index);
         const currentSlotInfo: DragSourceSlotInfo = { type: 'hotbar', index: index };
+        const isDisabledByWater = isSlotDisabledByWater(index);
 
         return (
           <DroppableSlot
@@ -824,13 +880,14 @@ const Hotbar: React.FC<HotbarProps> = ({
                 width: `${SLOT_SIZE}px`,
                 height: `${SLOT_SIZE}px`,
                 border: `2px solid ${index === selectedSlot ? SELECTED_BORDER_COLOR : UI_BORDER_COLOR}`,
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                backgroundColor: isDisabledByWater ? 'rgba(100, 100, 150, 0.3)' : 'rgba(0, 0, 0, 0.3)',
                 borderRadius: '3px',
                 marginLeft: index > 0 ? `${SLOT_MARGIN}px` : '0px',
                 transition: 'border-color 0.1s ease-in-out',
                 boxSizing: 'border-box',
-                cursor: 'pointer',
+                cursor: isDisabledByWater ? 'not-allowed' : 'pointer',
                 overflow: 'hidden',
+                opacity: isDisabledByWater ? 0.6 : 1.0,
             }}
             isDraggingOver={false}
             overlayProgress={
@@ -888,6 +945,33 @@ const Hotbar: React.FC<HotbarProps> = ({
                 zIndex: 10
               }}>
                 Weapon: {isWeaponCooldownActive ? `${Math.round(weaponCooldownProgress * 100)}%` : 'inactive'}
+              </div>
+            )}
+            
+            {/* Water disabled overlay */}
+            {isDisabledByWater && (
+              <div style={{
+                position: 'absolute',
+                top: '0px',
+                left: '0px',
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(100, 150, 255, 0.4)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderRadius: '2px',
+                pointerEvents: 'none',
+                zIndex: 5
+              }}>
+                <span style={{
+                  fontSize: '24px',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                  userSelect: 'none'
+                }}>
+                  💧
+                </span>
               </div>
             )}
           </DroppableSlot>
