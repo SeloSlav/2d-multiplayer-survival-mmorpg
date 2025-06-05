@@ -5,6 +5,7 @@ import seaTile from '../../assets/tiles/sea2.png';
 import beachTile from '../../assets/tiles/beach3.png';
 // Import autotile assets
 import grassDirtAutotile from '../../assets/tiles/tileset_grass_dirt_autotile.png';
+import grassBeachAutotile from '../../assets/tiles/tileset_grass_beach_autotile.png';
 import beachSeaAutotile from '../../assets/tiles/tileset_beach_sea_autotile.png';
 
 export interface TileAssetConfig {
@@ -12,11 +13,13 @@ export interface TileAssetConfig {
     variants?: string[]; // For tile variations
     animationFrames?: string[]; // For animated tiles like water
     animationSpeed?: number; // Animation speed in ms per frame
-    // New: Autotile support
-    autotileSheet?: string; // Path to autotile sheet for transitions
+    // New: Autotile support - can have multiple autotile sheets for different transitions
+    autotileSheets?: { [transitionName: string]: string }; // Multiple autotile sheets
     autotileSize?: number;  // Size of each autotile in pixels
     autotileColumns?: number; // Number of columns in autotile sheet
     autotileRows?: number;    // Number of rows in autotile sheet
+    // Legacy support for single autotile sheet
+    autotileSheet?: string; // Path to autotile sheet for transitions
 }
 
 export const TILE_ASSETS: Record<string, TileAssetConfig> = {

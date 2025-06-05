@@ -1,8 +1,11 @@
 import { gameConfig } from '../../config/gameConfig';
-import { TILE_ASSETS, getTileAssetKey, hasAutotileSupport, getAutotileConfig } from './tileRenderingUtils';
+import { TILE_ASSETS, hasAutotileSupport, getAutotileConfig } from './tileRenderingUtils';
 import { WorldTile } from '../../generated/world_tile_type';
-import { TileType } from '../../generated/tile_type_type';
-import { shouldUseAutotiling, getAutotileSpriteCoords, debugAutotileBitmask, getDebugTileInfo, AutotileConfig } from '../autotileUtils';
+import { shouldUseAutotiling, getAutotileSpriteCoords, getDebugTileInfo, AutotileConfig, AUTOTILE_CONFIGS } from '../autotileUtils';
+// Import autotile images directly
+import grassDirtAutotile from '../../assets/tiles/tileset_grass_dirt_autotile.png';
+import grassBeachAutotile from '../../assets/tiles/tileset_grass_beach_autotile.png';
+import beachSeaAutotile from '../../assets/tiles/tileset_beach_sea_autotile.png';
 
 interface TileCache {
     tiles: Map<string, WorldTile>;
@@ -46,11 +49,19 @@ export class ProceduralWorldRenderer {
                 promises.push(this.loadImage(config.autotileSheet, `${tileType}_autotile`));
             }
         });
+
+        // Load specific autotile images using the imported assets
+        // Grass-Dirt transition
+        promises.push(this.loadImage(grassDirtAutotile, 'transition_Grass_Dirt'));
+        // Grass-Beach transition  
+        promises.push(this.loadImage(grassBeachAutotile, 'transition_Grass_Beach'));
+        // Beach-Sea transition
+        promises.push(this.loadImage(beachSeaAutotile, 'transition_Beach_Sea'));
         
         try {
             await Promise.all(promises);
             this.isInitialized = true;
-            // console.log('[ProceduralWorldRenderer] All tile assets preloaded successfully');
+            console.log('[ProceduralWorldRenderer] Loaded transition autotiles: Grass_Dirt, Grass_Beach, Beach_Sea');
         } catch (error) {
             // console.error('[ProceduralWorldRenderer] Failed to preload tile assets:', error);
         }
@@ -193,9 +204,28 @@ export class ProceduralWorldRenderer {
         showDebugOverlay: boolean = false
     ) {
         const tileTypeName = tile.tileType.tag;
-        const autotileImg = this.tileCache.images.get(`${tileTypeName}_autotile`);
+        
+        // Find which specific transition this autotile config represents
+        let transitionKey = '';
+        for (const [key, config] of Object.entries(AUTOTILE_CONFIGS)) {
+            if (config.primaryType === autotileResult.config.primaryType && 
+                config.secondaryType === autotileResult.config.secondaryType &&
+                config.tilesetPath === autotileResult.config.tilesetPath) {
+                transitionKey = key;
+                break;
+            }
+        }
+        
+        // Get the specific transition autotile image
+        let autotileImg = this.tileCache.images.get(`transition_${transitionKey}`);
+        
+        // Fallback to legacy single autotile if transition not found
+        if (!autotileImg) {
+            autotileImg = this.tileCache.images.get(`${tileTypeName}_autotile`);
+        }
         
         if (!autotileImg || !autotileImg.complete || autotileImg.naturalHeight === 0) {
+            console.warn(`[Autotile] No image found for transition: ${transitionKey} (${autotileResult.config.primaryType}→${autotileResult.config.secondaryType})`);
             // Fallback to regular tile if autotile image not available
             const regularImg = this.getTileImage(tile);
             if (regularImg && regularImg.complete && regularImg.naturalHeight !== 0) {

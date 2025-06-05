@@ -124,6 +124,8 @@ const DEBUG_OVERRIDES: { [bitmask: number]: number } = {
     86: 26,
     126: 2,
     51: 2,
+    149: 14,
+    168: 24,
     // Add your test overrides here!
 };
 
@@ -276,6 +278,14 @@ export const AUTOTILE_CONFIGS: { [key: string]: AutotileConfig } = {
         primaryType: 'Grass',
         secondaryType: 'Dirt', 
         tilesetPath: '/src/assets/tiles/tileset_grass_dirt_autotile.png',
+        tileSize: 213, // Keep this for compatibility, but actual sprite size differs
+        columns: 6,    // 6 columns: 1280 ÷ 6 ≈ 213.33 pixels wide
+        rows: 8        // 8 rows: 1280 ÷ 8 = 160 pixels tall
+    },
+    'Grass_Beach': {
+        primaryType: 'Grass',
+        secondaryType: 'Beach',
+        tilesetPath: '/src/assets/tiles/tileset_grass_beach_autotile.png',
         tileSize: 213, // Keep this for compatibility, but actual sprite size differs
         columns: 6,    // 6 columns: 1280 ÷ 6 ≈ 213.33 pixels wide
         rows: 8        // 8 rows: 1280 ÷ 8 = 160 pixels tall
