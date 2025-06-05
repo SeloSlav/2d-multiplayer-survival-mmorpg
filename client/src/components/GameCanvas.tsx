@@ -56,7 +56,7 @@ import { useWorldTileCache } from '../hooks/useWorldTileCache';
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
 import { renderYSortedEntities } from '../utils/renderers/renderingUtils.ts';
 import { renderInteractionLabels } from '../utils/renderers/labelRenderingUtils.ts';
-import { renderPlacementPreview } from '../utils/renderers/placementRenderingUtils.ts';
+import { renderPlacementPreview, isPlacementTooFar } from '../utils/renderers/placementRenderingUtils.ts';
 import { drawInteractionIndicator } from '../utils/interactionIndicator';
 import { drawMinimapOntoCanvas } from './Minimap';
 import { renderCampfire } from '../utils/renderers/campfireRenderingUtils';
@@ -557,25 +557,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Pass the necessary viewport parameters to the optimized background renderer
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
-    let isPlacementTooFar = false;
-    if (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) {
-      const placeDistSq = (currentWorldMouseX - localPlayer.positionX) ** 2 + (currentWorldMouseY - localPlayer.positionY) ** 2;
-
-      // Use appropriate placement range based on item type
-      let clientPlacementRangeSq: number;
-      if (placementInfo.iconAssetName === 'shelter.png') {
-        // Shelter has a much larger placement range (256px vs 64px for other items)
-        const SHELTER_PLACEMENT_MAX_DISTANCE = 256.0;
-        clientPlacementRangeSq = SHELTER_PLACEMENT_MAX_DISTANCE * SHELTER_PLACEMENT_MAX_DISTANCE;
-      } else {
-        // Use standard interaction distance for other items (campfires, boxes, etc.)
-        clientPlacementRangeSq = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED * 1.1;
-      }
-
-      if (placeDistSq > clientPlacementRangeSq) {
-        isPlacementTooFar = true;
-      }
-    }
+    const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) 
+      ? isPlacementTooFar(placementInfo, localPlayer.positionX, localPlayer.positionY, currentWorldMouseX, currentWorldMouseY)
+      : false;
 
     // --- Render Ground Items Individually --- 
 
@@ -708,7 +692,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
     renderPlacementPreview({
       ctx, placementInfo, itemImagesRef, shelterImageRef, worldMouseX: currentWorldMouseX,
-      worldMouseY: currentWorldMouseY, isPlacementTooFar, placementError,
+      worldMouseY: currentWorldMouseY, isPlacementTooFar: isPlacementTooFarValue, placementError, connection,
     });
 
     // --- Render Clouds on Canvas --- (NEW POSITION)

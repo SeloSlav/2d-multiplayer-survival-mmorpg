@@ -648,26 +648,24 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
              )}
 
             {/* Hotbar Area */}
-            {!placementInfo && (
-                <Hotbar
-                    playerIdentity={identity}
-                    localPlayer={localPlayer}
-                    itemDefinitions={itemDefinitions}
-                    inventoryItems={inventoryItems}
-                    connection={connection}
-                    onItemDragStart={onItemDragStart}
-                    onItemDrop={onItemDrop}
-                    draggedItemInfo={draggedItemInfo}
-                    interactingWith={interactingWith}
-                    campfires={campfires}
-                    stashes={stashes}
-                    startPlacement={startPlacement}
-                    cancelPlacement={cancelPlacement}
-                    activeConsumableEffects={activeConsumableEffects}
-                    activeEquipment={localPlayerActiveEquipment}
-                    isGameMenuOpen={isGameMenuOpen}
-                />
-            )}
+            <Hotbar
+                playerIdentity={identity}
+                localPlayer={localPlayer}
+                itemDefinitions={itemDefinitions}
+                inventoryItems={inventoryItems}
+                connection={connection}
+                onItemDragStart={onItemDragStart}
+                onItemDrop={onItemDrop}
+                draggedItemInfo={draggedItemInfo}
+                interactingWith={interactingWith}
+                campfires={campfires}
+                stashes={stashes}
+                startPlacement={startPlacement}
+                cancelPlacement={cancelPlacement}
+                activeConsumableEffects={activeConsumableEffects}
+                activeEquipment={localPlayerActiveEquipment}
+                isGameMenuOpen={isGameMenuOpen}
+            />
 
             {/* Drag Overlay is removed - ghost handled by DraggableItem */}
        </>

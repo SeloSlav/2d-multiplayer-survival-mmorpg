@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { DbConnection } from '../generated'; // Import connection type
 import { ItemDefinition } from '../generated'; // Import ItemDefinition for type info
+import { TILE_SIZE } from '../config/gameConfig';
 
 // Type for the information needed to start placement
 export interface PlacementItemInfo {
@@ -21,7 +22,58 @@ export interface PlacementState {
 export interface PlacementActions {
   startPlacement: (itemInfo: PlacementItemInfo) => void;
   cancelPlacement: () => void;
-  attemptPlacement: (worldX: number, worldY: number) => void;
+  attemptPlacement: (worldX: number, worldY: number, isPlacementTooFar?: boolean) => void;
+}
+
+/**
+ * Converts world pixel coordinates to tile coordinates
+ */
+function worldPosToTileCoords(worldX: number, worldY: number): { tileX: number; tileY: number } {
+  const tileX = Math.floor(worldX / TILE_SIZE);
+  const tileY = Math.floor(worldY / TILE_SIZE);
+  return { tileX, tileY };
+}
+
+/**
+ * Checks if a world position is on a water tile (Sea type).
+ * Returns true if the position is on water and placement should be blocked.
+ */
+function isPositionOnWater(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+  if (!connection) {
+    return false; // If no connection, allow placement (fallback)
+  }
+
+  const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+  
+  // Check all world tiles to find the one at this position
+  for (const tile of connection.db.worldTile.iter()) {
+    if (tile.worldX === tileX && tile.worldY === tileY) {
+      // Found the tile at this position, check if it's water
+      return tile.tileType.tag === 'Sea';
+    }
+  }
+  
+  // No tile found at this position, assume it's safe to place (fallback)
+  return false;
+}
+
+/**
+ * Checks if placement should be blocked due to water tiles.
+ * This applies to shelters, camp fires, stashes, wooden storage boxes, and sleeping bags.
+ */
+function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
+  if (!connection || !placementInfo) {
+    return false;
+  }
+
+  // List of items that cannot be placed on water
+  const waterBlockedItems = ['Camp Fire', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
+  
+  if (waterBlockedItems.includes(placementInfo.itemName)) {
+    return isPositionOnWater(connection, worldX, worldY);
+  }
+  
+  return false;
 }
 
 export const usePlacementManager = (connection: DbConnection | null): [PlacementState, PlacementActions] => {
@@ -47,7 +99,7 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
   }, [placementInfo]); // Depend on placementInfo to check if cancelling is needed
 
   // --- Attempt Placement --- 
-  const attemptPlacement = useCallback((worldX: number, worldY: number) => {
+  const attemptPlacement = useCallback((worldX: number, worldY: number, isPlacementTooFar?: boolean) => {
     if (!connection || !placementInfo) {
       console.warn("[PlacementManager] Attempted placement with no connection or no item selected.");
       return;
@@ -55,6 +107,18 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
 
     // console.log(`[PlacementManager] Attempting to place ${placementInfo.itemName} at (${worldX}, ${worldY})`);
     setPlacementError(null); // Clear previous error
+
+    // Check for distance restriction first
+    if (isPlacementTooFar) {
+      // setPlacementError("Too far away");
+      return; // Don't proceed with placement
+    }
+
+    // Check for water placement restriction
+    if (isWaterPlacementBlocked(connection, placementInfo, worldX, worldY)) {
+      // setPlacementError("Cannot place on water");
+      return; // Don't proceed with placement
+    }
 
     try {
       // --- Reducer Mapping Logic --- 

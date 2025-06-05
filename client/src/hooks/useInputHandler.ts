@@ -6,6 +6,7 @@ import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // 
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig'; // <<< ADDED IMPORT
+import { isPlacementTooFar } from '../utils/renderers/placementRenderingUtils';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -862,7 +863,11 @@ export const useInputHandler = ({
             if (isPlayerDead) return;
             
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
-                placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
+                const localPlayerPosition = localPlayerRef.current;
+                const isTooFar = localPlayerPosition 
+                    ? isPlacementTooFar(placementInfo, localPlayerPosition.positionX, localPlayerPosition.positionY, worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y)
+                    : false;
+                placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y, isTooFar);
                 return; 
             }
             if (isInventoryOpen) return; 
