@@ -70,7 +70,6 @@ import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
 import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
-import { renderWaterEffect } from '../utils/renderers/waterEffectRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
@@ -729,21 +728,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     // --- End Rain Rendering ---
 
-    // --- Render Water Effect ---
-    // Water effect adds animated lines over water tiles for dynamic water appearance
-    if (worldTiles && worldTiles.size > 0) {
-      renderWaterEffect(
-        ctx,
-        -cameraOffsetX, // Convert screen offset to world camera position
-        -cameraOffsetY, // Convert screen offset to world camera position
-        currentCanvasWidth,
-        currentCanvasHeight,
-        worldTiles,
-        deltaTimeRef.current / 1000 // Convert milliseconds to seconds
-      );
-    }
-    // --- End Water Effect Rendering ---
-
     // --- Post-Processing (Day/Night, Indicators, Lights, Minimap) ---
     // Day/Night mask overlay
     if (overlayRgba !== 'transparent' && overlayRgba !== 'rgba(0,0,0,0.00)' && maskCanvas) {
@@ -923,7 +907,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSheltersMap,
     shelterImageRef.current,
     minimapCache,
-    worldTiles, // Added for water effect
+    worldTiles,
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {

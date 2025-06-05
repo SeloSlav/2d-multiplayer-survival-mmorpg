@@ -272,8 +272,8 @@ export function useCampfireParticles({
                         smokeEmissionAccumulatorRef.current.set(campfireId, 0);
                     }
 
-                    // --- Continuous Smoke Burst Logic (if player is in hot zone) ---
-                    if (campfire.isPlayerInHotZone) {
+                    // --- Continuous Smoke Burst Logic (if player is in hot zone AND campfire is burning) ---
+                    if (campfire.isPlayerInHotZone && isCurrentlyBurning) {
                         let burstAcc = smokeBurstEmissionAccumulatorRef.current.get(campfireId) || 0;
                         // DRAMATICALLY INCREASED: Much higher emission rate for dramatic black plume
                         burstAcc += 4.0 * deltaTimeFactor;
@@ -295,7 +295,7 @@ export function useCampfireParticles({
                         }
                         smokeBurstEmissionAccumulatorRef.current.set(campfireId, burstAcc);
                     } else {
-                        smokeBurstEmissionAccumulatorRef.current.set(campfireId, 0); // Reset if not in hot zone
+                        smokeBurstEmissionAccumulatorRef.current.set(campfireId, 0); // Reset if not in hot zone or campfire not burning
                     }
                 });
             }
