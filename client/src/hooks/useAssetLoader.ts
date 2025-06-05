@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 // Import asset paths
 import heroSpriteSheet from '../assets/hero2.png';
 import heroWaterSpriteSheet from '../assets/hero2_water.png';
-import grassTexture from '../assets/tiles/grass.png';
+import grassTexture from '../assets/tiles/grass2.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
 import deathMarkerUrl from '../assets/items/death_marker.png';

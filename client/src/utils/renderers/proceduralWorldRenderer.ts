@@ -2,7 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { TILE_ASSETS, getTileAssetKey, hasAutotileSupport, getAutotileConfig } from './tileRenderingUtils';
 import { WorldTile } from '../../generated/world_tile_type';
 import { TileType } from '../../generated/tile_type_type';
-import { shouldUseAutotiling, getAutotileSpriteCoords, debugAutotileBitmask, getDebugTileInfo } from '../autotileUtils';
+import { shouldUseAutotiling, getAutotileSpriteCoords, debugAutotileBitmask, getDebugTileInfo, AutotileConfig } from '../autotileUtils';
 
 interface TileCache {
     tiles: Map<string, WorldTile>;
@@ -170,7 +170,7 @@ export class ProceduralWorldRenderer {
         
         if (autotileResult && hasAutotileSupport(tileTypeName)) {
             // Render autotile
-            this.renderAutotile(ctx, tile, autotileResult.bitmask, pixelX, pixelY, pixelSize, showDebugOverlay);
+            this.renderAutotile(ctx, tile, autotileResult, pixelX, pixelY, pixelSize, showDebugOverlay);
         } else {
             // Render regular tile
             const image = this.getTileImage(tile);
@@ -186,7 +186,7 @@ export class ProceduralWorldRenderer {
     private renderAutotile(
         ctx: CanvasRenderingContext2D,
         tile: WorldTile,
-        bitmask: number,
+        autotileResult: { config: AutotileConfig; bitmask: number },
         pixelX: number,
         pixelY: number,
         pixelSize: number,
@@ -213,18 +213,11 @@ export class ProceduralWorldRenderer {
         }
         
         // Get sprite coordinates from the autotile sheet
-        const spriteCoords = getAutotileSpriteCoords({
-            primaryType: tileTypeName,
-            secondaryType: 'Dirt', // This should be dynamic based on neighbors
-            tilesetPath: autotileConfig.sheet,
-            tileSize: autotileConfig.size,
-            columns: autotileConfig.columns,
-            rows: autotileConfig.rows
-        }, bitmask);
+        const spriteCoords = getAutotileSpriteCoords(autotileResult.config, autotileResult.bitmask);
         
         // Debug logging for autotile rendering (enable for debugging)
         // if (false) { // Temporarily disabled
-        //     console.log(`[Autotile] ${tileTypeName} at (${tile.worldX}, ${tile.worldY}): ${debugAutotileBitmask(bitmask)}`);
+        //     console.log(`[Autotile] ${tileTypeName} at (${tile.worldX}, ${tile.worldY}): ${debugAutotileBitmask(autotileResult.bitmask)}`);
         //     console.log(`[Autotile] Sprite coords:`, spriteCoords);
         //     console.log(`[Autotile] Autotile config:`, autotileConfig);
         //     console.log(`[Autotile] Autotile image dimensions:`, autotileImg.naturalWidth, 'x', autotileImg.naturalHeight);
@@ -242,7 +235,7 @@ export class ProceduralWorldRenderer {
         
         // DEBUG: Draw bitmask and tile info on tile for easy debugging
         if (showDebugOverlay) { // Enable visual debugging
-            const debugInfo = getDebugTileInfo(bitmask);
+            const debugInfo = getDebugTileInfo(autotileResult.bitmask);
             
             ctx.save();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -251,7 +244,7 @@ export class ProceduralWorldRenderer {
             
             // Show bitmask number
             ctx.fillText(
-                `${bitmask}`,
+                `${autotileResult.bitmask}`,
                 Math.floor(pixelX + pixelSize/2), 
                 Math.floor(pixelY + pixelSize/4)
             );

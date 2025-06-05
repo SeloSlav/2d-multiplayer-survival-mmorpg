@@ -264,6 +264,15 @@ export const renderPlayer = (
   const finalIsMoving = isCorpse ? false : isMoving;
   const finalAnimationFrame = isCorpse ? IDLE_FRAME_INDEX : currentAnimationFrame;
 
+  // Calculate if player is currently jumping (same logic as sprite selection)
+  let isCurrentlyJumping = false;
+  if (!isCorpse && player.jumpStartTimeMs && player.jumpStartTimeMs > 0) {
+    const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
+    if (elapsedJumpTime < 500) {
+      isCurrentlyJumping = true;
+    }
+  }
+
   const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
   
   // Shake Logic (directly uses elapsedSinceServerHitMs)
@@ -289,7 +298,9 @@ export const renderPlayer = (
   const finalIsOnline = isCorpse ? false : isOnline;
 
   // --- Draw Dynamic Ground Shadow (for all players) ---
-  if (heroImg instanceof HTMLImageElement && !player.isOnWater) {
+  // Don't show shadow on water, but keep showing while jumping (same logic as sprite selection)
+  const shouldShowShadow = !(player.isOnWater && !isCurrentlyJumping);
+  if (heroImg instanceof HTMLImageElement && shouldShowShadow) {
     // Extract the specific sprite frame for shadow rendering
     const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
     
@@ -308,9 +319,9 @@ export const renderPlayer = (
       );
       
       // Adjust shadow parameters based on player state
-      const shadowAlpha = isCorpse ? 0.25 : (finalIsOnline ? 0.35 : 0.30); // Lighter for corpses and offline players
-      const shadowStretchMax = isCorpse ? 1.8 : 2.5; // Increased for wider shadows
-      const shadowStretchMin = isCorpse ? 0.25 : 0.2; // Increased for wider minimum shadows
+      const shadowAlpha = isCorpse ? 0.4 : (finalIsOnline ? 0.6 : 0.5); // Increased visibility for all cases
+      const shadowStretchMax = isCorpse ? 2.0 : 3.0; // More dramatic shadows
+      const shadowStretchMin = isCorpse ? 0.3 : 0.25; // Better minimum visibility
       
       drawDynamicGroundShadow({
         ctx,
@@ -332,7 +343,7 @@ export const renderPlayer = (
   // --- End Dynamic Ground Shadow ---
 
   // --- Draw Offline Shadow (or Corpse Shadow) --- 
-  if (!finalIsOnline && !player.isOnWater) { // This covers corpses (finalIsOnline = false) and offline players
+  if (!finalIsOnline && shouldShowShadow) { // This covers corpses (finalIsOnline = false) and offline players
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       drawShadow(
@@ -346,7 +357,7 @@ export const renderPlayer = (
   // --- End Shadow ---
 
   // --- Draw Shadow (Only if alive and online, and not a corpse) ---
-  if (!isCorpse && !player.isDead && finalIsOnline && !player.isOnWater) {
+  if (!isCorpse && !player.isDead && finalIsOnline && shouldShowShadow) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 

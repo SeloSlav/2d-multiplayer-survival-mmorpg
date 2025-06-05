@@ -1,4 +1,3 @@
-import { TileType } from '../generated/tile_type_type';
 import { WorldTile } from '../generated/world_tile_type';
 
 /**
@@ -85,6 +84,46 @@ const DEBUG_OVERRIDES: { [bitmask: number]: number } = {
     11: 12,
     203: 12,
     133: 14,
+    233: 2,
+    192: 18,
+    143: 2,
+    130: 13,
+    151: 14,
+    176: 24,
+    134: 14,
+    159: 2,
+    219: 2,
+    156: 2,
+    150: 14,
+    181: 2,
+    191: 2,
+    252: 2,
+    187: 2,
+    247: 2,
+    255: 2,
+    223: 2,
+    254: 2,
+    222: 2,
+    207: 2,
+    138: 12,
+    251: 2,
+    225: 2,
+    67: 12,
+    227: 2,
+    199: 2,
+    98: 20,
+    74: 12,
+    114: 26,
+    115: 2,
+    66: 26,
+    248: 24,
+    183: 2,
+    147: 14,
+    224: 24,
+    249: 2,
+    86: 26,
+    126: 2,
+    51: 2,
     // Add your test overrides here!
 };
 
@@ -236,7 +275,15 @@ export const AUTOTILE_CONFIGS: { [key: string]: AutotileConfig } = {
     'Grass_Dirt': {
         primaryType: 'Grass',
         secondaryType: 'Dirt', 
-        tilesetPath: '/src/assets/tiles/tileset_grass_dirt_autotile2.png',
+        tilesetPath: '/src/assets/tiles/tileset_grass_dirt_autotile.png',
+        tileSize: 213, // Keep this for compatibility, but actual sprite size differs
+        columns: 6,    // 6 columns: 1280 ÷ 6 ≈ 213.33 pixels wide
+        rows: 8        // 8 rows: 1280 ÷ 8 = 160 pixels tall
+    },
+    'Beach_Sea': {
+        primaryType: 'Beach',
+        secondaryType: 'Sea',
+        tilesetPath: '/src/assets/tiles/tileset_beach_sea_autotile.png',
         tileSize: 213, // Keep this for compatibility, but actual sprite size differs
         columns: 6,    // 6 columns: 1280 ÷ 6 ≈ 213.33 pixels wide
         rows: 8        // 8 rows: 1280 ÷ 8 = 160 pixels tall

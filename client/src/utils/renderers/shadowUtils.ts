@@ -61,8 +61,8 @@ export function applyStandardDropShadow(
   const sunriseSunsetBlur = (options.blur ?? 5) + 2; // Softer, more diffused for long shadows
   const defaultDayBlur = options.blur ?? 5;
 
-  const maxDayAlpha = 0.45; // Slightly more pronounced daytime shadow
-  const minNightAlpha = 0.0; // Shadow alpha at deep night (can be > 0 for subtle night shadows)
+  const maxDayAlpha = 0.6; // More visible daytime shadow (increased from 0.45)
+  const minNightAlpha = 0.15; // Subtle night shadows (increased from 0.0)
 
   // Day: 0.0 (Dawn) to 0.75 (Dusk ends). Night: 0.75 to 1.0
   if (cycleProgress < 0.05) { // Dawn (0.0 - 0.05)
@@ -143,9 +143,9 @@ export function drawDynamicGroundShadow({
   imageDrawHeight,
   cycleProgress,
   baseShadowColor = '0,0,0',
-  maxShadowAlpha = 0.35, // Default reduced from 0.45
-  maxStretchFactor = 1.8, // Default reduced from 2.0
-  minStretchFactor = 0.1, // Default reduced from 0.15
+  maxShadowAlpha = 0.5, // Increased for better visibility (was 0.35)
+  maxStretchFactor = 2.2, // Increased for more dramatic shadows (was 1.8)
+  minStretchFactor = 0.15, // Increased minimum (was 0.1)
   shadowBlur = 0,
   pivotYOffset = 0,
 }: DynamicGroundShadowParams): void {
@@ -179,14 +179,19 @@ export function drawDynamicGroundShadow({
     currentStretch = lerp(maxStretchFactor * 0.5, maxStretchFactor * 0.7, t); // Lengthening
     skewX = lerp(0.2, 0.3, t); // Back towards dawn skew
   } else { // Night (0.75 - 1.0)
-    overallAlpha = 0;
-    currentStretch = maxStretchFactor * 0.7; // Doesn't matter if alpha is 0
+    overallAlpha = maxShadowAlpha * 0.2; // Subtle night shadows instead of completely invisible
+    currentStretch = maxStretchFactor * 0.7;
     skewX = 0.3;
   }
 
   if (overallAlpha < 0.01 || currentStretch < 0.01) {
+    // Debug: Log when shadows are skipped
+    console.log(`[Dynamic Shadow] Skipped shadow - Alpha: ${overallAlpha.toFixed(3)}, Stretch: ${currentStretch.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
     return; // No shadow if invisible or too small
   }
+  
+  // Debug: Log when shadows are rendered (temporarily enabled for debugging)
+  console.log(`[Dynamic Shadow] Rendering shadow - Alpha: ${overallAlpha.toFixed(3)}, Stretch: ${currentStretch.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
 
   // Generate a cache key for the silhouette
   const cacheKey = entityImage instanceof HTMLImageElement 

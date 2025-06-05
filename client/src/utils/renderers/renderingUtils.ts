@@ -198,20 +198,22 @@ export const renderYSortedEntities = ({
            lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
 
            let jumpOffset = 0;
-            const jumpStartTime = player.jumpStartTimeMs;
+           let isCurrentlyJumping = false;
+           const jumpStartTime = player.jumpStartTimeMs;
            if (jumpStartTime > 0) {
                const elapsedJumpTime = nowMs - Number(jumpStartTime);
                 if (elapsedJumpTime < 500) { 
                     const t = elapsedJumpTime / 500;
                     jumpOffset = Math.sin(t * Math.PI) * 50;
+                    isCurrentlyJumping = true; // Player is mid-jump
                }
            }
            
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
-           // ADD: Choose sprite based on water status
-           const heroImg = player.isOnWater ? heroWaterImageRef.current : heroImageRef.current;
+           // Choose sprite based on water status, but don't switch to water sprite while jumping
+           const heroImg = (player.isOnWater && !isCurrentlyJumping) ? heroWaterImageRef.current : heroImageRef.current;
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
            const equipment = activeEquipments.get(playerId);

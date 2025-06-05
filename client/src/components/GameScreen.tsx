@@ -268,7 +268,13 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                     fontSize: '12px'
                 }}>
                     <button 
-                        onClick={toggleAutotileDebug}
+                        onClick={(e) => {
+                            toggleAutotileDebug();
+                            e.currentTarget.blur(); // Remove focus immediately after clicking
+                        }}
+                        onFocus={(e) => {
+                            e.currentTarget.blur(); // Prevent the button from staying focused
+                        }}
                         style={{
                             backgroundColor: showAutotileDebug ? '#4CAF50' : '#f44336',
                             color: 'white',

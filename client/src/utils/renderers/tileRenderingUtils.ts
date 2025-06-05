@@ -1,10 +1,11 @@
-import grassTile from '../../assets/tiles/grass.png';
+import grassTile from '../../assets/tiles/grass2.png';
 import dirtTile from '../../assets/tiles/dirt.png';
 import dirtRoadTile from '../../assets/tiles/dirt_road.png';
-import seaTile from '../../assets/tiles/sea.png';
-import beachTile from '../../assets/tiles/beach.png';
+import seaTile from '../../assets/tiles/sea2.png';
+import beachTile from '../../assets/tiles/beach3.png';
 // Import autotile assets
-import grassDirtAutotile from '../../assets/tiles/tileset_grass_dirt_autotile2.png';
+import grassDirtAutotile from '../../assets/tiles/tileset_grass_dirt_autotile.png';
+import beachSeaAutotile from '../../assets/tiles/tileset_beach_sea_autotile.png';
 
 export interface TileAssetConfig {
     baseTexture: string;
@@ -48,6 +49,11 @@ export const TILE_ASSETS: Record<string, TileAssetConfig> = {
     },
     'Beach': { 
         baseTexture: beachTile,
+        // Autotile configuration for beach-sea transitions
+        autotileSheet: beachSeaAutotile,
+        autotileSize: 213, // 1280 ÷ 6 ≈ 213 pixels per sprite
+        autotileColumns: 6,
+        autotileRows: 8,
         // Could add beach variants here later
     },
     'Sand': {
