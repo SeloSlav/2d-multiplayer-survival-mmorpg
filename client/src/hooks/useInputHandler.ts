@@ -389,7 +389,7 @@ export const useInputHandler = ({
             }
 
             // Handle 'q' for auto-walk
-            if (key === 'q' && !event.repeat) {
+            if (key === 'f' && !event.repeat) {
                 if (isAutoWalkingRef.current) {
                     isAutoWalkingRef.current = false;
                     // console.log("[InputHandler Q] Auto-walk stopped.");
@@ -422,8 +422,8 @@ export const useInputHandler = ({
                 return; // 'z' is handled
             }
 
-            // Dodge Roll (F key)
-            if (key === 'f' && !event.repeat) {
+            // Dodge Roll (Q key)
+            if (key === 'q' && !event.repeat) {
                 const currentConnection = connectionRef.current;
                 const currentLocalPlayer = localPlayerRef.current;
                 
@@ -438,13 +438,13 @@ export const useInputHandler = ({
                         if (keysPressed.current.has('w')) moveY -= 1;
                         if (keysPressed.current.has('s')) moveY += 1;
                         
-                        console.log(`[InputHandler] F key pressed, triggering dodge roll with direction: (${moveX}, ${moveY})`);
+                        console.log(`[InputHandler] Q key pressed, triggering dodge roll with direction: (${moveX}, ${moveY})`);
                         currentConnection.reducers.dodgeRoll(moveX, moveY);
                     } catch (err) {
                         console.error("[InputHandler] Error calling dodgeRoll reducer:", err);
                     }
                 }
-                return; // F key handled
+                return; // Q key handled
             }
 
             // Handle movement keys (WASD)
@@ -1276,25 +1276,33 @@ export const useInputHandler = ({
         }
         // --- End Jump Offset Calculation ---
 
-        // Placement rotation
-        // Process movement - This block is now effectively guarded by the check above
+        // Process movement
+        // Calculate movement direction from currently pressed keys
+        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                   (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                   (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+
         if (isAutoWalkingRef.current) {
-            // Auto-walking: use the stored direction
-            const { dx: autoDx, dy: autoDy } = autoWalkDirectionRef.current;
-            if (autoDx !== 0 || autoDy !== 0) { // Ensure there's a direction to move in
-                updatePlayerPosition(autoDx, autoDy);
-                // Also update lastMovementDirectionRef if auto-walking is being redirected by new input (handled in keyDown)
+            // Auto-walking mode: use manual input if any keys are pressed, otherwise use stored auto-walk direction
+            if (dx !== 0 || dy !== 0) {
+                // Manual input takes priority during auto-walk
+                updatePlayerPosition(dx, dy);
+                // Update auto-walk direction to match current input for smoother transitions
+                autoWalkDirectionRef.current = { dx, dy };
+                lastMovementDirectionRef.current = { dx, dy };
+            } else {
+                // No manual input, use stored auto-walk direction
+                const { dx: autoDx, dy: autoDy } = autoWalkDirectionRef.current;
+                if (autoDx !== 0 || autoDy !== 0) {
+                    updatePlayerPosition(autoDx, autoDy);
+                }
             }
         } else {
-            // Manual movement: use keysPressed
-            const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                       (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-            const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                       (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
-
+            // Manual movement mode
             if (dx !== 0 || dy !== 0) {
                 updatePlayerPosition(dx, dy);
-                lastMovementDirectionRef.current = { dx, dy }; // Update last movement direction during manual control
+                lastMovementDirectionRef.current = { dx, dy };
             }
         }
 

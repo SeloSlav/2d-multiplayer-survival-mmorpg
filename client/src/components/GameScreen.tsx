@@ -298,7 +298,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             width: '140px', // Fixed width for consistency
                             animation: 'pulse 2s infinite'
                         }}>
-                            ⚔️ AUTO ATTACK
+                            ⚔️ AUTO ATTACK (Z)
                         </div>
                     )}
                     {autoActionStates.isAutoWalking && (
@@ -316,7 +316,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             width: '140px', // Fixed width for consistency
                             animation: 'pulse 2s infinite'
                         }}>
-                            🚶 AUTO WALK
+                            🚶 AUTO WALK (F)
                         </div>
                     )}
                 </div>
