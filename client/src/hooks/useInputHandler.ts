@@ -64,6 +64,8 @@ interface InputHandlerState {
     isActivelyHolding: boolean;
     isSprinting: boolean; // Expose current sprint state if needed elsewhere
     currentJumpOffsetY: number; // <<< ADDED
+    isAutoAttacking: boolean; // Auto-attack state
+    isAutoWalking: boolean; // Auto-walk state
     // Function to be called each frame by the game loop
     processInputsAndActions: () => void;
 }
@@ -73,6 +75,17 @@ interface InteractionProgressState {
     targetType: 'campfire' | 'wooden_storage_box' | 'stash' | 'knocked_out_player'; // Added 'knocked_out_player'
     startTime: number;
 }
+
+// Helper function to convert direction string to vector
+const getDirectionVector = (direction: string): { dx: number; dy: number } => {
+    switch (direction) {
+        case 'up': return { dx: 0, dy: -1 };
+        case 'down': return { dx: 0, dy: 1 };
+        case 'left': return { dx: -1, dy: 0 };
+        case 'right': return { dx: 1, dy: 0 };
+        default: return { dx: 0, dy: 1 }; // Default to down
+    }
+};
 
 export const useInputHandler = ({
     canvasRef,
@@ -130,6 +143,9 @@ export const useInputHandler = ({
     const autoWalkDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
     const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 }); // Default to facing down
 
+    // Refs for auto-attack state
+    const isAutoAttackingRef = useRef<boolean>(false);
+
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
     const connectionRef = useRef(connection);
@@ -181,6 +197,14 @@ export const useInputHandler = ({
              eKeyHoldTimerRef.current = null;
              setInteractionProgress(null);
              setIsActivelyHolding(false);
+        }
+        // Also clear auto-attack state if player dies
+        if (localPlayer?.isDead && isAutoAttackingRef.current) {
+            isAutoAttackingRef.current = false;
+        }
+        // Also clear auto-walk state if player dies
+        if (localPlayer?.isDead && isAutoWalkingRef.current) {
+            isAutoWalkingRef.current = false;
         }
     }, [localPlayer?.isDead, setSprinting]); // Depend on death state and the reducer callback
 
@@ -367,10 +391,31 @@ export const useInputHandler = ({
                     // console.log("[InputHandler Q] Auto-walk stopped.");
                 } else {
                     isAutoWalkingRef.current = true;
-                    autoWalkDirectionRef.current = lastMovementDirectionRef.current; // Start with the last known direction
-                    // console.log(`[InputHandler Q] Auto-walk started with direction: dx=${autoWalkDirectionRef.current.dx}, dy=${autoWalkDirectionRef.current.dy}`);
+                    // Use player's current facing direction instead of last movement
+                    const currentPlayer = localPlayerRef.current;
+                    if (currentPlayer) {
+                        const facingDirection = getDirectionVector(currentPlayer.direction);
+                        autoWalkDirectionRef.current = facingDirection;
+                        // console.log(`[InputHandler Q] Auto-walk started with facing direction: ${currentPlayer.direction} (dx=${facingDirection.dx}, dy=${facingDirection.dy})`);
+                    } else {
+                        // Fallback to last movement direction if player not available
+                        autoWalkDirectionRef.current = lastMovementDirectionRef.current;
+                        // console.log(`[InputHandler Q] Auto-walk started with fallback direction: dx=${autoWalkDirectionRef.current.dx}, dy=${autoWalkDirectionRef.current.dy}`);
+                    }
                 }
                 return; // 'q' is handled
+            }
+
+            // Handle 'z' for auto-attack
+            if (key === 'z' && !event.repeat) {
+                if (isAutoAttackingRef.current) {
+                    isAutoAttackingRef.current = false;
+                    console.log("[InputHandler Z] Auto-attack stopped.");
+                } else {
+                    isAutoAttackingRef.current = true;
+                    console.log("[InputHandler Z] Auto-attack started.");
+                }
+                return; // 'z' is handled
             }
 
             // Handle WASD/Arrow keys for redirecting auto-walk or manual movement
@@ -1108,6 +1153,10 @@ export const useInputHandler = ({
             if(eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
             eKeyHoldTimerRef.current = null;
             setInteractionProgress(null);
+            // Clear auto-attack state when window loses focus
+            isAutoAttackingRef.current = false;
+            // Clear auto-walk state when window loses focus
+            isAutoWalkingRef.current = false;
         };
 
         // Add global listeners
@@ -1195,6 +1244,10 @@ export const useInputHandler = ({
                 isSprintingRef.current = false;
                 setSprinting(false); 
             }
+            // Reset auto-attack state when in UI states
+            if (isAutoAttackingRef.current && (isChatting || isSearchingCraftRecipes)) {
+                isAutoAttackingRef.current = false;
+            }
             // Also clear jump offset if player is dead or UI is active
             if (currentJumpOffsetYRef.current !== 0) {
                 currentJumpOffsetYRef.current = 0;
@@ -1245,6 +1298,11 @@ export const useInputHandler = ({
         // MODIFIED: Guard this with isChatting, isSearchingCraftRecipes, AND isInventoryOpen
         if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
             attemptSwing(); // Call internal attemptSwing function
+        }
+
+        // Handle auto-attack
+        if (isAutoAttackingRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
+            attemptSwing(); // Call internal attemptSwing function for auto-attack
         }
     }, [
         isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
@@ -1303,6 +1361,8 @@ export const useInputHandler = ({
         isActivelyHolding,
         isSprinting: isSprintingRef.current, // Return the ref's current value
         currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
+        isAutoAttacking: isAutoAttackingRef.current,
+        isAutoWalking: isAutoWalkingRef.current,
         processInputsAndActions,
     };
 }; 

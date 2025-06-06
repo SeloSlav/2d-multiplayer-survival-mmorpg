@@ -36,6 +36,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 { key: 'Left Shift', description: 'Sprint (hold)' },
                 { key: 'Space', description: 'Jump' },
                 { key: 'C', description: 'Crouch' },
+                { key: 'Q', description: 'Toggle auto walk' },
             ]
         },
         {
@@ -72,6 +73,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 { key: 'Left Click', description: 'Shoot with ranged weapons' },
                 { key: 'Right Click', description: 'Set arrows / Toggle arrow types' },
                 { key: 'Right Click', description: 'Throw equipped melee weapons' },
+                { key: 'Z', description: 'Toggle auto attack' },
                 { key: 'Consumables', description: 'Click twice on hotbar to consume' },
             ]
         }

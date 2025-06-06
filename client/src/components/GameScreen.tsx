@@ -156,6 +156,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Add menu state management
     const [currentMenu, setCurrentMenu] = useState<MenuType>(null);
     
+    // Add auto-action state management
+    const [autoActionStates, setAutoActionStates] = useState({ isAutoAttacking: false, isAutoWalking: false });
+    
     // Debug context
     const { showAutotileDebug, toggleAutotileDebug } = useDebug();
     
@@ -226,6 +229,11 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         setCurrentMenu('main');
     };
 
+    // Handler for auto-action state changes from GameCanvas
+    const handleAutoActionStatesChange = useCallback((isAutoAttacking: boolean, isAutoWalking: boolean) => {
+        setAutoActionStates({ isAutoAttacking, isAutoWalking });
+    }, []);
+
     // Add escape key handler for game menu
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -251,8 +259,68 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     return (
         <div className="game-container">
+            {/* CSS Animation for Auto-Action Indicators */}
+            <style>{`
+                @keyframes pulse {
+                    0% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.7; transform: scale(1.05); }
+                    100% { opacity: 1; transform: scale(1); }
+                }
+            `}</style>
+            
             {/* Game Menu Button */}
             <GameMenuButton onClick={handleMenuOpen} />
+            
+            {/* Auto-Action Status Indicators */}
+            {(autoActionStates.isAutoAttacking || autoActionStates.isAutoWalking) && (
+                <div style={{
+                    position: 'fixed',
+                    top: '70px', // Position below DayNightCycleTracker (which is at 15px)
+                    right: '15px', // Same right position as DayNightCycleTracker
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    zIndex: 50, // Same z-index as DayNightCycleTracker
+                    pointerEvents: 'none' // Don't interfere with clicks
+                }}>
+                    {autoActionStates.isAutoAttacking && (
+                        <div style={{
+                            backgroundColor: 'rgba(40, 40, 60, 0.85)', // Same as DayNightCycleTracker
+                            color: 'white',
+                            padding: '8px 12px', // Slightly less padding for compact look
+                            borderRadius: '4px', // Same as DayNightCycleTracker
+                            fontSize: '10px', // Same as DayNightCycleTracker
+                            fontFamily: '"Press Start 2P", cursive', // Same as DayNightCycleTracker
+                            fontWeight: 'normal', // Remove bold for pixel font
+                            textAlign: 'center',
+                            border: '1px solid #a0a0c0', // Same border as DayNightCycleTracker
+                            boxShadow: '2px 2px 0px rgba(0,0,0,0.5)', // Same shadow as DayNightCycleTracker
+                            width: '140px', // Fixed width for consistency
+                            animation: 'pulse 2s infinite'
+                        }}>
+                            ⚔️ AUTO ATTACK
+                        </div>
+                    )}
+                    {autoActionStates.isAutoWalking && (
+                        <div style={{
+                            backgroundColor: 'rgba(40, 40, 60, 0.85)', // Same as DayNightCycleTracker
+                            color: 'white',
+                            padding: '8px 12px', // Slightly less padding for compact look
+                            borderRadius: '4px', // Same as DayNightCycleTracker
+                            fontSize: '10px', // Same as DayNightCycleTracker
+                            fontFamily: '"Press Start 2P", cursive', // Same as DayNightCycleTracker
+                            fontWeight: 'normal', // Remove bold for pixel font
+                            textAlign: 'center',
+                            border: '1px solid #a0a0c0', // Same border as DayNightCycleTracker
+                            boxShadow: '2px 2px 0px rgba(0,0,0,0.5)', // Same shadow as DayNightCycleTracker
+                            width: '140px', // Fixed width for consistency
+                            animation: 'pulse 2s infinite'
+                        }}>
+                            🚶 AUTO WALK
+                        </div>
+                    )}
+                </div>
+            )}
             
             {/* Debug Controls - positioned beneath menu button in dev mode */}
             {process.env.NODE_ENV === 'development' && (
@@ -357,6 +425,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 showAutotileDebug={showAutotileDebug}
                 minimapCache={minimapCache}
                 isGameMenuOpen={currentMenu !== null}
+                onAutoActionStatesChange={handleAutoActionStatesChange}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
