@@ -16,6 +16,23 @@ import tallGrassBTextureUrl from '../../assets/doodads/tall_grass_b.png';
 import bramblesATextureUrl from '../../assets/doodads/brambles_a.png';
 import bramblesBTextureUrl from '../../assets/doodads/brambles_b.png';
 
+// NEW: Import water foliage assets
+// import reedBedsATextureUrl from '../../assets/doodads/reed_beds_a.png';
+// import reedBedsBTextureUrl from '../../assets/doodads/reed_beds_b.png';
+// import bulrushesTextureUrl from '../../assets/doodads/bulrushes.png';
+// import lilyPadsTextureUrl from '../../assets/doodads/lily_pads.png';
+// import mangroveRootsTextureUrl from '../../assets/doodads/mangrove_roots.png';
+// import seaweedForestTextureUrl from '../../assets/doodads/seaweed_forest.png';
+// import algaeMatsTextureUrl from '../../assets/doodads/algae_mats.png';
+
+// NEW: Import water foliage assets
+import reedBedsATextureUrl from '../../assets/doodads/grass1.png';
+import reedBedsBTextureUrl from '../../assets/doodads/grass1.png';
+import bulrushesTextureUrl from '../../assets/doodads/grass1.png';
+import lilyPadsTextureUrl from '../../assets/doodads/grass1.png';
+import mangroveRootsTextureUrl from '../../assets/doodads/grass1.png';
+import seaweedForestTextureUrl from '../../assets/doodads/grass1.png';
+import algaeMatsTextureUrl from '../../assets/doodads/grass1.png';
 
 // --- Constants for Grass Rendering ---
 // const TARGET_GRASS_WIDTH_PX = 48; // Old constant, now part of grassSizeConfig
@@ -78,6 +95,13 @@ const SWAYING_GRASS_TYPES = new Set([
     GrassAppearanceType.PatchC.tag,
     GrassAppearanceType.TallGrassA.tag,
     GrassAppearanceType.TallGrassB.tag,
+    // NEW: Water foliage that should sway
+    GrassAppearanceType.ReedBedsA.tag,      // Reeds sway in water currents
+    GrassAppearanceType.ReedBedsB.tag,      // Reed clusters sway
+    GrassAppearanceType.Bulrushes.tag,      // Cattails sway gently
+    GrassAppearanceType.MangroveRoots.tag,  // Flexible roots sway
+    GrassAppearanceType.SeaweedForest.tag,  // Underwater plants sway with currents
+    // NOTE: LilyPads and AlgaeMats should NOT sway (surface floaters)
 ]);
 
 // Helper function to check if a grass type should sway
@@ -162,6 +186,14 @@ const grassAssetPaths: Record<string, string[]> = {
     [GrassAppearanceType.TallGrassB.tag]: [tallGrassBTextureUrl],
     [GrassAppearanceType.BramblesA.tag]: [bramblesATextureUrl],
     [GrassAppearanceType.BramblesB.tag]: [bramblesBTextureUrl],
+    // NEW: Water foliage asset paths
+    [GrassAppearanceType.ReedBedsA.tag]: [reedBedsATextureUrl],
+    [GrassAppearanceType.ReedBedsB.tag]: [reedBedsBTextureUrl], 
+    [GrassAppearanceType.Bulrushes.tag]: [bulrushesTextureUrl],
+    [GrassAppearanceType.LilyPads.tag]: [lilyPadsTextureUrl],
+    [GrassAppearanceType.MangroveRoots.tag]: [mangroveRootsTextureUrl],
+    [GrassAppearanceType.SeaweedForest.tag]: [seaweedForestTextureUrl],
+    [GrassAppearanceType.AlgaeMats.tag]: [algaeMatsTextureUrl],
 };
 
 // --- NEW: Configuration for target sizes (width only, height will be scaled) ---
@@ -178,14 +210,24 @@ const grassSizeConfig: Record<string, GrassSizeConfig> = {
     [GrassAppearanceType.TallGrassB.tag]: { targetWidth: 96 }, // Approx 2x
     [GrassAppearanceType.BramblesA.tag]: { targetWidth: 100 },
     [GrassAppearanceType.BramblesB.tag]: { targetWidth: 120 },
+    // NEW: Water foliage size configurations
+    [GrassAppearanceType.ReedBedsA.tag]: { targetWidth: 64 },      // Tall and narrow
+    [GrassAppearanceType.ReedBedsB.tag]: { targetWidth: 80 },      // Dense clusters, wider
+    [GrassAppearanceType.Bulrushes.tag]: { targetWidth: 56 },      // Classic cattail size
+    [GrassAppearanceType.LilyPads.tag]: { targetWidth: 72 },       // Round floating pads
+    [GrassAppearanceType.MangroveRoots.tag]: { targetWidth: 84 },  // Complex root systems
+    [GrassAppearanceType.SeaweedForest.tag]: { targetWidth: 60 },  // Underwater kelp
+    [GrassAppearanceType.AlgaeMats.tag]: { targetWidth: 96 },      // Surface mats, wide
     // Default fallback if a new type is added to enum but not here (should be avoided)
     default: { targetWidth: 48 },
 };
 
-// Helper function to check if a grass type should have static rotation (exclude brambles)
+// Helper function to check if a grass type should have static rotation (exclude brambles and floating water plants)
 function shouldHaveStaticRotation(appearanceType: GrassAppearanceType): boolean {
     return appearanceType.tag !== GrassAppearanceType.BramblesA.tag && 
-           appearanceType.tag !== GrassAppearanceType.BramblesB.tag;
+           appearanceType.tag !== GrassAppearanceType.BramblesB.tag &&
+           appearanceType.tag !== GrassAppearanceType.LilyPads.tag &&     // Floating pads don't rotate
+           appearanceType.tag !== GrassAppearanceType.AlgaeMats.tag;      // Surface mats don't rotate
 }
 
 // Preload all grass images

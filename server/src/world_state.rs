@@ -257,8 +257,10 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                     log::info!("Rain started: {:?} with intensity {:.2} for {:.1} seconds", 
                               world_state.current_weather, rain_intensity, rain_duration);
                     
-                    // Extinguish all unprotected campfires when rain starts
-                    extinguish_unprotected_campfires(ctx)?;
+                    // Extinguish unprotected campfires only during heavy rain/storms
+                    if matches!(rain_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
+                        extinguish_unprotected_campfires(ctx, &rain_type)?;
+                    }
                 }
             }
         },
@@ -337,8 +339,8 @@ pub fn get_light_intensity(progress: f32) -> f32 {
     intensity.max(0.0).min(1.0) // Clamp just in case
 }
 
-/// Extinguishes all campfires that are not protected by shelters when rain starts
-fn extinguish_unprotected_campfires(ctx: &ReducerContext) -> Result<(), String> {
+/// Extinguishes all campfires that are not protected by shelters during heavy rain/storms
+fn extinguish_unprotected_campfires(ctx: &ReducerContext, weather_type: &WeatherType) -> Result<(), String> {
     let mut extinguished_count = 0;
     
     for mut campfire in ctx.db.campfire().iter() {
@@ -362,15 +364,19 @@ fn extinguish_unprotected_campfires(ctx: &ReducerContext) -> Result<(), String> 
             ctx.db.campfire_processing_schedule().campfire_id().delete(campfire.id as u64);
             
             extinguished_count += 1;
-            log::info!("Rain extinguished unprotected campfire {} at ({:.1}, {:.1})", 
-                      campfire.id, campfire.pos_x, campfire.pos_y);
+            log::info!("{:?} extinguished unprotected campfire {} at ({:.1}, {:.1})", 
+                      weather_type, campfire.id, campfire.pos_x, campfire.pos_y);
         } else {
-            log::debug!("Campfire {} is protected from rain by shelter", campfire.id);
+            log::debug!("Campfire {} is protected from {:?} by shelter", campfire.id, weather_type);
         }
     }
     
     if extinguished_count > 0 {
-        log::info!("Rain extinguished {} unprotected campfires", extinguished_count);
+        log::info!("{:?} extinguished {} unprotected campfires", weather_type, extinguished_count);
+    } else {
+        log::info!("{:?} started, but all {} campfires are either protected or already out", 
+                  weather_type, 
+                  ctx.db.campfire().iter().filter(|c| c.is_burning && !c.is_destroyed).count());
     }
     
     Ok(())

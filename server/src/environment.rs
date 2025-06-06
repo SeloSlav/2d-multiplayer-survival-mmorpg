@@ -121,6 +121,121 @@ fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     return false;
 }
 
+/// NEW: Smart water check for grass spawning that handles both land and water foliage
+/// Returns true if spawning should be blocked (wrong tile type for the given grass type)
+fn is_grass_water_check_blocked(ctx: &ReducerContext, pos_x: f32, pos_y: f32, grass_type: &crate::grass::GrassAppearanceType) -> bool {
+    let is_water_tile = is_position_on_water(ctx, pos_x, pos_y);
+    
+    if grass_type.is_water_foliage() {
+        // Water foliage should spawn on INLAND water (rivers/lakes), NOT ocean water
+        let is_inland_water = is_position_on_inland_water(ctx, pos_x, pos_y);
+        !is_inland_water // Block if NOT on inland water
+    } else {
+        // Land foliage should spawn on land tiles, so block if on water
+        is_water_tile
+    }
+}
+
+/// Checks if the given position is on inland water (rivers/lakes) rather than ocean water
+/// Returns true for rivers and lakes, false for ocean and land
+fn is_position_on_inland_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check bounds
+    if tile_x < 0 || tile_y < 0 || 
+       tile_x >= WORLD_WIDTH_TILES as i32 || tile_y >= WORLD_HEIGHT_TILES as i32 {
+        return false; // Treat out-of-bounds as not inland water
+    }
+    
+    // Find the tile at this position
+    let world_tiles = ctx.db.world_tile();
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        if tile.tile_type == TileType::Sea {
+            // It's a water tile, now determine if it's inland or ocean water
+            return is_tile_inland_water(ctx, tile_x, tile_y);
+        }
+    }
+    
+    false // Not a water tile
+}
+
+/// Helper function to determine if a water tile is inland (river/lake) vs ocean
+/// Uses distance from map edges to distinguish inland water from ocean water
+fn is_tile_inland_water(ctx: &ReducerContext, tile_x: i32, tile_y: i32) -> bool {
+    // Ocean water is typically near the map edges
+    // Rivers and lakes are further inland
+    
+    let ocean_margin_tiles = 40; // Water within 40 tiles of any edge is considered ocean
+    
+    // Calculate distance from each edge
+    let distance_from_left = tile_x;
+    let distance_from_right = (WORLD_WIDTH_TILES as i32) - 1 - tile_x;
+    let distance_from_top = tile_y;
+    let distance_from_bottom = (WORLD_HEIGHT_TILES as i32) - 1 - tile_y;
+    
+    // Find the minimum distance to any edge
+    let min_distance_to_edge = distance_from_left
+        .min(distance_from_right)
+        .min(distance_from_top)
+        .min(distance_from_bottom);
+    
+    // If we're far enough from all edges, it's likely inland water
+    min_distance_to_edge >= ocean_margin_tiles
+}
+
+/// Detects if a position is in a lake-like area (larger contiguous water body) vs a river
+/// Returns true for lake areas, false for rivers or smaller water bodies
+fn is_position_in_lake_area(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let center_tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let center_tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Count water tiles in a larger area around this position
+    let lake_detection_radius = 6; // Check 6 tiles in each direction (13x13 area)
+    let mut water_tile_count = 0;
+    let mut total_tiles_checked = 0;
+    
+    let world_tiles = ctx.db.world_tile();
+    
+    for dy in -lake_detection_radius..=lake_detection_radius {
+        for dx in -lake_detection_radius..=lake_detection_radius {
+            let check_x = center_tile_x + dx;
+            let check_y = center_tile_y + dy;
+            
+            // Skip if out of bounds
+            if check_x < 0 || check_y < 0 || 
+               check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
+                continue;
+            }
+            
+            total_tiles_checked += 1;
+            
+            // Check if this tile is water
+            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                if tile.tile_type == TileType::Sea {
+                    water_tile_count += 1;
+                }
+                break; // Only check the first tile found at this position
+            }
+        }
+    }
+    
+    // Calculate water density in the area
+    let water_density = if total_tiles_checked > 0 {
+        water_tile_count as f32 / total_tiles_checked as f32
+    } else {
+        0.0
+    };
+    
+    // Lakes have high water density (lots of water tiles clustered together)
+    // Rivers have lower water density (water tiles more spread out in linear patterns)
+    let lake_water_density_threshold = 0.35; // At least 35% of area should be water for a lake
+    
+    water_density >= lake_water_density_threshold
+}
+
 // --- NEW: Helper functions for location-specific spawning ---
 
 /// Checks if position is suitable for mushroom spawning (forested grass tiles)
@@ -772,6 +887,79 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         let appearance_roll_for_this_attempt: u32 = rng.gen_range(0..100);
         let sway_offset_seed_for_this_attempt: u32 = rng.gen();
 
+        // Pre-determine grass type to use in water check
+        // First, do a quick check to see if this position might be on inland water
+        let test_tile_x = rng.gen_range(grass_min_tile_x..grass_max_tile_x) as i32;
+        let test_tile_y = rng.gen_range(grass_min_tile_y..grass_max_tile_y) as i32;
+        let test_pos_x = (test_tile_x as f32 + 0.5) * TILE_SIZE_PX as f32;
+        let test_pos_y = (test_tile_y as f32 + 0.5) * TILE_SIZE_PX as f32;
+        let is_on_inland_water = is_position_on_inland_water(ctx, test_pos_x, test_pos_y);
+        
+        let mut appearance_roll = appearance_roll_for_this_attempt;
+        
+        // Heavily bias towards water foliage if we're in a water area
+        let predetermined_grass_type = if is_on_inland_water {
+            // Check if this is a lake-like area (larger water body) for even more foliage
+            let is_lake_area = is_position_in_lake_area(ctx, test_pos_x, test_pos_y);
+            
+            if is_lake_area {
+                // In lake areas, make 90% water foliage with more diverse types
+                if appearance_roll < 25 { // 25% LilyPads - very common in lakes
+                    crate::grass::GrassAppearanceType::LilyPads
+                } else if appearance_roll < 40 { // 15% ReedBedsA
+                    crate::grass::GrassAppearanceType::ReedBedsA
+                } else if appearance_roll < 55 { // 15% ReedBedsB
+                    crate::grass::GrassAppearanceType::ReedBedsB
+                } else if appearance_roll < 70 { // 15% Bulrushes
+                    crate::grass::GrassAppearanceType::Bulrushes
+                } else if appearance_roll < 80 { // 10% AlgaeMats - surface plants for lakes
+                    crate::grass::GrassAppearanceType::AlgaeMats
+                } else if appearance_roll < 87 { // 7% SeaweedForest
+                    crate::grass::GrassAppearanceType::SeaweedForest
+                } else if appearance_roll < 93 { // 6% MangroveRoots
+                    crate::grass::GrassAppearanceType::MangroveRoots
+                } else { // 7% fallback to PatchA
+                    crate::grass::GrassAppearanceType::PatchA
+                }
+            } else {
+                // In river areas, make 80% water foliage (original distribution)
+                if appearance_roll < 20 { // 20% ReedBedsA - most common in rivers
+                    crate::grass::GrassAppearanceType::ReedBedsA
+                } else if appearance_roll < 35 { // 15% ReedBedsB 
+                    crate::grass::GrassAppearanceType::ReedBedsB
+                } else if appearance_roll < 50 { // 15% Bulrushes
+                    crate::grass::GrassAppearanceType::Bulrushes
+                } else if appearance_roll < 65 { // 15% LilyPads
+                    crate::grass::GrassAppearanceType::LilyPads
+                } else if appearance_roll < 75 { // 10% MangroveRoots
+                    crate::grass::GrassAppearanceType::MangroveRoots
+                } else if appearance_roll < 85 { // 10% SeaweedForest
+                    crate::grass::GrassAppearanceType::SeaweedForest
+                } else if appearance_roll < 95 { // 10% AlgaeMats
+                    crate::grass::GrassAppearanceType::AlgaeMats
+                } else { // 5% fallback to PatchA
+                    crate::grass::GrassAppearanceType::PatchA
+                }
+            }
+        } else {
+            // Regular land-based distribution
+            if appearance_roll < 20 { // 20% PatchA
+                crate::grass::GrassAppearanceType::PatchA
+            } else if appearance_roll < 35 { // 15% PatchB
+                crate::grass::GrassAppearanceType::PatchB
+            } else if appearance_roll < 50 { // 15% PatchC
+                crate::grass::GrassAppearanceType::PatchC
+            } else if appearance_roll < 65 { // 15% TallGrassA
+                crate::grass::GrassAppearanceType::TallGrassA
+            } else if appearance_roll < 75 { // 10% TallGrassB
+                crate::grass::GrassAppearanceType::TallGrassB
+            } else if appearance_roll < 85 { // 10% BramblesA
+                crate::grass::GrassAppearanceType::BramblesA
+            } else { // 15% BramblesB
+                crate::grass::GrassAppearanceType::BramblesB
+            }
+        };
+
         match attempt_single_spawn(
             &mut rng,
             &mut occupied_tiles, // Grass can share tiles with other non-blocking items, but not other grass or solid objects initially
@@ -785,65 +973,11 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::grass::MIN_GRASS_DISTANCE_SQ,
             crate::grass::MIN_GRASS_TREE_DISTANCE_SQ,
             crate::grass::MIN_GRASS_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, (appearance_roll_base, sway_seed): (u32, u32)| { // Closure now accepts a tuple
+            |pos_x, pos_y, (predetermined_type, sway_seed): (crate::grass::GrassAppearanceType, u32)| { // Use predetermined type
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
-                // --- NEW: Determine grass region and adjust appearance_roll ---
-                let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as u32;
-                let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as u32;
-
-                let region_x = tile_x / GRASS_REGION_SIZE_TILES;
-                let region_y = tile_y / GRASS_REGION_SIZE_TILES;
-
-                let region_type_seed = region_x.wrapping_add(region_y.wrapping_mul(31));
-                let region_type_roll = region_type_seed % 100; // Roll from 0-99
-
-                let mut appearance_roll = appearance_roll_base; // Start with the random roll
-
-                // Region Definitions:
-                // 1. Tall Grass Plains (with Bramble Groves): 0-39 (40% of regions)
-                // 2. Bushland: 40-59 (20% of regions)
-                // 3. Default Mixed Short Grass: 60-99 (40% of regions)
-
-                if region_type_roll < 40 { // Tall Grass Plains (40% of regions)
-                    // Inside Tall Grass Plains:
-                    if appearance_roll_base < 70 { // 70% chance for Tall Grass A/B
-                        appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
-                    } else if appearance_roll_base < 90 { // Next 20% chance for Brambles A/B
-                        appearance_roll = 90 + (appearance_roll_base % 10); // Maps to 90-99 (BramblesA/B)
-                    } else { // Remaining 10% chance for Short Grass Patches
-                        appearance_roll = appearance_roll_base % 60; // Maps to 0-59 (PatchesA/B/C)
-                    }
-                } else if region_type_roll < 60 { // Bushland (20% of regions, from 40 up to 59)
-                    // Bias towards Brambles and Tall Grass (since bushes are removed)
-                    if appearance_roll_base < 60 { // 60% chance for Brambles
-                        appearance_roll = 90 + (appearance_roll_base % 10); // Maps to 90-99 (BramblesA/B)
-                    } else if appearance_roll_base < 85 { // Next 25% chance for Tall Grass
-                        appearance_roll = 60 + (appearance_roll_base % 30); // Maps to 60-89 (TallGrassA/B)
-                    }
-                    // Else (remaining 15%): use original appearance_roll_base for short grass or rare bramble
-                }
-                // Else (remaining 40% of regions, from 60 up to 99): Default mixed short grass.
-                // In this case, the original `appearance_roll_base` is used, which will mostly result in short grass types.
-                // If appearance_roll_base is very high (e.g., 95-99), it could still rarely spawn a bramble.
-
-
-                // Use the (potentially adjusted) appearance_roll
-                let appearance_type = if appearance_roll < 20 { // 20% PatchA
-                    crate::grass::GrassAppearanceType::PatchA
-                } else if appearance_roll < 40 { // 20% PatchB
-                    crate::grass::GrassAppearanceType::PatchB
-                } else if appearance_roll < 60 { // 20% PatchC
-                    crate::grass::GrassAppearanceType::PatchC
-                } else if appearance_roll < 75 { // 15% TallGrassA
-                    crate::grass::GrassAppearanceType::TallGrassA
-                } else if appearance_roll < 90 { // 15% TallGrassB
-                    crate::grass::GrassAppearanceType::TallGrassB
-                } else if appearance_roll < 95 { // 5% BramblesA
-                    crate::grass::GrassAppearanceType::BramblesA
-                } else { // 5% BramblesB
-                    crate::grass::GrassAppearanceType::BramblesB
-                };
+                // Use the predetermined grass type (passed in as argument)
+                let appearance_type = predetermined_type;
 
                 crate::grass::Grass {
                     id: 0,
@@ -862,8 +996,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     disturbance_direction_y: 0.0,
                 }
             },
-            (appearance_roll_for_this_attempt, sway_offset_seed_for_this_attempt), // Pass the rolls as a tuple
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            (predetermined_grass_type.clone(), sway_offset_seed_for_this_attempt), // Pass the predetermined type and sway seed
+            |pos_x, pos_y| is_grass_water_check_blocked(ctx, pos_x, pos_y, &predetermined_grass_type), // NEW: Smart water check function
             grasses, // Pass the grass table handle
         ) {
             Ok(true) => spawned_grass_count += 1,

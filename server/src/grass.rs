@@ -32,6 +32,7 @@ pub(crate) const GRASS_DISTURBANCE_STRENGTH: f32 = 2.0; // Multiplier for distur
 // Define different types/visuals of grass if needed later
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, SpacetimeType)]
 pub enum GrassAppearanceType {
+    // Land foliage
     PatchA, // Default patch
     PatchB, // Another variant
     PatchC, // Yet another variant
@@ -42,6 +43,15 @@ pub enum GrassAppearanceType {
     BushFlowering,
     BramblesA,
     BramblesB,
+    
+    // Water foliage
+    ReedBedsA,       // Tall swaying reeds
+    ReedBedsB,       // Dense reed clusters  
+    Bulrushes,       // Classic cattails
+    LilyPads,        // Floating surface plants (no sway)
+    MangroveRoots,   // Twisted root systems
+    SeaweedForest,   // Underwater kelp-like plants
+    AlgaeMats,       // Surface algae patches (no sway)
 }
 
 // --- NEW: Helper function to check if grass type is a bramble (indestructible) ---
@@ -49,6 +59,19 @@ impl GrassAppearanceType {
     /// Returns true if this grass type is a bramble and should be indestructible
     pub fn is_bramble(&self) -> bool {
         matches!(self, GrassAppearanceType::BramblesA | GrassAppearanceType::BramblesB)
+    }
+    
+    /// Returns true if this grass type is water foliage that should spawn on water tiles
+    pub fn is_water_foliage(&self) -> bool {
+        matches!(self, 
+            GrassAppearanceType::ReedBedsA | 
+            GrassAppearanceType::ReedBedsB | 
+            GrassAppearanceType::Bulrushes | 
+            GrassAppearanceType::LilyPads | 
+            GrassAppearanceType::MangroveRoots | 
+            GrassAppearanceType::SeaweedForest | 
+            GrassAppearanceType::AlgaeMats
+        )
     }
 }
 

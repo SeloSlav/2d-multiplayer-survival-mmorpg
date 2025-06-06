@@ -226,6 +226,17 @@ pub fn is_player_on_water(ctx: &ReducerContext, player_x: f32, player_y: f32) ->
     false
 }
 
+/// Checks if a player is currently jumping (in the air)
+/// Returns true if the player started a jump and is still within the jump duration
+pub fn is_player_jumping(jump_start_time_ms: u64, current_time_ms: u64) -> bool {
+    if jump_start_time_ms == 0 {
+        return false; // Player has never jumped or jump has been reset
+    }
+    
+    let elapsed_ms = current_time_ms.saturating_sub(jump_start_time_ms);
+    elapsed_ms < JUMP_COOLDOWN_MS // Player is still within the jump duration
+}
+
 // Player table to store position
 #[spacetimedb::table(
     name = player,

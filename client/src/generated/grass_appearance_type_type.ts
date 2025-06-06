@@ -45,6 +45,13 @@ export namespace GrassAppearanceType {
   export type BushFlowering = { tag: "BushFlowering" };
   export type BramblesA = { tag: "BramblesA" };
   export type BramblesB = { tag: "BramblesB" };
+  export type ReedBedsA = { tag: "ReedBedsA" };
+  export type ReedBedsB = { tag: "ReedBedsB" };
+  export type Bulrushes = { tag: "Bulrushes" };
+  export type LilyPads = { tag: "LilyPads" };
+  export type MangroveRoots = { tag: "MangroveRoots" };
+  export type SeaweedForest = { tag: "SeaweedForest" };
+  export type AlgaeMats = { tag: "AlgaeMats" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -62,6 +69,13 @@ export namespace GrassAppearanceType {
   export const BushFlowering = { tag: "BushFlowering" };
   export const BramblesA = { tag: "BramblesA" };
   export const BramblesB = { tag: "BramblesB" };
+  export const ReedBedsA = { tag: "ReedBedsA" };
+  export const ReedBedsB = { tag: "ReedBedsB" };
+  export const Bulrushes = { tag: "Bulrushes" };
+  export const LilyPads = { tag: "LilyPads" };
+  export const MangroveRoots = { tag: "MangroveRoots" };
+  export const SeaweedForest = { tag: "SeaweedForest" };
+  export const AlgaeMats = { tag: "AlgaeMats" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -75,6 +89,13 @@ export namespace GrassAppearanceType {
       new SumTypeVariant("BushFlowering", AlgebraicType.createProductType([])),
       new SumTypeVariant("BramblesA", AlgebraicType.createProductType([])),
       new SumTypeVariant("BramblesB", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ReedBedsA", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ReedBedsB", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Bulrushes", AlgebraicType.createProductType([])),
+      new SumTypeVariant("LilyPads", AlgebraicType.createProductType([])),
+      new SumTypeVariant("MangroveRoots", AlgebraicType.createProductType([])),
+      new SumTypeVariant("SeaweedForest", AlgebraicType.createProductType([])),
+      new SumTypeVariant("AlgaeMats", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -89,7 +110,7 @@ export namespace GrassAppearanceType {
 }
 
 // The tagged union or sum type for the algebraic type `GrassAppearanceType`.
-export type GrassAppearanceType = GrassAppearanceType.PatchA | GrassAppearanceType.PatchB | GrassAppearanceType.PatchC | GrassAppearanceType.TallGrassA | GrassAppearanceType.TallGrassB | GrassAppearanceType.BushRounded | GrassAppearanceType.BushSpiky | GrassAppearanceType.BushFlowering | GrassAppearanceType.BramblesA | GrassAppearanceType.BramblesB;
+export type GrassAppearanceType = GrassAppearanceType.PatchA | GrassAppearanceType.PatchB | GrassAppearanceType.PatchC | GrassAppearanceType.TallGrassA | GrassAppearanceType.TallGrassB | GrassAppearanceType.BushRounded | GrassAppearanceType.BushSpiky | GrassAppearanceType.BushFlowering | GrassAppearanceType.BramblesA | GrassAppearanceType.BramblesB | GrassAppearanceType.ReedBedsA | GrassAppearanceType.ReedBedsB | GrassAppearanceType.Bulrushes | GrassAppearanceType.LilyPads | GrassAppearanceType.MangroveRoots | GrassAppearanceType.SeaweedForest | GrassAppearanceType.AlgaeMats;
 
 export default GrassAppearanceType;
 

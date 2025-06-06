@@ -11,7 +11,7 @@ use crate::grass::grass as GrassTableTrait;
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait;
 
 // Import constants from lib.rs
-use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water, get_effective_player_radius};
+use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water, is_player_jumping, get_effective_player_radius};
 
 // Import constants from player_stats module
 use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, LOW_THIRST_SPEED_PENALTY, LOW_WARMTH_SPEED_PENALTY, JUMP_COOLDOWN_MS};
@@ -159,8 +159,13 @@ pub fn update_player_position(
 
     // --- ADD: Water Detection ---
     let is_on_water = is_player_on_water(ctx, current_player.position_x, current_player.position_y);
+    
+    // --- ADD: Jump Detection ---
+    let now_ms = (now.to_micros_since_unix_epoch() / 1000) as u64;
+    let is_jumping = is_player_jumping(current_player.jump_start_time_ms, now_ms);
+    
     if is_on_water {
-        log::trace!("Player {:?} is on water tile at ({:.1}, {:.1})", sender_id, current_player.position_x, current_player.position_y);
+        log::trace!("Player {:?} is on water tile at ({:.1}, {:.1}), jumping: {}", sender_id, current_player.position_x, current_player.position_y, is_jumping);
     }
 
     // --- Calculate Delta Time ---
@@ -175,10 +180,10 @@ pub fn update_player_position(
     let is_moving = move_x.abs() > 0.01 || move_y.abs() > 0.01;
     let mut current_sprinting_state = current_player.is_sprinting;
 
-    // ADD: Disable sprinting on water
-    if is_on_water && current_sprinting_state {
+    // ADD: Disable sprinting on water (but allow sprinting while jumping over water)
+    if is_on_water && !is_jumping && current_sprinting_state {
         current_sprinting_state = false;
-        log::trace!("Player {:?} sprinting disabled due to water", sender_id);
+        log::trace!("Player {:?} sprinting disabled due to water (not jumping)", sender_id);
     }
 
     // Determine speed multiplier based on current sprint state and stamina
@@ -207,10 +212,10 @@ pub fn update_player_position(
         log::trace!("Player {:?} crouching active. Speed multiplier adjusted to: {}", sender_id, final_speed_multiplier);
     }
 
-    // ADD: Apply water speed penalty
-    if is_on_water {
-        final_speed_multiplier *= WATER_SPEED_PENALTY; // 30% speed reduction
-        log::trace!("Player {:?} water speed penalty applied. Speed multiplier: {}", sender_id, final_speed_multiplier);
+    // ADD: Apply water speed penalty (but not while jumping over water)
+    if is_on_water && !is_jumping {
+        final_speed_multiplier *= WATER_SPEED_PENALTY; // 50% speed reduction
+        log::trace!("Player {:?} water speed penalty applied (not jumping). Speed multiplier: {}", sender_id, final_speed_multiplier);
     }
 
     // --- <<< UPDATED: Read LOW_NEED_THRESHOLD from StatThresholdsConfig table >>> ---
