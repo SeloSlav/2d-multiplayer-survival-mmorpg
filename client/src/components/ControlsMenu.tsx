@@ -37,6 +37,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 { key: 'Space', description: 'Jump' },
                 { key: 'C', description: 'Crouch' },
                 { key: 'Q', description: 'Toggle auto walk' },
+                { key: 'Shift + W/A/S/D', description: 'Cancel auto walk and sprint' },
             ]
         },
         {

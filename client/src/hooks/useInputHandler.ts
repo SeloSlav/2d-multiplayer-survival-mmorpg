@@ -145,6 +145,9 @@ export const useInputHandler = ({
 
     // Refs for auto-attack state
     const isAutoAttackingRef = useRef<boolean>(false);
+    
+    // Ref to track shift key state (since shift isn't added to keysPressed)
+    const isShiftHeldRef = useRef<boolean>(false);
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -361,6 +364,7 @@ export const useInputHandler = ({
             // Sprinting start
             if (key === 'shift' && !isSprintingRef.current && !event.repeat) {
                 isSprintingRef.current = true;
+                isShiftHeldRef.current = true; // Track shift state
                 setSprinting(true);
                 return; // Don't add shift to keysPressed
             }
@@ -422,33 +426,40 @@ export const useInputHandler = ({
             const isMovementKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
 
             if (isMovementKey && isAutoWalkingRef.current) {
-                // If auto-walking, these keys now *redirect* the auto-walk.
-                // We need to calculate the new direction based on *all currently pressed* movement keys.
-                // To do this, temporarily add the current key to keysPressed, calculate direction, then remove it if it wasn't a sustained press.
-                // However, a simpler approach for now: if a movement key is pressed while auto-walking, just update the direction.
-                // This means tapping a new direction key will change auto-walk direction.
-                
-                // First, update keysPressed *before* calculating direction for redirection
-                if (!event.repeat) { // Only add if it's a new press, not a hold-over from before auto-walk started
-                    keysPressed.current.add(key);
-                }
+                // Cancel auto-walk if shift + movement key is pressed
+                if (isShiftHeldRef.current) {
+                    isAutoWalkingRef.current = false;
+                    // console.log("[InputHandler] Auto-walk canceled by Shift + movement key");
+                    // Don't return here - let the key be processed normally for manual movement
+                } else {
+                    // If auto-walking, these keys now *redirect* the auto-walk.
+                    // We need to calculate the new direction based on *all currently pressed* movement keys.
+                    // To do this, temporarily add the current key to keysPressed, calculate direction, then remove it if it wasn't a sustained press.
+                    // However, a simpler approach for now: if a movement key is pressed while auto-walking, just update the direction.
+                    // This means tapping a new direction key will change auto-walk direction.
+                    
+                    // First, update keysPressed *before* calculating direction for redirection
+                    if (!event.repeat) { // Only add if it's a new press, not a hold-over from before auto-walk started
+                        keysPressed.current.add(key);
+                    }
 
-                const currentDx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                                  (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-                const currentDy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                                  (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+                    const currentDx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                                      (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+                    const currentDy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                                      (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
 
-                if (currentDx !== 0 || currentDy !== 0) {
-                    autoWalkDirectionRef.current = { dx: currentDx, dy: currentDy };
-                    lastMovementDirectionRef.current = { dx: currentDx, dy: currentDy }; // Also update last actual movement
-                    // console.log(`[InputHandler WASD] Auto-walk redirected to: dx=${currentDx}, dy=${currentDy}`);
+                    if (currentDx !== 0 || currentDy !== 0) {
+                        autoWalkDirectionRef.current = { dx: currentDx, dy: currentDy };
+                        lastMovementDirectionRef.current = { dx: currentDx, dy: currentDy }; // Also update last actual movement
+                        // console.log(`[InputHandler WASD] Auto-walk redirected to: dx=${currentDx}, dy=${currentDy}`);
+                    }
+                    // Do NOT add to keysPressed.current here in the main flow if auto-walking,
+                    // as processInputsAndActions will use autoWalkDirectionRef.
+                    // However, we *do* want keysPressed to reflect the current state for this calculation.
+                    // The `keysPressed.current.add(key)` above handles this temporarily.
+                    // We need to ensure keys are removed on keyUp if they were only for redirection.
+                    return; // Movement key handled for redirection
                 }
-                // Do NOT add to keysPressed.current here in the main flow if auto-walking,
-                // as processInputsAndActions will use autoWalkDirectionRef.
-                // However, we *do* want keysPressed to reflect the current state for this calculation.
-                // The `keysPressed.current.add(key)` above handles this temporarily.
-                // We need to ensure keys are removed on keyUp if they were only for redirection.
-                return; // Movement key handled for redirection
             }
             
             // If not auto-walking or not a movement key, add to keysPressed as normal
@@ -728,22 +739,35 @@ export const useInputHandler = ({
                     }
                 }
             }
+
+            // Handle movement keys (WASD)
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                // Cancel auto-walk if shift + movement key is pressed
+                if (isShiftHeldRef.current && isAutoWalkingRef.current) {
+                    isAutoWalkingRef.current = false;
+                    // console.log("[InputHandler] Auto-walk canceled by Shift + movement key");
+                }
+                
+                keysPressed.current.add(key);
+                return; // Movement keys handled
+            }
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
+            const key = event.key.toLowerCase();
+
+            // Sprinting stop
+            if (key === 'shift' && isSprintingRef.current) {
+                isSprintingRef.current = false;
+                isShiftHeldRef.current = false; // Reset shift state
+                setSprinting(false);
+                return;
+            }
+
             // MODIFIED: Block if player is dead, chatting, or searching recipes
             // REMOVED isInventoryOpen from this top-level guard for general keyup events
             if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
                 return;
-            }
-            const key = event.key.toLowerCase();
-            // Sprinting end
-            if (key === 'shift') {
-                if (isSprintingRef.current) {
-                    isSprintingRef.current = false;
-                    // No need to check isInputDisabled here, if we got this far, input is enabled
-                    setSprinting(false); 
-                }
             }
             // keysPressed.current.delete(key);
             // If auto-walking, and the released key was a movement key, it might have been added to keysPressed.current
@@ -1143,6 +1167,7 @@ export const useInputHandler = ({
         const handleBlur = () => {
             if (isSprintingRef.current) {
                 isSprintingRef.current = false;
+                isShiftHeldRef.current = false; // Reset shift state on blur
                 // Call reducer regardless of focus state if window loses focus
                 setSprinting(false); 
             }
