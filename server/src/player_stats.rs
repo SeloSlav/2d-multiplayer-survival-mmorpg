@@ -64,7 +64,8 @@ pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 
 // Add torch warmth constant
-pub(crate) const TORCH_WARMTH_PER_SECOND: f32 = 0.5;
+// Neutralizes night cold (-1.5) but midnight (-2.0) still causes slow warmth loss
+pub(crate) const TORCH_WARMTH_PER_SECOND: f32 = 1.75;
 
 // Add dodge roll stamina cost constant
 pub(crate) const DODGE_ROLL_STAMINA_COST: f32 = 10.0;

@@ -5,7 +5,8 @@ use crate::active_equipment::active_equipment;
 use crate::items::item_definition;
 
 // Torch warmth constant (matches player_stats.rs)
-pub const TORCH_WARMTH_PER_SECOND: f32 = 0.5;
+// Neutralizes night cold (-1.5) but midnight (-2.0) still causes slow warmth loss
+pub const TORCH_WARMTH_PER_SECOND: f32 = 1.75;
 
 #[spacetimedb::reducer]
 pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {

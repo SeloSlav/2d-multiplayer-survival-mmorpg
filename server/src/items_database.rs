@@ -660,7 +660,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Torch".to_string(),
-            description: "Provides light and warmth (+0.5/sec when lit). Can be used as a makeshift weapon.".to_string(),
+            description: "Provides light and some warmth when lit. Can be used as a makeshift weapon.".to_string(),
             category: ItemCategory::Tool,
             icon_asset_name: "torch.png".to_string(),
             is_stackable: false,

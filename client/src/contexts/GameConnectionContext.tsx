@@ -118,7 +118,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     setIsConnected(false);
                     setIsConnecting(false); 
                     const errorMessage = err.message || err.toString();
-                    setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
+                    // setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
                     // Improved error detection - be more aggressive about auth failures
                     if (errorMessage.includes("401") || 
                         errorMessage.toLowerCase().includes("unauthorized") ||

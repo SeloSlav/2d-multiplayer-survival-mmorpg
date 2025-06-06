@@ -17,22 +17,12 @@ import bramblesATextureUrl from '../../assets/doodads/brambles_a.png';
 import bramblesBTextureUrl from '../../assets/doodads/brambles_b.png';
 
 // NEW: Import water foliage assets
-// import reedBedsATextureUrl from '../../assets/doodads/reed_beds_a.png';
-// import reedBedsBTextureUrl from '../../assets/doodads/reed_beds_b.png';
-// import bulrushesTextureUrl from '../../assets/doodads/bulrushes.png';
-// import lilyPadsTextureUrl from '../../assets/doodads/lily_pads.png';
-// import mangroveRootsTextureUrl from '../../assets/doodads/mangrove_roots.png';
-// import seaweedForestTextureUrl from '../../assets/doodads/seaweed_forest.png';
-// import algaeMatsTextureUrl from '../../assets/doodads/algae_mats.png';
-
-// NEW: Import water foliage assets
-import reedBedsATextureUrl from '../../assets/doodads/grass1.png';
-import reedBedsBTextureUrl from '../../assets/doodads/grass1.png';
-import bulrushesTextureUrl from '../../assets/doodads/grass1.png';
-import lilyPadsTextureUrl from '../../assets/doodads/grass1.png';
-import mangroveRootsTextureUrl from '../../assets/doodads/grass1.png';
-import seaweedForestTextureUrl from '../../assets/doodads/grass1.png';
-import algaeMatsTextureUrl from '../../assets/doodads/grass1.png';
+import reedBedsATextureUrl from '../../assets/doodads/reed_beds_a.png';
+import reedBedsBTextureUrl from '../../assets/doodads/reed_beds_b.png';
+import bulrushesTextureUrl from '../../assets/doodads/bulrushes.png';
+import lilyPadsTextureUrl from '../../assets/doodads/lily_pads.png';
+import seaweedForestTextureUrl from '../../assets/doodads/seaweed_forest.png';
+import algaeMatsTextureUrl from '../../assets/doodads/algae_mats.png';
 
 // --- Constants for Grass Rendering ---
 // const TARGET_GRASS_WIDTH_PX = 48; // Old constant, now part of grassSizeConfig
@@ -99,7 +89,6 @@ const SWAYING_GRASS_TYPES = new Set([
     GrassAppearanceType.ReedBedsA.tag,      // Reeds sway in water currents
     GrassAppearanceType.ReedBedsB.tag,      // Reed clusters sway
     GrassAppearanceType.Bulrushes.tag,      // Cattails sway gently
-    GrassAppearanceType.MangroveRoots.tag,  // Flexible roots sway
     GrassAppearanceType.SeaweedForest.tag,  // Underwater plants sway with currents
     // NOTE: LilyPads and AlgaeMats should NOT sway (surface floaters)
 ]);
@@ -191,7 +180,6 @@ const grassAssetPaths: Record<string, string[]> = {
     [GrassAppearanceType.ReedBedsB.tag]: [reedBedsBTextureUrl], 
     [GrassAppearanceType.Bulrushes.tag]: [bulrushesTextureUrl],
     [GrassAppearanceType.LilyPads.tag]: [lilyPadsTextureUrl],
-    [GrassAppearanceType.MangroveRoots.tag]: [mangroveRootsTextureUrl],
     [GrassAppearanceType.SeaweedForest.tag]: [seaweedForestTextureUrl],
     [GrassAppearanceType.AlgaeMats.tag]: [algaeMatsTextureUrl],
 };
@@ -210,14 +198,13 @@ const grassSizeConfig: Record<string, GrassSizeConfig> = {
     [GrassAppearanceType.TallGrassB.tag]: { targetWidth: 96 }, // Approx 2x
     [GrassAppearanceType.BramblesA.tag]: { targetWidth: 100 },
     [GrassAppearanceType.BramblesB.tag]: { targetWidth: 120 },
-    // NEW: Water foliage size configurations
-    [GrassAppearanceType.ReedBedsA.tag]: { targetWidth: 64 },      // Tall and narrow
-    [GrassAppearanceType.ReedBedsB.tag]: { targetWidth: 80 },      // Dense clusters, wider
-    [GrassAppearanceType.Bulrushes.tag]: { targetWidth: 56 },      // Classic cattail size
-    [GrassAppearanceType.LilyPads.tag]: { targetWidth: 72 },       // Round floating pads
-    [GrassAppearanceType.MangroveRoots.tag]: { targetWidth: 84 },  // Complex root systems
-    [GrassAppearanceType.SeaweedForest.tag]: { targetWidth: 60 },  // Underwater kelp
-    [GrassAppearanceType.AlgaeMats.tag]: { targetWidth: 96 },      // Surface mats, wide
+    // NEW: Water foliage size configurations (large enough for player hiding)
+    [GrassAppearanceType.ReedBedsA.tag]: { targetWidth: 128 },     // Tall dense reeds for cover
+    [GrassAppearanceType.ReedBedsB.tag]: { targetWidth: 144 },     // Wide reed clusters for hiding
+    [GrassAppearanceType.Bulrushes.tag]: { targetWidth: 120 },     // Dense cattail patches
+    [GrassAppearanceType.LilyPads.tag]: { targetWidth: 136 },      // Large floating pad clusters
+    [GrassAppearanceType.SeaweedForest.tag]: { targetWidth: 152 }, // Massive underwater kelp forests
+    [GrassAppearanceType.AlgaeMats.tag]: { targetWidth: 140 },     // Wide surface algae coverage
     // Default fallback if a new type is added to enum but not here (should be avoided)
     default: { targetWidth: 48 },
 };

@@ -49,7 +49,6 @@ pub enum GrassAppearanceType {
     ReedBedsB,       // Dense reed clusters  
     Bulrushes,       // Classic cattails
     LilyPads,        // Floating surface plants (no sway)
-    MangroveRoots,   // Twisted root systems
     SeaweedForest,   // Underwater kelp-like plants
     AlgaeMats,       // Surface algae patches (no sway)
 }
@@ -68,7 +67,6 @@ impl GrassAppearanceType {
             GrassAppearanceType::ReedBedsB | 
             GrassAppearanceType::Bulrushes | 
             GrassAppearanceType::LilyPads | 
-            GrassAppearanceType::MangroveRoots | 
             GrassAppearanceType::SeaweedForest | 
             GrassAppearanceType::AlgaeMats
         )

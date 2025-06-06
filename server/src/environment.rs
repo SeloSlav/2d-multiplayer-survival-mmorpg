@@ -916,8 +916,6 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     crate::grass::GrassAppearanceType::AlgaeMats
                 } else if appearance_roll < 87 { // 7% SeaweedForest
                     crate::grass::GrassAppearanceType::SeaweedForest
-                } else if appearance_roll < 93 { // 6% MangroveRoots
-                    crate::grass::GrassAppearanceType::MangroveRoots
                 } else { // 7% fallback to PatchA
                     crate::grass::GrassAppearanceType::PatchA
                 }
@@ -931,8 +929,6 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     crate::grass::GrassAppearanceType::Bulrushes
                 } else if appearance_roll < 65 { // 15% LilyPads
                     crate::grass::GrassAppearanceType::LilyPads
-                } else if appearance_roll < 75 { // 10% MangroveRoots
-                    crate::grass::GrassAppearanceType::MangroveRoots
                 } else if appearance_roll < 85 { // 10% SeaweedForest
                     crate::grass::GrassAppearanceType::SeaweedForest
                 } else if appearance_roll < 95 { // 10% AlgaeMats

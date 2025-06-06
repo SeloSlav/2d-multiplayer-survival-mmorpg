@@ -44,15 +44,8 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Torch", 1, None, Some(8u16)),
         ("Stone Pickaxe", 1, None, Some(9u16)),
         ("Repair Hammer", 1, None, Some(10u16)),
-        ("Bone Arrow", 1, None, Some(11u16)),
-        ("Sleeping Bag", 1, None, Some(12u16)),
-        ("Sleeping Bag", 1, None, Some(13u16)),
-        ("Sleeping Bag", 1, None, Some(14u16)),
-        ("Sleeping Bag", 1, None, Some(15u16)),
-        ("Sleeping Bag", 1, None, Some(16u16)),
-        ("Sleeping Bag", 1, None, Some(17u16)),
-        ("Sleeping Bag", 1, None, Some(18u16)),
-        ("Sleeping Bag", 1, None, Some(19u16)),
+        ("Primitive Reed Snorkel", 1, None, Some(11u16)),
+
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());
