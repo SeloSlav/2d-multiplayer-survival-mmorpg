@@ -21,7 +21,6 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 *   [⚙️ Client Configuration](#️-client-configuration)
 *   [🌍 World Configuration](#-world-configuration-tile-size--map-dimensions)
 *   [📁 Project Structure](#-project-structure)
-*   [🚀 Running the Project Locally](#-running-the-project-locally)
 *   [🔧 Troubleshooting Local Setup](#-troubleshooting-local-setup)
 *   [🔄 Development Workflow](#-development-workflow)
 *   [🤝 Contributing](#-contributing)
@@ -286,13 +285,239 @@ const SPACETIME_DB_NAME = 'vibe-survival-game';
 
 ## 🌍 World Configuration (Tile Size & Map Dimensions)
 
-Changing the tile size or the overall world dimensions requires modifications in **both** the client and server code to ensure consistency between rendering, collision detection, and game logic.
+Changing the tile size, chunk configuration, or overall world dimensions requires coordinated modifications in **both** the client and server code to ensure consistency between rendering, collision detection, game logic, and world generation.
 
-1.  **Client (`client/src/config/gameConfig.ts`):**
-    *   Modify the `TILE_SIZE` constant at the top of the file.
-    *   **World Dimensions (in tiles):**
-        *   `SERVER_WORLD_WIDTH_TILES`: This constant represents the assumed width of the server's world in tiles. It should match `WORLD_WIDTH_TILES` in `server/src/lib.rs`.
-        *   `SERVER_WORLD_HEIGHT_TILES`: This constant represents the assumed height of the server's world in tiles. It should match `WORLD_HEIGHT_TILES` in `server/src/lib.rs`.
-    *   **Visual/Legacy World Dimensions (in tiles):**
-        *   The `worldWidth` and `worldHeight` properties within the exported `gameConfig` object are also present. Ensure these are consistent with `SERVER_WORLD_WIDTH_TILES` and `SERVER_WORLD_HEIGHT_TILES` respectively. These might be used for client-side rendering calculations that haven't been fully updated to use the `serverWorld...` prefixed variables.
-        *   Other values like `minimapGridCellDiagonalTiles`
+### Core Configuration Values
+
+#### 1. **Client Configuration (`client/src/config/gameConfig.ts`):**
+
+**Tile & World Size:**
+*   `TILE_SIZE`: Visual pixel size of each grid tile (e.g., `48`). Must match server's `TILE_SIZE_PX`.
+*   `SERVER_WORLD_WIDTH_TILES`: Assumed width of the server's world in tiles (e.g., `500`). Must match server's `WORLD_WIDTH_TILES`.
+*   `SERVER_WORLD_HEIGHT_TILES`: Assumed height of the server's world in tiles (e.g., `500`). Must match server's `WORLD_HEIGHT_TILES`.
+
+**Chunk Configuration:**
+*   `CHUNK_SIZE_TILES`: Number of tiles along one edge of a square chunk (e.g., `10`). Must match server's `CHUNK_SIZE_TILES`.
+
+**Legacy/Compatibility Values:**
+*   `worldWidth` and `worldHeight`: Should match `SERVER_WORLD_WIDTH_TILES` and `SERVER_WORLD_HEIGHT_TILES`.
+*   `spriteWidth` and `spriteHeight`: Player/entity sprite dimensions, typically match `TILE_SIZE`.
+
+#### 2. **Server Configuration (`server/src/lib.rs`):**
+
+**Primary Constants:**
+*   `TILE_SIZE_PX`: Size of each tile in pixels (e.g., `pub const TILE_SIZE_PX: u32 = 48;`).
+*   `WORLD_WIDTH_TILES`: World width in tiles (e.g., `pub const WORLD_WIDTH_TILES: u32 = 500;`).
+*   `WORLD_HEIGHT_TILES`: World height in tiles (e.g., `pub const WORLD_HEIGHT_TILES: u32 = 500;`).
+
+**Derived Values (automatically calculated):**
+*   `WORLD_WIDTH_PX`: World width in pixels (`(WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32`).
+*   `WORLD_HEIGHT_PX`: World height in pixels (`(WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32`).
+
+#### 3. **Server Environment Configuration (`server/src/environment.rs`):**
+
+**Chunk System:**
+*   `CHUNK_SIZE_TILES`: Size of a chunk in tiles (e.g., `pub const CHUNK_SIZE_TILES: u32 = 10;`). Must match client.
+*   `WORLD_WIDTH_CHUNKS`: Number of chunks across world width (auto-calculated).
+*   `CHUNK_SIZE_PX`: Size of a chunk in pixels (auto-calculated).
+
+#### 4. **World Generation Configuration (`server/src/world_generation.rs`):**
+
+The `WorldGenConfig` struct controls procedural world generation:
+*   `world_width_tiles`: Should match `WORLD_WIDTH_TILES` in `lib.rs`.
+*   `world_height_tiles`: Should match `WORLD_HEIGHT_TILES` in `lib.rs`.
+*   `chunk_size`: Should match `CHUNK_SIZE_TILES` in `environment.rs`.
+*   Other generation parameters: `seed`, `island_border_width`, `beach_width`, `river_frequency`, etc.
+
+### Recommended Configuration Steps
+
+**When changing world dimensions or tile size:**
+
+1.  **Update Server Core (`server/src/lib.rs`):**
+    ```rust
+    pub const TILE_SIZE_PX: u32 = 48;        // Your desired tile size
+    pub const WORLD_WIDTH_TILES: u32 = 500;   // Your desired world width
+    pub const WORLD_HEIGHT_TILES: u32 = 500;  // Your desired world height
+    ```
+
+2.  **Update Server Environment (`server/src/environment.rs`):**
+    ```rust
+    pub const CHUNK_SIZE_TILES: u32 = 10;     // Your desired chunk size
+    ```
+
+3.  **Update World Generation Config (in `init_module` or world generation):**
+    ```rust
+    WorldGenConfig {
+        world_width_tiles: 500,    // Match WORLD_WIDTH_TILES
+        world_height_tiles: 500,   // Match WORLD_HEIGHT_TILES  
+        chunk_size: 10,           // Match CHUNK_SIZE_TILES
+        // ... other generation settings
+    }
+    ```
+
+4.  **Update Client Config (`client/src/config/gameConfig.ts`):**
+    ```typescript
+    const TILE_SIZE = 48;                      // Match server TILE_SIZE_PX
+    const SERVER_WORLD_WIDTH_TILES = 500;     // Match server WORLD_WIDTH_TILES
+    const SERVER_WORLD_HEIGHT_TILES = 500;    // Match server WORLD_HEIGHT_TILES
+    const CHUNK_SIZE_TILES = 10;              // Match server CHUNK_SIZE_TILES
+    ```
+
+5.  **Rebuild and Republish:**
+    ```bash
+    cd server
+    spacetime publish vibe-survival-game --clear-database  # Clear DB for schema changes
+    spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
+    cd ..
+    ```
+
+**Important:** Ensure the `TILE_SIZE` (in `gameConfig.ts`) / `TILE_SIZE_PX` (in `lib.rs`) and the `SERVER_WORLD_WIDTH_TILES`/`SERVER_WORLD_HEIGHT_TILES` (in `gameConfig.ts`) / `WORLD_WIDTH_TILES`/`WORLD_HEIGHT_TILES` (in `lib.rs`) values are kept consistent between the client and server configuration files. The `gameConfig.worldWidth` and `gameConfig.worldHeight` should also mirror these tile dimension values.
+
+After making server-side changes, remember to **re-publish** the module:
+
+```bash
+# From the server/ directory
+spacetime publish vibe-survival-game
+# No need to regenerate client bindings for changing only these constants
+```
+
+## 📁 Project Structure
+
+```
+vibe-coding-starter-pack-2d-survival/
+├── .cursor/                # Cursor AI configuration
+│   └── rules/              # *.mdc rule files for AI context
+├── auth-server-openauth/   # Authentication server (Node.js/Hono)
+│   ├── data/              # User storage (users.json)
+│   ├── index.ts           # Main auth server logic
+│   └── package.json       # Node.js dependencies
+├── client/                # React frontend (UI, rendering, input)
+│   ├── public/            # Static files (index.html, favicons)
+│   ├── src/
+│   │   ├── assets/        # Sprites, textures, sounds
+│   │   │   ├── doodads/   # Decorative game objects
+│   │   │   ├── environment/ # Environmental assets (clouds, etc.)
+│   │   │   ├── items/     # Item sprites and assets
+│   │   │   ├── states/    # UI state assets
+│   │   │   └── tiles/     # Tile textures
+│   │   ├── components/    # React components (UI, Canvas)
+│   │   ├── config/        # Client-side game configuration
+│   │   ├── contexts/      # React contexts (Auth, Game state)
+│   │   ├── effects/       # Visual effects and animations
+│   │   ├── generated/     # Auto-generated SpacetimeDB bindings
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── types/         # Shared TypeScript types
+│   │   └── utils/         # Helper functions (rendering, logic)
+│   │       ├── auth/      # Authentication utilities
+│   │       └── renderers/ # Rendering utilities
+│   └── package.json
+├── server/                # SpacetimeDB server logic (Rust)
+│   ├── data/             # Server data and configuration
+│   │   ├── cache/        # Runtime caches and temp files
+│   │   ├── control-db/   # SpacetimeDB control database
+│   │   ├── logs/         # Server logs
+│   │   └── program-bytes/ # Compiled WASM modules
+│   ├── src/              # Rust source code
+│   │   ├── lib.rs        # Main server module entry point
+│   │   ├── environment.rs # World generation and resource spawning
+│   │   ├── player_movement.rs # Player physics and movement
+│   │   ├── combat.rs     # Combat system and weapons
+│   │   ├── crafting.rs   # Crafting recipes and logic
+│   │   ├── world_generation.rs # Procedural world generation
+│   │   └── [other modules] # Additional game systems
+│   ├── target/           # Rust build artifacts
+│   └── Cargo.toml        # Rust dependencies and configuration
+├── components/            # Shared/reusable components (legacy)
+├── data/                 # Shared game data files
+├── keys/                 # RSA keys for authentication (generated)
+│   ├── private.pem       # Private key (keep secret)
+│   └── public.pem        # Public key for verification
+├── eslint.config.js      # ESLint configuration
+├── github.png            # Banner image
+├── guide.mdc             # Development guide (Cursor rules)
+├── index.html            # Root HTML file
+├── LICENSE               # MIT License
+├── package.json          # Root package.json with client scripts
+├── preview.png           # Gameplay preview image
+├── README.md             # This file
+├── recording.mp4         # Demo video
+├── tsconfig.*.json       # TypeScript configurations
+└── vite.config.ts        # Vite build configuration
+```
+
+## 🔧 Troubleshooting Local Setup
+
+*   **`Cannot find module './generated'` error in client:**
+    *   Ensure you ran `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` from the `server` directory *after* the last `spacetime publish` was **successful**. Check the publish output for errors.
+    *   Make sure the `client/src/generated` folder was actually created and contains `.ts` files, including `index.ts`.
+    *   Restart the Vite dev server (`npm run dev`). Sometimes Vite needs a restart after significant file changes.
+*   **Client connects but game doesn't load / players don't appear:**
+    *   Check the browser console (F12) for JavaScript errors (e.g., subscription failures, rendering issues).
+    *   Check the terminal running `spacetime start` for server-side Rust errors (e.g., reducer panics, assertion failures).
+*   **Old players/data still appearing after disconnect/refresh:**
+    *   Verify the `identity_disconnected` logic in `server/src/lib.rs` is correctly deleting the player, inventory, and equipment.
+    *   For a guaranteed clean slate during development, delete and recreate the local database:
+        ```bash
+        # Stop spacetime start (Ctrl+C in its terminal)
+        spacetime delete vibe-survival-game # Run from any directory
+        spacetime start # Restart the server
+        # Then re-publish and re-generate (Step 4 above)
+        ```
+*   **`spacetime publish` tries to publish to Maincloud instead of local:**
+    *   Ensure you are logged out: `spacetime logout`.
+    *   Ensure the `spacetime start` server is running *before* you publish.
+    *   Check your SpacetimeDB config file (`%LOCALAPPDATA%/SpacetimeDB/config/cli.toml` on Windows, `~/.local/share/spacetime/config/cli.toml` on Linux/macOS) and make sure `default_server` is set to `local` or commented out.
+
+## 🔄 Development Workflow
+
+1.  **Server Development (`server/src`)**:
+    *   Modify Rust code (add features, fix bugs).
+    *   **If schema changes (tables, reducer signatures):**
+        1.  Run `spacetime publish vibe-survival-game` (from `server/`).
+        2.  Run `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` (from `server/`).
+    *   **If only logic changes (no schema impact):**
+        1.  Run `spacetime publish vibe-survival-game` (from `server/`). (Generate is not strictly needed but doesn't hurt).
+2.  **Client Development (`client/src`)**:
+    *   Modify React/TypeScript code.
+    *   The Vite dev server (`npm run dev`) usually provides Hot Module Replacement (HMR) for fast updates. If things seem broken after large changes, try restarting the dev server.
+
+## 🤝 Contributing
+
+We welcome contributions to this project! To contribute, please follow the standard GitHub Fork & Pull Request workflow:
+
+1.  **Fork the Repository**: Click the 'Fork' button on the top right of the main repository page (`SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival`) to create your personal copy under your GitHub account.
+2.  **Clone Your Fork**: Clone *your forked repository* to your local machine:
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/vibe-coding-starter-pack-2d-multiplayer-survival.git
+    cd vibe-coding-starter-pack-2d-multiplayer-survival
+    ```
+    (Replace `YOUR_USERNAME` with your actual GitHub username).
+3.  **Create a Branch**: Create a new branch for your feature or fix:
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+4.  **Implement Your Changes**: Make your code changes, following project style guidelines.
+5.  **Test Thoroughly**: Ensure your changes work as expected and don't break existing functionality.
+6.  **Commit Your Changes**: Commit your work with a clear message:
+    ```bash
+    git commit -m "feat: Add awesome new feature"
+    ```
+7.  **Push Your Branch**: Push your changes *to your fork*:
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+8.  **Open a Pull Request**: Go back to the *original* repository (`SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival`) on GitHub. You should see a prompt to create a Pull Request from your recently pushed branch. Click it, or navigate to the "Pull Requests" tab and click "New Pull Request".
+9.  **Configure the PR**: Ensure the base repository is `SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival` and the base branch is typically `main` (or the relevant development branch). Ensure the head repository is your fork and the compare branch is your feature branch (`feature/your-feature-name`).
+10. **Describe Your Changes**: Provide a clear title and description for your Pull Request, explaining the changes and their purpose.
+
+Whether you're interested in adding new gameplay mechanics, improving existing systems, or enhancing the codebase, your contributions are valuable to making this starter pack even better!
+
+For questions or discussions about potential contributions, feel free to open an issue first to discuss your ideas.
+
+## 📜 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+Created by SeloSlav
