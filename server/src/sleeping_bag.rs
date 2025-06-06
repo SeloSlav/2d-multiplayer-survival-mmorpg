@@ -142,10 +142,13 @@ pub fn place_sleeping_bag(ctx: &ReducerContext, item_instance_id: u64, world_x: 
 
     // 6. Create the SleepingBag Entity
     let chunk_idx = calculate_chunk_index(world_x, world_y);
+    // Adjust Y position to compensate for client-side bottom-center anchoring
+    // Client renders at posY - drawHeight, so we add half height to center on click position
+    let adjusted_y = world_y + 32.0; // Half of SLEEPING_BAG_HEIGHT (64/2 = 32)
     let new_bag = SleepingBag {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y,
+        pos_y: adjusted_y,
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: ctx.timestamp,

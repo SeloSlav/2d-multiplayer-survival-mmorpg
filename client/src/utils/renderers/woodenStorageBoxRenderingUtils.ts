@@ -32,7 +32,7 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
 
     calculateDrawPosition: (entity, drawWidth, drawHeight) => ({
         drawX: entity.posX - drawWidth / 2,
-        drawY: entity.posY - drawHeight / 2 - 10, // Slight Y adjustment for centering
+        drawY: entity.posY - drawHeight - 20, // Slight Y adjustment for centering
     }),
 
     getShadowParams: undefined,

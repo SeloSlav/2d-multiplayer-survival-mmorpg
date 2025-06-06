@@ -416,7 +416,7 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
     let new_box = WoodenStorageBox {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y,
+        pos_y: world_y + 52.0, // Compensate for bottom-anchoring + 20px render offset (64/2 + 20)
         chunk_index: new_chunk_index,
         placed_by: sender_id,
         slot_instance_id_0: None, slot_def_id_0: None,

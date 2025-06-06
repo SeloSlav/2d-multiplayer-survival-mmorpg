@@ -189,60 +189,68 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
         return outputDef.category.tag === selectedCategory;
     };
 
-    // Filter recipes based on search term and category
-    const filteredRecipes = useMemo(() => {
-        const baseRecipes = Array.from(recipes.values()).filter(recipe => {
-            // First filter by category
-            if (!matchesCategory(recipe)) return false;
+    // State for filtered recipes from the search bar
+    const [filteredRecipes, setFilteredRecipes] = useState<Array<{
+        recipe: Recipe;
+        score: number;
+    }>>([]);
 
-            // Then filter by search term if present
-            if (!searchTerm.trim()) return true;
-
-            const lowerSearchTerm = searchTerm.toLowerCase();
+    // Convert recipes to the format expected by CraftingSearchBar
+    const recipeList = useMemo(() => {
+        return Array.from(recipes.values()).map(recipe => {
             const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
-            
-            // Search in output item name
-            if (outputDef && outputDef.name.toLowerCase().includes(lowerSearchTerm)) {
-                return true;
-            }
-            
-            // Search in ingredient names
-            for (const ingredient of recipe.ingredients) {
-                const ingDef = itemDefinitions.get(ingredient.itemDefId.toString());
-                if (ingDef && ingDef.name.toLowerCase().includes(lowerSearchTerm)) {
-                    return true;
+            return {
+                id: recipe.recipeId.toString(),
+                name: outputDef?.name || 'Unknown',
+                category: outputDef?.category || { tag: 'Material' },
+                materials: recipe.ingredients.map(ing => {
+                    const ingDef = itemDefinitions.get(ing.itemDefId.toString());
+                    return {
+                        itemId: ingDef?.name || ing.itemDefId.toString(),
+                        quantity: ing.quantity
+                    };
+                }),
+                output: {
+                    itemId: outputDef?.name || recipe.outputItemDefId.toString(),
+                    quantity: recipe.outputQuantity
                 }
-            }
-            
-            // TODO: Add search by description if item definitions get a description field
-            return false;
+            };
         });
+    }, [recipes, itemDefinitions]);
 
-        // Sort the filtered recipes
-        return baseRecipes.sort((a, b) => {
-            const canCraftA = canCraft(a);
-            const canCraftB = canCraft(b);
-            const notCraftedThisSessionA = !craftedRecipeIdsThisSession.has(a.recipeId.toString());
-            const notCraftedThisSessionB = !craftedRecipeIdsThisSession.has(b.recipeId.toString());
-
-            // Priority 1: Craftable items
-            if (canCraftA && !canCraftB) return -1;
-            if (!canCraftA && canCraftB) return 1;
-
-            if (canCraftA && canCraftB) {
-                // Priority 2: Within craftable, "new" (not crafted this session) items first
-                if (notCraftedThisSessionA && !notCraftedThisSessionB) return -1;
-                if (!notCraftedThisSessionA && notCraftedThisSessionB) return 1;
-            }
-
-            // Fallback: Alphabetical by output item name
-            const outputDefA = itemDefinitions.get(a.outputItemDefId.toString());
-            const outputDefB = itemDefinitions.get(b.outputItemDefId.toString());
-            const nameA = outputDefA?.name.toLowerCase() || '';
-            const nameB = outputDefB?.name.toLowerCase() || '';
-            return nameA.localeCompare(nameB);
+    // Convert player inventory to the format expected by CraftingSearchBar  
+    const inventoryForFiltering = useMemo(() => {
+        const inventory: Record<string, number> = {};
+        Array.from(itemDefinitions.values()).forEach(itemDef => {
+            const quantity = playerInventoryResources.get(itemDef.id.toString()) || 0;
+            inventory[itemDef.name] = quantity;
         });
-    }, [recipes, itemDefinitions, searchTerm, selectedCategory, playerInventoryResources, craftedRecipeIdsThisSession]);
+        
+
+        
+        return inventory;
+    }, [playerInventoryResources, itemDefinitions]);
+
+    // Handle filtered recipes from the search bar
+    const handleFilteredRecipesChange = (filteredRecipes: any[]) => {
+        const recipesWithScores = filteredRecipes.map(filterResult => {
+            const originalRecipe = Array.from(recipes.values()).find(r => r.recipeId.toString() === filterResult.id);
+            return {
+                recipe: originalRecipe!,
+                score: 0 // Score is already calculated in the filter
+            };
+        }).filter(item => item.recipe); // Remove any undefined recipes
+        
+        setFilteredRecipes(recipesWithScores);
+    };
+
+    // Initialize filtered recipes to empty - let CraftingSearchBar handle ALL filtering
+    useEffect(() => {
+        // Don't manually initialize - let the CraftingSearchBar algorithm do its work
+        if (recipeList.length === 0) {
+            setFilteredRecipes([]);
+        }
+    }, [recipeList]);
 
     return (
         <div className={styles.rightPane}> {/* Use existing right pane style */}
@@ -259,12 +267,16 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
                 placeholder="Search by item or ingredient name..."
                 onFocus={() => onCraftingSearchFocusChange?.(true)}
                 onBlur={() => onCraftingSearchFocusChange?.(false)}
+                recipes={recipeList}
+                playerInventory={inventoryForFiltering}
+                onFilteredRecipesChange={handleFilteredRecipesChange}
             />
             {/* Added scrollable class and data-attribute */}
             <div data-scrollable-region="crafting-items" className={`${styles.craftableItemsSection} ${styles.scrollableSection}`}> 
                 {/* Changed grid to list */}
                 <div className={styles.craftableItemsList}> 
-                    {filteredRecipes.map((recipe) => {
+                    {filteredRecipes.map((recipeData) => {
+                        const recipe = recipeData.recipe;
                         const outputDef = itemDefinitions.get(recipe.outputItemDefId.toString());
                         if (!outputDef) return null;
 

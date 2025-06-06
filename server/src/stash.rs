@@ -239,7 +239,7 @@ pub fn place_stash(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, wo
     let new_stash = Stash {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y,
+        pos_y: world_y + 24.0, // Compensate for bottom-anchoring (48px height / 2)
         chunk_index: new_chunk_index,
         placed_by: sender_id,
         is_hidden: false, // Explicitly set to not hidden on placement

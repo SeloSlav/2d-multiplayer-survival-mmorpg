@@ -563,7 +563,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
     let new_campfire = Campfire {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y,
+        pos_y: world_y + 42.0, // Compensate for bottom-anchoring + 10px render offset
         chunk_index: chunk_idx,
         placed_by: sender_id,
         placed_at: current_time,
