@@ -12,7 +12,7 @@ use log;
 
 // --- Constants --- 
 pub(crate) const BOX_COLLISION_RADIUS: f32 = 18.0; // Similar to campfire
-pub(crate) const BOX_COLLISION_Y_OFFSET: f32 = 10.0; // Similar to campfire
+pub(crate) const BOX_COLLISION_Y_OFFSET: f32 = 52.0; // Match the placement offset for proper collision detection
 pub(crate) const PLAYER_BOX_COLLISION_DISTANCE_SQUARED: f32 = (super::PLAYER_RADIUS + BOX_COLLISION_RADIUS) * (super::PLAYER_RADIUS + BOX_COLLISION_RADIUS);
 const BOX_INTERACTION_DISTANCE_SQUARED: f32 = 96.0 * 96.0; // Increased from 64.0 * 64.0 for more lenient interaction
 pub const NUM_BOX_SLOTS: usize = 18;
@@ -404,8 +404,10 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
 
     // 3. Validate Placement Location (Collision Checks)
     let new_chunk_index = calculate_chunk_index(world_x, world_y);
+    // Check collision with existing boxes - account for visual center offset
     if boxes.iter().any(|b| {
-        let dist_sq = (b.pos_x - world_x).powi(2) + (b.pos_y - world_y).powi(2);
+        let existing_visual_y = b.pos_y - BOX_COLLISION_Y_OFFSET;
+        let dist_sq = (b.pos_x - world_x).powi(2) + (existing_visual_y - world_y).powi(2);
         dist_sq < BOX_BOX_COLLISION_DISTANCE_SQUARED
     }) {
         return Err("Too close to another storage box.".to_string());
@@ -416,7 +418,7 @@ pub fn place_wooden_storage_box(ctx: &ReducerContext, item_instance_id: u64, wor
     let new_box = WoodenStorageBox {
         id: 0, // Auto-incremented
         pos_x: world_x,
-        pos_y: world_y + 52.0, // Compensate for bottom-anchoring + 20px render offset (64/2 + 20)
+        pos_y: world_y + BOX_COLLISION_Y_OFFSET, // Compensate for bottom-anchoring + render offset
         chunk_index: new_chunk_index,
         placed_by: sender_id,
         slot_instance_id_0: None, slot_def_id_0: None,
@@ -755,8 +757,11 @@ fn validate_box_interaction(
     }
 
     // Check distance between the interacting player and the box
+    // Account for the visual center offset that was applied during placement
+    // When placing, we add BOX_COLLISION_Y_OFFSET to the Y position to compensate for bottom-anchoring + render offset
+    // So we need to subtract that same offset to get the actual visual center for collision detection
     let dx = player.position_x - storage_box.pos_x;
-    let dy = player.position_y - storage_box.pos_y;
+    let dy = player.position_y - (storage_box.pos_y - BOX_COLLISION_Y_OFFSET);
     if (dx * dx + dy * dy) > BOX_INTERACTION_DISTANCE_SQUARED {
         return Err("Too far away".to_string());
     }
