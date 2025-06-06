@@ -208,7 +208,11 @@ export function renderInteractionLabels({
         if (box) {
             const text = isClosestInteractableBoxEmpty ? "Hold E to Pick Up" : "Press E to Open";
             const textX = box.posX;
-            const textY = box.posY - (BOX_HEIGHT / 2) - 10; // Offset above box sprite
+            // Account for the visual center offset that was applied during placement
+            // The stored posY has BOX_COLLISION_Y_OFFSET (52.0) added to it
+            const BOX_COLLISION_Y_OFFSET = 52.0;
+            const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
+            const textY = visualCenterY - (BOX_HEIGHT / 2) - 10; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);
         }

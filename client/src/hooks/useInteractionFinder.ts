@@ -325,11 +325,16 @@ export function useInteractionFinder({
             // Find closest wooden storage box and check emptiness
             if (woodenStorageBoxes) {
                 woodenStorageBoxes.forEach((box) => {
+                    // Account for the visual center offset that was applied during placement
+                    // The stored posY has BOX_COLLISION_Y_OFFSET (52.0) added to it
+                    const BOX_COLLISION_Y_OFFSET = 52.0;
+                    const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
+                    
                     const dx = playerX - box.posX;
-                    const dy = playerY - box.posY;
+                    const dy = playerY - visualCenterY; // Use visual center for interaction distance
                     const distSq = dx * dx + dy * dy;
                     if (distSq < closestBoxDistSq) {
-                        // Check shelter access control
+                        // Check shelter access control (use original stored position for shelter checks)
                         if (canPlayerInteractWithObjectInShelter(
                             playerX, playerY, localPlayer.identity.toHexString(),
                             box.posX, box.posY, shelters
