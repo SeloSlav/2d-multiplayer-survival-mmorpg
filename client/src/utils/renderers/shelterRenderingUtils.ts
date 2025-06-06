@@ -126,6 +126,8 @@ export const renderShelter = ({
     SHELTER_RENDER_WIDTH,
     SHELTER_RENDER_HEIGHT
   );
+  
+
 
   // --- Outline if owner is inside ---
   if (isOwnerInside) {

@@ -477,11 +477,7 @@ export function useEntityFiltering(
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
     // console.log('[DEBUG] visiblePotatoes count:', visiblePotatoes.length);
     
-    // Debug logging for shelters - only when shelters exist and every 60 frames
-    const shelterEntities = mappedEntities.filter(e => e.type === 'shelter');
-    if (shelterEntities.length > 0 && Math.floor(currentTime / 1000) % 3 === 0) {
-      // console.log('[Y-Sort] Shelters found:', shelterEntities.length, 'First shelter posY:', (shelterEntities[0].entity as any).posY);
-    }
+
     
     // Filter out any potential null/undefined entries AFTER mapping (just in case)
     const validEntities = mappedEntities.filter(e => e && e.entity);
@@ -493,7 +489,22 @@ export function useEntityFiltering(
       if (isPlayer(entity)) {
         // Players sort by their foot position (bottom of sprite)
         // Add offset to move from center to foot position
-        sortY = entity.positionY + 48 // Add half player height to get foot position
+        sortY = entity.positionY + 48; // Add half player height to get foot position
+        
+        // Special case: If player is near a shelter and approaching from below,
+        // boost their sort position to ensure they render in front
+        const nearbyShelter = visibleShelters.find(shelter => {
+          const dx = entity.positionX - shelter.posX;
+          const dy = entity.positionY - shelter.posY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          // Check if player is within 250px of shelter and below/at the shelter base
+          return distance < 250 && entity.positionY > shelter.posY - 150;
+        });
+        
+        if (nearbyShelter) {
+          sortY += 400; // Massive boost to ensure player appears on top
+        }
+        
         return sortY;
       }
 
