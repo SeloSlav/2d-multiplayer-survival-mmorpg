@@ -67,7 +67,7 @@ pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const TORCH_WARMTH_PER_SECOND: f32 = 0.5;
 
 // Add dodge roll stamina cost constant
-pub(crate) const DODGE_ROLL_STAMINA_COST: f32 = 25.0;
+pub(crate) const DODGE_ROLL_STAMINA_COST: f32 = 10.0;
 
 // Add constants for max values
 pub(crate) const PLAYER_MAX_HUNGER: f32 = 250.0;

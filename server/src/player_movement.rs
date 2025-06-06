@@ -685,31 +685,28 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         }
     }
 
-    // Check stamina cost - import the constant
+    // Check if player is providing movement input
+    if move_x == 0.0 && move_y == 0.0 {
+        return Err("Must be moving to dodge roll. Hold a movement key (WASD) while pressing dodge.".to_string());
+    }
+
+    // Import stamina constants
     use crate::player_stats::DODGE_ROLL_STAMINA_COST;
+
+    // Check stamina cost before proceeding
     if current_player.stamina < DODGE_ROLL_STAMINA_COST {
         return Err(format!("Not enough stamina to dodge roll. Need {:.0}, have {:.1}", 
                          DODGE_ROLL_STAMINA_COST, current_player.stamina));
     }
 
-    // Calculate dodge direction based on movement input (supports 8 directions)
-    let (dodge_dx, dodge_dy) = if move_x == 0.0 && move_y == 0.0 {
-        // No movement input, use player's facing direction as fallback
-        match current_player.direction.as_str() {
-            "up" => (0.0, -1.0),
-            "down" => (0.0, 1.0),
-            "left" => (-1.0, 0.0),
-            "right" => (1.0, 0.0),
-            _ => (0.0, 1.0), // Default to down if unknown direction
-        }
+    // Calculate dodge direction based on movement input (we know movement input exists due to earlier check)
+    // Normalize the movement vector to get proper direction
+    let magnitude = (move_x * move_x + move_y * move_y).sqrt();
+    let (dodge_dx, dodge_dy) = if magnitude > 0.0 {
+        (move_x / magnitude, move_y / magnitude)
     } else {
-        // Normalize the movement vector to get proper direction
-        let magnitude = (move_x * move_x + move_y * move_y).sqrt();
-        if magnitude > 0.0 {
-            (move_x / magnitude, move_y / magnitude)
-        } else {
-            (0.0, 1.0) // Fallback to down
-        }
+        // This shouldn't happen due to our earlier check, but fallback just in case
+        (0.0, 1.0)
     };
 
     // Calculate target position
@@ -773,8 +770,8 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
     updated_player.last_update = ctx.timestamp; // Update timestamp since stamina changed
     players.identity().update(updated_player);
 
-    log::info!("Player {:?} started dodge roll in direction: {} (distance: {:.1}px, stamina cost: {:.0})", 
-               sender_id, direction_string, DODGE_ROLL_DISTANCE, DODGE_ROLL_STAMINA_COST);
+    log::info!("Player {:?} started dodge roll in direction: {} (stamina cost: {:.0})", 
+               sender_id, direction_string, DODGE_ROLL_STAMINA_COST);
 
     Ok(())
 }
