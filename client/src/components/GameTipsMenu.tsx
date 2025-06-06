@@ -44,7 +44,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                 'Keep an eye on your health, hunger, and thirst meters.',
                 'Cooked food provides better nutrition than raw food.',
                 'Stay near light sources at night - darkness can be dangerous.',
-                'Rain will extinguish campfires, so build shelters for protection.',
+                'Heavy rain will extinguish campfires, so build shelters for protection.',
                 'You can use plant fibers in campfire but they burn twice as fast as wood.',
             ]
         },

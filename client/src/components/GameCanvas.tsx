@@ -70,6 +70,7 @@ import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
 import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
+import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
@@ -570,6 +571,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ctx.translate(cameraOffsetX, cameraOffsetY);
     // Pass the necessary viewport parameters to the optimized background renderer
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
+
+    // --- Render Water Overlay After Terrain ---
+    // Water overlay shows animated teal lines on water surfaces - renders above terrain but below everything else
+    // Note: Context is already translated by cameraOffset, so we pass the actual camera world position
+    renderWaterOverlay(
+      ctx,
+      -cameraOffsetX, // Camera world X position 
+      -cameraOffsetY, // Camera world Y position
+      currentCanvasWidth,
+      currentCanvasHeight,
+      deltaTimeRef.current / 1000, // Convert milliseconds to seconds
+      worldTiles // Pass world tiles for water tile detection
+    );
+    // --- End Water Overlay ---
 
     const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) 
       ? isPlacementTooFar(placementInfo, localPlayer.positionX, localPlayer.positionY, currentWorldMouseX, currentWorldMouseY)
