@@ -39,7 +39,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 { key: 'F', description: 'Toggle auto-walk' },
                 { key: 'W/A/S/D (during auto-walk)', description: 'Override auto-walk direction' },
                 { key: 'Shift + W/A/S/D', description: 'Cancel auto-walk and sprint' },
-                { key: 'Q', description: 'Dodge roll (8-directional)' },
+                { key: 'Q', description: 'Dodge roll (8-directional, 25 stamina)' },
             ]
         },
         {

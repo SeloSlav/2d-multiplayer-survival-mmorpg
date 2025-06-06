@@ -685,6 +685,13 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         }
     }
 
+    // Check stamina cost - import the constant
+    use crate::player_stats::DODGE_ROLL_STAMINA_COST;
+    if current_player.stamina < DODGE_ROLL_STAMINA_COST {
+        return Err(format!("Not enough stamina to dodge roll. Need {:.0}, have {:.1}", 
+                         DODGE_ROLL_STAMINA_COST, current_player.stamina));
+    }
+
     // Calculate dodge direction based on movement input (supports 8 directions)
     let (dodge_dx, dodge_dy) = if move_x == 0.0 && move_y == 0.0 {
         // No movement input, use player's facing direction as fallback
@@ -760,8 +767,14 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         }
     }
 
-    log::info!("Player {:?} started dodge roll in direction: {} (distance: {:.1}px)", 
-               sender_id, direction_string, DODGE_ROLL_DISTANCE);
+    // Deduct stamina cost from player
+    let mut updated_player = current_player.clone();
+    updated_player.stamina = (updated_player.stamina - DODGE_ROLL_STAMINA_COST).max(0.0);
+    updated_player.last_update = ctx.timestamp; // Update timestamp since stamina changed
+    players.identity().update(updated_player);
+
+    log::info!("Player {:?} started dodge roll in direction: {} (distance: {:.1}px, stamina cost: {:.0})", 
+               sender_id, direction_string, DODGE_ROLL_DISTANCE, DODGE_ROLL_STAMINA_COST);
 
     Ok(())
 }
