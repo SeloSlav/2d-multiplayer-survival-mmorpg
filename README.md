@@ -262,15 +262,6 @@ While the project is still evolving, a key goal is maintainability. As features 
 
 ## ⚙️ Client Configuration
 
-### Game Parameters (`client/src/config/gameConfig.ts`)
-
-This file centralizes client-side values needed primarily for rendering the game world. 
-The server uses its own authoritative values for game logic. Modifying these client values only affects local visuals.
-
-*   `tileSize`: Visual pixel size for grid tiles.
-*   `worldWidth`, `worldHeight`: Visual dimensions of the world grid (in tiles).
-*   `spriteWidth`, `spriteHeight`: Pixel dimensions of a single sprite frame for rendering.
-
 ### SpacetimeDB Connection (`client/src/App.tsx`)
 
 To connect the client to your SpacetimeDB instance, configure the following constants near the top of `client/src/App.tsx`:
