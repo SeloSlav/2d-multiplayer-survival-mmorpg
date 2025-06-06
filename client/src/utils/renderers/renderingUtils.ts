@@ -575,16 +575,20 @@ const updateGhostTrail = (
 };
 
 /**
- * Helper function to get sprite sheet offsets for a specific direction
+ * Helper function to get sprite sheet offsets for a specific direction (supports 8 directions)
  */
 const getDirectionSpriteOffsets = (direction: string): { x: number, y: number } => {
     let spriteRow = 2; // Default Down
     switch (direction) {
-        case 'up':    spriteRow = 0; break;
-        case 'right': spriteRow = 1; break;
-        case 'down':  spriteRow = 2; break;
-        case 'left':  spriteRow = 3; break;
-        default:      spriteRow = 2; break;
+        case 'up':         spriteRow = 0; break;
+        case 'up_right':   spriteRow = 0; break; // Use up sprite for diagonal up directions
+        case 'right':      spriteRow = 1; break;
+        case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+        case 'down':       spriteRow = 2; break;
+        case 'down_left':  spriteRow = 2; break; // Use down sprite for diagonal down-left
+        case 'left':       spriteRow = 3; break;
+        case 'up_left':    spriteRow = 3; break; // Use left sprite for diagonal up-left
+        default:           spriteRow = 2; break;
     }
     
     return {

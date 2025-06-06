@@ -634,9 +634,10 @@ pub fn update_player_facing_direction(
 /// 
 /// This reducer is called by the client when a player attempts to dodge roll.
 /// It checks if the player can dodge roll (not crouching, not dead, not knocked out),
-/// verifies the cooldown, and initiates the dodge roll in the player's facing direction.
+/// verifies the cooldown, and initiates the dodge roll in the specified direction.
+/// Supports 8-directional movement including diagonals.
 #[spacetimedb::reducer]
-pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
+pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), String> {
     let sender_id = ctx.sender;
     let players = ctx.db.player();
     let dodge_roll_states = ctx.db.player_dodge_roll_state();
@@ -684,13 +685,24 @@ pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
         }
     }
 
-    // Calculate dodge direction based on player's facing direction
-    let (dodge_dx, dodge_dy) = match current_player.direction.as_str() {
-        "up" => (0.0, -1.0),
-        "down" => (0.0, 1.0),
-        "left" => (-1.0, 0.0),
-        "right" => (1.0, 0.0),
-        _ => (0.0, 1.0), // Default to down if unknown direction
+    // Calculate dodge direction based on movement input (supports 8 directions)
+    let (dodge_dx, dodge_dy) = if move_x == 0.0 && move_y == 0.0 {
+        // No movement input, use player's facing direction as fallback
+        match current_player.direction.as_str() {
+            "up" => (0.0, -1.0),
+            "down" => (0.0, 1.0),
+            "left" => (-1.0, 0.0),
+            "right" => (1.0, 0.0),
+            _ => (0.0, 1.0), // Default to down if unknown direction
+        }
+    } else {
+        // Normalize the movement vector to get proper direction
+        let magnitude = (move_x * move_x + move_y * move_y).sqrt();
+        if magnitude > 0.0 {
+            (move_x / magnitude, move_y / magnitude)
+        } else {
+            (0.0, 1.0) // Fallback to down
+        }
     };
 
     // Calculate target position
@@ -702,6 +714,27 @@ pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
     let clamped_target_x = target_x.max(effective_radius).min(WORLD_WIDTH_PX - effective_radius);
     let clamped_target_y = target_y.max(effective_radius).min(WORLD_HEIGHT_PX - effective_radius);
 
+    // Determine direction string for 8-directional support
+    let direction_string = if dodge_dx == 0.0 && dodge_dy < 0.0 {
+        "up".to_string()
+    } else if dodge_dx == 0.0 && dodge_dy > 0.0 {
+        "down".to_string()
+    } else if dodge_dx < 0.0 && dodge_dy == 0.0 {
+        "left".to_string()
+    } else if dodge_dx > 0.0 && dodge_dy == 0.0 {
+        "right".to_string()
+    } else if dodge_dx < 0.0 && dodge_dy < 0.0 {
+        "up_left".to_string()
+    } else if dodge_dx > 0.0 && dodge_dy < 0.0 {
+        "up_right".to_string()
+    } else if dodge_dx < 0.0 && dodge_dy > 0.0 {
+        "down_left".to_string()
+    } else if dodge_dx > 0.0 && dodge_dy > 0.0 {
+        "down_right".to_string()
+    } else {
+        current_player.direction.clone() // Fallback to player's facing direction
+    };
+
     // Create or update dodge roll state
     let dodge_state = PlayerDodgeRollState {
         player_id: sender_id,
@@ -710,7 +743,7 @@ pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
         start_y: current_player.position_y,
         target_x: clamped_target_x,
         target_y: clamped_target_y,
-        direction: current_player.direction.clone(),
+        direction: direction_string.clone(),
         last_dodge_time_ms: now_ms,
     };
 
@@ -728,7 +761,7 @@ pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
     }
 
     log::info!("Player {:?} started dodge roll in direction: {} (distance: {:.1}px)", 
-               sender_id, current_player.direction, DODGE_ROLL_DISTANCE);
+               sender_id, direction_string, DODGE_ROLL_DISTANCE);
 
     Ok(())
 }

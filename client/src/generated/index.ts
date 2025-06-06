@@ -1570,15 +1570,19 @@ export class RemoteReducers {
     this.connection.offReducer("despawn_expired_items", callback);
   }
 
-  dodgeRoll() {
-    this.connection.callReducer("dodge_roll", new Uint8Array(0), this.setCallReducerFlags.dodgeRollFlags);
+  dodgeRoll(moveX: number, moveY: number) {
+    const __args = { moveX, moveY };
+    let __writer = new BinaryWriter(1024);
+    DodgeRoll.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("dodge_roll", __argsBuffer, this.setCallReducerFlags.dodgeRollFlags);
   }
 
-  onDodgeRoll(callback: (ctx: ReducerEventContext) => void) {
+  onDodgeRoll(callback: (ctx: ReducerEventContext, moveX: number, moveY: number) => void) {
     this.connection.onReducer("dodge_roll", callback);
   }
 
-  removeOnDodgeRoll(callback: (ctx: ReducerEventContext) => void) {
+  removeOnDodgeRoll(callback: (ctx: ReducerEventContext, moveX: number, moveY: number) => void) {
     this.connection.offReducer("dodge_roll", callback);
   }
 

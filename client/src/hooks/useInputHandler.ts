@@ -429,8 +429,17 @@ export const useInputHandler = ({
                 
                 if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
                     try {
-                        console.log(`[InputHandler] F key pressed, triggering dodge roll`);
-                        currentConnection.reducers.dodgeRoll();
+                        // Get current movement direction from pressed keys
+                        let moveX = 0;
+                        let moveY = 0;
+                        
+                        if (keysPressed.current.has('a')) moveX -= 1;
+                        if (keysPressed.current.has('d')) moveX += 1;
+                        if (keysPressed.current.has('w')) moveY -= 1;
+                        if (keysPressed.current.has('s')) moveY += 1;
+                        
+                        console.log(`[InputHandler] F key pressed, triggering dodge roll with direction: (${moveX}, ${moveY})`);
+                        currentConnection.reducers.dodgeRoll(moveX, moveY);
                     } catch (err) {
                         console.error("[InputHandler] Error calling dodgeRoll reducer:", err);
                     }

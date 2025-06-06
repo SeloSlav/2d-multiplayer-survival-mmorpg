@@ -31,7 +31,10 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type DodgeRoll = {};
+export type DodgeRoll = {
+  moveX: number,
+  moveY: number,
+};
 
 /**
  * A namespace for generated helper functions.
@@ -43,6 +46,8 @@ export namespace DodgeRoll {
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
+      new ProductTypeElement("moveX", AlgebraicType.createF32Type()),
+      new ProductTypeElement("moveY", AlgebraicType.createF32Type()),
     ]);
   }
 
