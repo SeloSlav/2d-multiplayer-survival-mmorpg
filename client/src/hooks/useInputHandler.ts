@@ -422,50 +422,32 @@ export const useInputHandler = ({
                 return; // 'z' is handled
             }
 
-            // Handle WASD/Arrow keys for redirecting auto-walk or manual movement
-            const isMovementKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
+            // Dodge Roll (F key)
+            if (key === 'f' && !event.repeat) {
+                const currentConnection = connectionRef.current;
+                const currentLocalPlayer = localPlayerRef.current;
+                
+                if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
+                    try {
+                        console.log(`[InputHandler] F key pressed, triggering dodge roll`);
+                        currentConnection.reducers.dodgeRoll();
+                    } catch (err) {
+                        console.error("[InputHandler] Error calling dodgeRoll reducer:", err);
+                    }
+                }
+                return; // F key handled
+            }
 
-            if (isMovementKey && isAutoWalkingRef.current) {
+            // Handle movement keys (WASD)
+            if (['w', 'a', 's', 'd'].includes(key)) {
                 // Cancel auto-walk if shift + movement key is pressed
-                if (isShiftHeldRef.current) {
+                if (isShiftHeldRef.current && isAutoWalkingRef.current) {
                     isAutoWalkingRef.current = false;
                     // console.log("[InputHandler] Auto-walk canceled by Shift + movement key");
-                    // Don't return here - let the key be processed normally for manual movement
-                } else {
-                    // If auto-walking, these keys now *redirect* the auto-walk.
-                    // We need to calculate the new direction based on *all currently pressed* movement keys.
-                    // To do this, temporarily add the current key to keysPressed, calculate direction, then remove it if it wasn't a sustained press.
-                    // However, a simpler approach for now: if a movement key is pressed while auto-walking, just update the direction.
-                    // This means tapping a new direction key will change auto-walk direction.
-                    
-                    // First, update keysPressed *before* calculating direction for redirection
-                    if (!event.repeat) { // Only add if it's a new press, not a hold-over from before auto-walk started
-                        keysPressed.current.add(key);
-                    }
-
-                    const currentDx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                                      (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-                    const currentDy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                                      (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
-
-                    if (currentDx !== 0 || currentDy !== 0) {
-                        autoWalkDirectionRef.current = { dx: currentDx, dy: currentDy };
-                        lastMovementDirectionRef.current = { dx: currentDx, dy: currentDy }; // Also update last actual movement
-                        // console.log(`[InputHandler WASD] Auto-walk redirected to: dx=${currentDx}, dy=${currentDy}`);
-                    }
-                    // Do NOT add to keysPressed.current here in the main flow if auto-walking,
-                    // as processInputsAndActions will use autoWalkDirectionRef.
-                    // However, we *do* want keysPressed to reflect the current state for this calculation.
-                    // The `keysPressed.current.add(key)` above handles this temporarily.
-                    // We need to ensure keys are removed on keyUp if they were only for redirection.
-                    return; // Movement key handled for redirection
                 }
-            }
-            
-            // If not auto-walking or not a movement key, add to keysPressed as normal
-            // (unless it was 'q' which is already returned)
-            if (!event.repeat) { // Only add non-repeated keys. Movement keys during auto-walk are handled above.
+                
                 keysPressed.current.add(key);
+                return; // Movement keys handled
             }
 
             // Jump
@@ -738,18 +720,6 @@ export const useInputHandler = ({
                         return; // Hold initiated or visible stash opened, interaction handled
                     }
                 }
-            }
-
-            // Handle movement keys (WASD)
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                // Cancel auto-walk if shift + movement key is pressed
-                if (isShiftHeldRef.current && isAutoWalkingRef.current) {
-                    isAutoWalkingRef.current = false;
-                    // console.log("[InputHandler] Auto-walk canceled by Shift + movement key");
-                }
-                
-                keysPressed.current.add(key);
-                return; // Movement keys handled
             }
         };
 

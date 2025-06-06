@@ -25,12 +25,34 @@ use crate::player_collision;
 // Import grass types
 use crate::grass::GrassAppearanceType;
 
+// === DODGE ROLL CONSTANTS ===
+pub const DODGE_ROLL_DISTANCE: f32 = 300.0; // Increased from 120 to 300 pixels (about 7.5x player radius)
+pub const DODGE_ROLL_DURATION_MS: u64 = 350; // Increased from 250 to 350ms for more dramatic effect
+pub const DODGE_ROLL_COOLDOWN_MS: u64 = 1000; // 1 second cooldown between dodge rolls
+pub const DODGE_ROLL_SPEED: f32 = DODGE_ROLL_DISTANCE / (DODGE_ROLL_DURATION_MS as f32 / 1000.0); // Pixels per second
+
+// Table to track dodge roll state for each player
+#[spacetimedb::table(name = player_dodge_roll_state, public)]
+#[derive(Clone, Debug)]
+pub struct PlayerDodgeRollState {
+    #[primary_key]
+    player_id: Identity,
+    start_time_ms: u64,
+    start_x: f32,
+    start_y: f32,
+    target_x: f32,
+    target_y: f32,
+    direction: String, // "up", "down", "left", "right"
+    last_dodge_time_ms: u64, // For cooldown tracking
+}
+
 /// Updates player position based on client input, handling:
 /// - Movement speed and direction
 /// - Sprinting state and speed modifiers
 /// - Collision detection with world objects
 /// - Animation direction updates
 /// - Death and knocked out state checks
+/// - Dodge roll physics when active
 #[spacetimedb::reducer]
 pub fn update_player_position(
     ctx: &ReducerContext,
@@ -44,6 +66,7 @@ pub fn update_player_position(
     let stones = ctx.db.stone();
     let campfires = ctx.db.campfire();
     let wooden_storage_boxes = ctx.db.wooden_storage_box();
+    let dodge_roll_states = ctx.db.player_dodge_roll_state();
 
     let current_player = players.identity()
         .find(sender_id)
@@ -55,6 +78,60 @@ pub fn update_player_position(
         return Ok(()); // Do nothing if dead
     }
 
+    let now = ctx.timestamp;
+    let now_ms = (now.to_micros_since_unix_epoch() / 1000) as u64;
+
+    // === CHECK FOR ACTIVE DODGE ROLL ===
+    let active_dodge_roll = dodge_roll_states.player_id().find(&sender_id);
+    
+    // If player is dodge rolling, handle dodge roll physics instead of normal movement
+    if let Some(dodge_state) = active_dodge_roll {
+        let elapsed_ms = now_ms.saturating_sub(dodge_state.start_time_ms);
+        
+        if elapsed_ms < DODGE_ROLL_DURATION_MS {
+            // Dodge roll is still active - calculate position based on dodge physics
+            let progress = elapsed_ms as f32 / DODGE_ROLL_DURATION_MS as f32;
+            
+            // Use easing for more natural movement (ease-out)
+            let eased_progress = 1.0 - (1.0 - progress).powi(3);
+            
+            let target_x = dodge_state.start_x + (dodge_state.target_x - dodge_state.start_x) * eased_progress;
+            let target_y = dodge_state.start_y + (dodge_state.target_y - dodge_state.start_y) * eased_progress;
+            
+            // Clamp to world bounds
+            let effective_radius = get_effective_player_radius(current_player.is_crouching);
+            let clamped_x = target_x.max(effective_radius).min(WORLD_WIDTH_PX - effective_radius);
+            let clamped_y = target_y.max(effective_radius).min(WORLD_HEIGHT_PX - effective_radius);
+            
+            // Apply collision detection during dodge roll
+            let (final_x, final_y) = player_collision::resolve_push_out_collision(
+                ctx, 
+                sender_id, 
+                clamped_x,
+                clamped_y
+            );
+            
+            // Update player position
+            let mut player_to_update = current_player.clone();
+            player_to_update.position_x = final_x;
+            player_to_update.position_y = final_y;
+            player_to_update.direction = dodge_state.direction.clone();
+            player_to_update.last_update = now;
+            
+            players.identity().update(player_to_update);
+            
+            log::trace!("Player {:?} dodge rolling: progress {:.2}, pos ({:.1}, {:.1})", 
+                       sender_id, progress, final_x, final_y);
+            
+            return Ok(());
+        } else {
+            // Dodge roll finished - clean up state
+            dodge_roll_states.player_id().delete(&sender_id);
+            log::debug!("Player {:?} dodge roll completed", sender_id);
+        }
+    }
+
+    // === NORMAL MOVEMENT LOGIC (unchanged from here) ===
     // --- NEW: If player is knocked out, prevent sprinting ---
     let mut current_sprinting_state = current_player.is_sprinting;
     if current_player.is_knocked_out {
@@ -79,8 +156,6 @@ pub fn update_player_position(
         // No movement - keep current direction (mouse-based updates will handle this)
         current_player.direction.as_str()
     };
-    
-    let now = ctx.timestamp;
 
     // --- ADD: Water Detection ---
     let is_on_water = is_player_on_water(ctx, current_player.position_x, current_player.position_y);
@@ -355,6 +430,9 @@ pub fn update_player_position(
  * - Jumping:   Enables vertical movement with cooldown
  *             restrictions
  * 
+ * - Dodge Roll: Quick movement in facing direction
+ *              with cooldown restrictions
+ * 
  * All movement actions require the player to be alive
  * and conscious.
  * ===================================================
@@ -548,6 +626,109 @@ pub fn update_player_facing_direction(
         players.identity().update(current_player);
         log::trace!("Player {:?} facing direction updated to: {} (mouse-based, not moving)", sender_id, new_direction);
     }
+
+    Ok(())
+}
+
+/// Reducer that handles player dodge roll requests.
+/// 
+/// This reducer is called by the client when a player attempts to dodge roll.
+/// It checks if the player can dodge roll (not crouching, not dead, not knocked out),
+/// verifies the cooldown, and initiates the dodge roll in the player's facing direction.
+#[spacetimedb::reducer]
+pub fn dodge_roll(ctx: &ReducerContext) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+    let dodge_roll_states = ctx.db.player_dodge_roll_state();
+
+    let current_player = players.identity()
+        .find(&sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    // Don't allow dodge rolling if dead
+    if current_player.is_dead {
+        return Err("Cannot dodge roll while dead.".to_string());
+    }
+
+    // Don't allow dodge rolling if knocked out
+    if current_player.is_knocked_out {
+        return Err("Cannot dodge roll while knocked out.".to_string());
+    }
+
+    // Don't allow dodge rolling while crouching
+    if current_player.is_crouching {
+        return Err("Cannot dodge roll while crouching.".to_string());
+    }
+
+    // Don't allow dodge rolling on water
+    if is_player_on_water(ctx, current_player.position_x, current_player.position_y) {
+        return Err("Cannot dodge roll on water.".to_string());
+    }
+
+    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+
+    // Check if player is already dodge rolling
+    if let Some(existing_dodge) = dodge_roll_states.player_id().find(&sender_id) {
+        let elapsed_ms = now_ms.saturating_sub(existing_dodge.start_time_ms);
+        if elapsed_ms < DODGE_ROLL_DURATION_MS {
+            return Err("Already dodge rolling.".to_string());
+        }
+    }
+
+    // Check cooldown
+    if let Some(existing_dodge) = dodge_roll_states.player_id().find(&sender_id) {
+        let time_since_last_dodge = now_ms.saturating_sub(existing_dodge.last_dodge_time_ms);
+        if time_since_last_dodge < DODGE_ROLL_COOLDOWN_MS {
+            return Err(format!("Dodge roll on cooldown. Wait {:.1}s", 
+                             (DODGE_ROLL_COOLDOWN_MS - time_since_last_dodge) as f32 / 1000.0));
+        }
+    }
+
+    // Calculate dodge direction based on player's facing direction
+    let (dodge_dx, dodge_dy) = match current_player.direction.as_str() {
+        "up" => (0.0, -1.0),
+        "down" => (0.0, 1.0),
+        "left" => (-1.0, 0.0),
+        "right" => (1.0, 0.0),
+        _ => (0.0, 1.0), // Default to down if unknown direction
+    };
+
+    // Calculate target position
+    let target_x = current_player.position_x + (dodge_dx * DODGE_ROLL_DISTANCE);
+    let target_y = current_player.position_y + (dodge_dy * DODGE_ROLL_DISTANCE);
+
+    // Clamp target to world bounds
+    let effective_radius = get_effective_player_radius(current_player.is_crouching);
+    let clamped_target_x = target_x.max(effective_radius).min(WORLD_WIDTH_PX - effective_radius);
+    let clamped_target_y = target_y.max(effective_radius).min(WORLD_HEIGHT_PX - effective_radius);
+
+    // Create or update dodge roll state
+    let dodge_state = PlayerDodgeRollState {
+        player_id: sender_id,
+        start_time_ms: now_ms,
+        start_x: current_player.position_x,
+        start_y: current_player.position_y,
+        target_x: clamped_target_x,
+        target_y: clamped_target_y,
+        direction: current_player.direction.clone(),
+        last_dodge_time_ms: now_ms,
+    };
+
+    // Insert or update the dodge roll state
+    if dodge_roll_states.player_id().find(&sender_id).is_some() {
+        dodge_roll_states.player_id().update(dodge_state);
+    } else {
+        match dodge_roll_states.try_insert(dodge_state) {
+            Ok(_) => {},
+            Err(e) => {
+                log::error!("Failed to insert dodge roll state for player {:?}: {}", sender_id, e);
+                return Err("Failed to start dodge roll.".to_string());
+            }
+        }
+    }
+
+    log::info!("Player {:?} started dodge roll in direction: {} (distance: {:.1}px)", 
+               sender_id, current_player.direction, DODGE_ROLL_DISTANCE);
 
     Ok(())
 }

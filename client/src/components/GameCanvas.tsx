@@ -658,7 +658,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       onPlayerHover: handlePlayerHover,
       cycleProgress: currentCycleProgress,
       renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
-      localPlayerPosition: localPlayer ? { x: localPlayer.positionX, y: localPlayer.positionY } : null
+      localPlayerPosition: localPlayer ? { x: localPlayer.positionX, y: localPlayer.positionY } : null,
+      playerDodgeRollStates
     });
     // --- End Y-Sorted Entities ---
 
@@ -973,8 +974,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height]);
 
   // Call useSpacetimeTables (replacing the previous faulty call)
-  // Ignore return values for now using placeholder {}
-  const spacetimeTableHookStates = useSpacetimeTables({
+  // Extract playerDodgeRollStates from the hook
+  const { playerDodgeRollStates } = useSpacetimeTables({
     connection,
     cancelPlacement: placementActions.cancelPlacement,
     viewport: worldViewport, // Pass calculated viewport (can be null)

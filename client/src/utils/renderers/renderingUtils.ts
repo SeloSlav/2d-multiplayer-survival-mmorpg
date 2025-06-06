@@ -19,9 +19,11 @@ import {
     Pumpkin as SpacetimeDBPumpkin,
     Grass as SpacetimeDBGrass,
     Projectile as SpacetimeDBProjectile,
-    Shelter as SpacetimeDBShelter
+    Shelter as SpacetimeDBShelter,
+    PlayerDodgeRollState as SpacetimeDBPlayerDodgeRollState
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
+import { gameConfig } from '../../config/gameConfig';
 // Import individual rendering functions
 import { renderTree } from './treeRenderingUtils';
 import { renderStone } from './stoneRenderingUtils';
@@ -52,8 +54,30 @@ const playerMovementCache = new Map<string, {
     lastKnownPosition: { x: number, y: number } | null
 }>();
 
+// Dodge roll visual effects cache
+interface DodgeRollVisualState {
+    startTime: number;
+    startX: number;
+    startY: number;
+    targetX: number;
+    targetY: number;
+    direction: string;
+    ghostTrailPositions: Array<{ x: number, y: number, alpha: number, timestamp: number }>;
+}
+
+const dodgeRollVisualCache = new Map<string, DodgeRollVisualState>();
+
 // Movement buffer duration - keep animation going for this long after movement stops
 const MOVEMENT_BUFFER_MS = 150;
+
+// Dodge roll constants (should match server)
+const DODGE_ROLL_DURATION_MS = 250;
+const DODGE_ROLL_DISTANCE = 120;
+
+// Ghost trail constants
+const GHOST_TRAIL_LENGTH = 8;
+const GHOST_TRAIL_SPACING_MS = 15; // Add new ghost every 15ms
+const GHOST_TRAIL_FADE_MS = 200; // Fade out over 200ms
 
 interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
@@ -77,6 +101,7 @@ interface RenderYSortedEntitiesProps {
     hoveredPlayerIds: Set<string>;
     onPlayerHover: (identity: string, hover: boolean) => void;
     cycleProgress: number;
+    playerDodgeRollStates: Map<string, SpacetimeDBPlayerDodgeRollState>; // Add dodge roll states
     renderPlayerCorpse: (props: { 
         ctx: CanvasRenderingContext2D; 
         corpse: SpacetimeDBPlayerCorpse; 
@@ -114,6 +139,7 @@ export const renderYSortedEntities = ({
     hoveredPlayerIds,
     onPlayerHover,
     cycleProgress,
+    playerDodgeRollStates,
     renderPlayerCorpse: renderCorpse,
     localPlayerPosition,
 }: RenderYSortedEntitiesProps) => {
@@ -136,13 +162,13 @@ export const renderYSortedEntities = ({
 
               if (currentIsDead !== prevIsDead || 
                   (!currentIsDead && currentLastHitTimeEpoch !== prevLastHitTimeEpoch)) {
-                console.log(`[renderingUtils] LocalPlayer State Change: ${player.username} (ID: ${playerId}). ` +
-                            `isDead: ${currentIsDead} (was: ${prevIsDead}), ` +
-                            `lastHitTime: ${currentLastHitTimeEpoch} (was: ${prevLastHitTimeEpoch})`);
-                playerDebugStateCache.set(playerId, { 
-                  prevIsDead: currentIsDead, 
-                  prevLastHitTime: currentLastHitTimeEpoch 
-                });
+                // console.log(`[renderingUtils] LocalPlayer State Change: ${player.username} (ID: ${playerId}). ` +
+                //             `isDead: ${currentIsDead} (was: ${prevIsDead}), ` +
+                //             `lastHitTime: ${currentLastHitTimeEpoch} (was: ${prevLastHitTimeEpoch})`);
+                // playerDebugStateCache.set(playerId, { 
+                //   prevIsDead: currentIsDead, 
+                //   prevLastHitTime: currentLastHitTimeEpoch 
+                // });
               }
             }
             // ##########################
@@ -150,6 +176,21 @@ export const renderYSortedEntities = ({
            const lastPos = lastPositionsRef.current.get(playerId);
            let isPlayerMoving = false;
            let movementReason = 'none'; // Debug: track why player is considered moving
+           
+           // === DODGE ROLL DETECTION ===
+           const isDodgeRolling = detectDodgeRoll(playerId, player, lastPos || null, nowMs, playerDodgeRollStates);
+           if (isDodgeRolling) {
+               movementReason = 'dodge_rolling';
+               isPlayerMoving = true;
+           }
+           
+           // Update ghost trail for dodge roll effects
+           updateGhostTrail(playerId, player, nowMs, isDodgeRolling);
+           
+           // Debug logging for local player dodge roll detection
+        //    if (localPlayerId && playerId === localPlayerId && isDodgeRolling) {
+        //        console.log(`[renderingUtils] Local player ${player.username} dodge rolling detected at (${player.positionX.toFixed(1)}, ${player.positionY.toFixed(1)})`);
+        //    }
            
            // Get or create movement cache for this player
            let movementCache = playerMovementCache.get(playerId);
@@ -162,9 +203,9 @@ export const renderYSortedEntities = ({
                playerMovementCache.set(playerId, movementCache);
            }
            
-           // Check for actual position changes
+           // Check for actual position changes (skip if already detected dodge rolling)
            let hasPositionChanged = false;
-           if (lastPos) {
+           if (!isDodgeRolling && lastPos) {
                 const dx = Math.abs(player.positionX - lastPos.x);
                 const dy = Math.abs(player.positionY - lastPos.y);
                 // Use a smaller threshold (0.1) but with smoothing
@@ -179,6 +220,11 @@ export const renderYSortedEntities = ({
                movementCache.isCurrentlyMoving = true;
                isPlayerMoving = true;
                movementReason = 'position_change';
+           } else if (isDodgeRolling) {
+               // Dodge rolling was already detected above, keep movement active
+               movementCache.lastMovementTime = nowMs;
+               movementCache.isCurrentlyMoving = true;
+               // isPlayerMoving and movementReason already set above
            } else {
                // Check if we're still in the movement buffer period
                const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
@@ -248,6 +294,12 @@ export const renderYSortedEntities = ({
             // Determine rendering order based on player direction
             if (player.direction === 'up' || player.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
+              
+              // Render ghost trail BEFORE everything else for these directions
+              if (heroImg && isDodgeRolling) {
+                  renderGhostTrail(ctx, playerId, heroImg, player);
+              }
+              
               if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
@@ -285,6 +337,11 @@ export const renderYSortedEntities = ({
               }
               if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+              }
+              
+              // Render ghost trail AFTER everything else for these directions
+              if (heroImg && isDodgeRolling) {
+                  renderGhostTrail(ctx, playerId, heroImg, player);
               }
            }
         } else if (type === 'tree') {
@@ -424,5 +481,171 @@ export const renderYSortedEntities = ({
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }
+    });
+};
+
+/**
+ * Detects if a player is currently dodge rolling based on server-side dodge roll state
+ * Always prioritizes server state for reliable ghost trail rendering
+ */
+const detectDodgeRoll = (
+    playerId: string, 
+    player: SpacetimeDBPlayer, 
+    lastPos: { x: number; y: number } | null,
+    nowMs: number,
+    playerDodgeRollStates: Map<string, SpacetimeDBPlayerDodgeRollState>
+): boolean => {
+    // ONLY use server-side dodge roll state - no movement fallback to prevent false positives
+    const dodgeRollState = playerDodgeRollStates.get(playerId);
+    
+    if (dodgeRollState) {
+        // Calculate if dodge roll is still active based on timing
+        const elapsedMs = nowMs - Number(dodgeRollState.startTimeMs);
+        
+        // Extended buffer for longer ghost trail visibility
+        const ANIMATION_BUFFER_MS = 200; // Longer buffer for better visual effect
+        const totalDuration = DODGE_ROLL_DURATION_MS + ANIMATION_BUFFER_MS;
+        const isActive = elapsedMs >= 0 && elapsedMs < totalDuration;
+        
+        if (isActive) {
+            return true; // Server says player is dodge rolling
+        }
+    }
+    
+    // NO MOVEMENT FALLBACK - this prevents false positives from WASD movement
+    return false;
+};
+
+/**
+ * Updates the ghost trail for a player during dodge rolling
+ * Ensures consistent, visible trail throughout the entire dodge roll
+ */
+const updateGhostTrail = (
+    playerId: string, 
+    player: SpacetimeDBPlayer, 
+    nowMs: number, 
+    isDodgeRolling: boolean
+): void => {
+    let visualState = dodgeRollVisualCache.get(playerId);
+    
+    if (isDodgeRolling) {
+        if (!visualState) {
+            // Start new dodge roll visual state
+            visualState = {
+                startTime: nowMs,
+                startX: player.positionX,
+                startY: player.positionY,
+                targetX: player.positionX, // Will be updated as we see movement
+                targetY: player.positionY,
+                direction: player.direction,
+                ghostTrailPositions: []
+            };
+            dodgeRollVisualCache.set(playerId, visualState);
+        }
+        
+        // Add single trail point per frame for smooth, subtle effect
+        visualState.ghostTrailPositions.push({
+            x: player.positionX,
+            y: player.positionY,
+            alpha: 0.7, // Strong but not overwhelming
+            timestamp: nowMs
+        });
+        
+        // Keep only the 3 most recent positions for subtle effect
+        const MAX_TRAIL_POSITIONS = 3;
+        if (visualState.ghostTrailPositions.length > MAX_TRAIL_POSITIONS) {
+            visualState.ghostTrailPositions.splice(0, visualState.ghostTrailPositions.length - MAX_TRAIL_POSITIONS);
+        }
+        
+        // Always update direction to match current player direction
+        visualState.direction = player.direction;
+    } else {
+        // Quick fade out after dodge roll ends for clean, subtle effect
+        if (visualState && visualState.ghostTrailPositions.length > 0) {
+            const fadeSpeed = 0.05; // Faster fade for clean, subtle effect
+            visualState.ghostTrailPositions = visualState.ghostTrailPositions
+                .map(pos => ({ ...pos, alpha: Math.max(0, pos.alpha - fadeSpeed) }))
+                .filter(pos => pos.alpha > 0.1);
+            
+            if (visualState.ghostTrailPositions.length === 0) {
+                dodgeRollVisualCache.delete(playerId);
+            }
+        }
+    }
+};
+
+/**
+ * Helper function to get sprite sheet offsets for a specific direction
+ */
+const getDirectionSpriteOffsets = (direction: string): { x: number, y: number } => {
+    let spriteRow = 2; // Default Down
+    switch (direction) {
+        case 'up':    spriteRow = 0; break;
+        case 'right': spriteRow = 1; break;
+        case 'down':  spriteRow = 2; break;
+        case 'left':  spriteRow = 3; break;
+        default:      spriteRow = 2; break;
+    }
+    
+    return {
+        x: 0, // Frame 0 for simplicity in ghost trail
+        y: spriteRow
+    };
+};
+
+/**
+ * Renders the ghost trail effect for dodge rolling players
+ */
+const renderGhostTrail = (
+    ctx: CanvasRenderingContext2D, 
+    playerId: string, 
+    heroImg: HTMLImageElement, 
+    currentPlayer: SpacetimeDBPlayer
+): void => {
+    const visualState = dodgeRollVisualCache.get(playerId);
+    if (!visualState || visualState.ghostTrailPositions.length === 0) return;
+    
+    // Use the dodge direction for all ghost sprites
+    const rollDirection = visualState.direction;
+    const directionOffsets = getDirectionSpriteOffsets(rollDirection);
+    
+    // Smooth, subtle ghost trail rendering with uniform size
+    visualState.ghostTrailPositions.forEach((ghost, index) => {
+        if (ghost.alpha <= 0.1) return;
+        
+        // Simple interpolated alpha based on position in trail (newest = most opaque)
+        const trailProgress = index / Math.max(visualState.ghostTrailPositions.length - 1, 1);
+        const interpolatedAlpha = ghost.alpha * (0.3 + 0.7 * (1 - trailProgress)); // Smoothly fade from back to front
+        
+        // Save context for transformations
+        ctx.save();
+        
+        // Apply smooth, subtle visual effects
+        ctx.globalAlpha = interpolatedAlpha;
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Subtle blue tint for visual distinction
+        ctx.filter = `hue-rotate(180deg) brightness(1.1) opacity(0.8)`;
+        
+        // Uniform size - no scaling variation
+        const uniformWidth = gameConfig.spriteWidth * 2;
+        const uniformHeight = gameConfig.spriteHeight * 2;
+        
+        // Calculate sprite position for the specific direction
+        const spriteX = directionOffsets.x * gameConfig.spriteWidth;
+        const spriteY = directionOffsets.y * gameConfig.spriteHeight;
+        
+        // Render the ghost sprite with uniform size
+        ctx.drawImage(
+            heroImg,
+            spriteX, spriteY, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source rectangle (specific direction)
+            ghost.x - uniformWidth / 2, 
+            ghost.y - uniformHeight / 2, 
+            uniformWidth, 
+            uniformHeight // Destination rectangle (uniform size)
+        );
+        
+        // Restore context
+        ctx.restore();
     });
 };

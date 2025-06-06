@@ -44,6 +44,7 @@ export interface SpacetimeTableStates {
     shelters: Map<string, SpacetimeDB.Shelter>;
     worldTiles: Map<string, SpacetimeDB.WorldTile>;
     minimapCache: SpacetimeDB.MinimapCache | null;
+    playerDodgeRollStates: Map<string, SpacetimeDB.PlayerDodgeRollState>;
 }
 
 // Define the props the hook accepts
@@ -96,6 +97,7 @@ export const useSpacetimeTables = ({
     const [shelters, setShelters] = useState<Map<string, SpacetimeDB.Shelter>>(() => new Map());
     const [worldTiles, setWorldTiles] = useState<Map<string, SpacetimeDB.WorldTile>>(() => new Map());
     const [minimapCache, setMinimapCache] = useState<SpacetimeDB.MinimapCache | null>(null);
+    const [playerDodgeRollStates, setPlayerDodgeRollStates] = useState<Map<string, SpacetimeDB.PlayerDodgeRollState>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -116,6 +118,7 @@ export const useSpacetimeTables = ({
     
     // --- Performance Optimization: Use ref for worldTiles to avoid React re-renders ---
     const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
+    const playerDodgeRollStatesRef = useRef<Map<string, SpacetimeDB.PlayerDodgeRollState>>(new Map());
 
     // Helper function for safely unsubscribing
     const safeUnsubscribe = (sub: SubscriptionHandle) => {
@@ -562,6 +565,23 @@ export const useSpacetimeTables = ({
                 setMinimapCache(null);
             };
 
+            // --- PlayerDodgeRollState Handlers ---
+            const handlePlayerDodgeRollStateInsert = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
+                console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
+                playerDodgeRollStatesRef.current.set(dodgeState.playerId.toHexString(), dodgeState);
+                setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
+            };
+            const handlePlayerDodgeRollStateUpdate = (ctx: any, oldDodgeState: SpacetimeDB.PlayerDodgeRollState, newDodgeState: SpacetimeDB.PlayerDodgeRollState) => {
+                console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
+                playerDodgeRollStatesRef.current.set(newDodgeState.playerId.toHexString(), newDodgeState);
+                setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
+            };
+            const handlePlayerDodgeRollStateDelete = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
+                console.log(`[DODGE DEBUG] Server state DELETE for player ${dodgeState.playerId.toHexString()}`);
+                playerDodgeRollStatesRef.current.delete(dodgeState.playerId.toHexString());
+                setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -643,6 +663,11 @@ export const useSpacetimeTables = ({
             connection.db.minimapCache.onUpdate(handleMinimapCacheUpdate);
             connection.db.minimapCache.onDelete(handleMinimapCacheDelete);
 
+            // Register PlayerDodgeRollState callbacks - ADDED
+            connection.db.playerDodgeRollState.onInsert(handlePlayerDodgeRollStateInsert);
+            connection.db.playerDodgeRollState.onUpdate(handlePlayerDodgeRollStateUpdate);
+            connection.db.playerDodgeRollState.onDelete(handlePlayerDodgeRollStateDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -702,6 +727,15 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder().onError((err) => console.error("[ARROW_BREAK_EVENT Sub Error]:", err)).subscribe('SELECT * FROM arrow_break_event'),
                  // ADDED ThunderEvent subscription for thunder flash effects
                  connection.subscriptionBuilder().onError((err) => console.error("[THUNDER_EVENT Sub Error]:", err)).subscribe('SELECT * FROM thunder_event'),
+                 // ADDED PlayerDodgeRollState subscription for dodge roll states
+                 connection.subscriptionBuilder()
+                    .onError((errCtx) => {
+                        console.error("[PLAYER_DODGE_ROLL_STATE Sub Error] Full error details:", errCtx);
+                    })
+                    .onApplied(() => {
+                        console.log("[PLAYER_DODGE_ROLL_STATE] Subscription applied successfully!");
+                    })
+                    .subscribe('SELECT * FROM player_dodge_roll_state'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -873,6 +907,9 @@ export const useSpacetimeTables = ({
                  setWorldTiles(new Map());
                  // Clear the worldTiles ref as well
                  worldTilesRef.current.clear();
+                 setPlayerDodgeRollStates(new Map());
+                 // Clear the playerDodgeRollStates ref as well
+                 playerDodgeRollStatesRef.current.clear();
              }
         };
 
@@ -914,5 +951,6 @@ export const useSpacetimeTables = ({
         shelters,
         worldTiles: worldTilesRef.current,
         minimapCache,
+        playerDodgeRollStates: playerDodgeRollStatesRef.current,
     };
 }; 

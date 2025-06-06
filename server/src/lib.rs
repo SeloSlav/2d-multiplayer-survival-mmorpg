@@ -69,7 +69,7 @@ mod world_generation; // <<< ADDED world generation module
 pub use respawn::respawn_randomly;
 
 // ADD: Re-export player movement reducers
-pub use player_movement::{set_sprinting, toggle_crouch, jump};
+pub use player_movement::{set_sprinting, toggle_crouch, jump, dodge_roll};
 
 // ADD: Re-export shelter placement reducer
 pub use shelter::place_shelter;
@@ -146,6 +146,7 @@ use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table tra
 use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait
 use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile table trait
 use crate::minimap_cache as MinimapCacheTableTrait; // <<< ADDED: Import MinimapCache table trait
+use crate::player_movement::player_dodge_roll_state as PlayerDodgeRollStateTableTrait; // <<< ADDED: Import PlayerDodgeRollState table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;

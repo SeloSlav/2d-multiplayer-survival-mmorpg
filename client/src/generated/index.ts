@@ -52,6 +52,8 @@ import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
 export { CrushBoneItem };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
+import { DodgeRoll } from "./dodge_roll_reducer.ts";
+export { DodgeRoll };
 import { DropItem } from "./drop_item_reducer.ts";
 export { DropItem };
 import { DropItemFromBoxSlotToWorld } from "./drop_item_from_box_slot_to_world_reducer.ts";
@@ -328,6 +330,8 @@ import { PlayerCorpseTableHandle } from "./player_corpse_table.ts";
 export { PlayerCorpseTableHandle };
 import { PlayerCorpseDespawnScheduleTableHandle } from "./player_corpse_despawn_schedule_table.ts";
 export { PlayerCorpseDespawnScheduleTableHandle };
+import { PlayerDodgeRollStateTableHandle } from "./player_dodge_roll_state_table.ts";
+export { PlayerDodgeRollStateTableHandle };
 import { PlayerKillCommandCooldownTableHandle } from "./player_kill_command_cooldown_table.ts";
 export { PlayerKillCommandCooldownTableHandle };
 import { PlayerLastAttackTimestampTableHandle } from "./player_last_attack_timestamp_table.ts";
@@ -462,6 +466,8 @@ import { PlayerCorpse } from "./player_corpse_type.ts";
 export { PlayerCorpse };
 import { PlayerCorpseDespawnSchedule } from "./player_corpse_despawn_schedule_type.ts";
 export { PlayerCorpseDespawnSchedule };
+import { PlayerDodgeRollState } from "./player_dodge_roll_state_type.ts";
+export { PlayerDodgeRollState };
 import { PlayerKillCommandCooldown } from "./player_kill_command_cooldown_type.ts";
 export { PlayerKillCommandCooldown };
 import { PlayerLastAttackTimestamp } from "./player_last_attack_timestamp_type.ts";
@@ -668,6 +674,11 @@ const REMOTE_MODULE = {
       rowType: PlayerCorpseDespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "corpseId",
     },
+    player_dodge_roll_state: {
+      tableName: "player_dodge_roll_state",
+      rowType: PlayerDodgeRollState.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
+    },
     player_kill_command_cooldown: {
       tableName: "player_kill_command_cooldown",
       rowType: PlayerKillCommandCooldown.getTypeScriptAlgebraicType(),
@@ -819,6 +830,10 @@ const REMOTE_MODULE = {
     despawn_expired_items: {
       reducerName: "despawn_expired_items",
       argsType: DespawnExpiredItems.getTypeScriptAlgebraicType(),
+    },
+    dodge_roll: {
+      reducerName: "dodge_roll",
+      argsType: DodgeRoll.getTypeScriptAlgebraicType(),
     },
     drop_item: {
       reducerName: "drop_item",
@@ -1289,6 +1304,7 @@ export type Reducer = never
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
+| { name: "DodgeRoll", args: DodgeRoll }
 | { name: "DropItem", args: DropItem }
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
 | { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
@@ -1552,6 +1568,18 @@ export class RemoteReducers {
 
   removeOnDespawnExpiredItems(callback: (ctx: ReducerEventContext, schedule: DroppedItemDespawnSchedule) => void) {
     this.connection.offReducer("despawn_expired_items", callback);
+  }
+
+  dodgeRoll() {
+    this.connection.callReducer("dodge_roll", new Uint8Array(0), this.setCallReducerFlags.dodgeRollFlags);
+  }
+
+  onDodgeRoll(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("dodge_roll", callback);
+  }
+
+  removeOnDodgeRoll(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("dodge_roll", callback);
   }
 
   dropItem(itemInstanceId: bigint, quantityToDrop: number) {
@@ -3259,6 +3287,11 @@ export class SetReducerFlags {
     this.despawnExpiredItemsFlags = flags;
   }
 
+  dodgeRollFlags: CallReducerFlags = 'FullUpdate';
+  dodgeRoll(flags: CallReducerFlags) {
+    this.dodgeRollFlags = flags;
+  }
+
   dropItemFlags: CallReducerFlags = 'FullUpdate';
   dropItem(flags: CallReducerFlags) {
     this.dropItemFlags = flags;
@@ -3908,6 +3941,10 @@ export class RemoteTables {
 
   get playerCorpseDespawnSchedule(): PlayerCorpseDespawnScheduleTableHandle {
     return new PlayerCorpseDespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerCorpseDespawnSchedule>(REMOTE_MODULE.tables.player_corpse_despawn_schedule));
+  }
+
+  get playerDodgeRollState(): PlayerDodgeRollStateTableHandle {
+    return new PlayerDodgeRollStateTableHandle(this.connection.clientCache.getOrCreateTable<PlayerDodgeRollState>(REMOTE_MODULE.tables.player_dodge_roll_state));
   }
 
   get playerKillCommandCooldown(): PlayerKillCommandCooldownTableHandle {
