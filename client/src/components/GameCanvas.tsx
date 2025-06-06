@@ -394,14 +394,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { hoveredPlayerIds, handlePlayerHover } = usePlayerHover();
 
   // --- Use the new Minimap Interaction Hook ---
-  const { minimapZoom, isMouseOverMinimap, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
+  const { minimapZoom, isMouseOverMinimap, isMouseOverXButton, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
     canvasRef: gameCanvasRef,
     localPlayer,
     isMinimapOpen,
     connection,
     playerPins,
     localPlayerId,
-    canvasSize
+    canvasSize,
+    setIsMinimapOpen
   });
 
   // --- Procedural World Tile Management ---
@@ -875,6 +876,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         canvasWidth: currentCanvasWidth,
         canvasHeight: currentCanvasHeight,
         isMouseOverMinimap,
+        isMouseOverXButton,
         zoomLevel: minimapZoom,
         sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'),
         localPlayerDeathMarker: localPlayerDeathMarker,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, RefObject, useMemo } from 'react';
 import { Player as SpacetimeDBPlayer, PlayerPin } from '../generated';
 import { gameConfig } from '../config/gameConfig';
-import { MINIMAP_DIMENSIONS } from '../components/Minimap'; // Import dimensions
+import { MINIMAP_DIMENSIONS, isPointInXButton, isPointInMinimap } from '../components/Minimap'; // Import dimensions
 
 // Hook Constants
 const MINIMAP_MAX_ZOOM = 10;
@@ -16,6 +16,7 @@ interface UseMinimapInteractionProps {
     playerPins: Map<string, PlayerPin>; // Pass the whole map
     localPlayerId?: string;
     canvasSize: { width: number; height: number };
+    setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface UseMinimapInteractionResult {
@@ -23,6 +24,7 @@ interface UseMinimapInteractionResult {
     isMouseOverMinimap: boolean;
     localPlayerPin: PlayerPin | null;
     viewCenterOffset: { x: number; y: number };
+    isMouseOverXButton: boolean;
 }
 
 export function useMinimapInteraction({
@@ -33,10 +35,12 @@ export function useMinimapInteraction({
     playerPins,
     localPlayerId,
     canvasSize,
+    setIsMinimapOpen,
 }: UseMinimapInteractionProps): UseMinimapInteractionResult {
 
     const [minimapZoom, setMinimapZoom] = useState(MINIMAP_MIN_ZOOM);
     const [isMouseOverMinimap, setIsMouseOverMinimap] = useState(false);
+    const [isMouseOverXButton, setIsMouseOverXButton] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
     const [panStartCoords, setPanStartCoords] = useState<{ screenX: number, screenY: number } | null>(null);
     // Stores the offset of the view center from the default (player or world center) in WORLD coordinates
@@ -81,6 +85,17 @@ export function useMinimapInteraction({
     const handleMouseMove = useCallback((event: MouseEvent) => {
         const isOver = checkMouseOverMinimap(event);
         setIsMouseOverMinimap(isOver);
+        
+        // Check if mouse is over X button
+        if (!canvasRef.current || !isMinimapOpen) {
+            setIsMouseOverXButton(false);
+        } else {
+            const rect = canvasRef.current.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            const isOverXButton = isPointInXButton(mouseX, mouseY, canvasSize.width, canvasSize.height);
+            setIsMouseOverXButton(isOverXButton);
+        }
 
         if (isPanning && panStartCoords && isOver) {
             const currentScale = baseScale * minimapZoom;
@@ -330,24 +345,52 @@ export function useMinimapInteraction({
         worldPixelWidth, worldPixelHeight 
     ]);
 
-    // Handle Mouse Down for Panning
+    // Handle Mouse Down for Panning and UI interactions
     const handleMouseDown = useCallback((event: MouseEvent) => {
-        // Middle mouse button reset
-        if (event.button === 1 && isMinimapOpen && checkMouseOverMinimap(event)) {
-            event.preventDefault(); // Prevent default scroll behavior
-            setMinimapZoom(MINIMAP_MIN_ZOOM);
-            setViewCenterOffset({ x: 0, y: 0 });
-            setIsPanning(false); // Ensure panning stops
-            setPanStartCoords(null);
-            return; // Don't start panning if middle click
+        // Check for UI interactions first and prevent event propagation
+        if (!canvasRef.current || !isMinimapOpen) return;
+        
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        
+        // Check if clicking X button
+        if (event.button === 0 && isPointInXButton(mouseX, mouseY, canvasSize.width, canvasSize.height)) {
+            event.preventDefault();
+            event.stopPropagation(); // Prevent game actions from triggering
+            setIsMinimapOpen(false);
+            return;
         }
+        
+        // Check if clicking outside minimap to close it
+        if (event.button === 0 && !isPointInMinimap(mouseX, mouseY, canvasSize.width, canvasSize.height)) {
+            // Don't prevent event propagation here - allow game actions to proceed
+            setIsMinimapOpen(false);
+            return;
+        }
+        
+        // If clicking on minimap but not on X button, handle normal minimap interactions
+        if (checkMouseOverMinimap(event)) {
+            // Prevent attack/action when clicking on minimap
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Middle mouse button reset
+            if (event.button === 1) {
+                setMinimapZoom(MINIMAP_MIN_ZOOM);
+                setViewCenterOffset({ x: 0, y: 0 });
+                setIsPanning(false); // Ensure panning stops
+                setPanStartCoords(null);
+                return; // Don't start panning if middle click
+            }
 
-        // Only pan with left click when zoomed and over the minimap
-        if (event.button === 0 && isMinimapOpen && minimapZoom > MINIMAP_MIN_ZOOM && checkMouseOverMinimap(event)) {
-            setIsPanning(true);
-            setPanStartCoords({ screenX: event.screenX, screenY: event.screenY });
+            // Only pan with left click when zoomed and over the minimap
+            if (event.button === 0 && minimapZoom > MINIMAP_MIN_ZOOM) {
+                setIsPanning(true);
+                setPanStartCoords({ screenX: event.screenX, screenY: event.screenY });
+            }
         }
-    }, [isMinimapOpen, minimapZoom, checkMouseOverMinimap, setMinimapZoom, setViewCenterOffset]); // Added setters
+    }, [isMinimapOpen, minimapZoom, checkMouseOverMinimap, setMinimapZoom, setViewCenterOffset, canvasRef, canvasSize.width, canvasSize.height, setIsMinimapOpen]); // Added setters
 
     // Handle Mouse Up for Panning (Define BEFORE useEffect)
     const handleMouseUp = useCallback((event: MouseEvent) => {
@@ -420,5 +463,6 @@ export function useMinimapInteraction({
         isMouseOverMinimap,
         localPlayerPin,
         viewCenterOffset, 
+        isMouseOverXButton,
     };
 } 
