@@ -11,7 +11,7 @@ use crate::grass::grass as GrassTableTrait;
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait;
 
 // Import constants from lib.rs
-use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water};
+use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water, get_effective_player_radius};
 
 // Import constants from player_stats module
 use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, LOW_THIRST_SPEED_PENALTY, LOW_WARMTH_SPEED_PENALTY, JUMP_COOLDOWN_MS};
@@ -181,8 +181,11 @@ pub fn update_player_position(
     let proposed_x = current_player.position_x + server_dx;
     let proposed_y = current_player.position_y + server_dy;
 
-    let clamped_x = proposed_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-    let clamped_y = proposed_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+    // GET: Effective player radius based on crouching state
+    let effective_radius = get_effective_player_radius(current_player.is_crouching);
+
+    let clamped_x = proposed_x.max(effective_radius).min(WORLD_WIDTH_PX - effective_radius);
+    let clamped_y = proposed_y.max(effective_radius).min(WORLD_HEIGHT_PX - effective_radius);
 
     let mut final_x = clamped_x;
     let mut final_y = clamped_y;
@@ -453,6 +456,11 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
        // Don't allow jumping if knocked out
        if player.is_knocked_out {
            return Err("Cannot jump while knocked out.".to_string());
+       }
+
+       // Don't allow jumping while crouching
+       if player.is_crouching {
+           return Err("Cannot jump while crouching.".to_string());
        }
 
        // ADD: Don't allow jumping on water

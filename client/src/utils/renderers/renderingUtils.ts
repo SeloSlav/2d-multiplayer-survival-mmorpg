@@ -60,6 +60,7 @@ interface RenderYSortedEntitiesProps {
     ySortedEntities: YSortedEntityType[];
     heroImageRef: React.RefObject<HTMLImageElement | null>;
     heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
+    heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
     lastPositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
@@ -83,6 +84,7 @@ interface RenderYSortedEntitiesProps {
         itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
         heroImageRef: React.RefObject<HTMLImageElement | null>;
         heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
+        heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
     localPlayerPosition?: { x: number; y: number } | null;
 }
@@ -95,6 +97,7 @@ export const renderYSortedEntities = ({
     ySortedEntities,
     heroImageRef,
     heroWaterImageRef,
+    heroCrouchImageRef,
     lastPositionsRef,
     activeConnections,
     activeEquipments,
@@ -212,8 +215,15 @@ export const renderYSortedEntities = ({
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
-           // Choose sprite based on water status, but don't switch to water sprite while jumping
-           const heroImg = (player.isOnWater && !isCurrentlyJumping) ? heroWaterImageRef.current : heroImageRef.current;
+           // Choose sprite based on crouching state first, then water status, but don't switch to water sprite while jumping
+           let heroImg: HTMLImageElement | null;
+           if (player.isCrouching) {
+               heroImg = heroCrouchImageRef.current; // Use crouch sprite when crouching
+           } else if (player.isOnWater && !isCurrentlyJumping) {
+               heroImg = heroWaterImageRef.current; // Use water sprite when on water (but not jumping)
+           } else {
+               heroImg = heroImageRef.current; // Use normal sprite otherwise
+           }
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
            const equipment = activeEquipments.get(playerId);
@@ -326,7 +336,8 @@ export const renderYSortedEntities = ({
                 nowMs, 
                 itemImagesRef,
                 heroImageRef,
-                heroWaterImageRef
+                heroWaterImageRef,
+                heroCrouchImageRef
             });
         } else if (type === 'grass') {
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);

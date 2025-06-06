@@ -329,7 +329,7 @@ export const renderPlayer = (
         entityCenterX: currentDisplayX,
         entityBaseY: currentDisplayY + shadowBaseYOffset, // Align with where normal shadow starts
         imageDrawWidth: drawWidth,
-        imageDrawHeight: drawHeight,
+        imageDrawHeight: drawHeight, // Use normal height for all players
         cycleProgress,
         baseShadowColor: '0,0,0',
         maxShadowAlpha: shadowAlpha,
@@ -346,6 +346,7 @@ export const renderPlayer = (
   if (!finalIsOnline && shouldShowShadow) { // This covers corpses (finalIsOnline = false) and offline players
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
+      
       drawShadow(
           ctx,
           currentDisplayX, 

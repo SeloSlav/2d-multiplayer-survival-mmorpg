@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 // Import asset paths
 import heroSpriteSheet from '../assets/hero2.png';
 import heroWaterSpriteSheet from '../assets/hero2_water.png';
+import heroCrouchSpriteSheet from '../assets/hero2_crouch.png';
 import grassTexture from '../assets/tiles/grass2.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
@@ -20,6 +21,7 @@ import cloud5Texture from '../assets/environment/clouds/cloud5.png';
 interface AssetLoaderResult {
   heroImageRef: React.RefObject<HTMLImageElement | null>;
   heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
+  heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
   grassImageRef: React.RefObject<HTMLImageElement | null>;
   campfireImageRef: React.RefObject<HTMLImageElement | null>;
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
@@ -35,6 +37,7 @@ export function useAssetLoader(): AssetLoaderResult {
   // Refs for the loaded images
   const heroImageRef = useRef<HTMLImageElement | null>(null);
   const heroWaterImageRef = useRef<HTMLImageElement | null>(null);
+  const heroCrouchImageRef = useRef<HTMLImageElement | null>(null);
   const grassImageRef = useRef<HTMLImageElement | null>(null);
   const campfireImageRef = useRef<HTMLImageElement | null>(null);
   const burlapSackImageRef = useRef<HTMLImageElement | null>(null);
@@ -44,7 +47,7 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 5 + 5 + 1;
+    const totalStaticAssets = 6 + 5 + 1;
     let allStaticLoaded = false;
 
     const checkLoadingComplete = () => {
@@ -76,6 +79,7 @@ export function useAssetLoader(): AssetLoaderResult {
     // --- Load Static Images --- 
     loadImage(heroSpriteSheet, heroImageRef);
     loadImage(heroWaterSpriteSheet, heroWaterImageRef);
+    loadImage(heroCrouchSpriteSheet, heroCrouchImageRef);
     loadImage(grassTexture, grassImageRef);
     loadImage(campfireSprite, campfireImageRef);
     loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
@@ -111,6 +115,7 @@ export function useAssetLoader(): AssetLoaderResult {
   return {
     heroImageRef,
     heroWaterImageRef,
+    heroCrouchImageRef,
     grassImageRef,
     campfireImageRef,
     burlapSackImageRef,

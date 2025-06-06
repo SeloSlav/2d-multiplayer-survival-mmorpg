@@ -174,6 +174,18 @@ pub const PLAYER_RADIUS: f32 = 32.0; // Player collision radius
 pub const PLAYER_SPEED: f32 = 600.0; // Speed in pixels per second
 pub const PLAYER_SPRINT_MULTIPLIER: f32 = 1.6;
 
+// ADD: Crouching reduces collision radius by half
+pub const CROUCHING_RADIUS_MULTIPLIER: f32 = 0.5;
+
+// ADD: Helper function to get effective player radius based on crouching state
+pub fn get_effective_player_radius(is_crouching: bool) -> f32 {
+    if is_crouching {
+        PLAYER_RADIUS * CROUCHING_RADIUS_MULTIPLIER
+    } else {
+        PLAYER_RADIUS
+    }
+}
+
 // ADD: Water movement constants
 pub const WATER_SPEED_PENALTY: f32 = 0.5; // 50% speed reduction (50% of normal speed)
 

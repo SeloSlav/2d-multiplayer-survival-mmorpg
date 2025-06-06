@@ -225,7 +225,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   }, [players, localPlayerId]);
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
-  const { heroImageRef, heroWaterImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
+  const { heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   // Add a state to track when images are loaded to trigger re-renders
@@ -640,6 +640,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ySortedEntities,
       heroImageRef,
       heroWaterImageRef,
+      heroCrouchImageRef,
       lastPositionsRef,
       activeConnections,
       activeEquipments,
@@ -656,7 +657,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       hoveredPlayerIds,
       onPlayerHover: handlePlayerHover,
       cycleProgress: currentCycleProgress,
-      renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef }),
+      renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
       localPlayerPosition: localPlayer ? { x: localPlayer.positionX, y: localPlayer.positionY } : null
     });
     // --- End Y-Sorted Entities ---
@@ -894,7 +895,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ySortedEntities, visibleMushroomsMap, visibleCornsMap, visiblePumpkinsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
     players, itemDefinitions, inventoryItems, trees, stones,
     worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
-    itemImagesRef, heroImageRef, heroWaterImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
+    itemImagesRef, heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
     canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
     closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,

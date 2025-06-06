@@ -1,7 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Identity, Timestamp};
 use log;
 use crate::spatial_grid; // Assuming spatial_grid is a module in your crate
-use crate::{PLAYER_RADIUS, WORLD_WIDTH_PX, WORLD_HEIGHT_PX}; // Global constants
+use crate::{PLAYER_RADIUS, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, get_effective_player_radius}; // Global constants
 
 // Import table traits (adjust paths as necessary)
 use crate::player as PlayerTableTrait;
@@ -39,6 +39,14 @@ pub fn calculate_slide_collision(
     let player_corpses = ctx.db.player_corpse(); // Access player_corpse table
     let shelters = ctx.db.shelter(); // Access shelter table
 
+    // GET: Current player's crouching state for effective radius calculation
+    let current_player = players.identity().find(&sender_id);
+    let current_player_radius = if let Some(player) = current_player {
+        get_effective_player_radius(player.is_crouching)
+    } else {
+        PLAYER_RADIUS // Fallback to default radius
+    };
+
     let mut grid = spatial_grid::SpatialGrid::new();
     grid.populate_from_world(&ctx.db);
     let nearby_entities = grid.get_entities_in_range(final_x, final_y);
@@ -52,7 +60,7 @@ pub fn calculate_slide_collision(
                     let dx = final_x - other_player.position_x;
                     let dy = final_y - other_player.position_y;
                     let dist_sq = dx * dx + dy * dy;
-                    let min_dist = PLAYER_RADIUS * 2.0;
+                    let min_dist = current_player_radius * 2.0;
                     let min_dist_sq = min_dist * min_dist;
 
                     if dist_sq < min_dist_sq {
@@ -72,8 +80,8 @@ pub fn calculate_slide_collision(
                             let slide_dy = server_dy - projection_y;
                             final_x = current_player_pos_x + slide_dx;
                             final_y = current_player_pos_y + slide_dy;
-                            final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                            final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                            final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                            final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                         }
                     }
                 }
@@ -101,8 +109,8 @@ pub fn calculate_slide_collision(
                             let slide_dy = server_dy - projection_y;
                             final_x = current_player_pos_x + slide_dx;
                             final_y = current_player_pos_y + slide_dy;
-                            final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                            final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                            final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                            final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                         }
                     }
                 }
@@ -130,8 +138,8 @@ pub fn calculate_slide_collision(
                              let slide_dy = server_dy - projection_y;
                              final_x = current_player_pos_x + slide_dx;
                              final_y = current_player_pos_y + slide_dy;
-                             final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                             final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                             final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                             final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                          }
                      }
                  }
@@ -158,8 +166,8 @@ pub fn calculate_slide_collision(
                              let slide_dy = server_dy - projection_y;
                              final_x = current_player_pos_x + slide_dx;
                              final_y = current_player_pos_y + slide_dy;
-                             final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                             final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                             final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                             final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                          }
                     }
                 }
@@ -180,7 +188,7 @@ pub fn calculate_slide_collision(
                     let dx_aabb = final_x - closest_x;
                     let dy_aabb = final_y - closest_y;
                     let dist_sq_aabb = dx_aabb * dx_aabb + dy_aabb * dy_aabb;
-                    let player_radius_sq = PLAYER_RADIUS * PLAYER_RADIUS;
+                    let player_radius_sq = current_player_radius * current_player_radius;
 
                     if dist_sq_aabb < player_radius_sq {
                         log::debug!(
@@ -211,8 +219,8 @@ pub fn calculate_slide_collision(
                                 let slide_dy = server_dy - projection_y;
                                 final_x = current_player_pos_x + slide_dx;
                                 final_y = current_player_pos_y + slide_dy;
-                                final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                                final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                                final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                                final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                             }
                         } else {
                             // Player center is exactly on the closest point, attempt small slide or revert
@@ -244,7 +252,7 @@ pub fn calculate_slide_collision(
                     let dx = final_x - corpse.pos_x;
                     let dy = final_y - corpse_collision_y;
                     let dist_sq = dx * dx + dy * dy;
-                    let min_dist = PLAYER_RADIUS + CORPSE_COLLISION_RADIUS;
+                    let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS;
                     let min_dist_sq = min_dist * min_dist;
 
                     if dist_sq < min_dist_sq {
@@ -264,8 +272,8 @@ pub fn calculate_slide_collision(
                                 let slide_dy = server_dy - projection_y;
                                 final_x = current_player_pos_x + slide_dx;
                                 final_y = current_player_pos_y + slide_dy;
-                                final_x = final_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-                                final_y = final_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+                                final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                                final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                             }
                         } else {
                             final_x = current_player_pos_x; // Fallback if magnitude is zero
@@ -302,6 +310,14 @@ pub fn resolve_push_out_collision(
     let player_corpses = ctx.db.player_corpse(); // Access player_corpse table
     let shelters = ctx.db.shelter(); // Access shelter table
     
+    // GET: Current player's crouching state for effective radius calculation
+    let current_player = players.identity().find(&sender_id);
+    let current_player_radius = if let Some(player) = current_player {
+        get_effective_player_radius(player.is_crouching)
+    } else {
+        PLAYER_RADIUS // Fallback to default radius
+    };
+    
     let mut grid = spatial_grid::SpatialGrid::new();
     // Populate grid once before iterations, assuming entities don't move during resolution
     grid.populate_from_world(&ctx.db);
@@ -326,7 +342,7 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - other_player.position_x;
                          let dy = resolved_y - other_player.position_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = PLAYER_RADIUS * 2.0;
+                         let min_dist = current_player_radius * 2.0;
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 { // Added dist_sq > 0.0 to avoid division by zero
                              overlap_found_in_iter = true;
@@ -347,7 +363,7 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - tree.pos_x;
                          let dy = resolved_y - tree_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = PLAYER_RADIUS + crate::tree::TREE_TRUNK_RADIUS;
+                         let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS;
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
@@ -366,7 +382,7 @@ pub fn resolve_push_out_collision(
                         let dx = resolved_x - stone.pos_x;
                         let dy = resolved_y - stone_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = PLAYER_RADIUS + crate::stone::STONE_RADIUS;
+                        let min_dist = current_player_radius + crate::stone::STONE_RADIUS;
                         let min_dist_sq = min_dist * min_dist;
                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
@@ -384,7 +400,7 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - box_instance.pos_x;
                          let dy = resolved_y - box_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = PLAYER_RADIUS + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
+                         let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
@@ -432,14 +448,14 @@ pub fn resolve_push_out_collision(
                             shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT, shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT,
                             closest_x, closest_y,
                             dist_sq_resolve,
-                            PLAYER_RADIUS * PLAYER_RADIUS
+                            current_player_radius * current_player_radius
                         );
                         
-                        if dist_sq_resolve < PLAYER_RADIUS * PLAYER_RADIUS {
+                        if dist_sq_resolve < current_player_radius * current_player_radius {
                             overlap_found_in_iter = true;
                             if dist_sq_resolve > 0.0 {
                                 let distance = dist_sq_resolve.sqrt();
-                                let overlap = (PLAYER_RADIUS - distance) + epsilon; // Push out by the overlap plus epsilon
+                                let overlap = (current_player_radius - distance) + epsilon; // Push out by the overlap plus epsilon
                                 resolved_x += (dx_resolve / distance) * overlap;
                                 resolved_y += (dy_resolve / distance) * overlap;
                                 log::debug!(
@@ -485,22 +501,22 @@ pub fn resolve_push_out_collision(
                                     // Push out horizontally (left or right face is closer)
                                     if penetration_left < penetration_right {
                                         // Push out through left face
-                                        resolved_x = aabb_left - PLAYER_RADIUS - epsilon;
+                                        resolved_x = aabb_left - current_player_radius - epsilon;
                                         log::debug!("[ShelterPushDirection] Pushing LEFT: new X = {:.1}", resolved_x);
                                     } else {
                                         // Push out through right face
-                                        resolved_x = aabb_right + PLAYER_RADIUS + epsilon;
+                                        resolved_x = aabb_right + current_player_radius + epsilon;
                                         log::debug!("[ShelterPushDirection] Pushing RIGHT: new X = {:.1}", resolved_x);
                                     }
                                 } else {
                                     // Push out vertically (top or bottom face is closer)
                                     if penetration_top < penetration_bottom {
                                         // Push out through top face
-                                        resolved_y = aabb_top - PLAYER_RADIUS - epsilon;
+                                        resolved_y = aabb_top - current_player_radius - epsilon;
                                         log::debug!("[ShelterPushDirection] Pushing UP: new Y = {:.1}", resolved_y);
                                     } else {
                                         // Push out through bottom face
-                                        resolved_y = aabb_bottom + PLAYER_RADIUS + epsilon;
+                                        resolved_y = aabb_bottom + current_player_radius + epsilon;
                                         log::debug!("[ShelterPushDirection] Pushing DOWN: new Y = {:.1}", resolved_y);
                                     }
                                 }
@@ -513,7 +529,7 @@ pub fn resolve_push_out_collision(
                         } else {
                             log::debug!(
                                 "[ShelterPushNOCollision] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), DistSq: {:.1} >= PlayerRadSq: {:.1}",
-                                sender_id, shelter.id, resolved_x, resolved_y, dist_sq_resolve, PLAYER_RADIUS * PLAYER_RADIUS
+                                sender_id, shelter.id, resolved_x, resolved_y, dist_sq_resolve, current_player_radius * current_player_radius
                             );
                         }
                     }
@@ -525,7 +541,7 @@ pub fn resolve_push_out_collision(
                         let dx = resolved_x - corpse.pos_x;
                         let dy = resolved_y - corpse_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = PLAYER_RADIUS + CORPSE_COLLISION_RADIUS;
+                        let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS;
                         let min_dist_sq = min_dist * min_dist;
                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
                             overlap_found_in_iter = true;
@@ -543,8 +559,8 @@ pub fn resolve_push_out_collision(
              }
         }
 
-        resolved_x = resolved_x.max(PLAYER_RADIUS).min(WORLD_WIDTH_PX - PLAYER_RADIUS);
-        resolved_y = resolved_y.max(PLAYER_RADIUS).min(WORLD_HEIGHT_PX - PLAYER_RADIUS);
+        resolved_x = resolved_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+        resolved_y = resolved_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
 
         if !overlap_found_in_iter {
             break;

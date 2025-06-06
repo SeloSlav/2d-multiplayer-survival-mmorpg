@@ -15,6 +15,7 @@ interface RenderPlayerCorpseProps {
   cycleProgress: number;
   heroImageRef: React.RefObject<HTMLImageElement | null>;
   heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
+  heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
 }
 
 export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
@@ -30,6 +31,7 @@ export function renderPlayerCorpse({
   cycleProgress,
   heroImageRef,
   heroWaterImageRef,
+  heroCrouchImageRef,
 }: RenderPlayerCorpseProps): void {
   
   // 1. Corpse Disappearance on Zero Health
@@ -90,8 +92,9 @@ export function renderPlayerCorpse({
     isOnWater: isCorpseOnWater, // ADD: Water status for sprite selection
   };
 
-  // Choose the appropriate hero sprite based on water status
+  // Choose the appropriate hero sprite based on water status (corpses don't crouch)
   const heroImg = isCorpseOnWater ? heroWaterImageRef.current : heroImageRef.current;
+  
   if (!heroImg) {
     console.warn("[renderPlayerCorpse] Hero image not loaded, cannot render corpse sprite.");
     return;
