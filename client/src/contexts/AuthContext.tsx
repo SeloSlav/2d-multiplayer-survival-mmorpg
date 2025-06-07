@@ -7,6 +7,7 @@ import { parseJwt } from '../utils/auth/jwt'; // Corrected import path
 // import crypto from 'crypto'; 
 
 // --- Environment-based Configuration ---
+// const isDevelopment = false; // TEMPORARILY FORCE PRODUCTION FOR TESTING
 const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
 
 const AUTH_SERVER_URL = isDevelopment 

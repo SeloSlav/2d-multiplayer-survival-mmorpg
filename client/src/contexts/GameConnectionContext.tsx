@@ -3,9 +3,20 @@ import { Identity as SpacetimeDBIdentity } from '@clockworklabs/spacetimedb-sdk'
 import { DbConnection } from '../generated';
 import { useAuth } from './AuthContext'; // Import useAuth
 
-// SpacetimeDB connection parameters (Should move to a config later)
-const SPACETIME_DB_ADDRESS = 'ws://localhost:3000';
-const SPACETIME_DB_NAME = 'vibe-survival-game';
+// --- Environment-based SpacetimeDB Configuration ---
+const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
+
+const SPACETIME_DB_ADDRESS = isDevelopment 
+  ? 'ws://localhost:3000' 
+  : 'wss://maincloud.spacetimedb.com'; // SpacetimeDB Maincloud
+
+const SPACETIME_DB_NAME = isDevelopment
+  ? 'vibe-survival-game'
+  : 'broth-bullets'; // Your Maincloud database name
+
+console.log(`[SpacetimeDB] Environment: ${isDevelopment ? 'development' : 'production'}`);
+console.log(`[SpacetimeDB] Using server: ${SPACETIME_DB_ADDRESS}`);
+console.log(`[SpacetimeDB] Database name: ${SPACETIME_DB_NAME}`);
 
 // Define the connection context state type
 interface ConnectionContextState {
