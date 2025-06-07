@@ -3,6 +3,31 @@
  * OpenAuth issuer + Hono server with password UI and custom OIDC code/token flow.
  * Now using database storage and environment-based JWT keys.
  */
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file in development
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
+
+// Environment-based configuration
+const config = {
+  isDevelopment: process.env.NODE_ENV !== 'production',
+  port: parseInt(process.env.PORT || '4001'),
+  issuerUrl: process.env.ISSUER_URL || (process.env.NODE_ENV === 'production' 
+    ? 'https://broth-and-bullets-production.up.railway.app' 
+    : 'http://localhost:4001'),
+  databaseUrl: process.env.DATABASE_URL,
+  jwtPrivateKey: process.env.JWT_PRIVATE_KEY,
+  jwtPublicKey: process.env.JWT_PUBLIC_KEY,
+  saltRounds: parseInt(process.env.BCRYPT_ROUNDS || '12'),
+};
+
+console.log(`[Config] Environment: ${config.isDevelopment ? 'development' : 'production'}`);
+console.log(`[Config] Port: ${config.port}`);
+console.log(`[Config] Issuer URL: ${config.issuerUrl}`);
+console.log(`[Config] Database: ${config.databaseUrl ? 'PostgreSQL' : 'In-memory'}`);
+
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { issuer } from '@openauthjs/openauth';
@@ -25,9 +50,9 @@ import { initializeKeys, getPrivateKey, getPublicJWK, keyId } from './jwt-keys.j
 /* -------------------------------------------------------------------------- */
 /* Config                                                                     */
 /* -------------------------------------------------------------------------- */
-const PORT        = Number(process.env.PORT) || 4001;
-const ISSUER_URL  = process.env.ISSUER_URL || 'https://broth-and-bullets-production.up.railway.app';
-const SALT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || 12;
+const PORT        = config.port;
+const ISSUER_URL  = config.issuerUrl;
+const SALT_ROUNDS = config.saltRounds;
 const CLIENT_ID   = 'vibe-survival-game-client';
 
 /* -------------------------------------------------------------------------- */
