@@ -26,8 +26,7 @@ import { initializeKeys, getPrivateKey, getPublicJWK, keyId } from './jwt-keys.j
 /* Config                                                                     */
 /* -------------------------------------------------------------------------- */
 const PORT        = Number(process.env.PORT) || 4001;
-const ISSUER_URL  = process.env.ISSUER_URL || 
-                   (process.env.RAILWAY_PRIVATE_DOMAIN ? `https://${process.env.RAILWAY_PRIVATE_DOMAIN}` : `http://localhost:${PORT}`);
+const ISSUER_URL  = process.env.ISSUER_URL || 'https://broth-and-bullets-production.up.railway.app';
 const SALT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || 12;
 const CLIENT_ID   = 'vibe-survival-game-client';
 
