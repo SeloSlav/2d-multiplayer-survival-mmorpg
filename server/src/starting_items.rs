@@ -26,25 +26,16 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         // Hotbar (Slots 0-5)
         // ("Rock", 1, Some(0u8), None), 
         // ("Torch", 10, Some(1u8), None),
-        ("Bone Knife", 1, Some(0u8), None),
-        ("Stone Spear", 1, Some(1u8), None),
-        ("Hunting Bow", 1, Some(2u8), None),
-        ("Crossbow", 1, Some(3u8), None),
-        ("Bandage", 99, Some(4u8), None),
-        ("Stone Hatchet", 1, Some(5u8), None),
+        ("Hunting Bow", 1, Some(0u8), None),
+        ("Bandage", 3, Some(1u8), None),
+        ("Stone Hatchet", 99, Some(2u8), None),
+        ("Stone Pickaxe", 1, Some(3u8), None),
 
         // Starting materials in Inventory (Slots 0-23 typically)
-        ("Wooden Arrow", 50, None, Some(0u16)),
+        ("Sleeping Bag", 1, None, Some(0u16)),
         ("Wooden Storage Box", 1, None, Some(1u16)),
-        ("Sleeping Bag", 1, None, Some(2u16)),
-        ("Camp Fire", 1, None, Some(3u16)),
-        ("Stash", 1, None, Some(4u16)),
-        ("Shelter", 1, None, Some(5u16)),
-        ("Fire Arrow", 50, None, Some(6u16)),
-        ("Torch", 1, None, Some(8u16)),
-        ("Stone Pickaxe", 1, None, Some(9u16)),
-        ("Repair Hammer", 1, None, Some(10u16)),
-        ("Primitive Reed Snorkel", 1, None, Some(11u16)),
+        ("Camp Fire", 1, None, Some(2u16)),
+        ("Wooden Arrow", 25, None, Some(3u16)),
 
     ];
 
