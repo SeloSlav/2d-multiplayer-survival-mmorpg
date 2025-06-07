@@ -158,15 +158,14 @@ pub fn update_player_position(
     };
 
     // --- ADD: Water Detection ---
-    let is_on_water = is_player_on_water(ctx, current_player.position_x, current_player.position_y);
+    // Check water status at current position for reference
+    let was_on_water = current_player.is_on_water;
     
     // --- ADD: Jump Detection ---
     let now_ms = (now.to_micros_since_unix_epoch() / 1000) as u64;
     let is_jumping = is_player_jumping(current_player.jump_start_time_ms, now_ms);
     
-    if is_on_water {
-        log::trace!("Player {:?} is on water tile at ({:.1}, {:.1}), jumping: {}", sender_id, current_player.position_x, current_player.position_y, is_jumping);
-    }
+
 
     // --- Calculate Delta Time ---
     let elapsed_micros = now.to_micros_since_unix_epoch().saturating_sub(current_player.last_update.to_micros_since_unix_epoch());
@@ -181,7 +180,7 @@ pub fn update_player_position(
     let mut current_sprinting_state = current_player.is_sprinting;
 
     // ADD: Disable sprinting on water (but allow sprinting while jumping over water)
-    if is_on_water && !is_jumping && current_sprinting_state {
+    if was_on_water && !is_jumping && current_sprinting_state {
         current_sprinting_state = false;
         log::trace!("Player {:?} sprinting disabled due to water (not jumping)", sender_id);
     }
@@ -213,7 +212,7 @@ pub fn update_player_position(
     }
 
     // ADD: Apply water speed penalty (but not while jumping over water)
-    if is_on_water && !is_jumping {
+    if was_on_water && !is_jumping {
         final_speed_multiplier *= WATER_SPEED_PENALTY; // 50% speed reduction
         log::trace!("Player {:?} water speed penalty applied (not jumping). Speed multiplier: {}", sender_id, final_speed_multiplier);
     }
@@ -290,6 +289,21 @@ pub fn update_player_position(
         slid_x, // Pass the position after sliding
         slid_y
     );
+
+    // --- ADD: Water Detection at NEW position ---
+    let is_on_water = is_player_on_water(ctx, resolved_x, resolved_y);
+    
+    if is_on_water {
+        log::trace!("Player {:?} is on water tile at new position ({:.1}, {:.1}), jumping: {}", sender_id, resolved_x, resolved_y, is_jumping);
+    }
+
+    // --- ADD: Auto-uncrouch when entering water ---
+    // If player is crouching and moves into water, automatically uncrouch them (start swimming)
+    let mut auto_uncrouch_needed = false;
+    if current_player.is_crouching && is_on_water && !is_jumping {
+        auto_uncrouch_needed = true;
+        log::debug!("Player {:?} auto-uncrouching due to entering water at new position ({:.1}, {:.1})", sender_id, resolved_x, resolved_y);
+    }
 
     // --- Grass Disturbance Detection (OPTIMIZED) ---
     const MIN_MOVEMENT_FOR_DISTURBANCE: f32 = 3.0;
@@ -387,7 +401,10 @@ pub fn update_player_position(
     // ADD: Check if water status changed
     let water_status_changed = player_to_update.is_on_water != is_on_water;
     
-    let should_update_state = position_changed || direction_changed || water_status_changed;
+    // ADD: Check if crouch state needs to change due to water
+    let crouch_status_changed = auto_uncrouch_needed;
+    
+    let should_update_state = position_changed || direction_changed || water_status_changed || crouch_status_changed;
 
     // Always update timestamp if delta_time > 0 to prevent accumulation on next tick
     // This ensures last_update reflects the time this reducer processed movement,
@@ -395,13 +412,20 @@ pub fn update_player_position(
     let needs_timestamp_update = delta_time_secs > 0.0;
 
     if should_update_state {
-        log::trace!("Updating player {:?} - PosChange: {}, DirChange: {}, WaterChange: {}",
-            sender_id, position_changed, direction_changed, water_status_changed);
+        log::trace!("Updating player {:?} - PosChange: {}, DirChange: {}, WaterChange: {}, CrouchChange: {}",
+            sender_id, position_changed, direction_changed, water_status_changed, crouch_status_changed);
 
         player_to_update.position_x = resolved_x;
         player_to_update.position_y = resolved_y;
         player_to_update.direction = final_anim_direction.to_string();
         player_to_update.is_on_water = is_on_water; // ADD: Update water status
+        
+        // ADD: Apply auto-uncrouch if needed
+        if auto_uncrouch_needed {
+            player_to_update.is_crouching = false;
+            log::info!("Player {:?} automatically uncrouched due to entering water", sender_id);
+        }
+        
         player_to_update.last_update = now; // Update timestamp because state changed
 
         players.identity().update(player_to_update.clone()); // Update the modified player struct
