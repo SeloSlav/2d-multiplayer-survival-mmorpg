@@ -4,7 +4,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "tsx watch index.ts",
+    "start": "node dist/index.js",
+    "dev": "tsx watch index.ts",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,10 +20,13 @@
     "hono": "^4.7.8",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^11.1.0",
-    "valibot": "^1.0.0"
+    "valibot": "^1.0.0",
+    "postgres": "^3.4.4",
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.15.3",
     "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",

@@ -1,0 +1,19 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+# This tells Railway to use auth-server-openauth as the root
+[build.watchPatterns]
+include = ["auth-server-openauth/**"]
+
+[environments.production]
+[environments.production.build]
+buildCommand = "npm install && npm run build"
+startCommand = "npm start"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
