@@ -4,8 +4,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "NODE_ENV=production node dist/index.js",
-    "dev": "NODE_ENV=development tsx watch index.ts",
+    "start": "cross-env NODE_ENV=production node dist/index.js",
+    "dev": "cross-env NODE_ENV=development tsx watch index.ts",
     "build": "tsc",
     "keys": "node generate-keys.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -24,7 +24,8 @@
     "valibot": "^1.0.0",
     "postgres": "^3.4.4",
     "jose": "^5.9.6",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "cross-env": "^7.0.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

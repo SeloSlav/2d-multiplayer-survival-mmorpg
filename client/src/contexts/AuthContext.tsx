@@ -6,8 +6,15 @@ import { parseJwt } from '../utils/auth/jwt'; // Corrected import path
 // import { Buffer } from 'buffer'; 
 // import crypto from 'crypto'; 
 
-// --- Configuration ---
-const AUTH_SERVER_URL = 'http://localhost:4001'; // URL of your OpenAuth server
+// --- Environment-based Configuration ---
+const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
+
+const AUTH_SERVER_URL = isDevelopment 
+  ? 'http://localhost:4001' 
+  : 'https://broth-and-bullets-production.up.railway.app';
+
+console.log(`[Auth] Environment: ${isDevelopment ? 'development' : 'production'}`);
+console.log(`[Auth] Using auth server: ${AUTH_SERVER_URL}`);
 const OIDC_CLIENT_ID = 'vibe-survival-game-client'; // An identifier for this React app
 const REDIRECT_URI = window.location.origin + '/callback'; // Where OpenAuth redirects back after login
 const LOCAL_STORAGE_KEYS = {
