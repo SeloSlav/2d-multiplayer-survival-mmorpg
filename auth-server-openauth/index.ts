@@ -43,6 +43,8 @@ import jwt from 'jsonwebtoken';
 import { Buffer } from 'buffer'; // Needed for PKCE base64
 import crypto from 'crypto'; // Needed for PKCE hash
 import { cors } from 'hono/cors';
+import fs from 'fs';
+import path from 'path';
 // Import our new modules
 import { db, type UserRecord, type AuthCodeData } from './database.js';
 import { initializeKeys, getPrivateKey, getPublicJWK, keyId } from './jwt-keys.js';
@@ -194,6 +196,34 @@ async function success(ctx: any, value: any): Promise<Response> {
   });
   const app  = new Hono();
 
+  // --- Static File Serving for login_background.png ---
+  app.get('/login_background.png', async (c) => {
+    try {
+      const imagePath = path.join(process.cwd(), 'login_background.png');
+      const imageBuffer = fs.readFileSync(imagePath);
+      c.header('Content-Type', 'image/png');
+      c.header('Cache-Control', 'public, max-age=3600');
+      return c.body(imageBuffer);
+    } catch (error) {
+      console.error('[Static] Failed to serve login_background.png:', error);
+      return c.text('Image not found', 404);
+    }
+  });
+
+  // --- Also serve at the wrong path to fix current issue ---
+  app.get('/auth/password/login_background.png', async (c) => {
+    try {
+      const imagePath = path.join(process.cwd(), 'login_background.png');
+      const imageBuffer = fs.readFileSync(imagePath);
+      c.header('Content-Type', 'image/png');
+      c.header('Cache-Control', 'public, max-age=3600');
+      return c.body(imageBuffer);
+    } catch (error) {
+      console.error('[Static] Failed to serve login_background.png:', error);
+      return c.text('Image not found', 404);
+    }
+  });
+
   // --- CORS Middleware --- 
   app.use('*', cors({ 
       origin: [
@@ -290,35 +320,23 @@ async function success(ctx: any, value: any): Promise<Response> {
                 min-height: 100vh;
                 width: 100%;
                 margin: 0;
-                background-color: #1a1a2e;
+                background-image: url('login_background.png');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
                 color: white;
             }
             .container {
-                background-color: rgba(40, 40, 60, 0.85);
+                background-color: rgba(0, 0, 0, 0.3);
                 padding: 40px;
-                border-radius: 4px;
-                border: 1px solid #a0a0c0;
-                box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
                 text-align: center;
                 min-width: 400px;
                 max-width: 500px;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            }
-            .logo-text {
-                font-size: 24px;
-                margin-bottom: 10px;
-                color: #e0e0e0;
-            }
-            .subtitle {
-                font-size: 14px;
-                margin-bottom: 30px;
-                color: #b0b0c0;
-            }
-            h1 {
-                margin-bottom: 25px;
-                font-weight: normal;
-                font-size: 20px;
             }
             label {
                 display: block;
@@ -381,9 +399,6 @@ async function success(ctx: any, value: any): Promise<Response> {
     </head>
     <body>
         <div class="container">
-            <div class="logo-text">${githubLogoPlaceholder}</div>
-            <div class="subtitle">2D Multiplayer Survival</div>
-            <h1>Create Account</h1>
             <form method="post">
                 <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
                 <input type="hidden" name="state" value="${state || ''}">
@@ -509,34 +524,22 @@ async function success(ctx: any, value: any): Promise<Response> {
                 min-height: 100vh;
                 width: 100%;
                 margin: 0;
-                background-color: #1a1a2e;
+                background-image: url('login_background.png');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
                 color: white;
             }
             .container {
-                background-color: rgba(40, 40, 60, 0.85);
+                background-color: rgba(0, 0, 0, 0.3);
                 padding: 40px;
-                border-radius: 4px;
-                border: 1px solid #a0a0c0;
-                box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
                 text-align: center;
                 min-width: 400px;
                 max-width: 500px;
-            }
-            .logo-text {
-                font-size: 24px;
-                margin-bottom: 10px;
-                color: #e0e0e0;
-            }
-            .subtitle {
-                font-size: 14px;
-                margin-bottom: 30px;
-                color: #b0b0c0;
-            }
-            h1 {
-                margin-bottom: 25px;
-                font-weight: normal;
-                font-size: 20px;
             }
             label {
                 display: block;
@@ -596,9 +599,6 @@ async function success(ctx: any, value: any): Promise<Response> {
     </head>
     <body>
         <div class="container">
-            <div class="logo-text">Vibe Survival</div>
-            <div class="subtitle">2D Multiplayer Survival</div>
-            <h1>Login</h1>
             <form method="post">
                 <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
                 <input type="hidden" name="state" value="${state || ''}">
