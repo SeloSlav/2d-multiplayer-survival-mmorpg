@@ -11,7 +11,7 @@ const SPACETIME_DB_ADDRESS = isDevelopment
   : 'wss://maincloud.spacetimedb.com'; // SpacetimeDB Maincloud
 
 const SPACETIME_DB_NAME = isDevelopment
-  ? 'vibe-survival-game'
+  ? 'broth-bullets-local'
   : 'broth-bullets'; // Your Maincloud database name
 
 console.log(`[SpacetimeDB] Environment: ${isDevelopment ? 'development' : 'production'}`);
