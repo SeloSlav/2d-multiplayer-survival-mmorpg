@@ -196,7 +196,12 @@ async function success(ctx: any, value: any): Promise<Response> {
 
   // --- CORS Middleware --- 
   app.use('*', cors({ 
-      origin: ['http://localhost:3008', 'http://localhost:3009'],
+      origin: [
+          'http://localhost:3008', 
+          'http://localhost:3009',
+          'https://broth-and-bullets.vercel.app',
+          'https://brothandbullets.com'
+      ],
       allowMethods: ['GET', 'POST', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
