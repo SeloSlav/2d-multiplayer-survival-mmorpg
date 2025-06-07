@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { imageManager } from '../utils/renderers/imageManager';
+import { itemIcons } from '../utils/itemIconUtils';
 
 // Import asset paths
 import heroSpriteSheet from '../assets/hero2.png';
@@ -47,12 +49,18 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 6 + 5 + 1;
-    let allStaticLoaded = false;
+    const totalStaticAssets = 6 + 5 + 1; // hero images + clouds + shelter
+    
+    // Count total item icons to preload
+    const itemIconEntries = Object.entries(itemIcons).filter(([key, iconPath]) => iconPath);
+    const totalItemIcons = itemIconEntries.length;
+    const totalAssets = totalStaticAssets + totalItemIcons;
+    
+    console.log(`[useAssetLoader] Starting to load ${totalAssets} assets (${totalStaticAssets} static + ${totalItemIcons} item icons)`);
 
     const checkLoadingComplete = () => {
-      if (!allStaticLoaded && loadedCount === totalStaticAssets) {
-        allStaticLoaded = true;
+      if (loadedCount === totalAssets) {
+        console.log(`[useAssetLoader] All ${totalAssets} assets loaded successfully!`);
         setIsLoadingAssets(false);
       }
     };
@@ -92,22 +100,41 @@ export function useAssetLoader(): AssetLoaderResult {
     loadImage(cloud4Texture, undefined, cloudImagesRef, 'cloud4.png');
     loadImage(cloud5Texture, undefined, cloudImagesRef, 'cloud5.png');
 
-    // --- Preload Entity Sprites (Fire-and-forget) ---
-    // These don't block the main isLoadingAssets state
-    try {
-        // console.log('Entity preloading initiated by hook.');
-    } catch (error) {
-        console.error("Error during entity preloading:", error);
-    }
-
-    // ADDED: Preload shelter image
+    // Load Shelter Image
     const shelterImg = new Image();
     shelterImg.onload = () => {
       shelterImageRef.current = shelterImg;
-      console.log('Shelter image loaded successfully.');
+      loadedCount++;
+      checkLoadingComplete();
     };
-    shelterImg.onerror = () => console.error('Failed to load shelter image.');
-    shelterImg.src = shelterSpritePath; // Assuming shelterSpritePath is defined or imported
+    shelterImg.onerror = () => {
+      console.error('Failed to load shelter image.');
+      loadedCount++;
+      checkLoadingComplete();
+    };
+    shelterImg.src = shelterSpritePath;
+
+    // Preload ALL item icons using ImageManager - this blocks completion until done
+    console.log('[useAssetLoader] Preloading item icons via ImageManager...');
+    itemIconEntries.forEach(([key, iconPath]) => {
+      if (!iconPath) return; // Skip undefined paths
+      
+      // Preload with ImageManager for in-game access
+      imageManager.preloadImage(iconPath);
+      
+      // Also count towards our loading completion
+      const img = new Image();
+      img.onload = () => {
+        loadedCount++;
+        checkLoadingComplete();
+      };
+      img.onerror = () => {
+        console.error(`Failed to preload item icon: ${key} -> ${iconPath}`);
+        loadedCount++;
+        checkLoadingComplete();
+      };
+      img.src = iconPath;
+    });
 
   }, []); // Runs once on mount
 

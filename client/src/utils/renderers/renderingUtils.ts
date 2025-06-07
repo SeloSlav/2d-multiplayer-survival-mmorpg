@@ -39,6 +39,8 @@ import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
 import { renderProjectile } from './projectileRenderingUtils';
 import { renderShelter } from './shelterRenderingUtils';
+import { imageManager } from './imageManager';
+import { getItemIcon } from '../itemIconUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -419,7 +421,10 @@ export const renderYSortedEntities = ({
                 projectileImageName = 'wooden_arrow.png';
             }
             
-            const projectileImage = itemImagesRef.current?.get(projectileImageName);
+            // Use imageManager to get the projectile image for production compatibility
+            const projectileImageSrc = getItemIcon(projectileImageName);
+            const projectileImage = imageManager.getImage(projectileImageSrc);
+            
             if (projectileImage) {
                 renderProjectile({
                     ctx,
