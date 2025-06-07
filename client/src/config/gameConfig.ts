@@ -68,3 +68,9 @@ export const JUMP_HEIGHT_PX = 40; // Maximum height the player reaches
 // --- Stat Thresholds (must match server/player_stats.rs) ---
 export const MAX_STAT_VALUE = 100;
 export const MIN_STAT_VALUE = 0;
+
+// --- Campfire & Torch Light Constants ---
+export const CAMPFIRE_LIGHT_RADIUS_BASE = 100; // Base radius for campfire light
+export const CAMPFIRE_FLICKER_AMOUNT = 0.1; // Amount of flicker for campfire light
+export const CAMPFIRE_LIGHT_INNER_COLOR = '#ffaa00'; // Inner color of campfire light
+export const CAMPFIRE_LIGHT_OUTER_COLOR = '#ff6600'; // Outer color of campfire light
