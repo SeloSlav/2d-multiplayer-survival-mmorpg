@@ -205,7 +205,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 left: 0,
                 width: '100%',
                 height: '100%',
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 15%, rgba(0,0,0,0.05) 18%, rgba(0,0,0,0.15) 22%, rgba(0,0,0,0.35) 26%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.95) 40%, rgba(0,0,0,1) 45%, rgba(0,0,0,1) 100%)',
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 4%, rgba(0,0,0,0.08) 8%, rgba(0,0,0,0.2) 12%, rgba(0,0,0,0.4) 16%, rgba(0,0,0,0.65) 20%, rgba(0,0,0,0.85) 23%, rgba(0,0,0,0.96) 25%, rgba(0,0,0,1) 27%, rgba(0,0,0,1) 100%)',
                 pointerEvents: 'none', // Allow clicks to pass through
                 zIndex: 1,
             }} />
@@ -215,8 +215,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 justifyContent: 'flex-start',
                 alignItems: 'center',
                 minHeight: '100vh',
-                paddingTop: '10vh',
-                paddingBottom: '50px',
+                paddingTop: 'clamp(15vh, 18vh, 18vh)', // More padding on mobile (15vh), less on desktop (10vh)
+                paddingBottom: '0px',
                 textAlign: 'center',
                 position: 'relative',
                 zIndex: 2, // Ensure content appears above the gradient overlay
@@ -522,7 +522,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         <div data-content-section style={{
                             marginTop: '15vh',
                             marginBottom: '80px',
-                            padding: '0 15px', // Minimal horizontal padding to prevent overflow
+                            padding: '0 clamp(20px, 5vw, 40px)', // Responsive horizontal padding: 20px on mobile, up to 40px on desktop
                             width: '100%',
                             maxWidth: '100%', // Use 100% instead of 100vw to prevent scrollbar
                             boxSizing: 'border-box',
@@ -533,7 +533,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                                 backdropFilter: 'blur(12px)',
                                 borderRadius: '16px',
-                                padding: '60px 40px',
+                                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px)', // Responsive padding: smaller on mobile
                                 margin: '0 auto 60px auto',
                                 maxWidth: '800px',
                                 width: '100%',
@@ -592,7 +592,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                                 backdropFilter: 'blur(12px)',
                                 borderRadius: '16px',
-                                padding: '60px 40px',
+                                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px)', // Responsive padding: smaller on mobile
                                 margin: '0 auto 60px auto',
                                 maxWidth: '800px',
                                 width: '100%',
@@ -630,9 +630,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                 {/* Tools Grid */}
                                 <div style={{
-                                    display: 'grid',
-                                    gap: '40px',
-                                    gridTemplateColumns: '1fr',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'clamp(20px, 4vw, 40px)',
                                     maxWidth: '700px',
                                     margin: '0 auto',
                                 }}>
@@ -657,7 +657,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                             border: '1px solid rgba(255, 255, 255, 0.2)',
                                             borderRadius: '12px',
-                                            padding: '32px',
+                                            padding: 'clamp(20px, 4vw, 32px)', // Responsive padding for tools section cards
                                             transition: 'all 0.3s ease',
                                             width: '100%',
                                             boxSizing: 'border-box',
@@ -720,7 +720,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                                 backdropFilter: 'blur(12px)',
                                 borderRadius: '16px',
-                                padding: '60px 40px',
+                                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px)', // Responsive padding: smaller on mobile
                                 margin: '0 auto 60px auto',
                                 maxWidth: '800px',
                                 width: '100%',
@@ -758,9 +758,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                 {/* Features Grid */}
                                 <div style={{
-                                    display: 'grid',
-                                    gap: '40px',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'clamp(20px, 4vw, 40px)',
                                     maxWidth: '700px',
                                     margin: '0 auto',
                                 }}>
@@ -800,7 +800,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                             border: '1px solid rgba(255, 255, 255, 0.2)',
                                             borderRadius: '12px',
-                                            padding: '32px',
+                                            padding: 'clamp(20px, 4vw, 32px)', // Responsive padding for features section cards
                                             transition: 'all 0.3s ease',
                                             width: '100%',
                                             boxSizing: 'border-box',
@@ -863,7 +863,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                                 backdropFilter: 'blur(12px)',
                                 borderRadius: '16px',
-                                padding: '60px 40px',
+                                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px)', // Responsive padding: smaller on mobile
                                 margin: '0 auto',
                                 maxWidth: '800px',
                                 width: '100%',
@@ -929,145 +929,194 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                         {
                                             question: "WHERE ARE WE IN DEVELOPMENT?",
                                             answer: (
-                                                <div className="space-y-4">
-                                                    <p>We're currently in the primitive stage of our tech tree—plenty of broth, but the bullets are still to come! Right now it's crossbows, fire arrows, and good old-fashioned clan warfare. We're building our foundation of survival, farming, cooking, and trading before advancing to more complex technologies. The persistent world is live and growing!</p>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                                    <p style={{
+                                                        fontSize: '16px',
+                                                        lineHeight: '1.7',
+                                                        color: 'rgba(255, 255, 255, 0.85)',
+                                                        textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                        textAlign: 'center',
+                                                        margin: '0',
+                                                    }}>
+                                                        We're currently in the primitive stage of our tech tree—plenty of broth, but the bullets are still to come! Right now it's crossbows, fire arrows, and good old-fashioned clan warfare. We're building our foundation of survival, farming, cooking, and trading before advancing to more complex technologies. The persistent world is live and growing!
+                                                    </p>
 
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-sm border-collapse border border-gray-600 rounded-lg overflow-hidden">
+                                                    <div style={{
+                                                        overflowX: 'auto',
+                                                        maxWidth: '100%',
+                                                    }}>
+                                                        <table style={{
+                                                            width: '100%',
+                                                            fontSize: '14px',
+                                                            borderCollapse: 'collapse',
+                                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                            borderRadius: '8px',
+                                                            overflow: 'hidden',
+                                                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                                        }}>
                                                             <thead>
-                                                                <tr className="bg-gray-800">
-                                                                    <th className="text-left py-3 px-4 text-orange-400 font-bold border-b border-gray-600">Feature</th>
-                                                                    <th className="text-right py-3 px-4 text-orange-400 font-bold border-b border-gray-600">Progress</th>
+                                                                <tr style={{
+                                                                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                                                }}>
+                                                                    <th style={{
+                                                                        textAlign: 'left',
+                                                                        padding: '12px 16px',
+                                                                        color: '#ff8c00',
+                                                                        fontWeight: 'bold',
+                                                                        borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                                                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                        fontSize: '13px',
+                                                                        letterSpacing: '1px',
+                                                                        textTransform: 'uppercase',
+                                                                    }}>
+                                                                        Feature Group
+                                                                    </th>
+                                                                    <th style={{
+                                                                        textAlign: 'center',
+                                                                        padding: '12px 16px',
+                                                                        color: '#ff8c00',
+                                                                        fontWeight: 'bold',
+                                                                        borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                                                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                        fontSize: '13px',
+                                                                        letterSpacing: '1px',
+                                                                        textTransform: 'uppercase',
+                                                                    }}>
+                                                                        Status
+                                                                    </th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {/* Completed Features */}
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Real-time Multiplayer: Basic player movement synchronization</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Environment Systems: Day/night cycle, Full moon nights, Rain system</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Survival Mechanics: Basic resource harvesting</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Resource Respawning: Trees, Stones, Plants</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">World Discovery: Minimap</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Hotbar: Item selection, weapon cooldown indicators</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Inventory Management: Moving, swapping, stacking, stack splitting</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Armor: Defense bonuses, warmth protection</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Placeables: Campfire (Multi-slot placement & interaction)</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Crafting System: Item recipes</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Storage Containers (Chests)</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Looting Mechanics (Containers)</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Authentication/Account System</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Cooking System: Food preparation using campfire</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Combat System: Multiple weapon types, improved hit detection, PvP balancing</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Ranged Weapons & Ammunition: Bow combat with different arrow types</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Active Effects System: Bleed damage, burn damage, status effects</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Player Corpses: Harvestable corpses that yield primitive resources</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Knock Out System: Combat state with temporary incapacitation</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Player Shelter: Personal shelter system with weather protection</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
-                                                                <tr className="bg-green-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Sleeping Bags: Placeable respawn points that persist between deaths</td>
-                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
-                                                                </tr>
+                                                                {/* Completed Feature Groups */}
+                                                                {[
+                                                                    { name: "🌐 Core Multiplayer & World", status: "COMPLETE" },
+                                                                    { name: "🎒 Inventory & Items", status: "COMPLETE" },
+                                                                    { name: "⚔️ Combat & Weapons", status: "COMPLETE" },
+                                                                    { name: "🍳 Survival & Cooking", status: "COMPLETE" },
+                                                                    { name: "🏠 Building & Storage", status: "COMPLETE" },
+                                                                    { name: "🔐 Authentication", status: "COMPLETE" },
+                                                                ].map((feature, index) => (
+                                                                    <tr key={index} style={{
+                                                                        backgroundColor: 'rgba(0, 100, 0, 0.2)',
+                                                                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                                                    }}>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'left',
+                                                                            color: 'rgba(255, 255, 255, 0.9)',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '14px',
+                                                                            fontWeight: '500',
+                                                                        }}>
+                                                                            {feature.name}
+                                                                        </td>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'center',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '12px',
+                                                                            fontWeight: 'bold',
+                                                                        }}>
+                                                                            <span style={{
+                                                                                backgroundColor: 'rgba(0, 150, 0, 0.8)',
+                                                                                color: 'white',
+                                                                                padding: '4px 12px',
+                                                                                borderRadius: '12px',
+                                                                                fontSize: '11px',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.5px',
+                                                                            }}>
+                                                                                ✓ {feature.status}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+
+                                                                {/* In Progress Features */}
+                                                                {[
+                                                                    { name: "🔧 Tool & Weapon Durability", status: "60%" },
+                                                                    { name: "👥 Social & Team Features", status: "40%" },
+                                                                    { name: "🌱 Farming Systems", status: "35%" },
+                                                                    { name: "🤖 AI & NPCs", status: "30%" },
+                                                                ].map((feature, index) => (
+                                                                    <tr key={index} style={{
+                                                                        backgroundColor: 'rgba(255, 165, 0, 0.15)',
+                                                                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                                                    }}>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'left',
+                                                                            color: 'rgba(255, 255, 255, 0.9)',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '14px',
+                                                                            fontWeight: '500',
+                                                                        }}>
+                                                                            {feature.name}
+                                                                        </td>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'center',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '12px',
+                                                                            fontWeight: 'bold',
+                                                                        }}>
+                                                                            <span style={{
+                                                                                backgroundColor: 'rgba(255, 140, 0, 0.8)',
+                                                                                color: 'white',
+                                                                                padding: '4px 12px',
+                                                                                borderRadius: '12px',
+                                                                                fontSize: '11px',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.5px',
+                                                                            }}>
+                                                                                ⚡ {feature.status}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
 
                                                                 {/* Planned Features */}
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">World Generation: Procedural generation, biomes, monuments</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">25%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Terrain Autotiling: Edge detection, Wang tiles, seamless transitions</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">15%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Advanced AI: Hostile NPCs behaviors, pathfinding</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">30%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Team/Social Features: Shared map markers, team chat, private messaging</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">40%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Construction System: Base building (walls, floors, etc.)</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">20%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Farming System: Planting, growing, harvesting crops</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">35%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Hunting System: NPC animals (deer, wolves, etc.), tracking mechanics</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">10%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Tool/Weapon Durability</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">60%</td>
-                                                                </tr>
-                                                                <tr className="bg-red-800/60 border-b border-gray-700">
-                                                                    <td className="py-2 px-4 text-left text-gray-100">Firearm System: Guns with ammo types, reloading mechanics, recoil</td>
-                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">5%</td>
-                                                                </tr>
+                                                                {[
+                                                                    { name: "🌍 Advanced World Generation", status: "PLANNED" },
+                                                                    { name: "🏗️ Advanced Construction", status: "PLANNED" },
+                                                                    { name: "🦌 Hunting & Wildlife", status: "PLANNED" },
+                                                                    { name: "🔫 Firearms & Advanced Combat", status: "PLANNED" },
+                                                                ].map((feature, index) => (
+                                                                    <tr key={index} style={{
+                                                                        backgroundColor: 'rgba(150, 0, 0, 0.2)',
+                                                                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                                                    }}>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'left',
+                                                                            color: 'rgba(255, 255, 255, 0.9)',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '14px',
+                                                                            fontWeight: '500',
+                                                                        }}>
+                                                                            {feature.name}
+                                                                        </td>
+                                                                        <td style={{
+                                                                            padding: '12px 16px',
+                                                                            textAlign: 'center',
+                                                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                                            fontSize: '12px',
+                                                                            fontWeight: 'bold',
+                                                                        }}>
+                                                                            <span style={{
+                                                                                backgroundColor: 'rgba(100, 100, 100, 0.6)',
+                                                                                color: 'rgba(255, 255, 255, 0.8)',
+                                                                                padding: '4px 12px',
+                                                                                borderRadius: '12px',
+                                                                                fontSize: '11px',
+                                                                                textTransform: 'uppercase',
+                                                                                letterSpacing: '0.5px',
+                                                                            }}>
+                                                                                📋 {feature.status}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
                                                             </tbody>
                                                         </table>
                                                     </div>
@@ -1083,7 +1132,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                             border: '1px solid rgba(255, 255, 255, 0.2)',
                                             borderRadius: '12px',
-                                            padding: '32px',
+                                            padding: 'clamp(20px, 4vw, 32px)', // Responsive padding for FAQ cards
                                             transition: 'all 0.3s ease',
                                             width: '100%',
                                             boxSizing: 'border-box',
@@ -1126,7 +1175,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 backgroundColor: 'rgba(0, 0, 0, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderTop: '1px solid rgba(255, 165, 0, 0.3)',
-                padding: '60px 20px 40px 20px',
+                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px) clamp(20px, 4vw, 40px) clamp(20px, 5vw, 40px)', // Responsive footer padding
                 position: 'relative',
                 zIndex: 3,
                 width: '100%',
