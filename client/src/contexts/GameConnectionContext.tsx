@@ -25,7 +25,7 @@ interface ConnectionContextState {
     isConnected: boolean; // Is the connection to SpacetimeDB established?
     isLoading: boolean;   // Is the SpacetimeDB connection attempt in progress?
     error: string | null; // Stores SpacetimeDB connection-related errors
-    registerPlayer: (username: string) => void;
+    registerPlayer: (username: string) => Promise<void>; // Return Promise to handle errors
 }
 
 // Create the context with a default value
@@ -35,7 +35,7 @@ const GameConnectionContext = createContext<ConnectionContextState>({
     isConnected: false,
     isLoading: false, // Start not loading
     error: null,
-    registerPlayer: () => { console.warn("GameConnectionContext not initialized for registerPlayer"); },
+    registerPlayer: async () => { console.warn("GameConnectionContext not initialized for registerPlayer"); },
 });
 
 // Provider props type
@@ -162,21 +162,53 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
     }, [spacetimeToken, invalidateCurrentToken]); 
 
     // Player registration function (can safely use state variable)
-    const registerPlayer = useCallback((username: string) => {
-        if (connection && isConnected && username.trim()) { // Use state variable
-            setConnectionError(null); // Clear previous errors on new attempt
+    const registerPlayer = useCallback(async (username: string): Promise<void> => {
+        if (!connection || !isConnected || !username.trim()) {
+            let reason = !connection ? "No SpacetimeDB connection" : !isConnected ? "Not connected to SpacetimeDB" : "Empty username";
+            console.warn(`[GameConnectionProvider] Cannot register player: ${reason}.`);
+            const errorMessage = `Cannot register: ${reason}.`;
+            setConnectionError(errorMessage);
+            throw new Error(errorMessage);
+        }
+
+        setConnectionError(null); // Clear previous errors on new attempt
+        
+        return new Promise<void>((resolve, reject) => {
+            // Set up a one-time listener for the register player result
+            const handleRegisterResult = (ctx: any, submittedUsername: string) => {
+                // Remove the callback after it's called once
+                connection.reducers.removeOnRegisterPlayer(handleRegisterResult);
+                
+                if (ctx.event?.status === 'Committed') {
+                    console.log('[GameConnectionProvider] Player registration successful');
+                    resolve();
+                } else {
+                    // Handle any non-committed status as an error
+                    console.error('[GameConnectionProvider] Player registration failed with status:', ctx.event?.status);
+                    console.error('[GameConnectionProvider] Full context:', ctx);
+                    
+                    // For now, assume any registration failure is due to username already taken
+                    // TODO: Parse the actual error message when we understand the status structure better
+                    const errorMessage = `Username '${username}' is already taken.`;
+                    reject(new Error(errorMessage));
+                }
+            };
+
+            // Register the callback before calling the reducer
+            connection.reducers.onRegisterPlayer(handleRegisterResult);
+
             try {
                 // console.log(`[GameConnectionProvider] Calling registerPlayer reducer with username: ${username}`);
-                connection.reducers.registerPlayer(username); // Use state variable
+                connection.reducers.registerPlayer(username);
             } catch (err: any) {
+                // Remove the callback if the reducer call itself failed
+                connection.reducers.removeOnRegisterPlayer(handleRegisterResult);
                 console.error('[GameConnectionProvider] Failed to call registerPlayer reducer:', err);
-                setConnectionError(`Failed to call registerPlayer: ${err.message || err}.`);
+                const errorMessage = `Failed to call registerPlayer: ${err.message || err}.`;
+                setConnectionError(errorMessage);
+                reject(new Error(errorMessage));
             }
-        } else {
-            let reason = !connection ? "No SpacetimeDB connection" : !isConnected ? "Not connected to SpacetimeDB" : "Empty username"; // Use state
-            console.warn(`[GameConnectionProvider] Cannot register player: ${reason}.`);
-            setConnectionError(`Cannot register: ${reason}.`);
-        }
+        });
     }, [isConnected, connection]); // Add connection state to dependencies
 
     // Context value (provide state variable)

@@ -196,6 +196,29 @@ async function success(ctx: any, value: any): Promise<Response> {
   });
   const app  = new Hono();
 
+  // --- Static File Serving for logo.png ---
+  app.get('/logo.png', async (c) => {
+    try {
+      const imagePath = path.join(process.cwd(), 'logo.png');
+      const imageBuffer = fs.readFileSync(imagePath);
+      return new Response(imageBuffer, { headers: { 'Content-Type': 'image/png' } });
+    } catch (error) {
+      console.error('[Static] Failed to serve logo.png:', error);
+      return new Response('Image not found', { status: 404 });
+    }
+  });
+
+  app.get('/auth/password/logo.png', async (c) => {
+    try {
+      const imagePath = path.join(process.cwd(), 'logo.png');
+      const imageBuffer = fs.readFileSync(imagePath);
+      return new Response(imageBuffer, { headers: { 'Content-Type': 'image/png' } });
+    } catch (error) {
+      console.error('[Static] Failed to serve logo.png:', error);
+      return new Response('Image not found', { status: 404 });
+    }
+  });
+
   // --- Static File Serving for login_background.png ---
   app.get('/login_background.png', async (c) => {
     try {
@@ -303,120 +326,229 @@ async function success(ctx: any, value: any): Promise<Response> {
     const code_challenge_method = query['code_challenge_method'] || 'S256';
     const client_id = query['client_id'] || CLIENT_ID; 
 
-    const githubLogoPlaceholder = 'Vibe Survival';
-
     return c.html(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Register</title>
+        <title>Create Account - Broth & Bullets</title>
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
             body {
+                min-height: 100vh;
+                width: 100%;
+                background-image: url('login_background.png');
+                background-size: cover;
+                background-position: top center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                color: white;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                min-height: 100vh;
-                width: 100%;
-                margin: 0;
-                background-image: url('login_background.png');
-                background-size: cover;
-                background-position: center;
-                background-repeat: no-repeat;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                color: white;
+                position: relative;
+                overflow-x: hidden;
             }
+            
             .container {
-                background-color: rgba(0, 0, 0, 0.3);
-                padding: 40px;
-                border-radius: 8px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(0, 0, 0, 0.75);
+                backdrop-filter: blur(12px);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 16px;
+                padding: 60px 40px;
+                width: 90%;
+                max-width: 450px;
+                position: relative;
+                z-index: 2;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
                 text-align: center;
-                min-width: 400px;
-                max-width: 500px;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             }
+            
+            .game-title {
+                height: 90px;
+                margin-bottom: 20px;
+                object-fit: contain;
+                filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));
+            }
+            
+            .game-subtitle {
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+                margin-bottom: 40px;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                font-weight: 400;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+            }
+            
+            .form-title {
+                font-size: 24px;
+                font-weight: 600;
+                color: white;
+                margin-bottom: 30px;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            }
+            
+            .form-group {
+                margin-bottom: 25px;
+                text-align: left;
+            }
+            
             label {
                 display: block;
                 margin-bottom: 8px;
-                font-size: 12px;
-                text-align: left;
-                color: #d0d0d0;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.9);
+                font-weight: 500;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                letter-spacing: 0.5px;
             }
-            input[type="email"], input[type="password"] {
-                padding: 10px;
-                margin-bottom: 20px;
-                border: 1px solid #a0a0c0;
-                background-color: #333;
+            
+            input[type="email"], 
+            input[type="password"] {
+                width: 100%;
+                padding: 16px 20px;
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 12px;
                 color: white;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                font-size: 14px;
-                display: block;
-                width: calc(100% - 22px);
-                text-align: center;
-                box-sizing: border-box;
-                border-radius: 2px;
+                font-size: 16px;
+                font-family: inherit;
+                backdrop-filter: blur(8px);
+                transition: all 0.3s ease;
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
             }
-            button[type="submit"] {
-                padding: 12px 20px;
-                border: 1px solid #a0a0c0;
-                background-color: #777;
+            
+            input[type="email"]:focus, 
+            input[type="password"]:focus {
+                outline: none;
+                border-color: #ff8c00;
+                background: rgba(255, 255, 255, 0.15);
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2);
+            }
+            
+            input[type="email"]::placeholder,
+            input[type="password"]::placeholder {
+                color: rgba(255, 255, 255, 0.5);
+            }
+            
+            .submit-button {
+                width: 100%;
+                padding: 18px 20px;
+                background: linear-gradient(135deg, #ff8c00 0%, #e67700 100%);
+                border: none;
+                border-radius: 12px;
                 color: white;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                font-size: 14px;
+                font-size: 16px;
+                font-weight: 600;
+                font-family: inherit;
                 cursor: pointer;
-                box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-                display: inline-block;
-                box-sizing: border-box;
-                margin-bottom: 20px;
+                transition: all 0.3s ease;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
                 text-transform: uppercase;
-                border-radius: 2px;
+                letter-spacing: 1px;
             }
-            button[type="submit"]:hover {
-                background-color: #888;
+            
+            .submit-button:hover {
+                background: linear-gradient(135deg, #ffaa33 0%, #ff8c00 100%);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(255, 140, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
             }
+            
+            .submit-button:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 8px rgba(255, 140, 0, 0.3);
+            }
+            
+            .divider {
+                height: 1px;
+                background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+                margin: 30px 0;
+            }
+            
             .form-link {
-                font-size: 12px;
-                color: #ccc;
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+                line-height: 1.6;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
             }
+            
             .form-link a {
-                color: #fff;
+                color: #ff8c00;
+                text-decoration: none;
+                font-weight: 500;
+                transition: color 0.3s ease;
+            }
+            
+            .form-link a:hover {
+                color: #ffaa33;
                 text-decoration: underline;
             }
-            .form-link a:hover {
-                color: #a0a0c0;
+            
+            .error-message {
+                background: rgba(220, 53, 69, 0.15);
+                border: 1px solid rgba(220, 53, 69, 0.4);
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 20px;
+                font-size: 14px;
+                color: #ff6b6b;
+                backdrop-filter: blur(8px);
+                text-shadow: none;
             }
-            hr {
-                border: none;
-                border-top: 1px solid #555;
-                margin-top: 25px;
-                margin-bottom: 25px;
+            
+            @media (max-width: 480px) {
+                .container {
+                    padding: 40px 30px;
+                    margin: 20px;
+                }
+                
+                .game-title {
+                    height: 60px;
+                }
             }
         </style>
     </head>
     <body>
         <div class="container">
+            <div class="game-title">
+                <img src="logo.png" alt="Broth & Bullets Logo" style="height: 100%; width: auto;">
+            </div>
+            <div class="game-subtitle">2D Multiplayer Survival</div>
+            
+            <h1 class="form-title">Create Account</h1>
+            
             <form method="post">
                 <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
                 <input type="hidden" name="state" value="${state || ''}">
                 <input type="hidden" name="code_challenge" value="${code_challenge}">
                 <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
                 <input type="hidden" name="client_id" value="${client_id}">
-                <div>
-                    <label for="email">Email:</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required>
+                
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input id="email" name="email" type="email" autocomplete="email" required placeholder="Enter your email">
                 </div>
-                <div>
-                    <label for="password">Password:</label>
-                    <input id="password" name="password" type="password" autocomplete="new-password" required>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="Create a password">
                 </div>
-                <button type="submit">Register</button>
+                
+                <button type="submit" class="submit-button">Create Account</button>
             </form>
-            <hr>
-            <p class="form-link">Already have an account? <a href="/auth/password/login?${queryString}">Login</a></p>
+            
+            <div class="divider"></div>
+            
+            <p class="form-link">Already have an account? <a href="/auth/password/login?${queryString}">Sign In</a></p>
         </div>
     </body>
     </html>
@@ -515,114 +647,219 @@ async function success(ctx: any, value: any): Promise<Response> {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Login</title>
+        <title>Sign In - Broth & Bullets</title>
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
             body {
+                min-height: 100vh;
+                width: 100%;
+                background-image: url('login_background.png');
+                background-size: cover;
+                background-position: top center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                color: white;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                min-height: 100vh;
-                width: 100%;
-                margin: 0;
-                background-image: url('login_background.png');
-                background-size: cover;
-                background-position: center;
-                background-repeat: no-repeat;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                color: white;
+                position: relative;
+                overflow-x: hidden;
             }
+            
             .container {
-                background-color: rgba(0, 0, 0, 0.3);
-                padding: 40px;
-                border-radius: 8px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(0, 0, 0, 0.75);
+                backdrop-filter: blur(12px);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 16px;
+                padding: 60px 40px;
+                width: 90%;
+                max-width: 450px;
+                position: relative;
+                z-index: 2;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
                 text-align: center;
-                min-width: 400px;
-                max-width: 500px;
             }
+            
+            .game-title {
+                height: 90px;
+                margin-bottom: 20px;
+                object-fit: contain;
+                filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));
+            }
+            
+            .game-subtitle {
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+                margin-bottom: 40px;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                font-weight: 400;
+                letter-spacing: 2px;
+                text-transform: uppercase;
+            }
+            
+            .form-title {
+                font-size: 24px;
+                font-weight: 600;
+                color: white;
+                margin-bottom: 20px;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            }
+            
+            .error-message {
+                background: rgba(220, 53, 69, 0.15);
+                border: 1px solid rgba(220, 53, 69, 0.4);
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 25px;
+                font-size: 14px;
+                color: #ff6b6b;
+                backdrop-filter: blur(8px);
+                text-shadow: none;
+            }
+            
+            .form-group {
+                margin-bottom: 25px;
+                text-align: left;
+            }
+            
             label {
                 display: block;
                 margin-bottom: 8px;
-                font-size: 12px;
-                text-align: left;
-                color: #d0d0d0;
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.9);
+                font-weight: 500;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                letter-spacing: 0.5px;
             }
-            input[type="email"], input[type="password"] {
-                padding: 10px;
-                margin-bottom: 20px;
-                border: 1px solid #a0a0c0;
-                background-color: #333;
+            
+            input[type="email"], 
+            input[type="password"] {
+                width: 100%;
+                padding: 16px 20px;
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 12px;
                 color: white;
-                font-size: 14px;
-                display: block;
-                width: calc(100% - 22px);
-                text-align: center;
-                box-sizing: border-box;
-                border-radius: 2px;
+                font-size: 16px;
+                font-family: inherit;
+                backdrop-filter: blur(8px);
+                transition: all 0.3s ease;
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
             }
-            button[type="submit"] {
-                padding: 12px 20px;
-                border: 1px solid #a0a0c0;
-                background-color: #777;
+            
+            input[type="email"]:focus, 
+            input[type="password"]:focus {
+                outline: none;
+                border-color: #ff8c00;
+                background: rgba(255, 255, 255, 0.15);
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2);
+            }
+            
+            .submit-button {
+                width: 100%;
+                padding: 18px 20px;
+                background: linear-gradient(135deg, #ff8c00 0%, #e67700 100%);
+                border: none;
+                border-radius: 12px;
                 color: white;
-                font-size: 14px;
+                font-size: 16px;
+                font-weight: 600;
+                font-family: inherit;
                 cursor: pointer;
-                box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-                display: inline-block;
-                box-sizing: border-box;
-                margin-bottom: 20px;
+                transition: all 0.3s ease;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
                 text-transform: uppercase;
-                border-radius: 2px;
+                letter-spacing: 1px;
             }
-            button[type="submit"]:hover {
-                background-color: #888;
+            
+            .submit-button:hover {
+                background: linear-gradient(135deg, #ffaa33 0%, #ff8c00 100%);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(255, 140, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
             }
+            
+            .divider {
+                height: 1px;
+                background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+                margin: 30px 0;
+            }
+            
             .form-link {
-                font-size: 12px;
-                color: #ccc;
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+                line-height: 1.6;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
             }
+            
             .form-link a {
-                color: #fff;
+                color: #ff8c00;
+                text-decoration: none;
+                font-weight: 500;
+                transition: color 0.3s ease;
+            }
+            
+            .form-link a:hover {
+                color: #ffaa33;
                 text-decoration: underline;
             }
-            .form-link a:hover {
-                color: #a0a0c0;
-            }
-            hr {
-                border: none;
-                border-top: 1px solid #555;
-                margin-top: 25px;
-                margin-bottom: 25px;
+            
+            @media (max-width: 480px) {
+                .container {
+                    padding: 40px 30px;
+                    margin: 20px;
+                }
+                
+                .game-title {
+                    height: 40px;
+                }
             }
         </style>
     </head>
     <body>
         <div class="container">
+            <div class="game-title">
+                <img src="logo.png" alt="Broth & Bullets Logo" style="height: 100%; width: auto;">
+            </div>
+            <div class="game-subtitle">2D Multiplayer Survival</div>
+            
+            <h1 class="form-title">Sign In</h1>
+            
             <form method="post">
                 <input type="hidden" name="redirect_uri" value="${encodeURIComponent(redirect_uri)}">
                 <input type="hidden" name="state" value="${state || ''}">
                 <input type="hidden" name="code_challenge" value="${code_challenge}">
                 <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
                 <input type="hidden" name="client_id" value="${client_id}">
-                <div>
-                    <label for="email">Email:</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required>
+                
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input id="email" name="email" type="email" autocomplete="email" required placeholder="Enter your email">
                 </div>
-                <div>
-                    <label for="password">Password:</label>
-                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="Enter your password">
                 </div>
-                <button type="submit">Login</button>
+                
+                <button type="submit" class="submit-button">Sign In</button>
             </form>
-            <hr>
-            <p class="form-link">Don't have an account? <a href="/auth/password/register?${queryString}">Register</a></p>
+            
+            <div class="divider"></div>
+            
+            <p class="form-link">Don't have an account? <a href="/auth/password/register?${queryString}">Create Account</a></p>
         </div>
     </body>
     </html>
     `);
   });
-  
+
   app.post('/auth/password/login', async (c) => {
       const form = await c.req.formData();
       const email = form.get('email') as string | undefined;
@@ -676,42 +913,208 @@ async function success(ctx: any, value: any): Promise<Response> {
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                <title>Login</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Sign In - Broth & Bullets</title>
                 <style>
-                    body { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; margin: 0; background-color: #1a1a2e; font-family: system-ui; color: white; }
-                    .container { background-color: rgba(40, 40, 60, 0.85); padding: 40px; border-radius: 4px; border: 1px solid #a0a0c0; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); text-align: center; min-width: 400px; max-width: 500px; }
-                    .logo-text { font-size: 24px; margin-bottom: 10px; color: #e0e0e0; }
-                    .subtitle { font-size: 14px; margin-bottom: 30px; color: #b0b0c0; }
-                    h1 { margin-bottom: 25px; font-weight: normal; font-size: 20px; }
-                    .error-message { color: red; margin-bottom: 15px; font-size: 12px; padding: 8px; background-color: rgba(255,0,0,0.1); border-radius: 4px; }
-                    label { display: block; margin-bottom: 8px; font-size: 12px; text-align: left; color: #d0d0d0; }
-                    input[type="email"], input[type="password"] { padding: 10px; margin-bottom: 20px; border: 1px solid #a0a0c0; background-color: #333; color: white; font-size: 14px; display: block; width: calc(100% - 22px); text-align: center; box-sizing: border-box; border-radius: 2px; }
-                    button[type="submit"] { padding: 12px 20px; border: 1px solid #a0a0c0; background-color: #777; color: white; font-size: 14px; cursor: pointer; box-shadow: 2px 2px 0px rgba(0,0,0,0.5); display: inline-block; box-sizing: border-box; margin-bottom: 20px; text-transform: uppercase; border-radius: 2px; }
-                    button[type="submit"]:hover { background-color: #888; }
-                    .form-link { font-size: 12px; color: #ccc; }
-                    .form-link a { color: #fff; text-decoration: underline; }
-                    .form-link a:hover { color: #a0a0c0; }
-                    hr { border: none; border-top: 1px solid #555; margin-top: 25px; margin-bottom: 25px; }
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+                    
+                    body {
+                        min-height: 100vh;
+                        width: 100%;
+                        background-image: url('login_background.png');
+                        background-size: cover;
+                        background-position: top center;
+                        background-repeat: no-repeat;
+                        background-attachment: fixed;
+                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                        color: white;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        position: relative;
+                        overflow-x: hidden;
+                    }
+                    
+                    .container {
+                        background: rgba(0, 0, 0, 0.75);
+                        backdrop-filter: blur(12px);
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                        border-radius: 16px;
+                        padding: 60px 40px;
+                        width: 90%;
+                        max-width: 450px;
+                        position: relative;
+                        z-index: 2;
+                        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                        text-align: center;
+                    }
+                    
+                    .game-title {
+                        height: 60px;
+                        margin-bottom: 15px;
+                        object-fit: contain;
+                        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.8));
+                    }
+                    
+                    .game-subtitle {
+                        font-size: 14px;
+                        color: rgba(255, 255, 255, 0.8);
+                        margin-bottom: 40px;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                        font-weight: 400;
+                        letter-spacing: 2px;
+                        text-transform: uppercase;
+                    }
+                    
+                    .form-title {
+                        font-size: 24px;
+                        font-weight: 600;
+                        color: white;
+                        margin-bottom: 20px;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                    }
+                    
+                    .error-message {
+                        background: rgba(220, 53, 69, 0.15);
+                        border: 1px solid rgba(220, 53, 69, 0.4);
+                        border-radius: 8px;
+                        padding: 12px;
+                        margin-bottom: 25px;
+                        font-size: 14px;
+                        color: #ff6b6b;
+                        backdrop-filter: blur(8px);
+                        text-shadow: none;
+                    }
+                    
+                    .form-group {
+                        margin-bottom: 25px;
+                        text-align: left;
+                    }
+                    
+                    label {
+                        display: block;
+                        margin-bottom: 8px;
+                        font-size: 13px;
+                        color: rgba(255, 255, 255, 0.9);
+                        font-weight: 500;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                        letter-spacing: 0.5px;
+                    }
+                    
+                    input[type="email"], 
+                    input[type="password"] {
+                        width: 100%;
+                        padding: 16px 20px;
+                        background: rgba(255, 255, 255, 0.1);
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                        border-radius: 12px;
+                        color: white;
+                        font-size: 16px;
+                        font-family: inherit;
+                        backdrop-filter: blur(8px);
+                        transition: all 0.3s ease;
+                        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+                    }
+                    
+                    input[type="email"]:focus, 
+                    input[type="password"]:focus {
+                        outline: none;
+                        border-color: #ff8c00;
+                        background: rgba(255, 255, 255, 0.15);
+                        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2);
+                    }
+                    
+                    .submit-button {
+                        width: 100%;
+                        padding: 18px 20px;
+                        background: linear-gradient(135deg, #ff8c00 0%, #e67700 100%);
+                        border: none;
+                        border-radius: 12px;
+                        color: white;
+                        font-size: 16px;
+                        font-weight: 600;
+                        font-family: inherit;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        margin-bottom: 30px;
+                        box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                    }
+                    
+                    .submit-button:hover {
+                        background: linear-gradient(135deg, #ffaa33 0%, #ff8c00 100%);
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(255, 140, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+                    }
+                    
+                    .divider {
+                        height: 1px;
+                        background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+                        margin: 30px 0;
+                    }
+                    
+                    .form-link {
+                        font-size: 14px;
+                        color: rgba(255, 255, 255, 0.8);
+                        line-height: 1.6;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+                    }
+                    
+                    .form-link a {
+                        color: #ff8c00;
+                        text-decoration: none;
+                        font-weight: 500;
+                        transition: color 0.3s ease;
+                    }
+                    
+                    .form-link a:hover {
+                        color: #ffaa33;
+                        text-decoration: underline;
+                    }
+                    
+                    @media (max-width: 480px) {
+                        .container {
+                            padding: 40px 30px;
+                            margin: 20px;
+                        }
+                        
+                        .game-title {
+                            height: 40px;
+                        }
+                    }
                 </style>
             </head>
             <body>
                 <div class="container">
-                    <div class="logo-text">Vibe Survival</div>
-                    <div class="subtitle">2D Multiplayer Survival</div>
-                    <h1>Login</h1>
-                    <p class="error-message">Invalid email or password.</p>
+                    <div class="game-title">
+                        <img src="logo.png" alt="Broth & Bullets Logo" style="height: 100%; width: auto;">
+                    </div>
+                    <div class="game-subtitle">2D Multiplayer Survival</div>
+                    <h1 class="form-title">Sign In</h1>
+                    <p class="error-message">Invalid email or password. Please try again.</p>
                     <form method="post">
                         <input type="hidden" name="redirect_uri" value="${redirect_uri_from_form}">
                         <input type="hidden" name="state" value="${state || ''}">
                         <input type="hidden" name="code_challenge" value="${code_challenge}">
                         <input type="hidden" name="code_challenge_method" value="${code_challenge_method}">
                         <input type="hidden" name="client_id" value="${client_id}">
-                        <div><label for="email">Email:</label><input id="email" name="email" type="email" value="${email || ''}" required></div>
-                        <div><label for="password">Password:</label><input id="password" name="password" type="password" required></div>
-                        <button type="submit">Login</button>
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input id="email" name="email" type="email" value="${email || ''}" required placeholder="Enter your email">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input id="password" name="password" type="password" required placeholder="Enter your password">
+                        </div>
+                        <button type="submit" class="submit-button">Sign In</button>
                     </form>
-                    <hr>
-                    <p class="form-link">Don't have an account? <a href="/auth/password/register?${queryString}">Register</a></p>
+                    <div class="divider"></div>
+                    <p class="form-link">Don't have an account? <a href="/auth/password/register?${queryString}">Create Account</a></p>
                 </div>
             </body>
             </html>

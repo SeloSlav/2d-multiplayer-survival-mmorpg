@@ -12,10 +12,20 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
-// import githubLogo from '../../public/github.png'; // Adjust path as needed
 import { useAuth } from '../contexts/AuthContext';
 // Import the Player type from generated bindings
 import { Player } from '../generated'; // Adjusted path
+import loginBackground from '../assets/login_background2.png';
+import logo from '../assets/logo.png';
+import combatLadle from '../assets/combat_ladle.png';
+import ocularImplant from '../assets/ocular_implant.png';
+import fieldCauldron from '../assets/field_cauldron.png';
+import persistentOpenWorld from '../assets/persistent_open_world.png';
+import buildGovern from '../assets/build_govern.png';
+import chooseCombat from '../assets/choose_combat.png';
+import livingEconomy from '../assets/living_economy.png';
+import dynamicSeasons from '../assets/dynamic_seasons.png';
+import endlessBrewing from '../assets/endless_brewing.png';
 // Remove Supabase imports
 // import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '../services/supabase'; 
 
@@ -30,28 +40,28 @@ const UI_PAGE_BG_COLOR = '#1a1a2e';
 
 interface LoginScreenProps {
     // Removed username/setUsername props
-    handleJoinGame: (usernameToRegister: string | null) => void; // Accepts null for existing players
+    handleJoinGame: (usernameToRegister: string | null) => Promise<void>; // Accepts null for existing players, returns Promise to handle errors
     loggedInPlayer: Player | null; // Player data from SpacetimeDB if exists
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
-    handleJoinGame, 
+    handleJoinGame,
     loggedInPlayer,
 }) => {
     // Get OpenAuth state and functions
-    const { 
+    const {
         userProfile, // Contains { userId } after successful login 
-        isAuthenticated, 
-        isLoading: authIsLoading, 
-        authError, 
-        loginRedirect, 
-        logout 
+        isAuthenticated,
+        isLoading: authIsLoading,
+        authError,
+        loginRedirect,
+        logout
     } = useAuth();
-    
+
     // Local state for the username input field (only used for new players)
     const [inputUsername, setInputUsername] = useState<string>('');
     const [localError, setLocalError] = useState<string | null>(null);
-    
+
     // Ref for username input focus
     const usernameInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,7 +69,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     useEffect(() => {
         if (isAuthenticated && !loggedInPlayer) {
             usernameInputRef.current?.focus();
-        } 
+        }
     }, [isAuthenticated, loggedInPlayer]);
 
     // Validation: only needed for new players entering a username
@@ -69,7 +79,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             return false;
         }
         // Add other validation rules if needed (length, characters, etc.)
-        setLocalError(null); 
+        setLocalError(null);
         return true;
     };
 
@@ -80,7 +90,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
         if (!isAuthenticated) {
             // If not authenticated, start the OpenAuth login flow
-            await loginRedirect(); 
+            await loginRedirect();
         } else {
             // If authenticated, check if it's a new or existing player
 
@@ -93,15 +103,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 // Disabling the button (see below) also helps prevent this.
                 return;
             }
-            
-            if (loggedInPlayer) {
-                // Existing player: Join directly, pass null for username
-                 handleJoinGame(null); 
-            } else {
-                // New player: Validate the entered username and join
-                if (validateNewUsername()) {
-                    handleJoinGame(inputUsername);
+
+            try {
+                if (loggedInPlayer) {
+                    // Existing player: Join directly, pass null for username
+                    await handleJoinGame(null);
+                } else {
+                    // New player: Validate the entered username and join
+                    if (validateNewUsername()) {
+                        await handleJoinGame(inputUsername);
+                    }
                 }
+            } catch (error) {
+                // Handle server-side errors (like username already taken)
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                setLocalError(errorMessage);
             }
         }
     };
@@ -113,211 +129,1312 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         }
     };
 
-    return (
-        <div style={{ 
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '100vh',
-            width: '100%',
-            fontFamily: UI_FONT_FAMILY,
-            backgroundColor: UI_PAGE_BG_COLOR,
-        }}>
-            <div style={{ 
-                backgroundColor: UI_BG_COLOR,
-                color: 'white',
-                padding: '40px',
-                borderRadius: '4px',
-                border: `1px solid ${UI_BORDER_COLOR}`,
-                boxShadow: UI_SHADOW,
-                textAlign: 'center',
-                minWidth: '400px',
-                maxWidth: '500px', // Added maxWidth for consistency
-            }}>
-                {/* REMOVED Image Logo */}
-                {/* <img
-                    src={githubLogo}
-                    alt="Vibe Coding Logo"
-                    style={{
-                        width: '240px',
-                        height: 'auto',
-                        marginBottom: '25px',
-                    }}
-                /> */}
+    // Override global App.css scroll restrictions for login screen
+    React.useEffect(() => {
+        // Store original styles
+        const originalBodyOverflow = document.body.style.overflow;
+        const originalBodyOverflowX = document.body.style.overflowX;
+        const originalBodyOverflowY = document.body.style.overflowY;
+        const originalBodyHeight = document.body.style.height;
+        const originalHtmlOverflow = document.documentElement.style.overflow;
+        const originalHtmlOverflowX = document.documentElement.style.overflowX;
+        const originalHtmlOverflowY = document.documentElement.style.overflowY;
 
-                {/* ADDED Text Logo and Subtitle */}
+        // Find and override .App container styles
+        const appElement = document.querySelector('.App') as HTMLElement;
+        const originalAppOverflow = appElement?.style.overflow;
+        const originalAppOverflowX = appElement?.style.overflowX;
+        const originalAppOverflowY = appElement?.style.overflowY;
+        const originalAppHeight = appElement?.style.height;
+
+        // COMPLETELY DISABLE horizontal scrolling at all levels
+        document.body.style.overflowX = 'hidden';
+        document.body.style.overflowY = 'auto';
+        document.body.style.height = 'auto';
+        document.documentElement.style.overflowX = 'hidden';
+        document.documentElement.style.overflowY = 'auto';
+
+        // Apply to App container as well
+        if (appElement) {
+            appElement.style.overflowX = 'hidden';
+            appElement.style.overflowY = 'auto';
+            appElement.style.height = 'auto';
+        }
+
+        return () => {
+            // Restore original styles when component unmounts
+            document.body.style.overflow = originalBodyOverflow;
+            document.body.style.overflowX = originalBodyOverflowX;
+            document.body.style.overflowY = originalBodyOverflowY;
+            document.body.style.height = originalBodyHeight;
+            document.documentElement.style.overflow = originalHtmlOverflow;
+            document.documentElement.style.overflowX = originalHtmlOverflowX;
+            document.documentElement.style.overflowY = originalHtmlOverflowY;
+
+            if (appElement) {
+                appElement.style.overflow = originalAppOverflow || '';
+                appElement.style.overflowX = originalAppOverflowX || '';
+                appElement.style.overflowY = originalAppOverflowY || '';
+                appElement.style.height = originalAppHeight || '';
+            }
+        };
+    }, []);
+
+    return (
+        <div style={{
+            minHeight: '100vh', // Ensure page is tall enough to scroll
+            width: '100%', // Match the background image width exactly
+            margin: 0,
+            padding: 0,
+            backgroundImage: `url(${loginBackground})`,
+            backgroundSize: '100% auto', // Show full width, scale height proportionally
+            backgroundPosition: 'center top',
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'scroll',
+            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+            color: 'white',
+            position: 'relative',
+            overflowX: 'hidden', // Prevent horizontal scrolling
+            overflowY: 'auto', // Allow vertical scrolling
+            boxSizing: 'border-box', // Include padding and border in width calculations
+        }}>
+            {/* Gradient Overlay - Very aggressive transition to eliminate flat line */}
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 15%, rgba(0,0,0,0.05) 18%, rgba(0,0,0,0.15) 22%, rgba(0,0,0,0.35) 26%, rgba(0,0,0,0.65) 30%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.95) 40%, rgba(0,0,0,1) 45%, rgba(0,0,0,1) 100%)',
+                pointerEvents: 'none', // Allow clicks to pass through
+                zIndex: 1,
+            }} />
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                minHeight: '100vh',
+                paddingTop: '10vh',
+                paddingBottom: '50px',
+                textAlign: 'center',
+                position: 'relative',
+                zIndex: 2, // Ensure content appears above the gradient overlay
+            }}>
+                {/* Logo */}
+                <img
+                    src={logo}
+                    alt="Broth & Bullets Logo"
+                    style={{
+                        width: 'min(600px, 70vw)', // Responsive: 600px on desktop, 70% of viewport width on mobile (smaller)
+                        maxWidth: '600px',
+                        height: 'auto',
+                        marginBottom: 'clamp(20px, 4vh, 60px)', // Responsive margin, smaller on mobile
+                        display: 'block',
+                        filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.8)) drop-shadow(0 0 40px rgba(255,255,255,0.2))',
+                    }}
+                />
+
                 <div style={{
-                    fontSize: '24px',
-                    marginBottom: '10px',
-                    color: '#e0e0e0',
-                    fontFamily: UI_FONT_FAMILY,
+                    textAlign: 'center',
                 }}>
-                    Vibe Survival
-                </div>
-                <div style={{
-                    fontSize: '14px',
-                    marginBottom: '30px',
-                    color: '#b0b0c0',
-                    fontFamily: UI_FONT_FAMILY,
-                }}>
-                    2D Multiplayer Survival 
-                </div>
-                
-                {/* Display based on authentication and player existence */}
-                {authIsLoading ? (
-                    <p>Loading...</p>
-                ) : authError ? (
-                    <>
+
+                    {/* Display based on authentication and player existence */}
+                    {authIsLoading ? (
+                        <p>Loading...</p>
+                    ) : authError ? (
+                        <>
+                            <p style={{
+                                color: 'red',
+                                marginTop: '15px',
+                                fontSize: '12px',
+                                padding: '8px',
+                                backgroundColor: 'rgba(255,0,0,0.1)',
+                                borderRadius: '4px',
+                                marginBottom: '20px',
+                            }}>
+                                Connection failed. Please ensure you have an internet connection and try again.<br />
+                                If the problem persists, please try signing out and signing in.
+                            </p>
+                            <button
+                                onClick={logout}
+                                disabled={authIsLoading} // Though authIsLoading is false here, keep for consistency
+                                style={{
+                                    padding: '12px 20px',
+                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    backgroundColor: 'rgba(139, 69, 19, 0.8)', // Darker brown for buttons
+                                    color: 'white',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
+                                    width: '100%',
+                                    marginBottom: '15px',
+                                    textTransform: 'uppercase',
+                                    borderRadius: '4px',
+                                }}
+                            >
+                                Sign Out
+                            </button>
+                        </>
+                    ) : isAuthenticated ? (
+                        loggedInPlayer ? (
+                            // Existing Player: Show welcome message
+                            <p style={{
+                                marginBottom: '20px',
+                                fontSize: '14px'
+                            }}>
+                                Welcome back, {loggedInPlayer.username}!
+                            </p>
+                        ) : (
+                            // New Player: Show username input ONLY if no authError
+                            !authError ? (
+                                <div style={{
+                                    maxWidth: '350px',
+                                    margin: '0 auto',
+                                    textAlign: 'left',
+                                }}>
+                                    <div style={{
+                                        marginBottom: '25px',
+                                    }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: '8px',
+                                            fontSize: '13px',
+                                            color: 'rgba(255, 255, 255, 0.9)',
+                                            fontWeight: '500',
+                                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                            letterSpacing: '0.5px',
+                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                        }}>
+                                            Choose Your Username
+                                        </label>
+                                        <input
+                                            ref={usernameInputRef}
+                                            type="text"
+                                            placeholder="Enter username"
+                                            value={inputUsername}
+                                            onChange={(e) => setInputUsername(e.target.value)}
+                                            onKeyDown={handleKeyDown}
+                                            style={{
+                                                width: '100%',
+                                                padding: '16px 20px',
+                                                background: 'rgba(255, 255, 255, 0.1)',
+                                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                                borderRadius: '12px',
+                                                color: 'white',
+                                                fontSize: '16px',
+                                                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                                backdropFilter: 'blur(8px)',
+                                                transition: 'all 0.3s ease',
+                                                boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)',
+                                                boxSizing: 'border-box',
+                                                outline: 'none',
+                                            }}
+                                            onFocus={(e) => {
+                                                e.currentTarget.style.borderColor = '#ff8c00';
+                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                                                e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2)';
+                                            }}
+                                            onBlur={(e) => {
+                                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                                                e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2)';
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                // Show a message that authentication is being verified
+                                <p style={{
+                                    marginBottom: '20px',
+                                    fontSize: '14px',
+                                    color: '#ccc'
+                                }}>
+                                    Verifying authentication...
+                                </p>
+                            )
+                        )
+                    ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
+
+                    {/* Render Login/Join button only if not loading and no authError */}
+                    {!authIsLoading && !authError && (
+                        <form onSubmit={handleSubmit}>
+                            <button
+                                type="submit"
+                                // Disable if there's any auth error, even if technically "authenticated"
+                                disabled={authError !== null}
+                                onMouseEnter={(e) => {
+                                    if (!authError) {
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,165,0,0.3)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!authError) {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
+                                    }
+                                }}
+                                style={{
+                                    padding: '16px 32px',
+                                    border: '2px solid rgba(255, 165, 0, 0.6)',
+                                    backgroundColor: authError ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
+                                    background: authError ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
+                                    color: authError ? '#ccc' : 'white',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    fontSize: '16px',
+                                    fontWeight: 'bold',
+                                    cursor: authError ? 'not-allowed' : 'pointer',
+                                    boxShadow: authError ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                    display: 'inline-block',
+                                    boxSizing: 'border-box',
+                                    textTransform: 'uppercase',
+                                    borderRadius: '8px',
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    letterSpacing: '1px',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {isAuthenticated ? 'Join Game' : 'Start Your Journey'}
+                            </button>
+
+                            {/* Version Text with Learn More */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '15px',
+                                marginTop: '15px',
+                            }}>
+                                <span style={{
+                                    fontSize: '13px',
+                                    color: 'rgba(255, 255, 255, 0.9)',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                    letterSpacing: '0.5px',
+                                }}>
+                                    Early Access v0.53
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const contentSection = document.querySelector('[data-content-section]');
+                                        if (contentSection) {
+                                            contentSection.scrollIntoView({
+                                                behavior: 'smooth',
+                                                block: 'start'
+                                            });
+                                        } else {
+                                            window.scrollTo({
+                                                top: window.innerHeight * 0.9,
+                                                behavior: 'smooth'
+                                            });
+                                        }
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: '1px solid rgba(255, 255, 255, 0.4)',
+                                        color: 'rgba(255, 255, 255, 0.9)',
+                                        padding: '4px 8px',
+                                        fontSize: '11px',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                        textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                        transition: 'all 0.2s ease',
+                                        letterSpacing: '0.3px',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.6)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                                    }}
+                                >
+                                    learn more
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    {/* Local Error Messages (e.g., for username validation) - show if not authError */}
+                    {localError && !authError && (
                         <p style={{
                             color: 'red',
-                            marginTop: '15px',
+                            marginTop: '0px',
+                            marginBottom: '15px',
                             fontSize: '12px',
                             padding: '8px',
                             backgroundColor: 'rgba(255,0,0,0.1)',
                             borderRadius: '4px',
-                            marginBottom: '20px',
                         }}>
-                            Connection failed. Please ensure you have an internet connection and try again.<br />
-                            If the problem persists, please try signing out and signing in.
+                            {localError}
                         </p>
-                        <button
-                            onClick={logout}
-                            disabled={authIsLoading} // Though authIsLoading is false here, keep for consistency
-                            style={{
-                                padding: '10px 20px',
-                                border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: UI_BUTTON_COLOR,
-                                color: 'white',
-                                fontFamily: UI_FONT_FAMILY,
-                                fontSize: '14px',
-                                cursor: 'pointer',
-                                boxShadow: UI_SHADOW,
-                                width: '100%',
-                                marginBottom: '15px',
-                                textTransform: 'uppercase',
-                                borderRadius: '2px',
-                            }}
-                        >
-                            Sign Out
-                        </button>
-                    </>
-                ) : isAuthenticated ? (
-                    loggedInPlayer ? (
-                        // Existing Player: Show welcome message
-                        <p style={{
-                            marginBottom: '20px',
-                            fontSize: '14px'
+                    )}
+
+                    {/* Logout Section (Only if authenticated and no authError) */}
+                    {isAuthenticated && !authError && (
+                        <div style={{
+                            marginTop: '20px',
+                            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                            paddingTop: '20px'
                         }}>
-                            Welcome back, {loggedInPlayer.username}!
-                        </p>
-                    ) : (
-                        // New Player: Show username input ONLY if no authError
-                        !authError ? (
-                            <input
-                                ref={usernameInputRef}
-                                type="text"
-                                placeholder="Choose Your Username"
-                                value={inputUsername}
-                                onChange={(e) => setInputUsername(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                style={{
-                                    padding: '10px',
-                                    marginBottom: '20px',
-                                    border: `1px solid ${UI_BORDER_COLOR}`,
-                                    backgroundColor: '#333',
-                                    color: 'white',
-                                    fontFamily: UI_FONT_FAMILY,
-                                    fontSize: '14px',
+                            {userProfile && (
+                                <span style={{
+                                    fontSize: '10px',
+                                    color: '#ccc',
                                     display: 'block',
-                                    width: 'calc(100% - 22px)',
-                                    textAlign: 'center',
-                                    boxSizing: 'border-box',
+                                    marginBottom: '8px'
+                                }}>
+                                    (ID: {userProfile.userId})
+                                </span>
+                            )}
+                            <button
+                                onClick={logout}
+                                disabled={authIsLoading}
+                                style={{
+                                    padding: '5px 10px',
+                                    fontSize: '10px',
+                                    background: '#444',
+                                    color: 'white',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    cursor: authIsLoading ? 'not-allowed' : 'pointer',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     borderRadius: '2px',
                                 }}
-                            />
-                        ) : (
-                            // Show a message that authentication is being verified
-                            <p style={{
-                                marginBottom: '20px',
-                                fontSize: '14px',
-                                color: '#ccc'
-                            }}>
-                                Verifying authentication...
-                            </p>
-                        )
-                    )
-                ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    )}
 
-                {/* Render Login/Join button only if not loading and no authError */}
-                {!authIsLoading && !authError && (
-                    <form onSubmit={handleSubmit}>
-                        <button
-                            type="submit"
-                            // Disable if there's any auth error, even if technically "authenticated"
-                            disabled={authError !== null}
-                            style={{
-                                padding: '12px 20px', // Consistent button padding
-                                border: `1px solid ${UI_BORDER_COLOR}`,
-                                backgroundColor: authError ? UI_BUTTON_DISABLED_COLOR : UI_BUTTON_COLOR,
-                                color: authError ? '#aaa' : 'white',
-                                fontFamily: UI_FONT_FAMILY,
-                                fontSize: '14px',
-                                cursor: authError ? 'not-allowed' : 'pointer',
-                                boxShadow: UI_SHADOW,
-                                display: 'inline-block', // ADDED for non-full-width
-                                boxSizing: 'border-box', // Ensure box-sizing
-                                marginBottom: '20px', // Matched auth forms
-                                textTransform: 'uppercase', // Matched auth forms
-                                borderRadius: '2px',    // Matched auth forms
-                            }}
-                        >
-                            {isAuthenticated ? 'Join Game' : 'Sign In / Sign Up'}
-                        </button>
-                    </form>
-                )}
-                
-                {/* Local Error Messages (e.g., for username validation) - show if not authError */}
-                {localError && !authError && (
-                    <p style={{
-                        color: 'red',
-                        marginTop: '0px',
-                        marginBottom: '15px',
-                        fontSize: '12px',
-                        padding: '8px',
-                        backgroundColor: 'rgba(255,0,0,0.1)',
-                        borderRadius: '4px',
+                    {/* Content Section - Game Tools */}
+                    <div style={{ paddingTop: '60px' }}> {/* Add margin at top for proper spacing */}
+
+                        {/* About & FAQ Section */}
+                        <div data-content-section style={{
+                            marginTop: '15vh',
+                            marginBottom: '80px',
+                            padding: '0 15px', // Minimal horizontal padding to prevent overflow
+                            width: '100%',
+                            maxWidth: '100%', // Use 100% instead of 100vw to prevent scrollbar
+                            boxSizing: 'border-box',
+                            overflowX: 'hidden', // Ensure no horizontal overflow from children
+                        }}>
+                            {/* About Section */}
+                            <div data-about-section style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                backdropFilter: 'blur(12px)',
+                                borderRadius: '16px',
+                                padding: '60px 40px',
+                                margin: '0 auto 60px auto',
+                                maxWidth: '800px',
+                                width: '100%',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                textAlign: 'center',
+                                boxSizing: 'border-box',
+                                overflowX: 'hidden',
+                            }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#ff8c00',
+                                    fontWeight: '600',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '4px',
+                                    marginBottom: '30px',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                }}>
+                                    ABOUT
+                                </div>
+
+                                <h2 style={{
+                                    fontSize: 'clamp(36px, 5vw, 56px)', // Responsive font size
+                                    marginBottom: '40px',
+                                    color: 'white',
+                                    textAlign: 'center',
+                                    textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
+                                    lineHeight: '1.1',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '-1px',
+                                }}>
+                                    FROM HUMBLE BROTHS<br />
+                                    TO TRADING EMPIRES
+                                </h2>
+
+                                <p style={{
+                                    fontSize: '18px',
+                                    lineHeight: '1.8',
+                                    color: 'rgba(255, 255, 255, 0.9)',
+                                    textAlign: 'center',
+                                    textShadow: '1px 1px 3px rgba(0,0,0,0.8)',
+                                    maxWidth: '800px',
+                                    margin: '0 auto',
+                                }}>
+                                    Where Rust's intense survival meets Blazing Beaks' quirky combat, all wrapped in Stardew Valley's
+                                    cozy farming vibes. Survive as a resourceful babushka in this top-down multiplayer experience where
+                                    every meal matters and every trade counts. Start with basic gear, hunt wild animals, grow crops,
+                                    and brew nourishing soups that keep you alive through harsh winters. Build from simple shelters to
+                                    thriving homesteads, domesticate livestock, and establish trading networks with neighboring clans
+                                    across one massive persistent world.
+                                </p>
+                            </div>
+
+                            {/* Tools Section */}
+                            <div data-tools-section style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                backdropFilter: 'blur(12px)',
+                                borderRadius: '16px',
+                                padding: '60px 40px',
+                                margin: '0 auto 60px auto',
+                                maxWidth: '800px',
+                                width: '100%',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                textAlign: 'center',
+                                boxSizing: 'border-box',
+                                overflowX: 'hidden',
+                            }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#ff8c00',
+                                    fontWeight: '600',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '4px',
+                                    marginBottom: '30px',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                }}>
+                                    YOUR INITIAL LOADOUT
+                                </div>
+
+                                <h2 style={{
+                                    fontSize: 'clamp(36px, 5vw, 56px)',
+                                    marginBottom: '60px',
+                                    color: 'white',
+                                    textAlign: 'center',
+                                    textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
+                                    lineHeight: '1.1',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '-1px',
+                                }}>
+                                    WHAT SURVIVED<br />
+                                    THE SHIPWRECK
+                                </h2>
+
+                                {/* Tools Grid */}
+                                <div style={{
+                                    display: 'grid',
+                                    gap: '40px',
+                                    gridTemplateColumns: '1fr',
+                                    maxWidth: '700px',
+                                    margin: '0 auto',
+                                }}>
+                                    {[
+                                        {
+                                            title: "Combat Ladle",
+                                            description: "Your trusty kitchen ladle doubles as both a weapon and cooking tool. Use it to stir soups and broths - better ladles create superior broths with enhanced stat bonuses and special effects. Upgrade it with tungsten plating for extra damage or add a retractable blade for surprise attacks.",
+                                            icon: combatLadle,
+                                        },
+                                        {
+                                            title: "Neuroveil Ocular Implant",
+                                            description: "Miraculously intact after the shipwreck, this cutting-edge device was designed in Gred by Rozhkov Neuroscience. Powered by bioelectrical stimulation, it never runs out of batteries. Scan your environment for resources, receive tactical advice, detect threats, and unlock hidden secrets.",
+                                            icon: ocularImplant,
+                                        },
+                                        {
+                                            title: "Cerametal Field Cauldron",
+                                            description: "Your Scavenger-grade Cerametal Field Cauldron, Mk.I is where you actually brew life-sustaining broths and sterilize contaminated water. Must be placed on a campfire to function, but can cook much faster when positioned over natural geysers and steam vents you discover in the world.",
+                                            icon: fieldCauldron,
+                                        },
+                                    ].map((feature, index) => (
+                                        <div key={index} style={{
+                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                            borderRadius: '12px',
+                                            padding: '32px',
+                                            transition: 'all 0.3s ease',
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                            overflowX: 'hidden',
+                                            wordWrap: 'break-word',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            textAlign: 'center',
+                                        }}>
+                                            {/* Feature Icon */}
+                                            <img
+                                                src={feature.icon}
+                                                alt={feature.title}
+                                                style={{
+                                                    width: '80px',
+                                                    height: '80px',
+                                                    objectFit: 'contain',
+                                                    marginBottom: '24px',
+                                                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
+                                                }}
+                                                onError={(e) => {
+                                                    // Fallback if image fails to load
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+
+                                            {/* Feature Title */}
+                                            <h3 style={{
+                                                fontSize: '22px',
+                                                color: '#ff8c00',
+                                                marginBottom: '16px',
+                                                fontWeight: 'bold',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                letterSpacing: '1px',
+                                                textAlign: 'center',
+                                                lineHeight: '1.2',
+                                            }}>
+                                                {feature.title}
+                                            </h3>
+
+                                            {/* Feature Description */}
+                                            <p style={{
+                                                fontSize: '16px',
+                                                lineHeight: '1.7',
+                                                color: 'rgba(255, 255, 255, 0.85)',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                textAlign: 'center',
+                                                margin: '0',
+                                            }}>
+                                                {feature.description}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Game Features Section */}
+                            <div data-features-section style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                backdropFilter: 'blur(12px)',
+                                borderRadius: '16px',
+                                padding: '60px 40px',
+                                margin: '0 auto 60px auto',
+                                maxWidth: '800px',
+                                width: '100%',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                textAlign: 'center',
+                                boxSizing: 'border-box',
+                                overflowX: 'hidden',
+                            }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#ff8c00',
+                                    fontWeight: '600',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '4px',
+                                    marginBottom: '30px',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                }}>
+                                    GAME FEATURES
+                                </div>
+
+                                <h2 style={{
+                                    fontSize: 'clamp(36px, 5vw, 56px)',
+                                    marginBottom: '60px',
+                                    color: 'white',
+                                    textAlign: 'center',
+                                    textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
+                                    lineHeight: '1.1',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '-1px',
+                                }}>
+                                    BUILD YOUR EMPIRE<br />
+                                    FORGE YOUR DESTINY
+                                </h2>
+
+                                {/* Features Grid */}
+                                <div style={{
+                                    display: 'grid',
+                                    gap: '40px',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                                    maxWidth: '700px',
+                                    margin: '0 auto',
+                                }}>
+                                    {[
+                                        {
+                                            title: "Persistent Open World",
+                                            description: "Explore one massive, persistent world where your actions matter. Every structure built, every tree chopped, and every alliance forged remains forever. The world evolves even when you're offline as other players continue shaping the landscape.",
+                                            icon: persistentOpenWorld,
+                                        },
+                                        {
+                                            title: "Build & Govern",
+                                            description: "Start with simple shelters and grow into sprawling bases. Found towns, establish trade routes, and build defensive fortifications. Start babushka clans and elect Pra Matrons to govern large swathes of land through regional politics.",
+                                            icon: buildGovern,
+                                        },
+                                        {
+                                            title: "Choose Your Combat",
+                                            description: "Enjoy optional PvP with personal flags and dedicated PvP zones. Toggle your combat preference or seek out dangerous regions for high-risk, high-reward encounters. Peace-loving babushkas can trade and build without fear.",
+                                            icon: chooseCombat,
+                                        },
+                                        {
+                                            title: "Living Economy",
+                                            description: "Master a complex economy system with player-driven marketplaces and auction houses. Corner markets on rare materials, establish trading empires, and become the wealthiest babushka in the land through shrewd business dealings.",
+                                            icon: livingEconomy,
+                                        },
+                                        {
+                                            title: "Dynamic Seasons",
+                                            description: "Experience realistic weather patterns and seasonal changes with a dynamic cloud system. Crops grow differently in each season, harsh winters test your food stores, and spring rains bring abundant harvests.",
+                                            icon: dynamicSeasons,
+                                        },
+                                        {
+                                            title: "Endless Brewing",
+                                            description: "Combine plant materials and foods to create unique broths with endless procedural recipes. Discover rare ingredient combinations that produce powerful stat bonuses, unique effects, and legendary rarities sought by all survivors.",
+                                            icon: endlessBrewing,
+                                        },
+                                    ].map((feature, index) => (
+                                        <div key={index} style={{
+                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                            borderRadius: '12px',
+                                            padding: '32px',
+                                            transition: 'all 0.3s ease',
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                            overflowX: 'hidden',
+                                            wordWrap: 'break-word',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            textAlign: 'center',
+                                        }}>
+                                            {/* Feature Icon */}
+                                            <img
+                                                src={feature.icon}
+                                                alt={feature.title}
+                                                style={{
+                                                    width: '80px',
+                                                    height: '80px',
+                                                    objectFit: 'contain',
+                                                    marginBottom: '24px',
+                                                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
+                                                }}
+                                                onError={(e) => {
+                                                    // Fallback if image fails to load
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+
+                                            {/* Feature Title */}
+                                            <h3 style={{
+                                                fontSize: '20px',
+                                                color: '#ff8c00',
+                                                marginBottom: '16px',
+                                                fontWeight: 'bold',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                letterSpacing: '1px',
+                                                textAlign: 'center',
+                                                lineHeight: '1.2',
+                                            }}>
+                                                {feature.title}
+                                            </h3>
+
+                                            {/* Feature Description */}
+                                            <p style={{
+                                                fontSize: '16px',
+                                                lineHeight: '1.7',
+                                                color: 'rgba(255, 255, 255, 0.85)',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                textAlign: 'center',
+                                                margin: '0',
+                                            }}>
+                                                {feature.description}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* FAQ Section */}
+                            <div data-faq-section style={{
+                                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                backdropFilter: 'blur(12px)',
+                                borderRadius: '16px',
+                                padding: '60px 40px',
+                                margin: '0 auto',
+                                maxWidth: '800px',
+                                width: '100%',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                boxSizing: 'border-box',
+                                overflowX: 'hidden',
+                            }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#ff8c00',
+                                    fontWeight: '600',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '4px',
+                                    marginBottom: '30px',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                    textAlign: 'center',
+                                }}>
+                                    FAQ
+                                </div>
+
+                                <h2 style={{
+                                    fontSize: 'clamp(36px, 5vw, 56px)', // Responsive font size
+                                    marginBottom: '60px',
+                                    color: 'white',
+                                    textAlign: 'center',
+                                    textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
+                                    lineHeight: '1.1',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '-1px',
+                                }}>
+                                    FREQUENTLY<br />
+                                    ASKED QUESTIONS
+                                </h2>
+
+                                {/* FAQ Items */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                    {[
+                                        {
+                                            question: "WHAT IS BROTH & BULLETS?",
+                                            answer: "A top-down multiplayer survival game where resourceful babushkas build thriving homesteads from nothing. Master the art of cooking life-saving meals, establish profitable trade routes, defend your territory with crossbows and cunning, and grow from a humble survivor into a powerful clan leader in one massive persistent world."
+                                        },
+                                        {
+                                            question: "HOW DO I START SURVIVING?",
+                                            answer: "You begin with basic survival gear and your grandmother's wisdom. Hunt wild animals for meat and pelts, gather plant fibers to weave into clothing and shelter materials, collect wood to build your first crude shelter. Cook hearty meals to stay fed and warm through the changing seasons."
+                                        },
+                                        {
+                                            question: "WHAT'S SO SPECIAL ABOUT BREWING?",
+                                            answer: "Every recipe matters for survival! Brew healing broths from gathered herbs, create nutritious soups from farmed vegetables, ferment preserves for long winters, and craft warming drinks for harsh climates. Master brewers become invaluable clan members whose recipes can mean the difference between thriving and starving."
+                                        },
+                                        {
+                                            question: "CAN I FARM AND RAISE ANIMALS?",
+                                            answer: "Absolutely! Plant and tend crops from seeds you've gathered or traded for. Domesticate wild animals like chickens, goats, and pigs. Build fences to protect your livestock from predators and rival players. Your farm becomes the foundation of both your survival and your trading empire."
+                                        },
+                                        {
+                                            question: "HOW DOES BUILDING AND TERRITORY WORK?",
+                                            answer: "Start with simple shelters made from plant fiber and wood, then expand into proper homesteads with kitchens, storage, workshops, and defensive walls. Claim territory through use and defense—what you can build and protect becomes yours to develop and trade from."
+                                        },
+                                        {
+                                            question: "HOW COMPLEX IS THE ECONOMY?",
+                                            answer: "Trade drives everything! Start by bartering surplus crops and crafted goods with neighbors. As your operation grows, establish supply chains with distant clans, corner markets on rare ingredients, and become a trading mogul. Seasonal changes, supply shortages, and player conflicts create constantly shifting opportunities."
+                                        },
+                                        {
+                                            question: "WHERE ARE WE IN DEVELOPMENT?",
+                                            answer: (
+                                                <div className="space-y-4">
+                                                    <p>We're currently in the primitive stage of our tech tree—plenty of broth, but the bullets are still to come! Right now it's crossbows, fire arrows, and good old-fashioned clan warfare. We're building our foundation of survival, farming, cooking, and trading before advancing to more complex technologies. The persistent world is live and growing!</p>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm border-collapse border border-gray-600 rounded-lg overflow-hidden">
+                                                            <thead>
+                                                                <tr className="bg-gray-800">
+                                                                    <th className="text-left py-3 px-4 text-orange-400 font-bold border-b border-gray-600">Feature</th>
+                                                                    <th className="text-right py-3 px-4 text-orange-400 font-bold border-b border-gray-600">Progress</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {/* Completed Features */}
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Real-time Multiplayer: Basic player movement synchronization</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Environment Systems: Day/night cycle, Full moon nights, Rain system</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Survival Mechanics: Basic resource harvesting</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Resource Respawning: Trees, Stones, Plants</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Survival Systems: Health, Hunger, Thirst, Warmth, Death/Respawn</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">World Discovery: Minimap</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Hotbar: Item selection, weapon cooldown indicators</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Inventory Management: Moving, swapping, stacking, stack splitting</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Armor: Defense bonuses, warmth protection</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Placeables: Campfire (Multi-slot placement & interaction)</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Crafting System: Item recipes</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Storage Containers (Chests)</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Looting Mechanics (Containers)</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Authentication/Account System</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Cooking System: Food preparation using campfire</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Combat System: Multiple weapon types, improved hit detection, PvP balancing</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Ranged Weapons & Ammunition: Bow combat with different arrow types</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Active Effects System: Bleed damage, burn damage, status effects</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Player Corpses: Harvestable corpses that yield primitive resources</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Knock Out System: Combat state with temporary incapacitation</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Player Shelter: Personal shelter system with weather protection</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+                                                                <tr className="bg-green-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Sleeping Bags: Placeable respawn points that persist between deaths</td>
+                                                                    <td className="py-2 px-4 text-right text-green-300 font-bold">100%</td>
+                                                                </tr>
+
+                                                                {/* Planned Features */}
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">World Generation: Procedural generation, biomes, monuments</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">25%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Terrain Autotiling: Edge detection, Wang tiles, seamless transitions</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">15%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Advanced AI: Hostile NPCs behaviors, pathfinding</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">30%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Team/Social Features: Shared map markers, team chat, private messaging</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">40%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Construction System: Base building (walls, floors, etc.)</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">20%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Farming System: Planting, growing, harvesting crops</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">35%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Hunting System: NPC animals (deer, wolves, etc.), tracking mechanics</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">10%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Tool/Weapon Durability</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">60%</td>
+                                                                </tr>
+                                                                <tr className="bg-red-800/60 border-b border-gray-700">
+                                                                    <td className="py-2 px-4 text-left text-gray-100">Firearm System: Guns with ammo types, reloading mechanics, recoil</td>
+                                                                    <td className="py-2 px-4 text-right text-red-300 font-bold">5%</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )
+                                        },
+                                        {
+                                            question: "WHAT'S THE LONG-TERM VISION?",
+                                            answer: "One massive persistent world where thousands of players shape a living economy and evolving civilizations. We're committed to delivering on our promise of deep survival mechanics, complex brewing systems, and emergent gameplay that grows more interesting as our community builds together season after season."
+                                        }
+                                    ].map((faq, index) => (
+                                        <div key={index} style={{
+                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                            borderRadius: '12px',
+                                            padding: '32px',
+                                            transition: 'all 0.3s ease',
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                            overflowX: 'hidden',
+                                            wordWrap: 'break-word',
+                                        }}>
+                                            <h3 style={{
+                                                fontSize: '18px',
+                                                color: '#ff8c00',
+                                                marginBottom: '16px',
+                                                fontWeight: 'bold',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                letterSpacing: '1px',
+                                                textAlign: 'center',
+                                            }}>
+                                                {faq.question}
+                                            </h3>
+                                            <p style={{
+                                                fontSize: '16px',
+                                                lineHeight: '1.7',
+                                                color: 'rgba(255, 255, 255, 0.85)',
+                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                                textAlign: 'center',
+                                                margin: '0',
+                                            }}>
+                                                {faq.answer}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <footer style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.95)',
+                backdropFilter: 'blur(20px)',
+                borderTop: '1px solid rgba(255, 165, 0, 0.3)',
+                padding: '60px 20px 40px 20px',
+                position: 'relative',
+                zIndex: 3,
+                width: '100%',
+                boxSizing: 'border-box',
+                overflowX: 'hidden',
+            }}>
+                {/* Decorative line at top */}
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '60%',
+                    height: '1px',
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255, 165, 0, 0.6) 50%, transparent 100%)',
+                }} />
+
+                {/* Decorative symbol at center top */}
+                <div style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}>
+                    <div style={{
+                        width: '8px',
+                        height: '8px',
+                        border: '1px solid rgba(255, 165, 0, 0.6)',
+                        borderRadius: '50%',
+                        transform: 'rotate(45deg)',
+                    }} />
+                </div>
+
+                <div style={{
+                    maxWidth: '1200px',
+                    margin: '0 auto',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '40px',
+                    alignItems: 'start',
+                }}>
+                    {/* Logo Section */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
                     }}>
-                        {localError}
-                    </p>
-                )}
-                
-                {/* Logout Section (Only if authenticated and no authError) */}
-                {isAuthenticated && !authError && (
-                    <div style={{ marginTop: '20px' }}>
-                        {userProfile && (
-                            <span style={{ fontSize: '10px', color: '#ccc', display: 'block', marginBottom: '8px' }}>
-                                (ID: {userProfile.userId})
-                            </span>
-                        )}
-                        <button
-                            onClick={logout}
-                            disabled={authIsLoading} // authIsLoading is false here, but good for consistency
+
+                        <img
+                            src={logo}
+                            alt="Broth & Bullets Logo"
                             style={{
-                                padding: '5px 10px',
-                                fontSize: '10px',
-                                background: '#444',
-                                color: 'white',
-                                border: `1px solid #555`,
-                                cursor: authIsLoading ? 'not-allowed' : 'pointer',
-                                fontFamily: UI_FONT_FAMILY,
-                                borderRadius: '2px',
+                                width: '160px',
+                                height: 'auto',
+                                marginBottom: '20px',
+                                filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))',
+                            }}
+                        />
+                        <p style={{
+                            fontSize: '13px',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            lineHeight: '1.6',
+                            margin: '0',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                        }}>
+                            Broth & Bullets is developed by{' '}
+                            <a
+                                href="https://seloolive.com/products/authentic-croatian-olive-oil?variant=40790542549035#reviews"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    color: '#ff8c00',
+                                    textDecoration: 'none',
+                                    transition: 'color 0.2s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = '#ffaa33';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = '#ff8c00';
+                                }}
+                            >
+                                Selo Oils LLC
+                            </a>
+                        </p>
+                        <p style={{
+                            fontSize: '12px',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            margin: '10px 0 0 0',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                        }}>
+                            © 2025 Selo Oils LLC
+                        </p>
+                    </div>
+
+                    {/* Game Links */}
+                    <div>
+                        <h4 style={{
+                            fontSize: '14px',
+                            color: '#ff8c00',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '2px',
+                            marginBottom: '20px',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                        }}>
+                            GAME
+                        </h4>
+                        <ul style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                        }}>
+                            {['ABOUT', 'BABUSHKA\'S TOOLS', 'FEATURES', 'FAQ', 'LORE', 'BLOG', 'CONTACT'].map((link) => (
+                                <li key={link} style={{ marginBottom: '12px' }}>
+                                    <a
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            if (link === 'ABOUT') {
+                                                const aboutSection = document.querySelector('[data-about-section]');
+                                                if (aboutSection) {
+                                                    aboutSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }
+                                            } else if (link === 'BABUSHKA\'S TOOLS') {
+                                                const loadoutSection = document.querySelector('[data-tools-section]');
+                                                if (loadoutSection) {
+                                                    loadoutSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }
+                                            } else if (link === 'FEATURES') {
+                                                const featuresSection = document.querySelector('[data-features-section]');
+                                                if (featuresSection) {
+                                                    featuresSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }
+                                            } else if (link === 'FAQ') {
+                                                const faqSection = document.querySelector('[data-faq-section]');
+                                                if (faqSection) {
+                                                    faqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }
+                                            } else if (link === 'LORE') {
+                                                window.open('https://www.babushkabook.com/', '_blank');
+                                            } else if (link === 'CONTACT') {
+                                                window.location.href = 'mailto:martin@selooils.com';
+                                            }
+                                        }}
+                                        style={{
+                                            color: 'rgba(255, 255, 255, 0.7)',
+                                            textDecoration: 'none',
+                                            fontSize: '13px',
+                                            transition: 'color 0.2s ease',
+                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.color = '#ff8c00';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                        }}
+                                    >
+                                        {link}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Legal Links */}
+                    <div>
+                        <h4 style={{
+                            fontSize: '14px',
+                            color: '#ff8c00',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '2px',
+                            marginBottom: '20px',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                        }}>
+                            LEGAL
+                        </h4>
+                        <ul style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: 0,
+                        }}>
+                            {['PRIVACY POLICY', 'TERMS OF SERVICE', 'COOKIE DECLARATION'].map((link) => (
+                                <li key={link} style={{ marginBottom: '12px' }}>
+                                    <a
+                                        href="#"
+                                        onClick={(e) => e.preventDefault()}
+                                        style={{
+                                            color: 'rgba(255, 255, 255, 0.7)',
+                                            textDecoration: 'none',
+                                            fontSize: '13px',
+                                            transition: 'color 0.2s ease',
+                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.color = '#ff8c00';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                        }}
+                                    >
+                                        {link}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Social Links & Back to Top */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                    }}>
+                        {/* Social Media Icons */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '15px',
+                            marginBottom: '30px',
+                        }}>
+                            {[
+                                { name: 'Discord', symbol: '💬' },
+                                { name: 'Twitter', symbol: '🐦' },
+                                { name: 'GitHub', symbol: '⚡' },
+                            ].map((social) => (
+                                <a
+                                    key={social.name}
+                                    href="#"
+                                    onClick={(e) => e.preventDefault()}
+                                    title={social.name}
+                                    style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        borderRadius: '50%',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '16px',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.3s ease',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = '#ff8c00';
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                    }}
+                                >
+                                    {social.symbol}
+                                </a>
+                            ))}
+                        </div>
+
+                        {/* Back to Top Button */}
+                        <button
+                            onClick={() => {
+                                window.scrollTo({
+                                    top: 0,
+                                    behavior: 'smooth'
+                                });
+                            }}
+                            style={{
+                                background: 'rgba(255, 140, 0, 0.1)',
+                                border: '1px solid rgba(255, 140, 0, 0.4)',
+                                color: '#ff8c00',
+                                padding: '12px 20px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '1px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
+                                e.currentTarget.style.borderColor = '#ff8c00';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.4)';
+                                e.currentTarget.style.transform = 'translateY(0)';
                             }}
                         >
-                            Sign Out
+                            Back to Top
                         </button>
                     </div>
-                )}
-            </div>
+                </div>
+            </footer>
         </div>
     );
 };

@@ -198,23 +198,30 @@ function AppContent() {
     }, [connection, localPlayerRegistered]);
 
     // --- Action Handlers --- 
-    const handleAttemptRegisterPlayer = useCallback((usernameToRegister: string | null) => {
+    const handleAttemptRegisterPlayer = useCallback(async (usernameToRegister: string | null): Promise<void> => {
         setUiError(null);
         // Ensure we are authenticated and connected before registering
         if (!isAuthenticated || !spacetimeConnected) {
             console.error("Cannot register player: Not authenticated or not connected to SpacetimeDB.");
-            setUiError("Connection error, cannot register.");
-            return;
+            const errorMessage = "Connection error, cannot register.";
+            setUiError(errorMessage);
+            throw new Error(errorMessage);
         }
         // Validate the username passed from the LoginScreen
         if (!usernameToRegister || !usernameToRegister.trim()) { 
-             setUiError("Username cannot be empty.");
-             return;
+             const errorMessage = "Username cannot be empty.";
+             setUiError(errorMessage);
+             throw new Error(errorMessage);
         }
         
         setIsRegistering(true);
-        // Call the SpacetimeDB registerPlayer reducer with the provided username
-        registerPlayer(usernameToRegister); 
+        try {
+            // Call the SpacetimeDB registerPlayer reducer with the provided username
+            await registerPlayer(usernameToRegister);
+        } catch (error) {
+            setIsRegistering(false);
+            throw error; // Re-throw to let LoginScreen handle the error display
+        }
     }, [registerPlayer, isAuthenticated, spacetimeConnected]);
 
     // --- Global Window Effects --- 

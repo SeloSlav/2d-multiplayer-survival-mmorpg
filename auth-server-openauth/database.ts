@@ -1,4 +1,6 @@
 import postgres from 'postgres';
+import fs from 'fs';
+import path from 'path';
 
 export interface UserRecord {
   userId: string;
@@ -14,9 +16,14 @@ export interface AuthCodeData {
   redirectUri: string;
 }
 
+interface JsonStorage {
+  users: UserRecord[];
+  codes: { code: string; data: AuthCodeData; expiresAt: number }[];
+}
+
 class DatabaseService {
   private sql: postgres.Sql | null = null;
-  private memoryUsers = new Map<string, UserRecord>();
+  private jsonFilePath = path.join(process.cwd(), 'users.json');
   private memoryCodes = new Map<string, AuthCodeData>();
   private isProduction = false;
 
@@ -29,9 +36,37 @@ class DatabaseService {
       this.isProduction = true;
       await this.createTables();
     } else {
-      console.log('[Database] Using in-memory storage (development)');
+      console.log('[Database] Using JSON file storage (development)');
       this.isProduction = false;
+      this.initJsonStorage();
     }
+  }
+
+  private initJsonStorage() {
+    // Only create/use JSON file in development mode
+    if (!fs.existsSync(this.jsonFilePath)) {
+      const initialData: JsonStorage = { users: [], codes: [] };
+      fs.writeFileSync(this.jsonFilePath, JSON.stringify(initialData, null, 2));
+      console.log('[Database] Created users.json file for development');
+    } else {
+      console.log('[Database] Found existing users.json file');
+    }
+  }
+
+  private readJsonStorage(): JsonStorage {
+    try {
+      const data = fs.readFileSync(this.jsonFilePath, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.warn('[Database] Failed to read users.json, creating new file');
+      const initialData: JsonStorage = { users: [], codes: [] };
+      this.writeJsonStorage(initialData);
+      return initialData;
+    }
+  }
+
+  private writeJsonStorage(data: JsonStorage) {
+    fs.writeFileSync(this.jsonFilePath, JSON.stringify(data, null, 2));
   }
 
   private async createTables() {
@@ -65,6 +100,7 @@ class DatabaseService {
   // User operations
   async createUser(user: UserRecord): Promise<boolean> {
     if (this.isProduction && this.sql) {
+      // Production: Use PostgreSQL
       try {
         await this.sql`
           INSERT INTO users (user_id, email, password_hash)
@@ -78,16 +114,20 @@ class DatabaseService {
         throw error;
       }
     } else {
-      if (this.memoryUsers.has(user.email)) {
-        return false;
+      // Development: Use JSON file
+      const storage = this.readJsonStorage();
+      if (storage.users.find(u => u.email === user.email)) {
+        return false; // Email already exists
       }
-      this.memoryUsers.set(user.email, user);
+      storage.users.push(user);
+      this.writeJsonStorage(storage);
       return true;
     }
   }
 
   async getUserByEmail(email: string): Promise<UserRecord | null> {
     if (this.isProduction && this.sql) {
+      // Production: Use PostgreSQL
       const result = await this.sql`
         SELECT user_id, email, password_hash 
         FROM users 
@@ -99,12 +139,15 @@ class DatabaseService {
         passwordHash: result[0].password_hash
       } : null;
     } else {
-      return this.memoryUsers.get(email) || null;
+      // Development: Use JSON file
+      const storage = this.readJsonStorage();
+      return storage.users.find(u => u.email === email) || null;
     }
   }
 
   async updateUserPassword(userId: string, passwordHash: string): Promise<boolean> {
     if (this.isProduction && this.sql) {
+      // Production: Use PostgreSQL
       const result = await this.sql`
         UPDATE users 
         SET password_hash = ${passwordHash}
@@ -112,11 +155,13 @@ class DatabaseService {
       `;
       return result.count > 0;
     } else {
-      for (const [email, user] of this.memoryUsers.entries()) {
-        if (user.userId === userId) {
-          this.memoryUsers.set(email, { ...user, passwordHash });
-          return true;
-        }
+      // Development: Use JSON file
+      const storage = this.readJsonStorage();
+      const userIndex = storage.users.findIndex(u => u.userId === userId);
+      if (userIndex !== -1) {
+        storage.users[userIndex].passwordHash = passwordHash;
+        this.writeJsonStorage(storage);
+        return true;
       }
       return false;
     }
