@@ -15,6 +15,9 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 // Import the Player type from generated bindings
 import { Player } from '../generated'; // Adjusted path
+// Import FontAwesome
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faDiscord, faXTwitter, faGithub } from '@fortawesome/free-brands-svg-icons';
 import loginBackground from '../assets/login_background2.png';
 import logo from '../assets/logo.png';
 import combatLadle from '../assets/combat_ladle.png';
@@ -61,9 +64,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     // Local state for the username input field (only used for new players)
     const [inputUsername, setInputUsername] = useState<string>('');
     const [localError, setLocalError] = useState<string | null>(null);
+    const [isMobile, setIsMobile] = useState<boolean>(false);
+    const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
 
     // Ref for username input focus
     const usernameInputRef = useRef<HTMLInputElement>(null);
+
+    // Check for mobile screen size
+    useEffect(() => {
+        const checkIsMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        
+        checkIsMobile(); // Check on mount
+        window.addEventListener('resize', checkIsMobile);
+        return () => window.removeEventListener('resize', checkIsMobile);
+    }, []);
+
+    // Check scroll position for back to top button
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollTop = window.scrollY || document.documentElement.scrollTop;
+            setShowBackToTop(scrollTop > 300); // Show after scrolling 300px
+        };
+        
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     // Autofocus username field if authenticated AND it's a new player
     useEffect(() => {
@@ -215,7 +242,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 justifyContent: 'flex-start',
                 alignItems: 'center',
                 minHeight: '100vh',
-                paddingTop: 'clamp(15vh, 18vh, 18vh)', // More padding on mobile (15vh), less on desktop (10vh)
+                paddingTop: 'calc(30vh - 10vw)', // Mobile (~375px): ~26vh. Desktop (~1200px): ~18vh
                 paddingBottom: '0px',
                 textAlign: 'center',
                 position: 'relative',
@@ -1077,7 +1104,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                                                 {/* Planned Features */}
                                                                 {[
-                                                                    { name: "🌍 Advanced World Generation", status: "50%" },
+                                                                    { name: "🌍 Advanced World Generation", status: "20%" },
                                                                     { name: "🏗️ Advanced Construction", status: "10%" },
                                                                     { name: "🦌 Hunting & Wildlife", status: "10%" },
                                                                     { name: "🔫 Firearms & Advanced Combat", status: "10%" },
@@ -1170,6 +1197,56 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
             </div>
 
+            {/* Fixed Back to Top Button */}
+            {showBackToTop && (
+            <button
+                onClick={() => {
+                    window.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                    });
+                }}
+                style={{
+                    position: 'fixed',
+                    bottom: '30px',
+                    right: '30px',
+                    background: 'rgba(255, 140, 0, 0.9)',
+                    border: '2px solid rgba(255, 140, 0, 0.6)',
+                    color: 'white',
+                    padding: '16px',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,140,0,0.4)',
+                    zIndex: 1000,
+                    width: '60px',
+                    height: '60px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 1)';
+                    e.currentTarget.style.borderColor = '#ff8c00';
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.6)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.9)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.6)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,140,0,0.4)';
+                }}
+                title="Back to Top"
+            >
+                ↑
+            </button>
+            )}
+
             {/* Footer */}
             <footer style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.95)',
@@ -1218,8 +1295,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 <div style={{
                     maxWidth: '1200px',
                     margin: '0 auto',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    display: isMobile ? 'flex' : 'grid',
+                    flexDirection: isMobile ? 'column' : undefined,
+                    gridTemplateColumns: isMobile ? undefined : 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: '40px',
                     alignItems: 'start',
                 }}>
@@ -1398,7 +1476,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: 'flex-end',
+                        alignItems: isMobile ? 'center' : 'flex-end',
                     }}>
                         {/* Social Media Icons */}
                         <div style={{
@@ -1407,13 +1485,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             marginBottom: '30px',
                         }}>
                             {[
-                                { name: 'Discord', symbol: '💬' },
-                                { name: 'Twitter', symbol: '🐦' },
-                                { name: 'GitHub', symbol: '⚡' },
+                                { name: 'Discord', icon: faDiscord, href: '#' },
+                                { name: 'X (Twitter)', icon: faXTwitter, href: '#' },
+                                { name: 'GitHub', icon: faGithub, href: '#' },
                             ].map((social) => (
                                 <a
                                     key={social.name}
-                                    href="#"
+                                    href={social.href}
                                     onClick={(e) => e.preventDefault()}
                                     title={social.name}
                                     style={{
@@ -1428,59 +1506,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                         textDecoration: 'none',
                                         transition: 'all 0.3s ease',
                                         backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        color: 'rgba(255, 255, 255, 0.7)',
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.borderColor = '#ff8c00';
                                         e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
                                         e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.color = '#ff8c00';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                                         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                                         e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
                                     }}
                                 >
-                                    {social.symbol}
+                                    <FontAwesomeIcon icon={social.icon} />
                                 </a>
                             ))}
                         </div>
 
-                        {/* Back to Top Button */}
-                        <button
-                            onClick={() => {
-                                window.scrollTo({
-                                    top: 0,
-                                    behavior: 'smooth'
-                                });
-                            }}
-                            style={{
-                                background: 'rgba(255, 140, 0, 0.1)',
-                                border: '1px solid rgba(255, 140, 0, 0.4)',
-                                color: '#ff8c00',
-                                padding: '12px 20px',
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                textTransform: 'uppercase',
-                                letterSpacing: '1px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s ease',
-                                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
-                                e.currentTarget.style.borderColor = '#ff8c00';
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
-                                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.4)';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                            }}
-                        >
-                            Back to Top
-                        </button>
+
                     </div>
                 </div>
             </footer>
