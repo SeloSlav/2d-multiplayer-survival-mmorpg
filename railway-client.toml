@@ -11,5 +11,13 @@ healthcheckTimeout = 300
 
 [environments.production]
 [environments.production.build]
-buildCommand = "npm install && npm run build"
-startCommand = "npm run preview" 
+buildCommand = "npm install && npm run build && npm install -g serve"
+startCommand = "serve -s dist -l 8080"
+
+# Performance optimizations
+[environments.production.variables]
+NODE_ENV = "production"
+# Increase Node.js memory limit
+NODE_OPTIONS = "--max-old-space-size=4096"
+# Disable source maps in production for faster loading
+VITE_SOURCEMAP = "false" 
