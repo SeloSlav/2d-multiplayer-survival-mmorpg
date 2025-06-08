@@ -1204,6 +1204,10 @@ export const useInputHandler = ({
         };
     }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
 
+    // Movement throttling refs
+    const lastMovementUpdateRef = useRef<number>(0);
+    const MOVEMENT_UPDATE_INTERVAL_MS = 50; // Limit movement updates to 20fps (every 50ms)
+
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
         const currentConnection = connectionRef.current;
@@ -1276,33 +1280,42 @@ export const useInputHandler = ({
         }
         // --- End Jump Offset Calculation ---
 
-        // Process movement
+        // Process movement with throttling
         // Calculate movement direction from currently pressed keys
         const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
                    (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
         const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
                    (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
 
+        // Throttle movement updates to prevent network spam
+        const now = Date.now();
+        const shouldUpdateMovement = now - lastMovementUpdateRef.current >= MOVEMENT_UPDATE_INTERVAL_MS;
+
         if (isAutoWalkingRef.current) {
             // Auto-walking mode: use manual input if any keys are pressed, otherwise use stored auto-walk direction
             if (dx !== 0 || dy !== 0) {
                 // Manual input takes priority during auto-walk
-                updatePlayerPosition(dx, dy);
+                if (shouldUpdateMovement) {
+                    updatePlayerPosition(dx, dy);
+                    lastMovementUpdateRef.current = now;
+                }
                 // Update auto-walk direction to match current input for smoother transitions
                 autoWalkDirectionRef.current = { dx, dy };
                 lastMovementDirectionRef.current = { dx, dy };
             } else {
                 // No manual input, use stored auto-walk direction
                 const { dx: autoDx, dy: autoDy } = autoWalkDirectionRef.current;
-                if (autoDx !== 0 || autoDy !== 0) {
+                if ((autoDx !== 0 || autoDy !== 0) && shouldUpdateMovement) {
                     updatePlayerPosition(autoDx, autoDy);
+                    lastMovementUpdateRef.current = now;
                 }
             }
         } else {
             // Manual movement mode
-            if (dx !== 0 || dy !== 0) {
+            if ((dx !== 0 || dy !== 0) && shouldUpdateMovement) {
                 updatePlayerPosition(dx, dy);
                 lastMovementDirectionRef.current = { dx, dy };
+                lastMovementUpdateRef.current = now;
             }
         }
 
