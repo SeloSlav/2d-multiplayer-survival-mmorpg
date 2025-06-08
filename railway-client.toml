@@ -1,10 +1,7 @@
 [build]
 builder = "nixpacks"
-
 # This tells Railway to use the root (client app) and ignore auth server
-[build.watchPatterns]
-include = ["client/**", "*.json", "*.ts", "*.js", "vite.config.ts", "tsconfig*.json"]
-exclude = ["auth-server-openauth/**"]
+watchPatterns = ["client/**", "*.json", "*.ts", "*.js", "vite.config.ts", "tsconfig*.json", "!auth-server-openauth/**"]
 
 [deploy]
 restartPolicyType = "on_failure"
