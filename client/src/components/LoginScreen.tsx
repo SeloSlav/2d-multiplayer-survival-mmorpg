@@ -66,6 +66,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     const [localError, setLocalError] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState<boolean>(false);
     const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
+    const [backgroundLoaded, setBackgroundLoaded] = useState<boolean>(false);
+    const [logoLoaded, setLogoLoaded] = useState<boolean>(false);
 
     // Ref for username input focus
     const usernameInputRef = useRef<HTMLInputElement>(null);
@@ -92,27 +94,41 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Preload critical images for faster loading
+    // Aggressive image preloading and loading detection
     useEffect(() => {
-        // Create preload links for critical images
+        // Preload background image with loading detection
+        const backgroundImg = new Image();
+        backgroundImg.onload = () => setBackgroundLoaded(true);
+        backgroundImg.src = loginBackground;
+
+        // Preload logo with loading detection
+        const logoImg = new Image();
+        logoImg.onload = () => setLogoLoaded(true);
+        logoImg.src = logo;
+
+        // Add preload hints to DOM for additional browser optimization
         const preloadBackground = document.createElement('link');
         preloadBackground.rel = 'preload';
         preloadBackground.href = loginBackground;
         preloadBackground.as = 'image';
-        preloadBackground.type = 'image/png';
+        preloadBackground.fetchPriority = 'high';
         document.head.appendChild(preloadBackground);
 
         const preloadLogo = document.createElement('link');
         preloadLogo.rel = 'preload';
         preloadLogo.href = logo;
         preloadLogo.as = 'image';
-        preloadLogo.type = 'image/png';
+        preloadLogo.fetchPriority = 'high';
         document.head.appendChild(preloadLogo);
 
         // Cleanup
         return () => {
-            document.head.removeChild(preloadBackground);
-            document.head.removeChild(preloadLogo);
+            try {
+                document.head.removeChild(preloadBackground);
+                document.head.removeChild(preloadLogo);
+            } catch (e) {
+                // Elements might already be removed
+            }
         };
     }, []);
 
@@ -232,12 +248,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     }, []);
 
     return (
+        <>
+            {/* Add CSS animations */}
+            <style>{`
+                @keyframes pulse {
+                    0% { opacity: 0.4; }
+                    100% { opacity: 0.8; }
+                }
+            `}</style>
         <div style={{
             minHeight: '100vh', // Ensure page is tall enough to scroll
             width: '100%', // Match the background image width exactly
             margin: 0,
             padding: 0,
-            backgroundImage: `url(${loginBackground})`,
+            backgroundColor: backgroundLoaded ? 'transparent' : '#1a1a2e', // Fallback color while loading
+            backgroundImage: backgroundLoaded ? `url(${loginBackground})` : 'none',
             backgroundSize: '100% auto', // Show full width, scale height proportionally
             backgroundPosition: 'center top',
             backgroundRepeat: 'no-repeat',
@@ -248,6 +273,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             overflowX: 'hidden', // Prevent horizontal scrolling
             overflowY: 'auto', // Allow vertical scrolling
             boxSizing: 'border-box', // Include padding and border in width calculations
+            transition: 'background-image 0.3s ease-in-out',
         }}>
             {/* Gradient Overlay - Very aggressive transition to eliminate flat line */}
             <div style={{
@@ -273,6 +299,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 zIndex: 2, // Ensure content appears above the gradient overlay
             }}>
                 {/* Logo */}
+                {!logoLoaded && (
+                    <div style={{
+                        width: 'min(600px, 70vw)',
+                        height: '200px', // Approximate logo height
+                        marginBottom: 'clamp(20px, 4vh, 60px)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: 'pulse 1.5s ease-in-out infinite alternate',
+                    }}>
+                        <div style={{
+                            fontSize: '24px',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                        }}>
+                            BROTH & BULLETS
+                        </div>
+                    </div>
+                )}
                 <img
                     src={logo}
                     alt="Broth & Bullets Logo"
@@ -284,8 +332,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         maxWidth: '600px',
                         height: 'auto',
                         marginBottom: 'clamp(20px, 4vh, 60px)', // Responsive margin, smaller on mobile
-                        display: 'block',
+                        display: logoLoaded ? 'block' : 'none',
                         filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.8)) drop-shadow(0 0 40px rgba(255,255,255,0.2))',
+                        opacity: logoLoaded ? 1 : 0,
+                        transition: 'opacity 0.3s ease-in-out',
                     }}
                 />
 
@@ -1560,6 +1610,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
             </footer>
         </div>
+        </>
     );
 };
 
