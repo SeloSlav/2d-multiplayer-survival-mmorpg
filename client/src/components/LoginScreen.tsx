@@ -92,6 +92,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    // Preload critical images for faster loading
+    useEffect(() => {
+        // Create preload links for critical images
+        const preloadBackground = document.createElement('link');
+        preloadBackground.rel = 'preload';
+        preloadBackground.href = loginBackground;
+        preloadBackground.as = 'image';
+        preloadBackground.type = 'image/png';
+        document.head.appendChild(preloadBackground);
+
+        const preloadLogo = document.createElement('link');
+        preloadLogo.rel = 'preload';
+        preloadLogo.href = logo;
+        preloadLogo.as = 'image';
+        preloadLogo.type = 'image/png';
+        document.head.appendChild(preloadLogo);
+
+        // Cleanup
+        return () => {
+            document.head.removeChild(preloadBackground);
+            document.head.removeChild(preloadLogo);
+        };
+    }, []);
+
     // Autofocus username field if authenticated AND it's a new player
     useEffect(() => {
         if (isAuthenticated && !loggedInPlayer) {
@@ -252,6 +276,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 <img
                     src={logo}
                     alt="Broth & Bullets Logo"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="sync"
                     style={{
                         width: 'min(600px, 70vw)', // Responsive: 600px on desktop, 70% of viewport width on mobile (smaller)
                         maxWidth: '600px',
@@ -1056,7 +1083,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 ✓ {feature.status}
                                                                             </span>
                                                                         </td>
-                                                                    </tr>
+                                                                </tr>
                                                                 ))}
 
                                                                 {/* In Progress Features */}
@@ -1099,7 +1126,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 ⚡ {feature.status}
                                                                             </span>
                                                                         </td>
-                                                                    </tr>
+                                                                </tr>
                                                                 ))}
 
                                                                 {/* Planned Features */}
@@ -1142,7 +1169,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 📋 {feature.status}
                                                                             </span>
                                                                         </td>
-                                                                    </tr>
+                                                                </tr>
                                                                 ))}
                                                             </tbody>
                                                         </table>
@@ -1258,6 +1285,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 width: '100%',
                 boxSizing: 'border-box',
                 overflowX: 'hidden',
+                contentVisibility: 'auto',
+                containIntrinsicSize: '1200px 400px',
             }}>
                 {/* Decorative line at top */}
                 <div style={{
