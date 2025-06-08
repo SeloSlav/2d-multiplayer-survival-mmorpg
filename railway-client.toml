@@ -1,0 +1,20 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+# This tells Railway to use the root (client app) and ignore auth server
+[build.watchPatterns]
+include = ["client/**", "*.json", "*.ts", "*.js", "vite.config.ts", "tsconfig*.json"]
+exclude = ["auth-server-openauth/**"]
+
+[environments.production]
+[environments.production.build]
+buildCommand = "npm install && npm run build"
+startCommand = "npm run preview"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 300 
