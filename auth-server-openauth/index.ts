@@ -252,9 +252,10 @@ async function success(ctx: any, value: any): Promise<Response> {
       origin: [
           'http://localhost:3008', 
           'http://localhost:3009',
-          'https://broth-and-bullets.vercel.app',
+
           'https://brothandbullets.com',
-          'https://www.brothandbullets.com'
+          'https://www.brothandbullets.com',
+          'https://broth-and-bullets-production-client-production.up.railway.app'
       ],
       allowMethods: ['GET', 'POST', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
