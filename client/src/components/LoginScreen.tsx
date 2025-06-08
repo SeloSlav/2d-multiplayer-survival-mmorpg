@@ -989,12 +989,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                             <tbody>
                                                                 {/* Completed Feature Groups */}
                                                                 {[
-                                                                    { name: "🌐 Core Multiplayer & World", status: "COMPLETE" },
-                                                                    { name: "🎒 Inventory & Items", status: "COMPLETE" },
-                                                                    { name: "⚔️ Combat & Weapons", status: "COMPLETE" },
-                                                                    { name: "🍳 Survival & Cooking", status: "COMPLETE" },
-                                                                    { name: "🏠 Building & Storage", status: "COMPLETE" },
-                                                                    { name: "🔐 Authentication", status: "COMPLETE" },
+                                                                    { name: "🌐 Core Multiplayer & World", status: "100%" },
+                                                                    { name: "🎒 Inventory & Items", status: "100%" },
+                                                                    { name: "⚔️ Combat & Weapons", status: "100%" },
+                                                                    { name: "🍳 Survival & Cooking", status: "100%" },
+                                                                    { name: "🏠 Simple Shelters & Storage", status: "100%" },
+                                                                    { name: "🔐 Authentication", status: "100%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(0, 100, 0, 0.2)',
@@ -1077,10 +1077,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                                                 {/* Planned Features */}
                                                                 {[
-                                                                    { name: "🌍 Advanced World Generation", status: "PLANNED" },
-                                                                    { name: "🏗️ Advanced Construction", status: "PLANNED" },
-                                                                    { name: "🦌 Hunting & Wildlife", status: "PLANNED" },
-                                                                    { name: "🔫 Firearms & Advanced Combat", status: "PLANNED" },
+                                                                    { name: "🌍 Advanced World Generation", status: "50%" },
+                                                                    { name: "🏗️ Advanced Construction", status: "10%" },
+                                                                    { name: "🦌 Hunting & Wildlife", status: "10%" },
+                                                                    { name: "🔫 Firearms & Advanced Combat", status: "10%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(150, 0, 0, 0.2)',
@@ -1150,7 +1150,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             }}>
                                                 {faq.question}
                                             </h3>
-                                            <p style={{
+                                            <div style={{
                                                 fontSize: '16px',
                                                 lineHeight: '1.7',
                                                 color: 'rgba(255, 255, 255, 0.85)',
@@ -1159,7 +1159,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                 margin: '0',
                                             }}>
                                                 {faq.answer}
-                                            </p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
