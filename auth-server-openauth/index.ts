@@ -253,7 +253,8 @@ async function success(ctx: any, value: any): Promise<Response> {
           'http://localhost:3008', 
           'http://localhost:3009',
           'https://broth-and-bullets.vercel.app',
-          'https://brothandbullets.com'
+          'https://brothandbullets.com',
+          'https://www.brothandbullets.com'
       ],
       allowMethods: ['GET', 'POST', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
