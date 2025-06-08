@@ -13,13 +13,7 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       output: {
-        assetFileNames: (assetInfo) => {
-          // Separate assets by type for better caching
-          if (assetInfo.name?.endsWith('.png') || assetInfo.name?.endsWith('.jpg') || assetInfo.name?.endsWith('.webp')) {
-            return 'assets/images/[name]-[hash][extname]';
-          }
-          return 'assets/[name]-[hash][extname]';
-        }
+        assetFileNames: '[name]-[hash][extname]',
       }
     },
     // Enable asset inlining for small images (4KB threshold)
