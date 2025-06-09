@@ -38,10 +38,11 @@ import { renderCampfire } from './campfireRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
-import { renderProjectile } from './projectileRenderingUtils';
+import { renderProjectile, cleanupOldProjectileTracking } from './projectileRenderingUtils';
 import { renderShelter } from './shelterRenderingUtils';
 import { imageManager } from './imageManager';
 import { getItemIcon } from '../itemIconUtils';
+import { renderPlayerTorchLight, renderCampfireLight } from './lightRenderingUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -154,6 +155,10 @@ export const renderYSortedEntities = ({
     localPlayerPosition,
     remotePlayerInterpolation,
 }: RenderYSortedEntitiesProps) => {
+    // Clean up old projectile tracking data periodically (every 5 seconds)
+    if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance
+        cleanupOldProjectileTracking();
+    }
 
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
     // Other entities (players, boxes, etc.) render as normal.
@@ -428,6 +433,9 @@ export const renderYSortedEntities = ({
         } else if (type === 'projectile') {
             const projectile = entity as SpacetimeDBProjectile;
             
+            // Debug logging for projectile visibility
+            console.log(`🏹 [RENDER] Processing projectile ${projectile.id} at (${projectile.startPosX.toFixed(1)}, ${projectile.startPosY.toFixed(1)})`);
+            
             // Check if this is a thrown weapon (ammo_def_id == item_def_id)
             const isThrown = projectile.ammoDefId === projectile.itemDefId;
             
@@ -444,19 +452,25 @@ export const renderYSortedEntities = ({
             } else {
                 // Fallback for missing definitions
                 projectileImageName = 'wooden_arrow.png';
+                console.warn(`🏹 [RENDER] No ammo definition found for projectile ${projectile.id}, using fallback image`);
             }
+            
+            console.log(`🏹 [RENDER] Projectile ${projectile.id} using image: ${projectileImageName} (isThrown: ${isThrown})`);
             
             // Use imageManager to get the projectile image for production compatibility
             const projectileImageSrc = getItemIcon(projectileImageName);
             const projectileImage = imageManager.getImage(projectileImageSrc);
             
             if (projectileImage) {
+                console.log(`🏹 [RENDER] Rendering projectile ${projectile.id} with loaded image`);
                 renderProjectile({
                     ctx,
                     projectile,
                     arrowImage: projectileImage, // Note: parameter name is still 'arrowImage' but now handles both
                     currentTimeMs: nowMs,
                 });
+            } else {
+                console.warn(`🏹 [RENDER] No image loaded for projectile ${projectile.id} (${projectileImageName})`);
             }
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.

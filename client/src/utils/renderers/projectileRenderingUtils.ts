@@ -7,6 +7,10 @@ const ARROW_SPRITE_OFFSET_Y = 0; // Pixels to offset drawing from calculated cen
 
 const GRAVITY: number = 600.0; // Same as server-side
 
+// Client-side projectile lifetime limits for cleanup (in case server is slow)
+const MAX_PROJECTILE_LIFETIME_MS = 12000; // 12 seconds max
+const MAX_PROJECTILE_DISTANCE = 1200; // Max distance before client cleanup
+
 // --- Client-side animation tracking for projectiles ---
 const clientProjectileStartTimes = new Map<string, number>(); // projectileId -> client timestamp when projectile started
 const lastKnownServerProjectileTimes = new Map<string, number>(); // projectileId -> last known server timestamp
@@ -38,7 +42,7 @@ export const renderProjectile = ({
   let elapsedTimeSeconds = 0;
   
   if (serverStartTimeMs !== lastKnownServerTime) {
-    // NEW projectile detected! Record both server time and client time
+    // NEW projectile detected! Always start immediately for smooth gameplay
     console.log(`🏹 [CLIENT PROJECTILE] NEW projectile detected:`, {
       projectileId,
       serverStartTimeMs,
@@ -46,32 +50,51 @@ export const renderProjectile = ({
       timeDiff: currentTimeMs - serverStartTimeMs
     });
     lastKnownServerProjectileTimes.set(projectileId, serverStartTimeMs);
-    clientProjectileStartTimes.set(projectileId, currentTimeMs);
-    elapsedTimeSeconds = 0;
+    clientProjectileStartTimes.set(projectileId, currentTimeMs); // Use current client time
+    elapsedTimeSeconds = 0; // Always start at 0 for immediate rendering
   } else {
-    // Use client-tracked time for position calculation
+    // Use client-tracked time for smooth position calculation
     const clientStartTime = clientProjectileStartTimes.get(projectileId);
     if (clientStartTime) {
       const elapsedClientMs = currentTimeMs - clientStartTime;
       elapsedTimeSeconds = elapsedClientMs / 1000;
       
-      console.log(`🏹 [CLIENT PROJECTILE] Animation check:`, {
-        projectileId: projectileId.substring(0, 8),
-        elapsedClientMs,
-        elapsedTimeSeconds: elapsedTimeSeconds.toFixed(3),
-        isVisible: elapsedTimeSeconds >= 0
-      });
+      // Only log for debugging if needed
+      if (elapsedTimeSeconds < 0.1) { // Only log first 100ms
+        console.log(`🏹 [CLIENT PROJECTILE] Animation check:`, {
+          projectileId: projectileId.substring(0, 8),
+          elapsedClientMs,
+          elapsedTimeSeconds: elapsedTimeSeconds.toFixed(3),
+          isVisible: elapsedTimeSeconds >= 0
+        });
+      }
     } else {
-      // Fallback to server time if no client tracking (shouldn't happen normally)
-      console.warn(`🏹 [CLIENT PROJECTILE] No client tracking for projectile ${projectileId}, using server time`);
-      const currentTimeMicros = currentTimeMs * 1000;
-      elapsedTimeSeconds = (currentTimeMicros - serverStartTimeMicros) / 1_000_000.0;
+      // Fallback: Use current time as start time for missing client tracking
+      console.warn(`🏹 [CLIENT PROJECTILE] No client tracking for projectile ${projectileId}, starting immediately`);
+      clientProjectileStartTimes.set(projectileId, currentTimeMs);
+      elapsedTimeSeconds = 0; // Start immediately
     }
   }
   
-  // Don't render if projectile hasn't started yet
+  // Always render projectiles (removed negative time check for immediate visibility)
+  // This ensures projectiles appear immediately regardless of server/client time sync
   if (elapsedTimeSeconds < 0) {
-    console.log(`🏹 [CLIENT PROJECTILE] Projectile ${projectileId.substring(0, 8)} not ready yet (${elapsedTimeSeconds.toFixed(3)}s)`);
+    // Force to 0 for immediate visibility in production with network latency
+    elapsedTimeSeconds = 0;
+  }
+  
+  // Client-side safety checks to prevent projectiles from lingering indefinitely
+  const distanceTraveled = Math.sqrt(
+    Math.pow(projectile.startPosX - (projectile.startPosX + projectile.velocityX * elapsedTimeSeconds), 2) +
+    Math.pow(projectile.startPosY - (projectile.startPosY + projectile.velocityY * elapsedTimeSeconds), 2)
+  );
+  
+  // Don't render if projectile has exceeded reasonable limits (client-side cleanup)
+  if (elapsedTimeSeconds > 15 || distanceTraveled > MAX_PROJECTILE_DISTANCE) {
+    console.log(`🏹 [CLIENT CLEANUP] Projectile ${projectileId.substring(0, 8)} exceeded limits - Time: ${elapsedTimeSeconds.toFixed(1)}s, Distance: ${distanceTraveled.toFixed(1)}`);
+    // Clean up tracking for this projectile
+    clientProjectileStartTimes.delete(projectileId);
+    lastKnownServerProjectileTimes.delete(projectileId);
     return;
   }
   
@@ -117,4 +140,25 @@ export const renderProjectile = ({
   );
   
   ctx.restore();
+};
+
+// Add cleanup function to prevent memory leaks
+export const cleanupOldProjectileTracking = () => {
+  const currentTime = performance.now();
+  const toDelete = [];
+  
+  for (const [projectileId, startTime] of clientProjectileStartTimes.entries()) {
+    if (currentTime - startTime > MAX_PROJECTILE_LIFETIME_MS) {
+      toDelete.push(projectileId);
+    }
+  }
+  
+  for (const projectileId of toDelete) {
+    clientProjectileStartTimes.delete(projectileId);
+    lastKnownServerProjectileTimes.delete(projectileId);
+  }
+  
+  if (toDelete.length > 0) {
+    console.log(`🏹 [CLIENT CLEANUP] Removed ${toDelete.length} old projectile tracking entries`);
+  }
 }; 
