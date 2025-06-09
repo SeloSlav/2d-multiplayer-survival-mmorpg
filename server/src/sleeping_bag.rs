@@ -232,21 +232,21 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     // --- Clear Crafting Queue & Refund ---
     crafting_queue::clear_player_crafting_queue(ctx, sender_id);
 
-    // --- Grant Starting Rock ---
-    log::info!("Granting starting Rock to respawned player: {}", player.username);
-    if let Some(rock_def) = item_defs.iter().find(|def| def.name == "Rock") {
-        let rock_location = ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: sender_id, slot_index: 0 }); // Put rock in first hotbar slot
+    // --- Grant Starting Combat Ladle ---
+    log::info!("Granting starting Combat Ladle to respawned player: {}", player.username);
+    if let Some(combat_ladle_def) = item_defs.iter().find(|def| def.name == "Combat Ladle") {
+        let combat_ladle_location = ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: sender_id, slot_index: 0 }); // Put combat ladle in first hotbar slot
         match inventory.try_insert(crate::items::InventoryItem {
             instance_id: 0, // Auto-incremented
-            item_def_id: rock_def.id,
+            item_def_id: combat_ladle_def.id,
             quantity: 1,
-            location: rock_location,
+            location: combat_ladle_location,
         }) {
-            Ok(_) => log::info!("Granted 1 Rock (slot 0) to player {}", player.username),
-            Err(e) => log::error!("Failed to grant starting Rock to player {}: {}", player.username, e),
+            Ok(_) => log::info!("Granted 1 Combat Ladle (slot 0) to player {}", player.username),
+            Err(e) => log::error!("Failed to grant starting Combat Ladle to player {}: {}", player.username, e),
         }
     } else {
-        log::error!("Could not find item definition for starting Rock!");
+        log::error!("Could not find item definition for starting Combat Ladle!");
     }
 
     // --- Grant Starting Torch ---
