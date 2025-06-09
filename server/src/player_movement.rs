@@ -553,58 +553,44 @@ pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
 #[spacetimedb::reducer]
 pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
    let identity = ctx.sender;
-   log::info!("🦘 JUMP REDUCER CALLED for player: {:?}", identity); // Add debug log
    
    let players = ctx.db.player();
    if let Some(mut player) = players.identity().find(&identity) {
-       log::info!("🦘 Player found: {:?}, dead: {}, knocked_out: {}, crouching: {}", 
-                  identity, player.is_dead, player.is_knocked_out, player.is_crouching); // Add debug log
-                  
        // Don't allow jumping if dead
        if player.is_dead {
-           log::warn!("🦘 Jump REJECTED: Player is dead");
            return Err("Cannot jump while dead.".to_string());
        }
 
        // Don't allow jumping if knocked out
        if player.is_knocked_out {
-           log::warn!("🦘 Jump REJECTED: Player is knocked out");
            return Err("Cannot jump while knocked out.".to_string());
        }
 
        // Don't allow jumping while crouching
        if player.is_crouching {
-           log::warn!("🦘 Jump REJECTED: Player is crouching");
            return Err("Cannot jump while crouching.".to_string());
        }
 
        // ADD: Don't allow jumping on water
        if is_player_on_water(ctx, player.position_x, player.position_y) {
-           log::warn!("🦘 Jump REJECTED: Player is on water at ({}, {})", player.position_x, player.position_y);
            return Err("Cannot jump on water.".to_string());
        }
 
        let now_micros = ctx.timestamp.to_micros_since_unix_epoch();
        let now_ms = (now_micros / 1000) as u64;
-       
-       log::info!("🦘 Current time: {}ms, last jump: {}ms", now_ms, player.jump_start_time_ms);
 
        // Check if the player is already jumping (within cooldown)
        if player.jump_start_time_ms > 0 && now_ms < player.jump_start_time_ms + JUMP_COOLDOWN_MS {
            let cooldown_remaining = (player.jump_start_time_ms + JUMP_COOLDOWN_MS) - now_ms;
-           log::warn!("🦘 Jump REJECTED: Still in cooldown, {} ms remaining", cooldown_remaining);
            return Err("Cannot jump again so soon.".to_string());
        }
 
        // Proceed with the jump
-       log::info!("🦘 JUMP SUCCESS! Setting jumpStartTimeMs to {}", now_ms);
        player.jump_start_time_ms = now_ms;
        player.last_update = ctx.timestamp; // Update timestamp on jump
        players.identity().update(player);
-       log::info!("🦘 Jump recorded successfully for player {:?}", identity);
        Ok(())
    } else {
-       log::error!("🦘 Jump FAILED: Player not found for identity {:?}", identity);
        Err("Player not found".to_string())
    }
 }
