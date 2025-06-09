@@ -49,7 +49,6 @@ interface InputHandlerProps {
     isInventoryOpen: boolean;
     isGameMenuOpen: boolean;
     isSearchingCraftRecipes?: boolean;
-    onToggleAutoWalk: () => void;
 }
 
 // --- Hook Return Value Interface ---
@@ -78,7 +77,14 @@ const getDirectionVector = (direction: string): { dx: number; dy: number } => {
         case 'down': return { dx: 0, dy: 1 };
         case 'left': return { dx: -1, dy: 0 };
         case 'right': return { dx: 1, dy: 0 };
-        default: return { dx: 0, dy: 1 }; // Default to down
+        // Handle diagonal directions from dodge rolls
+        case 'up_left': return { dx: -1, dy: -1 };
+        case 'up_right': return { dx: 1, dy: -1 };
+        case 'down_left': return { dx: -1, dy: 1 };
+        case 'down_right': return { dx: 1, dy: 1 };
+        default: 
+            console.warn('[getDirectionVector] Unknown direction:', direction, 'defaulting to down');
+            return { dx: 0, dy: 1 }; // Default to down
     }
 };
 
@@ -114,7 +120,6 @@ export const useInputHandler = ({
     isSearchingCraftRecipes,
     isInventoryOpen, // Destructure new prop
     isGameMenuOpen, // Destructure new prop
-    onToggleAutoWalk,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
@@ -128,6 +133,9 @@ export const useInputHandler = ({
     const [isAutoAttacking, setIsAutoAttacking] = useState(false);
     const [isAutoWalking, setIsAutoWalking] = useState(false);
     const [isCrouching, setIsCrouching] = useState(false);
+    
+    // Ref to track auto-walk state for event handlers (to avoid stale closure issues)
+    const isAutoWalkingRef = useRef(false);
     const keysPressed = useRef<Set<string>>(new Set());
     const isEHeldDownRef = useRef<boolean>(false);
     const isMouseDownRef = useRef<boolean>(false);
@@ -140,9 +148,15 @@ export const useInputHandler = ({
     // Use ref for jump offset to avoid re-renders every frame
     const currentJumpOffsetYRef = useRef<number>(0);
 
-    // Refs for auto-walk state
+    // Auto-walk direction tracking
     const autoWalkDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
-    const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 }); // Default to facing down
+    const lastValidDirectionTimeRef = useRef<number>(Date.now());
+    const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 });
+
+    // Keep the ref in sync with the state
+    useEffect(() => {
+        isAutoWalkingRef.current = isAutoWalking;
+    }, [isAutoWalking]);
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -183,7 +197,7 @@ export const useInputHandler = ({
 
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
-             console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
+             // console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
              isEHeldDownRef.current = false;
              if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
              eKeyHoldTimerRef.current = null;
@@ -248,35 +262,35 @@ export const useInputHandler = ({
     const startHoldTimer = useCallback((holdTarget: InteractionProgressState, connection: DbConnection) => {
         const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
 
-        console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
+        //console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
         const timerId = setTimeout(() => {
             try {
-                console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
+                // console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
                 // Timer fired, so this is a successful HOLD action.
                 // Re-check if we are still close to the original target.
                 const stillClosest = closestIdsRef.current;
-                console.log(`[E-Timer] stillClosest check:`, stillClosest);
+                // console.log(`[E-Timer] stillClosest check:`, stillClosest);
                 
                 let actionTaken = false;
                 
                 switch(holdTarget.targetType) {
                     case 'knocked_out_player':
                         if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
-                            console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
+                            // console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
                             connection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
                             actionTaken = true;
                         } else {
-                            console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
+                            // console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
                         }
                         break;
                     case 'campfire':
                         if (stillClosest.campfire === holdTarget.targetId) {
-                            console.log(`[E-Timer] *** EXECUTING CAMPFIRE ACTION *** ID:`, holdTarget.targetId);
+                            // console.log(`[E-Timer] *** EXECUTING CAMPFIRE ACTION *** ID:`, holdTarget.targetId);
                             connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
                             actionTaken = true;
-                            console.log(`[E-Timer] Campfire action completed successfully`);
+                            // console.log(`[E-Timer] Campfire action completed successfully`);
                         } else {
-                            console.log(`[E-Timer] FAILED - No longer closest to campfire. Expected:`, holdTarget.targetId, 'Actual closest:', stillClosest.campfire);
+                            // console.log(`[E-Timer] FAILED - No longer closest to campfire. Expected:`, holdTarget.targetId, 'Actual closest:', stillClosest.campfire);
                         }
                         break;
                     case 'wooden_storage_box':
@@ -302,13 +316,13 @@ export const useInputHandler = ({
                 }
 
                 // Clean up UI and state
-                console.log(`[E-Timer] *** TIMER COMPLETE *** Action taken:`, actionTaken);
+                // console.log(`[E-Timer] *** TIMER COMPLETE *** Action taken:`, actionTaken);
                 setInteractionProgress(null);
                 setIsActivelyHolding(false);
                 isEHeldDownRef.current = false; // Reset the master hold flag
                 eKeyHoldTimerRef.current = null; // Clear the timer ref itself
             } catch (error) {
-                console.error(`[E-Timer] ERROR in timer callback:`, error);
+                // console.error(`[E-Timer] ERROR in timer callback:`, error);
                 // Clean up state even if there was an error
                 setInteractionProgress(null);
                 setIsActivelyHolding(false);
@@ -318,23 +332,23 @@ export const useInputHandler = ({
         }, duration);
         
         eKeyHoldTimerRef.current = timerId;
-        console.log(`[E-Timer] Timer assigned to ref. Timer ID:`, timerId);
+        // console.log(`[E-Timer] Timer assigned to ref. Timer ID:`, timerId);
         
         // Debug: Check if timer ref gets cleared unexpectedly
         setTimeout(() => {
             if (eKeyHoldTimerRef.current === null) {
-                console.log(`[E-Timer] *** TIMER REF WAS CLEARED *** Timer ${timerId} ref became null before 250ms!`);
+                // console.log(`[E-Timer] *** TIMER REF WAS CLEARED *** Timer ${timerId} ref became null before 250ms!`);
             } else if (eKeyHoldTimerRef.current !== timerId) {
-                console.log(`[E-Timer] *** TIMER REF CHANGED *** Timer ${timerId} ref is now:`, eKeyHoldTimerRef.current);
+                // console.log(`[E-Timer] *** TIMER REF CHANGED *** Timer ${timerId} ref is now:`, eKeyHoldTimerRef.current);
             } else {
-                console.log(`[E-Timer] Timer ${timerId} ref still valid at 100ms checkpoint`);
+                // console.log(`[E-Timer] Timer ${timerId} ref still valid at 100ms checkpoint`);
             }
         }, 100);
-    }, []);
+    }, []); 
 
     const clearHoldTimer = useCallback(() => {
         if (eKeyHoldTimerRef.current) {
-            console.log(`[E-Timer] Clearing timer manually. Timer ID:`, eKeyHoldTimerRef.current);
+            // console.log(`[E-Timer] Clearing timer manually. Timer ID:`, eKeyHoldTimerRef.current);
             clearTimeout(eKeyHoldTimerRef.current as number);
             eKeyHoldTimerRef.current = null;
         }
@@ -381,6 +395,36 @@ export const useInputHandler = ({
         }
     }, [localPlayerId]);
 
+    // Helper function to update auto-walk direction based on currently pressed keys
+    const updateAutoWalkDirection = () => {
+        if (!isAutoWalking) return;
+        
+        console.log('[Auto-Walk Update] Current pressed keys:', Array.from(keysPressed.current));
+        
+        const newDirection = {
+            dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
+            dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
+        };
+        
+        console.log('[Auto-Walk Update] Calculated new direction:', newDirection);
+        console.log('[Auto-Walk Update] Previous autoWalkDirectionRef:', autoWalkDirectionRef.current);
+        
+        if (newDirection.dx !== 0 || newDirection.dy !== 0) {
+            console.log('[Auto-Walk Update] *** UPDATING DIRECTION ***:', newDirection);
+            autoWalkDirectionRef.current = { ...newDirection };
+            lastValidDirectionTimeRef.current = Date.now(); // Update timestamp when we have a valid direction
+        } else {
+            // If no movement keys are pressed, keep the current direction to prevent stopping auto-walk
+            console.log('[Auto-Walk Update] No movement keys pressed, keeping current direction:', autoWalkDirectionRef.current);
+            // DON'T update the direction - keep the existing one to maintain auto-walk
+            // Don't update the timestamp either - let the move function handle timeout
+        }
+        
+        console.log('[Auto-Walk Update] Final autoWalkDirectionRef:', autoWalkDirectionRef.current);
+    };
+
     // --- Input Event Handlers ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -407,7 +451,53 @@ export const useInputHandler = ({
                         });
                         return; // Handled
                     case 'f':
-                        onToggleAutoWalk();
+                        setIsAutoWalking(prev => {
+                            if (prev) {
+                                // Currently auto-walking, stop it
+                                console.log('[Auto-Walk] F pressed - stopping auto-walk');
+                                return false;
+                            } else {
+                                // Start auto-walking - use most recent movement input if available, otherwise server direction
+                                let directionVector;
+                                let directionSource;
+                                
+                                // Check if there's recent movement input (within last 1000ms)
+                                const timeSinceLastMovement = Date.now() - lastValidDirectionTimeRef.current;
+                                const hasRecentMovement = timeSinceLastMovement < 1000;
+                                
+                                // Check current movement input
+                                const currentMovementInput = {
+                                    dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                                        (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
+                                    dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                                        (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
+                                };
+                                
+                                if (currentMovementInput.dx !== 0 || currentMovementInput.dy !== 0) {
+                                    // Use current active movement input
+                                    directionVector = currentMovementInput;
+                                    directionSource = 'current input';
+                                } else if (hasRecentMovement && (lastMovementDirectionRef.current.dx !== 0 || lastMovementDirectionRef.current.dy !== 0)) {
+                                    // Use recent movement direction
+                                    directionVector = lastMovementDirectionRef.current;
+                                    directionSource = 'recent movement';
+                                } else {
+                                    // Fall back to server direction
+                                    const serverDirection = localPlayer?.direction || 'down';
+                                    directionVector = getDirectionVector(serverDirection);
+                                    directionSource = `server direction (${serverDirection})`;
+                                }
+                                
+                                console.log('[Auto-Walk] F pressed - using', directionSource, ':', directionVector);
+                                console.log('[Auto-Walk] F pressed - setting autoWalkDirectionRef to:', directionVector);
+                                
+                                // Stop auto-attack if it's active
+                                setIsAutoAttacking(false);
+                                // Set the auto-walk direction
+                                autoWalkDirectionRef.current = { ...directionVector };
+                                return true;
+                            }
+                        });
                         return; // Handled
                     case 'c':
                         setIsCrouching(prev => {
@@ -448,9 +538,33 @@ export const useInputHandler = ({
 
             // Handle movement keys (WASD) - no longer needed for movement, but tracked for other actions
             if (['w', 'a', 's', 'd'].includes(key)) {
+                // Debug Shift+WASD stopping (check BEFORE adding key to avoid race conditions)
+                console.log('[Auto-Walk DEBUG] Movement key pressed:', key, 'Shift held:', event.shiftKey, 'Auto-walking (ref):', isAutoWalkingRef.current);
+                
+                // Stop auto-walk when Shift+WASD is pressed (use ref to avoid stale closure)
+                if (event.shiftKey && isAutoWalkingRef.current) {
+                    console.log('[Auto-Walk] ✅ Shift+Movement key pressed, stopping auto-walk');
+                    setIsAutoWalking(false);
+                    return; // Don't add the key to keysPressed to prevent auto-walk from continuing
+                }
+                
                 // This hook no longer processes movement keys directly,
                 // but we need to track them for dodge rolls.
                 keysPressed.current.add(key);
+                
+                // Update the last movement direction tracking for auto-walk initialization
+                const currentMovementInput = {
+                    dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                        (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
+                    dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                        (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
+                };
+                
+                if (currentMovementInput.dx !== 0 || currentMovementInput.dy !== 0) {
+                    lastMovementDirectionRef.current = { ...currentMovementInput };
+                    lastValidDirectionTimeRef.current = Date.now();
+                }
+                
                 return; // Movement keys handled
             }
 
@@ -518,6 +632,21 @@ export const useInputHandler = ({
         const handleKeyUp = (event: KeyboardEvent) => {
             const key = event.key.toLowerCase();
             keysPressed.current.delete(key);
+
+            // Update movement direction tracking when movement keys are released
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                // Check if we still have any movement keys pressed
+                const stillMoving = keysPressed.current.has('w') || keysPressed.current.has('a') || 
+                                   keysPressed.current.has('s') || keysPressed.current.has('d') ||
+                                   keysPressed.current.has('arrowup') || keysPressed.current.has('arrowleft') ||
+                                   keysPressed.current.has('arrowdown') || keysPressed.current.has('arrowright');
+                
+                if (!stillMoving) {
+                    // No movement keys pressed anymore, but don't reset the direction tracking
+                    // Keep the last direction for a longer time to help with auto-walk initialization
+                    console.log('[Auto-Walk] All movement keys released, preserving last direction:', lastMovementDirectionRef.current);
+                }
+            }
 
             if (key === 'e') {
                 if (isEHeldDownRef.current) { // Check if E was being held for an interaction
@@ -910,8 +1039,8 @@ export const useInputHandler = ({
                         console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
                     } else {
                         // Use last movement direction if available
-                        if (lastMovementDirectionRef.current.dx !== 0 || lastMovementDirectionRef.current.dy !== 0) {
-                            throwingDirection = lastMovementDirectionRef.current;
+                        if (autoWalkDirectionRef.current.dx !== 0 || autoWalkDirectionRef.current.dy !== 0) {
+                            throwingDirection = autoWalkDirectionRef.current;
                             console.log("[InputHandler] Right-click throw - using last movement direction:", throwingDirection);
                         } else {
                             console.log("[InputHandler] Right-click throw - using default direction (down):", throwingDirection);
@@ -961,7 +1090,7 @@ export const useInputHandler = ({
 
         // --- Blur Handler ---
         const handleBlur = () => {
-            console.log(`[E-Timer] *** WINDOW BLUR CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
+            // console.log(`[E-Timer] *** WINDOW BLUR CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
             // REMOVED Sprinting logic from blur handler.
             // keysPressed.current.clear(); // Keep this commented out
             isMouseDownRef.current = false;
@@ -1017,7 +1146,7 @@ export const useInputHandler = ({
             //     eKeyHoldTimerRef.current = null;
             // }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, onToggleAutoWalk, isMinimapOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
 
     useEffect(() => {
         if (!isAutoWalking || isChatting || isGameMenuOpen || !!isSearchingCraftRecipes) {
@@ -1026,22 +1155,57 @@ export const useInputHandler = ({
 
         const move = () => {
             const player = localPlayerRef.current;
-            const mouse = worldMousePosRefInternal.current;
-            if (!player || !mouse.x || !mouse.y) return;
+            if (!player || !connectionRef.current?.reducers) return;
 
-            const dx = mouse.x - player.positionX;
-            const dy = mouse.y - player.positionY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+            // Use LIVE movement input if any keys are pressed, otherwise use stored direction
+            const currentInput = {
+                dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                    (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
+                dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                    (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
+            };
 
-            if (dist > 20) { // Stop when close to the target
-                const dirX = dx / dist;
-                const dirY = dy / dist;
-                connectionRef.current?.reducers.updatePlayerPosition(dirX, dirY);
+            // Use current input if available, otherwise use stored direction
+            let direction;
+            if (currentInput.dx !== 0 || currentInput.dy !== 0) {
+                // User is actively pressing movement keys - use that direction
+                direction = currentInput;
+                // Update stored direction to remember this for when keys are released
+                autoWalkDirectionRef.current = { ...currentInput };
+                console.log('[Auto-Walk] Using live input and updating stored direction:', direction);
             } else {
-                setIsAutoWalking(false); // Stop auto-walking upon arrival
+                // No keys pressed - use the last direction we were moving
+                direction = autoWalkDirectionRef.current;
+                console.log('[Auto-Walk] No input, using stored direction:', direction);
+            }
+            
+            // Only stop auto-walk if no direction for more than 500ms (longer timeout for better UX)
+            if (direction.dx === 0 && direction.dy === 0) {
+                const timeSinceLastValidDirection = Date.now() - lastValidDirectionTimeRef.current;
+                if (timeSinceLastValidDirection > 500) {
+                    console.log('[Auto-Walk] No direction for', timeSinceLastValidDirection, 'ms, stopping auto-walk');
+                    setIsAutoWalking(false);
+                    return;
+                } else {
+                    console.log('[Auto-Walk] No direction but only for', timeSinceLastValidDirection, 'ms, continuing...');
+                    return; // Skip this frame but don't stop auto-walk yet
+                }
+            } else {
+                // Update the last valid direction timestamp when we have movement
+                lastValidDirectionTimeRef.current = Date.now();
+            }
+
+            // Send movement command in the current direction
+            try {
+                console.log('[Auto-Walk Move] Sending movement command:', direction.dx, direction.dy);
+                connectionRef.current.reducers.updatePlayerPosition(direction.dx, direction.dy);
+            } catch (err) {
+                console.error('[Auto-Walk] Error sending movement command:', err);
             }
         };
 
+        // Start moving immediately, then continue every 50ms
+        move();
         const intervalId = setInterval(move, 50); // Move 20 times per second
 
         return () => clearInterval(intervalId);
@@ -1134,6 +1298,13 @@ export const useInputHandler = ({
 
         if (dx !== 0 || dy !== 0) {
             lastMovementDirectionRef.current = { dx, dy };
+            
+            // Don't override auto-walk direction when auto-walking is active
+            // The updateAutoWalkDirection function handles that
+            if (!isAutoWalking) {
+                autoWalkDirectionRef.current = { dx, dy };
+                lastValidDirectionTimeRef.current = Date.now();
+            }
         }
 
         // Handle continuous swing check

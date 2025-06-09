@@ -149,7 +149,6 @@ interface GameScreenProps {
     deathMarkers: Map<string, SpacetimeDBDeathMarker>;
     setIsCraftingSearchFocused: React.Dispatch<React.SetStateAction<boolean>>;
     isCraftingSearchFocused: boolean;
-    onToggleAutoWalk: () => void;
     isAutoWalking: boolean;
 }
 
@@ -195,7 +194,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         deathMarkers,
         setIsCraftingSearchFocused,
         isCraftingSearchFocused,
-        onToggleAutoWalk,
         isAutoWalking,
     } = props;
 
@@ -237,6 +235,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
 
     // Handler for auto-action state changes from GameCanvas
     const handleAutoActionStatesChange = useCallback((isAutoAttacking: boolean, isAutoWalking: boolean) => {
+        console.log('[GameScreen] Auto-action states changed:', { isAutoAttacking, isAutoWalking });
         setAutoActionStates({ isAutoAttacking, isAutoWalking });
     }, []);
 
@@ -278,7 +277,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             <GameMenuButton onClick={handleMenuOpen} />
             
             {/* Auto-Action Status Indicators */}
-            {(autoActionStates.isAutoAttacking || isAutoWalking) && (
+            {/* Debug: {JSON.stringify(autoActionStates)} */}
+            {(autoActionStates.isAutoAttacking || autoActionStates.isAutoWalking) && (
                 <div style={{
                     position: 'fixed',
                     top: '70px', // Position below DayNightCycleTracker (which is at 15px)
@@ -307,7 +307,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             ⚔️ AUTO ATTACK (Z)
                         </div>
                     )}
-                    {isAutoWalking && (
+                    {autoActionStates.isAutoWalking && (
                         <div style={{
                             backgroundColor: 'rgba(40, 40, 60, 0.85)', // Same as DayNightCycleTracker
                             color: 'white',
@@ -430,7 +430,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 minimapCache={minimapCache}
                 isGameMenuOpen={currentMenu !== null}
                 onAutoActionStatesChange={handleAutoActionStatesChange}
-                onToggleAutoWalk={onToggleAutoWalk}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

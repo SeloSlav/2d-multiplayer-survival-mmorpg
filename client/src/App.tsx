@@ -481,7 +481,6 @@ function AppContent() {
                             deathMarkers={deathMarkers}
                             setIsCraftingSearchFocused={setIsCraftingSearchFocused}
                             isCraftingSearchFocused={isCraftingSearchFocused}
-                            onToggleAutoWalk={() => setIsAutoWalking(prev => !prev)}
                             isAutoWalking={isAutoWalking}
                         />
                     );
