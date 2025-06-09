@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { Player } from '../generated';
 
-const INTERPOLATION_SPEED = 12.0; // How fast to interpolate to target position
+const INTERPOLATION_SPEED = 8.0; // Tuned to match local player smoothness
 
 interface RemotePlayerState {
   lastServerPosition: { x: number; y: number };
@@ -61,9 +61,10 @@ export const useRemotePlayerInterpolation = () => {
     state.currentDisplayPosition.y += 
       (state.targetPosition.y - state.currentDisplayPosition.y) * interpolationFactor;
 
+    // Round to integers for pixel-perfect rendering (matches local player)
     return {
-      x: state.currentDisplayPosition.x,
-      y: state.currentDisplayPosition.y
+      x: Math.round(state.currentDisplayPosition.x),
+      y: Math.round(state.currentDisplayPosition.y)
     };
   }, []);
 

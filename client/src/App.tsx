@@ -138,23 +138,13 @@ function AppContent() {
         localPlayer,
         onCancelAutoWalk: () => setIsAutoWalking(false),
     });
-    const { predictedPosition, updatePredictedMovement } = usePredictedMovement({
+    const { predictedPosition } = usePredictedMovement({
         localPlayer,
         inputState,
         connection,
     });
 
-    // --- Game Loop for Movement ---
-    useEffect(() => {
-        let animationFrameId: number;
-        const gameLoop = () => {
-            processMovement();
-            updatePredictedMovement();
-            animationFrameId = requestAnimationFrame(gameLoop);
-        };
-        gameLoop();
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [processMovement, updatePredictedMovement]);
+    // Input processing is now event-driven (no game loop needed for input)
 
     // --- Refs for Cross-Hook/Component Communication --- 
     // Ref for Placement cancellation needed by useSpacetimeTables callbacks

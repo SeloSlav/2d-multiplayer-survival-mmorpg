@@ -116,6 +116,10 @@ export const useSpacetimeTables = ({
     const spatialSubHandlesMapRef = useRef<Map<number, SubscriptionHandle[]>>(new Map()); 
     const callbacksRegisteredRef = useRef(false);
     
+    // Throttle spatial subscription updates to prevent frame drops
+    const lastSpatialUpdateRef = useRef<number>(0);
+    const pendingChunkUpdateRef = useRef<{ chunks: Set<number>; timestamp: number } | null>(null);
+    
     // --- Performance Optimization: Use ref for worldTiles to avoid React re-renders ---
     const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
     const playerDodgeRollStatesRef = useRef<Map<string, SpacetimeDB.PlayerDodgeRollState>>(new Map());
@@ -128,6 +132,114 @@ export const useSpacetimeTables = ({
             } catch (e) {
                 // console.warn('[useSpacetimeTables] Error unsubscribing:', e);
             }
+        }
+    };
+
+    // Async function to process pending chunk updates without blocking the main thread
+    const processPendingChunkUpdate = () => {
+        const pending = pendingChunkUpdateRef.current;
+        if (!pending || !connection) return;
+
+        // Clear pending update
+        pendingChunkUpdateRef.current = null;
+        lastSpatialUpdateRef.current = performance.now();
+
+        const newChunkIndicesSet = pending.chunks;
+        const currentChunkIndicesSet = new Set(currentChunksRef.current);
+
+        if (newChunkIndicesSet.size === 0) {
+            // If viewport is empty, ensure all spatial subs are cleaned up
+            if (currentChunkIndicesSet.size > 0) {
+                // Use setTimeout to make cleanup async
+                setTimeout(() => {
+                    for (const chunkIdx of currentChunkIndicesSet) {
+                        const handles = spatialSubHandlesMapRef.current.get(chunkIdx) || [];
+                        handles.forEach(safeUnsubscribe);
+                    }
+                    spatialSubHandlesMapRef.current.clear();
+                    currentChunksRef.current = [];
+                }, 0);
+            }
+            return;
+        }
+
+        // Calculate differences only if new chunks are needed
+        const addedChunks = [...newChunkIndicesSet].filter(idx => !currentChunkIndicesSet.has(idx));
+        const removedChunks = [...currentChunkIndicesSet].filter(idx => !newChunkIndicesSet.has(idx));
+
+        // Only proceed if there are actual changes
+        if (addedChunks.length > 0 || removedChunks.length > 0) {
+            // Make subscription changes async to avoid blocking
+            setTimeout(() => {
+                // --- Unsubscribe from Removed Chunks ---
+                removedChunks.forEach(chunkIndex => {
+                    const handles = spatialSubHandlesMapRef.current.get(chunkIndex);
+                    if (handles) {
+                        handles.forEach(safeUnsubscribe);
+                        spatialSubHandlesMapRef.current.delete(chunkIndex);
+                    }
+                });
+
+                // --- Subscribe to Added Chunks ---
+                addedChunks.forEach(chunkIndex => {
+                    const newHandlesForChunk: SubscriptionHandle[] = [];
+                    try {
+                        // Tree
+                        const treeQuery = `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Tree Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(treeQuery));
+                        // Stone
+                        const stoneQuery = `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Stone Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(stoneQuery));
+                        // Mushroom
+                        const mushroomQuery = `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Mushroom Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(mushroomQuery));
+                        // Corn
+                        const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
+                        // Potato
+                        const potatoQuery = `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Potato Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(potatoQuery));
+                        // Pumpkin
+                        const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
+                        // Hemp
+                        const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
+                        // Campfire
+                        const campfireQuery = `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Campfire Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(campfireQuery));
+                        // WoodenStorageBox
+                        const boxQuery = `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Box Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(boxQuery));
+                        // DroppedItem
+                        const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
+
+                        // Cloud (Spatial Subscription)
+                        const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
+
+                        // Grass (Spatial Subscription)
+                        const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
+
+                        // WorldTile (Spatial Subscription) - Only load tiles for visible chunks
+                        const worldWidthChunks = gameConfig.worldWidthChunks;
+                        const chunkX = chunkIndex % worldWidthChunks;
+                        const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                        const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
+
+                        spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
+                    } catch (error) {
+                        // Attempt to clean up any partial subscriptions for this chunk if error occurred mid-way
+                        newHandlesForChunk.forEach(safeUnsubscribe);
+                    }
+                });
+
+                // Update the current chunk reference
+                currentChunksRef.current = [...newChunkIndicesSet];
+            }, 0);
         }
     };
 
@@ -741,122 +853,30 @@ export const useSpacetimeTables = ({
             nonSpatialHandlesRef.current = currentInitialSubs;
         }
 
-        // --- START RESTORED SPATIAL SUBSCRIPTION LOGIC ---
+        // --- START OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
         if (connection && viewport) {
-            // console.log("[DEBUG] Spatial Sub Effect Triggered. Viewport:", JSON.stringify(viewport)); // Log viewport
             // Get new viewport chunk indices
             const newChunkIndicesSet = new Set(getChunkIndicesForViewport(viewport));
-            const currentChunkIndicesSet = new Set(currentChunksRef.current);
-            // console.log("[DEBUG] Current Chunks:", currentChunksRef.current, "New Chunks Set:", newChunkIndicesSet); // Log chunks
-
-            if (newChunkIndicesSet.size === 0) {
-                // console.log("[useSpacetimeTables] No chunk indices in viewport range. Skipping spatial subscriptions.");
-                // If viewport is empty, ensure all spatial subs are cleaned up
-                if (currentChunkIndicesSet.size > 0) {
-                     // console.log("[useSpacetimeTables] Viewport empty, cleaning up all spatial subs.");
-                     for (const chunkIdx of currentChunkIndicesSet) {
-                         const handles = spatialSubHandlesMapRef.current.get(chunkIdx) || [];
-                         handles.forEach(safeUnsubscribe);
-                     }
-                     spatialSubHandlesMapRef.current.clear();
-                     currentChunksRef.current = [];
-                }
-                // No return here, allow cleanup logic below to run if connection is lost later
-            } else {
-                // Calculate differences only if new chunks are needed
-                const addedChunks = [...newChunkIndicesSet].filter(idx => !currentChunkIndicesSet.has(idx));
-                const removedChunks = [...currentChunkIndicesSet].filter(idx => !newChunkIndicesSet.has(idx));
-
-                // Only proceed if there are actual changes
-                if (addedChunks.length > 0 || removedChunks.length > 0) {
-                    // console.log(`[DEBUG] Spatial Update Needed! Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`); // Log diff
-                    // console.log(`[Sub Update] Added: [${addedChunks.join(',')}] Removed: [${removedChunks.join(',')}]`);
-
-                    // --- Unsubscribe from Removed Chunks ---
-                    removedChunks.forEach(chunkIndex => {
-                        const handles = spatialSubHandlesMapRef.current.get(chunkIndex);
-                        if (handles) {
-                            // console.log(`[Sub Update] Unsubscribing from chunk ${chunkIndex}`);
-                            handles.forEach(safeUnsubscribe);
-                            spatialSubHandlesMapRef.current.delete(chunkIndex);
-                        }
-                    });
-
-                    // --- Subscribe to Added Chunks ---
-                    addedChunks.forEach(chunkIndex => {
-                        // console.log(`[Sub Update] Subscribing to chunk ${chunkIndex}`);
-                        const newHandlesForChunk: SubscriptionHandle[] = [];
-                        try {
-                            // Tree
-                            const treeQuery = `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Tree Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(treeQuery));
-                            // Stone
-                            const stoneQuery = `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Stone Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(stoneQuery));
-                            // Mushroom
-                            const mushroomQuery = `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Mushroom Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(mushroomQuery));
-                            // Corn
-                            const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
-                            // Potato
-                            const potatoQuery = `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Potato Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(potatoQuery));
-                            // Pumpkin
-                            const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
-                            // Hemp
-                            const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
-                            // Campfire
-                            const campfireQuery = `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Campfire Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(campfireQuery));
-                            // WoodenStorageBox
-                            const boxQuery = `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Box Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(boxQuery));
-                            // DroppedItem
-                            const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
-                            
-                            // SleepingBag - REMOVED spatial subscription because you want to be able to see your sleeping bag anywhere on the mini map - we can use RLS to block remote players from subscribing to YOUR sleeping bags - but we need to be able to see them on the mini map
-                            // const sleepingBagQuery = `SELECT * FROM sleeping_bag WHERE chunk_index = ${chunkIndex}`;
-                            // newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`SleepingBag Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(sleepingBagQuery));
-
-                            // Cloud (Spatial Subscription)
-                            const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
-
-                            // Grass (Spatial Subscription) - COMMENTED OUT FOR TESTING
-                            const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
-
-                            // WorldTile (Spatial Subscription) - Only load tiles for visible chunks
-                            const worldWidthChunks = gameConfig.worldWidthChunks; // Should match server's WORLD_WIDTH_CHUNKS constant (250 tiles / 20 chunk_size = 12.5 -> 13)
-                            const chunkX = chunkIndex % worldWidthChunks;
-                            const chunkY = Math.floor(chunkIndex / worldWidthChunks);
-                            const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
-
-                            spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
-                        } catch (error) {
-                            // console.error(`[useSpacetimeTables] Error creating subscriptions for chunk ${chunkIndex}:`, error);
-                            // Attempt to clean up any partial subscriptions for this chunk if error occurred mid-way
-                            newHandlesForChunk.forEach(safeUnsubscribe);
-                        }
-                    });
-                    
-                    // Update the current chunk reference
-                    currentChunksRef.current = [...newChunkIndicesSet]; // Store as array
-                } else {
-                    // console.log(`[useSpacetimeTables] Chunk set unchanged. Skipping subscription update.`);
-                }
-            }
             
+            // Store the pending update and schedule async processing
+            const now = performance.now();
+            pendingChunkUpdateRef.current = { chunks: newChunkIndicesSet, timestamp: now };
+            
+            // Throttle updates to prevent frame drops (max 10 times per second)
+            const timeSinceLastUpdate = now - lastSpatialUpdateRef.current;
+            const minUpdateInterval = 100; // 100ms = 10fps
+            
+            if (timeSinceLastUpdate >= minUpdateInterval) {
+                // Process immediately
+                processPendingChunkUpdate();
+            } else {
+                // Schedule delayed processing
+                const delay = minUpdateInterval - timeSinceLastUpdate;
+                setTimeout(processPendingChunkUpdate, delay);
+            }
         } else if (!viewport) {
             // If viewport becomes null, clean up ALL spatial subs
-            // console.log("[DEBUG] Spatial Sub Effect - Viewport is NULL. Cleaning up spatial subs."); // Log cleanup trigger
             if (spatialSubHandlesMapRef.current.size > 0) {
-                // console.log("[useSpacetimeTables] Viewport removed. Cleaning up all spatial subscriptions."); // Updated log
                 spatialSubHandlesMapRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
                 });

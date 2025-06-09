@@ -35,6 +35,7 @@ export const useMovementInput = ({ isUIFocused, isAutoWalking, onCancelAutoWalk,
 
   const keysDown = useRef<Set<string>>(new Set());
   const autoWalkDirection = useRef<{ dx: number, dy: number }>({ dx: 0, dy: 0 });
+  const lastComputedStateRef = useRef<MovementInputState>({ direction: { x: 0, y: 0 }, sprinting: false });
 
   // When auto-walk starts, capture the player's facing direction.
   useEffect(() => {
@@ -84,7 +85,16 @@ export const useMovementInput = ({ isUIFocused, isAutoWalking, onCancelAutoWalk,
       }
     }
 
-    setInputState({ direction: { x, y }, sprinting });
+    // Only update state if the input actually changed
+    const newState = { direction: { x, y }, sprinting };
+    const lastState = lastComputedStateRef.current;
+    
+    if (newState.direction.x !== lastState.direction.x || 
+        newState.direction.y !== lastState.direction.y || 
+        newState.sprinting !== lastState.sprinting) {
+      lastComputedStateRef.current = newState;
+      setInputState(newState);
+    }
   }, [isAutoWalking]);
 
   useEffect(() => {
@@ -94,6 +104,7 @@ export const useMovementInput = ({ isUIFocused, isAutoWalking, onCancelAutoWalk,
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'shift'].includes(key)) {
         keysDown.current.add(key);
+        processMovement(); // Update immediately when keys change
       }
     };
 
@@ -101,10 +112,14 @@ export const useMovementInput = ({ isUIFocused, isAutoWalking, onCancelAutoWalk,
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'shift'].includes(key)) {
         keysDown.current.delete(key);
+        processMovement(); // Update immediately when keys change
       }
     };
 
-    const blurHandler = () => keysDown.current.clear();
+    const blurHandler = () => {
+      keysDown.current.clear();
+      processMovement(); // Update when window loses focus
+    };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', blurHandler);
@@ -114,7 +129,7 @@ export const useMovementInput = ({ isUIFocused, isAutoWalking, onCancelAutoWalk,
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', blurHandler);
     };
-  }, [isUIFocused]);
+  }, [isUIFocused, processMovement]);
 
   return { inputState, processMovement };
 }; 
