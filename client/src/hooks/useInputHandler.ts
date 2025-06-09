@@ -5,13 +5,12 @@ import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
-import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig'; // <<< ADDED IMPORT
+import { JUMP_DURATION_MS, JUMP_HEIGHT_PX, HOLD_INTERACTION_DURATION_MS } from '../config/gameConfig'; // <<< ADDED IMPORT
 import { isPlacementTooFar } from '../utils/renderers/placementRenderingUtils';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
 // If it was missing, this adds it.
-export const HOLD_INTERACTION_DURATION_MS = 250;
 export const REVIVE_HOLD_DURATION_MS = 6000; // 6 seconds for reviving knocked out players
 
 // --- Constants (Copied from GameCanvas) ---
@@ -184,6 +183,7 @@ export const useInputHandler = ({
 
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
+             console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
              isEHeldDownRef.current = false;
              if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
              eKeyHoldTimerRef.current = null;
@@ -244,88 +244,144 @@ export const useInputHandler = ({
     // Jump offset calculation is now handled directly in processInputsAndActions
     // to avoid React re-renders every frame
 
-    // --- Swing Logic --- 
-    const attemptSwing = useCallback(() => {
-        const currentConnection = connectionRef.current;
-        // MODIFIED: Check isInventoryOpen here as a primary guard
-        if (isInventoryOpen || !currentConnection?.reducers || !localPlayerId || isPlayerDead) return;
+    // --- Timer Management Functions (Outside of useEffect to avoid cleanup issues) ---
+    const startHoldTimer = useCallback((holdTarget: InteractionProgressState, connection: DbConnection) => {
+        const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
 
-        const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
-        if (chatInputIsFocused) return; 
-
-        const currentEquipments = activeEquipmentsRef.current;
-        const localEquipment = currentEquipments?.get(localPlayerId);
-        const itemDefMap = itemDefinitionsRef.current;
-
-        // --- Unarmed Swing ---
-        if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
-            const nowUnarmed = Date.now();
-            // Using a generic SWING_COOLDOWN_MS for unarmed as it has no specific itemDef
-            if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
-            // Also check against the server's swing start time for this equipment record if available
-            if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
-            
+        console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
+        const timerId = setTimeout(() => {
             try {
-                currentConnection.reducers.useEquippedItem(); // Unarmed/default action
-                lastClientSwingAttemptRef.current = nowUnarmed;
-                lastServerSwingTimestampRef.current = nowUnarmed; // Assume server allows unarmed swing immediately for client prediction
-            } catch (err) { 
-                console.error("[AttemptSwing Unarmed] Error calling useEquippedItem reducer:", err);
+                console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
+                // Timer fired, so this is a successful HOLD action.
+                // Re-check if we are still close to the original target.
+                const stillClosest = closestIdsRef.current;
+                console.log(`[E-Timer] stillClosest check:`, stillClosest);
+                
+                let actionTaken = false;
+                
+                switch(holdTarget.targetType) {
+                    case 'knocked_out_player':
+                        if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
+                            console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
+                            connection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
+                            actionTaken = true;
+                        } else {
+                            console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
+                        }
+                        break;
+                    case 'campfire':
+                        if (stillClosest.campfire === holdTarget.targetId) {
+                            console.log(`[E-Timer] *** EXECUTING CAMPFIRE ACTION *** ID:`, holdTarget.targetId);
+                            connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
+                            actionTaken = true;
+                            console.log(`[E-Timer] Campfire action completed successfully`);
+                        } else {
+                            console.log(`[E-Timer] FAILED - No longer closest to campfire. Expected:`, holdTarget.targetId, 'Actual closest:', stillClosest.campfire);
+                        }
+                        break;
+                    case 'wooden_storage_box':
+                        if (stillClosest.box === holdTarget.targetId && stillClosest.boxEmpty) {
+                            console.log('[E-Hold ACTION] Attempting to pickup storage box:', holdTarget.targetId);
+                            connection.reducers.pickupStorageBox(Number(holdTarget.targetId));
+                            actionTaken = true;
+                        } else {
+                            console.log('[E-Hold FAILED] Storage box conditions not met. Expected ID:', holdTarget.targetId, 'Actual closest:', stillClosest.box, 'Is empty:', stillClosest.boxEmpty);
+                        }
+                        break;
+                    case 'stash':
+                        if (stillClosest.stash === holdTarget.targetId) {
+                            console.log('[E-Hold ACTION] Attempting to toggle stash visibility:', holdTarget.targetId);
+                            connection.reducers.toggleStashVisibility(Number(holdTarget.targetId));
+                            actionTaken = true;
+                        } else {
+                            console.log('[E-Hold FAILED] No longer closest to stash. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.stash);
+                        }
+                        break;
+                    default:
+                        console.log('[E-Hold FAILED] Unknown target type:', holdTarget.targetType);
+                }
+
+                // Clean up UI and state
+                console.log(`[E-Timer] *** TIMER COMPLETE *** Action taken:`, actionTaken);
+                setInteractionProgress(null);
+                setIsActivelyHolding(false);
+                isEHeldDownRef.current = false; // Reset the master hold flag
+                eKeyHoldTimerRef.current = null; // Clear the timer ref itself
+            } catch (error) {
+                console.error(`[E-Timer] ERROR in timer callback:`, error);
+                // Clean up state even if there was an error
+                setInteractionProgress(null);
+                setIsActivelyHolding(false);
+                isEHeldDownRef.current = false;
+                eKeyHoldTimerRef.current = null;
             }
-            return;
-        }
-
-        // --- Armed Swing ---
-        const itemDef = itemDefMap?.get(String(localEquipment.equippedItemDefId));
-        if (!itemDef) {
-            // console.warn("[AttemptSwing] No itemDef found for equipped item:", localEquipment.equippedItemDefId);
-            return; // Cannot proceed without item definition
-        }
-
-        // Check if the equipped item is a Bandage (handled by right-click/context menu)
-        if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil") {
-            // console.log("[AttemptSwing] Bandage/Selo Olive Oil equipped, preventing use via attemptSwing (left-click).");
-            return;
-        }
-
-        const now = Date.now();
-        const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
-
-        // Client-side prediction based on last successful *server-confirmed* swing for this item type
-        // and the item's specific attack interval.
-        if (now - lastServerSwingTimestampRef.current < attackIntervalMs) {
-            // console.log(`[Client Cooldown] Attack too soon. Now: ${now}, LastServerSwing: ${lastServerSwingTimestampRef.current}, Interval: ${attackIntervalMs}`);
-            return;
-        }
+        }, duration);
         
-        // Fallback: Client-side cooldown based on last *attempt* (less accurate but a safety net)
-        if (now - lastClientSwingAttemptRef.current < attackIntervalMs) {
-            // console.log(`[Client Cooldown - Fallback] Attack attempt too soon. Now: ${now}, LastAttempt: ${lastClientSwingAttemptRef.current}, Interval: ${attackIntervalMs}`);
-            return;
-        }
+        eKeyHoldTimerRef.current = timerId;
+        console.log(`[E-Timer] Timer assigned to ref. Timer ID:`, timerId);
         
-        // Server-side cooldown check (using equipment state from server)
-        // This is crucial as the server has the true state of swingStartTimeMs
-        if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) {
-            // console.log(`[Server Cooldown Check] SwingStartTimeMs: ${localEquipment.swingStartTimeMs}, Now: ${now}, Interval: ${attackIntervalMs}`);
-            return;
-        }
+        // Debug: Check if timer ref gets cleared unexpectedly
+        setTimeout(() => {
+            if (eKeyHoldTimerRef.current === null) {
+                console.log(`[E-Timer] *** TIMER REF WAS CLEARED *** Timer ${timerId} ref became null before 250ms!`);
+            } else if (eKeyHoldTimerRef.current !== timerId) {
+                console.log(`[E-Timer] *** TIMER REF CHANGED *** Timer ${timerId} ref is now:`, eKeyHoldTimerRef.current);
+            } else {
+                console.log(`[E-Timer] Timer ${timerId} ref still valid at 100ms checkpoint`);
+            }
+        }, 100);
+    }, []);
 
-        // Attempt the swing for non-bandage items
-        try {
-            currentConnection.reducers.useEquippedItem();
-            lastClientSwingAttemptRef.current = now;
-            // Optimistically update server swing timestamp here, assuming the server call will succeed
-            // The server will update its PlayerLastAttackTimestamp, which we don't directly read here.
-            // The localEquipment.swingStartTimeMs will be updated when the ActiveEquipment row changes server-side.
-            // For immediate client feedback, we rely on our lastServerSwingTimestampRef.
-            lastServerSwingTimestampRef.current = now; 
-        } catch (error) {
-            console.error("[ATTACK ACTION] Error calling useEquippedItem:", error);
+    const clearHoldTimer = useCallback(() => {
+        if (eKeyHoldTimerRef.current) {
+            console.log(`[E-Timer] Clearing timer manually. Timer ID:`, eKeyHoldTimerRef.current);
+            clearTimeout(eKeyHoldTimerRef.current as number);
+            eKeyHoldTimerRef.current = null;
         }
-    }, [localPlayerId, isPlayerDead, isInventoryOpen]); // Added isInventoryOpen to dependencies
+    }, []);
 
-    // --- Input Handling useEffect (Listeners only) ---
+    // --- Attempt Swing Function (extracted from canvas click logic) ---
+    const attemptSwing = useCallback(() => {
+        if (!connectionRef.current?.reducers || !localPlayerId) return;
+        
+        const localEquipment = activeEquipmentsRef.current?.get(localPlayerId);
+        const itemDef = itemDefinitionsRef.current?.get(String(localEquipment?.equippedItemDefId));
+
+        if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
+            // Unarmed
+            const nowUnarmed = Date.now();
+            if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
+            if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
+            try {
+                connectionRef.current.reducers.useEquippedItem();
+                lastClientSwingAttemptRef.current = nowUnarmed;
+                lastServerSwingTimestampRef.current = nowUnarmed;
+            } catch (err) { 
+                console.error("[attemptSwing Unarmed] Error calling useEquippedItem reducer:", err); 
+            }
+        } else {
+            // Armed (melee/tool)
+            if (!itemDef) return;
+            if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
+                // Ranged/Bandage/Selo Olive Oil should not be triggered by swing
+                return; 
+            }
+            const now = Date.now();
+            const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
+            if (now - lastServerSwingTimestampRef.current < attackIntervalMs) return;
+            if (now - lastClientSwingAttemptRef.current < attackIntervalMs) return;
+            if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) return;
+            try {
+                connectionRef.current.reducers.useEquippedItem();
+                lastClientSwingAttemptRef.current = now;
+                lastServerSwingTimestampRef.current = now;
+            } catch (err) { 
+                console.error("[attemptSwing Armed] Error calling useEquippedItem reducer:", err); 
+            }
+        }
+    }, [localPlayerId]);
+
+    // --- Input Event Handlers ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const isUIFocused = isChatting || isGameMenuOpen || !!isSearchingCraftRecipes;
@@ -454,49 +510,7 @@ export const useInputHandler = ({
                     setInteractionProgress(holdTarget);
                     setIsActivelyHolding(true);
                     
-                    const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
-
-                    eKeyHoldTimerRef.current = setTimeout(() => {
-                        console.log('[E-Hold COMPLETED] Timer fired for:', holdTarget);
-                        // Timer fired, so this is a successful HOLD action.
-                        // Re-check if we are still close to the original target.
-                        const stillClosest = closestIdsRef.current;
-                        console.log('[E-Hold COMPLETED] stillClosest check:', stillClosest);
-                        
-                        switch(holdTarget.targetType) {
-                            case 'knocked_out_player':
-                                if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
-                                    console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
-                                    currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
-                                }
-                                break;
-                            case 'campfire':
-                                if (stillClosest.campfire === holdTarget.targetId) {
-                                    console.log('[E-Hold ACTION] Attempting to toggle campfire:', holdTarget.targetId);
-                                    currentConnection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
-                                }
-                                break;
-                            case 'wooden_storage_box':
-                                if (stillClosest.box === holdTarget.targetId && stillClosest.boxEmpty) {
-                                    console.log('[E-Hold ACTION] Attempting to pickup box:', holdTarget.targetId);
-                                    currentConnection.reducers.pickupStorageBox(Number(holdTarget.targetId));
-                                }
-                                break;
-                            case 'stash':
-                                if (stillClosest.stash === holdTarget.targetId) {
-                                    console.log('[E-Hold ACTION] Attempting to toggle stash:', holdTarget.targetId);
-                                    currentConnection.reducers.toggleStashVisibility(Number(holdTarget.targetId));
-                                }
-                                break;
-                        }
-
-                        // Clean up UI and state
-                        console.log('[E-Hold COMPLETED] Cleaning up state.');
-                        setInteractionProgress(null);
-                        setIsActivelyHolding(false);
-                        isEHeldDownRef.current = false; // Reset the master hold flag
-                        eKeyHoldTimerRef.current = null; // Clear the timer ref itself
-                    }, duration);
+                    startHoldTimer(holdTarget, currentConnection);
                 }
             }
         };
@@ -506,61 +520,116 @@ export const useInputHandler = ({
             keysPressed.current.delete(key);
 
             if (key === 'e') {
-                console.log('[E-KeyUp] KeyUp event for "e" detected.');
-                if (isEHeldDownRef.current) {
-                    // An 'E' interaction was in progress.
-                    isEHeldDownRef.current = false;
-                    
+                if (isEHeldDownRef.current) { // Check if E was being held for an interaction
                     const holdDuration = Date.now() - eKeyDownTimestampRef.current;
-                    console.log('[E-KeyUp] A hold was in progress. holdDuration:', holdDuration, 'ms');
+                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash; 
+                    const RETAINED_CLOSEST_CORPSE_ID = closestIdsRef.current.corpse;
+                    const RETAINED_CLOSEST_BOX_ID = closestIdsRef.current.box;
+                    const RETAINED_CLOSEST_CAMPFIRE_ID = closestIdsRef.current.campfire;
+                    const RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID = closestIdsRef.current.knockedOutPlayer;
 
+                    // Always clear the timer if it exists (in case keyUp happens before timer fires)
+                    console.log(`[E-KeyUp] Timer ref state: ${eKeyHoldTimerRef.current} (holdDuration: ${holdDuration}ms)`);
                     if (eKeyHoldTimerRef.current) {
-                        console.log('[E-KeyUp] Clearing active hold timer.');
+                        console.log(`[E-KeyUp] *** CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}, holdDuration: ${holdDuration}ms`);
                         clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = null;
+                    } else {
+                        console.log(`[E-KeyUp] No timer to clear (holdDuration: ${holdDuration}ms)`);
                     }
 
-                    // It was a TAP, not a hold.
-                    if (holdDuration < HOLD_INTERACTION_DURATION_MS) {
-                        console.log('[E-KeyUp] Hold was a TAP. Executing tap action.');
-                        // Clean up any hold UI that might have started
+                    // Reset hold state and unconditionally clear interaction progress if a hold was active
+                    isEHeldDownRef.current = false;
+                    eKeyDownTimestampRef.current = 0;
+                    if (interactionProgress) { // If there was any interaction progress, clear it now
                         setInteractionProgress(null);
-                        setIsActivelyHolding(false);
+                    }
 
-                        // Perform the tap action.
-                        const currentConnection = connectionRef.current;
-                        if (!currentConnection?.reducers) return;
+                    // Also ensure isActivelyHolding is false if E key is up and was part of a hold
+                    setIsActivelyHolding(false);
 
-                        const closest = closestIdsRef.current;
-                        const currentStashes = stashesRef.current;
-
-                        // Priority order for tap actions:
-                        if (closest.campfire !== null) {
-                            currentConnection.reducers.interactWithCampfire(Number(closest.campfire));
-                            onSetInteractingWithRef.current({ type: 'campfire', id: closest.campfire });
-                        } else if (closest.box !== null) {
-                            currentConnection.reducers.interactWithStorageBox(Number(closest.box));
-                            onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: closest.box });
-                        } else if (closest.stash !== null) {
-                            const stashEntity = currentStashes.get(closest.stash.toString());
-                            if (stashEntity && !stashEntity.isHidden) {
-                                onSetInteractingWithRef.current({ type: 'stash', id: closest.stash });
-                            }
-                        } else if (closest.corpse !== null) {
-                            onSetInteractingWithRef.current({ type: 'player_corpse', id: closest.corpse });
-                        } else if (closest.droppedItem !== null) {
-                            currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
-                        } else if (closest.mushroom !== null) {
-                            currentConnection.reducers.interactWithMushroom(closest.mushroom);
-                        } else if (closest.corn !== null) {
-                            currentConnection.reducers.interactWithCorn(closest.corn);
-                        } else if (closest.potato !== null) {
-                            currentConnection.reducers.interactWithPotato(closest.potato);
-                        } else if (closest.pumpkin !== null) {
-                            currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
-                        } else if (closest.hemp !== null) {
-                            currentConnection.reducers.interactWithHemp(closest.hemp);
+                    // Check if it was a TAP or HOLD based on duration
+                    const expectedDuration = RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
+                    
+                    console.log('[E-KeyUp] Processing hold/tap decision:', {
+                        holdDuration,
+                        expectedDuration, 
+                        wasLongEnough: holdDuration >= expectedDuration,
+                        hasClosestIds: {
+                            campfire: RETAINED_CLOSEST_CAMPFIRE_ID,
+                            box: RETAINED_CLOSEST_BOX_ID,
+                            stash: RETAINED_CLOSEST_STASH_ID,
+                            corpse: RETAINED_CLOSEST_CORPSE_ID,
+                            knockedOut: RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID
                         }
+                    });
+                    
+                    if (holdDuration >= expectedDuration) {
+                        // This was a HOLD that completed naturally - actions should have been handled by timer
+                        console.log('[E-KeyUp] HOLD completed naturally - timer should have handled action');
+                    } else {
+                        // This was a TAP (or early release) - handle tap interactions
+                        console.log('[E-KeyUp] Processing as TAP interaction');
+                        let tapActionTaken = false;
+                        
+                        // Get the retained closest IDs for harvesting/pickup
+                        const RETAINED_CLOSEST_MUSHROOM_ID = closestIdsRef.current.mushroom;
+                        const RETAINED_CLOSEST_CORN_ID = closestIdsRef.current.corn;
+                        const RETAINED_CLOSEST_POTATO_ID = closestIdsRef.current.potato;
+                        const RETAINED_CLOSEST_PUMPKIN_ID = closestIdsRef.current.pumpkin;
+                        const RETAINED_CLOSEST_HEMP_ID = closestIdsRef.current.hemp;
+                        const RETAINED_CLOSEST_DROPPED_ITEM_ID = closestIdsRef.current.droppedItem;
+                        
+                        // Handle harvest/pickup actions FIRST (these are the main tap actions)
+                        if (connectionRef.current?.reducers) {
+                            if (RETAINED_CLOSEST_MUSHROOM_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting mushroom:', RETAINED_CLOSEST_MUSHROOM_ID);
+                                connectionRef.current.reducers.interactWithMushroom(RETAINED_CLOSEST_MUSHROOM_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_CORN_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting corn:', RETAINED_CLOSEST_CORN_ID);
+                                connectionRef.current.reducers.interactWithCorn(RETAINED_CLOSEST_CORN_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_POTATO_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting potato:', RETAINED_CLOSEST_POTATO_ID);
+                                connectionRef.current.reducers.interactWithPotato(RETAINED_CLOSEST_POTATO_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_PUMPKIN_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting pumpkin:', RETAINED_CLOSEST_PUMPKIN_ID);
+                                connectionRef.current.reducers.interactWithPumpkin(RETAINED_CLOSEST_PUMPKIN_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_HEMP_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting hemp:', RETAINED_CLOSEST_HEMP_ID);
+                                connectionRef.current.reducers.interactWithHemp(RETAINED_CLOSEST_HEMP_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_DROPPED_ITEM_ID !== null) {
+                                console.log('[E-Tap ACTION] Picking up dropped item:', RETAINED_CLOSEST_DROPPED_ITEM_ID);
+                                connectionRef.current.reducers.pickupDroppedItem(RETAINED_CLOSEST_DROPPED_ITEM_ID);
+                                tapActionTaken = true;
+                            }
+                            // Handle interface opening actions SECOND (for containers/interactables)
+                            else if (RETAINED_CLOSEST_CAMPFIRE_ID) {
+                                console.log('[E-Tap ACTION] Opening campfire interface:', RETAINED_CLOSEST_CAMPFIRE_ID);
+                                onSetInteractingWith({ type: 'campfire', id: RETAINED_CLOSEST_CAMPFIRE_ID });
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_BOX_ID) {
+                                console.log('[E-Tap ACTION] Opening box interface:', RETAINED_CLOSEST_BOX_ID);
+                                onSetInteractingWith({ type: 'wooden_storage_box', id: RETAINED_CLOSEST_BOX_ID });
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_STASH_ID) {
+                                console.log('[E-Tap ACTION] Opening stash interface:', RETAINED_CLOSEST_STASH_ID);
+                                onSetInteractingWith({ type: 'stash', id: RETAINED_CLOSEST_STASH_ID });
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_CORPSE_ID) {
+                                console.log('[E-Tap ACTION] Opening corpse interface:', RETAINED_CLOSEST_CORPSE_ID);
+                                onSetInteractingWith({ type: 'player_corpse', id: RETAINED_CLOSEST_CORPSE_ID });
+                                tapActionTaken = true;
+                            }
+                        } else {
+                            console.warn('[E-Tap ACTION] No connection/reducers available for tap actions');
+                        }
+                        
+                        console.log('[E-KeyUp] TAP processing complete. Action taken:', tapActionTaken);
                     }
                 }
             }
@@ -892,6 +961,7 @@ export const useInputHandler = ({
 
         // --- Blur Handler ---
         const handleBlur = () => {
+            console.log(`[E-Timer] *** WINDOW BLUR CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
             // REMOVED Sprinting logic from blur handler.
             // keysPressed.current.clear(); // Keep this commented out
             isMouseDownRef.current = false;
@@ -939,11 +1009,13 @@ export const useInputHandler = ({
                canvas.removeEventListener('click', handleCanvasClick);
                // console.log("[useInputHandler] Removed canvas click listener.");
             }
-            // Clear any active timers on cleanup
-            if (eKeyHoldTimerRef.current) {
-                clearTimeout(eKeyHoldTimerRef.current as number); // Ensure casting for browser env
-                eKeyHoldTimerRef.current = null;
-            }
+            // Don't clear timers on cleanup - they're short-lived (250ms) and self-cleaning
+            // The cleanup was causing timers to be cleared when dependencies changed during hold
+            // if (eKeyHoldTimerRef.current) {
+            //     console.log(`[E-Timer] *** USEEFFECT CLEANUP CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
+            //     clearTimeout(eKeyHoldTimerRef.current as number);
+            //     eKeyHoldTimerRef.current = null;
+            // }
         };
     }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, onToggleAutoWalk, isMinimapOpen]);
 

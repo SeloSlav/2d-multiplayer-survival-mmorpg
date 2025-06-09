@@ -20,3 +20,6 @@ Write-Host "[SUCCESS] Clean production deployment complete!" -ForegroundColor Gr
 Write-Host "[URL] Vercel will rebuild: https://broth-and-bullets.vercel.app" -ForegroundColor Cyan
 Write-Host "[DB] Database: broth-bullets on maincloud" -ForegroundColor Cyan
 Write-Host "[CLEAN] Production database was completely wiped and recreated" -ForegroundColor Magenta 
+
+# Return to server directory
+cd server 

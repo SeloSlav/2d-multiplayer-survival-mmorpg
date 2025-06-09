@@ -76,5 +76,5 @@ export const CAMPFIRE_LIGHT_INNER_COLOR = '#ffaa00'; // Inner color of campfire 
 export const CAMPFIRE_LIGHT_OUTER_COLOR = '#ff6600'; // Outer color of campfire light
 
 // --- Interaction Durations ---
-export const HOLD_INTERACTION_DURATION_MS = 1000; // 1 second hold for standard interactions
+export const HOLD_INTERACTION_DURATION_MS = 250; // 250ms for fast interactions
 export const REVIVE_HOLD_DURATION_MS = 3000;      // 3 seconds hold to revive a player

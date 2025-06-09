@@ -1012,7 +1012,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                         },
                                         {
                                             question: "HOW DO I START SURVIVING?",
-                                            answer: "You begin with basic survival gear and your grandmother's wisdom. Hunt wild animals for meat and pelts, gather plant fibers to weave into clothing and shelter materials, collect wood to build your first crude shelter. Cook hearty meals to stay fed and warm through the changing seasons."
+                                            answer: "You begin with basic survival gear and your grandmother's wisdom. Hunt wild animals for meat and pelts, gather plant fibers to weave into clothing and shelter materials, collect wood and stone to build your first camp fire. Cook hearty meals to stay fed and warm through the changing seasons."
                                         },
                                         {
                                             question: "WHAT'S SO SPECIAL ABOUT BREWING?",
