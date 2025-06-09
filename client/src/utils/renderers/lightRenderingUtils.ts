@@ -19,6 +19,8 @@ interface RenderPlayerTorchLightProps {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     cameraOffsetX: number;
     cameraOffsetY: number;
+    renderPositionX?: number;
+    renderPositionY?: number;
 }
 
 export const renderPlayerTorchLight = ({
@@ -28,6 +30,8 @@ export const renderPlayerTorchLight = ({
     itemDefinitions,
     cameraOffsetX,
     cameraOffsetY,
+    renderPositionX,
+    renderPositionY,
 }: RenderPlayerTorchLightProps) => {
     if (!player.isTorchLit || !player.identity) {
         return; // Not lit or no identity, nothing to render
@@ -39,9 +43,12 @@ export const renderPlayerTorchLight = ({
     if (equipment && equipment.equippedItemDefId) {
         const itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString());
         if (itemDef && itemDef.name === "Torch") {
+            const lightCenterX = renderPositionX ?? player.positionX;
+            const lightCenterY = renderPositionY ?? player.positionY;
+            
             const lightParams = {
-                centerX: player.positionX,
-                centerY: player.positionY,
+                centerX: lightCenterX,
+                centerY: lightCenterY,
                 radius: TORCH_LIGHT_RADIUS_BASE,
                 innerColor: TORCH_LIGHT_INNER_COLOR,
                 outerColor: TORCH_LIGHT_OUTER_COLOR,

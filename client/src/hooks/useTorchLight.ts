@@ -22,6 +22,8 @@ interface UseTorchLightProps {
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     localPlayerId: string | undefined;
+    renderPositionX?: number;
+    renderPositionY?: number;
 }
 
 export interface TorchLightParams {
@@ -38,6 +40,8 @@ export function useTorchLight({
     activeEquipments,
     itemDefinitions,
     localPlayerId,
+    renderPositionX,
+    renderPositionY,
 }: UseTorchLightProps): TorchLightParams | null {
     return useMemo(() => {
         if (!localPlayer || !localPlayerId || !localPlayer.isTorchLit) {
@@ -54,15 +58,19 @@ export function useTorchLight({
             return null;
         }
 
+        // Use provided render position if available, otherwise fall back to player position
+        const lightCenterX = renderPositionX ?? localPlayer.positionX;
+        const lightCenterY = renderPositionY ?? localPlayer.positionY;
+
         // If we reach here, the player has a Torch equipped
         return {
-            centerX: localPlayer.positionX,
-            centerY: localPlayer.positionY, // Light centered on player's core position
+            centerX: lightCenterX,
+            centerY: lightCenterY,
             radius: TORCH_LIGHT_RADIUS_BASE,
             innerColor: TORCH_LIGHT_INNER_COLOR,
             outerColor: TORCH_LIGHT_OUTER_COLOR,
             flickerAmount: TORCH_FLICKER_AMOUNT,
         };
 
-    }, [localPlayer, activeEquipments, itemDefinitions, localPlayerId]);
+    }, [localPlayer, activeEquipments, itemDefinitions, localPlayerId, renderPositionX, renderPositionY]);
 } 

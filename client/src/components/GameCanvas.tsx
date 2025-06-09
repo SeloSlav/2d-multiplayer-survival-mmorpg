@@ -872,6 +872,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- Render Torch Light for ALL players (Local and Remote) ---
     players.forEach(player => {
+      const playerId = player.identity?.toHexString();
+      if (!playerId) return;
+      
+      // Use the same position logic as player sprites
+      let renderPositionX = player.positionX;
+      let renderPositionY = player.positionY;
+      
+      if (playerId === localPlayerId && predictedPosition) {
+        // For local player, use predicted position
+        renderPositionX = predictedPosition.x;
+        renderPositionY = predictedPosition.y;
+      } else if (playerId !== localPlayerId && remotePlayerInterpolation) {
+        // For remote players, use interpolated position
+        const interpolatedPos = remotePlayerInterpolation.updateAndGetSmoothedPosition(player, localPlayerId);
+        if (interpolatedPos) {
+          renderPositionX = interpolatedPos.x;
+          renderPositionY = interpolatedPos.y;
+        }
+      }
+      
       renderPlayerTorchLight({
         ctx,
         player,
@@ -879,6 +899,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         itemDefinitions,
         cameraOffsetX,
         cameraOffsetY,
+        renderPositionX,
+        renderPositionY,
       });
     });
     // --- End Torch Light ---
