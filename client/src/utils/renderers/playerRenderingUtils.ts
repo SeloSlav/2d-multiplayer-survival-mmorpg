@@ -175,37 +175,38 @@ export const renderPlayer = (
   const serverLastHitTimeMs = serverLastHitTimePropMicros > 0n ? Number(serverLastHitTimePropMicros / 1000n) : 0;
   const elapsedSinceServerHitMs = serverLastHitTimeMs > 0 ? (nowMs - serverLastHitTimeMs) : Infinity;
 
-  if (!isCorpse) {
+  // Only apply knockback interpolation for NON-local players
+  // Local player position is handled by the prediction system
+  const isLocalPlayer = localPlayerId && playerHexId === localPlayerId;
+
+  if (!isCorpse && !isLocalPlayer) {
+    // Knockback interpolation for other players only
     if (!visualState) {
       visualState = {
         displayX: serverX, displayY: serverY,
         serverX, serverY,
-        lastHitTimeMicros: serverLastHitTimePropMicros, // Initialize with current server hit time
+        lastHitTimeMicros: serverLastHitTimePropMicros,
         interpolationSourceX: serverX, interpolationSourceY: serverY,
         interpolationTargetX: serverX, interpolationTargetY: serverY, 
         interpolationStartTime: 0,
       };
       playerVisualKnockbackState.set(playerHexId, visualState);
     } else {
-      // Update visualState.lastHitTimeMicros only if a NEWER hit comes from the server
-      // This is important for triggering interpolation on a new hit.
+      // Update on new hit
       if (serverLastHitTimePropMicros > visualState.lastHitTimeMicros) {
         visualState.interpolationSourceX = visualState.displayX;
         visualState.interpolationSourceY = visualState.displayY;
         visualState.interpolationTargetX = serverX;
         visualState.interpolationTargetY = serverY;
         visualState.interpolationStartTime = nowMs;
-        visualState.lastHitTimeMicros = serverLastHitTimePropMicros; // Update to the newest hit time
+        visualState.lastHitTimeMicros = serverLastHitTimePropMicros;
       }
-      // If player respawned (isDead became false, and server lastHitTime is null/0),
-      // ensure visualState.lastHitTimeMicros is also 0 to allow the next actual hit to trigger interpolation.
       else if (!player.isDead && serverLastHitTimePropMicros === 0n && visualState.lastHitTimeMicros !== 0n) {
         visualState.lastHitTimeMicros = 0n;
-        // No interpolation start here, just reset for next hit detection
       }
     }
     
-    // Positional Interpolation logic based on visualState.interpolationStartTime
+    // Apply knockback interpolation
     if (visualState.interpolationStartTime > 0 && nowMs < visualState.interpolationStartTime + KNOCKBACK_INTERPOLATION_DURATION_MS) {
         const elapsed = nowMs - visualState.interpolationStartTime;
         const t = Math.min(1, elapsed / KNOCKBACK_INTERPOLATION_DURATION_MS);
@@ -214,8 +215,7 @@ export const renderPlayer = (
     } else {
         currentDisplayX = serverX;
         currentDisplayY = serverY;
-        if (visualState.interpolationStartTime > 0) { 
-            // Removed log
+        if (visualState.interpolationStartTime > 0) {
             visualState.interpolationStartTime = 0;
         }
     }
@@ -225,10 +225,19 @@ export const renderPlayer = (
     visualState.serverX = serverX; 
     visualState.serverY = serverY;
 
-  } else { // Logic for corpses (no interpolation, direct position)
+  } else if (!isCorpse && isLocalPlayer) {
+    // For local player, clean up any knockback state and use position as-is
+    // (position will be the predicted position passed from renderingUtils)
+    if (visualState) {
+        playerVisualKnockbackState.delete(playerHexId);
+    }
     currentDisplayX = player.positionX;
     currentDisplayY = player.positionY;
-    if (visualState) { // If a corpse is rendered, ensure any old visualState is cleared
+  } else {
+    // Corpses use direct position
+    currentDisplayX = player.positionX;
+    currentDisplayY = player.positionY;
+    if (visualState) {
         playerVisualKnockbackState.delete(playerHexId);
     }
   }

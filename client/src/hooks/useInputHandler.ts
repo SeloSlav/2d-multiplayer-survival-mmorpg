@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, RefObject } from 'react';
 import * as SpacetimeDB from '../generated';
-import { DbConnection } from '../generated';
+import { DbConnection, Player, ItemDefinition, ActiveEquipment, WoodenStorageBox, Stash } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import React from 'react';
@@ -17,52 +17,48 @@ export const REVIVE_HOLD_DURATION_MS = 6000; // 6 seconds for reviving knocked o
 // --- Constants (Copied from GameCanvas) ---
 const SWING_COOLDOWN_MS = 500;
 
-// --- Hook Props Interface ---
-interface UseInputHandlerProps {
-    canvasRef: RefObject<HTMLCanvasElement | null>;
+// Define a comprehensive props interface for the hook
+interface InputHandlerProps {
+    canvasRef: React.RefObject<HTMLCanvasElement | null>;
     connection: DbConnection | null;
     localPlayerId?: string;
-    localPlayer?: SpacetimeDB.Player | null;
-    activeEquipments?: Map<string, SpacetimeDB.ActiveEquipment>;
-    itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
+    localPlayer: Player | undefined | null;
+    activeEquipments: Map<string, ActiveEquipment>;
+    itemDefinitions: Map<string, ItemDefinition>;
     placementInfo: PlacementItemInfo | null;
     placementActions: PlacementActions;
-    worldMousePos: { x: number | null; y: number | null }; // Pass world mouse position
-    // Closest interactables (passed in for now)
+    worldMousePos: { x: number | null; y: number | null };
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
     closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
-    closestInteractableCampfireId: number | null;
+    closestInteractableCampfireId: bigint | null;
     closestInteractableDroppedItemId: bigint | null;
-    closestInteractableBoxId: number | null;
+    closestInteractableBoxId: bigint | null;
     isClosestInteractableBoxEmpty: boolean;
-    woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>; // <<< ADDED
+    woodenStorageBoxes: Map<string, WoodenStorageBox>;
     closestInteractableCorpseId: bigint | null;
-    closestInteractableStashId: number | null; // Changed from bigint to number for Stash ID
-    stashes: Map<string, SpacetimeDB.Stash>; // Added stashes map
-    closestInteractableKnockedOutPlayerId: string | null; // Added for knocked out player revive
-    players: Map<string, SpacetimeDB.Player>; // Added players map for knocked out revive
-    // Callbacks for actions
-    onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
-    // Note: movement functions are now provided by usePlayerActions hook
-    // Note: attemptSwing logic will be internal to the hook
-    // Add minimap state and setter
+    closestInteractableStashId: bigint | null;
+    stashes: Map<string, Stash>;
+    closestInteractableKnockedOutPlayerId: string | null;
+    players: Map<string, Player>;
+    onSetInteractingWith: (target: any | null) => void;
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isChatting: boolean;
+    isInventoryOpen: boolean;
+    isGameMenuOpen: boolean;
     isSearchingCraftRecipes?: boolean;
-    isInventoryOpen: boolean; // Prop to indicate if inventory is open
-    isGameMenuOpen: boolean; // Prop to indicate if game menu is open
+    onToggleAutoWalk: () => void;
 }
 
 // --- Hook Return Value Interface ---
-interface InputHandlerState {
+// REMOVED inputState from here. It's now handled by useMovementInput
+export interface InputHandlerState {
     // State needed for rendering or other components
     interactionProgress: InteractionProgressState | null;
     isActivelyHolding: boolean;
-    isSprinting: boolean; // Expose current sprint state if needed elsewhere
     currentJumpOffsetY: number; // <<< ADDED
     isAutoAttacking: boolean; // Auto-attack state
     isAutoWalking: boolean; // Auto-walk state
@@ -110,7 +106,7 @@ export const useInputHandler = ({
     closestInteractableCorpseId,
     closestInteractableStashId, // Changed from bigint to number for Stash ID
     stashes, // Added stashes map
-    closestInteractableKnockedOutPlayerId, // Added for knocked out player revive
+    closestInteractableKnockedOutPlayerId, // Added for knocked out player
     players, // Added players map for knocked out revive
     onSetInteractingWith,
     isMinimapOpen,
@@ -119,14 +115,17 @@ export const useInputHandler = ({
     isSearchingCraftRecipes,
     isInventoryOpen, // Destructure new prop
     isGameMenuOpen, // Destructure new prop
-}: UseInputHandlerProps): InputHandlerState => {
+    onToggleAutoWalk,
+}: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
-    const { updatePlayerPosition, jump, setSprinting } = usePlayerActions();
+    const { jump } = usePlayerActions();
 
     // --- Internal State and Refs ---
+    const [isAutoAttacking, setIsAutoAttacking] = useState(false);
+    const [isAutoWalking, setIsAutoWalking] = useState(false);
+    const [isCrouching, setIsCrouching] = useState(false);
     const keysPressed = useRef<Set<string>>(new Set());
-    const isSprintingRef = useRef<boolean>(false);
     const isEHeldDownRef = useRef<boolean>(false);
     const isMouseDownRef = useRef<boolean>(false);
     const lastClientSwingAttemptRef = useRef<number>(0);
@@ -139,15 +138,8 @@ export const useInputHandler = ({
     const currentJumpOffsetYRef = useRef<number>(0);
 
     // Refs for auto-walk state
-    const isAutoWalkingRef = useRef<boolean>(false);
     const autoWalkDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
     const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 }); // Default to facing down
-
-    // Refs for auto-attack state
-    const isAutoAttackingRef = useRef<boolean>(false);
-    
-    // Ref to track shift key state (since shift isn't added to keysPressed)
-    const isShiftHeldRef = useRef<boolean>(false);
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -160,12 +152,12 @@ export const useInputHandler = ({
         potato: null as bigint | null,
         pumpkin: null as bigint | null,
         hemp: null as bigint | null,
-        campfire: null as number | null,
+        campfire: null as bigint | null,
         droppedItem: null as bigint | null,
-        box: null as number | null,
+        box: null as bigint | null,
         boxEmpty: false,
         corpse: null as bigint | null,
-        stash: null as number | null, // Changed from bigint to number for Stash ID
+        stash: null as bigint | null,
         knockedOutPlayer: null as string | null, // Added for knocked out player
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
@@ -178,21 +170,14 @@ export const useInputHandler = ({
     // Add after existing refs in the hook
     const isRightMouseDownRef = useRef<boolean>(false);
     
-    // --- No longer needed since we removed throttling for super smooth facing ---
-    // const lastMouseFacingUpdateRef = useRef<number>(0);
-    // const MOUSE_FACING_UPDATE_INTERVAL_MS = 16;
-
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
 
     // --- Effect to reset sprint state if player dies --- 
     useEffect(() => {
-        if (localPlayer?.isDead && isSprintingRef.current) {
-            // console.log("[InputHandler] Player died while sprinting, forcing sprint off.");
-            isSprintingRef.current = false;
-            // Call reducer to ensure server state is consistent
-            setSprinting(false);
-        }
+        // Player death no longer needs to manage sprinting here.
+        // It's handled by the movement hooks.
+
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
              isEHeldDownRef.current = false;
@@ -202,14 +187,14 @@ export const useInputHandler = ({
              setIsActivelyHolding(false);
         }
         // Also clear auto-attack state if player dies
-        if (localPlayer?.isDead && isAutoAttackingRef.current) {
-            isAutoAttackingRef.current = false;
+        if (localPlayer?.isDead && isAutoAttacking) {
+            setIsAutoAttacking(false);
         }
         // Also clear auto-walk state if player dies
-        if (localPlayer?.isDead && isAutoWalkingRef.current) {
-            isAutoWalkingRef.current = false;
+        if (localPlayer?.isDead && isAutoWalking) {
+            setIsAutoWalking(false);
         }
-    }, [localPlayer?.isDead, setSprinting]); // Depend on death state and the reducer callback
+    }, [localPlayer?.isDead]); // Depend on death state and the reducer callback
 
     // Update refs when props change
     useEffect(() => { placementActionsRef.current = placementActions; }, [placementActions]);
@@ -340,86 +325,48 @@ export const useInputHandler = ({
     // --- Input Handling useEffect (Listeners only) ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            const isUIFocused = isChatting || isGameMenuOpen || !!isSearchingCraftRecipes;
+            if (isUIFocused) {
+                return;
+            }
+
             const key = event.key.toLowerCase();
 
-            // MODIFIED: Block if player is dead, chatting, or searching recipes
-            // REMOVED isInventoryOpen from this top-level guard for general keydown events
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
-                // Allow escape for placement even if inventory is open (this was a good specific check)
-                if (event.key.toLowerCase() === 'escape' && placementInfo && isInventoryOpen) {
-                    placementActionsRef.current?.cancelPlacement();
-                }
-                // Allow escape to close inventory (this is typically handled by PlayerUI, but good to not block it here)
-                // No, PlayerUI handles tab. Escape here if inventory is open should only be for placement.
+            // This block prevents non-essential game actions from firing while inventory/map is open
+            const allowedKeysInUI = ['i', 'tab', 'escape', 'm', 'g']; // 'g' is now allowed
+            if ((isInventoryOpen || isMinimapOpen) && !allowedKeysInUI.includes(key)) {
                 return;
+            }
+            
+            // Handle toggles first, as they should work even if other conditions fail
+            if (!event.repeat) {
+                switch (key) {
+                    case 'z':
+                        setIsAutoAttacking(prev => {
+                            if (!prev) setIsAutoWalking(false); // Stop walking if starting to attack
+                            return !prev;
+                        });
+                        return; // Handled
+                    case 'f':
+                        onToggleAutoWalk();
+                        return; // Handled
+                    case 'c':
+                        setIsCrouching(prev => {
+                            connectionRef.current?.reducers.toggleCrouch();
+                            return !prev;
+                        });
+                        return; // Handled
+                    case 'g': // Handle minimap toggle here
+                        setIsMinimapOpen((prev: boolean) => !prev);
+                        event.preventDefault(); // Prevent typing 'g' in chat etc.
+                        return;
+                }
             }
 
             // Placement cancellation (checked before general input disabled)
-            // This check is fine as is, if placement is active, escape should cancel it.
             if (key === 'escape' && placementInfo) {
                 placementActionsRef.current?.cancelPlacement();
                 return;
-            }
-
-            // Sprinting start
-            if (key === 'shift' && !isSprintingRef.current && !event.repeat) {
-                isSprintingRef.current = true;
-                isShiftHeldRef.current = true; // Track shift state
-                setSprinting(true);
-                return; // Don't add shift to keysPressed
-            }
-
-            // Avoid adding modifier keys
-            if (key === 'shift' || key === 'control' || key === 'alt' || key === 'meta') {
-                return;
-            }
-
-            // Handle 'Insert' for fine movement toggle
-            if (key === 'c' && !event.repeat) {
-                const currentConnection = connectionRef.current;
-                if (currentConnection?.reducers) {
-                    try {
-                        currentConnection.reducers.toggleCrouch();
-                        // console.log("[InputHandler Insert] Called toggleCrouch reducer.");
-                    } catch (err) {
-                        console.error("[InputHandler Insert] Error calling toggleCrouch reducer:", err);
-                    }
-                }
-                return; // 'Insert' is handled, don't process further
-            }
-
-            // Handle 'q' for auto-walk
-            if (key === 'f' && !event.repeat) {
-                if (isAutoWalkingRef.current) {
-                    isAutoWalkingRef.current = false;
-                    // console.log("[InputHandler Q] Auto-walk stopped.");
-                } else {
-                    isAutoWalkingRef.current = true;
-                    // Use player's current facing direction instead of last movement
-                    const currentPlayer = localPlayerRef.current;
-                    if (currentPlayer) {
-                        const facingDirection = getDirectionVector(currentPlayer.direction);
-                        autoWalkDirectionRef.current = facingDirection;
-                        // console.log(`[InputHandler Q] Auto-walk started with facing direction: ${currentPlayer.direction} (dx=${facingDirection.dx}, dy=${facingDirection.dy})`);
-                    } else {
-                        // Fallback to last movement direction if player not available
-                        autoWalkDirectionRef.current = lastMovementDirectionRef.current;
-                        // console.log(`[InputHandler Q] Auto-walk started with fallback direction: dx=${autoWalkDirectionRef.current.dx}, dy=${autoWalkDirectionRef.current.dy}`);
-                    }
-                }
-                return; // 'q' is handled
-            }
-
-            // Handle 'z' for auto-attack
-            if (key === 'z' && !event.repeat) {
-                if (isAutoAttackingRef.current) {
-                    isAutoAttackingRef.current = false;
-                    console.log("[InputHandler Z] Auto-attack stopped.");
-                } else {
-                    isAutoAttackingRef.current = true;
-                    console.log("[InputHandler Z] Auto-attack started.");
-                }
-                return; // 'z' is handled
             }
 
             // Dodge Roll (Q key)
@@ -429,17 +376,10 @@ export const useInputHandler = ({
                 
                 if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
                     try {
-                        // Get current movement direction from pressed keys
-                        let moveX = 0;
-                        let moveY = 0;
-                        
-                        if (keysPressed.current.has('a')) moveX -= 1;
-                        if (keysPressed.current.has('d')) moveX += 1;
-                        if (keysPressed.current.has('w')) moveY -= 1;
-                        if (keysPressed.current.has('s')) moveY += 1;
-                        
-                        console.log(`[InputHandler] Q key pressed, triggering dodge roll with direction: (${moveX}, ${moveY})`);
-                        currentConnection.reducers.dodgeRoll(moveX, moveY);
+                        const worldMouse = worldMousePosRefInternal.current;
+                        if (worldMouse.x !== null && worldMouse.y !== null) {
+                            currentConnection.reducers.dodgeRoll(worldMouse.x, worldMouse.y);
+                        }
                     } catch (err) {
                         console.error("[InputHandler] Error calling dodgeRoll reducer:", err);
                     }
@@ -447,14 +387,10 @@ export const useInputHandler = ({
                 return; // Q key handled
             }
 
-            // Handle movement keys (WASD)
+            // Handle movement keys (WASD) - no longer needed for movement, but tracked for other actions
             if (['w', 'a', 's', 'd'].includes(key)) {
-                // Cancel auto-walk if shift + movement key is pressed
-                if (isShiftHeldRef.current && isAutoWalkingRef.current) {
-                    isAutoWalkingRef.current = false;
-                    // console.log("[InputHandler] Auto-walk canceled by Shift + movement key");
-                }
-                
+                // This hook no longer processes movement keys directly,
+                // but we need to track them for dodge rolls.
                 keysPressed.current.add(key);
                 return; // Movement keys handled
             }
@@ -487,337 +423,142 @@ export const useInputHandler = ({
 
             // Interaction key ('e')
             if (key === 'e' && !event.repeat && !isEHeldDownRef.current) {
+                isEHeldDownRef.current = true;
+                eKeyDownTimestampRef.current = Date.now();
+
                 const currentConnection = connectionRef.current;
                 if (!currentConnection?.reducers) return;
+
                 const closest = closestIdsRef.current;
-                const currentStashes = stashesRef.current;
-                const currentClosestStashId = closest.stash;
+
+                // Set up a timer for ANY potential hold action.
+                // The keyUp handler will decide if it was a tap or a hold.
                 
-                // --- Stash Interaction ---
-                if (currentClosestStashId !== null && currentStashes) {
-                    const stashEntity = currentStashes.get(currentClosestStashId.toString());
-                    if (stashEntity) {
-                        // console.log(`[DEBUG E-Press] Stash interaction - ID: ${currentClosestStashId}, Hidden: ${stashEntity.isHidden}`);
-                        
-                        isEHeldDownRef.current = true; 
-                        eKeyDownTimestampRef.current = Date.now();
-
-                        setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
-                        setIsActivelyHolding(true);
-                        
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-                        eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestStashId !== null) {
-                                try {
-                                    connectionRef.current.reducers.toggleStashVisibility(Number(currentClosestStashId));
-                                } catch (error) {
-                                    console.error("[InputHandler] Error calling toggleStashVisibility in timer:", error);
-                                }
-                            }
-                            setInteractionProgress(null); 
-                            setIsActivelyHolding(false);
-                            isEHeldDownRef.current = false; 
-                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
-                            eKeyHoldTimerRef.current = null; 
-                        }, HOLD_INTERACTION_DURATION_MS);
-                        return; 
-                    }
+                // Determine the highest priority holdable target
+                let holdTarget: InteractionProgressState | null = null;
+                if (closest.knockedOutPlayer) {
+                    holdTarget = { targetId: closest.knockedOutPlayer, targetType: 'knocked_out_player', startTime: eKeyDownTimestampRef.current };
+                } else if (closest.campfire) {
+                    holdTarget = { targetId: closest.campfire, targetType: 'campfire', startTime: eKeyDownTimestampRef.current };
+                } else if (closest.box && closest.boxEmpty) {
+                    holdTarget = { targetId: closest.box, targetType: 'wooden_storage_box', startTime: eKeyDownTimestampRef.current };
+                } else if (closest.stash) {
+                    holdTarget = { targetId: closest.stash, targetType: 'stash', startTime: eKeyDownTimestampRef.current };
                 }
 
-                // --- Knocked Out Player Interaction ---
-                const currentClosestKnockedOutPlayerId = closest.knockedOutPlayer;
-                const currentPlayers = playersRef.current;
-                if (currentClosestKnockedOutPlayerId !== null && currentPlayers) {
-                    const knockedOutPlayer = currentPlayers.get(currentClosestKnockedOutPlayerId);
-                    if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
-                        // console.log(`[DEBUG E-Press] Knocked out player interaction - ID: ${currentClosestKnockedOutPlayerId}`);
-                        
-                        isEHeldDownRef.current = true; 
-                        eKeyDownTimestampRef.current = Date.now();
-
-                        setInteractionProgress({ targetId: currentClosestKnockedOutPlayerId, targetType: 'knocked_out_player', startTime: Date.now() });
-                        setIsActivelyHolding(true);
-                        
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-                        eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestKnockedOutPlayerId !== null) {
-                                try {
-                                    // Convert hex string back to Identity for the reducer call
-                                    currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(currentClosestKnockedOutPlayerId));
-                                } catch (error) {
-                                    console.error("[InputHandler] Error calling reviveKnockedOutPlayer in timer:", error);
-                                }
-                            }
-                            setInteractionProgress(null); 
-                            setIsActivelyHolding(false);
-                            isEHeldDownRef.current = false; 
-                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number); 
-                            eKeyHoldTimerRef.current = null; 
-                        }, REVIVE_HOLD_DURATION_MS); // Use 6-second duration for revive
-                        return; 
-                    }
-                }
-
-                // Pure Tap Actions (If no stash or knocked out player interaction was initiated)
-                if (closest.droppedItem !== null) {
-                    // console.log(`[DEBUG E-Press] Dropped item interaction - ID: ${closest.droppedItem}`);
-                    try {
-                        currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
-                    } catch (err) {
-                        console.error("Error calling pickupDroppedItem reducer:", err);
-                    }
-                    return; 
-                }
-
-                if (closest.mushroom !== null) {
-                    // console.log(`[DEBUG E-Press] Mushroom interaction - ID: ${closest.mushroom}`);
-                    try {
-                        const result = currentConnection.reducers.interactWithMushroom(closest.mushroom);
-                        // console.log(`[DEBUG E-Press] Mushroom reducer called successfully:`, result);
-                    } catch (err) {
-                        console.error("Error calling interactWithMushroom reducer:", err);
-                    }
-                    return; 
-                }
-                if (closest.corn !== null) {
-                    // console.log(`[DEBUG E-Press] Corn interaction - ID: ${closest.corn}`);
-                    try {
-                        const result = currentConnection.reducers.interactWithCorn(closest.corn);
-                        // console.log(`[DEBUG E-Press] Corn reducer called successfully:`, result);
-                    } catch (err) {
-                        console.error("Error calling interactWithCorn reducer:", err);
-                    }
-                    return; 
-                }
-                if (closest.potato !== null) {
-                    // console.log(`[DEBUG E-Press] Potato interaction - ID: ${closest.potato}`);
-                    try {
-                        const result = currentConnection.reducers.interactWithPotato(closest.potato);
-                        // console.log(`[DEBUG E-Press] Potato reducer called successfully:`, result);
-                    } catch (err) {
-                        console.error("Error calling interactWithPotato reducer:", err);
-                    }
-                    return; 
-                }
-                if (closest.pumpkin !== null) {
-                    // console.log(`[DEBUG E-Press] Pumpkin interaction - ID: ${closest.pumpkin}`);
-                    try {
-                        const result = currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
-                        // console.log(`[DEBUG E-Press] Pumpkin reducer called successfully:`, result);
-                    } catch (err) {
-                        console.error("Error calling interactWithPumpkin reducer:", err);
-                    }
-                    return; 
-                }
-                if (closest.hemp !== null) {
-                    // console.log(`[DEBUG E-Press] Hemp interaction - ID: ${closest.hemp}`);
-                    try {
-                        const result = currentConnection.reducers.interactWithHemp(closest.hemp);
-                        // console.log(`[DEBUG E-Press] Hemp reducer called successfully:`, result);
-                    } catch (err) {
-                        console.error("Error calling interactWithHemp reducer:", err);
-                    }
-                    return; 
-                }
-                
-                // Tap-or-Hold Actions for other entities (Box, Campfire)
-                if (closest.box !== null) {
-                    // console.log(`[DEBUG E-Press] Box interaction - ID: ${closest.box}, Empty: ${closest.boxEmpty}`);
-                    isEHeldDownRef.current = true;
-                    eKeyDownTimestampRef.current = Date.now();
-                    if (closest.boxEmpty) { 
-                        setInteractionProgress({ targetId: closest.box, targetType: 'wooden_storage_box', startTime: Date.now() });
-                        setIsActivelyHolding(true);
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-                        eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current) {
-                                const stillClosest = closestIdsRef.current;
-                                if (stillClosest.box === closest.box && stillClosest.boxEmpty) {
-                                    try {
-                                        connectionRef.current?.reducers.pickupStorageBox(closest.box!);
-                                    } catch (err) { console.error("[InputHandler Hold Timer] Error calling pickupStorageBox reducer:", err); }
-                                }
-                            }
-                            setInteractionProgress(null); 
-                            setIsActivelyHolding(false);
-                            isEHeldDownRef.current = false; 
-                            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-                            eKeyHoldTimerRef.current = null;
-                        }, HOLD_INTERACTION_DURATION_MS);
-                    }
-                    return; 
-                }
-                
-                if (closest.campfire !== null) {
-                    // console.log(`[DEBUG E-Press] Campfire interaction - ID: ${closest.campfire}`);
-                    isEHeldDownRef.current = true;
-                    eKeyDownTimestampRef.current = Date.now();
-                    setInteractionProgress({ targetId: closest.campfire, targetType: 'campfire', startTime: Date.now() });
+                if (holdTarget) {
+                    console.log('[E-Hold START]', { holdTarget });
+                    setInteractionProgress(holdTarget);
                     setIsActivelyHolding(true);
-                    if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
+                    
+                    const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
+
                     eKeyHoldTimerRef.current = setTimeout(() => {
-                        if (isEHeldDownRef.current) {
-                            const stillClosest = closestIdsRef.current;
-                            if (stillClosest.campfire === closest.campfire) {
-                                try {
-                                    connectionRef.current?.reducers.toggleCampfireBurning(closest.campfire!);
-                                } catch (err) { console.error("[InputHandler Hold Timer - Campfire] Error toggling campfire:", err); }
-                            }
-                        }
-                        setInteractionProgress(null); 
-                        setIsActivelyHolding(false);
-                        isEHeldDownRef.current = false; 
-                        if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-                        eKeyHoldTimerRef.current = null;
-                    }, HOLD_INTERACTION_DURATION_MS);
-                    return; 
-                }
-
-                if (closest.corpse !== null) {
-                    // console.log(`[DEBUG E-Press] Corpse interaction - ID: ${closest.corpse}`);
-                    isEHeldDownRef.current = true;
-                    eKeyDownTimestampRef.current = Date.now();
-                    return; 
-                }
-            }
-
-            // --- Handle Minimap Toggle ---
-            if (key === 'g') { // Check lowercase key
-                setIsMinimapOpen((prev: boolean) => !prev); // Toggle immediately
-                event.preventDefault(); // Prevent typing 'g' in chat etc.
-                return; // Don't add 'g' to keysPressed
-            }
-
-            // --- E Key (Interact / Hold Interact) ---
-            if (event.key.toLowerCase() === 'e') {
-                if (isEHeldDownRef.current) return; // Prevent re-triggering if already held
-
-                const currentClosestStashId = closestIdsRef.current.stash;
-                const currentStashes = stashesRef.current;
-
-                // Priority 1: Stash Interaction (Open or Initiate Hold)
-                if (currentClosestStashId !== null && currentStashes) {
-                    const stashEntity = currentStashes.get(currentClosestStashId.toString());
-                    if (stashEntity) {
-                        if (!stashEntity.isHidden) {
-                            // Short press E on VISIBLE stash: Open it
-                            onSetInteractingWithRef.current({ type: 'stash', id: currentClosestStashId });
-                            // console.log(`[InputHandler E-Press] Opening stash: ${currentClosestStashId}`);
-                            return; // Interaction handled, don't proceed to hold logic for this press
-                        }
-                        // If stash is hidden OR if it's visible and we didn't return above (e.g. future proofing for explicit hide action)
-                        // Initiate HOLD interaction for toggling visibility
-                        eKeyDownTimestampRef.current = Date.now();
-                        isEHeldDownRef.current = true;
-                        setInteractionProgress({ targetId: currentClosestStashId, targetType: 'stash', startTime: Date.now() });
-                        setIsActivelyHolding(true);
-                        // console.log(`[InputHandler E-Press] Starting HOLD for stash: ${currentClosestStashId}`);
-
-                        eKeyHoldTimerRef.current = setTimeout(() => {
-                            if (isEHeldDownRef.current && connectionRef.current?.reducers && currentClosestStashId !== null) {
-                                // console.log(`[InputHandler E-Hold COMPLETED] Toggling visibility for stash: ${closestIdsRef.current.stash}`);
-                                try {
-                                    connectionRef.current.reducers.toggleStashVisibility(Number(currentClosestStashId));
-                                } catch (error) {
-                                    console.error("[InputHandler] Error calling toggleStashVisibility:", error);
+                        console.log('[E-Hold COMPLETED] Timer fired for:', holdTarget);
+                        // Timer fired, so this is a successful HOLD action.
+                        // Re-check if we are still close to the original target.
+                        const stillClosest = closestIdsRef.current;
+                        console.log('[E-Hold COMPLETED] stillClosest check:', stillClosest);
+                        
+                        switch(holdTarget.targetType) {
+                            case 'knocked_out_player':
+                                if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
+                                    console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
+                                    currentConnection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
                                 }
-                            }
-                            setInteractionProgress(null);
-                            setIsActivelyHolding(false);
-                            isEHeldDownRef.current = false; // Reset hold state after action or if key was released
-                        }, HOLD_INTERACTION_DURATION_MS);
-                        return; // Hold initiated or visible stash opened, interaction handled
-                    }
+                                break;
+                            case 'campfire':
+                                if (stillClosest.campfire === holdTarget.targetId) {
+                                    console.log('[E-Hold ACTION] Attempting to toggle campfire:', holdTarget.targetId);
+                                    currentConnection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
+                                }
+                                break;
+                            case 'wooden_storage_box':
+                                if (stillClosest.box === holdTarget.targetId && stillClosest.boxEmpty) {
+                                    console.log('[E-Hold ACTION] Attempting to pickup box:', holdTarget.targetId);
+                                    currentConnection.reducers.pickupStorageBox(Number(holdTarget.targetId));
+                                }
+                                break;
+                            case 'stash':
+                                if (stillClosest.stash === holdTarget.targetId) {
+                                    console.log('[E-Hold ACTION] Attempting to toggle stash:', holdTarget.targetId);
+                                    currentConnection.reducers.toggleStashVisibility(Number(holdTarget.targetId));
+                                }
+                                break;
+                        }
+
+                        // Clean up UI and state
+                        console.log('[E-Hold COMPLETED] Cleaning up state.');
+                        setInteractionProgress(null);
+                        setIsActivelyHolding(false);
+                        isEHeldDownRef.current = false; // Reset the master hold flag
+                        eKeyHoldTimerRef.current = null; // Clear the timer ref itself
+                    }, duration);
                 }
             }
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
             const key = event.key.toLowerCase();
+            keysPressed.current.delete(key);
 
-            // Sprinting stop
-            if (key === 'shift' && isSprintingRef.current) {
-                isSprintingRef.current = false;
-                isShiftHeldRef.current = false; // Reset shift state
-                setSprinting(false);
-                return;
-            }
-
-            // MODIFIED: Block if player is dead, chatting, or searching recipes
-            // REMOVED isInventoryOpen from this top-level guard for general keyup events
-            if (isPlayerDead || isChatting || isSearchingCraftRecipes) {
-                return;
-            }
-            // keysPressed.current.delete(key);
-            // If auto-walking, and the released key was a movement key, it might have been added to keysPressed.current
-            // temporarily for direction calculation. Ensure it's removed so it doesn't stick.
-            const isMovementKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
-            if (isAutoWalkingRef.current && isMovementKey) {
-                keysPressed.current.delete(key);
-            } else if (!isAutoWalkingRef.current) {
-                // If not auto-walking, normal removal from keysPressed.
-                keysPressed.current.delete(key);
-            }
-
-            // Interaction key ('e') up
             if (key === 'e') {
-                if (isEHeldDownRef.current) { // Check if E was being held for an interaction
+                console.log('[E-KeyUp] KeyUp event for "e" detected.');
+                if (isEHeldDownRef.current) {
+                    // An 'E' interaction was in progress.
+                    isEHeldDownRef.current = false;
+                    
                     const holdDuration = Date.now() - eKeyDownTimestampRef.current;
-                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash; 
-                    const RETAINED_CLOSEST_CORPSE_ID = closestIdsRef.current.corpse;
-                    const RETAINED_CLOSEST_BOX_ID = closestIdsRef.current.box;
-                    const RETAINED_CLOSEST_CAMPFIRE_ID = closestIdsRef.current.campfire;
+                    console.log('[E-KeyUp] A hold was in progress. holdDuration:', holdDuration, 'ms');
 
-                    // Always clear the timer if it exists (in case keyUp happens before timer fires)
                     if (eKeyHoldTimerRef.current) {
+                        console.log('[E-KeyUp] Clearing active hold timer.');
                         clearTimeout(eKeyHoldTimerRef.current as number);
                         eKeyHoldTimerRef.current = null;
                     }
 
-                    // Reset hold state and unconditionally clear interaction progress if a hold was active
-                    isEHeldDownRef.current = false;
-                    eKeyDownTimestampRef.current = 0;
-                    if (interactionProgress) { // If there was any interaction progress, clear it now
-                        setInteractionProgress(null);
-                        // console.log(`[InputHandler E-KeyUp] Cleared interactionProgress because E hold ended.`);
-                    }
-
-                    // Also ensure isActivelyHolding is false if E key is up and was part of a hold
-                    setIsActivelyHolding(false);
-
-                    // Check if it was a TAP action (released before hold duration)
+                    // It was a TAP, not a hold.
                     if (holdDuration < HOLD_INTERACTION_DURATION_MS) {
+                        console.log('[E-KeyUp] Hold was a TAP. Executing tap action.');
+                        // Clean up any hold UI that might have started
+                        setInteractionProgress(null);
+                        setIsActivelyHolding(false);
+
+                        // Perform the tap action.
                         const currentConnection = connectionRef.current;
+                        if (!currentConnection?.reducers) return;
+
+                        const closest = closestIdsRef.current;
                         const currentStashes = stashesRef.current;
 
-                        if (RETAINED_CLOSEST_STASH_ID !== null && currentStashes) {
-                            const stashEntity = currentStashes.get(RETAINED_CLOSEST_STASH_ID.toString());
+                        // Priority order for tap actions:
+                        if (closest.campfire !== null) {
+                            currentConnection.reducers.interactWithCampfire(Number(closest.campfire));
+                            onSetInteractingWithRef.current({ type: 'campfire', id: closest.campfire });
+                        } else if (closest.box !== null) {
+                            currentConnection.reducers.interactWithStorageBox(Number(closest.box));
+                            onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: closest.box });
+                        } else if (closest.stash !== null) {
+                            const stashEntity = currentStashes.get(closest.stash.toString());
                             if (stashEntity && !stashEntity.isHidden) {
-                                onSetInteractingWithRef.current({ type: 'stash', id: RETAINED_CLOSEST_STASH_ID });
+                                onSetInteractingWithRef.current({ type: 'stash', id: closest.stash });
                             }
-                        } 
-                        else if (RETAINED_CLOSEST_CORPSE_ID !== null) {
-                            onSetInteractingWithRef.current({ type: 'player_corpse', id: RETAINED_CLOSEST_CORPSE_ID });
-                        } 
-                        else if (RETAINED_CLOSEST_BOX_ID !== null && currentConnection?.reducers) {
-                             try {
-                                currentConnection.reducers.interactWithStorageBox(RETAINED_CLOSEST_BOX_ID);
-                                onSetInteractingWithRef.current({ type: 'wooden_storage_box', id: RETAINED_CLOSEST_BOX_ID });
-                             } catch (err) { 
-                                console.error("[InputHandler KeyUp E - TAP Box] Error calling interactWithStorageBox:", err);
-                             }
-                        } 
-                        else if (RETAINED_CLOSEST_CAMPFIRE_ID !== null && currentConnection?.reducers) {
-                            try {
-                                currentConnection.reducers.interactWithCampfire(RETAINED_CLOSEST_CAMPFIRE_ID);
-                                onSetInteractingWithRef.current({ type: 'campfire', id: RETAINED_CLOSEST_CAMPFIRE_ID });
-                            } catch (err) {
-                                console.error("[InputHandler KeyUp E - TAP Campfire] Error calling interactWithCampfire:", err);
-                            }
+                        } else if (closest.corpse !== null) {
+                            onSetInteractingWithRef.current({ type: 'player_corpse', id: closest.corpse });
+                        } else if (closest.droppedItem !== null) {
+                            currentConnection.reducers.pickupDroppedItem(closest.droppedItem);
+                        } else if (closest.mushroom !== null) {
+                            currentConnection.reducers.interactWithMushroom(closest.mushroom);
+                        } else if (closest.corn !== null) {
+                            currentConnection.reducers.interactWithCorn(closest.corn);
+                        } else if (closest.potato !== null) {
+                            currentConnection.reducers.interactWithPotato(closest.potato);
+                        } else if (closest.pumpkin !== null) {
+                            currentConnection.reducers.interactWithPumpkin(closest.pumpkin);
+                        } else if (closest.hemp !== null) {
+                            currentConnection.reducers.interactWithHemp(closest.hemp);
                         }
-                    } 
-                    // If it was a hold, the timer in keyDown (or its clearing here) handles the action.
-                    // Interaction progress is cleared above.
+                    }
                 }
             }
         };
@@ -882,7 +623,11 @@ export const useInputHandler = ({
                 // Default action for other items (tools, melee weapons) or if unarmed
                 if (localPlayerId && connectionRef.current?.reducers) {
                     // console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
-                    connectionRef.current.reducers.useEquippedItem(); 
+                    try {
+                        connectionRef.current.reducers.useEquippedItem();
+                    } catch (e) {
+                        // ignore for now
+                    }
                 } else {
                      // console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
                 }
@@ -1073,12 +818,12 @@ export const useInputHandler = ({
                         keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ||
                         keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ||
                         keysPressed.current.has('d') || keysPressed.current.has('arrowright') ||
-                        isAutoWalkingRef.current
+                        isAutoWalking
                     );
                     
                     if (isCurrentlyMoving) {
                         // Use current movement direction
-                        if (isAutoWalkingRef.current) {
+                        if (isAutoWalking) {
                             throwingDirection = autoWalkDirectionRef.current;
                         } else {
                             const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
@@ -1144,12 +889,7 @@ export const useInputHandler = ({
 
         // --- Blur Handler ---
         const handleBlur = () => {
-            if (isSprintingRef.current) {
-                isSprintingRef.current = false;
-                isShiftHeldRef.current = false; // Reset shift state on blur
-                // Call reducer regardless of focus state if window loses focus
-                setSprinting(false); 
-            }
+            // REMOVED Sprinting logic from blur handler.
             // keysPressed.current.clear(); // Keep this commented out
             isMouseDownRef.current = false;
             isRightMouseDownRef.current = false; // Reset right mouse state
@@ -1158,9 +898,9 @@ export const useInputHandler = ({
             eKeyHoldTimerRef.current = null;
             setInteractionProgress(null);
             // Clear auto-attack state when window loses focus
-            isAutoAttackingRef.current = false;
+            setIsAutoAttacking(false);
             // Clear auto-walk state when window loses focus
-            isAutoWalkingRef.current = false;
+            setIsAutoWalking(false);
         };
 
         // Add global listeners
@@ -1202,7 +942,35 @@ export const useInputHandler = ({
                 eKeyHoldTimerRef.current = null;
             }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, setSprinting, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, onToggleAutoWalk, isMinimapOpen]);
+
+    useEffect(() => {
+        if (!isAutoWalking || isChatting || isGameMenuOpen || !!isSearchingCraftRecipes) {
+            return;
+        }
+
+        const move = () => {
+            const player = localPlayerRef.current;
+            const mouse = worldMousePosRefInternal.current;
+            if (!player || !mouse.x || !mouse.y) return;
+
+            const dx = mouse.x - player.positionX;
+            const dy = mouse.y - player.positionY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 20) { // Stop when close to the target
+                const dirX = dx / dist;
+                const dirY = dy / dist;
+                connectionRef.current?.reducers.updatePlayerPosition(dirX, dirY);
+            } else {
+                setIsAutoWalking(false); // Stop auto-walking upon arrival
+            }
+        };
+
+        const intervalId = setInterval(move, 50); // Move 20 times per second
+
+        return () => clearInterval(intervalId);
+    }, [isAutoWalking, isChatting, isGameMenuOpen, isSearchingCraftRecipes]);
 
     // Movement throttling refs
     const lastMovementUpdateRef = useRef<number>(0);
@@ -1221,40 +989,19 @@ export const useInputHandler = ({
         // Get input disabled state based ONLY on player death
         const isInputDisabledState = currentLocalPlayer.isDead;
         
-        // --- Update mouse-based facing direction ---
-        // Send mouse position to server to update player facing direction (overrides movement-based direction)
-        // No throttling for super smooth facing direction like Blazing Beaks
-        if (!isInputDisabledState && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
-            try {
-                currentConnection.reducers.updatePlayerFacingDirection(
-                    worldMousePosRefInternal.current.x,
-                    worldMousePosRefInternal.current.y
-                );
-            } catch (err) {
-                console.error("[InputHandler] Error calling updatePlayerFacingDirection reducer:", err);
-            }
-        }
-
         // Input is disabled if the player is dead
         // Do not process any game-related input if disabled
         if (isInputDisabledState) {
             return; // Early return - player is dead, skip all input processing
         }
-
+        
         // MODIFIED: Do nothing if player is dead, or if chatting/searching
         if (!currentLocalPlayer || currentLocalPlayer.isDead || isChatting || isSearchingCraftRecipes) {
-             // Reset sprint state on death if not already handled by useEffect
-            if (isSprintingRef.current && currentLocalPlayer?.isDead) { // Only reset sprint due to death
-                isSprintingRef.current = false;
-                // No need to call reducer here, useEffect for player.isDead handles it for death
-            } else if (isSprintingRef.current && (isChatting || isSearchingCraftRecipes)) {
-                // If chatting or searching and was sprinting, send stop sprinting
-                isSprintingRef.current = false;
-                setSprinting(false); 
-            }
+            // This hook no longer manages sprinting, so no need to reset it here.
+
             // Reset auto-attack state when in UI states
-            if (isAutoAttackingRef.current && (isChatting || isSearchingCraftRecipes)) {
-                isAutoAttackingRef.current = false;
+            if (isAutoAttacking && (isChatting || isSearchingCraftRecipes)) {
+                setIsAutoAttacking(false);
             }
             // Also clear jump offset if player is dead or UI is active
             if (currentJumpOffsetYRef.current !== 0) {
@@ -1280,43 +1027,15 @@ export const useInputHandler = ({
         }
         // --- End Jump Offset Calculation ---
 
-        // Process movement with throttling
-        // Calculate movement direction from currently pressed keys
+        // This hook doesn't send movement updates, but it does need to track the last
+        // direction for actions like throwing.
         const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
                    (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
         const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
                    (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
 
-        // Throttle movement updates to prevent network spam
-        const now = Date.now();
-        const shouldUpdateMovement = now - lastMovementUpdateRef.current >= MOVEMENT_UPDATE_INTERVAL_MS;
-
-        if (isAutoWalkingRef.current) {
-            // Auto-walking mode: use manual input if any keys are pressed, otherwise use stored auto-walk direction
-            if (dx !== 0 || dy !== 0) {
-                // Manual input takes priority during auto-walk
-                if (shouldUpdateMovement) {
-                    updatePlayerPosition(dx, dy);
-                    lastMovementUpdateRef.current = now;
-                }
-                // Update auto-walk direction to match current input for smoother transitions
-                autoWalkDirectionRef.current = { dx, dy };
-                lastMovementDirectionRef.current = { dx, dy };
-            } else {
-                // No manual input, use stored auto-walk direction
-                const { dx: autoDx, dy: autoDy } = autoWalkDirectionRef.current;
-                if ((autoDx !== 0 || autoDy !== 0) && shouldUpdateMovement) {
-                    updatePlayerPosition(autoDx, autoDy);
-                    lastMovementUpdateRef.current = now;
-                }
-            }
-        } else {
-            // Manual movement mode
-            if ((dx !== 0 || dy !== 0) && shouldUpdateMovement) {
-                updatePlayerPosition(dx, dy);
-                lastMovementDirectionRef.current = { dx, dy };
-                lastMovementUpdateRef.current = now;
-            }
+        if (dx !== 0 || dy !== 0) {
+            lastMovementDirectionRef.current = { dx, dy };
         }
 
         // Handle continuous swing check
@@ -1326,16 +1045,16 @@ export const useInputHandler = ({
         }
 
         // Handle auto-attack
-        if (isAutoAttackingRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
+        if (isAutoAttacking && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
             attemptSwing(); // Call internal attemptSwing function for auto-attack
         }
     }, [
-        isPlayerDead, updatePlayerPosition, attemptSwing, placementInfo,
+        isPlayerDead, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
         closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId, 
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
         isClosestInteractableBoxEmpty, onSetInteractingWith,
-        isChatting, isSearchingCraftRecipes, setSprinting, isInventoryOpen 
+        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen 
     ]);
 
     // Helper function to check if an item is throwable
@@ -1384,10 +1103,9 @@ export const useInputHandler = ({
     return {
         interactionProgress,
         isActivelyHolding,
-        isSprinting: isSprintingRef.current, // Return the ref's current value
         currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
-        isAutoAttacking: isAutoAttackingRef.current,
-        isAutoWalking: isAutoWalkingRef.current,
+        isAutoAttacking,
+        isAutoWalking,
         processInputsAndActions,
     };
 }; 

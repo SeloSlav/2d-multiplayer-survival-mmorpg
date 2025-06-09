@@ -29,6 +29,8 @@ import { usePlacementManager } from './hooks/usePlacementManager';
 import { useDragDropManager } from './hooks/useDragDropManager';
 import { useInteractionManager } from './hooks/useInteractionManager';
 import { useAuthErrorHandler } from './hooks/useAuthErrorHandler';
+import { useMovementInput } from './hooks/useMovementInput';
+import { usePredictedMovement } from './hooks/usePredictedMovement';
 
 // Assets & Styles
 import './App.css';
@@ -75,9 +77,6 @@ function AppContent() {
 
     // --- Player Actions ---
     const {
-        updatePlayerPosition,
-        setSprinting,
-        jump,
         updateViewport,
     } = usePlayerActions();
 
@@ -90,15 +89,18 @@ function AppContent() {
     const { draggedItemInfo, dropError, handleItemDragStart, handleItemDrop } = useDragDropManager({ connection, interactingWith, playerIdentity: dbIdentity });
 
     // --- App-Level State --- 
-    const [isRegistering, setIsRegistering] = useState<boolean>(false); // Still track registration attempt
+    const [isRegistering, setIsRegistering] = useState<boolean>(false);
     const [uiError, setUiError] = useState<string | null>(null);
     const [isMinimapOpen, setIsMinimapOpen] = useState<boolean>(false);
     const [isChatting, setIsChatting] = useState<boolean>(false);
+    const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
+    const [isAutoWalking, setIsAutoWalking] = useState(false);
 
     // --- Viewport State & Refs ---
     const [currentViewport, setCurrentViewport] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null);
     const lastSentViewportCenterRef = useRef<{ x: number, y: number } | null>(null);
     const localPlayerRef = useRef<any>(null); // Ref to hold local player data
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
@@ -126,6 +128,33 @@ function AppContent() {
         cancelPlacement, 
         viewport: currentViewport, 
     });
+
+    // --- Movement Hooks ---
+    const isUIFocused = isChatting || isCraftingSearchFocused;
+    const localPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) : undefined;
+    const { inputState, processMovement } = useMovementInput({ 
+        isUIFocused,
+        isAutoWalking,
+        localPlayer,
+        onCancelAutoWalk: () => setIsAutoWalking(false),
+    });
+    const { predictedPosition, updatePredictedMovement } = usePredictedMovement({
+        localPlayer,
+        inputState,
+        connection,
+    });
+
+    // --- Game Loop for Movement ---
+    useEffect(() => {
+        let animationFrameId: number;
+        const gameLoop = () => {
+            processMovement();
+            updatePredictedMovement();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        };
+        gameLoop();
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [processMovement, updatePredictedMovement]);
 
     // --- Refs for Cross-Hook/Component Communication --- 
     // Ref for Placement cancellation needed by useSpacetimeTables callbacks
@@ -244,6 +273,14 @@ function AppContent() {
             // If chat is active, let the Chat component handle Enter/Escape
             if (isChatting) return;
 
+            // NEW: If a movement key is pressed while auto-walking, cancel it.
+            // This is a safety net in case the lower-level hook's logic doesn't catch it.
+            if (isAutoWalking && ['w', 'a', 's', 'd'].includes(event.key.toLowerCase())) {
+                if(event.shiftKey) {
+                    setIsAutoWalking(false);
+                }
+            }
+
             // Prevent global context menu unless placing item (moved from other effect)
             if (event.key === 'ContextMenu' && !placementInfoRef.current) {
                 event.preventDefault();
@@ -266,7 +303,7 @@ function AppContent() {
             window.removeEventListener('keydown', handleGlobalKeyDown);
             window.removeEventListener('contextmenu', handleGlobalContextMenu);
         };
-    }, [isChatting]); // <<< Add isChatting dependency
+    }, [isChatting, isAutoWalking]); // <<< Add isChatting and isAutoWalking dependency
 
     // --- Effect to manage registration state based on table hook --- 
     useEffect(() => {
@@ -274,9 +311,12 @@ function AppContent() {
              // console.log("[AppContent] Player registered, setting isRegistering = false");
              setIsRegistering(false);
          }
+         if (!localPlayerRegistered && isAutoWalking) {
+            setIsAutoWalking(false);
+         }
          // Maybe add logic here if registration fails?
          // Currently, errors are shown via connectionError or uiError
-    }, [localPlayerRegistered, isRegistering]);
+    }, [localPlayerRegistered, isRegistering, isAutoWalking]);
 
     // --- Effect to automatically clear interactionTarget if player moves too far ---
     useEffect(() => {
@@ -436,9 +476,8 @@ function AppContent() {
                             draggedItemInfo={draggedItemInfo}
                             onItemDragStart={handleItemDragStart}
                             onItemDrop={handleItemDrop}
-                            updatePlayerPosition={updatePlayerPosition}
-                            callJumpReducer={jump}
-                            callSetSprintingReducer={setSprinting}
+                            predictedPosition={predictedPosition}
+                            canvasRef={canvasRef}
                             isMinimapOpen={isMinimapOpen}
                             setIsMinimapOpen={setIsMinimapOpen}
                             isChatting={isChatting}
@@ -450,6 +489,10 @@ function AppContent() {
                             rangedWeaponStats={rangedWeaponStats}
                             projectiles={projectiles}
                             deathMarkers={deathMarkers}
+                            setIsCraftingSearchFocused={setIsCraftingSearchFocused}
+                            isCraftingSearchFocused={isCraftingSearchFocused}
+                            onToggleAutoWalk={() => setIsAutoWalking(prev => !prev)}
+                            isAutoWalking={isAutoWalking}
                         />
                     );
                 })()
@@ -470,5 +513,5 @@ function App() {
         </AuthProvider>
     );
 }
-
 export default App;
+

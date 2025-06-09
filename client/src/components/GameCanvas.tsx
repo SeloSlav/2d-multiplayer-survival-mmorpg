@@ -38,7 +38,6 @@ import { useDayNightCycle } from '../hooks/useDayNightCycle';
 import { useInteractionFinder } from '../hooks/useInteractionFinder';
 import { useGameLoop } from '../hooks/useGameLoop';
 import type { FrameInfo } from '../hooks/useGameLoop';
-import { useInputHandler } from '../hooks/useInputHandler';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering } from '../hooks/useEntityFiltering';
@@ -75,8 +74,7 @@ import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 import DeathScreen from './DeathScreen.tsx';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
-import { HOLD_INTERACTION_DURATION_MS } from '../hooks/useInputHandler';
-import { REVIVE_HOLD_DURATION_MS } from '../hooks/useInputHandler';
+import { HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
 import {
   CAMPFIRE_HEIGHT,
   SERVER_CAMPFIRE_DAMAGE_RADIUS,
@@ -84,6 +82,9 @@ import {
 } from '../utils/renderers/campfireRenderingUtils';
 import { BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from '../hooks/useInteractionFinder';
+import { useInputHandler } from '../hooks/useInputHandler';
+import { useRemotePlayerInterpolation } from '../hooks/useRemotePlayerInterpolation';
+
 
 // Define a placeholder height for Stash for indicator rendering
 const STASH_HEIGHT = 40; // Adjust as needed to match stash sprite or desired indicator position
@@ -117,6 +118,7 @@ interface GameCanvasProps {
   activeConnections: Map<string, ActiveConnection> | undefined;
   localPlayerId?: string;
   connection: any | null;
+  predictedPosition: { x: number; y: number } | null;
   activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
   grass: Map<string, SpacetimeDBGrass>;
   worldTiles: Map<string, any>; // Add this for procedural world tiles
@@ -124,9 +126,6 @@ interface GameCanvasProps {
   placementActions: PlacementActions;
   placementError: string | null;
   onSetInteractingWith: (target: { type: string; id: number | bigint } | null) => void;
-  updatePlayerPosition: (moveX: number, moveY: number) => void;
-  callJumpReducer: () => void;
-  callSetSprintingReducer: (isSprinting: boolean) => void;
   isMinimapOpen: boolean;
   setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isChatting: boolean;
@@ -140,9 +139,8 @@ interface GameCanvasProps {
   showAutotileDebug: boolean;
   minimapCache: any; // Add this for minimapCache
   isGameMenuOpen: boolean; // Add this prop
-  
-  // Auto-action status handlers
   onAutoActionStatesChange?: (isAutoAttacking: boolean, isAutoWalking: boolean) => void;
+  onToggleAutoWalk: () => void;
 }
 
 /**
@@ -175,15 +173,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   worldState,
   localPlayerId,
   connection,
+  predictedPosition,
   activeEquipments,
   activeConnections,
   placementInfo,
   placementActions,
   placementError,
   onSetInteractingWith,
-  updatePlayerPosition,
-  callJumpReducer: jump,
-  callSetSprintingReducer: setSprinting,
   isMinimapOpen,
   setIsMinimapOpen,
   isChatting,
@@ -200,6 +196,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   minimapCache,
   isGameMenuOpen,
   onAutoActionStatesChange,
+  onToggleAutoWalk,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -210,11 +207,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const placementActionsRef = useRef(placementActions);
   const prevPlayerHealthRef = useRef<number | undefined>(undefined);
   const [damagingCampfireIds, setDamagingCampfireIds] = useState<Set<string>>(new Set());
-  
+
   // Particle system refs
   const campfireParticlesRef = useRef<Particle[]>([]);
   const torchParticlesRef = useRef<Particle[]>([]);
-  
+
   useEffect(() => {
     placementActionsRef.current = placementActions;
   }, [placementActions]);
@@ -225,13 +222,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return players.get(localPlayerId);
   }, [players, localPlayerId]);
 
-  const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer);
+  // Initialize remote player interpolation
+  const remotePlayerInterpolation = useRemotePlayerInterpolation();
+
+  const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer, predictedPosition);
   const { heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   // Add a state to track when images are loaded to trigger re-renders
   const [imageLoadTrigger, setImageLoadTrigger] = useState(0);
-  
+
   // Effect to trigger re-render when images are loaded
   useEffect(() => {
     const checkImages = () => {
@@ -239,18 +239,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         setImageLoadTrigger(prev => prev + 1);
       }
     };
-    
+
     // Check immediately
     checkImages();
-    
+
     // Set up an interval to check periodically (will be cleaned up when images are loaded)
     const interval = setInterval(checkImages, 100);
-    
+
     // Clean up interval when we have images
     if (itemImagesRef.current && itemImagesRef.current.size > 0) {
       clearInterval(interval);
     }
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -271,7 +271,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetY,
     canvasSize
   });
-  
+
   const {
     closestInteractableMushroomId,
     closestInteractableCornId,
@@ -302,34 +302,51 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     players,
     shelters,
   });
-  
-  const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
+
+  // --- Action Input Handler ---
   const {
-    interactionProgress,
+    interactionProgress: holdInteractionProgress,
     isActivelyHolding,
-    processInputsAndActions,
     currentJumpOffsetY,
     isAutoAttacking,
-    isAutoWalking
+    isAutoWalking,
+    processInputsAndActions,
   } = useInputHandler({
-    canvasRef: gameCanvasRef, connection, localPlayerId, localPlayer: localPlayer ?? null,
-    activeEquipments, itemDefinitions,
-    placementInfo, placementActions, worldMousePos,
-    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
-    closestInteractableCampfireId, closestInteractableDroppedItemId,
-    closestInteractableBoxId, isClosestInteractableBoxEmpty,
+    canvasRef: gameCanvasRef,
+    connection,
+    localPlayerId: localPlayer?.identity?.toHexString(),
+    localPlayer,
+    activeEquipments,
+    itemDefinitions,
+    placementInfo,
+    placementActions,
+    worldMousePos,
+    closestInteractableMushroomId,
+    closestInteractableCornId,
+    closestInteractablePotatoId,
+    closestInteractablePumpkinId,
+    closestInteractableHempId,
+    closestInteractableCampfireId: closestInteractableCampfireId as any,
+    closestInteractableDroppedItemId,
+    closestInteractableBoxId: closestInteractableBoxId as any,
+    isClosestInteractableBoxEmpty,
     woodenStorageBoxes,
-    isMinimapOpen, setIsMinimapOpen,
-    onSetInteractingWith, isChatting,
     closestInteractableCorpseId,
-    closestInteractableStashId,
+    closestInteractableStashId: closestInteractableStashId as any,
     stashes,
-    isSearchingCraftRecipes,
-    isInventoryOpen: showInventory,
     closestInteractableKnockedOutPlayerId,
     players,
+    onSetInteractingWith: onSetInteractingWith,
+    isMinimapOpen,
+    setIsMinimapOpen,
+    isChatting,
+    isInventoryOpen: showInventory,
     isGameMenuOpen,
+    isSearchingCraftRecipes,
+    onToggleAutoWalk,
   });
+
+  const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
@@ -408,7 +425,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Procedural World Tile Management ---
   const { proceduralRenderer, isInitialized: isWorldRendererInitialized, updateTileCache } = useWorldTileCache();
-  
+
   // Update world tile cache when worldTiles data changes
   useEffect(() => {
     if (worldTiles && worldTiles.size > 0) {
@@ -420,14 +437,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const camera = { x: cameraOffsetX, y: cameraOffsetY };
   const currentCanvasWidth = canvasSize.width;
   const currentCanvasHeight = canvasSize.height;
-  
+
   // Audio enabled state
   const audioEnabled = true; // You can make this configurable later
 
   // --- Should show death screen ---
   // Show death screen only based on isDead flag now
   const shouldShowDeathScreen = !!(localPlayer?.isDead && connection);
-  
+
   // Set cursor style based on placement
   const cursorStyle = placementInfo ? 'cell' : 'crosshair';
 
@@ -441,7 +458,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     return null;
   }, [localPlayer, deathMarkers]);
-  
+
   // Add debug logging for death screen
   // console.log('[GameCanvas] Death screen check:', {
   //   localPlayerIsDead: localPlayer?.isDead,
@@ -469,27 +486,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Use arrow break effects hook
   useArrowBreakEffects({ connection });
-  
+
   // Notify parent component of auto-action state changes
   useEffect(() => {
     if (onAutoActionStatesChange) {
       onAutoActionStatesChange(isAutoAttacking, isAutoWalking);
     }
   }, [isAutoAttacking, isAutoWalking, onAutoActionStatesChange]);
-  
+
   // Use the particle hooks - they now run independently
   const campfireParticles = useCampfireParticles({
     visibleCampfiresMap,
     deltaTime: 0, // Not used anymore, but kept for compatibility
   });
-  
+
   const torchParticles = useTorchParticles({
     players,
     activeEquipments,
     itemDefinitions,
     deltaTime: 0, // Not used anymore, but kept for compatibility
   });
-  
+
   // Fire arrow particle effects
   const fireArrowParticles = useFireArrowParticles({
     players,
@@ -586,7 +603,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     );
     // --- End Water Overlay ---
 
-    const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null) 
+    const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null)
       ? isPlacementTooFar(placementInfo, localPlayer.positionX, localPlayer.positionY, currentWorldMouseX, currentWorldMouseY)
       : false;
 
@@ -673,8 +690,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       onPlayerHover: handlePlayerHover,
       cycleProgress: currentCycleProgress,
       renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
-      localPlayerPosition: localPlayer ? { x: localPlayer.positionX, y: localPlayer.positionY } : null,
-      playerDodgeRollStates
+      localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
+      playerDodgeRollStates,
+      remotePlayerInterpolation
     });
     // --- End Y-Sorted Entities ---
 
@@ -687,7 +705,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Render cut grass effects
       renderCutGrassEffects(ctx, now_ms);
-      
+
       // Render arrow break effects
       renderArrowBreakEffects(ctx, now_ms);
     }
@@ -767,9 +785,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Interaction indicators - Draw only for visible entities that are interactable
     const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse' | 'knocked_out_player', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
-      // If interactionProgress is null (meaning no interaction is even being tracked by the state object),
+      // If holdInteractionProgress is null (meaning no interaction is even being tracked by the state object),
       // or if the entity is not in view, do nothing.
-      if (!isInView || !interactionProgress) {
+      if (!isInView || !holdInteractionProgress) {
         return;
       }
 
@@ -777,22 +795,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (typeof entityId === 'string') {
         targetId = entityId; // For knocked out players (hex string)
       } else if (typeof entityId === 'bigint') {
-        targetId = BigInt(interactionProgress.targetId ?? 0);
+        targetId = BigInt(holdInteractionProgress.targetId ?? 0);
       } else {
-        targetId = Number(interactionProgress.targetId ?? 0);
+        targetId = Number(holdInteractionProgress.targetId ?? 0);
       }
 
-      // Check if the current entity being processed is the target of the (potentially stale) interactionProgress object.
-      if (interactionProgress.targetType === entityType && targetId === entityId) {
+      // Check if the current entity being processed is the target of the (potentially stale) holdInteractionProgress object.
+      if (holdInteractionProgress.targetType === entityType && targetId === entityId) {
 
         // IMPORTANT: Only draw the indicator if the hold is *currently active* (isActivelyHolding is true).
         // If isActivelyHolding is false, it means the hold was just released/cancelled.
         // In this case, we don't draw anything for this entity, not even the background circle.
-        // The indicator will completely disappear once interactionProgress becomes null in the next state update.
+        // The indicator will completely disappear once holdInteractionProgress becomes null in the next state update.
         if (isActivelyHolding) {
           // Use appropriate duration based on interaction type
           const interactionDuration = entityType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
-          const currentProgress = Math.min(Math.max((Date.now() - interactionProgress.startTime) / interactionDuration, 0), 1);
+          const currentProgress = Math.min(Math.max((Date.now() - holdInteractionProgress.startTime) / interactionDuration, 0), 1);
           drawInteractionIndicator(
             ctx,
             entityPosX + cameraOffsetX,
@@ -810,7 +828,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     visibleBoxesMap.forEach((box: SpacetimeDBWoodenStorageBox) => {
       // For boxes, the indicator is only relevant if a hold action is in progress (e.g., picking up an empty box)
-      if (interactionProgress && interactionProgress.targetId === box.id && interactionProgress.targetType === 'wooden_storage_box') {
+      if (holdInteractionProgress && holdInteractionProgress.targetId === box.id && holdInteractionProgress.targetType === 'wooden_storage_box') {
         drawIndicatorIfNeeded('wooden_storage_box', box.id, box.posX, box.posY, BOX_HEIGHT, true);
       }
     });
@@ -821,7 +839,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     if (stashes instanceof Map) { // Ensure stashes is a Map
       stashes.forEach((stash: SpacetimeDBStash) => {
         // Check if this stash is the one currently being interacted with for a hold action
-        if (interactionProgress && interactionProgress.targetId === stash.id && interactionProgress.targetType === 'stash') {
+        if (holdInteractionProgress && holdInteractionProgress.targetId === stash.id && holdInteractionProgress.targetType === 'stash') {
           // For a hidden stash being surfaced, we want to draw the indicator.
           // The 'true' for isInView might need refinement if stashes can be off-screen 
           // but still the closest interactable (though unlikely for a hold interaction).
@@ -836,7 +854,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       const knockedOutPlayer = players.get(closestInteractableKnockedOutPlayerId);
       if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
         // Check if this knocked out player is the one currently being revived
-        if (interactionProgress && interactionProgress.targetId === closestInteractableKnockedOutPlayerId && interactionProgress.targetType === 'knocked_out_player') {
+        if (holdInteractionProgress && holdInteractionProgress.targetId === closestInteractableKnockedOutPlayerId && holdInteractionProgress.targetType === 'knocked_out_player') {
           const playerHeight = 48; // Approximate player sprite height
           drawIndicatorIfNeeded('knocked_out_player', closestInteractableKnockedOutPlayerId, knockedOutPlayer.positionX, knockedOutPlayer.positionY, playerHeight, true);
         }
@@ -903,8 +921,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-
-
   }, [
     // Dependencies
     visibleMushrooms, visibleCorns, visiblePumpkins, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
@@ -916,7 +932,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
     closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
     closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
-    interactionProgress, hoveredPlayerIds, handlePlayerHover, messages,
+    holdInteractionProgress, hoveredPlayerIds, handlePlayerHover, messages,
     isMinimapOpen, isMouseOverMinimap, minimapZoom,
     activeConnections,
     activeConsumableEffects,
@@ -952,9 +968,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       deltaTimeRef.current = 16.667; // 60fps fallback
     }
 
-    processInputsAndActions();
     renderGame();
-  }, [processInputsAndActions, renderGame]);
+  }, [renderGame]);
 
   // Use the updated hook with optimized performance settings
   useGameLoop(gameLoopCallback, {
@@ -1074,6 +1089,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, [connection]);
 
+  // Game loop for processing actions
+  useGameLoop(processInputsAndActions);
+
   return (
     <div style={{ position: 'relative', width: canvasSize.width, height: canvasSize.height, overflow: 'hidden' }}>
       <canvas
@@ -1094,13 +1112,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           // Remove respawnAt prop, add others later
           // respawnAt={respawnTimestampMs}
           // onRespawn={handleRespawnRequest} // We'll wire new callbacks later
-          onRespawnRandomly={() => { 
-            console.log("Respawn Randomly Clicked"); 
-            connection?.reducers?.respawnRandomly(); 
+          onRespawnRandomly={() => {
+            console.log("Respawn Randomly Clicked");
+            connection?.reducers?.respawnRandomly();
           }}
-          onRespawnAtBag={(bagId) => { 
-            console.log("Respawn At Bag Clicked:", bagId); 
-            connection?.reducers?.respawnAtSleepingBag(bagId); 
+          onRespawnAtBag={(bagId) => {
+            console.log("Respawn At Bag Clicked:", bagId);
+            connection?.reducers?.respawnAtSleepingBag(bagId);
           }}
           localPlayerIdentity={localPlayerId ?? null}
           sleepingBags={sleepingBagsById} // Pass converted map

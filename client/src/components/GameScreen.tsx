@@ -66,7 +66,7 @@ import {
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import { InteractionTarget } from '../hooks/useInteractionManager';
-import { DraggedItemInfo } from '../types/dragDropTypes';
+import { DraggedItemInfo, DragSourceSlotInfo } from '../types/dragDropTypes';
 
 // Import useSpeechBubbleManager hook
 import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
@@ -118,6 +118,10 @@ interface GameScreenProps {
     playerIdentity: Identity | null;
     connection: DbConnection | null;
     
+    // Predicted Position
+    predictedPosition: { x: number; y: number } | null;
+    canvasRef: React.RefObject<HTMLCanvasElement | null>;
+
     // Placement State/Actions (from usePlacementManager)
     placementInfo: PlacementItemInfo | null;
     placementActions: PlacementActions; // Pass whole object if GameCanvas needs more than cancel
@@ -132,20 +136,21 @@ interface GameScreenProps {
     // Drag/Drop Handlers (from useDragDropManager)
     draggedItemInfo: DraggedItemInfo | null;
     onItemDragStart: (info: DraggedItemInfo) => void;
-    onItemDrop: (targetSlotInfo: any | null) => void; // Use appropriate type if known
+    onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void;
 
     // Reducer Actions (from usePlayerActions)
-    updatePlayerPosition: (moveX: number, moveY: number) => void;
-    callJumpReducer: () => void;
-    callSetSprintingReducer: (isSprinting: boolean) => void;
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
     isChatting: boolean;
-    setIsChatting: (isChatting: boolean) => void;
+    setIsChatting: React.Dispatch<React.SetStateAction<boolean>>;
 
     // Additional props
     projectiles: Map<string, SpacetimeDBProjectile>;
     deathMarkers: Map<string, SpacetimeDBDeathMarker>;
+    setIsCraftingSearchFocused: React.Dispatch<React.SetStateAction<boolean>>;
+    isCraftingSearchFocused: boolean;
+    onToggleAutoWalk: () => void;
+    isAutoWalking: boolean;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -173,10 +178,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         messages,
         activeConnections,
         localPlayerId, playerIdentity, connection,
+        predictedPosition, canvasRef,
         placementInfo, placementActions, placementError, startPlacement, cancelPlacement,
         interactingWith, handleSetInteractingWith,
         draggedItemInfo, onItemDragStart, onItemDrop,
-        updatePlayerPosition, callJumpReducer: jump, callSetSprintingReducer: setSprinting,
         isMinimapOpen,
         setIsMinimapOpen,
         isChatting,
@@ -188,6 +193,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         rangedWeaponStats,
         projectiles,
         deathMarkers,
+        setIsCraftingSearchFocused,
+        isCraftingSearchFocused,
+        onToggleAutoWalk,
+        isAutoWalking,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -202,9 +211,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // Use our custom hook to get camera offsets
     const { cameraOffsetX, cameraOffsetY } = useSpeechBubbleManager(localPlayer);
-
-    // Added state
-    const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
 
     // Derive activeItemDef for TargetingReticle
     const localPlayerActiveEquipment = localPlayerId ? activeEquipments.get(localPlayerId) : undefined;
@@ -272,7 +278,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             <GameMenuButton onClick={handleMenuOpen} />
             
             {/* Auto-Action Status Indicators */}
-            {(autoActionStates.isAutoAttacking || autoActionStates.isAutoWalking) && (
+            {(autoActionStates.isAutoAttacking || isAutoWalking) && (
                 <div style={{
                     position: 'fixed',
                     top: '70px', // Position below DayNightCycleTracker (which is at 15px)
@@ -301,7 +307,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             ⚔️ AUTO ATTACK (Z)
                         </div>
                     )}
-                    {autoActionStates.isAutoWalking && (
+                    {isAutoWalking && (
                         <div style={{
                             backgroundColor: 'rgba(40, 40, 60, 0.85)', // Same as DayNightCycleTracker
                             color: 'white',
@@ -402,13 +408,11 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeConnections={activeConnections}
                 localPlayerId={localPlayerId}
                 connection={connection}
+                predictedPosition={predictedPosition}
                 placementInfo={placementInfo}
                 placementActions={placementActions}
                 placementError={placementError}
                 onSetInteractingWith={handleSetInteractingWith}
-                updatePlayerPosition={updatePlayerPosition}
-                callJumpReducer={jump}
-                callSetSprintingReducer={setSprinting}
                 isMinimapOpen={isMinimapOpen}
                 setIsMinimapOpen={setIsMinimapOpen}
                 isChatting={isChatting}
@@ -418,7 +422,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 showInventory={showInventoryState}
                 grass={grass}
                 worldTiles={worldTiles}
-                gameCanvasRef={gameCanvasRef}
+                gameCanvasRef={canvasRef}
                 projectiles={projectiles}
                 deathMarkers={deathMarkers}
                 shelters={shelters}
@@ -426,6 +430,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 minimapCache={minimapCache}
                 isGameMenuOpen={currentMenu !== null}
                 onAutoActionStatesChange={handleAutoActionStatesChange}
+                onToggleAutoWalk={onToggleAutoWalk}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -486,7 +491,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 playerIdentity={playerIdentity}
                 activeItemDef={activeItemDef}
                 rangedWeaponStats={rangedWeaponStats || new Map()}
-                gameCanvasRef={gameCanvasRef}
+                gameCanvasRef={canvasRef}
                 cameraOffsetX={cameraOffsetX}
                 cameraOffsetY={cameraOffsetY}
             />

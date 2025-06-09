@@ -10,9 +10,11 @@ interface GameViewportResult {
 /**
  * Manages canvas size based on window dimensions and calculates camera offset.
  * @param localPlayer - The current local player data, or null/undefined if not available.
+ * @param smoothedPosition - The smoothed/predicted position to center the camera on.
  */
 export function useGameViewport(
-    localPlayer: SpacetimeDBPlayer | null | undefined
+    localPlayer: SpacetimeDBPlayer | null | undefined,
+    smoothedPosition?: { x: number; y: number } | null
 ): GameViewportResult {
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
@@ -30,14 +32,18 @@ export function useGameViewport(
     return () => window.removeEventListener('resize', handleResize);
   }, []); // Empty dependency array means this effect runs once on mount and cleanup on unmount
 
-  // Calculate camera offset based on player position and canvas size
+  // Calculate camera offset based on smoothed position (if available) or fallback to player position
   const cameraOffsetX = useMemo(() => {
-    return localPlayer ? (canvasSize.width / 2 - localPlayer.positionX) : 0;
-  }, [localPlayer, canvasSize.width]);
+    if (!localPlayer) return 0;
+    const targetX = smoothedPosition ? smoothedPosition.x : localPlayer.positionX;
+    return canvasSize.width / 2 - targetX;
+  }, [localPlayer, smoothedPosition, canvasSize.width]);
 
   const cameraOffsetY = useMemo(() => {
-    return localPlayer ? (canvasSize.height / 2 - localPlayer.positionY) : 0;
-  }, [localPlayer, canvasSize.height]);
+    if (!localPlayer) return 0;
+    const targetY = smoothedPosition ? smoothedPosition.y : localPlayer.positionY;
+    return canvasSize.height / 2 - targetY;
+  }, [localPlayer, smoothedPosition, canvasSize.height]);
 
   return {
     canvasSize,

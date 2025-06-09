@@ -113,7 +113,10 @@ interface RenderYSortedEntitiesProps {
         heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
         heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
-    localPlayerPosition?: { x: number; y: number } | null;
+    localPlayerPosition?: { x: number; y: number } | null; // This is the predicted position
+    remotePlayerInterpolation?: {
+        updateAndGetSmoothedPosition: (player: any, localPlayerId?: string) => { x: number; y: number };
+    };
 }
 
 /**
@@ -144,6 +147,7 @@ export const renderYSortedEntities = ({
     playerDodgeRollStates,
     renderPlayerCorpse: renderCorpse,
     localPlayerPosition,
+    remotePlayerInterpolation,
 }: RenderYSortedEntitiesProps) => {
 
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
@@ -152,105 +156,98 @@ export const renderYSortedEntities = ({
         if (type === 'player') {
             const player = entity as SpacetimeDBPlayer;
             const playerId = player.identity.toHexString();
+            const isLocalPlayer = localPlayerId === playerId;
 
-            // ##### ADD LOGGING HERE #####
-            if (localPlayerId && playerId === localPlayerId) {
-              const currentIsDead = player.isDead;
-              const currentLastHitTimeEpoch = player.lastHitTime ? player.lastHitTime.__timestamp_micros_since_unix_epoch__.toString() : null;
-
-              const cachedState = playerDebugStateCache.get(playerId);
-              const prevIsDead = cachedState?.prevIsDead;
-              const prevLastHitTimeEpoch = cachedState?.prevLastHitTime;
-
-              if (currentIsDead !== prevIsDead || 
-                  (!currentIsDead && currentLastHitTimeEpoch !== prevLastHitTimeEpoch)) {
-                // console.log(`[renderingUtils] LocalPlayer State Change: ${player.username} (ID: ${playerId}). ` +
-                //             `isDead: ${currentIsDead} (was: ${prevIsDead}), ` +
-                //             `lastHitTime: ${currentLastHitTimeEpoch} (was: ${prevLastHitTimeEpoch})`);
-                // playerDebugStateCache.set(playerId, { 
-                //   prevIsDead: currentIsDead, 
-                //   prevLastHitTime: currentLastHitTimeEpoch 
-                // });
-              }
+            // Create a modified player object with appropriate position system
+            let playerForRendering = player;
+            if (isLocalPlayer && localPlayerPosition) {
+                // Local player uses predicted position
+                playerForRendering = {
+                    ...player,
+                    positionX: localPlayerPosition.x,
+                    positionY: localPlayerPosition.y
+                };
+            } else if (!isLocalPlayer && remotePlayerInterpolation) {
+                // Remote players use interpolated position between server updates
+                const interpolatedPosition = remotePlayerInterpolation.updateAndGetSmoothedPosition(player, localPlayerId);
+                playerForRendering = {
+                    ...player,
+                    positionX: interpolatedPosition.x,
+                    positionY: interpolatedPosition.y
+                };
             }
-            // ##########################
 
-           const lastPos = lastPositionsRef.current.get(playerId);
-           let isPlayerMoving = false;
-           let movementReason = 'none'; // Debug: track why player is considered moving
+            const lastPos = lastPositionsRef.current.get(playerId);
+            let isPlayerMoving = false;
+            let movementReason = 'none';
            
-           // === DODGE ROLL DETECTION ===
-           const isDodgeRolling = detectDodgeRoll(playerId, player, lastPos || null, nowMs, playerDodgeRollStates);
-           if (isDodgeRolling) {
-               movementReason = 'dodge_rolling';
-               isPlayerMoving = true;
-           }
+            // === DODGE ROLL DETECTION ===
+            const isDodgeRolling = detectDodgeRoll(playerId, playerForRendering, lastPos || null, nowMs, playerDodgeRollStates);
+            if (isDodgeRolling) {
+                movementReason = 'dodge_rolling';
+                isPlayerMoving = true;
+            }
            
-           // Update ghost trail for dodge roll effects
-           updateGhostTrail(playerId, player, nowMs, isDodgeRolling);
+            // Update ghost trail for dodge roll effects (use playerForRendering for consistent positioning)
+            updateGhostTrail(playerId, playerForRendering, nowMs, isDodgeRolling);
            
-           // Debug logging for local player dodge roll detection
-        //    if (localPlayerId && playerId === localPlayerId && isDodgeRolling) {
-        //        console.log(`[renderingUtils] Local player ${player.username} dodge rolling detected at (${player.positionX.toFixed(1)}, ${player.positionY.toFixed(1)})`);
-        //    }
+            // Get or create movement cache for this player
+            let movementCache = playerMovementCache.get(playerId);
+            if (!movementCache) {
+                movementCache = {
+                    lastMovementTime: 0,
+                    isCurrentlyMoving: false,
+                    lastKnownPosition: null
+                };
+                playerMovementCache.set(playerId, movementCache);
+            }
            
-           // Get or create movement cache for this player
-           let movementCache = playerMovementCache.get(playerId);
-           if (!movementCache) {
-               movementCache = {
-                   lastMovementTime: 0,
-                   isCurrentlyMoving: false,
-                   lastKnownPosition: null
-               };
-               playerMovementCache.set(playerId, movementCache);
-           }
-           
-           // Check for actual position changes (skip if already detected dodge rolling)
-           let hasPositionChanged = false;
-           if (!isDodgeRolling && lastPos) {
-                const dx = Math.abs(player.positionX - lastPos.x);
-                const dy = Math.abs(player.positionY - lastPos.y);
+            // Check for actual position changes (skip if already detected dodge rolling)
+            let hasPositionChanged = false;
+            if (!isDodgeRolling && lastPos) {
+                const dx = Math.abs(playerForRendering.positionX - lastPos.x);
+                const dy = Math.abs(playerForRendering.positionY - lastPos.y);
                 // Use a smaller threshold (0.1) but with smoothing
                 if (dx > 0.1 || dy > 0.1) {
                     hasPositionChanged = true;
                 }
-           }
+            }
            
-           // Update movement cache if position changed
-           if (hasPositionChanged) {
-               movementCache.lastMovementTime = nowMs;
-               movementCache.isCurrentlyMoving = true;
-               isPlayerMoving = true;
-               movementReason = 'position_change';
-           } else if (isDodgeRolling) {
-               // Dodge rolling was already detected above, keep movement active
-               movementCache.lastMovementTime = nowMs;
-               movementCache.isCurrentlyMoving = true;
-               // isPlayerMoving and movementReason already set above
-           } else {
-               // Check if we're still in the movement buffer period
-               const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
-               if (timeSinceLastMovement < MOVEMENT_BUFFER_MS) {
-                   isPlayerMoving = true;
-                   movementReason = `movement_buffer(${timeSinceLastMovement}ms)`;
-               } else {
-                   movementCache.isCurrentlyMoving = false;
-               }
-           }
+            // Update movement cache if position changed
+            if (hasPositionChanged) {
+                movementCache.lastMovementTime = nowMs;
+                movementCache.isCurrentlyMoving = true;
+                isPlayerMoving = true;
+                movementReason = 'position_change';
+            } else if (isDodgeRolling) {
+                // Dodge rolling was already detected above, keep movement active
+                movementCache.lastMovementTime = nowMs;
+                movementCache.isCurrentlyMoving = true;
+                // isPlayerMoving and movementReason already set above
+            } else {
+                // Check if we're still in the movement buffer period
+                const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
+                if (timeSinceLastMovement < MOVEMENT_BUFFER_MS) {
+                    isPlayerMoving = true;
+                    movementReason = `movement_buffer(${timeSinceLastMovement}ms)`;
+                } else {
+                    movementCache.isCurrentlyMoving = false;
+                }
+            }
            
-           // If position-based detection fails, check if player is actively sprinting
-           if (!isPlayerMoving && player.isSprinting) {
-               movementCache.lastMovementTime = nowMs;
-               movementCache.isCurrentlyMoving = true;
-               isPlayerMoving = true;
-               movementReason = 'sprinting';
-           }
+            // If position-based detection fails, check if player is actively sprinting
+            if (!isPlayerMoving && playerForRendering.isSprinting) {
+                movementCache.lastMovementTime = nowMs;
+                movementCache.isCurrentlyMoving = true;
+                isPlayerMoving = true;
+                movementReason = 'sprinting';
+            }
            
-           lastPositionsRef.current.set(playerId, { x: player.positionX, y: player.positionY });
+            lastPositionsRef.current.set(playerId, { x: playerForRendering.positionX, y: playerForRendering.positionY });
 
            let jumpOffset = 0;
            let isCurrentlyJumping = false;
-           const jumpStartTime = player.jumpStartTimeMs;
+           const jumpStartTime = playerForRendering.jumpStartTimeMs;
            if (jumpStartTime > 0) {
                const elapsedJumpTime = nowMs - Number(jumpStartTime);
                 if (elapsedJumpTime < 500) { 
@@ -260,14 +257,14 @@ export const renderYSortedEntities = ({
                }
            }
            
-           const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, player);
+           const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
            // Choose sprite based on crouching state first, then water status, but don't switch to water sprite while jumping
            let heroImg: HTMLImageElement | null;
-           if (player.isCrouching) {
+           if (playerForRendering.isCrouching) {
                heroImg = heroCrouchImageRef.current; // Use crouch sprite when crouching
-           } else if (player.isOnWater && !isCurrentlyJumping) {
+           } else if (playerForRendering.isOnWater && !isCurrentlyJumping) {
                heroImg = heroWaterImageRef.current; // Use water sprite when on water (but not jumping)
            } else {
                heroImg = heroImageRef.current; // Use normal sprite otherwise
@@ -294,20 +291,20 @@ export const renderYSortedEntities = ({
            const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
            
             // Determine rendering order based on player direction
-            if (player.direction === 'up' || player.direction === 'left') {
+            if (playerForRendering.direction === 'up' || playerForRendering.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
               
               // Render ghost trail BEFORE everything else for these directions
               if (heroImg && isDodgeRolling) {
-                  renderGhostTrail(ctx, playerId, heroImg, player);
+                  renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
               }
               
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+                    renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
               if (heroImg) {
                 renderPlayer(
-                        ctx, player, heroImg, isOnline, 
+                        ctx, playerForRendering, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
                   animationFrame, 
@@ -324,7 +321,7 @@ export const renderYSortedEntities = ({
                 // For DOWN or RIGHT, item should be rendered ABOVE the player
               if (heroImg) {
                 renderPlayer(
-                        ctx, player, heroImg, isOnline, 
+                        ctx, playerForRendering, heroImg, isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
                   animationFrame, 
@@ -338,12 +335,12 @@ export const renderYSortedEntities = ({
                 );
               }
               if (canRenderItem && equipment) {
-                    renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+                    renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
               
               // Render ghost trail AFTER everything else for these directions
               if (heroImg && isDodgeRolling) {
-                  renderGhostTrail(ctx, playerId, heroImg, player);
+                  renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
               }
            }
         } else if (type === 'tree') {
