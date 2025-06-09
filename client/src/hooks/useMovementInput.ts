@@ -1,18 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Player } from '../generated';
 
+// Convert player direction string to normalized movement vector
 const getDirectionVector = (direction: string): { dx: number; dy: number } => {
-    switch (direction) {
-        case 'up': return { dx: 0, dy: -1 };
-        case 'down': return { dx: 0, dy: 1 };
-        case 'left': return { dx: -1, dy: 0 };
-        case 'right': return { dx: 1, dy: 0 };
-        case 'up-left': return { dx: -1, dy: -1 };
-        case 'up-right': return { dx: 1, dy: -1 };
-        case 'down-left': return { dx: -1, dy: 1 };
-        case 'down-right': return { dx: 1, dy: 1 };
-        default: return { dx: 0, dy: 1 }; // Default to down
-    }
+  switch (direction) {
+    case 'up': return { dx: 0, dy: -1 };
+    case 'down': return { dx: 0, dy: 1 };
+    case 'left': return { dx: -1, dy: 0 };
+    case 'right': return { dx: 1, dy: 0 };
+    default: return { dx: 0, dy: 0 };
+  }
 };
 
 export interface MovementInputState {
