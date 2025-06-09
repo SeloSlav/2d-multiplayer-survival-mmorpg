@@ -7,6 +7,10 @@ const ARROW_SPRITE_OFFSET_Y = 0; // Pixels to offset drawing from calculated cen
 
 const GRAVITY: number = 600.0; // Same as server-side
 
+// --- Client-side animation tracking for projectiles ---
+const clientProjectileStartTimes = new Map<string, number>(); // projectileId -> client timestamp when projectile started
+const lastKnownServerProjectileTimes = new Map<string, number>(); // projectileId -> last known server timestamp
+
 interface RenderProjectileProps {
   ctx: CanvasRenderingContext2D;
   projectile: SpacetimeDBProjectile;
@@ -25,10 +29,51 @@ export const renderProjectile = ({
     return;
   }
 
-  // More precise timing calculation with microsecond precision
-  const startTimeMicros = Number(projectile.startTime.microsSinceUnixEpoch);
-  const currentTimeMicros = currentTimeMs * 1000; // Convert ms to microseconds
-  const elapsedTimeSeconds = (currentTimeMicros - startTimeMicros) / 1_000_000.0;
+  const projectileId = projectile.id.toString();
+  const serverStartTimeMicros = Number(projectile.startTime.microsSinceUnixEpoch);
+  const serverStartTimeMs = serverStartTimeMicros / 1000;
+  
+  // Check if this is a NEW projectile by comparing server timestamps
+  const lastKnownServerTime = lastKnownServerProjectileTimes.get(projectileId) || 0;
+  let elapsedTimeSeconds = 0;
+  
+  if (serverStartTimeMs !== lastKnownServerTime) {
+    // NEW projectile detected! Record both server time and client time
+    console.log(`🏹 [CLIENT PROJECTILE] NEW projectile detected:`, {
+      projectileId,
+      serverStartTimeMs,
+      clientTimeMs: currentTimeMs,
+      timeDiff: currentTimeMs - serverStartTimeMs
+    });
+    lastKnownServerProjectileTimes.set(projectileId, serverStartTimeMs);
+    clientProjectileStartTimes.set(projectileId, currentTimeMs);
+    elapsedTimeSeconds = 0;
+  } else {
+    // Use client-tracked time for position calculation
+    const clientStartTime = clientProjectileStartTimes.get(projectileId);
+    if (clientStartTime) {
+      const elapsedClientMs = currentTimeMs - clientStartTime;
+      elapsedTimeSeconds = elapsedClientMs / 1000;
+      
+      console.log(`🏹 [CLIENT PROJECTILE] Animation check:`, {
+        projectileId: projectileId.substring(0, 8),
+        elapsedClientMs,
+        elapsedTimeSeconds: elapsedTimeSeconds.toFixed(3),
+        isVisible: elapsedTimeSeconds >= 0
+      });
+    } else {
+      // Fallback to server time if no client tracking (shouldn't happen normally)
+      console.warn(`🏹 [CLIENT PROJECTILE] No client tracking for projectile ${projectileId}, using server time`);
+      const currentTimeMicros = currentTimeMs * 1000;
+      elapsedTimeSeconds = (currentTimeMicros - serverStartTimeMicros) / 1_000_000.0;
+    }
+  }
+  
+  // Don't render if projectile hasn't started yet
+  if (elapsedTimeSeconds < 0) {
+    console.log(`🏹 [CLIENT PROJECTILE] Projectile ${projectileId.substring(0, 8)} not ready yet (${elapsedTimeSeconds.toFixed(3)}s)`);
+    return;
+  }
   
   // Check if this is a thrown item (ammo_def_id == item_def_id)
   const isThrown = projectile.ammoDefId === projectile.itemDefId;
