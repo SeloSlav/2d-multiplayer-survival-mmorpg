@@ -32,8 +32,7 @@ export default defineConfig({
   },
   // Enable experimental features for better performance
   esbuild: {
-    // Temporarily allow console.log in production for debugging swing animations
-    // drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
-    drop: [], // Allow all console logs for debugging
+    // Remove console logs in production for better performance
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
   }
 })

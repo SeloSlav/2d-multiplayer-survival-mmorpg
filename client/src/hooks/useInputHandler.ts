@@ -313,23 +313,15 @@ export const useInputHandler = ({
 
         // Attempt the swing for non-bandage items
         try {
-            console.log(`⚔️ [ATTACK ACTION] Calling useEquippedItem for local player:`, {
-                playerId: localPlayerId?.substring(0, 8),
-                itemName: itemDef.name,
-                attackInterval: attackIntervalMs,
-                swingStartTimeMs: localEquipment.swingStartTimeMs,
-                timestamp: now
-            });
             currentConnection.reducers.useEquippedItem();
             lastClientSwingAttemptRef.current = now;
             // Optimistically update server swing timestamp here, assuming the server call will succeed
             // The server will update its PlayerLastAttackTimestamp, which we don't directly read here.
-            // The localEquipment.swingStartTimeMs will be updated when the ActiveEquipment table syncs.
+            // The localEquipment.swingStartTimeMs will be updated when the ActiveEquipment row changes server-side.
             // For immediate client feedback, we rely on our lastServerSwingTimestampRef.
-            // When ActiveEquipment table updates with new swingStartTimeMs from server, that's the source of truth.
             lastServerSwingTimestampRef.current = now; 
-        } catch (err) { // Use unknown type for error
-            console.error("[AttemptSwing] Error calling useEquippedItem reducer:", err);
+        } catch (error) {
+            console.error("[ATTACK ACTION] Error calling useEquippedItem:", error);
         }
     }, [localPlayerId, isPlayerDead, isInventoryOpen]); // Added isInventoryOpen to dependencies
 

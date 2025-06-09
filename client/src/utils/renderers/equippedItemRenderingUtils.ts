@@ -294,9 +294,6 @@ export const renderEquippedItem = (
   let currentAngle = 0; 
   let thrustDistance = 0; 
 
-  // Debug log for the local player only
-  const isLocalPlayer = localPlayerId && playerId === localPlayerId;
-
   // Check if this is a NEW swing by comparing server timestamps
   if (swingStartTime > 0) {
     const clientStartTime = clientSwingStartTimes.get(playerId);
@@ -304,30 +301,12 @@ export const renderEquippedItem = (
     
     if (swingStartTime !== lastKnownServerTime) {
       // NEW swing detected! Record both server time and client time
-      if (isLocalPlayer) {
-        console.log(`⚔️ [CLIENT ANIMATION] NEW SWING DETECTED for local player:`, {
-          playerId: playerId.substring(0, 8),
-          serverSwingTime: swingStartTime,
-          lastKnownServerTime,
-          clientTimeNow: now_ms,
-          itemName: itemDef.name
-        });
-      }
       lastKnownServerSwingTimes.set(playerId, swingStartTime);
       clientSwingStartTimes.set(playerId, now_ms);
       elapsedSwingTime = 0;
     } else if (clientStartTime) {
       // Use client-tracked time for animation
       elapsedSwingTime = now_ms - clientStartTime;
-      if (isLocalPlayer) {
-        console.log(`⚔️ [CLIENT ANIMATION] Swing animation check:`, {
-          playerId: playerId.substring(0, 8),
-          elapsedSwingTime,
-          SWING_DURATION_MS,
-          isWithinDuration: elapsedSwingTime < SWING_DURATION_MS,
-          itemName: itemDef.name
-        });
-      }
     }
   } else {
     // Clean up tracking for this player if no active swing
