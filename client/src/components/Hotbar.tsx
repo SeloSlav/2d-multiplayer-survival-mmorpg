@@ -31,6 +31,10 @@ interface WeaponCooldownState {
   duration: number;
 }
 
+// --- Client-side animation tracking for weapon cooldowns ---
+const clientWeaponCooldownStartTimes = new Map<string, number>(); // weaponInstanceId -> client timestamp when cooldown started
+const lastKnownServerWeaponCooldownTimes = new Map<string, number>(); // weaponInstanceId -> last known server timestamp
+
 // Update HotbarProps
 interface HotbarProps {
   playerIdentity: Identity | null;
@@ -154,83 +158,104 @@ const Hotbar: React.FC<HotbarProps> = ({
 
   // Effect to track weapon cooldowns based on activeEquipment swingStartTimeMs - simplified
   useEffect(() => {
-    // console.log('[Hotbar] Weapon cooldown useEffect triggered. activeEquipment:', activeEquipment);
-    
     if (!activeEquipment || !playerIdentity) {
-      // console.log('[Hotbar] No activeEquipment or playerIdentity, skipping weapon cooldown tracking');
       return;
     }
 
-    const now = Date.now();
-    const swingStartTime = Number(activeEquipment.swingStartTimeMs);
+    const serverSwingTime = Number(activeEquipment.swingStartTimeMs);
     
-    // console.log('[Hotbar] Weapon cooldown check - swingStartTime:', swingStartTime, 'now:', now, 'diff:', now - swingStartTime);
-    
-    // Only process if there was a recent swing (within last 10 seconds to avoid stale data)
-    if (swingStartTime > 0 && (now - swingStartTime) < 10000) {
-      // console.log('[Hotbar] Recent swing detected, checking for equipped item...');
-      
+    // Only process if there was a swing
+    if (serverSwingTime > 0) {
       // Find which hotbar slot contains the equipped item
       if (activeEquipment.equippedItemInstanceId) {
-        // console.log('[Hotbar] Looking for equipped item with ID:', activeEquipment.equippedItemInstanceId);
+        const weaponInstanceId = activeEquipment.equippedItemInstanceId.toString();
         
-        for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
-          const itemInSlot = findItemForSlot(slotIndex);
-          if (itemInSlot) {
-            // console.log(`[Hotbar] Slot ${slotIndex}: ${itemInSlot.definition.name} (ID: ${itemInSlot.instance.instanceId})`);
-            
-            if (BigInt(itemInSlot.instance.instanceId) === activeEquipment.equippedItemInstanceId) {
-              // console.log(`[Hotbar] Found equipped item in slot ${slotIndex}: ${itemInSlot.definition.name}`);
+        // Check if this is a NEW swing by comparing server timestamps
+        const lastKnownServerTime = lastKnownServerWeaponCooldownTimes.get(weaponInstanceId) || 0;
+        
+        if (serverSwingTime !== lastKnownServerTime) {
+          // NEW swing detected! Record both server time and client time
+          lastKnownServerWeaponCooldownTimes.set(weaponInstanceId, serverSwingTime);
+          
+          for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
+            const itemInSlot = findItemForSlot(slotIndex);
+            if (itemInSlot && BigInt(itemInSlot.instance.instanceId) === activeEquipment.equippedItemInstanceId) {
               
               if (isWeaponWithCooldown(itemInSlot.definition)) {
-                // console.log(`[Hotbar] Item is weapon with cooldown. attackIntervalSecs:`, itemInSlot.definition.attackIntervalSecs);
-                
                 const attackIntervalMs = (itemInSlot.definition.attackIntervalSecs || 0) * 1000;
-                const cooldownEndTime = swingStartTime + attackIntervalMs;
+                const clientStartTime = Date.now();
                 
-                // console.log(`[Hotbar] Cooldown timing - start: ${swingStartTime}, duration: ${attackIntervalMs}ms, end: ${cooldownEndTime}, now: ${now}`);
+                // Record client start time for this weapon
+                clientWeaponCooldownStartTimes.set(weaponInstanceId, clientStartTime);
                 
-                // Only start cooldown if it's still active
-                if (now < cooldownEndTime) {
-                  // console.log(`[Hotbar] Starting weapon cooldown for ${itemInSlot.definition.name} in slot ${slotIndex}, duration: ${attackIntervalMs}ms`);
-                  
-                  // Clear any existing weapon cooldown
-                  if (weaponCooldownTimeoutRef.current) {
-                    clearTimeout(weaponCooldownTimeoutRef.current);
-                  }
-                  
-                  // Start weapon cooldown using the same pattern as consumables
-                  setIsWeaponCooldownActive(true);
-                  setWeaponCooldownStartTime(swingStartTime);
-                  setWeaponCooldownProgress(0);
-                  setWeaponCooldownDuration(attackIntervalMs);
-                  setWeaponCooldownSlot(slotIndex);
-                  
-                  // Set timeout to clear weapon cooldown when it expires
-                  const remainingTime = cooldownEndTime - now;
-                  weaponCooldownTimeoutRef.current = setTimeout(() => {
-                    // console.log('[Hotbar] Weapon cooldown timeout completed for slot:', slotIndex);
-                    setIsWeaponCooldownActive(false);
-                    setWeaponCooldownStartTime(null);
-                    setWeaponCooldownProgress(0);
-                    setWeaponCooldownSlot(null);
-                  }, remainingTime);
-                  
-                } else {
-                  // console.log('[Hotbar] Cooldown already expired, not starting animation');
+                // Clear any existing weapon cooldown
+                if (weaponCooldownTimeoutRef.current) {
+                  clearTimeout(weaponCooldownTimeoutRef.current);
                 }
-              } else {
-                // console.log(`[Hotbar] Item ${itemInSlot.definition.name} is not a weapon with cooldown`);
+                
+                // Start weapon cooldown using client time
+                setIsWeaponCooldownActive(true);
+                setWeaponCooldownStartTime(clientStartTime);
+                setWeaponCooldownProgress(0);
+                setWeaponCooldownDuration(attackIntervalMs);
+                setWeaponCooldownSlot(slotIndex);
+                
+                // Set timeout to clear weapon cooldown when it expires
+                weaponCooldownTimeoutRef.current = setTimeout(() => {
+                  setIsWeaponCooldownActive(false);
+                  setWeaponCooldownStartTime(null);
+                  setWeaponCooldownProgress(0);
+                  setWeaponCooldownSlot(null);
+                }, attackIntervalMs);
+                
               }
               break;
             }
           }
+        } else {
+          // Same server timestamp, check if we have a client-side cooldown in progress
+          const weaponInstanceId = activeEquipment.equippedItemInstanceId.toString();
+          const clientStartTime = clientWeaponCooldownStartTimes.get(weaponInstanceId);
+          
+          if (clientStartTime) {
+            // Continue existing cooldown with client timing
+            const elapsedTime = Date.now() - clientStartTime;
+            
+            // Find the weapon in hotbar to get its cooldown duration
+            for (let slotIndex = 0; slotIndex < numSlots; slotIndex++) {
+              const itemInSlot = findItemForSlot(slotIndex);
+              if (itemInSlot && BigInt(itemInSlot.instance.instanceId) === activeEquipment.equippedItemInstanceId) {
+                
+                if (isWeaponWithCooldown(itemInSlot.definition)) {
+                  const attackIntervalMs = (itemInSlot.definition.attackIntervalSecs || 0) * 1000;
+                  
+                  // Only continue if cooldown should still be active
+                  if (elapsedTime < attackIntervalMs) {
+                    setIsWeaponCooldownActive(true);
+                    setWeaponCooldownStartTime(clientStartTime);
+                    setWeaponCooldownProgress(elapsedTime / attackIntervalMs);
+                    setWeaponCooldownDuration(attackIntervalMs);
+                    setWeaponCooldownSlot(slotIndex);
+                    
+                    // Set timeout for remaining time
+                    const remainingTime = attackIntervalMs - elapsedTime;
+                    if (weaponCooldownTimeoutRef.current) {
+                      clearTimeout(weaponCooldownTimeoutRef.current);
+                    }
+                    weaponCooldownTimeoutRef.current = setTimeout(() => {
+                      setIsWeaponCooldownActive(false);
+                      setWeaponCooldownStartTime(null);
+                      setWeaponCooldownProgress(0);
+                      setWeaponCooldownSlot(null);
+                    }, remainingTime);
+                  }
+                }
+                break;
+              }
+            }
+          }
         }
-      } else {
-        // console.log('[Hotbar] No equippedItemInstanceId in activeEquipment');
       }
-    } else {
-      // console.log('[Hotbar] No recent swing or invalid swingStartTime');
     }
   }, [activeEquipment, findItemForSlot, isWeaponWithCooldown, playerIdentity, numSlots]);
 
