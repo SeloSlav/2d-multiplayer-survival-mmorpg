@@ -277,7 +277,7 @@ export const renderPlayer = (
   let isCurrentlyJumping = false;
   if (!isCorpse && player.jumpStartTimeMs && player.jumpStartTimeMs > 0) {
     const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
-    if (elapsedJumpTime < 500) {
+    if (elapsedJumpTime < 800) { // Increased from 500ms for better production reliability
       isCurrentlyJumping = true;
     }
   }

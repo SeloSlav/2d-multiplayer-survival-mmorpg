@@ -2,7 +2,7 @@ import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipm
 import { gameConfig } from '../../config/gameConfig';
 
 // --- Constants (copied from GameCanvas for now, consider moving to config) ---
-const SWING_DURATION_MS = 150;
+const SWING_DURATION_MS = 300;
 const SWING_ANGLE_MAX_RAD = Math.PI / 2.5;
 const SLASH_COLOR = 'rgba(255, 255, 255, 0.4)';
 const SLASH_LINE_WIDTH = 4;
@@ -288,6 +288,17 @@ export const renderEquippedItem = (
   const elapsedSwingTime = now_ms - swingStartTime;
   let currentAngle = 0; 
   let thrustDistance = 0; 
+
+  // Debug logging for production issues
+  if (localPlayerId && player.identity.toHexString() === localPlayerId && swingStartTime > 0) {
+    console.log(`[DEBUG] Swing animation check:`, {
+      swingStartTime,
+      elapsedSwingTime,
+      now_ms,
+      isWithinDuration: elapsedSwingTime < SWING_DURATION_MS,
+      itemName: itemDef.name
+    });
+  }
 
   if (elapsedSwingTime < SWING_DURATION_MS) {
       isSwinging = true; 

@@ -62,7 +62,7 @@ export const gameConfig = {
 export const MOVEMENT_POSITION_THRESHOLD = 0.1; // Small threshold to account for float precision
 
 // --- Jump Constants ---
-export const JUMP_DURATION_MS = 400; // Total duration of the jump animation
+export const JUMP_DURATION_MS = 800; // Total duration of the jump animation (increased for production reliability)
 export const JUMP_HEIGHT_PX = 40; // Maximum height the player reaches
 
 // --- Stat Thresholds (must match server/player_stats.rs) ---

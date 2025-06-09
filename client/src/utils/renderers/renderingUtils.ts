@@ -248,12 +248,25 @@ export const renderYSortedEntities = ({
            let jumpOffset = 0;
            let isCurrentlyJumping = false;
            const jumpStartTime = playerForRendering.jumpStartTimeMs;
+           
            if (jumpStartTime > 0) {
                const elapsedJumpTime = nowMs - Number(jumpStartTime);
-                if (elapsedJumpTime < 500) { 
-                    const t = elapsedJumpTime / 500;
-                    jumpOffset = Math.sin(t * Math.PI) * 50;
-                    isCurrentlyJumping = true; // Player is mid-jump
+               
+               // Debug logging for production issues
+               if (isLocalPlayer) {
+                   console.log(`[DEBUG] Jump animation check:`, {
+                       jumpStartTime,
+                       elapsedJumpTime,
+                       nowMs,
+                       isWithinDuration: elapsedJumpTime < 800,
+                       playerId: playerId
+                   });
+               }
+               
+               if (elapsedJumpTime < 800) { // Increased from 500ms for better production reliability
+                   const t = elapsedJumpTime / 800; // Update divisor to match new duration
+                   jumpOffset = Math.sin(t * Math.PI) * 50;
+                   isCurrentlyJumping = true; // Player is mid-jump
                }
            }
            

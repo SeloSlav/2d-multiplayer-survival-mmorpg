@@ -354,6 +354,15 @@ const Hotbar: React.FC<HotbarProps> = ({
 
     console.log('[Hotbar] Starting animation on slot:', slotToAnimate, 'Duration:', timeoutDuration, 'ms. Item:', itemForAnimation.definition.name);
 
+    // ADD PRODUCTION DEBUG LOGGING
+    console.log('[DEBUG] Hotbar animation state before setting:', {
+      isVisualCooldownActive,
+      visualCooldownStartTime,
+      animationProgress,
+      cooldownSlot,
+      currentTime: Date.now()
+    });
+
     setIsVisualCooldownActive(true);
     setVisualCooldownStartTime(Date.now());
     setAnimationProgress(0);
