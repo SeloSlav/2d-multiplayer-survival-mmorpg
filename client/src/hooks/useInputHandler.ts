@@ -313,6 +313,13 @@ export const useInputHandler = ({
 
         // Attempt the swing for non-bandage items
         try {
+            console.log(`⚔️ [ATTACK ACTION] Calling useEquippedItem for local player:`, {
+                playerId: localPlayerId?.substring(0, 8),
+                itemName: itemDef.name,
+                attackInterval: attackIntervalMs,
+                swingStartTimeMs: localEquipment.swingStartTimeMs,
+                timestamp: now
+            });
             currentConnection.reducers.useEquippedItem();
             lastClientSwingAttemptRef.current = now;
             // Optimistically update server swing timestamp here, assuming the server call will succeed

@@ -21,6 +21,7 @@ const SELO_OLIVE_OIL_WOBBLES = 8; // Fewer wobbles for a gentler shake (was 15)
 
 // --- Client-side animation tracking ---
 const clientSwingStartTimes = new Map<string, number>(); // playerId -> client timestamp when swing started
+const lastKnownServerSwingTimes = new Map<string, number>(); // playerId -> last known server timestamp for the swing
 
 // --- Helper Function for Rendering Equipped Item ---
 export const renderEquippedItem = (
@@ -293,22 +294,45 @@ export const renderEquippedItem = (
   let currentAngle = 0; 
   let thrustDistance = 0; 
 
-  // Check if this is a new swing by comparing server timestamp
+  // Debug log for the local player only
+  const isLocalPlayer = localPlayerId && playerId === localPlayerId;
+
+  // Check if this is a NEW swing by comparing server timestamps
   if (swingStartTime > 0) {
     const clientStartTime = clientSwingStartTimes.get(playerId);
+    const lastKnownServerTime = lastKnownServerSwingTimes.get(playerId) || 0;
     
-    if (!clientStartTime || Math.abs(swingStartTime - clientStartTime) > 1000) {
-      // New swing detected or no client record - record client time
+    if (swingStartTime !== lastKnownServerTime) {
+      // NEW swing detected! Record both server time and client time
+      if (isLocalPlayer) {
+        console.log(`⚔️ [CLIENT ANIMATION] NEW SWING DETECTED for local player:`, {
+          playerId: playerId.substring(0, 8),
+          serverSwingTime: swingStartTime,
+          lastKnownServerTime,
+          clientTimeNow: now_ms,
+          itemName: itemDef.name
+        });
+      }
+      lastKnownServerSwingTimes.set(playerId, swingStartTime);
       clientSwingStartTimes.set(playerId, now_ms);
       elapsedSwingTime = 0;
-    } else {
+    } else if (clientStartTime) {
       // Use client-tracked time for animation
       elapsedSwingTime = now_ms - clientStartTime;
+      if (isLocalPlayer) {
+        console.log(`⚔️ [CLIENT ANIMATION] Swing animation check:`, {
+          playerId: playerId.substring(0, 8),
+          elapsedSwingTime,
+          SWING_DURATION_MS,
+          isWithinDuration: elapsedSwingTime < SWING_DURATION_MS,
+          itemName: itemDef.name
+        });
+      }
     }
   } else {
-    // No active swing
+    // Clean up tracking for this player if no active swing
     clientSwingStartTimes.delete(playerId);
-    elapsedSwingTime = SWING_DURATION_MS + 1; // Ensure animation doesn't show
+    lastKnownServerSwingTimes.delete(playerId);
   }
 
   if (elapsedSwingTime < SWING_DURATION_MS) {

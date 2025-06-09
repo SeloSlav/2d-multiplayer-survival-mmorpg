@@ -595,6 +595,8 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
 
     let mut current_equipment_mut = current_equipment.clone(); // Clone to modify for swing time
     current_equipment_mut.swing_start_time_ms = now_ms;
+    log::info!("[SWING DEBUG] Updated equipment swing_start_time_ms for player {:?} to {} with item '{}'", 
+               sender_id, now_ms, item_def.name);
     active_equipments.player_identity().update(current_equipment_mut); // Update with new swing time
 
     // --- UPDATE LAST ATTACK TIMESTAMP ---
