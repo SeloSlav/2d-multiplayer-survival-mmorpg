@@ -351,11 +351,37 @@ export function useEntityFiltering(
       : []
   , [hemps, isEntityInView, viewBounds, currentTime]);
 
-  const visibleProjectiles = useMemo(() => 
-    projectiles ? Array.from(projectiles.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
-    : [],
-    [projectiles, isEntityInView, viewBounds, currentTime]
-  );
+  const visibleProjectiles = useMemo(() => {
+    const projectilesArray = Array.from(projectiles.values());
+    
+    // For projectiles, use minimal filtering to ensure they're always visible in production
+    // Skip complex timing calculations that could cause issues with network latency
+    const filtered = projectilesArray.filter(projectile => {
+      // Simple bounds check using start position (no timing calculations)
+      const startX = projectile.startPosX;
+      const startY = projectile.startPosY;
+      
+      // Very generous bounds check - if the projectile started anywhere near the viewport,
+      // let it through (it will be properly positioned in the render function)
+      const margin = 1000; // Large margin to account for projectile travel
+      return (
+        startX > viewBounds.viewMinX - margin &&
+        startX < viewBounds.viewMaxX + margin &&
+        startY > viewBounds.viewMinY - margin &&
+        startY < viewBounds.viewMaxY + margin
+      );
+    });
+    
+    // Debug logging for projectiles
+    if (projectilesArray.length > 0 || filtered.length > 0) {
+      console.log(`🏹 [FILTERING] Total projectiles: ${projectilesArray.length}, Visible: ${filtered.length}`);
+      if (filtered.length > 0) {
+        console.log(`🏹 [FILTERING] Visible projectile IDs:`, filtered.map(p => p.id));
+      }
+    }
+    
+    return filtered;
+  }, [projectiles, viewBounds]);
 
   const visibleGrass = useMemo(() => 
     grass ? Array.from(grass.values()).filter(e => 

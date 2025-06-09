@@ -43,12 +43,7 @@ export const renderProjectile = ({
   
   if (serverStartTimeMs !== lastKnownServerTime) {
     // NEW projectile detected! Always start immediately for smooth gameplay
-    console.log(`🏹 [CLIENT PROJECTILE] NEW projectile detected:`, {
-      projectileId,
-      serverStartTimeMs,
-      clientTimeMs: currentTimeMs,
-      timeDiff: currentTimeMs - serverStartTimeMs
-    });
+    console.log(`🏹 NEW projectile ${projectileId.substring(0, 8)}: immediate render`);
     lastKnownServerProjectileTimes.set(projectileId, serverStartTimeMs);
     clientProjectileStartTimes.set(projectileId, currentTimeMs); // Use current client time
     elapsedTimeSeconds = 0; // Always start at 0 for immediate rendering
@@ -58,19 +53,9 @@ export const renderProjectile = ({
     if (clientStartTime) {
       const elapsedClientMs = currentTimeMs - clientStartTime;
       elapsedTimeSeconds = elapsedClientMs / 1000;
-      
-      // Only log for debugging if needed
-      if (elapsedTimeSeconds < 0.1) { // Only log first 100ms
-        console.log(`🏹 [CLIENT PROJECTILE] Animation check:`, {
-          projectileId: projectileId.substring(0, 8),
-          elapsedClientMs,
-          elapsedTimeSeconds: elapsedTimeSeconds.toFixed(3),
-          isVisible: elapsedTimeSeconds >= 0
-        });
-      }
     } else {
       // Fallback: Use current time as start time for missing client tracking
-      console.warn(`🏹 [CLIENT PROJECTILE] No client tracking for projectile ${projectileId}, starting immediately`);
+      console.log(`🏹 FALLBACK: Starting projectile ${projectileId.substring(0, 8)} immediately`);
       clientProjectileStartTimes.set(projectileId, currentTimeMs);
       elapsedTimeSeconds = 0; // Start immediately
     }

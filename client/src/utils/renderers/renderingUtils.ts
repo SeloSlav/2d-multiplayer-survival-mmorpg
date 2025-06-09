@@ -433,8 +433,8 @@ export const renderYSortedEntities = ({
         } else if (type === 'projectile') {
             const projectile = entity as SpacetimeDBProjectile;
             
-            // Debug logging for projectile visibility
-            console.log(`🏹 [RENDER] Processing projectile ${projectile.id} at (${projectile.startPosX.toFixed(1)}, ${projectile.startPosY.toFixed(1)})`);
+            // Reduced debug logging - only log when projectiles are found
+            console.log(`🏹 [RENDER] Projectile ${projectile.id} found in render queue`);
             
             // Check if this is a thrown weapon (ammo_def_id == item_def_id)
             const isThrown = projectile.ammoDefId === projectile.itemDefId;
@@ -452,17 +452,14 @@ export const renderYSortedEntities = ({
             } else {
                 // Fallback for missing definitions
                 projectileImageName = 'wooden_arrow.png';
-                console.warn(`🏹 [RENDER] No ammo definition found for projectile ${projectile.id}, using fallback image`);
+                console.warn(`🏹 [RENDER] No ammo definition found for projectile ${projectile.id}, using fallback`);
             }
-            
-            console.log(`🏹 [RENDER] Projectile ${projectile.id} using image: ${projectileImageName} (isThrown: ${isThrown})`);
             
             // Use imageManager to get the projectile image for production compatibility
             const projectileImageSrc = getItemIcon(projectileImageName);
             const projectileImage = imageManager.getImage(projectileImageSrc);
             
             if (projectileImage) {
-                console.log(`🏹 [RENDER] Rendering projectile ${projectile.id} with loaded image`);
                 renderProjectile({
                     ctx,
                     projectile,
@@ -470,7 +467,7 @@ export const renderYSortedEntities = ({
                     currentTimeMs: nowMs,
                 });
             } else {
-                console.warn(`🏹 [RENDER] No image loaded for projectile ${projectile.id} (${projectileImageName})`);
+                console.warn(`🏹 [RENDER] Image not loaded: ${projectileImageName} for projectile ${projectile.id}`);
             }
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
