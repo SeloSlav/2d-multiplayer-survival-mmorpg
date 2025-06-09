@@ -12,8 +12,13 @@ import { imageManager } from './imageManager'; // Import image manager
 
 // Define constants for tree rendering
 const TARGET_TREE_WIDTH_PX = 240; // Target width on screen (doubled from 160)
-const SHAKE_DURATION_MS = 150; // How long the shake effect lasts
-const SHAKE_INTENSITY_PX = 10; // Maximum pixel offset for the shake
+const TREE_HEIGHT = 120;
+const SHAKE_DURATION_MS = 500;
+const SHAKE_INTENSITY_PX = 8;
+
+// --- Client-side animation tracking for tree shakes ---
+const clientTreeShakeStartTimes = new Map<string, number>(); // treeId -> client timestamp when shake started
+const lastKnownServerTreeShakeTimes = new Map<string, number>(); // treeId -> last known server timestamp
 
 // Define the configuration for rendering trees
 const treeConfig: GroundEntityConfig<Tree> = {
@@ -92,15 +97,35 @@ const treeConfig: GroundEntityConfig<Tree> = {
         let shakeOffsetY = 0;
 
         if (entity.lastHitTime) { 
-            const lastHitTimeMs = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
-            const elapsedSinceHit = nowMs - lastHitTimeMs;
-
-            if (elapsedSinceHit >= 0 && elapsedSinceHit < SHAKE_DURATION_MS) {
-                const shakeFactor = 1.0 - (elapsedSinceHit / SHAKE_DURATION_MS); 
-                const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
-                shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
-                shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+            const treeId = entity.id.toString();
+            const serverShakeTime = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
+            
+            // Check if this is a NEW shake by comparing server timestamps
+            const lastKnownServerTime = lastKnownServerTreeShakeTimes.get(treeId) || 0;
+            
+            if (serverShakeTime !== lastKnownServerTime) {
+                // NEW shake detected! Record both server time and client time
+                lastKnownServerTreeShakeTimes.set(treeId, serverShakeTime);
+                clientTreeShakeStartTimes.set(treeId, nowMs);
             }
+            
+            // Calculate animation based on client time
+            const clientStartTime = clientTreeShakeStartTimes.get(treeId);
+            if (clientStartTime) {
+                const elapsedSinceShake = nowMs - clientStartTime;
+                
+                if (elapsedSinceShake >= 0 && elapsedSinceShake < SHAKE_DURATION_MS) {
+                    const shakeFactor = 1.0 - (elapsedSinceShake / SHAKE_DURATION_MS); 
+                    const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
+                    shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+                    shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+                }
+            }
+        } else {
+            // Clean up tracking when tree is not being hit
+            const treeId = entity.id.toString();
+            clientTreeShakeStartTimes.delete(treeId);
+            lastKnownServerTreeShakeTimes.delete(treeId);
         }
         
         return { offsetX: shakeOffsetX, offsetY: shakeOffsetY };

@@ -6,8 +6,12 @@ import { imageManager } from './imageManager';
 
 // Configuration constants
 const TARGET_STONE_WIDTH_PX = 120; // Target width on screen
-const SHAKE_DURATION_MS = 150;     // How long the shake effect lasts
-const SHAKE_INTENSITY_PX = 10;    // Max pixel offset for shake
+const SHAKE_DURATION_MS = 300;     // How long the shake effect lasts
+const SHAKE_INTENSITY_PX = 6;    // Max pixel offset for shake
+
+// --- Client-side animation tracking for stone shakes ---
+const clientStoneShakeStartTimes = new Map<string, number>(); // stoneId -> client timestamp when shake started
+const lastKnownServerStoneShakeTimes = new Map<string, number>(); // stoneId -> last known server timestamp
 
 // Define the configuration for rendering stones
 const stoneConfig: GroundEntityConfig<Stone> = {
@@ -53,15 +57,35 @@ const stoneConfig: GroundEntityConfig<Stone> = {
         let shakeOffsetY = 0;
 
         if (entity.lastHitTime) { 
-            const lastHitTimeMs = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
-            const elapsedSinceHit = nowMs - lastHitTimeMs;
-
-            if (elapsedSinceHit >= 0 && elapsedSinceHit < SHAKE_DURATION_MS) {
-                const shakeFactor = 1.0 - (elapsedSinceHit / SHAKE_DURATION_MS); 
-                const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
-                shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
-                shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+            const stoneId = entity.id.toString();
+            const serverShakeTime = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
+            
+            // Check if this is a NEW shake by comparing server timestamps
+            const lastKnownServerTime = lastKnownServerStoneShakeTimes.get(stoneId) || 0;
+            
+            if (serverShakeTime !== lastKnownServerTime) {
+                // NEW shake detected! Record both server time and client time
+                lastKnownServerStoneShakeTimes.set(stoneId, serverShakeTime);
+                clientStoneShakeStartTimes.set(stoneId, nowMs);
             }
+            
+            // Calculate animation based on client time
+            const clientStartTime = clientStoneShakeStartTimes.get(stoneId);
+            if (clientStartTime) {
+                const elapsedSinceShake = nowMs - clientStartTime;
+                
+                if (elapsedSinceShake >= 0 && elapsedSinceShake < SHAKE_DURATION_MS) {
+                    const shakeFactor = 1.0 - (elapsedSinceShake / SHAKE_DURATION_MS); 
+                    const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
+                    shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+                    shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+                }
+            }
+        } else {
+            // Clean up tracking when stone is not being hit
+            const stoneId = entity.id.toString();
+            clientStoneShakeStartTimes.delete(stoneId);
+            lastKnownServerStoneShakeTimes.delete(stoneId);
         }
         
         // Return the calculated offsets to be applied to the draw position
