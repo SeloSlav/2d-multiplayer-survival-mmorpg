@@ -56,12 +56,15 @@ export const PlayerActionsProvider: React.FC<PlayerActionsProviderProps> = ({ ch
     }, [connection]);
 
     const jump = useCallback(() => {
+        console.log("🦘 CLIENT: jump() called from PlayerActionsContext");
         if (!connection?.reducers) {
             console.warn("[PlayerActionsContext] Connection not ready for jump");
             return;
         }
         try {
+            console.log("🦘 CLIENT: Calling connection.reducers.jump()");
             connection.reducers.jump();
+            console.log("🦘 CLIENT: jump() reducer call completed");
         } catch (err: any) {
             console.error('[PlayerActionsContext] Failed to call jump reducer:', err);
         }

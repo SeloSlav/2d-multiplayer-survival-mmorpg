@@ -285,11 +285,22 @@ export const renderPlayer = (
     const jumpStartTime = Number(player.jumpStartTimeMs);
     const playerId = player.identity.toHexString();
     
+    // Debug log for the local player only
+    const isLocalPlayer = localPlayerId && playerId === localPlayerId;
+    
     // Check if this is a NEW jump by comparing server timestamps
     const lastKnownServerTime = lastKnownServerJumpTimes.get(playerId) || 0;
     
     if (jumpStartTime !== lastKnownServerTime) {
       // NEW jump detected! Record both server time and client time
+      if (isLocalPlayer) {
+        console.log(`🦘 [CLIENT ANIMATION] NEW JUMP DETECTED for local player:`, {
+          playerId: playerId.substring(0, 8),
+          serverJumpTime: jumpStartTime,
+          lastKnownServerTime,
+          clientTimeNow: nowMs
+        });
+      }
       lastKnownServerJumpTimes.set(playerId, jumpStartTime);
       clientJumpStartTimes.set(playerId, nowMs);
     }
@@ -298,12 +309,20 @@ export const renderPlayer = (
     const clientStartTime = clientJumpStartTimes.get(playerId);
     if (clientStartTime) {
       const elapsedJumpTime = nowMs - clientStartTime;
+      if (isLocalPlayer) {
+        console.log(`🦘 [CLIENT ANIMATION] Jump animation check:`, {
+          playerId: playerId.substring(0, 8),
+          elapsedJumpTime,
+          JUMP_DURATION_MS,
+          isWithinDuration: elapsedJumpTime < JUMP_DURATION_MS
+        });
+      }
       if (elapsedJumpTime < JUMP_DURATION_MS) {
         isCurrentlyJumping = true;
       }
     }
   } else {
-    // No jump active - clean up for this player
+    // Clean up tracking for this player if no active jump
     const playerId = player.identity.toHexString();
     clientJumpStartTimes.delete(playerId);
     lastKnownServerJumpTimes.delete(playerId);
