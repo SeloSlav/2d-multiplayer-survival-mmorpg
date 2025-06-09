@@ -53,27 +53,27 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     crafting_queue::clear_player_crafting_queue(ctx, sender_id);
     // --- END Clear Crafting Queue ---
 
-    // --- Look up Rock Item Definition ID ---
-    let rock_item_def_id = item_defs.iter()
-        .find(|def| def.name == "Rock")
+    // --- Look up Combat Ladle Item Definition ID ---
+    let combat_ladle_item_def_id = item_defs.iter()
+        .find(|def| def.name == "Combat Ladle")
         .map(|def| def.id)
-        .ok_or_else(|| "Item definition for 'Rock' not found.".to_string())?;
+        .ok_or_else(|| "Item definition for 'Combat Ladle' not found.".to_string())?;
     // --- End Look up ---
 
-    // --- Grant Starting Rock ---
-    log::info!("Granting starting Rock to respawned player: {}", player.username);
-    let opt_instance_id = items::add_item_to_player_inventory(ctx, sender_id, rock_item_def_id, 1)?;
+    // --- Grant Starting Combat Ladle ---
+    log::info!("Granting starting Combat Ladle to respawned player: {}", player.username);
+    let opt_instance_id = items::add_item_to_player_inventory(ctx, sender_id, combat_ladle_item_def_id, 1)?;
     match opt_instance_id {
-        Some(new_rock_instance_id) => {
-            let _ = log::info!("Granted 1 Rock (ID: {}) to player {}.", new_rock_instance_id, player.username);
+        Some(new_combat_ladle_instance_id) => {
+            let _ = log::info!("Granted 1 Combat Ladle (ID: {}) to player {}.", new_combat_ladle_instance_id, player.username);
         }
         None => {
-            let _ = log::error!("Failed to grant starting Rock to player {} (no slot found).", player.username);
-            // Optionally, we could return an Err here if not getting a rock is critical
-            // return Err("Could not grant starting Rock: Inventory full or other issue.".to_string());
+            let _ = log::error!("Failed to grant starting Combat Ladle to player {} (no slot found).", player.username);
+            // Optionally, we could return an Err here if not getting a combat ladle is critical
+            // return Err("Could not grant starting Combat Ladle: Inventory full or other issue.".to_string());
         }
     }
-    // --- End Grant Starting Rock ---
+    // --- End Grant Starting Combat Ladle ---
 
     // --- Grant Starting Torch ---
     match item_defs.iter().find(|def| def.name == "Torch") {

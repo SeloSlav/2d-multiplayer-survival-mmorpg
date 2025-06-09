@@ -44,7 +44,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Stone".to_string(),
-            description: "A chunk of rock.".to_string(),
+            description: "A chunk of stone ore.".to_string(),
             category: ItemCategory::Material,
             icon_asset_name: "stone.png".to_string(),
             is_stackable: true,
@@ -503,20 +503,20 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Combat Ladle".to_string(),
-            description: "A surprisingly sturdy ladle, ready for a culinary confrontation.".to_string(),
-            category: ItemCategory::Weapon,
+            description: "A surprisingly sturdy ladle, ready for a culinary confrontation. Also works as a basic gathering tool.".to_string(),
+            category: ItemCategory::Tool, // Changed from Weapon to Tool since it gathers
             icon_asset_name: "combat_ladle.png".to_string(),
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
             equipment_slot_type: None,
             fuel_burn_duration_secs: None,
-            primary_target_damage_min: None,
-            primary_target_damage_max: None,
-            primary_target_yield_min: None,
-            primary_target_yield_max: None,
-            primary_target_type: None,
-            primary_yield_resource_name: None,
+            primary_target_damage_min: Some(3), // Same as Rock
+            primary_target_damage_max: Some(7), // Same as Rock
+            primary_target_yield_min: None, // Same as Rock (general purpose)
+            primary_target_yield_max: None, // Same as Rock (general purpose)
+            primary_target_type: None, // Same as Rock (works on multiple targets)
+            primary_yield_resource_name: None, // Same as Rock (no specific resource)
             pvp_damage_min: Some(10),
             pvp_damage_max: Some(10),
             crafting_cost: Some(vec![
@@ -537,7 +537,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(300),
-            attack_interval_secs: Some(1.0),
+            attack_interval_secs: Some(0.7), // Rock's current fast timer
         },
         ItemDefinition {
             id: 0,
@@ -616,7 +616,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
-            attack_interval_secs: Some(0.7),
+            attack_interval_secs: Some(1.2), // Stone Hatchet's slower timer
         },
         ItemDefinition {
             id: 0,
