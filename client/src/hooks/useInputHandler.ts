@@ -121,6 +121,10 @@ export const useInputHandler = ({
     // Get player actions from the context instead of props
     const { jump } = usePlayerActions();
 
+    // --- Client-side animation tracking ---
+    const clientJumpStartTimes = useRef<Map<string, number>>(new Map());
+    const lastKnownServerJumpTimes = useRef<Map<string, number>>(new Map()); // Track last known server timestamps
+
     // --- Internal State and Refs ---
     const [isAutoAttacking, setIsAutoAttacking] = useState(false);
     const [isAutoWalking, setIsAutoWalking] = useState(false);
@@ -1011,18 +1015,41 @@ export const useInputHandler = ({
         }
         
         // --- Jump Offset Calculation (moved here for per-frame update) ---
+        // Note: Visual animation only, no cooldown logic (server handles that)
         if (currentLocalPlayer && currentLocalPlayer.jumpStartTimeMs > 0) {
-            const nowMs = Date.now();
-            const elapsedJumpTime = nowMs - Number(currentLocalPlayer.jumpStartTimeMs);
-
-            if (elapsedJumpTime >= 0 && elapsedJumpTime < JUMP_DURATION_MS) {
-                const t = elapsedJumpTime / JUMP_DURATION_MS;
-                const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
-                currentJumpOffsetYRef.current = jumpOffset;
-            } else {
-                currentJumpOffsetYRef.current = 0; // End of jump
+            // Server handles all jump cooldown logic - we just show visual animation
+            const jumpStartTime = Number(currentLocalPlayer.jumpStartTimeMs);
+            const playerId = currentLocalPlayer.identity.toHexString();
+            
+            // Check if this is a NEW jump by comparing server timestamps
+            const lastKnownServerTime = lastKnownServerJumpTimes.current.get(playerId) || 0;
+            
+            if (jumpStartTime !== lastKnownServerTime) {
+                // NEW jump detected! Record both server time and client time
+                lastKnownServerJumpTimes.current.set(playerId, jumpStartTime);
+                clientJumpStartTimes.current.set(playerId, Date.now());
             }
-        } else if (currentJumpOffsetYRef.current !== 0) { // Ensure it resets if not jumping
+            
+            // Calculate animation based on client time for smooth animation
+            const clientStartTime = clientJumpStartTimes.current.get(playerId);
+            if (clientStartTime) {
+                const elapsedJumpTime = Date.now() - clientStartTime;
+                
+                if (elapsedJumpTime < JUMP_DURATION_MS) {
+                    const t = elapsedJumpTime / JUMP_DURATION_MS;
+                    const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
+                    currentJumpOffsetYRef.current = jumpOffset;
+                } else {
+                    currentJumpOffsetYRef.current = 0; // Animation finished
+                }
+            }
+        } else {
+            // No jump active - clean up
+            if (currentLocalPlayer) {
+                const playerId = currentLocalPlayer.identity.toHexString();
+                clientJumpStartTimes.current.delete(playerId);
+                lastKnownServerJumpTimes.current.delete(playerId);
+            }
             currentJumpOffsetYRef.current = 0;
         }
         // --- End Jump Offset Calculation ---

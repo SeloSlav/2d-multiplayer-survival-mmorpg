@@ -1,12 +1,14 @@
 import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 import { drawShadow, drawDynamicGroundShadow } from './shadowUtils';
+import { JUMP_DURATION_MS } from '../../config/gameConfig'; // Import the constant
 
 // --- Constants --- 
 export const IDLE_FRAME_INDEX = 1; // Second frame is idle
 const PLAYER_SHAKE_DURATION_MS = 200; // How long the shake lasts
 const PLAYER_SHAKE_AMOUNT_PX = 3;   // Max pixels to offset
 const PLAYER_HIT_FLASH_DURATION_MS = 100; // Duration of the white flash on hit
+const PLAYER_WALKING_SPRITE_SWITCH_INTERVAL_MS = 400; // Switch sprite every 400ms while walking
 
 // Defined here as it depends on spriteWidth from config
 const playerRadius = gameConfig.spriteWidth / 2;
@@ -41,6 +43,10 @@ if (!offscreenCtx) {
 // --- END NEW ---
 
 const PLAYER_NAME_FONT = '12px "Press Start 2P", cursive';
+
+// --- Client-side animation tracking ---
+const clientJumpStartTimes = new Map<string, number>(); // playerId -> client timestamp when jump started
+const lastKnownServerJumpTimes = new Map<string, number>(); // playerId -> last known server timestamp
 
 // --- Helper Functions --- 
 
@@ -276,10 +282,31 @@ export const renderPlayer = (
   // Calculate if player is currently jumping (same logic as sprite selection)
   let isCurrentlyJumping = false;
   if (!isCorpse && player.jumpStartTimeMs && player.jumpStartTimeMs > 0) {
-    const elapsedJumpTime = nowMs - Number(player.jumpStartTimeMs);
-    if (elapsedJumpTime < 800) { // Increased from 500ms for better production reliability
-      isCurrentlyJumping = true;
+    const jumpStartTime = Number(player.jumpStartTimeMs);
+    const playerId = player.identity.toHexString();
+    
+    // Check if this is a NEW jump by comparing server timestamps
+    const lastKnownServerTime = lastKnownServerJumpTimes.get(playerId) || 0;
+    
+    if (jumpStartTime !== lastKnownServerTime) {
+      // NEW jump detected! Record both server time and client time
+      lastKnownServerJumpTimes.set(playerId, jumpStartTime);
+      clientJumpStartTimes.set(playerId, nowMs);
     }
+    
+    // Calculate animation based on client time
+    const clientStartTime = clientJumpStartTimes.get(playerId);
+    if (clientStartTime) {
+      const elapsedJumpTime = nowMs - clientStartTime;
+      if (elapsedJumpTime < JUMP_DURATION_MS) {
+        isCurrentlyJumping = true;
+      }
+    }
+  } else {
+    // No jump active - clean up for this player
+    const playerId = player.identity.toHexString();
+    clientJumpStartTimes.delete(playerId);
+    lastKnownServerJumpTimes.delete(playerId);
   }
 
   const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);

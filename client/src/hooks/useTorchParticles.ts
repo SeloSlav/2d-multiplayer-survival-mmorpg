@@ -9,7 +9,7 @@ import { JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../config/gameConfig';
 import { gameConfig } from '../config/gameConfig'; // <<< ADDED for spriteWidth/Height
 
 // --- Swing Constants (from equippedItemRenderingUtils.ts) ---
-const SWING_DURATION_MS = 300; // Increased for better production reliability
+const SWING_DURATION_MS = 150;
 const SWING_ANGLE_MAX_RAD = Math.PI / 2.5;
 
 // --- Particle Constants for Torch (can be adjusted) ---

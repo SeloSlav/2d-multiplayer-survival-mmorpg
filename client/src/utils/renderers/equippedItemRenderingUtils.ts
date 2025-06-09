@@ -2,7 +2,7 @@ import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipm
 import { gameConfig } from '../../config/gameConfig';
 
 // --- Constants (copied from GameCanvas for now, consider moving to config) ---
-const SWING_DURATION_MS = 300;
+const SWING_DURATION_MS = 150;
 const SWING_ANGLE_MAX_RAD = Math.PI / 2.5;
 const SLASH_COLOR = 'rgba(255, 255, 255, 0.4)';
 const SLASH_LINE_WIDTH = 4;
@@ -18,6 +18,9 @@ const BANDAGING_WOBBLES = 20; // Number of full back-and-forth wobbles (10 * 2 f
 const SELO_OLIVE_OIL_ANIMATION_DURATION_MS = 2000; // Duration of the Selo Olive Oil animation (MATCHES SERVER: 2 seconds)
 const SELO_OLIVE_OIL_MAX_ROTATION_RAD = Math.PI / 16; // Much gentler rotation than bandage (was Math.PI / 10)
 const SELO_OLIVE_OIL_WOBBLES = 8; // Fewer wobbles for a gentler shake (was 15)
+
+// --- Client-side animation tracking ---
+const clientSwingStartTimes = new Map<string, number>(); // playerId -> client timestamp when swing started
 
 // --- Helper Function for Rendering Equipped Item ---
 export const renderEquippedItem = (
@@ -285,19 +288,27 @@ export const renderEquippedItem = (
 
   // --- Swing/Thrust Animation --- 
   const swingStartTime = Number(equipment.swingStartTimeMs);
-  const elapsedSwingTime = now_ms - swingStartTime;
+  const playerId = player.identity.toHexString();
+  let elapsedSwingTime = 0;
   let currentAngle = 0; 
   let thrustDistance = 0; 
 
-  // Debug logging for production issues
-  if (localPlayerId && player.identity.toHexString() === localPlayerId && swingStartTime > 0) {
-    console.log(`[DEBUG] Swing animation check:`, {
-      swingStartTime,
-      elapsedSwingTime,
-      now_ms,
-      isWithinDuration: elapsedSwingTime < SWING_DURATION_MS,
-      itemName: itemDef.name
-    });
+  // Check if this is a new swing by comparing server timestamp
+  if (swingStartTime > 0) {
+    const clientStartTime = clientSwingStartTimes.get(playerId);
+    
+    if (!clientStartTime || Math.abs(swingStartTime - clientStartTime) > 1000) {
+      // New swing detected or no client record - record client time
+      clientSwingStartTimes.set(playerId, now_ms);
+      elapsedSwingTime = 0;
+    } else {
+      // Use client-tracked time for animation
+      elapsedSwingTime = now_ms - clientStartTime;
+    }
+  } else {
+    // No active swing
+    clientSwingStartTimes.delete(playerId);
+    elapsedSwingTime = SWING_DURATION_MS + 1; // Ensure animation doesn't show
   }
 
   if (elapsedSwingTime < SWING_DURATION_MS) {

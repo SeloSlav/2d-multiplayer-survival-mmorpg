@@ -24,6 +24,7 @@ import {
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { gameConfig } from '../../config/gameConfig';
+import { JUMP_DURATION_MS } from '../../config/gameConfig'; // Import the constant
 // Import individual rendering functions
 import { renderTree } from './treeRenderingUtils';
 import { renderStone } from './stoneRenderingUtils';
@@ -80,6 +81,10 @@ const DODGE_ROLL_DISTANCE = 120;
 const GHOST_TRAIL_LENGTH = 8;
 const GHOST_TRAIL_SPACING_MS = 15; // Add new ghost every 15ms
 const GHOST_TRAIL_FADE_MS = 200; // Fade out over 200ms
+
+// --- Client-side animation tracking ---
+const clientJumpStartTimes = new Map<string, number>(); // playerId -> client timestamp when jump started
+const lastKnownServerJumpTimes = new Map<string, number>(); // playerId -> last known server timestamp
 
 interface RenderYSortedEntitiesProps {
     ctx: CanvasRenderingContext2D;
@@ -250,24 +255,34 @@ export const renderYSortedEntities = ({
            const jumpStartTime = playerForRendering.jumpStartTimeMs;
            
            if (jumpStartTime > 0) {
-               const elapsedJumpTime = nowMs - Number(jumpStartTime);
+               const serverJumpTime = Number(jumpStartTime);
+               const playerId = playerForRendering.identity.toHexString();
                
-               // Debug logging for production issues
-               if (isLocalPlayer) {
-                   console.log(`[DEBUG] Jump animation check:`, {
-                       jumpStartTime,
-                       elapsedJumpTime,
-                       nowMs,
-                       isWithinDuration: elapsedJumpTime < 800,
-                       playerId: playerId
-                   });
+               // Check if this is a NEW jump by comparing server timestamps
+               const lastKnownServerTime = lastKnownServerJumpTimes.get(playerId) || 0;
+               
+               if (serverJumpTime !== lastKnownServerTime) {
+                   // NEW jump detected! Record both server time and client time
+                   lastKnownServerJumpTimes.set(playerId, serverJumpTime);
+                   clientJumpStartTimes.set(playerId, nowMs);
                }
                
-               if (elapsedJumpTime < 800) { // Increased from 500ms for better production reliability
-                   const t = elapsedJumpTime / 800; // Update divisor to match new duration
-                   jumpOffset = Math.sin(t * Math.PI) * 50;
-                   isCurrentlyJumping = true; // Player is mid-jump
+               // Calculate animation based on client time
+               const clientStartTime = clientJumpStartTimes.get(playerId);
+               if (clientStartTime) {
+                   const elapsedJumpTime = nowMs - clientStartTime;
+                   
+                   if (elapsedJumpTime < JUMP_DURATION_MS) {
+                       const t = elapsedJumpTime / JUMP_DURATION_MS;
+                       jumpOffset = Math.sin(t * Math.PI) * 50;
+                       isCurrentlyJumping = true; // Player is mid-jump
+                   }
                }
+           } else {
+               // No jump active - clean up for this player
+               const playerId = playerForRendering.identity.toHexString();
+               clientJumpStartTimes.delete(playerId);
+               lastKnownServerJumpTimes.delete(playerId);
            }
            
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
