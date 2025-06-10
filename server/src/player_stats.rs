@@ -49,7 +49,7 @@ const HUNGER_DRAIN_PER_SECOND: f32 = 250.0 / (3.0 * 60.0 * 60.0);
 const THIRST_DRAIN_PER_SECOND: f32 = 250.0 / (2.0 * 60.0 * 60.0);
 // Make stat constants pub(crate) as well for consistency, although not strictly needed if only used here
 pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 2.5;
-pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 1.0;
+pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 2.0;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_THIRST: f32 = 0.5;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_HUNGER: f32 = 0.4;
 pub(crate) const HEALTH_LOSS_MULTIPLIER_AT_ZERO: f32 = 2.0;

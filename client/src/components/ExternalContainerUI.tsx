@@ -296,9 +296,19 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
     }, [connection, stashIdNum, currentStash]);
 
-    // Helper function to check if it's raining
-    const isRaining = useMemo(() => {
-        return worldState?.rainIntensity && worldState.rainIntensity > 0;
+    // Helper function to check if it's raining heavily enough to prevent campfire lighting
+    // Only heavy rain/storms prevent lighting, light/moderate rain should allow lighting
+    const isHeavyRaining = useMemo(() => {
+        if (!worldState?.rainIntensity || worldState.rainIntensity <= 0) return false;
+        
+        // Check the weather type if available, otherwise fall back to intensity threshold
+        if (worldState.currentWeather) {
+            // Only HeavyRain and HeavyStorm prevent lighting (matches server logic in world_state.rs)
+            return worldState.currentWeather.tag === 'HeavyRain' || worldState.currentWeather.tag === 'HeavyStorm';
+        }
+        
+        // Fallback: Use intensity threshold (>= 0.8 is heavy rain/storm range)
+        return worldState.rainIntensity >= 0.8;
     }, [worldState]);
 
     // Calculate toggle button state for campfire
@@ -307,7 +317,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (currentCampfire.isBurning) return false; // If already burning, can extinguish
         
         // If it's raining, disable lighting (but allow extinguishing)
-        if (!!isRaining) return true;
+        if (!!isHeavyRaining) return true;
         
         // If not burning, check for any valid fuel (has fuelBurnDurationSecs > 0)
         return !fuelItems.some(item => 
@@ -316,7 +326,21 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             item.definition.fuelBurnDurationSecs > 0 && 
             item.instance.quantity > 0
         );
-    }, [isCampfireInteraction, currentCampfire, fuelItems, isRaining]);
+    }, [isCampfireInteraction, currentCampfire, fuelItems, isHeavyRaining]);
+
+    // Helper function to get specific weather warning message
+    const getWeatherWarningMessage = useMemo(() => {
+        if (!worldState?.currentWeather || !isHeavyRaining) return null;
+        
+        switch (worldState.currentWeather.tag) {
+            case 'HeavyRain':
+                return "Cannot light during heavy rain";
+            case 'HeavyStorm':
+                return "Cannot light during heavy storm";
+            default:
+                return "Cannot light during severe weather";
+        }
+    }, [worldState, isHeavyRaining]);
 
     // --- Render Logic ---
     if (!interactionTarget) {
@@ -396,14 +420,14 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             }`}
                             title={
                                 isToggleButtonDisabled && !currentCampfire.isBurning 
-                                    ? (!!isRaining ? "Cannot light while raining" : "Requires Fuel > 0")
+                                    ? (!!isHeavyRaining ? getWeatherWarningMessage || "Cannot light during severe weather" : "Requires Fuel > 0")
                                     : ""
                             }
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
                         {/* Rain warning message */}
-                        {!!isRaining && !currentCampfire.isBurning && (
+                        {!!isHeavyRaining && !currentCampfire.isBurning && (
                             <div style={{ 
                                 marginTop: '8px', 
                                 color: '#87CEEB', 
@@ -411,7 +435,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                 textAlign: 'center',
                                 fontStyle: 'italic'
                             }}>
-                                🌧️ Cannot light while raining
+                                🌧️ {getWeatherWarningMessage}
                             </div>
                         )}
                     </div>

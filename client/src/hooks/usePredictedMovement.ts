@@ -84,9 +84,14 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
 
     const { direction, sprinting } = inputState;
 
+    // 1. Simple sprint prediction - just match server's actual sprint multiplier
+    // If player has very low stamina, don't apply sprint multiplier even if client thinks it's sprinting
+    const playerStamina = localPlayer.stamina || 0;
+    const effectiveSprinting = sprinting && playerStamina > 0; // Simple: only sprint if we have stamina
+
     // 1. Update the raw predicted position based on input
     if (direction.x !== 0 || direction.y !== 0) {
-        const currentSpeed = PLAYER_SPEED * (sprinting ? SPRINT_MULTIPLIER : 1);
+        const currentSpeed = PLAYER_SPEED * (effectiveSprinting ? SPRINT_MULTIPLIER : 1);
         predictedPositionRef.current.x += direction.x * currentSpeed * deltaSeconds;
         predictedPositionRef.current.y += direction.y * currentSpeed * deltaSeconds;
     }
@@ -160,12 +165,12 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     }
 
     // 5. Send sprinting state changes immediately when they occur (async)
-    if (connection?.reducers && sprinting !== lastSprintStateRef.current) {
+    if (connection?.reducers && effectiveSprinting !== lastSprintStateRef.current) {
       // Use setTimeout to make this async and not block the frame
       setTimeout(() => {
-        connection.reducers.setSprinting(sprinting);
+        connection.reducers.setSprinting(effectiveSprinting);
       }, 0);
-      lastSprintStateRef.current = sprinting;
+      lastSprintStateRef.current = effectiveSprinting;
     }
     
     const networkTime = performance.now() - sectionStart;
@@ -224,9 +229,17 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
       const isInGracePeriod = firstMovementSentRef.current !== null && 
                               (now - firstMovementSentRef.current) < MOVEMENT_STARTUP_GRACE_PERIOD_MS;
       
+      // Simple check: skip small corrections if sprint state just changed (reduces camera snapping)
+      const sprintJustChanged = localPlayer.isSprinting !== lastSprintStateRef.current;
+      
       if (isInGracePeriod && discrepancy > 10 && discrepancy < 80) {
         // During grace period, skip gentle corrections to prevent startup lag
         console.log(`[MOVEMENT STARTUP] Skipping reconciliation during grace period (${discrepancy.toFixed(2)}px discrepancy)`);
+        return;
+      }
+      
+      if (sprintJustChanged && discrepancy > 10 && discrepancy < 50) {
+        // Skip small corrections during sprint transitions to reduce camera snapping
         return;
       }
       
