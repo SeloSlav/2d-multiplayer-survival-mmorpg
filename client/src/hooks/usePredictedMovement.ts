@@ -7,6 +7,11 @@ const PLAYER_SPEED = 250; // pixels per second
 const SPRINT_MULTIPLIER = 1.75;
 const INTERPOLATION_SPEED = 8.0; // Tuned for smooth, seamless movement
 
+// PRODUCTION OPTIMIZATION: Adapt to network conditions
+const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const PRODUCTION_MOVEMENT_UPDATE_INTERVAL_MS = isProduction ? 100 : 50; // Slower updates for production
+const PRODUCTION_RECONCILIATION_THRESHOLD = isProduction ? 25 : 10; // More tolerant reconciliation
+
 interface PredictedMovementProps {
   connection: DbConnection | null;
   localPlayer: Player | undefined | null;
@@ -135,7 +140,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     sectionStart = performance.now();
 
     // 4. Send updates to the server at a fixed interval (async to avoid blocking)
-    if (now - lastServerUpdateTimeRef.current > MOVEMENT_UPDATE_INTERVAL_MS) {
+    if (now - lastServerUpdateTimeRef.current > PRODUCTION_MOVEMENT_UPDATE_INTERVAL_MS) {
       if ((direction.x !== 0 || direction.y !== 0) && connection?.reducers) {
         // Use setTimeout to make this async and not block the frame
         setTimeout(() => {
@@ -211,10 +216,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
         console.log(`[RECONCILIATION] LARGE SNAP: ${discrepancy.toFixed(2)}px discrepancy`);
         predictedPositionRef.current = serverPos;
         renderPositionRef.current = serverPos;
-      } else if (discrepancy > 10) {
+      } else if (discrepancy > PRODUCTION_RECONCILIATION_THRESHOLD) {
         // Small discrepancy - gentle correction by nudging the predicted position
         // towards the server position (this gets smoothed by the interpolation)
-        const correctionFactor = 0.3; // Gentle correction
+        const correctionFactor = isProduction ? 0.2 : 0.3; // Gentler correction for production
         console.log(`[RECONCILIATION] GENTLE CORRECTION: ${discrepancy.toFixed(2)}px discrepancy, nudging by ${(correctionFactor * 100)}%`);
         predictedPositionRef.current.x += (serverPos.x - predictedPos.x) * correctionFactor;
         predictedPositionRef.current.y += (serverPos.y - predictedPos.y) * correctionFactor;
