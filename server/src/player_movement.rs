@@ -182,7 +182,10 @@ pub fn update_player_position(
     // ADD: Disable sprinting on water (but allow sprinting while jumping over water)
     if was_on_water && !is_jumping && current_sprinting_state {
         current_sprinting_state = false;
-        log::trace!("Player {:?} sprinting disabled due to water (not jumping)", sender_id);
+        // Reduced logging during sprinting for performance
+        if !current_player.is_sprinting { // Only log once when state changes
+            log::trace!("Player {:?} sprinting disabled due to water (not jumping)", sender_id);
+        }
     }
 
     // Determine speed multiplier based on current sprint state and stamina
@@ -202,19 +205,28 @@ pub fn update_player_position(
     // NEW: Apply massive speed reduction if knocked out (95% slower, so 5% of normal speed)
     if current_player.is_knocked_out {
         final_speed_multiplier *= 0.05; // Only 5% of normal speed
-        log::trace!("Player {:?} is knocked out. Speed multiplier reduced to: {}", sender_id, final_speed_multiplier);
+        // Reduced logging frequency for performance
+        if !current_player.is_sprinting { // Only log when not sprinting to reduce spam
+            log::trace!("Player {:?} is knocked out. Speed multiplier reduced to: {}", sender_id, final_speed_multiplier);
+        }
     }
 
     // Apply fine movement speed reduction if active
     if current_player.is_crouching {
         final_speed_multiplier *= 0.5; // Reduce speed by 50%
-        log::trace!("Player {:?} crouching active. Speed multiplier adjusted to: {}", sender_id, final_speed_multiplier);
+        // Reduced logging frequency for performance  
+        if !current_player.is_sprinting { // Only log when not sprinting to reduce spam
+            log::trace!("Player {:?} crouching active. Speed multiplier adjusted to: {}", sender_id, final_speed_multiplier);
+        }
     }
 
     // ADD: Apply water speed penalty (but not while jumping over water)
     if was_on_water && !is_jumping {
         final_speed_multiplier *= WATER_SPEED_PENALTY; // 50% speed reduction
-        log::trace!("Player {:?} water speed penalty applied (not jumping). Speed multiplier: {}", sender_id, final_speed_multiplier);
+        // Reduced logging frequency for performance
+        if !current_player.is_sprinting { // Only log when not sprinting to reduce spam
+            log::trace!("Player {:?} water speed penalty applied (not jumping). Speed multiplier: {}", sender_id, final_speed_multiplier);
+        }
     }
 
     // --- <<< UPDATED: Read LOW_NEED_THRESHOLD from StatThresholdsConfig table >>> ---
@@ -305,7 +317,7 @@ pub fn update_player_position(
         log::debug!("Player {:?} auto-uncrouching due to entering water at new position ({:.1}, {:.1})", sender_id, resolved_x, resolved_y);
     }
 
-    // --- Grass Disturbance Detection (OPTIMIZED) ---
+    // --- Grass Disturbance Detection (OPTIMIZED FOR SPRINTING) ---
     const MIN_MOVEMENT_FOR_DISTURBANCE: f32 = 3.0;
     let movement_magnitude_for_disturbance = (server_dx * server_dx + server_dy * server_dy).sqrt();
     let should_check_disturbance = is_moving && movement_magnitude_for_disturbance > MIN_MOVEMENT_FOR_DISTURBANCE;
@@ -323,13 +335,17 @@ pub fn update_player_position(
             const OPTIMIZED_DISTURBANCE_RADIUS: f32 = 48.0;
             const OPTIMIZED_DISTURBANCE_RADIUS_SQ: f32 = OPTIMIZED_DISTURBANCE_RADIUS * OPTIMIZED_DISTURBANCE_RADIUS;
             
+            // OPTIMIZATION: Reduce grass disturbance processing during sprinting to prevent jitter
+            let max_disturbances = if current_sprinting_state { 4 } else { 8 }; // Half the limit when sprinting
+            let chunk_search_radius = if current_sprinting_state { 0 } else { 1 }; // Only check current chunk when sprinting
+            
             let player_chunk_index = calculate_chunk_index(resolved_x, resolved_y);
             let chunk_x = player_chunk_index % WORLD_WIDTH_CHUNKS;
             let chunk_y = player_chunk_index / WORLD_WIDTH_CHUNKS;
             
             let mut chunks_to_check = Vec::new();
-            for dy_offset in -1i32..=1i32 {
-                for dx_offset in -1i32..=1i32 {
+            for dy_offset in -chunk_search_radius..=chunk_search_radius {
+                for dx_offset in -chunk_search_radius..=chunk_search_radius {
                     let new_chunk_x = chunk_x as i32 + dx_offset;
                     let new_chunk_y = chunk_y as i32 + dy_offset;
                     
@@ -341,13 +357,12 @@ pub fn update_player_position(
                 }
             }
             
-            const MAX_DISTURBANCES_PER_MOVEMENT: usize = 8;
             let mut disturbed_count = 0;
             let chunks_set: std::collections::HashSet<u32> = chunks_to_check.iter().cloned().collect();
             let mut grass_updates = Vec::new();
             
             for grass in grasses.iter() {
-                if disturbed_count >= MAX_DISTURBANCES_PER_MOVEMENT { break; }
+                if disturbed_count >= max_disturbances { break; } // Use dynamic limit
                 if !chunks_set.contains(&grass.chunk_index) { continue; }
                 if grass.health == 0 { continue; }
                 if let Some(last_disturbed) = grass.disturbed_at {
@@ -385,7 +400,7 @@ pub fn update_player_position(
             }
             
             if disturbed_count > 0 {
-                log::trace!("Player {:?} disturbed {} grass patches (limit: {})", sender_id, disturbed_count, MAX_DISTURBANCES_PER_MOVEMENT);
+                log::trace!("Player {:?} disturbed {} grass patches (limit: {}, sprinting: {})", sender_id, disturbed_count, max_disturbances, current_sprinting_state);
             }
         }
     }

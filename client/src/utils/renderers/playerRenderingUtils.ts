@@ -10,6 +10,9 @@ const PLAYER_SHAKE_AMOUNT_PX = 3;   // Max pixels to offset
 const PLAYER_HIT_FLASH_DURATION_MS = 100; // Duration of the white flash on hit
 const PLAYER_WALKING_SPRITE_SWITCH_INTERVAL_MS = 400; // Switch sprite every 400ms while walking
 
+// OPTIMIZATION: Prioritize performance during sprinting
+const SPRINT_OPTIMIZED_SHAKE_AMOUNT_PX = 2; // Reduced shake during sprinting for smoother movement
+
 // Defined here as it depends on spriteWidth from config
 const playerRadius = gameConfig.spriteWidth / 2;
 
@@ -315,8 +318,10 @@ export const renderPlayer = (
   let shakeX = 0;
   let shakeY = 0;
   if (!isCorpse && !player.isDead && elapsedSinceServerHitMs < PLAYER_SHAKE_DURATION_MS) {
-    shakeX = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
-    shakeY = (Math.random() - 0.5) * 2 * PLAYER_SHAKE_AMOUNT_PX;
+    // OPTIMIZATION: Reduce shake during sprinting for smoother movement
+    const shakeAmount = player.isSprinting ? SPRINT_OPTIMIZED_SHAKE_AMOUNT_PX : PLAYER_SHAKE_AMOUNT_PX;
+    shakeX = (Math.random() - 0.5) * 2 * shakeAmount;
+    shakeY = (Math.random() - 0.5) * 2 * shakeAmount;
   }
 
   const drawWidth = gameConfig.spriteWidth * 2;
