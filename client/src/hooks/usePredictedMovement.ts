@@ -22,6 +22,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
   const frameCountRef = useRef(0);
   const animationFrameIdRef = useRef<number | null>(null);
   
+  // NEW: Track movement startup to avoid reconciliation lag on first movement
+  const firstMovementSentRef = useRef<number | null>(null); // Timestamp of first movement sent
+  const MOVEMENT_STARTUP_GRACE_PERIOD_MS = 300; // Avoid reconciliation for 300ms after first movement
+  
   // Stable refs to avoid recreating the update function
   const connectionRef = useRef(connection);
   const inputStateRef = useRef(inputState);
@@ -50,6 +54,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
       predictedPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
       renderPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
       lastUpdateTimeRef.current = performance.now();
+      
+      // NEW: Reset movement startup tracking when player changes (respawn, reconnect, etc.)
+      firstMovementSentRef.current = null;
+      console.log('[MOVEMENT STARTUP] Player loaded, resetting movement tracking');
     }
   }, [localPlayer]);
 
@@ -137,6 +145,12 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     // 4. Send updates to the server at a fixed interval (async to avoid blocking)
     if (now - lastServerUpdateTimeRef.current > MOVEMENT_UPDATE_INTERVAL_MS) {
       if ((direction.x !== 0 || direction.y !== 0) && connection?.reducers) {
+        // NEW: Mark first movement timestamp for reconciliation grace period
+        if (firstMovementSentRef.current === null) {
+          firstMovementSentRef.current = now;
+          console.log('[MOVEMENT STARTUP] First movement sent, starting grace period');
+        }
+        
         // Use setTimeout to make this async and not block the frame
         setTimeout(() => {
           connection.reducers.updatePlayerPosition(direction.x, direction.y);
@@ -204,6 +218,17 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
       const dx = Math.abs(serverPos.x - predictedPos.x);
       const dy = Math.abs(serverPos.y - predictedPos.y);
       const discrepancy = Math.sqrt(dx * dx + dy * dy);
+      
+      // NEW: Check if we're in movement startup grace period
+      const now = performance.now();
+      const isInGracePeriod = firstMovementSentRef.current !== null && 
+                              (now - firstMovementSentRef.current) < MOVEMENT_STARTUP_GRACE_PERIOD_MS;
+      
+      if (isInGracePeriod && discrepancy > 10 && discrepancy < 80) {
+        // During grace period, skip gentle corrections to prevent startup lag
+        console.log(`[MOVEMENT STARTUP] Skipping reconciliation during grace period (${discrepancy.toFixed(2)}px discrepancy)`);
+        return;
+      }
       
       // Only log reconciliation issues, not perfect matches
       if (discrepancy > 80) {
