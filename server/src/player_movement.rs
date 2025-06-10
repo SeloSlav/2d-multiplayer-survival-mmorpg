@@ -633,6 +633,7 @@ pub fn update_player_facing_direction(
 ) -> Result<(), String> {
     let sender_id = ctx.sender;
     let players = ctx.db.player();
+    let dodge_roll_states = ctx.db.player_dodge_roll_state();
 
     let mut current_player = players.identity()
         .find(sender_id)
@@ -642,6 +643,17 @@ pub fn update_player_facing_direction(
     if current_player.is_dead {
         log::trace!("Ignoring facing direction update for dead player {:?}", sender_id);
         return Ok(());
+    }
+
+    // --- Don't update facing direction during active dodge roll ---
+    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+    if let Some(dodge_state) = dodge_roll_states.player_id().find(&sender_id) {
+        let elapsed_ms = now_ms.saturating_sub(dodge_state.start_time_ms);
+        if elapsed_ms < DODGE_ROLL_DURATION_MS {
+            // Player is currently dodge rolling, don't update facing direction
+            log::trace!("Skipping mouse direction update during dodge roll for player {:?}", sender_id);
+            return Ok(());
+        }
     }
 
     // --- Check if player is actively moving ---
@@ -742,14 +754,7 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         return Err("Must be moving to dodge roll. Hold a movement key (WASD) while pressing dodge.".to_string());
     }
 
-    // Import stamina constants
-    use crate::player_stats::DODGE_ROLL_STAMINA_COST;
 
-    // Check stamina cost before proceeding
-    if current_player.stamina < DODGE_ROLL_STAMINA_COST {
-        return Err(format!("Not enough stamina to dodge roll. Need {:.0}, have {:.1}", 
-                         DODGE_ROLL_STAMINA_COST, current_player.stamina));
-    }
 
     // Calculate dodge direction based on movement input (we know movement input exists due to earlier check)
     // Normalize the movement vector to get proper direction
@@ -816,14 +821,8 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         }
     }
 
-    // Deduct stamina cost from player
-    let mut updated_player = current_player.clone();
-    updated_player.stamina = (updated_player.stamina - DODGE_ROLL_STAMINA_COST).max(0.0);
-    updated_player.last_update = ctx.timestamp; // Update timestamp since stamina changed
-    players.identity().update(updated_player);
-
-    log::info!("Player {:?} started dodge roll in direction: {} (stamina cost: {:.0})", 
-               sender_id, direction_string, DODGE_ROLL_STAMINA_COST);
+    log::info!("Player {:?} started dodge roll in direction: {} (no stamina cost)", 
+               sender_id, direction_string);
 
     Ok(())
 }

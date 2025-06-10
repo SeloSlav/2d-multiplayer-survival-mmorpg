@@ -308,6 +308,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     currentJumpOffsetY,
     isAutoAttacking,
     isAutoWalking,
+    isCrouching: localPlayerIsCrouching,
     processInputsAndActions,
   } = useInputHandler({
     canvasRef: gameCanvasRef,
@@ -689,7 +690,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
       localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
       playerDodgeRollStates,
-      remotePlayerInterpolation
+      remotePlayerInterpolation,
+      localPlayerIsCrouching
     });
     // --- End Y-Sorted Entities ---
 

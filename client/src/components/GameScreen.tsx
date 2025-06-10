@@ -322,7 +322,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             width: '140px', // Fixed width for consistency
                             animation: 'pulse 2s infinite'
                         }}>
-                            🚶 AUTO WALK (F)
+                            🚶 AUTO WALK (Q)
                         </div>
                     )}
                 </div>

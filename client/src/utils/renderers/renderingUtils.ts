@@ -123,6 +123,7 @@ interface RenderYSortedEntitiesProps {
     remotePlayerInterpolation?: {
         updateAndGetSmoothedPosition: (player: any, localPlayerId?: string) => { x: number; y: number };
     };
+    localPlayerIsCrouching?: boolean; // Local crouch state for immediate visual feedback
 }
 
 /**
@@ -154,6 +155,7 @@ export const renderYSortedEntities = ({
     renderPlayerCorpse: renderCorpse,
     localPlayerPosition,
     remotePlayerInterpolation,
+    localPlayerIsCrouching,
 }: RenderYSortedEntitiesProps) => {
     // Clean up old projectile tracking data periodically (every 5 seconds)
     if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance
@@ -198,8 +200,8 @@ export const renderYSortedEntities = ({
                 isPlayerMoving = true;
             }
            
-            // Update ghost trail for dodge roll effects (use playerForRendering for consistent positioning)
-            updateGhostTrail(playerId, playerForRendering, nowMs, isDodgeRolling);
+            // Ghost trail disabled for cleaner dodge roll experience
+            // updateGhostTrail(playerId, playerForRendering, nowMs, isDodgeRolling);
            
             // Get or create movement cache for this player
             let movementCache = playerMovementCache.get(playerId);
@@ -295,7 +297,12 @@ export const renderYSortedEntities = ({
            
            // Choose sprite based on crouching state first, then water status, but don't switch to water sprite while jumping
            let heroImg: HTMLImageElement | null;
-           if (playerForRendering.isCrouching) {
+           // For local player, use immediate local crouch state; for others, use server state
+           const effectiveIsCrouching = isLocalPlayer && localPlayerIsCrouching !== undefined 
+               ? localPlayerIsCrouching 
+               : playerForRendering.isCrouching;
+           
+           if (effectiveIsCrouching) {
                heroImg = heroCrouchImageRef.current; // Use crouch sprite when crouching
            } else if (playerForRendering.isOnWater && !isCurrentlyJumping) {
                heroImg = heroWaterImageRef.current; // Use water sprite when on water (but not jumping)
@@ -327,10 +334,10 @@ export const renderYSortedEntities = ({
             if (playerForRendering.direction === 'up' || playerForRendering.direction === 'left') {
                 // For UP or LEFT, item should be rendered BENEATH the player
               
-              // Render ghost trail BEFORE everything else for these directions
-              if (heroImg && isDodgeRolling) {
-                  renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
-              }
+              // Ghost trail disabled for cleaner dodge roll experience
+              // if (heroImg && isDodgeRolling) {
+              //     renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
+              // }
               
               if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
@@ -371,10 +378,10 @@ export const renderYSortedEntities = ({
                     renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
               
-              // Render ghost trail AFTER everything else for these directions
-              if (heroImg && isDodgeRolling) {
-                  renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
-              }
+              // Ghost trail disabled for cleaner dodge roll experience
+              // if (heroImg && isDodgeRolling) {
+              //     renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
+              // }
            }
         } else if (type === 'tree') {
             // Render tree, skip its dynamic shadow in this pass
@@ -622,11 +629,11 @@ const getDirectionSpriteOffsets = (direction: string): { x: number, y: number } 
     let spriteRow = 2; // Default Down
     switch (direction) {
         case 'up':         spriteRow = 0; break;
-        case 'up_right':   spriteRow = 0; break; // Use up sprite for diagonal up directions
+        case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
         case 'right':      spriteRow = 1; break;
         case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
         case 'down':       spriteRow = 2; break;
-        case 'down_left':  spriteRow = 2; break; // Use down sprite for diagonal down-left
+        case 'down_left':  spriteRow = 3; break; // Use left sprite for diagonal down-left
         case 'left':       spriteRow = 3; break;
         case 'up_left':    spriteRow = 3; break; // Use left sprite for diagonal up-left
         default:           spriteRow = 2; break;

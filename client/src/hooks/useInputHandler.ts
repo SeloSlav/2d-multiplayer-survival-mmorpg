@@ -60,6 +60,7 @@ export interface InputHandlerState {
     currentJumpOffsetY: number; // <<< ADDED
     isAutoAttacking: boolean; // Auto-attack state
     isAutoWalking: boolean; // Auto-walk state
+    isCrouching: boolean; // Local crouch state for immediate visual feedback
     // Function to be called each frame by the game loop
     processInputsAndActions: () => void;
 }
@@ -450,11 +451,11 @@ export const useInputHandler = ({
                             return !prev;
                         });
                         return; // Handled
-                    case 'f':
+                    case 'q':
                         setIsAutoWalking(prev => {
                             if (prev) {
                                 // Currently auto-walking, stop it
-                                // console.log('[Auto-Walk] F pressed - stopping auto-walk');
+                                // console.log('[Auto-Walk] Q pressed - stopping auto-walk');
                                 return false;
                             } else {
                                 // Start auto-walking - use most recent movement input if available, otherwise server direction
@@ -488,8 +489,8 @@ export const useInputHandler = ({
                                     directionSource = `server direction (${serverDirection})`;
                                 }
                                 
-                                // console.log('[Auto-Walk] F pressed - using', directionSource, ':', directionVector);
-                                // console.log('[Auto-Walk] F pressed - setting autoWalkDirectionRef to:', directionVector);
+                                // console.log('[Auto-Walk] Q pressed - using', directionSource, ':', directionVector);
+                                // console.log('[Auto-Walk] Q pressed - setting autoWalkDirectionRef to:', directionVector);
                                 
                                 // Stop auto-attack if it's active
                                 setIsAutoAttacking(false);
@@ -518,23 +519,7 @@ export const useInputHandler = ({
                 return;
             }
 
-            // Dodge Roll (Q key)
-            if (key === 'q' && !event.repeat) {
-                const currentConnection = connectionRef.current;
-                const currentLocalPlayer = localPlayerRef.current;
-                
-                if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
-                    try {
-                        const worldMouse = worldMousePosRefInternal.current;
-                        if (worldMouse.x !== null && worldMouse.y !== null) {
-                            currentConnection.reducers.dodgeRoll(worldMouse.x, worldMouse.y);
-                        }
-                    } catch (err) {
-                        console.error("[InputHandler] Error calling dodgeRoll reducer:", err);
-                    }
-                }
-                return; // Q key handled
-            }
+
 
             // Handle movement keys (WASD) - no longer needed for movement, but tracked for other actions
             if (['w', 'a', 's', 'd'].includes(key)) {
@@ -568,14 +553,14 @@ export const useInputHandler = ({
                 return; // Movement keys handled
             }
 
-            // Jump
+            // Spacebar Handler (Jump or Dodge Roll)
             if (key === ' ' && !event.repeat) {
-                // Don't trigger jump when game menus are open
+                // Don't trigger actions when game menus are open
                 if (isGameMenuOpen) {
                     return; // Let menus handle spacebar for scrolling
                 }
                 
-                // Don't trigger jump when in menu components (to prevent interfering with scrolling)
+                // Don't trigger actions when in menu components (to prevent interfering with scrolling)
                 const target = event.target as Element;
                 if (target) {
                     const isInMenu = target.closest('[data-scrollable-region]') || 
@@ -589,8 +574,41 @@ export const useInputHandler = ({
                     }
                 }
                 
-                if (localPlayerRef.current && !localPlayerRef.current.isDead) { // Check player exists and is not dead
-                    jump();
+                const currentConnection = connectionRef.current;
+                const currentLocalPlayer = localPlayerRef.current;
+                
+                if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
+                    try {
+                        // Check if any movement keys are currently pressed
+                        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                                  (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+                        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                                  (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+                        
+                        const hasMovementInput = dx !== 0 || dy !== 0;
+                        const hasAutoWalk = isAutoWalking;
+                        
+                        if (hasMovementInput || hasAutoWalk) {
+                            // Movement keys pressed OR auto-walking = DODGE ROLL
+                            let finalDx = dx;
+                            let finalDy = dy;
+                            
+                            if (dx === 0 && dy === 0 && hasAutoWalk) {
+                                // Use auto-walk direction if no movement keys are pressed but auto-walking
+                                finalDx = autoWalkDirectionRef.current.dx;
+                                finalDy = autoWalkDirectionRef.current.dy;
+                            }
+                            
+                            currentConnection.reducers.dodgeRoll(finalDx, finalDy);
+                            console.log('[Input] Dodge roll triggered - movement input or auto-walk detected');
+                        } else {
+                            // No movement input and not auto-walking = JUMP
+                            currentConnection.reducers.jump();
+                            console.log('[Input] Jump triggered - standing still');
+                        }
+                    } catch (err) {
+                        console.error("[InputHandler] Error calling spacebar action:", err);
+                    }
                 }
             }
 
@@ -1375,6 +1393,7 @@ export const useInputHandler = ({
         currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
         isAutoAttacking,
         isAutoWalking,
+        isCrouching, // Include local crouch state
         processInputsAndActions,
     };
 }; 

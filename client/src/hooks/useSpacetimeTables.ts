@@ -12,7 +12,7 @@ import { gameConfig } from '../config/gameConfig';
 const DISABLE_ALL_SPATIAL_SUBSCRIPTIONS = false; // Master switch - turns off ALL spatial subscriptions
 const ENABLE_CLOUDS = true; // Controls cloud spatial subscriptions
 const ENABLE_GRASS = false; // 🚫 DISABLED: Grass subscriptions cause massive lag spikes
-const ENABLE_WORLD_TILES = true; // Controls world tile spatial subscriptions
+const ENABLE_WORLD_TILES = false; // Controls world tile spatial subscriptions
 
 // PERFORMANCE TESTING FLAGS
 const GRASS_PERFORMANCE_MODE = false; // Set to true to test with minimal grass subscriptions

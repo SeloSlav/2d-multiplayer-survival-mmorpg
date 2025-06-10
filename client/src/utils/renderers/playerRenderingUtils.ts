@@ -62,11 +62,15 @@ export const getSpriteCoordinates = (
 ): { sx: number, sy: number } => {
   let spriteRow = 2; // Default Down
   switch (player.direction) {
-    case 'up':    spriteRow = 0; break;
-    case 'right': spriteRow = 1; break;
-    case 'down':  spriteRow = 2; break;
-    case 'left':  spriteRow = 3; break;
-    default:      spriteRow = 2; break;
+    case 'up':         spriteRow = 0; break;
+    case 'up_right':   spriteRow = 0; break; // Use right sprite for diagonal up-right
+    case 'right':      spriteRow = 1; break;
+    case 'down_right': spriteRow = 2; break; // Use right sprite for diagonal down-right
+    case 'down':       spriteRow = 2; break;
+    case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
+    case 'left':       spriteRow = 3; break;
+    case 'up_left':    spriteRow = 0; break; // Use left sprite for diagonal up-left
+    default:           spriteRow = 2; break;
   }
   
   let frameIndex = IDLE_FRAME_INDEX; // Default to idle frame
