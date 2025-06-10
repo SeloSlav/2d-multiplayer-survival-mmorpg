@@ -8,6 +8,9 @@ import {
 import { getChunkIndicesForViewport } from '../utils/chunkUtils';
 import { gameConfig } from '../config/gameConfig';
 
+// PERFORMANCE TEST: Temporarily disable spatial subscriptions
+const DISABLE_SPATIAL_SUBSCRIPTIONS = true;
+
 // Define the shape of the state returned by the hook
 export interface SpacetimeTableStates {
     players: Map<string, SpacetimeDB.Player>;
@@ -139,6 +142,14 @@ export const useSpacetimeTables = ({
     const processPendingChunkUpdate = () => {
         const pending = pendingChunkUpdateRef.current;
         if (!pending || !connection) return;
+
+        // PERFORMANCE TEST: Early return if spatial subscriptions are disabled
+        if (DISABLE_SPATIAL_SUBSCRIPTIONS) {
+            console.log('[PERFORMANCE TEST] Spatial subscriptions are disabled');
+            pendingChunkUpdateRef.current = null;
+            lastSpatialUpdateRef.current = performance.now();
+            return;
+        }
 
         // Clear pending update
         pendingChunkUpdateRef.current = null;
@@ -855,6 +866,20 @@ export const useSpacetimeTables = ({
 
         // --- START OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
         if (connection && viewport) {
+            // PERFORMANCE TEST: Skip spatial subscription logic if disabled
+            if (DISABLE_SPATIAL_SUBSCRIPTIONS) {
+                // Clean up any existing spatial subscriptions if they exist
+                if (spatialSubHandlesMapRef.current.size > 0) {
+                    console.log('[PERFORMANCE TEST] Cleaning up existing spatial subscriptions');
+                    spatialSubHandlesMapRef.current.forEach((handles) => {
+                        handles.forEach(safeUnsubscribe);
+                    });
+                    spatialSubHandlesMapRef.current.clear();
+                    currentChunksRef.current = [];
+                }
+                return; // Early return to skip all spatial logic
+            }
+
             // Get new viewport chunk indices
             const newChunkIndicesSet = new Set(getChunkIndicesForViewport(viewport));
             
