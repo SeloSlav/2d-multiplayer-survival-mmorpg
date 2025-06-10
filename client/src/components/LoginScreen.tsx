@@ -360,26 +360,47 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 Connection failed. Please ensure you have an internet connection and try again.<br />
                                 If the problem persists, please try signing out and signing in.
                             </p>
-                            <button
-                                onClick={logout}
-                                disabled={authIsLoading} // Though authIsLoading is false here, keep for consistency
-                                style={{
-                                    padding: '12px 20px',
-                                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                                    backgroundColor: 'rgba(139, 69, 19, 0.8)', // Darker brown for buttons
-                                    color: 'white',
-                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                    fontSize: '14px',
-                                    cursor: 'pointer',
-                                    boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
-                                    width: '100%',
-                                    marginBottom: '15px',
-                                    textTransform: 'uppercase',
-                                    borderRadius: '4px',
-                                }}
-                            >
-                                Sign Out
-                            </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    disabled={authIsLoading}
+                                    style={{
+                                        padding: '12px 20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                                        backgroundColor: 'rgba(255, 140, 0, 0.8)', // Orange for retry
+                                        color: 'white',
+                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
+                                        width: '100%',
+                                        textTransform: 'uppercase',
+                                        borderRadius: '4px',
+                                        fontWeight: 'bold',
+                                    }}
+                                >
+                                    Try Again
+                                </button>
+                                <button
+                                    onClick={logout}
+                                    disabled={authIsLoading}
+                                    style={{
+                                        padding: '12px 20px',
+                                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                                        backgroundColor: 'rgba(139, 69, 19, 0.8)', // Darker brown for buttons
+                                        color: 'white',
+                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
+                                        width: '100%',
+                                        textTransform: 'uppercase',
+                                        borderRadius: '4px',
+                                    }}
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
                         </>
                     ) : isAuthenticated ? (
                         loggedInPlayer ? (
@@ -391,8 +412,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 Welcome back, {loggedInPlayer.username}!
                             </p>
                         ) : (
-                            // New Player: Show username input ONLY if no authError
-                            !authError ? (
+                            // New Player: Show username input ONLY if no authError and no localError
+                            !authError && !localError ? (
                                 <div style={{
                                     maxWidth: '350px',
                                     margin: '0 auto',
@@ -449,33 +470,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                // Show a message that authentication is being verified
+                                // Show appropriate error message when authenticated but there's an error
                                 <p style={{
                                     marginBottom: '20px',
                                     fontSize: '14px',
-                                    color: '#ccc'
+                                    color: 'red'
                                 }}>
-                                    Verifying authentication...
+                                    Unable to access game servers. Please try refreshing the page.
                                 </p>
                             )
                         )
                     ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
                     {/* Render Login/Join button only if not loading and no authError */}
-                    {!authIsLoading && !authError && (
+                    {!authIsLoading && !authError && !localError && (
                         <form onSubmit={handleSubmit}>
                             <button
                                 type="submit"
                                 // Disable if there's any auth error, even if technically "authenticated"
-                                disabled={authError !== null}
+                                disabled={authError !== null || localError !== null}
                                 onMouseEnter={(e) => {
-                                    if (!authError) {
+                                    if (!authError && !localError) {
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,165,0,0.3)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!authError) {
+                                    if (!authError && !localError) {
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
                                     }
@@ -483,14 +504,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 style={{
                                     padding: '16px 32px',
                                     border: '2px solid rgba(255, 165, 0, 0.6)',
-                                    backgroundColor: authError ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
-                                    background: authError ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
-                                    color: authError ? '#ccc' : 'white',
+                                    backgroundColor: (authError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
+                                    background: (authError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
+                                    color: (authError || localError) ? '#ccc' : 'white',
                                     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     fontSize: '16px',
                                     fontWeight: 'bold',
-                                    cursor: authError ? 'not-allowed' : 'pointer',
-                                    boxShadow: authError ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                    cursor: (authError || localError) ? 'not-allowed' : 'pointer',
+                                    boxShadow: (authError || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
                                     display: 'inline-block',
                                     boxSizing: 'border-box',
                                     textTransform: 'uppercase',
@@ -568,8 +589,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         </form>
                     )}
 
-                    {/* Local Error Messages (e.g., for username validation) - show if not authError */}
-                    {localError && !authError && (
+                    {/* Show error state with Refresh button for connection-related localErrors */}
+                    {!authIsLoading && !authError && localError && localError.includes('Connection error') && (
+                        <>
+                            <p style={{
+                                color: 'red',
+                                marginTop: '15px',
+                                fontSize: '12px',
+                                padding: '8px',
+                                backgroundColor: 'rgba(255,0,0,0.1)',
+                                borderRadius: '4px',
+                                marginBottom: '20px',
+                            }}>
+                                {localError}
+                            </p>
+                            <button
+                                onClick={() => window.location.reload()}
+                                style={{
+                                    padding: '12px 24px',
+                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    backgroundColor: 'rgba(255, 140, 0, 0.8)', // Orange for retry
+                                    color: 'white',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
+                                    textTransform: 'uppercase',
+                                    borderRadius: '4px',
+                                    fontWeight: 'bold',
+                                    width: 'auto',
+                                    minWidth: '120px',
+                                }}
+                            >
+                                Refresh
+                            </button>
+                        </>
+                    )}
+
+                    {/* Local Error Messages (e.g., for username validation) - show if not authError and not connection error */}
+                    {localError && !authError && !localError.includes('Connection error') && (
                         <p style={{
                             color: 'red',
                             marginTop: '0px',
