@@ -223,7 +223,7 @@ function AppContent() {
         if (!isAuthenticated || !spacetimeConnected) {
             // console.error("Cannot register player: Not authenticated or not connected to SpacetimeDB.");
             const errorMessage = "Connection error, cannot register. Please check your internet connection or try refreshing your browser.";
-            setUiError(errorMessage);
+            // setUiError(errorMessage);
             throw new Error(errorMessage);
         }
         // Validate the username passed from the LoginScreen

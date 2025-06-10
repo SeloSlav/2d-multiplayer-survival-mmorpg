@@ -9,9 +9,9 @@ import { getChunkIndicesForViewport } from '../utils/chunkUtils';
 import { gameConfig } from '../config/gameConfig';
 
 // PERFORMANCE TEST: Temporarily disable spatial subscriptions
-const DISABLE_SPATIAL_SUBSCRIPTIONS = true;
+const DISABLE_SPATIAL_SUBSCRIPTIONS = false;
 // PERFORMANCE TEST: Enable only world tiles for testing
-const ENABLE_WORLD_TILES_ONLY = true;
+const ENABLE_WORLD_TILES_ONLY = false;
 
 // Define the shape of the state returned by the hook
 export interface SpacetimeTableStates {
