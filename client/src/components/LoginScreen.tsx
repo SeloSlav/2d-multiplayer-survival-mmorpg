@@ -45,11 +45,13 @@ interface LoginScreenProps {
     // Removed username/setUsername props
     handleJoinGame: (usernameToRegister: string | null) => Promise<void>; // Accepts null for existing players, returns Promise to handle errors
     loggedInPlayer: Player | null; // Player data from SpacetimeDB if exists
+    connectionError?: string | null; // SpacetimeDB connection error from GameConnectionContext
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
     handleJoinGame,
     loggedInPlayer,
+    connectionError,
 }) => {
     // Get OpenAuth state and functions
     const {
@@ -346,7 +348,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     {/* Display based on authentication and player existence */}
                     {authIsLoading ? (
                         <p>Loading...</p>
-                    ) : authError ? (
+                    ) : (authError || connectionError) ? (
                         <>
                             <p style={{
                                 color: 'red',
@@ -357,8 +359,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 borderRadius: '4px',
                                 marginBottom: '20px',
                             }}>
-                                Connection failed. Please ensure you have an internet connection and try again.<br />
-                                If the problem persists, please try signing out and signing in.
+                                {connectionError || 'Connection failed. Please ensure you have an internet connection and try again.'}<br />
+                                {!connectionError && 'If the problem persists, please try signing out and signing in.'}
                             </p>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                                 <button
@@ -412,8 +414,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 Welcome back, {loggedInPlayer.username}!
                             </p>
                         ) : (
-                            // New Player: Show username input ONLY if no authError and no localError
-                            !authError && !localError ? (
+                            // New Player: Show username input ONLY if no authError, no connectionError and no localError
+                            !authError && !connectionError && !localError ? (
                                 <div style={{
                                     maxWidth: '350px',
                                     margin: '0 auto',
@@ -471,32 +473,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 </div>
                             ) : (
                                 // Show appropriate error message when authenticated but there's an error
-                                <p style={{
-                                    marginBottom: '20px',
-                                    fontSize: '14px',
-                                    color: 'red'
-                                }}>
-                                    Unable to access game servers. Please try refreshing the page.
-                                </p>
+                                // <p style={{
+                                //     marginBottom: '20px',
+                                //     fontSize: '14px',
+                                //     color: 'red'
+                                // }}>
+                                //     Unable to access game servers. Please try refreshing the page.
+                                // </p>
+                                <></>
                             )
                         )
                     ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
-                    {/* Render Login/Join button only if not loading and no authError */}
-                    {!authIsLoading && !authError && !localError && (
+                    {/* Render Login/Join button only if not loading and no authError and no connectionError */}
+                    {!authIsLoading && !authError && !connectionError && !localError && (
                         <form onSubmit={handleSubmit}>
                             <button
                                 type="submit"
                                 // Disable if there's any auth error, even if technically "authenticated"
-                                disabled={authError !== null || localError !== null}
+                                disabled={authError !== null || connectionError !== null || localError !== null}
                                 onMouseEnter={(e) => {
-                                    if (!authError && !localError) {
+                                    if (!authError && !connectionError && !localError) {
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,165,0,0.3)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!authError && !localError) {
+                                    if (!authError && !connectionError && !localError) {
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
                                     }
@@ -504,14 +507,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 style={{
                                     padding: '16px 32px',
                                     border: '2px solid rgba(255, 165, 0, 0.6)',
-                                    backgroundColor: (authError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
-                                    background: (authError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
-                                    color: (authError || localError) ? '#ccc' : 'white',
+                                    backgroundColor: (authError || connectionError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
+                                    background: (authError || connectionError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
+                                    color: (authError || connectionError || localError) ? '#ccc' : 'white',
                                     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     fontSize: '16px',
                                     fontWeight: 'bold',
-                                    cursor: (authError || localError) ? 'not-allowed' : 'pointer',
-                                    boxShadow: (authError || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                    cursor: (authError || connectionError || localError) ? 'not-allowed' : 'pointer',
+                                    boxShadow: (authError || connectionError || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
                                     display: 'inline-block',
                                     boxSizing: 'border-box',
                                     textTransform: 'uppercase',
@@ -641,8 +644,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         </p>
                     )}
 
-                    {/* Logout Section (Only if authenticated and no authError) */}
-                    {isAuthenticated && !authError && (
+                    {/* Logout Section (Only if authenticated and no authError and no connectionError) */}
+                    {isAuthenticated && !authError && !connectionError && (
                         <div style={{
                             marginTop: '20px',
                             borderTop: '1px solid rgba(255, 255, 255, 0.1)',

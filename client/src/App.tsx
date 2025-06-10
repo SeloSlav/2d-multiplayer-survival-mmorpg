@@ -62,7 +62,8 @@ function AppContent() {
         userProfile, 
         isAuthenticated, 
         isLoading: authLoading, 
-        loginRedirect
+        loginRedirect,
+        spacetimeToken
     } = useAuth();
     
     // --- Core Hooks --- 
@@ -219,18 +220,40 @@ function AppContent() {
     // --- Action Handlers --- 
     const handleAttemptRegisterPlayer = useCallback(async (usernameToRegister: string | null): Promise<void> => {
         setUiError(null);
-        // Ensure we are authenticated and connected before registering
+        
+        // SECURITY: Multiple layers of authentication validation
+        // Layer 1: Basic authentication check
         if (!isAuthenticated || !spacetimeConnected) {
-            // console.error("Cannot register player: Not authenticated or not connected to SpacetimeDB.");
+            console.error("SECURITY: Attempted player registration without proper authentication.");
             const errorMessage = "Connection error, cannot access game servers. Please check your internet connection or try refreshing your browser.";
-            // setUiError(errorMessage);
             throw new Error(errorMessage);
         }
-        // Validate the username passed from the LoginScreen
+        
+        // Layer 2: Verify we have a valid spacetime token
+        if (!spacetimeToken) {
+            console.error("SECURITY: No valid SpacetimeDB token available for registration.");
+            const errorMessage = "Authentication error, please sign out and sign in again.";
+            throw new Error(errorMessage);
+        }
+        
+        // Layer 3: Verify SpacetimeDB connection and identity
+        if (!connection || !dbIdentity) {
+            console.error("SECURITY: No valid SpacetimeDB connection or identity for registration.");
+            const errorMessage = "Connection error, cannot access game servers. Please try refreshing your browser.";
+            throw new Error(errorMessage);
+        }
+        
+        // Layer 4: Validate the username
         if (!usernameToRegister || !usernameToRegister.trim()) { 
              const errorMessage = "Username cannot be empty.";
              setUiError(errorMessage);
              throw new Error(errorMessage);
+        }
+        
+        // Layer 5: Prevent duplicate registration attempts
+        if (isRegistering) {
+            console.warn("Registration already in progress, ignoring duplicate request.");
+            return;
         }
         
         setIsRegistering(true);
@@ -241,7 +264,7 @@ function AppContent() {
             setIsRegistering(false);
             throw error; // Re-throw to let LoginScreen handle the error display
         }
-    }, [registerPlayer, isAuthenticated, spacetimeConnected]);
+    }, [registerPlayer, isAuthenticated, spacetimeConnected, spacetimeToken, connection, dbIdentity, isRegistering]);
 
     // --- Global Window Effects --- 
     useEffect(() => {
@@ -409,7 +432,8 @@ function AppContent() {
             {!overallIsLoading && !isAuthenticated && (
                  <LoginScreen
                     handleJoinGame={loginRedirect} // Correctly pass loginRedirect
-                    loggedInPlayer={null} 
+                    loggedInPlayer={null}
+                    connectionError={connectionError}
                  />
             )}
 
@@ -417,7 +441,8 @@ function AppContent() {
             {!overallIsLoading && isAuthenticated && !localPlayerRegistered && (
                  <LoginScreen 
                     handleJoinGame={handleAttemptRegisterPlayer} // Pass the updated handler
-                    loggedInPlayer={null} 
+                    loggedInPlayer={null}
+                    connectionError={connectionError}
                  />
             )}
             

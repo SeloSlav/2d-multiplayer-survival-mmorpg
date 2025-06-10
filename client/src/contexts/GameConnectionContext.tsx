@@ -179,7 +179,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                 // Remove the callback after it's called once
                 connection.reducers.removeOnRegisterPlayer(handleRegisterResult);
                 
-                if (ctx.event?.status === 'Committed') {
+                if (ctx.event?.status?.tag === 'Committed') {
                     console.log('[GameConnectionProvider] Player registration successful');
                     resolve();
                 } else {
@@ -187,9 +187,16 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     console.error('[GameConnectionProvider] Player registration failed with status:', ctx.event?.status);
                     console.error('[GameConnectionProvider] Full context:', ctx);
                     
-                    // For now, assume any registration failure is due to username already taken
-                    // TODO: Parse the actual error message when we understand the status structure better
-                    const errorMessage = `Username '${username}' is already taken.`;
+                    // Parse the actual error from the status if available
+                    let errorMessage = 'Registration failed';
+                    if (ctx.event?.status?.tag === 'Failed' && ctx.event?.status?.value) {
+                        errorMessage = ctx.event.status.value;
+                    } else if (ctx.event?.status?.tag === 'OutOfEnergy') {
+                        errorMessage = 'Server is overloaded, please try again later';
+                    } else {
+                        // Fallback for unknown status types
+                        errorMessage = `Registration failed with status: ${ctx.event?.status?.tag || 'Unknown'}`;
+                    }
                     reject(new Error(errorMessage));
                 }
             };
