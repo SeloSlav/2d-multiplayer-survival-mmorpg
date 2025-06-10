@@ -17,20 +17,38 @@ interface Viewport {
  * @returns An array of 1D chunk indices.
  */
 export const getChunkIndicesForViewport = (viewport: Viewport | null): number[] => {
+    return getChunkIndicesForViewportWithBuffer(viewport, 0);
+};
+
+/**
+ * OPTIMIZED: Calculates chunk indices with a buffer zone to prevent subscription lag at boundaries.
+ * Buffer chunks are loaded ahead of time and kept after leaving to smooth chunk transitions.
+ *
+ * @param viewport The viewport boundaries { minX, minY, maxX, maxY }.
+ * @param bufferChunks Number of extra chunks to load in each direction (0 = no buffer, 1 = 1 chunk buffer, etc.)
+ * @returns An array of 1D chunk indices including buffer zone.
+ */
+export const getChunkIndicesForViewportWithBuffer = (viewport: Viewport | null, bufferChunks: number = 1): number[] => {
     if (!viewport) return [];
 
     const { chunkSizePx, worldWidthChunks, worldHeightChunks } = gameConfig;
 
     // Calculate the range of chunk coordinates (X and Y) covered by the viewport
-    // Ensure chunk coordinates stay within the world bounds (0 to width/height - 1)
-    const minChunkX = Math.max(0, Math.floor(viewport.minX / chunkSizePx));
-    const maxChunkX = Math.min(worldWidthChunks - 1, Math.floor(viewport.maxX / chunkSizePx));
-    const minChunkY = Math.max(0, Math.floor(viewport.minY / chunkSizePx));
-    const maxChunkY = Math.min(worldHeightChunks - 1, Math.floor(viewport.maxY / chunkSizePx));
+    // Apply buffer zone by expanding the range
+    const baseMinChunkX = Math.floor(viewport.minX / chunkSizePx);
+    const baseMaxChunkX = Math.floor(viewport.maxX / chunkSizePx);
+    const baseMinChunkY = Math.floor(viewport.minY / chunkSizePx);
+    const baseMaxChunkY = Math.floor(viewport.maxY / chunkSizePx);
+
+    // Apply buffer and ensure chunk coordinates stay within world bounds
+    const minChunkX = Math.max(0, baseMinChunkX - bufferChunks);
+    const maxChunkX = Math.min(worldWidthChunks - 1, baseMaxChunkX + bufferChunks);
+    const minChunkY = Math.max(0, baseMinChunkY - bufferChunks);
+    const maxChunkY = Math.min(worldHeightChunks - 1, baseMaxChunkY + bufferChunks);
 
     const indices: number[] = [];
 
-    // Iterate through the 2D chunk range and calculate the 1D index
+    // Iterate through the buffered 2D chunk range and calculate the 1D index
     for (let y = minChunkY; y <= maxChunkY; y++) {
         for (let x = minChunkX; x <= maxChunkX; x++) {
             // Calculate 1D index using row-major order
@@ -40,7 +58,7 @@ export const getChunkIndicesForViewport = (viewport: Viewport | null): number[] 
     }
     
     // Log the calculation for debugging (optional)
-    // console.log(`Viewport: ${JSON.stringify(viewport)}, Chunks (X: ${minChunkX}-${maxChunkX}, Y: ${minChunkY}-${maxChunkY}), Indices: ${indices.join(',')}`);
+    // console.log(`Viewport: ${JSON.stringify(viewport)}, Buffer: ${bufferChunks}, Chunks (X: ${minChunkX}-${maxChunkX}, Y: ${minChunkY}-${maxChunkY}), Indices: ${indices.length} total`);
 
     return indices;
 }; 
