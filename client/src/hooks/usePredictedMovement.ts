@@ -2,10 +2,11 @@ import { useRef, useEffect, useCallback } from 'react';
 import { Reducer, Player, DbConnection } from '../generated';
 import { MovementInputState } from './useMovementInput';
 
-const MOVEMENT_UPDATE_INTERVAL_MS = 50; // 20 times per second
-const PLAYER_SPEED = 200; // FIXED: Match server's PLAYER_SPEED exactly
-const SPRINT_MULTIPLIER = 1.05; // CONSERVATIVE: Proportionally lower than server's 1.5 (was 1.6)
-const INTERPOLATION_SPEED = 8.0; // Tuned for smooth, seamless movement
+const MOVEMENT_UPDATE_INTERVAL_MS = 50; // 20 times per server
+
+// NUCLEAR OPTION: Zero-lag movement
+const ZERO_LAG_MODE = true; // True = instant snap, False = smooth interpolation
+const ULTRA_FAST_INTERPOLATION = 200.0; // For smooth mode (10x faster than before)
 
 interface PredictedMovementProps {
   connection: DbConnection | null;
@@ -14,32 +15,23 @@ interface PredictedMovementProps {
 }
 
 export const usePredictedMovement = ({ connection, localPlayer, inputState }: PredictedMovementProps) => {
-  const predictedPositionRef = useRef({ x: 0, y: 0 });
-  const renderPositionRef = useRef({ x: 0, y: 0 }); // New ref for smooth rendering
+  // Position tracking
+  const renderPositionRef = useRef({ x: 0, y: 0 }); // Visual position
+  const targetPositionRef = useRef({ x: 0, y: 0 }); // Server position
+  
   const lastUpdateTimeRef = useRef(performance.now());
-  const lastServerUpdateTimeRef = useRef(performance.now());
-  const lastSprintStateRef = useRef<boolean>(false); // Track last sent sprint state
-  const frameCountRef = useRef(0);
+  const lastMovementUpdateTimeRef = useRef(performance.now());
+  const lastSprintStateRef = useRef<boolean>(false);
   const animationFrameIdRef = useRef<number | null>(null);
   
-  // NEW: Track movement startup to avoid reconciliation lag on first movement
-  const firstMovementSentRef = useRef<number | null>(null); // Timestamp of first movement sent
-  const MOVEMENT_STARTUP_GRACE_PERIOD_MS = 300; // Avoid reconciliation for 300ms after first movement
+  // Minimal tracking
+  const frameCountRef = useRef(0);
+  const lastDiagnosticLogRef = useRef(performance.now());
   
-  // Stable refs to avoid recreating the update function
+  // Stable refs
   const connectionRef = useRef(connection);
   const inputStateRef = useRef(inputState);
   const localPlayerRef = useRef(localPlayer);
-  
-  // Cache for expensive calculations to reduce per-frame work
-  const mathCacheRef = useRef({
-    lastDelta: 0,
-    cachedInterpolationFactor: 0,
-    lastLogTime: 0, // Throttle render jump logging
-    lastFrameDropLogTime: 0, // Throttle frame drop logging
-    lastMemoryCheck: 0,
-    frameCount: 0,
-  });
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -48,20 +40,27 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     localPlayerRef.current = localPlayer;
   }, [connection, inputState, localPlayer]);
 
-  // Initialize predicted position when the player loads
+  // Initialize positions when player loads
   useEffect(() => {
-    if (localPlayer) {
-      predictedPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
-      renderPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
-      lastUpdateTimeRef.current = performance.now();
+    if (localPlayer && localPlayer.identity) {
+      const currentPos = { x: localPlayer.positionX, y: localPlayer.positionY };
       
-      // NEW: Reset movement startup tracking when player changes (respawn, reconnect, etc.)
-      firstMovementSentRef.current = null;
-      console.log('[MOVEMENT STARTUP] Player loaded, resetting movement tracking');
+      // Only reset on significant position changes (teleport/respawn)
+      const isSignificantChange = !targetPositionRef.current || 
+                                 Math.abs(targetPositionRef.current.x - currentPos.x) > 500 ||
+                                 Math.abs(targetPositionRef.current.y - currentPos.y) > 500;
+      
+      if (isSignificantChange) {
+        targetPositionRef.current = currentPos;
+        renderPositionRef.current = currentPos; // Instant sync
+        lastUpdateTimeRef.current = performance.now();
+        
+        console.log('[ZERO LAG] Player position initialized - INSTANT SYNC');
+      }
     }
-  }, [localPlayer]);
+  }, [localPlayer?.identity?.toHexString()]);
 
-  // Stable update function that doesn't recreate on every prop change
+  // ZERO-LAG UPDATE FUNCTION
   const update = useCallback(() => {
     const localPlayer = localPlayerRef.current;
     const inputState = inputStateRef.current;
@@ -71,152 +70,78 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
 
     const now = performance.now();
     const deltaMs = now - lastUpdateTimeRef.current;
-    const deltaSeconds = deltaMs / 1000;
+    const deltaSeconds = Math.min(deltaMs / 1000, 0.033); // Cap at 33ms
     lastUpdateTimeRef.current = now;
-
-    // Only log significant frame drops that could cause stuttering with detailed timing
-    if (deltaMs > 30) { // Worse than 33fps
-      console.log(`[FRAME DROP] Long frame: ${deltaMs.toFixed(1)}ms (${(1000/deltaMs).toFixed(1)} FPS)`);
-    }
-
-    // Profile different sections of the update function
-    let sectionStart = performance.now();
 
     const { direction, sprinting } = inputState;
 
-    // 1. ENHANCED: Advanced sprint prediction with server state awareness
-    const playerStamina = localPlayer.stamina || 0;
-    const serverSprinting = localPlayer.isSprinting || false; // Server's current sprint state
-    
-    // Smart sprint prediction: prioritize server state when stamina is low to prevent flutter
-    let effectiveSprinting = sprinting;
-    if (playerStamina <= 0) {
-      // No stamina - definitely not sprinting
-      effectiveSprinting = false;
-    } else if (playerStamina < 10) {
-      // Low stamina - use server state to prevent prediction mismatch
-      effectiveSprinting = serverSprinting;
-    } else {
-      // Good stamina - use client input for responsiveness
-      effectiveSprinting = sprinting;
+    // 1. Send input to server
+    if (connection?.reducers) {
+      if (now - lastMovementUpdateTimeRef.current > MOVEMENT_UPDATE_INTERVAL_MS) {
+        if (direction.x !== 0 || direction.y !== 0) {
+          setTimeout(() => {
+            connection.reducers.updatePlayerPosition(direction.x, direction.y);
+          }, 0);
+        }
+        lastMovementUpdateTimeRef.current = now;
+      }
+
+      // Sprint state
+      if (sprinting !== lastSprintStateRef.current) {
+        setTimeout(() => {
+          connection.reducers.setSprinting(sprinting);
+        }, 0);
+        lastSprintStateRef.current = sprinting;
+      }
     }
 
-    // 1. Update the raw predicted position based on input
-    if (direction.x !== 0 || direction.y !== 0) {
-        const currentSpeed = PLAYER_SPEED * (effectiveSprinting ? SPRINT_MULTIPLIER : 1);
-        predictedPositionRef.current.x += direction.x * currentSpeed * deltaSeconds;
-        predictedPositionRef.current.y += direction.y * currentSpeed * deltaSeconds;
-    }
-    
-    const movementTime = performance.now() - sectionStart;
-    if (movementTime > 1) console.log(`[PERF] Movement calculation: ${movementTime.toFixed(2)}ms`);
-    sectionStart = performance.now();
-
-    // 2. Smoothly interpolate the render position towards the predicted position using frame-rate independent exponential decay
-    const oldRenderPos = { x: renderPositionRef.current.x, y: renderPositionRef.current.y };
-    
-    // Optimize: clamp deltaSeconds to avoid extreme values that cause performance issues
-    const clampedDelta = Math.min(deltaSeconds, 0.1); // Max 100ms delta
-    
-    // Cache expensive Math.exp calculation if delta hasn't changed much
-    const mathCache = mathCacheRef.current;
-    let interpolationFactor;
-    if (Math.abs(clampedDelta - mathCache.lastDelta) < 0.001) {
-      // Reuse cached value if delta is very similar (within 1ms)
-      interpolationFactor = mathCache.cachedInterpolationFactor;
-    } else {
-      // Calculate new value and cache it
-      interpolationFactor = 1 - Math.exp(-INTERPOLATION_SPEED * clampedDelta);
-      mathCache.lastDelta = clampedDelta;
-      mathCache.cachedInterpolationFactor = interpolationFactor;
-    }
-    
+    // 2. ZERO-LAG MOVEMENT SYSTEM
     const renderPos = renderPositionRef.current;
-    const predictedPos = predictedPositionRef.current;
+    const targetPos = targetPositionRef.current;
     
-    renderPos.x += (predictedPos.x - renderPos.x) * interpolationFactor;
-    renderPos.y += (predictedPos.y - renderPos.y) * interpolationFactor;
+    if (ZERO_LAG_MODE) {
+      // NUCLEAR OPTION: Instant snap to server position
+      renderPos.x = targetPos.x;
+      renderPos.y = targetPos.y;
+    } else {
+      // ULTRA-FAST INTERPOLATION as fallback
+      const dx = targetPos.x - renderPos.x;
+      const dy = targetPos.y - renderPos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > 0.1) {
+        const factor = 1 - Math.exp(-ULTRA_FAST_INTERPOLATION * deltaSeconds);
+        renderPos.x += dx * factor;
+        renderPos.y += dy * factor;
+      } else {
+        renderPos.x = targetPos.x;
+        renderPos.y = targetPos.y;
+      }
+    }
 
-        // 3. Round to integers for pixel-perfect rendering (eliminates subpixel blur)
+    // Pixel-perfect rendering
     renderPos.x = Math.round(renderPos.x);
     renderPos.y = Math.round(renderPos.y);
-    
-    const interpolationTime = performance.now() - sectionStart;
-    if (interpolationTime > 1) console.log(`[PERF] Interpolation: ${interpolationTime.toFixed(2)}ms`);
-    sectionStart = performance.now();
-    
-    // 4. Check for sudden render position changes that might cause stuttering (throttled)
-    const dx = renderPos.x - oldRenderPos.x;
-    const dy = renderPos.y - oldRenderPos.y;
-    const renderDeltaSq = dx * dx + dy * dy; // Avoid sqrt unless needed
-    if (renderDeltaSq > 25 && (now - mathCache.lastLogTime) > 500) { // Only log significant jumps every 500ms
-       const renderDelta = Math.sqrt(renderDeltaSq);
-       console.log(`[RENDER JUMP] Render position moved ${renderDelta.toFixed(2)}px in ${(clampedDelta * 1000).toFixed(1)}ms`);
-       mathCache.lastLogTime = now;
-     }
 
-    const renderCheckTime = performance.now() - sectionStart;
-    if (renderCheckTime > 1) console.log(`[PERF] Render check: ${renderCheckTime.toFixed(2)}ms`);
-    sectionStart = performance.now();
-
-    // 4. Send updates to the server at a fixed interval (async to avoid blocking)
-    if (now - lastServerUpdateTimeRef.current > MOVEMENT_UPDATE_INTERVAL_MS) {
-      if ((direction.x !== 0 || direction.y !== 0) && connection?.reducers) {
-        // NEW: Mark first movement timestamp for reconciliation grace period
-        if (firstMovementSentRef.current === null) {
-          firstMovementSentRef.current = now;
-          console.log('[MOVEMENT STARTUP] First movement sent, starting grace period');
-        }
+    // Minimal diagnostic logging
+    frameCountRef.current++;
+    if (frameCountRef.current % 300 === 0) { // Every 5 seconds at 60fps
+      const now = performance.now();
+      if (now - lastDiagnosticLogRef.current > 6000) { // Every 6 seconds
+        lastDiagnosticLogRef.current = now;
         
-        // Use setTimeout to make this async and not block the frame
-        setTimeout(() => {
-          connection.reducers.updatePlayerPosition(direction.x, direction.y);
-        }, 0);
-      }
-      lastServerUpdateTimeRef.current = now;
-    }
-
-    // 5. ENHANCED: Send sprinting state changes immediately when they occur (async)
-    // More responsive sprint state synchronization
-    if (connection?.reducers) {
-      // Check if our effective sprinting differs from what we last sent to server
-      if (effectiveSprinting !== lastSprintStateRef.current) {
-        // Sprint state changed - send immediately for responsiveness
-        setTimeout(() => {
-          connection.reducers.setSprinting(effectiveSprinting);
-        }, 0);
-        lastSprintStateRef.current = effectiveSprinting;
-        console.log(`[SPRINT SYNC] Sprint state updated to: ${effectiveSprinting}`);
-      }
-      
-      // Also sync with server state if there's a mismatch (server overrode our state)
-      else if (localPlayer.isSprinting !== lastSprintStateRef.current) {
-        // Server changed our sprint state (e.g., stamina depleted)
-        lastSprintStateRef.current = localPlayer.isSprinting;
-        console.log(`[SPRINT SYNC] Server overrode sprint state to: ${localPlayer.isSprinting}`);
+        const lagDistance = Math.sqrt(
+          Math.pow(renderPos.x - targetPos.x, 2) + 
+          Math.pow(renderPos.y - targetPos.y, 2)
+        );
+        
+        console.log(`[ZERO LAG] Status: ${ZERO_LAG_MODE ? 'INSTANT SNAP' : 'ULTRA FAST'} | Lag: ${lagDistance.toFixed(1)}px`);
       }
     }
-    
-    const networkTime = performance.now() - sectionStart;
-    if (networkTime > 1) console.log(`[PERF] Network calls: ${networkTime.toFixed(2)}ms`);
 
-    // Final performance check
-    const totalTime = performance.now() - now;
-    if (totalTime > 5) {
-      console.log(`[PERF] TOTAL UPDATE TIME: ${totalTime.toFixed(2)}ms (Movement: ${movementTime.toFixed(2)}ms, Interpolation: ${interpolationTime.toFixed(2)}ms, Render: ${renderCheckTime.toFixed(2)}ms, Network: ${networkTime.toFixed(2)}ms)`);
-    }
+  }, []);
 
-    // Periodic memory usage check
-    const cache = mathCacheRef.current;
-    cache.frameCount++;
-    if (cache.frameCount % 300 === 0 && 'memory' in performance) { // Every 5 seconds at 60fps
-      const memInfo = (performance as any).memory;
-      console.log(`[MEMORY] Used: ${(memInfo.usedJSHeapSize / 1024 / 1024).toFixed(1)}MB, Total: ${(memInfo.totalJSHeapSize / 1024 / 1024).toFixed(1)}MB, Limit: ${(memInfo.jsHeapSizeLimit / 1024 / 1024).toFixed(1)}MB`);
-    }
-
-  }, []); // Empty deps - uses refs for stable function
-
-  // Start the animation loop - only restart when player loads/unloads
+  // Start animation loop
   useEffect(() => {
     const animate = () => {
       update();
@@ -233,68 +158,24 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
         animationFrameIdRef.current = null;
       }
     };
-  }, [localPlayer, update]); // update is now stable due to empty deps
+  }, [localPlayer, update]);
 
-  // Server Reconciliation (gentle version)
-  // This effect runs when the authoritative server state for the player changes.
+  // Server position updates - INSTANT SYNC
   useEffect(() => {
     if (localPlayer) {
       const serverPos = { x: localPlayer.positionX, y: localPlayer.positionY };
-      const predictedPos = predictedPositionRef.current;
-      const renderPos = renderPositionRef.current;
-
-      // Calculate discrepancy
-      const dx = Math.abs(serverPos.x - predictedPos.x);
-      const dy = Math.abs(serverPos.y - predictedPos.y);
-      const discrepancy = Math.sqrt(dx * dx + dy * dy);
       
-      // NEW: Check if we're in movement startup grace period
-      const now = performance.now();
-      const isInGracePeriod = firstMovementSentRef.current !== null && 
-                              (now - firstMovementSentRef.current) < MOVEMENT_STARTUP_GRACE_PERIOD_MS;
+      // Update target position immediately
+      targetPositionRef.current = serverPos;
       
-      // ENHANCED: Sprint-aware reconciliation to prevent camera jitter
-      const sprintJustChanged = localPlayer.isSprinting !== lastSprintStateRef.current;
-      const isCurrentlySprinting = localPlayer.isSprinting; // Use server state for reconciliation
-      const wasRecentlySprinting = lastSprintStateRef.current;
-      
-      // More tolerant thresholds during sprinting to prevent jitter
-      const discrepancyThreshold = isCurrentlySprinting || wasRecentlySprinting ? 20 : 10; // Higher tolerance for sprinting
-      const snapThreshold = isCurrentlySprinting ? 120 : 80; // Higher snap threshold for sprinting
-      
-      if (isInGracePeriod && discrepancy > discrepancyThreshold && discrepancy < snapThreshold) {
-        // During grace period, skip gentle corrections to prevent startup lag
-        console.log(`[MOVEMENT STARTUP] Skipping reconciliation during grace period (${discrepancy.toFixed(2)}px discrepancy)`);
-        return;
-      }
-      
-      if (sprintJustChanged && discrepancy > discrepancyThreshold && discrepancy < (snapThreshold * 0.6)) {
-        // Skip corrections during sprint transitions to reduce camera snapping
-        console.log(`[SPRINT TRANSITION] Skipping reconciliation during sprint state change (${discrepancy.toFixed(2)}px discrepancy)`);
-        return;
-      }
-      
-      // Only log reconciliation issues, not perfect matches
-      if (discrepancy > snapThreshold) {
-        // Large discrepancy - immediate snap (teleport, respawn, etc.)
-        console.log(`[RECONCILIATION] LARGE SNAP: ${discrepancy.toFixed(2)}px discrepancy`);
-        predictedPositionRef.current = serverPos;
-        renderPositionRef.current = serverPos;
-      } else if (discrepancy > discrepancyThreshold) {
-        // Small discrepancy - gentle correction by nudging the predicted position
-        // towards the server position (this gets smoothed by the interpolation)
-        // Gentler correction factor during sprinting to reduce jitter
-        const correctionFactor = isCurrentlySprinting ? 0.2 : 0.3; // Gentler for sprinting
-        console.log(`[RECONCILIATION] GENTLE CORRECTION: ${discrepancy.toFixed(2)}px discrepancy, nudging by ${(correctionFactor * 100)}%`);
-        predictedPositionRef.current.x += (serverPos.x - predictedPos.x) * correctionFactor;
-        predictedPositionRef.current.y += (serverPos.y - predictedPos.y) * correctionFactor;
+      // In ZERO_LAG_MODE, also update render position immediately
+      if (ZERO_LAG_MODE) {
+        renderPositionRef.current = { ...serverPos };
       }
     }
   }, [localPlayer?.positionX, localPlayer?.positionY]);
 
-
   return {
-    predictedPosition: renderPositionRef.current, // Return the smooth position for rendering
-    // Remove updatePredictedMovement since it's now handled internally
+    predictedPosition: renderPositionRef.current, // ZERO-LAG position
   };
 }; 

@@ -454,7 +454,7 @@ export const useInputHandler = ({
                         setIsAutoWalking(prev => {
                             if (prev) {
                                 // Currently auto-walking, stop it
-                                console.log('[Auto-Walk] F pressed - stopping auto-walk');
+                                // console.log('[Auto-Walk] F pressed - stopping auto-walk');
                                 return false;
                             } else {
                                 // Start auto-walking - use most recent movement input if available, otherwise server direction
@@ -488,8 +488,8 @@ export const useInputHandler = ({
                                     directionSource = `server direction (${serverDirection})`;
                                 }
                                 
-                                console.log('[Auto-Walk] F pressed - using', directionSource, ':', directionVector);
-                                console.log('[Auto-Walk] F pressed - setting autoWalkDirectionRef to:', directionVector);
+                                // console.log('[Auto-Walk] F pressed - using', directionSource, ':', directionVector);
+                                // console.log('[Auto-Walk] F pressed - setting autoWalkDirectionRef to:', directionVector);
                                 
                                 // Stop auto-attack if it's active
                                 setIsAutoAttacking(false);
@@ -539,11 +539,11 @@ export const useInputHandler = ({
             // Handle movement keys (WASD) - no longer needed for movement, but tracked for other actions
             if (['w', 'a', 's', 'd'].includes(key)) {
                 // Debug Shift+WASD stopping (check BEFORE adding key to avoid race conditions)
-                console.log('[Auto-Walk DEBUG] Movement key pressed:', key, 'Shift held:', event.shiftKey, 'Auto-walking (ref):', isAutoWalkingRef.current);
+                // console.log('[Auto-Walk DEBUG] Movement key pressed:', key, 'Shift held:', event.shiftKey, 'Auto-walking (ref):', isAutoWalkingRef.current);
                 
                 // Stop auto-walk when Shift+WASD is pressed (use ref to avoid stale closure)
                 if (event.shiftKey && isAutoWalkingRef.current) {
-                    console.log('[Auto-Walk] ✅ Shift+Movement key pressed, stopping auto-walk');
+                    // console.log('[Auto-Walk] ✅ Shift+Movement key pressed, stopping auto-walk');
                     setIsAutoWalking(false);
                     return; // Don't add the key to keysPressed to prevent auto-walk from continuing
                 }
@@ -644,7 +644,7 @@ export const useInputHandler = ({
                 if (!stillMoving) {
                     // No movement keys pressed anymore, but don't reset the direction tracking
                     // Keep the last direction for a longer time to help with auto-walk initialization
-                    console.log('[Auto-Walk] All movement keys released, preserving last direction:', lastMovementDirectionRef.current);
+                    // console.log('[Auto-Walk] All movement keys released, preserving last direction:', lastMovementDirectionRef.current);
                 }
             }
 
@@ -1172,22 +1172,22 @@ export const useInputHandler = ({
                 direction = currentInput;
                 // Update stored direction to remember this for when keys are released
                 autoWalkDirectionRef.current = { ...currentInput };
-                console.log('[Auto-Walk] Using live input and updating stored direction:', direction);
+                // console.log('[Auto-Walk] Using live input and updating stored direction:', direction);
             } else {
                 // No keys pressed - use the last direction we were moving
                 direction = autoWalkDirectionRef.current;
-                console.log('[Auto-Walk] No input, using stored direction:', direction);
+                // console.log('[Auto-Walk] No input, using stored direction:', direction);
             }
             
             // Only stop auto-walk if no direction for more than 500ms (longer timeout for better UX)
             if (direction.dx === 0 && direction.dy === 0) {
                 const timeSinceLastValidDirection = Date.now() - lastValidDirectionTimeRef.current;
                 if (timeSinceLastValidDirection > 500) {
-                    console.log('[Auto-Walk] No direction for', timeSinceLastValidDirection, 'ms, stopping auto-walk');
+                    // console.log('[Auto-Walk] No direction for', timeSinceLastValidDirection, 'ms, stopping auto-walk');
                     setIsAutoWalking(false);
                     return;
                 } else {
-                    console.log('[Auto-Walk] No direction but only for', timeSinceLastValidDirection, 'ms, continuing...');
+                    // console.log('[Auto-Walk] No direction but only for', timeSinceLastValidDirection, 'ms, continuing...');
                     return; // Skip this frame but don't stop auto-walk yet
                 }
             } else {
@@ -1197,7 +1197,7 @@ export const useInputHandler = ({
 
             // Send movement command in the current direction
             try {
-                console.log('[Auto-Walk Move] Sending movement command:', direction.dx, direction.dy);
+                // console.log('[Auto-Walk Move] Sending movement command:', direction.dx, direction.dy);
                 connectionRef.current.reducers.updatePlayerPosition(direction.dx, direction.dy);
             } catch (err) {
                 console.error('[Auto-Walk] Error sending movement command:', err);

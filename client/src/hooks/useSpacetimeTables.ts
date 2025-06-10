@@ -247,7 +247,7 @@ export const useSpacetimeTables = ({
                         const chunkY = Math.floor(chunkIndex / worldWidthChunks);
                         const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
                         newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
-                        console.log(`[PERFORMANCE TEST] Subscribed to world tiles for chunk ${chunkIndex} (${chunkX},${chunkY})`);
+                        // console.log(`[PERFORMANCE TEST] Subscribed to world tiles for chunk ${chunkIndex} (${chunkX},${chunkY})`);
 
                         spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                     } catch (error) {
