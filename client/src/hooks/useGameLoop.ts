@@ -131,6 +131,11 @@ export function useGameLoop(
       // Warn about slow frames
       if (frameTime > maxFrameTime) {
         logSlowFrame(frameTime, frameCountRef.current);
+        
+        // Extra warning for severely slow frames (3x budget)
+        if (frameTime > maxFrameTime * 3) {
+          console.error(`🚨 [useGameLoop] SEVERE LAG SPIKE: ${frameTime.toFixed(2)}ms frame (${(frameTime / maxFrameTime).toFixed(1)}x budget) - Check for chunk system issues!`);
+        }
       }
 
       // Periodic performance summary
