@@ -147,6 +147,7 @@ use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<<
 use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile table trait
 use crate::minimap_cache as MinimapCacheTableTrait; // <<< ADDED: Import MinimapCache table trait
 use crate::player_movement::player_dodge_roll_state as PlayerDodgeRollStateTableTrait; // <<< ADDED: Import PlayerDodgeRollState table trait
+use crate::world_chunk_data as WorldChunkDataTableTrait; // <<< ADDED: Import WorldChunkData table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -207,11 +208,17 @@ pub fn world_pos_to_tile_coords(world_x: f32, world_y: f32) -> (i32, i32) {
 
 /// Checks if a player is standing on a water tile (Sea type)
 /// This is highly optimized using direct tile coordinate lookup
+/// NEW: Uses compressed chunk data for much better performance
 pub fn is_player_on_water(ctx: &ReducerContext, player_x: f32, player_y: f32) -> bool {
     // Convert player position to tile coordinates
     let (tile_x, tile_y) = world_pos_to_tile_coords(player_x, player_y);
     
-    // Direct lookup using indexed world coordinates - O(log n) performance
+    // NEW: Try compressed lookup first for much better performance
+    if let Some(tile_type) = get_tile_type_at_position(ctx, tile_x, tile_y) {
+        return tile_type == TileType::Sea;
+    }
+    
+    // FALLBACK: Use original method if compressed data not available
     let world_tiles = ctx.db.world_tile();
     
     // Use the indexed world_position btree for fast lookup
@@ -235,6 +242,61 @@ pub fn is_player_jumping(jump_start_time_ms: u64, current_time_ms: u64) -> bool 
     
     let elapsed_ms = current_time_ms.saturating_sub(jump_start_time_ms);
     elapsed_ms < JUMP_COOLDOWN_MS // Player is still within the jump duration
+}
+
+/// NEW: Efficient tile lookup using compressed chunk data
+/// This is much faster than individual WorldTile lookups for water detection
+pub fn is_player_on_water_compressed(ctx: &ReducerContext, player_x: f32, player_y: f32) -> bool {
+    // Convert player position to tile coordinates
+    let (tile_x, tile_y) = world_pos_to_tile_coords(player_x, player_y);
+    
+    // Calculate which chunk this tile belongs to
+    let chunk_x = tile_x / environment::CHUNK_SIZE_TILES as i32;
+    let chunk_y = tile_y / environment::CHUNK_SIZE_TILES as i32;
+    
+    // Look up the compressed chunk data
+    let world_chunk_data = ctx.db.world_chunk_data();
+    for chunk in world_chunk_data.idx_chunk_coords().filter((chunk_x, chunk_y)) {
+        // Calculate local tile position within the chunk
+        let local_tile_x = (tile_x % environment::CHUNK_SIZE_TILES as i32) as usize;
+        let local_tile_y = (tile_y % environment::CHUNK_SIZE_TILES as i32) as usize;
+        let tile_index = local_tile_y * environment::CHUNK_SIZE_TILES as usize + local_tile_x;
+        
+        // Check bounds and extract tile type
+        if tile_index < chunk.tile_types.len() {
+            if let Some(tile_type) = TileType::from_u8(chunk.tile_types[tile_index]) {
+                return tile_type == TileType::Sea;
+            }
+        }
+        break; // Found the chunk, no need to continue
+    }
+    
+    // Fallback to original method if compressed data not available
+    is_player_on_water(ctx, player_x, player_y)
+}
+
+/// NEW: Get tile type at specific world coordinates using compressed data
+pub fn get_tile_type_at_position(ctx: &ReducerContext, world_x: i32, world_y: i32) -> Option<TileType> {
+    // Calculate which chunk this tile belongs to
+    let chunk_x = world_x / environment::CHUNK_SIZE_TILES as i32;
+    let chunk_y = world_y / environment::CHUNK_SIZE_TILES as i32;
+    
+    // Look up the compressed chunk data
+    let world_chunk_data = ctx.db.world_chunk_data();
+    for chunk in world_chunk_data.idx_chunk_coords().filter((chunk_x, chunk_y)) {
+        // Calculate local tile position within the chunk
+        let local_tile_x = (world_x % environment::CHUNK_SIZE_TILES as i32) as usize;
+        let local_tile_y = (world_y % environment::CHUNK_SIZE_TILES as i32) as usize;
+        let tile_index = local_tile_y * environment::CHUNK_SIZE_TILES as usize + local_tile_x;
+        
+        // Check bounds and extract tile type
+        if tile_index < chunk.tile_types.len() {
+            return TileType::from_u8(chunk.tile_types[tile_index]);
+        }
+        break; // Found the chunk, no need to continue
+    }
+    
+    None // No compressed data found for this position
 }
 
 // Player table to store position
@@ -348,6 +410,13 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
             Ok(_) => {
                 log::info!("Initial world generation completed successfully");
                 
+                // NEW: Generate compressed chunk data for efficient network transmission
+                log::info!("Generating compressed chunk data for efficient network transmission...");
+                match crate::world_generation::generate_compressed_chunk_data(ctx) {
+                    Ok(_) => log::info!("Compressed chunk data generated successfully"),
+                    Err(e) => log::error!("Failed to generate compressed chunk data: {}", e),
+                }
+                
                 // Generate minimap cache after world generation
                 log::info!("Generating minimap cache...");
                 match crate::world_generation::generate_minimap_data(ctx, 300, 300) {
@@ -370,6 +439,18 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
             }
         } else {
             log::info!("Minimap cache already exists ({}), skipping generation", existing_minimap_count);
+        }
+        
+        // NEW: Check if compressed chunk data exists, generate if missing
+        let existing_chunk_data_count = ctx.db.world_chunk_data().iter().count();
+        if existing_chunk_data_count == 0 {
+            log::info!("No compressed chunk data found, generating...");
+            match crate::world_generation::generate_compressed_chunk_data(ctx) {
+                Ok(_) => log::info!("Compressed chunk data generated successfully"),
+                Err(e) => log::error!("Failed to generate compressed chunk data: {}", e),
+            }
+        } else {
+            log::info!("Compressed chunk data already exists ({}), skipping generation", existing_chunk_data_count);
         }
     }
 
@@ -905,6 +986,25 @@ pub struct WorldGenConfig {
     pub road_density: f32,
 }
 
+// ADD: Compressed chunk data table for efficient tile transmission
+#[spacetimedb::table(
+    name = world_chunk_data, 
+    public,
+    index(name = idx_chunk_coords, btree(columns = [chunk_x, chunk_y]))
+)]
+#[derive(Clone, Debug)]
+pub struct WorldChunkData {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub chunk_x: i32,
+    pub chunk_y: i32,
+    pub chunk_size: u32, // How many tiles per side (usually 10x10 = 100 tiles)
+    pub tile_types: Vec<u8>, // Compressed tile types (100 bytes instead of 100 objects)
+    pub variants: Vec<u8>,   // Compressed variants (100 bytes)
+    pub generated_at: Timestamp,
+}
+
 #[spacetimedb::table(
     name = world_tile, 
     public,
@@ -937,4 +1037,59 @@ pub struct MinimapCache {
     pub height: u32,
     pub data: Vec<u8>, // Compressed minimap data as color values
     pub generated_at: Timestamp,
+}
+
+// ADD: Utility functions for tile compression
+impl TileType {
+    /// Convert TileType to u8 for compression
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            TileType::Grass => 0,
+            TileType::Dirt => 1,
+            TileType::DirtRoad => 2,
+            TileType::Sea => 3,
+            TileType::Beach => 4,
+            TileType::Sand => 5,
+        }
+    }
+    
+    /// Convert u8 back to TileType for decompression
+    pub fn from_u8(value: u8) -> Option<TileType> {
+        match value {
+            0 => Some(TileType::Grass),
+            1 => Some(TileType::Dirt),
+            2 => Some(TileType::DirtRoad),
+            3 => Some(TileType::Sea),
+            4 => Some(TileType::Beach),
+            5 => Some(TileType::Sand),
+            _ => None,
+        }
+    }
+}
+
+/// NEW: Manual reducer to generate compressed chunk data for testing/debugging
+/// This can be called by clients to force regeneration of compressed chunk data
+#[spacetimedb::reducer]
+pub fn regenerate_compressed_chunks(ctx: &ReducerContext) -> Result<(), String> {
+    log::info!("Manual regeneration of compressed chunk data requested by {:?}", ctx.sender);
+    
+    // Clear existing compressed chunk data
+    let world_chunk_data = ctx.db.world_chunk_data();
+    let chunks_to_delete: Vec<_> = world_chunk_data.iter().collect();
+    for chunk in chunks_to_delete {
+        world_chunk_data.id().delete(chunk.id);
+    }
+    
+    // Regenerate compressed chunk data
+    match crate::world_generation::generate_compressed_chunk_data(ctx) {
+        Ok(_) => {
+            let new_chunk_count = world_chunk_data.iter().count();
+            log::info!("Successfully regenerated {} compressed chunks", new_chunk_count);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to regenerate compressed chunk data: {}", e);
+            Err(format!("Failed to regenerate compressed chunks: {}", e))
+        }
+    }
 }

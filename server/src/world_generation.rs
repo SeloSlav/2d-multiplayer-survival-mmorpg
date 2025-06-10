@@ -1,4 +1,4 @@
-use spacetimedb::{ReducerContext, Table};
+use spacetimedb::{ReducerContext, Table, Timestamp, Identity};
 use noise::{NoiseFn, Perlin, Seedable};
 use log;
 use crate::{WorldTile, TileType, WorldGenConfig, MinimapCache};
@@ -6,6 +6,7 @@ use crate::{WorldTile, TileType, WorldGenConfig, MinimapCache};
 // Import the table trait
 use crate::world_tile as WorldTileTableTrait;
 use crate::minimap_cache as MinimapCacheTableTrait;
+use crate::world_chunk_data as WorldChunkDataTableTrait;
 
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
@@ -897,5 +898,92 @@ pub fn get_minimap_data(ctx: &ReducerContext) -> Result<(), String> {
     // This reducer just triggers the minimap data to be sent to clients
     // The actual data is retrieved via subscription to the minimap_cache table
     log::info!("Minimap data requested");
+    Ok(())
+}
+
+/// Generate compressed chunk data from existing WorldTile data for efficient network transmission
+/// This converts 100+ individual WorldTile objects per chunk into 1 WorldChunkData object
+pub fn generate_compressed_chunk_data(ctx: &ReducerContext) -> Result<(), String> {
+    log::info!("Generating compressed chunk data from world tiles...");
+    
+    let world_tiles = ctx.db.world_tile();
+    let world_chunk_data = ctx.db.world_chunk_data();
+    
+    // Group tiles by chunk coordinates
+    let mut chunk_tiles: std::collections::HashMap<(i32, i32), Vec<crate::WorldTile>> = std::collections::HashMap::new();
+    
+    for tile in world_tiles.iter() {
+        let chunk_key = (tile.chunk_x, tile.chunk_y);
+        chunk_tiles.entry(chunk_key).or_insert_with(Vec::new).push(tile);
+    }
+    
+    let mut chunks_processed = 0;
+    let total_chunks = chunk_tiles.len();
+    
+    for ((chunk_x, chunk_y), mut tiles) in chunk_tiles {
+        // Sort tiles by their local position for consistent ordering
+        tiles.sort_by(|a, b| {
+            a.tile_y.cmp(&b.tile_y).then(a.tile_x.cmp(&b.tile_x))
+        });
+        
+        // Calculate expected chunk size (should be CHUNK_SIZE_TILES x CHUNK_SIZE_TILES)
+        let chunk_size = crate::environment::CHUNK_SIZE_TILES;
+        let expected_tile_count = (chunk_size * chunk_size) as usize;
+        
+        // Initialize compressed arrays
+        let mut tile_types = Vec::with_capacity(expected_tile_count);
+        let mut variants = Vec::with_capacity(expected_tile_count);
+        
+        // Create a grid to ensure proper ordering
+        let mut tile_grid: std::collections::HashMap<(i32, i32), &crate::WorldTile> = std::collections::HashMap::new();
+        for tile in &tiles {
+            tile_grid.insert((tile.tile_x, tile.tile_y), tile);
+        }
+        
+        // Fill arrays in row-major order (y first, then x)
+        for local_y in 0..chunk_size as i32 {
+            for local_x in 0..chunk_size as i32 {
+                if let Some(tile) = tile_grid.get(&(local_x, local_y)) {
+                    tile_types.push(tile.tile_type.to_u8());
+                    variants.push(tile.variant);
+                } else {
+                    // Fill missing tiles with default values (shouldn't happen in a well-generated world)
+                    tile_types.push(crate::TileType::Grass.to_u8());
+                    variants.push(0);
+                    log::warn!("Missing tile at chunk ({}, {}) local position ({}, {})", 
+                              chunk_x, chunk_y, local_x, local_y);
+                }
+            }
+        }
+        
+        // Create compressed chunk data
+        let compressed_chunk = crate::WorldChunkData {
+            id: 0, // auto_inc
+            chunk_x,
+            chunk_y,
+            chunk_size,
+            tile_types,
+            variants,
+            generated_at: ctx.timestamp,
+        };
+        
+        // Insert compressed chunk data
+        match world_chunk_data.try_insert(compressed_chunk) {
+            Ok(_) => {
+                chunks_processed += 1;
+                if chunks_processed % 100 == 0 || chunks_processed == total_chunks {
+                    log::info!("Compressed chunk data: {}/{} chunks processed", chunks_processed, total_chunks);
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to insert compressed chunk data for chunk ({}, {}): {}", 
+                           chunk_x, chunk_y, e);
+            }
+        }
+    }
+    
+    log::info!("Compressed chunk data generation complete: {} chunks processed from {} total world tiles", 
+               chunks_processed, world_tiles.iter().count());
+    
     Ok(())
 } 

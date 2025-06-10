@@ -79,11 +79,18 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
 }
 
 /// Checks if position is on a beach tile
+/// NEW: Uses compressed chunk data for better performance
 fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     // Convert pixel position to tile coordinates
     let tile_x = (pos_x / crate::TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / crate::TILE_SIZE_PX as f32).floor() as i32;
     
+    // NEW: Try compressed lookup first for better performance
+    if let Some(tile_type) = crate::get_tile_type_at_position(ctx, tile_x, tile_y) {
+        return tile_type == crate::TileType::Beach;
+    }
+    
+    // FALLBACK: Use original method if compressed data not available
     let world_tiles = ctx.db.world_tile();
     
     // Check if the position is on a beach tile
@@ -96,6 +103,7 @@ fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bo
 
 /// Checks if the given world position is on a water tile (Sea)
 /// Returns true if the position is on water and resources should NOT spawn there
+/// NEW: Uses compressed chunk data for much better performance
 fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     // Convert pixel position to tile coordinates
     let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
@@ -107,17 +115,20 @@ fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
         return true; // Treat out-of-bounds as water
     }
     
-    // OPTIMIZED: Use the idx_world_position index for efficient lookup
+    // NEW: Try compressed lookup first for better performance
+    if let Some(tile_type) = crate::get_tile_type_at_position(ctx, tile_x, tile_y) {
+        return tile_type == crate::TileType::Sea;
+    }
+    
+    // FALLBACK: Use original method if compressed data not available
     let world_tiles = ctx.db.world_tile();
     
     // Use the multi-column index to efficiently find the tile at (world_x, world_y)
-    // The idx_world_position index allows us to query by both world_x and world_y efficiently
     for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
         return tile.tile_type == TileType::Sea;
     }
     
     // If no tile found at these exact coordinates, default to non-water
-    // This allows resources to spawn in areas where tiles haven't been generated yet
     return false;
 }
 

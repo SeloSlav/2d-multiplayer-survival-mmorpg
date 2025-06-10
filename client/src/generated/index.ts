@@ -178,6 +178,8 @@ import { QuickMoveToCorpse } from "./quick_move_to_corpse_reducer.ts";
 export { QuickMoveToCorpse };
 import { QuickMoveToStash } from "./quick_move_to_stash_reducer.ts";
 export { QuickMoveToStash };
+import { RegenerateCompressedChunks } from "./regenerate_compressed_chunks_reducer.ts";
+export { RegenerateCompressedChunks };
 import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
 import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
@@ -372,6 +374,8 @@ import { TreeTableHandle } from "./tree_table.ts";
 export { TreeTableHandle };
 import { WoodenStorageBoxTableHandle } from "./wooden_storage_box_table.ts";
 export { WoodenStorageBoxTableHandle };
+import { WorldChunkDataTableHandle } from "./world_chunk_data_table.ts";
+export { WorldChunkDataTableHandle };
 import { WorldStateTableHandle } from "./world_state_table.ts";
 export { WorldStateTableHandle };
 import { WorldTileTableHandle } from "./world_tile_table.ts";
@@ -520,6 +524,8 @@ import { WeatherType } from "./weather_type_type.ts";
 export { WeatherType };
 import { WoodenStorageBox } from "./wooden_storage_box_type.ts";
 export { WoodenStorageBox };
+import { WorldChunkData } from "./world_chunk_data_type.ts";
+export { WorldChunkData };
 import { WorldGenConfig } from "./world_gen_config_type.ts";
 export { WorldGenConfig };
 import { WorldState } from "./world_state_type.ts";
@@ -777,6 +783,11 @@ const REMOTE_MODULE = {
     wooden_storage_box: {
       tableName: "wooden_storage_box",
       rowType: WoodenStorageBox.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    world_chunk_data: {
+      tableName: "world_chunk_data",
+      rowType: WorldChunkData.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     world_state: {
@@ -1083,6 +1094,10 @@ const REMOTE_MODULE = {
       reducerName: "quick_move_to_stash",
       argsType: QuickMoveToStash.getTypeScriptAlgebraicType(),
     },
+    regenerate_compressed_chunks: {
+      reducerName: "regenerate_compressed_chunks",
+      argsType: RegenerateCompressedChunks.getTypeScriptAlgebraicType(),
+    },
     register_player: {
       reducerName: "register_player",
       argsType: RegisterPlayer.getTypeScriptAlgebraicType(),
@@ -1367,6 +1382,7 @@ export type Reducer = never
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
 | { name: "QuickMoveToStash", args: QuickMoveToStash }
+| { name: "RegenerateCompressedChunks", args: RegenerateCompressedChunks }
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
 | { name: "RespawnRandomly", args: RespawnRandomly }
@@ -2538,6 +2554,18 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_to_stash", callback);
   }
 
+  regenerateCompressedChunks() {
+    this.connection.callReducer("regenerate_compressed_chunks", new Uint8Array(0), this.setCallReducerFlags.regenerateCompressedChunksFlags);
+  }
+
+  onRegenerateCompressedChunks(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("regenerate_compressed_chunks", callback);
+  }
+
+  removeOnRegenerateCompressedChunks(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("regenerate_compressed_chunks", callback);
+  }
+
   registerPlayer(username: string) {
     const __args = { username };
     let __writer = new BinaryWriter(1024);
@@ -3596,6 +3624,11 @@ export class SetReducerFlags {
     this.quickMoveToStashFlags = flags;
   }
 
+  regenerateCompressedChunksFlags: CallReducerFlags = 'FullUpdate';
+  regenerateCompressedChunks(flags: CallReducerFlags) {
+    this.regenerateCompressedChunksFlags = flags;
+  }
+
   registerPlayerFlags: CallReducerFlags = 'FullUpdate';
   registerPlayer(flags: CallReducerFlags) {
     this.registerPlayerFlags = flags;
@@ -4029,6 +4062,10 @@ export class RemoteTables {
 
   get woodenStorageBox(): WoodenStorageBoxTableHandle {
     return new WoodenStorageBoxTableHandle(this.connection.clientCache.getOrCreateTable<WoodenStorageBox>(REMOTE_MODULE.tables.wooden_storage_box));
+  }
+
+  get worldChunkData(): WorldChunkDataTableHandle {
+    return new WorldChunkDataTableHandle(this.connection.clientCache.getOrCreateTable<WorldChunkData>(REMOTE_MODULE.tables.world_chunk_data));
   }
 
   get worldState(): WorldStateTableHandle {
