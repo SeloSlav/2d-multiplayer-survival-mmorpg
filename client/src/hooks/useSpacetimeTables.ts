@@ -8,10 +8,14 @@ import {
 import { getChunkIndicesForViewport } from '../utils/chunkUtils';
 import { gameConfig } from '../config/gameConfig';
 
-// PERFORMANCE TEST: Temporarily disable spatial subscriptions
-const DISABLE_SPATIAL_SUBSCRIPTIONS = false;
-// PERFORMANCE TEST: Enable only world tiles for testing
-const ENABLE_WORLD_TILES_ONLY = false;
+// SPATIAL SUBSCRIPTION CONTROL FLAGS
+const DISABLE_ALL_SPATIAL_SUBSCRIPTIONS = false; // Master switch - turns off ALL spatial subscriptions
+const ENABLE_CLOUDS = true; // Controls cloud spatial subscriptions
+const ENABLE_GRASS = false; // 🚫 DISABLED: Grass subscriptions cause massive lag spikes
+const ENABLE_WORLD_TILES = true; // Controls world tile spatial subscriptions
+
+// PERFORMANCE TESTING FLAGS
+const GRASS_PERFORMANCE_MODE = false; // Set to true to test with minimal grass subscriptions
 
 // Define the shape of the state returned by the hook
 export interface SpacetimeTableStates {
@@ -94,7 +98,7 @@ export const useSpacetimeTables = ({
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
     const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
     const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map());
-    const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map());
+    const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // DISABLED: Always empty for performance
     const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map());
     const [rangedWeaponStats, setRangedWeaponStats] = useState<Map<string, SpacetimeDBRangedWeaponStats>>(() => new Map());
     const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
@@ -145,9 +149,9 @@ export const useSpacetimeTables = ({
         const pending = pendingChunkUpdateRef.current;
         if (!pending || !connection) return;
 
-        // PERFORMANCE TEST: Early return if spatial subscriptions are disabled and world tiles are not enabled
-        if (DISABLE_SPATIAL_SUBSCRIPTIONS && !ENABLE_WORLD_TILES_ONLY) {
-            console.log('[PERFORMANCE TEST] Spatial subscriptions are disabled');
+        // MASTER SWITCH: Early return if all spatial subscriptions are disabled
+        if (DISABLE_ALL_SPATIAL_SUBSCRIPTIONS) {
+            console.log('[SPATIAL FLAGS] All spatial subscriptions are disabled');
             pendingChunkUpdateRef.current = null;
             lastSpatialUpdateRef.current = performance.now();
             return;
@@ -197,57 +201,65 @@ export const useSpacetimeTables = ({
                 addedChunks.forEach(chunkIndex => {
                     const newHandlesForChunk: SubscriptionHandle[] = [];
                     try {
-                        // PERFORMANCE TEST: If only world tiles are enabled, skip other spatial subscriptions
-                        if (!ENABLE_WORLD_TILES_ONLY) {
-                            // Tree
-                            const treeQuery = `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Tree Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(treeQuery));
-                            // Stone
-                            const stoneQuery = `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Stone Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(stoneQuery));
-                            // Mushroom
-                            const mushroomQuery = `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Mushroom Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(mushroomQuery));
-                            // Corn
-                            const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
-                            // Potato
-                            const potatoQuery = `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Potato Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(potatoQuery));
-                            // Pumpkin
-                            const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
-                            // Hemp
-                            const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
-                            // Campfire
-                            const campfireQuery = `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Campfire Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(campfireQuery));
-                            // WoodenStorageBox
-                            const boxQuery = `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Box Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(boxQuery));
-                            // DroppedItem
-                            const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
+                        // Tree
+                        const treeQuery = `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Tree Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(treeQuery));
+                        // Stone
+                        const stoneQuery = `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Stone Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(stoneQuery));
+                        // Mushroom
+                        const mushroomQuery = `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Mushroom Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(mushroomQuery));
+                        // Corn
+                        const cornQuery = `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Corn Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cornQuery));
+                        // Potato
+                        const potatoQuery = `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Potato Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(potatoQuery));
+                        // Pumpkin
+                        const pumpkinQuery = `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Pumpkin Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(pumpkinQuery));
+                        // Hemp
+                        const hempQuery = `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Hemp Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(hempQuery));
+                        // Campfire
+                        const campfireQuery = `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Campfire Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(campfireQuery));
+                        // WoodenStorageBox
+                        const boxQuery = `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Box Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(boxQuery));
+                        // DroppedItem
+                        const droppedItemQuery = `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`;
+                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`DroppedItem Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(droppedItemQuery));
 
-                            // Cloud (Spatial Subscription)
+                        // Cloud (Spatial Subscription) - Check individual flag
+                        if (ENABLE_CLOUDS) {
                             const cloudQuery = `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`;
                             newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Cloud Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(cloudQuery));
-
-                            // Grass (Spatial Subscription)
-                            const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
-                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
-                        } else {
-                            console.log(`[PERFORMANCE TEST] Skipping non-world-tile spatial subscriptions for chunk ${chunkIndex}`);
                         }
 
-                        // WorldTile (Spatial Subscription) - Always enabled when ENABLE_WORLD_TILES_ONLY is true
-                        const worldWidthChunks = gameConfig.worldWidthChunks;
-                        const chunkX = chunkIndex % worldWidthChunks;
-                        const chunkY = Math.floor(chunkIndex / worldWidthChunks);
-                        const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
-                        newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
-                        // console.log(`[PERFORMANCE TEST] Subscribed to world tiles for chunk ${chunkIndex} (${chunkX},${chunkY})`);
+                        // Grass (Spatial Subscription) - Check individual flag  
+                        if (ENABLE_GRASS) {
+                            if (GRASS_PERFORMANCE_MODE) {
+                                // PERFORMANCE MODE: Only subscribe to healthy grass (reduces update volume)
+                                const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex} AND health > 0`;
+                                newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
+                            } else {
+                                // NORMAL MODE: Subscribe to all grass
+                                const grassQuery = `SELECT * FROM grass WHERE chunk_index = ${chunkIndex}`;
+                                newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Grass Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(grassQuery));
+                            }
+                        }
+
+                        // WorldTile (Spatial Subscription) - Check individual flag
+                        if (ENABLE_WORLD_TILES) {
+                            const worldWidthChunks = gameConfig.worldWidthChunks;
+                            const chunkX = chunkIndex % worldWidthChunks;
+                            const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                            const worldTileQuery = `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`;
+                            newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`WorldTile Sub Error (Chunk ${chunkIndex} -> ${chunkX},${chunkY}):`, err)).subscribe(worldTileQuery));
+                            // console.log(`[SPATIAL FLAGS] Subscribed to world tiles for chunk ${chunkIndex} (${chunkX},${chunkY})`);
+                        }
 
                         spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
                     } catch (error) {
@@ -602,7 +614,8 @@ export const useSpacetimeTables = ({
                 setClouds(prev => { const newMap = new Map(prev); newMap.delete(cloud.id.toString()); return newMap; });
             };
             
-            // --- Grass Subscriptions ---
+            // --- Grass Subscriptions (DISABLED for Performance) ---
+            // Grass subscriptions cause massive lag due to spatial churn - use procedural rendering instead
             const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
             const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
             const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
@@ -754,10 +767,10 @@ export const useSpacetimeTables = ({
             connection.db.cloud.onUpdate(handleCloudUpdate);
             connection.db.cloud.onDelete(handleCloudDelete);
 
-            // Register Grass callbacks
-            connection.db.grass.onInsert(handleGrassInsert);
-            connection.db.grass.onUpdate(handleGrassUpdate);
-            connection.db.grass.onDelete(handleGrassDelete);
+            // Register Grass callbacks - DISABLED for performance
+            // connection.db.grass.onInsert(handleGrassInsert);
+            // connection.db.grass.onUpdate(handleGrassUpdate);
+            // connection.db.grass.onDelete(handleGrassDelete);
 
             // Register KnockedOutStatus callbacks
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
@@ -874,11 +887,11 @@ export const useSpacetimeTables = ({
 
         // --- START OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
         if (connection && viewport) {
-            // PERFORMANCE TEST: Skip spatial subscription logic if disabled and world tiles are not enabled
-            if (DISABLE_SPATIAL_SUBSCRIPTIONS && !ENABLE_WORLD_TILES_ONLY) {
+            // MASTER SWITCH: Skip spatial subscription logic if all spatial subscriptions are disabled
+            if (DISABLE_ALL_SPATIAL_SUBSCRIPTIONS) {
                 // Clean up any existing spatial subscriptions if they exist
                 if (spatialSubHandlesMapRef.current.size > 0) {
-                    console.log('[PERFORMANCE TEST] Cleaning up existing spatial subscriptions');
+                    console.log('[SPATIAL FLAGS] Cleaning up existing spatial subscriptions (master switch disabled)');
                     spatialSubHandlesMapRef.current.forEach((handles) => {
                         handles.forEach(safeUnsubscribe);
                     });
@@ -951,7 +964,7 @@ export const useSpacetimeTables = ({
                  setStashes(new Map());
                  setActiveConsumableEffects(new Map());
                  setClouds(new Map());
-                 setGrass(new Map());
+                 setGrass(new Map()); // Always keep grass empty for performance
                  setKnockedOutStatus(new Map());
                  setRangedWeaponStats(new Map());
                  setProjectiles(new Map());

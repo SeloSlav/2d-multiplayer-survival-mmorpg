@@ -73,10 +73,11 @@ function fastSinCos(degrees: number): { sin: number; cos: number } {
 
 // PERFORMANCE: Frame-based throttling for distant grass updates
 let frameCounter = 0;
-const DISTANT_GRASS_UPDATE_INTERVAL = 3; // Update distant grass every 3 frames
 
-// DEBUG: Temporary flag to disable optimizations if needed
-const DISABLE_OPTIMIZATIONS = false; // Set to true if grass is invisible
+// PERFORMANCE FLAGS: Control rendering complexity
+const DISABLE_CLIENT_DISTURBANCE_EFFECTS = true; // TESTING: Disable disturbance rendering to isolate lag source
+const ENABLE_AGGRESSIVE_CULLING = true; // Enhanced viewport culling for better performance
+const ENABLE_GRASS_PERF_LOGGING = false; // Reduce log spam for cleaner testing
 
 // --- NEW: Define which grass types should sway ---
 const SWAYING_GRASS_TYPES = new Set([
@@ -111,6 +112,11 @@ function calculateDisturbanceEffect(grass: InterpolatedGrassData, nowMs: number)
     
     if (cached && (nowMs - cached.lastCalculatedMs) < DISTURBANCE_CACHE_DURATION_MS) {
         return cached.result;
+    }
+    
+    // DEBUG: Log when we're calculating new disturbance effects
+    if (ENABLE_GRASS_PERF_LOGGING && Math.random() < 0.001) { // Log 0.1% of calculations
+        console.log(`🌱 [GRASS_DISTURBANCE] Calculating disturbance for grass ${grass.id} - cache miss`);
     }
     
     // Quick exit if no disturbance timestamp
@@ -149,6 +155,11 @@ function calculateDisturbanceEffect(grass: InterpolatedGrassData, nowMs: number)
         disturbanceDirectionX: grass.disturbanceDirectionX,
         disturbanceDirectionY: grass.disturbanceDirectionY,
     };
+    
+    // DEBUG: Log active disturbance effects
+    if (ENABLE_GRASS_PERF_LOGGING && Math.random() < 0.001) { // Log 0.1% of active disturbances
+        console.log(`🌱 [GRASS_DISTURBANCE] ACTIVE: Grass ${grass.id} - strength: ${disturbanceStrength.toFixed(2)}, direction: (${grass.disturbanceDirectionX.toFixed(2)}, ${grass.disturbanceDirectionY.toFixed(2)})`);
+    }
     
     // Cache the result
     disturbanceCache.set(cacheKey, { lastCalculatedMs: nowMs, result });
@@ -380,16 +391,12 @@ export function renderGrass(
     // PERFORMANCE: Increment frame counter for throttling
     frameCounter++;
 
-    // PERFORMANCE: Viewport-based culling (more accurate than circular distance)
-    // Only apply viewport culling if all required parameters are provided
-    // TEMPORARILY DISABLED - may be causing invisibility issues
-    /*
-    if (cameraX !== undefined && cameraY !== undefined && viewportWidth !== undefined && viewportHeight !== undefined) {
+    // PERFORMANCE: Aggressive viewport-based culling (more accurate than circular distance)
+    if (ENABLE_AGGRESSIVE_CULLING && cameraX !== undefined && cameraY !== undefined && viewportWidth !== undefined && viewportHeight !== undefined) {
         if (!isInViewport(grass.serverPosX, grass.serverPosY, cameraX, cameraY, viewportWidth, viewportHeight)) {
             return; // Skip rendering - not in viewport
         }
     }
-    */
 
     // PERFORMANCE: Calculate distance once and determine LOD level
     let distanceSq = 0;
@@ -461,7 +468,7 @@ export function renderGrass(
     const canSway = shouldGrassSway(grass.appearanceType);
     
     // PERFORMANCE: Only check disturbance for near/mid LOD grass that can sway
-    const disturbanceEffect = (canSway && lodLevel !== 'far') ? 
+    const disturbanceEffect = (canSway && lodLevel !== 'far' && !DISABLE_CLIENT_DISTURBANCE_EFFECTS) ? 
         calculateDisturbanceEffect(grass, nowMs) : 
         { isDisturbed: false, disturbanceStrength: 0, disturbanceDirectionX: 0, disturbanceDirectionY: 0 };
     
@@ -589,7 +596,7 @@ export function renderGrass(
     }
 }
 
-// PERFORMANCE: Batch render multiple grass entities efficiently
+// PERFORMANCE: Batch render multiple grass entities efficiently with simplified rendering for distant grass
 export function renderGrassEntities(
     ctx: CanvasRenderingContext2D,
     grassEntities: InterpolatedGrassData[],
@@ -602,11 +609,18 @@ export function renderGrassEntities(
     onlyDrawShadow?: boolean,
     skipDrawingShadow?: boolean
 ) {
+    // PERFORMANCE: Start timing for grass rendering
+    const startTime = ENABLE_GRASS_PERF_LOGGING ? performance.now() : 0;
+    
     // PERFORMANCE: Pre-filter grass entities that are definitely out of view
     const visibleGrassEntities = grassEntities.filter(grass => 
         grass.health > 0 && 
         isInViewport(grass.serverPosX, grass.serverPosY, cameraX, cameraY, viewportWidth, viewportHeight)
     );
+    
+    if (ENABLE_GRASS_PERF_LOGGING && frameCounter % 60 === 0) { // Log every 60 frames (~1 second)
+        console.log(`🌱 [GRASS_RENDER] Total: ${grassEntities.length}, Visible: ${visibleGrassEntities.length}, Culled: ${grassEntities.length - visibleGrassEntities.length}`);
+    }
 
     // PERFORMANCE: Sort by LOD level to batch similar rendering operations
     const sortedGrass = visibleGrassEntities
@@ -624,8 +638,26 @@ export function renderGrassEntities(
             return lodDiff !== 0 ? lodDiff : a.distanceSq - b.distanceSq;
         });
 
-    // Render each grass entity
-    for (const { grass } of sortedGrass) {
+    // PERFORMANCE: Batch render by LOD level to minimize canvas state changes
+    let currentLodLevel: 'near' | 'mid' | 'far' | 'cull' | null = null;
+    
+    for (const { grass, lodLevel } of sortedGrass) {
+        // PERFORMANCE: Setup canvas optimizations when LOD level changes
+        if (currentLodLevel !== lodLevel) {
+            currentLodLevel = lodLevel;
+            
+            // Optimize canvas state for this LOD level
+            if (lodLevel === 'far') {
+                // Disable anti-aliasing for distant grass (performance boost)
+                ctx.imageSmoothingEnabled = false;
+                // Use simpler composite operation
+                ctx.globalCompositeOperation = 'source-over';
+            } else {
+                // Re-enable for near/mid grass
+                ctx.imageSmoothingEnabled = true;
+            }
+        }
+        
         renderGrass(
             ctx,
             grass,
@@ -638,6 +670,21 @@ export function renderGrassEntities(
             viewportWidth,
             viewportHeight
         );
+    }
+    
+    // PERFORMANCE: Reset canvas state after batch rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalCompositeOperation = 'source-over';
+    
+    // PERFORMANCE: Log rendering time if enabled
+    if (ENABLE_GRASS_PERF_LOGGING) {
+        const endTime = performance.now();
+        const renderTime = endTime - startTime;
+        
+        // Log if rendering takes too long or periodically
+        if (renderTime > 2.0 || frameCounter % 300 === 0) { // Log if >2ms or every 5 seconds
+            console.log(`🌱 [GRASS_RENDER] Rendered ${sortedGrass.length} grass entities in ${renderTime.toFixed(2)}ms`);
+        }
     }
 }
 

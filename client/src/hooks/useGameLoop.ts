@@ -94,10 +94,16 @@ export function useGameLoop(
       lastTimeRef.current = currentTime;
       frameCountRef.current++;
 
-      // Calculate FPS
+      // Calculate FPS with more detailed monitoring
       const currentSecond = Math.floor(currentTime / 1000);
       if (currentSecond !== fpsCounterRef.current.lastSecond) {
         currentFpsRef.current = fpsCounterRef.current.frames;
+        
+        // LOG: Monitor if FPS is significantly above 60 (indicates high refresh rate)
+        if (enableProfiling && fpsCounterRef.current.frames > 90) {
+          console.log(`🖥️ [useGameLoop] High FPS detected: ${fpsCounterRef.current.frames}fps (likely high refresh rate monitor)`);
+        }
+        
         fpsCounterRef.current = { frames: 0, lastSecond: currentSecond };
       }
       fpsCounterRef.current.frames++;

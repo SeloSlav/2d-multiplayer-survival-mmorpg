@@ -27,6 +27,9 @@ pub(crate) const GRASS_DISTURBANCE_RADIUS_SQ: f32 = GRASS_DISTURBANCE_RADIUS * G
 pub(crate) const GRASS_DISTURBANCE_DURATION_SECS: f32 = 1.5; // How long the disturbance effect lasts
 pub(crate) const GRASS_DISTURBANCE_STRENGTH: f32 = 2.0; // Multiplier for disturbance sway intensity
 
+// PERFORMANCE FLAG: Disable grass disturbance entirely for testing
+pub(crate) const DISABLE_GRASS_DISTURBANCE: bool = true; // TESTING: Completely disable grass disturbance to isolate lag source
+
 // --- Grass Enums and Structs ---
 
 // Define different types/visuals of grass if needed later

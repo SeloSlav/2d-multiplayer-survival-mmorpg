@@ -317,12 +317,17 @@ pub fn update_player_position(
         log::debug!("Player {:?} auto-uncrouching due to entering water at new position ({:.1}, {:.1})", sender_id, resolved_x, resolved_y);
     }
 
-    // --- Grass Disturbance Detection (OPTIMIZED FOR SPRINTING) ---
-    const MIN_MOVEMENT_FOR_DISTURBANCE: f32 = 3.0;
-    let movement_magnitude_for_disturbance = (server_dx * server_dx + server_dy * server_dy).sqrt();
-    let should_check_disturbance = is_moving && movement_magnitude_for_disturbance > MIN_MOVEMENT_FOR_DISTURBANCE;
-    
-    if should_check_disturbance {
+    // --- Grass Disturbance Detection (HEAVILY OPTIMIZED) ---
+    // PERFORMANCE: Check global disable flag first
+    if !crate::grass::DISABLE_GRASS_DISTURBANCE {
+        const MIN_MOVEMENT_FOR_DISTURBANCE: f32 = 15.0; // Increased from 3.0 to 15.0 - only disturb on significant movement
+        let movement_magnitude_for_disturbance = (server_dx * server_dx + server_dy * server_dy).sqrt();
+        // PERFORMANCE: Only check disturbance every 5th movement update to prevent lag
+        let should_check_disturbance = is_moving && 
+                                       movement_magnitude_for_disturbance > MIN_MOVEMENT_FOR_DISTURBANCE &&
+                                       (now_ms % 5) == 0; // Only process 20% of movement updates
+        
+        if should_check_disturbance {
         let grasses = ctx.db.grass();
         let current_time = ctx.timestamp;
         
@@ -335,9 +340,9 @@ pub fn update_player_position(
             const OPTIMIZED_DISTURBANCE_RADIUS: f32 = 48.0;
             const OPTIMIZED_DISTURBANCE_RADIUS_SQ: f32 = OPTIMIZED_DISTURBANCE_RADIUS * OPTIMIZED_DISTURBANCE_RADIUS;
             
-            // OPTIMIZATION: Reduce grass disturbance processing during sprinting to prevent jitter
-            let max_disturbances = if current_sprinting_state { 4 } else { 8 }; // Half the limit when sprinting
-            let chunk_search_radius = if current_sprinting_state { 0 } else { 1 }; // Only check current chunk when sprinting
+            // HEAVY OPTIMIZATION: Drastically reduce grass disturbance processing to prevent lag
+            let max_disturbances = if current_sprinting_state { 1 } else { 3 }; // Minimal disturbance count
+            let chunk_search_radius = 0; // Always only check current chunk for maximum performance
             
             let player_chunk_index = calculate_chunk_index(resolved_x, resolved_y);
             let chunk_x = player_chunk_index % WORLD_WIDTH_CHUNKS;
@@ -368,7 +373,7 @@ pub fn update_player_position(
                 if let Some(last_disturbed) = grass.disturbed_at {
                     let time_since_last_disturbance = current_time.to_micros_since_unix_epoch()
                         .saturating_sub(last_disturbed.to_micros_since_unix_epoch());
-                    if time_since_last_disturbance < 500_000 { continue; }
+                    if time_since_last_disturbance < 2_000_000 { continue; } // Increased from 0.5s to 2s cooldown
                 }
                 
                 let should_disturb_type = match grass.appearance_type {
@@ -403,7 +408,8 @@ pub fn update_player_position(
                 log::trace!("Player {:?} disturbed {} grass patches (limit: {}, sprinting: {})", sender_id, disturbed_count, max_disturbances, current_sprinting_state);
             }
         }
-    }
+    } // End of should_check_disturbance block
+    } // End of DISABLE_GRASS_DISTURBANCE check
 
     // --- Final Update ---
     let mut player_to_update = current_player.clone(); // Get a mutable copy by CLONING
