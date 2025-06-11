@@ -178,7 +178,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             }
 
             try {
-                if (loggedInPlayer) {
+                if (loggedInPlayer || storedUsername) {
                     // Existing player: Join directly, pass null for username
                     await handleJoinGame(null);
                 } else {
@@ -452,13 +452,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             }}>
                                 Welcome back, {loggedInPlayer.username}!
                             </p>
-                        ) : storedUsername && connectionError ? (
-                            // Connection error but we have stored username: Show "Playing as [username]"
+                        ) : storedUsername ? (
+                            // We have a stored username, so this is an existing player reconnecting
                             <p style={{
                                 marginBottom: '20px',
                                 fontSize: '14px'
                             }}>
-                                Playing as <strong>{storedUsername}</strong>
+                                {connectionError ? 
+                                    `Playing as ${storedUsername}` : 
+                                    `Welcome back, ${storedUsername}!`
+                                }
                             </p>
                         ) : connectionError ? (
                             // Connection error without stored username: Show generic authenticated message
@@ -470,8 +473,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             </p>
                         ) : (
                             // New Player: Show username input ONLY if no authError, no connectionError, no localError
-                            // AND SpacetimeDB is connected (to ensure this is genuinely a new user, not a connection issue)
-                            !authError && !connectionError && !localError && isSpacetimeConnected ? (
+                            // AND SpacetimeDB is connected AND no stored username (to ensure this is genuinely a new user)
+                            !authError && !connectionError && !localError && isSpacetimeConnected && !storedUsername ? (
                                 <div style={{
                                     maxWidth: '350px',
                                     margin: '0 auto',

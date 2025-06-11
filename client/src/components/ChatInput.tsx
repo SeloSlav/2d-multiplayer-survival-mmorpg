@@ -18,7 +18,6 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
 }, ref) => {
   // Focus the input when it becomes active
   useEffect(() => {
-    // Only attempt to focus if the component is active
     if (isActive && ref && 'current' in ref && ref.current) {
       // Small timeout to ensure DOM is ready and avoid focus conflicts
       const timer = setTimeout(() => {
@@ -28,24 +27,17 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
           const length = ref.current.value.length;
           ref.current.setSelectionRange(length, length);
         }
-      }, 50); // Increased to ensure focus happens after all state updates
+      }, 100); // Increased timeout for better reliability
       
       return () => clearTimeout(timer);
     }
   }, [isActive, ref]);
 
-  // We'll separate the send message logic from the keyboard event
   const handleSendIfValid = () => {
     if (inputValue.trim()) {
-      // Save message value before it gets cleared
-      const textToSend = inputValue.trim();
-      
-      // This is the key change: set a flag that we're sending a message
-      // which we'll check in the onBlur handler
-      (ref as any).current._shouldSendMessage = true;
-      
-      // Trigger blur first, which will invoke onBlur handler
+      // Mark that we should send the message when blur occurs
       if (ref && 'current' in ref && ref.current) {
+        (ref.current as any)._shouldSendMessage = true;
         ref.current.blur();
       }
     } else {
@@ -55,6 +47,9 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent event bubbling to avoid triggering game controls
+    event.stopPropagation();
+    
     if (event.key === 'Enter') {
       event.preventDefault();
       handleSendIfValid();
@@ -63,30 +58,24 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
       if (ref && 'current' in ref && ref.current) {
         ref.current.blur();
       }
-    } else if (event.key.toLowerCase() === 'g' || event.key === ' ') {
-      // Prevent 'g' and 'spacebar' from triggering game actions
-      // but still allow typing them into the input.
-      event.stopPropagation(); 
     }
+    // No need to handle other keys - let them type normally
   };
 
-  // Handle the blur event which will be triggered by both clicking outside 
-  // and Enter/Escape key presses
+  // Handle the blur event
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    // Slight delay to allow for other state updates
+    // Small delay to handle state updates
     setTimeout(() => {
-      // Check if we should send the message (from Enter key)
       const inputEl = ref && 'current' in ref ? ref.current : null;
       if (inputEl && (inputEl as any)._shouldSendMessage) {
-        // Reset the flag
+        // Reset the flag and send message
         (inputEl as any)._shouldSendMessage = false;
-        // Call the send message callback
         onSendMessage();
       } else {
-        // Otherwise just close chat (from clicking outside or Escape)
+        // Otherwise just close chat
         onCloseChat();
       }
-    }, 10);
+    }, 50); // Slightly longer delay for better reliability
   };
 
   return (
@@ -98,10 +87,12 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
       onChange={(e) => onInputChange(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}
-      placeholder="Press Enter to chat..."
-      maxLength={100}
+      placeholder="Enter message..."
+      maxLength={200} // Increased max length
       autoComplete="off"
-      spellCheck="true"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck="false" // Disabled for cyberpunk aesthetic
       data-is-chat-input="true"
     />
   );

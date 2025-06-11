@@ -440,7 +440,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             textShadow: '0 0 10px rgba(0, 221, 255, 0.5)',
                             fontWeight: 'bold',
                         }}>
-                            ⚠️ NEUROVEIL DISCONNECTION WARNING
+                            NEUROVEIL REFRESH REQUEST
                         </div>
                         
                         <div style={{
@@ -452,69 +452,77 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             backgroundColor: 'rgba(0, 0, 0, 0.3)',
                             borderRadius: '4px',
                         }}>
-                            Your ocular implant is requesting to disengage from the Babachain neural network. 
-                            This will terminate your current session and require full system reinitialization.
+                            Your neural interface is requesting to refresh the Babachain connection.
+                            This will reinitialize your session with the latest quantum state synchronization.
                             <br /><br />
-                            Are you sure you want to proceed?
+                            Proceed with neuroveil refresh?
                         </div>
 
                         <div style={{
                             display: 'flex',
-                            gap: '12px',
+                            gap: '15px',
                             justifyContent: 'center',
                         }}>
                             <button
                                 onClick={handleRefreshConfirm}
                                 style={{
-                                    backgroundColor: '#d32f2f',
-                                    color: 'white',
-                                    border: '1px solid #f44336',
-                                    padding: '12px 18px',
-                                    borderRadius: '4px',
-                                    fontSize: '14px',
+                                    background: 'linear-gradient(135deg, rgba(255, 140, 0, 0.8), rgba(200, 100, 0, 0.9))',
+                                    color: '#ffffff',
+                                    border: '2px solid #ff8c00',
+                                    borderRadius: '8px',
+                                    padding: '15px 25px',
+                                    fontFamily: '"Press Start 2P", cursive',
+                                    fontSize: '12px',
                                     cursor: 'pointer',
-                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                    boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
-                                    transition: 'all 0.2s ease',
-                                    fontWeight: 'bold',
+                                    transition: 'all 0.3s ease',
+                                    boxShadow: '0 0 15px rgba(255, 140, 0, 0.3), inset 0 0 10px rgba(255, 140, 0, 0.1)',
+                                    textShadow: '0 0 5px currentColor',
+                                    position: 'relative',
+                                    overflow: 'hidden',
                                 }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#f44336';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 160, 20, 0.9), rgba(220, 120, 10, 1))';
+                                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                                    e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 140, 0, 0.6), inset 0 0 15px rgba(255, 140, 0, 0.2)';
                                 }}
-                                onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#d32f2f';
-                                    e.currentTarget.style.transform = 'translateY(0)';
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 140, 0, 0.8), rgba(200, 100, 0, 0.9))';
+                                    e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                                    e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 140, 0, 0.3), inset 0 0 10px rgba(255, 140, 0, 0.1)';
                                 }}
                             >
-                                DISENGAGE
+                                REFRESH NEUROVEIL
                             </button>
                             
                             <button
                                 onClick={handleRefreshCancel}
                                 style={{
-                                    backgroundColor: '#00aaff',
-                                    color: 'white',
-                                    border: '1px solid #00ddff',
-                                    padding: '12px 18px',
-                                    borderRadius: '4px',
-                                    fontSize: '14px',
+                                    background: 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))',
+                                    color: '#ffffff',
+                                    border: '2px solid #00aaff',
+                                    borderRadius: '8px',
+                                    padding: '15px 25px',
+                                    fontFamily: '"Press Start 2P", cursive',
+                                    fontSize: '12px',
                                     cursor: 'pointer',
-                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                    boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
-                                    transition: 'all 0.2s ease',
-                                    fontWeight: 'bold',
+                                    transition: 'all 0.3s ease',
+                                    boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+                                    textShadow: '0 0 5px currentColor',
+                                    position: 'relative',
+                                    overflow: 'hidden',
                                 }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#00ddff';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 50, 100, 0.9), rgba(15, 40, 90, 1))';
+                                    e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                                    e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
                                 }}
-                                onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#00aaff';
-                                    e.currentTarget.style.transform = 'translateY(0)';
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))';
+                                    e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                                    e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)';
                                 }}
                             >
-                                MAINTAIN CONNECTION
+                                CANCEL
                             </button>
                         </div>
                     </div>

@@ -1,79 +1,101 @@
-/* Chat.module.css */
+/* Chat.module.css - Cyberpunk themed chat interface */
 
 .chatContainer {
   position: fixed;
-  bottom: 80px;
-  left: 20px;
-  width: 400px;
-  max-height: 200px;
-  background: linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95));
+  bottom: 15px; /* Align with StatusBar positioning */
+  left: 15px;   /* Match StatusBar margins */
+  width: 380px;
+  max-height: 250px; /* Increased max height */
+  background: linear-gradient(135deg, rgba(30, 15, 50, 0.95), rgba(20, 10, 40, 0.98));
   border: 2px solid #00aaff;
-  border-radius: 10px;
-  font-family: "Press Start 2P", cursive;
-  box-shadow: 0 0 25px rgba(0, 170, 255, 0.4), inset 0 0 15px rgba(0, 170, 255, 0.1);
-  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  font-family: '"Press Start 2P", cursive';
+  box-shadow: 0 0 30px rgba(0, 170, 255, 0.3), inset 0 0 20px rgba(0, 170, 255, 0.1);
+  backdrop-filter: blur(10px);
   z-index: 1000;
+  overflow: hidden;
 }
+
+/* Scan line effect removed per user request */
 
 .chatHeader {
   background: linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.2));
   color: #00ffff;
   padding: 8px 12px;
-  font-size: 10px;
+  font-size: 8px;
   border-bottom: 1px solid rgba(0, 170, 255, 0.4);
-  border-radius: 8px 8px 0 0;
   text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
   text-align: center;
+  letter-spacing: 1px;
 }
 
-.messagesContainer {
-  height: 120px;
+.messageHistory {
+  max-height: 140px; /* Reduced from 150px for better proportions */
   overflow-y: auto;
-  padding: 10px;
-  background: linear-gradient(135deg, rgba(15, 15, 35, 0.6), rgba(10, 10, 25, 0.8));
-  border-radius: 0 0 8px 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(10, 10, 25, 0.9));
+  transition: all 0.3s ease;
+  text-align: left;
+  scrollbar-width: thin;
 }
 
-.messagesContainer::-webkit-scrollbar {
-  width: 6px;
+.chatContainer.active .messageHistory {
+  background: linear-gradient(135deg, rgba(20, 20, 40, 0.9), rgba(15, 15, 30, 0.95));
+  border-bottom: 1px solid rgba(0, 170, 255, 0.2);
 }
 
-.messagesContainer::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 3px;
+/* Enhanced cyberpunk scrollbar styling */
+.messageHistory::-webkit-scrollbar {
+  width: 8px;
 }
 
-.messagesContainer::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #00aaff, #0088cc);
-  border-radius: 3px;
-  box-shadow: 0 0 6px rgba(0, 170, 255, 0.5);
+.messageHistory::-webkit-scrollbar-track {
+  background: rgba(30, 15, 50, 0.8);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 170, 255, 0.2);
 }
 
-.messagesContainer::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #00ccff, #00aaff);
-  box-shadow: 0 0 10px rgba(0, 204, 255, 0.8);
+.messageHistory::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.8), rgba(0, 150, 255, 0.6));
+  border-radius: 4px;
+  border: 1px solid rgba(0, 170, 255, 0.4);
+  box-shadow: 0 0 8px rgba(0, 170, 255, 0.3), inset 0 0 4px rgba(0, 255, 255, 0.2);
+}
+
+.messageHistory::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.9), rgba(0, 170, 255, 0.8));
+  box-shadow: 0 0 12px rgba(0, 204, 255, 0.5), inset 0 0 6px rgba(0, 255, 255, 0.3);
+  border-color: rgba(0, 204, 255, 0.6);
+}
+
+/* Firefox scrollbar styling */
+.messageHistory {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 170, 255, 0.8) rgba(30, 15, 50, 0.8);
 }
 
 .message {
-  margin-bottom: 6px;
-  padding: 6px 8px;
+  margin-bottom: 4px; /* Reduced spacing between messages */
+  padding: 4px 6px;   /* Reduced padding */
   background: linear-gradient(135deg, rgba(20, 30, 60, 0.4), rgba(15, 25, 50, 0.6));
-  border-radius: 6px;
-  border: 1px solid rgba(0, 170, 255, 0.2);
-  box-shadow: 0 0 8px rgba(0, 170, 255, 0.1);
-  animation: messageGlow 0.5s ease-in;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 170, 255, 0.15);
+  box-shadow: 0 0 5px rgba(0, 170, 255, 0.1);
+  animation: messageGlow 0.4s ease-in;
+  font-size: 11px; /* Increased from 7px to 11px */
+  line-height: 1.3;
 }
 
 @keyframes messageGlow {
   0% {
     opacity: 0;
-    transform: translateY(10px);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+    transform: translateY(5px);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
   }
   100% {
     opacity: 1;
     transform: translateY(0);
-    box-shadow: 0 0 8px rgba(0, 170, 255, 0.1);
+    box-shadow: 0 0 5px rgba(0, 170, 255, 0.1);
   }
 }
 
@@ -81,197 +103,160 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 2px; /* Reduced margin */
 }
 
 .playerName {
-  font-size: 8px;
+  font-size: 10px; /* Increased from 6px to 10px */
   color: #00ffff;
   font-weight: bold;
-  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+  text-shadow: 0 0 4px rgba(0, 255, 255, 0.6);
+  letter-spacing: 0.5px;
 }
 
 .timestamp {
-  font-size: 7px;
+  font-size: 8px; /* Increased from 5px to 8px */
   color: #88aacc;
-  text-shadow: 0 0 4px rgba(136, 170, 204, 0.6);
+  text-shadow: 0 0 3px rgba(136, 170, 204, 0.4);
+  opacity: 0.8;
 }
 
 .messageContent {
-  font-size: 9px;
+  font-size: 11px; /* Increased from 7px to 11px */
   color: #ffffff;
-  line-height: 1.4;
+  line-height: 1.3;
   word-wrap: break-word;
-  text-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.3);
 }
 
-.inputContainer {
-  position: relative;
-  border-top: 1px solid rgba(0, 170, 255, 0.4);
-  background: linear-gradient(135deg, rgba(20, 30, 60, 0.6), rgba(15, 25, 50, 0.8));
-  border-radius: 0 0 8px 8px;
+.senderName {
+  color: #ffcc00;
+  margin-right: 4px;
+  font-weight: bold;
+  font-size: 10px; /* Increased from 6px to 10px */
 }
 
-.messageInput {
+.messageText {
+  color: #ffffff;
+  font-size: 11px; /* Increased from 7px to 11px */
+}
+
+.systemMessage {
+  color: #ffcc66;
+  font-style: italic;
+  font-size: 10px; /* Increased from 6px to 10px */
+}
+
+/* Chat Input Styling */
+.chatInput {
   width: 100%;
-  padding: 10px 12px;
-  background: transparent;
+  padding: 12px 15px; /* Increased padding for larger input area */
+  background: linear-gradient(135deg, rgba(20, 30, 60, 0.8), rgba(15, 25, 50, 0.9));
   border: none;
+  border-top: 1px solid rgba(0, 170, 255, 0.3);
   color: #00ffff;
-  font-family: "Press Start 2P", cursive;
-  font-size: 8px;
+  font-family: '"Press Start 2P", cursive';
+  font-size: 12px; /* Increased from 9px to 12px */
   outline: none;
-  resize: none;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 6px 6px;
   text-shadow: 0 0 4px rgba(0, 255, 255, 0.6);
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
 }
 
-.messageInput::placeholder {
+.chatInput::placeholder {
   color: rgba(0, 170, 255, 0.6);
+  text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
+  font-size: 10px; /* Increased from 8px to 10px */
+}
+
+.chatInput:focus {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.15), rgba(0, 150, 255, 0.1));
+  box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.2), 0 0 10px rgba(0, 170, 255, 0.3);
+  border-top-color: rgba(0, 170, 255, 0.6);
+}
+
+/* Chat Placeholder */
+.chatPlaceholder {
+  margin: 0;
+  padding: 12px 15px; /* Match input padding */
+  background: linear-gradient(135deg, rgba(20, 30, 60, 0.6), rgba(15, 25, 50, 0.7));
+  color: rgba(0, 170, 255, 0.7);
+  border-top: 1px solid rgba(0, 170, 255, 0.2);
+  border-radius: 0 0 6px 6px;
+  font-size: 11px; /* Increased from 8px to 11px */
+  font-family: '"Press Start 2P", cursive';
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
   text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
 }
 
-.messageInput:focus {
-  background: linear-gradient(135deg, rgba(0, 170, 255, 0.1), rgba(0, 150, 255, 0.05));
-  box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
+.chatPlaceholder:hover {
+  background: linear-gradient(135deg, rgba(30, 40, 70, 0.7), rgba(20, 30, 60, 0.8));
+  color: rgba(0, 170, 255, 0.9);
+  border-top-color: rgba(0, 170, 255, 0.4);
+  text-shadow: 0 0 6px rgba(0, 170, 255, 0.6);
 }
 
-.toggleButton {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  background: linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95));
-  color: #00ffff;
-  border: 2px solid #00aaff;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-family: "Press Start 2P", cursive;
-  font-size: 9px;
-  cursor: pointer;
-  z-index: 999;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 8px rgba(0, 170, 255, 0.1);
-  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
-}
-
-.toggleButton:hover {
-  background: linear-gradient(135deg, rgba(40, 20, 60, 0.95), rgba(30, 15, 50, 1));
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(0, 170, 255, 0.5), inset 0 0 12px rgba(0, 170, 255, 0.2);
-  text-shadow: 0 0 8px rgba(0, 255, 255, 1);
-}
-
-.toggleButton:active {
-  transform: translateY(0);
-  box-shadow: 0 0 10px rgba(0, 170, 255, 0.4), inset 0 0 6px rgba(0, 170, 255, 0.15);
-}
-
-/* Scan line effect for chat container */
-.chatContainer::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #00ffff, transparent);
-  animation: chatScan 4s linear infinite;
-  z-index: 1;
-}
-
-@keyframes chatScan {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .chatContainer {
-    width: 300px;
-    bottom: 60px;
-    left: 10px;
-  }
-  
-  .toggleButton {
-    bottom: 15px;
-    left: 10px;
-    padding: 6px 10px;
-    font-size: 8px;
-  }
-}
-
-/* No background for inactive container */
+/* Active state improvements */
 .chatContainer.active {
-  pointer-events: auto; /* Enable interaction when active */
+  pointer-events: auto;
+  box-shadow: 0 0 40px rgba(0, 170, 255, 0.4), inset 0 0 25px rgba(0, 170, 255, 0.15);
 }
 
-.messageHistory {
-  max-height: 150px;
-  overflow-y: auto;
-  padding: 8px;
-  border-radius: 4px;
-  scrollbar-width: thin;
-  background-color: rgba(40, 40, 60, 0.3);
-  transition: background-color 0.3s ease;
-  text-align: left; /* Ensure left alignment */
-}
-
-.chatContainer.active .messageHistory {
-  background-color: rgba(40, 40, 60, 0.85);
-  border: 1px solid #a0a0c0;
-  box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-}
-
-/* Chat placeholder that shows when not active - adjust spacing to match input */
-.chatPlaceholder {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background-color: rgba(40, 40, 60, 0.5);
-  color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(160, 160, 192, 0.4);
-  border-radius: 4px;
-  font-size: 10px;
-  text-align: left;
-  cursor: pointer;
-  box-sizing: border-box; /* Ensure padding is included in width */
-  width: 100%; /* Match the input width */
-}
-
-/* Hide scrollbar when inactive */
-.messageHistory::-webkit-scrollbar {
-  width: 5px;
+/* Fade out messages slightly when inactive */
+.chatContainer:not(.active) .message {
+  opacity: 0.7;
 }
 
 .chatContainer:not(.active) .messageHistory::-webkit-scrollbar {
   width: 0px;
 }
 
-.messageHistory::-webkit-scrollbar-thumb {
-  background-color: rgba(160, 160, 192, 0.8);
-  border-radius: 10px;
+/* Remove unused styles */
+.messagesContainer,
+.inputContainer,
+.messageInput,
+.toggleButton,
+.newMessageIndicator {
+  display: none;
 }
 
-.senderName {
-  color: #ffcc00;
-  margin-right: 5px;
-  font-weight: bold;
-}
-
-.messageText {
-  color: #ffffff;
-}
-
-/* Fade out messages slightly when inactive */
-.chatContainer:not(.active) .message {
-  opacity: 0.8;
-}
-
-/* Message notification dot - DISABLED */
-.chatContainer .newMessageIndicator {
-  display: none; /* Permanently hide the red flashing dot */
-}
-
-.systemMessage {
-  color: #ffcc66; /* Example color for system messages */
-  font-style: italic;
+/* Responsive design */
+@media (max-width: 768px) {
+  .chatContainer {
+    width: 320px;
+    bottom: 10px;
+    left: 10px;
+    max-height: 200px;
+  }
+  
+  .messageHistory {
+    max-height: 120px;
+    padding: 6px 10px;
+  }
+  
+  .chatInput,
+  .chatPlaceholder {
+    padding: 10px 12px;
+    font-size: 11px; /* Increased from 8px to maintain readability */
+  }
+  
+  .message {
+    padding: 3px 5px;
+    font-size: 10px; /* Increased from 6px to maintain readability */
+  }
+  
+  .playerName {
+    font-size: 9px; /* Increased from 5px to maintain readability */
+  }
+  
+  .timestamp {
+    font-size: 7px; /* Increased from 4px to maintain readability */
+  }
 } 

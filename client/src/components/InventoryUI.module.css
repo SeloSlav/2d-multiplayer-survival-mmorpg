@@ -18,7 +18,7 @@
   display: flex;
   gap: 15px;
   color: #eee;
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Courier New', Consolas, Monaco, monospace;
   box-sizing: border-box;
   align-items: flex-start;
 }

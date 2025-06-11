@@ -601,7 +601,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 {/* Status Bars mapping */}
                 <StatusBar 
                     label="HP" 
-                    icon="❤️" 
+                    iconType="heart"
                     value={localPlayer.health} 
                     maxValue={100} 
                     barColor="#ff4040" 
@@ -610,15 +610,15 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     pendingHealAmount={pendingBandageHealAmount}
                     glow={localPlayer.health < lowNeedThreshold}
                 />
-                <StatusBar label="SP" icon="⚡" value={localPlayer.stamina} maxValue={100} barColor="#40ff40" />
+                {/* <StatusBar label="SP" iconType="stamina" value={localPlayer.stamina} maxValue={100} barColor="#40ff40" /> */}
                 {/*
                   Glow/pulse effect for Thirst, Hunger, Warmth when below LOW_NEED_THRESHOLD (20.0),
                   matching server logic for stat penalties/health loss. This helps players realize
                   why they're thirsty/hungry/cold and should take action soon.
                 */}
-                <StatusBar label="Thirst" icon="💧" value={localPlayer.thirst} maxValue={250} barColor="#40a0ff" glow={localPlayer.thirst < lowNeedThreshold} />
-                <StatusBar label="Hunger" icon="🍖" value={localPlayer.hunger} maxValue={250} barColor="#ffa040" glow={localPlayer.hunger < lowNeedThreshold} />
-                <StatusBar label="Warmth" icon="🔥" value={localPlayer.warmth} maxValue={100} barColor="#ffcc00" glow={localPlayer.warmth < lowNeedThreshold} />
+                <StatusBar label="Thirst" iconType="thirst" value={localPlayer.thirst} maxValue={250} barColor="#40a0ff" glow={localPlayer.thirst < lowNeedThreshold} />
+                <StatusBar label="Hunger" iconType="hunger" value={localPlayer.hunger} maxValue={250} barColor="#ffa040" glow={localPlayer.hunger < lowNeedThreshold} />
+                {/* <StatusBar label="Warmth" iconType="warmth" value={localPlayer.warmth} maxValue={100} barColor="#ffcc00" glow={localPlayer.warmth < lowNeedThreshold} /> */}
             </div>
 
             {/* Render Inventory UI conditionally - Pass props down */}

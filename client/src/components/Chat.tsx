@@ -17,6 +17,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   // console.log("[Chat Component Render] Props - Connection:", !!connection, "LocalPlayerIdentity:", localPlayerIdentity);
   const [inputValue, setInputValue] = useState('');
   const [privateMessages, setPrivateMessages] = useState<Map<string, SpacetimeDBPrivateMessage>>(new Map());
+  const [isMinimized, setIsMinimized] = useState(false);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const lastMessageCountRef = useRef<number>(0);
@@ -127,6 +128,16 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     // Focus will be handled by the useEffect in ChatInput
   }, [setIsChatting]);
 
+  // Toggle minimize/maximize
+  const toggleMinimized = useCallback(() => {
+    setIsMinimized(!isMinimized);
+    // If minimizing while chatting, close the chat input
+    if (!isMinimized && isChatting) {
+      setIsChatting(false);
+      setInputValue('');
+    }
+  }, [isMinimized, isChatting, setIsChatting]);
+
   // Global keyboard event handler
   const handleGlobalKeyDown = useCallback((event: KeyboardEvent) => {
     // Don't process if modifier keys are pressed
@@ -146,8 +157,8 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     if (event.key === 'Enter') {
       event.preventDefault();
       
-      // Only toggle chat open if not already chatting and not focused on another input
-      if (!isChatting && !isInputFocused) {
+      // Only toggle chat open if not already chatting and not focused on another input and not minimized
+      if (!isChatting && !isInputFocused && !isMinimized) {
         setIsChatting(true);
       }
       // If chatting, the Enter key is handled by ChatInput component
@@ -158,7 +169,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
          event.preventDefault();
       handleCloseChat();
     }
-  }, [isChatting, setIsChatting, handleCloseChat]);
+  }, [isChatting, setIsChatting, handleCloseChat, isMinimized]);
 
   // Message sending handler
   const handleSendMessage = useCallback(() => {
@@ -189,11 +200,72 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     };
   }, [handleGlobalKeyDown]);
 
+  // Minimized view - just a chat icon
+  if (isMinimized) {
+    return (
+      <div 
+        className={styles.chatMinimized}
+        onClick={toggleMinimized}
+        data-chat-container="true"
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          width: '50px',
+          height: '50px',
+          background: 'linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95))',
+          border: '2px solid #00aaff',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 0 20px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+          zIndex: 50,
+          fontSize: '20px',
+          color: '#00ffff',
+          transition: 'all 0.3s ease',
+        }}
+      >
+        💬
+      </div>
+    );
+  }
+
   // Create class for container - removed hasUnread class
   const containerClass = isChatting ? `${styles.chatContainer} ${styles.active}` : styles.chatContainer;
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} data-chat-container="true">
+      {/* Minimize button */}
+      <div 
+        className={styles.chatMinimizeButton}
+        onClick={toggleMinimized}
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          width: '20px',
+          height: '20px',
+          background: 'rgba(0, 170, 255, 0.2)',
+          border: '1px solid #00aaff',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: '12px',
+          color: '#00ffff',
+          opacity: 0.7,
+          transition: 'all 0.2s ease',
+          zIndex: 10,
+        }}
+        onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+        onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = '0.7'; }}
+      >
+        −
+      </div>
+
       {/* Always render message history for gameplay awareness */}
       <ChatMessageHistory 
         messages={messages} 

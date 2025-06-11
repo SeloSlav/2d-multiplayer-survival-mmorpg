@@ -5,7 +5,7 @@
   border-radius: 4px;
   padding: 10px 8px; /* Reduced horizontal padding */
   color: #e0e0e0; /* Light text color */
-  font-family: 'Press Start 2P', cursive; /* Game font */
+  font-family: 'Courier New', Consolas, Monaco, monospace; /* Cyberpunk font */
   font-size: 0.8rem; /* Base font size for tooltip */
   z-index: 200; /* Ensure it's above other UI elements like inventory */
   width: 300px; /* Set a fixed width */

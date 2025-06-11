@@ -30,7 +30,7 @@
   bottom: 2px;
   left: 4px;
   font-size: 10px;
-  font-family: 'Press Start 2P', cursive; /* Match UI font */
+  font-family: 'Courier New', Consolas, Monaco, monospace; /* Match UI font */
   font-weight: bold;
   color: rgba(255, 255, 255, 0.95);
   background-color: rgba(0, 0, 0, 0.7);
@@ -62,7 +62,7 @@
   bottom: -4px; /* Position relative to ghost */
   right: -4px;
   font-size: 10px;
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Courier New', Consolas, Monaco, monospace;
   font-weight: bold;
   color: rgba(255, 255, 255, 0.95);
   background-color: rgba(0, 0, 0, 0.7);

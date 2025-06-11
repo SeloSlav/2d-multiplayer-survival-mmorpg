@@ -248,6 +248,7 @@ export function useInteractionFinder({
             // Find closest potato
             if (potatoes) {
                 potatoes.forEach((potato) => {
+                    if (potato.respawnAt !== null && potato.respawnAt !== undefined) return;
                     const visualCenterY = potato.posY - (32 / 2);
                     const dx = playerX - potato.posX;
                     const dy = playerY - visualCenterY;
@@ -262,6 +263,7 @@ export function useInteractionFinder({
             // Find closest pumpkin
             if (pumpkins) {
                 pumpkins.forEach((pumpkin) => {
+                    if (pumpkin.respawnAt !== null && pumpkin.respawnAt !== undefined) return;
                     const visualCenterY = pumpkin.posY - (64 / 2);
                     const dx = playerX - pumpkin.posX;
                     const dy = playerY - visualCenterY;

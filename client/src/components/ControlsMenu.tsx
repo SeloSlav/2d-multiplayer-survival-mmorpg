@@ -32,12 +32,11 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
         {
             title: 'Movement',
             controls: [
-                { key: 'W, A, S, D', description: 'Move player' },
+                { key: 'W/A/S/D', description: 'Move player' },
                 { key: 'Left Shift', description: 'Sprint (hold)' },
                 { key: 'Space', description: 'Jump (standing still) / Dodge roll (with movement)' },
                 { key: 'C', description: 'Crouch' },
                 { key: 'Q', description: 'Toggle auto-walk' },
-                { key: 'W/A/S/D (during auto-walk)', description: 'Override auto-walk direction' },
                 { key: 'Shift + W/A/S/D', description: 'Cancel auto-walk and sprint' },
             ]
         },

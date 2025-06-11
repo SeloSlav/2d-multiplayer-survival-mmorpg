@@ -25,7 +25,6 @@
         linear-gradient(rgba(0, 150, 255, 0.15) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 150, 255, 0.15) 1px, transparent 1px);
     background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
-    animation: grid-move 20s linear infinite;
     opacity: 0.7;
 }
 
@@ -40,11 +39,6 @@
         radial-gradient(circle at 25% 25%, rgba(0, 221, 255, 0.1) 0%, transparent 50%),
         radial-gradient(circle at 75% 75%, rgba(0, 150, 255, 0.1) 0%, transparent 50%);
     animation: holodeck-pulse 8s ease-in-out infinite alternate;
-}
-
-@keyframes grid-move {
-    0% { transform: translate(0, 0); }
-    100% { transform: translate(50px, 50px); }
 }
 
 @keyframes holodeck-pulse {

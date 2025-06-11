@@ -36,6 +36,7 @@
  
  // --- ADDED: Import for rain protection functionality ---
  use crate::world_state::world_state as WorldStateTableTrait;
+ use crate::world_state::WeatherType; // Import the WeatherType enum
  use crate::shelter::shelter as ShelterTableTrait;
  
  // --- Constants ---
@@ -448,8 +449,8 @@ pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result
             return Err("Cannot light campfire, requires fuel.".to_string());
         }
         
-        // Check if it's raining and campfire is not protected by shelter
-        if is_raining(ctx) && !is_campfire_protected_from_rain(ctx, &campfire) {
+        // Check if it's raining heavily and campfire is not protected by shelter
+        if is_heavy_raining(ctx) && !is_campfire_protected_from_rain(ctx, &campfire) {
             return Err("Cannot light campfire in the rain unless it's inside a shelter.".to_string());
         }
         
@@ -1410,10 +1411,23 @@ impl crate::cooking::CookableAppliance for Campfire {
     }
 }
 
-/// Checks if it's currently raining by looking at the world state
-fn is_raining(ctx: &ReducerContext) -> bool {
+/// Checks if it's currently raining heavily enough to prevent campfire lighting
+/// Only heavy rain/storms prevent lighting, light/moderate rain should allow lighting
+fn is_heavy_raining(ctx: &ReducerContext) -> bool {
     if let Some(world_state) = ctx.db.world_state().iter().next() {
-        world_state.rain_intensity > 0.0
+        if world_state.rain_intensity <= 0.0 {
+            return false;
+        }
+        
+        // Check the weather type if available, otherwise fall back to intensity threshold
+        match &world_state.current_weather {
+            WeatherType::HeavyRain => true,
+            WeatherType::HeavyStorm => true,
+            _ => {
+                // For other weather types, fallback to intensity threshold (>= 0.8 is heavy rain/storm range)
+                world_state.rain_intensity >= 0.8
+            }
+        }
     } else {
         false
     }

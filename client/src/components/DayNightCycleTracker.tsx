@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WorldState, TimeOfDay } from '../generated';
 
 // Style constants
@@ -26,7 +26,53 @@ interface DayNightCycleTrackerProps {
 }
 
 const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+
   if (!worldState) return null;
+
+  // Helper function to get display name for time of day
+  const getTimeOfDayDisplay = (timeOfDay: TimeOfDay) => {
+    switch (timeOfDay.tag) {
+      case 'Dawn': return 'Dawn';
+      case 'TwilightMorning': return 'Twilight Morning';
+      case 'Morning': return 'Morning';
+      case 'Noon': return 'Noon';
+      case 'Afternoon': return 'Afternoon';
+      case 'Dusk': return 'Dusk';
+      case 'TwilightEvening': return 'Twilight Evening';
+      case 'Night': return 'Night';
+      case 'Midnight': return 'Midnight';
+      default: return 'Unknown';
+    }
+  };
+
+  // Helper function to get weather display
+  const getWeatherDisplay = (weather: any) => {
+    switch (weather.tag) {
+      case 'Clear': return 'Clear';
+      case 'LightRain': return 'Light Rain';
+      case 'ModerateRain': return 'Moderate Rain';
+      case 'HeavyRain': return 'Heavy Rain';
+      case 'HeavyStorm': return 'Heavy Storm';
+      default: return 'Unknown';
+    }
+  };
+
+  // Helper function to get emoji based on time of day
+  const getTimeOfDayEmoji = (timeOfDay: TimeOfDay, isFullMoon: boolean) => {
+    switch (timeOfDay.tag) {
+      case 'Dawn': return '🌅';
+      case 'TwilightMorning': return '🌄';
+      case 'Morning': return '☀️';
+      case 'Noon': return '🌞';
+      case 'Afternoon': return '🌤️';
+      case 'Dusk': return '🌇';
+      case 'TwilightEvening': return '🌆';
+      case 'Night': return isFullMoon ? '🌕' : '🌙';
+      case 'Midnight': return isFullMoon ? '🌕' : '🌑';
+      default: return '🌍';
+    }
+  };
 
   // Helper function to get background gradient based on time of day
   const getBackgroundGradient = () => {
@@ -47,6 +93,43 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
   // Calculate dial position based on cycle progress (0-1)
   const dialPosition = `${worldState.cycleProgress * 100}%`;
 
+  // Toggle minimize/maximize
+  const toggleMinimized = () => {
+    setIsMinimized(!isMinimized);
+  };
+
+  // Minimized view - just the emoji
+  if (isMinimized) {
+    return (
+      <div
+        onClick={toggleMinimized}
+        style={{
+          position: 'fixed',
+          top: '15px',
+          right: '15px',
+          background: UI_BG_COLOR,
+          color: '#00ffff',
+          padding: '8px',
+          borderRadius: '50%',
+          border: `2px solid ${UI_BORDER_COLOR}`,
+          boxShadow: UI_SHADOW,
+          zIndex: 50,
+          cursor: 'pointer',
+          width: '40px',
+          height: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '20px',
+          transition: 'all 0.3s ease',
+        }}
+      >
+        {getTimeOfDayEmoji(worldState.timeOfDay, worldState.isFullMoon)}
+      </div>
+    );
+  }
+
+  // Expanded view - full component
   return (
     <div style={{
       position: 'fixed',
@@ -61,9 +144,41 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
       boxShadow: UI_SHADOW,
       zIndex: 50,
       width: '240px',
-      fontSize: '10px',
+      fontSize: '12px',
       textShadow: '0 0 6px rgba(0, 255, 255, 0.6)',
     }}>
+      {/* Day/Time Information */}
+      <div style={{ marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '14px' }}>
+          <span>Day {worldState.cycleCount}</span>
+          <span
+            onClick={toggleMinimized}
+            style={{
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: 0.8,
+              fontSize: '16px',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+          >
+            {getTimeOfDayEmoji(worldState.timeOfDay, worldState.isFullMoon)}
+          </span>
+        </div>
+        <div style={{ fontSize: '11px', opacity: 0.8 }}>
+          <div>
+            <span>{getTimeOfDayDisplay(worldState.timeOfDay)}</span>
+            <span style={{ margin: '0 4px' }}>|</span>
+            <span>{getWeatherDisplay(worldState.currentWeather)}</span>
+          </div>
+          {worldState.rainIntensity > 0 && (
+            <div style={{ marginTop: '2px', paddingLeft: '8px' }}>
+              <span>Intensity: {Math.round(worldState.rainIntensity * 100)}%</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Progress bar */}
       <div style={{
         position: 'relative',

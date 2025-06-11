@@ -828,9 +828,14 @@ const Hotbar: React.FC<HotbarProps> = ({
     // If inventory is open, or chat input is focused, or other UI elements that might use wheel scroll, or game menu is open, do nothing.
     const chatInputIsFocused = document.activeElement?.matches('[data-is-chat-input="true"]');
     const craftSearchIsFocused = document.activeElement?.id === 'craftSearchInput'; // Example ID
+    
+    // Check if mouse is over chat container to allow chat scrolling
+    const target = event.target as Element;
+    const chatContainer = target.closest('[data-chat-container="true"]'); // Check if we're inside a chat container
+    const isOverChat = chatContainer !== null;
 
-    if (inventoryPanel || chatInputIsFocused || craftSearchIsFocused || isGameMenuOpen || event.deltaY === 0) {
-      return; // Don't interfere if inventory/chat/search/game menu is open, or no vertical scroll
+    if (inventoryPanel || chatInputIsFocused || craftSearchIsFocused || isGameMenuOpen || isOverChat || event.deltaY === 0) {
+      return; // Don't interfere if inventory/chat/search/game menu is open, over chat, or no vertical scroll
     }
 
     event.preventDefault(); // Prevent page scrolling (only if inventory is NOT open)

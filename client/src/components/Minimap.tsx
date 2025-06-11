@@ -30,9 +30,9 @@ const X_BUTTON_TEXT_COLOR = '#ffffff';
 const PLAYER_DOT_SIZE = 3;
 const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
 // Player icon constants - Updated for directional triangular icons
-const PLAYER_ICON_SIZE = 6; // Slightly larger than tree/stone icons (which are 4px)
+const PLAYER_ICON_SIZE = 12; // Much larger than tree/stone icons (which are 4px)
 const PLAYER_ICON_OUTLINE_COLOR = '#333333'; // Dark grey outline for visibility
-const PLAYER_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
+const PLAYER_ICON_OUTLINE_WIDTH = 2; // Thicker outline for better visibility
 const REMOTE_PLAYER_DOT_COLOR = '#00AAFF'; // Light blue for other players
 // Add colors for trees and rocks - UPDATED to be much darker and more visible
 const TREE_DOT_COLOR = '#37ff7a'; // Bright emerald green with excellent visibility
@@ -60,8 +60,8 @@ const OUT_OF_BOUNDS_COLOR = 'rgba(20, 35, 20, 0.2)'; // Darker shade for outside
 // Updated pin styling
 const PIN_COLOR = '#FFD700'; // Golden yellow for pin
 const PIN_BORDER_COLOR = '#000000'; // Black border
-const PIN_SIZE = 8; // Larger pin
-const PIN_BORDER_WIDTH = 1; // Border width
+const PIN_SIZE = 24; // Double the player icon size (12px * 2)
+const PIN_BORDER_WIDTH = 2; // Thicker border width
 
 // Grid Constants - Divisions will be calculated dynamically
 const GRID_LINE_COLOR = 'rgba(200, 200, 200, 0.3)';
@@ -775,7 +775,6 @@ export function drawMinimapOntoCanvas({
   if (playerPin) {
       const pinScreenCoords = worldToMinimap(playerPin.pinX, playerPin.pinY);
       if (pinScreenCoords) {
-          // Draw a better marker (simple marker icon with black outline)
           const x = pinScreenCoords.x;
           const y = pinScreenCoords.y;
           const size = PIN_SIZE;
@@ -783,24 +782,64 @@ export function drawMinimapOntoCanvas({
           // Save context for styling
           ctx.save();
           
-          // Draw the pin as a filled circle with border
+          // Draw a modern map pin icon (teardrop/location pin shape)
+          const pinWidth = size * 0.6;  // Width of the pin body
+          const pinHeight = size;       // Total height including point
+          const pinBodyHeight = size * 0.7; // Height of the circular body
+          const pinBodyRadius = pinWidth / 2;
+          
+          // Calculate pin body center (offset up from the point)
+          const pinBodyCenterX = x;
+          const pinBodyCenterY = y - (pinHeight - pinBodyHeight);
+          
           ctx.beginPath();
-          ctx.arc(x, y, size/2, 0, Math.PI * 2);
+          
+          // Draw the teardrop shape
+          // Start at the bottom point
+          ctx.moveTo(x, y);
+          
+          // Curve to the left side of the circle
+          ctx.quadraticCurveTo(
+            x - pinBodyRadius * 1.2, 
+            pinBodyCenterY + pinBodyRadius * 0.3,
+            x - pinBodyRadius, 
+            pinBodyCenterY
+          );
+          
+          // Draw the top arc (semicircle)
+          ctx.arc(
+            pinBodyCenterX, 
+            pinBodyCenterY, 
+            pinBodyRadius, 
+            Math.PI, 
+            0, 
+            false
+          );
+          
+          // Curve back to the bottom point
+          ctx.quadraticCurveTo(
+            x + pinBodyRadius * 1.2, 
+            pinBodyCenterY + pinBodyRadius * 0.3,
+            x, 
+            y
+          );
+          
+          ctx.closePath();
+          
+          // Fill the pin
           ctx.fillStyle = PIN_COLOR;
           ctx.fill();
+          
+          // Draw border
           ctx.lineWidth = PIN_BORDER_WIDTH;
           ctx.strokeStyle = PIN_BORDER_COLOR;
           ctx.stroke();
           
-          // Draw a small triangle on top pointing down to make it look like a location pin
+          // Draw inner dot for detail
           ctx.beginPath();
-          ctx.moveTo(x, y - size/2); // Top of circle
-          ctx.lineTo(x - size/3, y - size);  // Left point
-          ctx.lineTo(x + size/3, y - size);  // Right point
-          ctx.closePath();
-          ctx.fillStyle = PIN_COLOR;
+          ctx.arc(pinBodyCenterX, pinBodyCenterY, pinBodyRadius * 0.3, 0, Math.PI * 2);
+          ctx.fillStyle = PIN_BORDER_COLOR;
           ctx.fill();
-          ctx.stroke();
           
           // Restore context after pin drawing
           ctx.restore();

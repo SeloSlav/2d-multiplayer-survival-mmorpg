@@ -37,15 +37,37 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                 left: 0,
                 width: '100%',
                 height: '100%',
-                background: 'linear-gradient(135deg, rgba(25, 10, 40, 0.95), rgba(15, 5, 30, 0.98))',
+                background: 'linear-gradient(135deg, #1a0d2e 0%, #16213e 50%, #0f1419 100%)',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 zIndex: 2000,
                 backdropFilter: 'blur(8px)',
+                overflow: 'hidden',
             }}
             onClick={handleBackdropClick}
         >
+            {/* Animated grid background */}
+            <div 
+                className="grid-background"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundImage: `
+                        linear-gradient(rgba(0, 221, 255, 0.3) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0, 221, 255, 0.3) 1px, transparent 1px),
+                        linear-gradient(rgba(0, 150, 255, 0.15) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0, 150, 255, 0.15) 1px, transparent 1px)
+                    `,
+                    backgroundSize: '50px 50px, 50px 50px, 10px 10px, 10px 10px',
+                    animation: 'grid-move 20s linear infinite',
+                    opacity: 0.7,
+                    pointerEvents: 'none',
+                }}
+            />
             <div
                 style={{
                     background: 'linear-gradient(145deg, rgba(30, 15, 50, 0.95), rgba(20, 10, 40, 0.98))',
@@ -70,19 +92,36 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                     animation: 'scanLine 3s linear infinite',
                 }} />
                 
-                <h2
-                    style={{
-                        fontFamily: '"Press Start 2P", cursive',
-                        fontSize: '20px',
-                        color: '#00ffff',
-                        textAlign: 'center',
-                        marginBottom: '30px',
-                        textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
-                        animation: 'glow 2s ease-in-out infinite alternate',
-                    }}
-                >
-                    NEURAL INTERFACE
-                </h2>
+                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                    <h2
+                        style={{
+                            fontFamily: '"Press Start 2P", cursive',
+                            fontSize: '18px',
+                            color: '#00ffff',
+                            textAlign: 'center',
+                            marginBottom: '8px',
+                            textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
+                            animation: 'glow 2s ease-in-out infinite alternate',
+                            letterSpacing: '2px',
+                        }}
+                    >
+                        NEUROVEIL OCULAR IMPLANT™
+                    </h2>
+                    <div
+                        style={{
+                            fontFamily: '"Press Start 2P", cursive',
+                            fontSize: '12px',
+                            color: '#6699cc',
+                            textAlign: 'center',
+                            letterSpacing: '1px',
+                            opacity: 0.8,
+                            lineHeight: '1.4',
+                        }}
+                    >
+                        <div>Rozhkov Neuroscience Neural Interface</div>
+                        <div>System v3.14</div>
+                    </div>
+                </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {menuOptions.map((option, index) => (
@@ -145,6 +184,25 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                         100% { 
                             text-shadow: 0 0 15px rgba(0, 255, 255, 1), 0 0 30px rgba(0, 255, 255, 0.6);
                         }
+                    }
+                    
+                    @keyframes holodeck-pulse {
+                        0% { opacity: 0.3; }
+                        100% { opacity: 0.8; }
+                    }
+                    
+                    .grid-background::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: 
+                            radial-gradient(circle at 25% 25%, rgba(0, 221, 255, 0.1) 0%, transparent 50%),
+                            radial-gradient(circle at 75% 75%, rgba(0, 150, 255, 0.1) 0%, transparent 50%);
+                        animation: holodeck-pulse 8s ease-in-out infinite alternate;
+                        pointer-events: none;
                     }
                 `}</style>
             </div>

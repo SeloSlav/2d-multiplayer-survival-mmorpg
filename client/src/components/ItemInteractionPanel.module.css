@@ -8,7 +8,7 @@
   border-radius: 6px;
   box-shadow: 2px 2px 0px rgba(0,0,0,0.4);
   color: #e0e0e0; /* Match tooltip text color */
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Courier New', Consolas, Monaco, monospace;
   position: relative;
   width: 404px; /* Match inventory grid width + gap (388px + 16px) */
   box-sizing: border-box; /* Include padding in width */

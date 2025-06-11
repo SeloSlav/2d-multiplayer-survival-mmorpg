@@ -74,7 +74,7 @@ const ActiveCraftingQueueUI: React.FC<ActiveCraftingQueueUIProps> = ({
       borderRadius: '4px',
       border: '1px solid #a0a0e0',
       boxShadow: '0 0 8px rgba(160, 160, 224, 0.7)',
-      fontFamily: '"Press Start 2P", cursive',
+      fontFamily: "'Courier New', 'Consolas', 'Monaco', monospace", /* Cyberpunk font */
       fontSize: '10px',
       minWidth: '200px',
       zIndex: 75, // Between notifications (100) and status bars (50)

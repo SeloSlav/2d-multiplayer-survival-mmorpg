@@ -16,6 +16,11 @@ body {
   overflow: hidden; /* Ensure App doesn't overflow */
 }
 
+/* Global override to ensure all UI elements use cyberpunk font */
+* {
+  font-family: 'Courier New', Consolas, Monaco, monospace !important;
+}
+
 .error-message {
   color: #d32f2f;
   background-color: #ffebee;
