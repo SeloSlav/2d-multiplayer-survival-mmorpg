@@ -301,9 +301,9 @@ export const useSpacetimeTables = ({
             // Log chunk changes for debugging with performance timing
             const chunkCalcTime = performance.now() - startTime;
             // Only log chunk changes if there are significant changes or performance issues
-            if (addedChunks.length + removedChunks.length > 20 || chunkCalcTime > 2) {
-                console.log(`[CHUNK_BUFFER] Changes: +${addedChunks.length} chunks, -${removedChunks.length} chunks (buffer: ${CHUNK_BUFFER_SIZE}, delay: ${CHUNK_UNSUBSCRIBE_DELAY_MS}ms) [calc: ${chunkCalcTime.toFixed(2)}ms]`);
-            }
+            // if (addedChunks.length + removedChunks.length > 20 || chunkCalcTime > 2) {
+            //     console.log(`[CHUNK_BUFFER] Changes: +${addedChunks.length} chunks, -${removedChunks.length} chunks (buffer: ${CHUNK_BUFFER_SIZE}, delay: ${CHUNK_UNSUBSCRIBE_DELAY_MS}ms) [calc: ${chunkCalcTime.toFixed(2)}ms]`);
+            // }
 
             // Make subscription changes async to avoid blocking
             setTimeout(() => {
@@ -340,7 +340,7 @@ export const useSpacetimeTables = ({
                     if (existingTimer) {
                         clearTimeout(existingTimer);
                         chunkUnsubscribeTimersRef.current.delete(chunkIndex);
-                        console.log(`[CHUNK_BUFFER] Cancelled delayed unsubscribe for chunk ${chunkIndex} (chunk came back into viewport)`);
+                        // console.log(`[CHUNK_BUFFER] Cancelled delayed unsubscribe for chunk ${chunkIndex} (chunk came back into viewport)`);
                         return; // Skip resubscription - we're already subscribed
                     }
 

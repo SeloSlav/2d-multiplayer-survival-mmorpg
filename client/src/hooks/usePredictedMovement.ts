@@ -5,10 +5,14 @@ import { gameConfig } from '../config/gameConfig';
 
 const MOVEMENT_UPDATE_INTERVAL_MS = 50; // 20 times per second
 
-// Client-side prediction is now the default.
-// The old "ZERO_LAG_MODE" was actually just server reconciliation without prediction.
-const RECONCILIATION_INTERPOLATION_SPEED = 20.0; // How quickly to interpolate to the server's position. Higher is faster.
-const RECONCILIATION_SNAP_THRESHOLD = 150.0; // If prediction is off by more than this many pixels, snap instantly.
+// 🎯 ANTI-JITTER SYSTEM: Fine-tuned reconciliation
+const RECONCILIATION_DEAD_ZONE = 8.0; // Ignore differences smaller than 8 pixels (prevents micro-jittering)
+const RECONCILIATION_INTERPOLATION_SPEED = 8.0; // Slower, smoother interpolation (was 20.0)
+const RECONCILIATION_SNAP_THRESHOLD = 100.0; // Snap if off by more than 100px (was 150.0)
+
+// 🔍 DEBUG: Measure prediction accuracy
+const ENABLE_PREDICTION_LOGGING = true;
+const LOG_INTERVAL_MS = 2000; // Log every 2 seconds
 
 interface PredictedMovementProps {
   connection: DbConnection | null;
@@ -18,142 +22,133 @@ interface PredictedMovementProps {
 
 export const usePredictedMovement = ({ connection, localPlayer, inputState }: PredictedMovementProps) => {
   // Position tracking
-  const renderPositionRef = useRef({ x: 0, y: 0 }); // Visual position (what the player sees)
-  const serverPositionRef = useRef({ x: 0, y: 0 }); // Authoritative server position
+  const renderPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const lastServerPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const movementIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const lastUpdateTimeRef = useRef(performance.now());
-  const lastMovementUpdateTimeRef = useRef(performance.now());
-  const lastSprintStateRef = useRef<boolean>(false);
-  const animationFrameIdRef = useRef<number | null>(null);
-  
-  // Stable refs for use in the animation loop
-  const connectionRef = useRef(connection);
-  const inputStateRef = useRef(inputState);
-  const localPlayerRef = useRef(localPlayer);
+  // 🔍 Prediction accuracy tracking
+  const predictionErrorsRef = useRef<number[]>([]);
+  const lastLogTimeRef = useRef<number>(0);
 
-  // Update refs when dependencies change
+  // Initialize render position from server position
   useEffect(() => {
-    connectionRef.current = connection;
-    inputStateRef.current = inputState;
-    localPlayerRef.current = localPlayer;
-  }, [connection, inputState, localPlayer]);
+    if (localPlayer && !renderPositionRef.current) {
+      renderPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
+      lastServerPositionRef.current = { x: localPlayer.positionX, y: localPlayer.positionY };
+      console.log('🎯 Initialized prediction system at:', localPlayer.positionX, localPlayer.positionY);
+    }
+  }, [localPlayer]);
 
-  // Initialize positions when player loads or respawns
+  // Server reconciliation with anti-jitter logic
   useEffect(() => {
-    if (localPlayer) {
-      const serverPos = { x: localPlayer.positionX, y: localPlayer.positionY };
-      // On first load or major change (like respawn), snap both render and server positions
-      const isSignificantChange = !serverPositionRef.current.x || 
-                                 Math.abs(serverPositionRef.current.x - serverPos.x) > 500 ||
-                                 Math.abs(serverPositionRef.current.y - serverPos.y) > 500;
+    if (!localPlayer || !renderPositionRef.current) return;
+
+    const serverPos = { x: localPlayer.positionX, y: localPlayer.positionY };
+    const renderPos = renderPositionRef.current;
+    
+    // Calculate pixel difference
+    const deltaX = serverPos.x - renderPos.x;
+    const deltaY = serverPos.y - renderPos.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // 🔍 Track prediction accuracy
+    if (ENABLE_PREDICTION_LOGGING) {
+      predictionErrorsRef.current.push(distance);
       
-      if (isSignificantChange) {
-        console.log(`[Prediction] Player position initialized/reset to (${serverPos.x}, ${serverPos.y})`);
-        serverPositionRef.current = serverPos;
-        renderPositionRef.current = serverPos;
-        lastUpdateTimeRef.current = performance.now();
-      } else {
-        // For normal updates, just update the server position target
-        serverPositionRef.current = serverPos;
+      const now = Date.now();
+      if (now - lastLogTimeRef.current > LOG_INTERVAL_MS) {
+        const errors = predictionErrorsRef.current;
+        if (errors.length > 0) {
+          const avgError = errors.reduce((a, b) => a + b, 0) / errors.length;
+          const maxError = Math.max(...errors);
+          console.log(`🔍 Prediction Analysis - Avg Error: ${avgError.toFixed(1)}px, Max Error: ${maxError.toFixed(1)}px, Samples: ${errors.length}`);
+        }
+        predictionErrorsRef.current = [];
+        lastLogTimeRef.current = now;
       }
     }
-  }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.identity.toHexString()]);
 
-  // The main prediction and reconciliation loop
-  const update = useCallback(() => {
-    const localPlayer = localPlayerRef.current;
-    const inputState = inputStateRef.current;
-    const connection = connectionRef.current;
-    
-    if (!localPlayer || !connection?.reducers) {
-      animationFrameIdRef.current = requestAnimationFrame(update);
+    // 🎯 ANTI-JITTER: Dead zone - ignore tiny differences
+    if (distance <= RECONCILIATION_DEAD_ZONE) {
+      // Update last server position but don't move render position
+      lastServerPositionRef.current = { ...serverPos };
       return;
     }
 
-    const now = performance.now();
-    const deltaSeconds = Math.min((now - lastUpdateTimeRef.current) / 1000, 0.05); // Cap delta time
-    lastUpdateTimeRef.current = now;
+    // 🎯 ANTI-JITTER: Snap for large differences, interpolate for medium ones
+    if (distance > RECONCILIATION_SNAP_THRESHOLD) {
+      console.log(`⚡️ Snapping due to large error: ${distance.toFixed(1)}px`);
+      renderPositionRef.current = { ...serverPos };
+    } else {
+      // Smooth interpolation towards server position
+      const interpolationFactor = Math.min(1.0, RECONCILIATION_INTERPOLATION_SPEED * (MOVEMENT_UPDATE_INTERVAL_MS / 1000));
+      renderPositionRef.current = {
+        x: renderPos.x + deltaX * interpolationFactor,
+        y: renderPos.y + deltaY * interpolationFactor,
+      };
+    }
+
+    lastServerPositionRef.current = { ...serverPos };
+  }, [localPlayer?.positionX, localPlayer?.positionY]);
+
+  // Client-side movement prediction
+  const updateMovement = useCallback(() => {
+    if (!connection || !renderPositionRef.current || !localPlayer) return;
 
     const { direction, sprinting } = inputState;
-
-    // --- 1. Client-Side Prediction ---
-    // Immediately move the player on the client based on input.
-    if (direction.x !== 0 || direction.y !== 0) {
-      let speed = gameConfig.playerSpeed;
-      if (sprinting) speed *= gameConfig.sprintMultiplier;
-      if (localPlayer.isCrouching) speed *= gameConfig.crouchMultiplier;
-      // Note: We don't predict water/stat penalties client-side to keep it simple.
-      // The server will correct for these.
-
-      const moveMagnitude = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
-      const normalizedMoveX = direction.x / moveMagnitude;
-      const normalizedMoveY = direction.y / moveMagnitude;
-
-      const displacementX = normalizedMoveX * speed * deltaSeconds;
-      const displacementY = normalizedMoveY * speed * deltaSeconds;
-
-      renderPositionRef.current.x += displacementX;
-      renderPositionRef.current.y += displacementY;
-
-      // Clamp to world bounds to prevent predicting movement off the map
-      renderPositionRef.current.x = Math.max(0, Math.min(gameConfig.worldWidthPx, renderPositionRef.current.x));
-      renderPositionRef.current.y = Math.max(0, Math.min(gameConfig.worldHeightPx, renderPositionRef.current.y));
-    }
-
-    // --- 2. Server Reconciliation ---
-    // Gently pull the rendered position towards the authoritative server position.
-    const renderPos = renderPositionRef.current;
-    const serverPos = serverPositionRef.current;
     
-    const dx = serverPos.x - renderPos.x;
-    const dy = serverPos.y - renderPos.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // No movement - no prediction needed
+    if (direction.x === 0 && direction.y === 0) return;
 
-    if (distance > RECONCILIATION_SNAP_THRESHOLD) {
-      // If the difference is huge (e.g., collision, teleport), just snap.
-      renderPos.x = serverPos.x;
-      renderPos.y = serverPos.y;
-    } else if (distance > 0.1) {
-      // Otherwise, smoothly interpolate towards the server's position.
-      // This corrects for prediction errors gracefully.
-      const factor = 1 - Math.exp(-RECONCILIATION_INTERPOLATION_SPEED * deltaSeconds);
-      renderPos.x += dx * factor;
-      renderPos.y += dy * factor;
-    }
+    // Use the normalized direction from the input state
+    const deltaX = direction.x;
+    const deltaY = direction.y;
 
-    // --- 3. Send Input to Server ---
-    // This happens independently of prediction.
-    if (now - lastMovementUpdateTimeRef.current > MOVEMENT_UPDATE_INTERVAL_MS) {
-      if (direction.x !== 0 || direction.y !== 0) {
-        // Use a non-blocking timeout to send the reducer call
-        setTimeout(() => connection.reducers.updatePlayerPosition(direction.x, direction.y), 0);
-      }
-      lastMovementUpdateTimeRef.current = now;
-    }
+    // Apply speed multipliers
+    let speed = gameConfig.playerSpeed;
+    if (sprinting) speed *= gameConfig.sprintMultiplier;
 
-    // Send sprint state changes
-    if (sprinting !== lastSprintStateRef.current) {
-      setTimeout(() => connection.reducers.setSprinting(sprinting), 0);
-      lastSprintStateRef.current = sprinting;
-    }
-    
-    animationFrameIdRef.current = requestAnimationFrame(update);
-  }, []);
+    // Calculate distance moved this frame
+    const deltaTime = MOVEMENT_UPDATE_INTERVAL_MS / 1000; // Convert to seconds
+    const moveDistance = speed * deltaTime;
 
-  // Start/stop the animation loop
+    // Apply movement to render position
+    const newX = renderPositionRef.current.x + deltaX * moveDistance;
+    const newY = renderPositionRef.current.y + deltaY * moveDistance;
+
+    // World boundary checks
+    const clampedX = Math.max(0, Math.min(gameConfig.worldWidthPx - gameConfig.spriteWidth, newX));
+    const clampedY = Math.max(0, Math.min(gameConfig.worldHeightPx - gameConfig.spriteHeight, newY));
+
+    renderPositionRef.current = { x: clampedX, y: clampedY };
+
+    // Send movement to server - using the correct reducer name
+    connection.reducers.updatePlayerPosition(deltaX, deltaY);
+  }, [connection, inputState, localPlayer]);
+
+  // Movement update loop
   useEffect(() => {
-    const animate = () => {
-      update();
-    };
-    
-    animationFrameIdRef.current = requestAnimationFrame(animate);
-    
+    if (movementIntervalRef.current) {
+      clearInterval(movementIntervalRef.current);
+    }
+
+    movementIntervalRef.current = setInterval(updateMovement, MOVEMENT_UPDATE_INTERVAL_MS);
+
     return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
+      if (movementIntervalRef.current) {
+        clearInterval(movementIntervalRef.current);
       }
     };
-  }, [update]);
+  }, [updateMovement]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (movementIntervalRef.current) {
+        clearInterval(movementIntervalRef.current);
+      }
+    };
+  }, []);
 
   return {
     predictedPosition: renderPositionRef.current,
