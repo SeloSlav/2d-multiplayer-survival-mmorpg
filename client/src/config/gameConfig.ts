@@ -27,9 +27,33 @@ const WORLD_HEIGHT_CHUNKS = Math.ceil(SERVER_WORLD_HEIGHT_TILES / CHUNK_SIZE_TIL
 const MINIMAP_GRID_CELL_SIZE_PIXELS = Math.round((MINIMAP_GRID_DIAGONAL_TILES / Math.SQRT2) * TILE_SIZE);
 
 export const gameConfig = {
-  // Visual size of each grid tile in pixels.
-  // Used for drawing the background grid and scaling visual elements.
-  tileSize: TILE_SIZE,
+  // Basic sprite and rendering dimensions
+  spriteWidth: 48,
+  spriteHeight: 48,
+  worldWidthTiles: 500,
+  worldHeightTiles: 500,
+  tileSize: 48,
+
+  // Calculated world dimensions in pixels
+  get worldWidthPx() { return this.worldWidthTiles * this.tileSize; },
+  get worldHeightPx() { return this.worldHeightTiles * this.tileSize; },
+
+  // Player Movement
+  playerSpeed: 600.0,
+  sprintMultiplier: 1.5,
+  crouchMultiplier: 0.5, // Speed reduction when crouching
+  waterSpeedPenalty: 0.5, // Speed reduction in water
+
+  // Jumping Mechanics
+  jumpHeightPx: 48,      // How high the player jumps visually
+  jumpDurationMs: 500,   // How long the jump animation/arc lasts
+
+  // Interaction
+  holdInteractionDurationMs: 250, // Time to hold 'E' for default interactions
+  reviveHoldDurationMs: 6000,     // Time to hold 'E' to revive a player
+
+  // Combat
+  swingCooldownMs: 500, // Default cooldown for melee swings
 
   // --- World & Chunk Configuration ---
   // Values below are based on server config assumptions - should ideally be server-driven.
@@ -42,11 +66,6 @@ export const gameConfig = {
   worldWidth: 500,
   worldHeight: 500,
   // --- End World & Chunk Config ---
-
-  // Intrinsic pixel dimensions of a single frame within player/entity spritesheets.
-  // Essential for selecting and drawing the correct sprite visuals.
-  spriteWidth: 48,
-  spriteHeight: 48,
 
   // --- Minimap Configuration ---
   // Target diagonal distance (in tiles) a grid cell should represent.
