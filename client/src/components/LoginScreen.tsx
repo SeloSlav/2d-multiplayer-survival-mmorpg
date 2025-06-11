@@ -47,6 +47,7 @@ interface LoginScreenProps {
     loggedInPlayer: Player | null; // Player data from SpacetimeDB if exists
     connectionError?: string | null; // SpacetimeDB connection error from GameConnectionContext
     storedUsername?: string | null; // Username from localStorage for connection error fallback
+    isSpacetimeConnected?: boolean; // Whether SpacetimeDB is connected (used to hide username for connection issues)
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -54,6 +55,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     loggedInPlayer,
     connectionError,
     storedUsername,
+    isSpacetimeConnected = true, // Default to true for backwards compatibility
 }) => {
     // Get OpenAuth state and functions
     const {
@@ -364,23 +366,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 {connectionError || 'Connection failed. Please ensure you have an internet connection and try again.'}<br />
                                 {!connectionError && 'If the problem persists, please try signing out and signing in.'}
                             </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'row', gap: '15px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                                 <button
                                     onClick={() => window.location.reload()}
                                     disabled={authIsLoading}
+                                    onMouseEnter={(e) => {
+                                        if (!authIsLoading) {
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,140,0,0.3)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!authIsLoading) {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
+                                        }
+                                    }}
                                     style={{
-                                        padding: '12px 20px',
-                                        border: '1px solid rgba(255, 255, 255, 0.3)',
-                                        backgroundColor: 'rgba(255, 140, 0, 0.8)', // Orange for retry
+                                        padding: '16px 32px',
+                                        border: '2px solid rgba(255, 165, 0, 0.6)',
+                                        background: 'linear-gradient(135deg, #ff8c00, #cc6400)',
                                         color: 'white',
                                         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                        fontSize: '14px',
-                                        cursor: 'pointer',
-                                        boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
-                                        width: '100%',
-                                        textTransform: 'uppercase',
-                                        borderRadius: '4px',
+                                        fontSize: '16px',
                                         fontWeight: 'bold',
+                                        cursor: authIsLoading ? 'not-allowed' : 'pointer',
+                                        boxShadow: '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                        display: 'inline-block',
+                                        textTransform: 'uppercase',
+                                        borderRadius: '8px',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        letterSpacing: '1px',
+                                        textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+                                        position: 'relative',
+                                        overflow: 'hidden',
                                     }}
                                 >
                                     Try Again
@@ -388,18 +407,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 <button
                                     onClick={logout}
                                     disabled={authIsLoading}
+                                    onMouseEnter={(e) => {
+                                        if (!authIsLoading) {
+                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                            e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(139,69,19,0.3)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!authIsLoading) {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(139,69,19,0.4)';
+                                        }
+                                    }}
                                     style={{
-                                        padding: '12px 20px',
-                                        border: '1px solid rgba(255, 255, 255, 0.3)',
-                                        backgroundColor: 'rgba(139, 69, 19, 0.8)', // Darker brown for buttons
+                                        padding: '16px 32px',
+                                        border: '2px solid rgba(139, 69, 19, 0.6)',
+                                        background: 'linear-gradient(135deg, #8b4513, #654321)',
                                         color: 'white',
                                         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                        fontSize: '14px',
-                                        cursor: 'pointer',
-                                        boxShadow: '2px 2px 4px rgba(0,0,0,0.4)',
-                                        width: '100%',
+                                        fontSize: '16px',
+                                        fontWeight: 'bold',
+                                        cursor: authIsLoading ? 'not-allowed' : 'pointer',
+                                        boxShadow: '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(139,69,19,0.4)',
+                                        display: 'inline-block',
                                         textTransform: 'uppercase',
-                                        borderRadius: '4px',
+                                        borderRadius: '8px',
+                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        letterSpacing: '1px',
+                                        textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+                                        position: 'relative',
+                                        overflow: 'hidden',
                                     }}
                                 >
                                     Sign Out
@@ -432,8 +469,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 Authenticated - Reconnect to game
                             </p>
                         ) : (
-                            // New Player: Show username input ONLY if no authError, no connectionError and no localError
-                            !authError && !connectionError && !localError ? (
+                            // New Player: Show username input ONLY if no authError, no connectionError, no localError
+                            // AND SpacetimeDB is connected (to ensure this is genuinely a new user, not a connection issue)
+                            !authError && !connectionError && !localError && isSpacetimeConnected ? (
                                 <div style={{
                                     maxWidth: '350px',
                                     margin: '0 auto',
@@ -1644,9 +1682,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             marginBottom: '30px',
                         }}>
                             {[
-                                { name: 'Discord', icon: faDiscord, href: '#' },
-                                { name: 'X (Twitter)', icon: faXTwitter, href: '#' },
-                                { name: 'GitHub', icon: faGithub, href: '#' },
+                                { name: 'Discord', icon: faDiscord, href: 'https://discord.com/channels/1037340874172014652/1381583490646147093' },
+                                { name: 'X (Twitter)', icon: faXTwitter, href: 'https://x.com/seloslav' },
+                                { name: 'GitHub', icon: faGithub, href: 'https://github.com/SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival' },
                             ].map((social) => (
                                 <a
                                     key={social.name}

@@ -15,6 +15,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 // Components
 import LoginScreen from './components/LoginScreen';
 import GameScreen from './components/GameScreen';
+import CyberpunkLoadingScreen, { CyberpunkErrorBar } from './components/CyberpunkLoadingScreen';
 
 // Context Providers
 import { GameContextsProvider } from './contexts/GameContexts';
@@ -96,6 +97,7 @@ function AppContent() {
     const [isChatting, setIsChatting] = useState<boolean>(false);
     const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
     const [isAutoWalking, setIsAutoWalking] = useState(false);
+    const [loadingSequenceComplete, setLoadingSequenceComplete] = useState<boolean>(false);
 
     // --- Viewport State & Refs ---
     const [currentViewport, setCurrentViewport] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null);
@@ -398,11 +400,24 @@ function AppContent() {
     ]); // Add other entity maps to dependency array if new cases are added
 
     // --- Determine overall loading state ---
-    // Loading if either Auth is loading OR SpacetimeDB connection is loading
-    const overallIsLoading = authLoading || (isAuthenticated && spacetimeLoading);
+    // Loading if either Auth is loading OR SpacetimeDB connection is loading OR sequence not complete
+    const actualLoadingComplete = !authLoading && (!isAuthenticated || !spacetimeLoading);
+    const overallIsLoading = !actualLoadingComplete || !loadingSequenceComplete;
     
     // Debug logging for loading states
-    console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, overallIsLoading: ${overallIsLoading}`);
+    console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, actualLoadingComplete: ${actualLoadingComplete}, loadingSequenceComplete: ${loadingSequenceComplete}, overallIsLoading: ${overallIsLoading}`);
+
+    // --- Handle loading sequence completion ---
+    const handleSequenceComplete = useCallback(() => {
+        setLoadingSequenceComplete(true);
+    }, []);
+
+    // Reset sequence completion when actual loading starts again
+    useEffect(() => {
+        if (!actualLoadingComplete && loadingSequenceComplete) {
+            setLoadingSequenceComplete(false);
+        }
+    }, [actualLoadingComplete, loadingSequenceComplete]);
 
     // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
@@ -452,44 +467,23 @@ function AppContent() {
     return (
         <div className="App" style={{ backgroundColor: '#111' }}>
             {/* Display combined errors */} 
-            {displayError && <div className="error-message">{displayError}</div>}
+            {displayError && <CyberpunkErrorBar message={displayError} />}
 
             {/* Show loading screen */} 
             {overallIsLoading && (
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    height: '100vh',
-                    color: 'white',
-                    fontFamily: '"Press Start 2P", cursive',
-                    gap: '20px'
-                }}>
-                    <div>{authLoading ? 'Authenticating...' : 'Connecting to Server...'}</div>
-                    <div style={{
-                        width: '40px',
-                        height: '40px',
-                        border: '4px solid rgba(255, 255, 255, 0.3)',
-                        borderTop: '4px solid white',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                    }}></div>
-                    <style>{`
-                        @keyframes spin {
-                            0% { transform: rotate(0deg); }
-                            100% { transform: rotate(360deg); }
-                        }
-                    `}</style>
-                </div>
+                <CyberpunkLoadingScreen 
+                    authLoading={authLoading} 
+                    onSequenceComplete={handleSequenceComplete}
+                />
             )}
 
-            {/* Conditional Rendering: Login vs Game (only if not loading) */} 
+            {/* Conditional Rendering: Login vs Game (only if not loading) */}
             {!overallIsLoading && !isAuthenticated && (
                  <LoginScreen
                     handleJoinGame={loginRedirect} // Correctly pass loginRedirect
                     loggedInPlayer={null}
                     connectionError={connectionError}
+                    isSpacetimeConnected={spacetimeConnected}
                  />
             )}
 
@@ -500,6 +494,7 @@ function AppContent() {
                     loggedInPlayer={loggedInPlayer}
                     connectionError={connectionError}
                     storedUsername={getStoredUsername}
+                    isSpacetimeConnected={spacetimeConnected}
                  />
             )}
             

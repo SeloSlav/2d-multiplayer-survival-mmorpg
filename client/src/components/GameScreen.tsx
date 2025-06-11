@@ -163,6 +163,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Add auto-action state management
     const [autoActionStates, setAutoActionStates] = useState({ isAutoAttacking: false, isAutoWalking: false });
     
+    // Add refresh confirmation dialog state
+    const [showRefreshDialog, setShowRefreshDialog] = useState(false);
+    
     // Debug context
     const { showAutotileDebug, toggleAutotileDebug } = useDebug();
     
@@ -239,9 +242,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         setAutoActionStates({ isAutoAttacking, isAutoWalking });
     }, []);
 
-    // Add escape key handler for game menu
+    // Combined keyboard handler for game menu (Escape) and refresh confirmation (Ctrl+R)
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Handle Escape key for game menu
             if (event.key === 'Escape') {
                 if (currentMenu === null) {
                     // No menu open - open main menu
@@ -254,13 +258,28 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                     setCurrentMenu('main');
                 }
             }
+            // Handle Ctrl+R / Cmd+R for refresh confirmation
+            else if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+                console.log('[GameScreen] Ctrl+R intercepted, showing refresh dialog');
+                event.preventDefault(); // Prevent default browser refresh
+                setShowRefreshDialog(true); // Show our custom dialog
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [currentMenu]);
+    }, [currentMenu]); // Include currentMenu in dependencies
+
+    // Handler for refresh dialog actions
+    const handleRefreshConfirm = () => {
+        window.location.reload(); // Actually refresh the page
+    };
+
+    const handleRefreshCancel = () => {
+        setShowRefreshDialog(false); // Close the dialog
+    };
 
     return (
         <div className="game-container">
@@ -384,6 +403,124 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 />
             )}
             
+            {/* Refresh Confirmation Dialog */}
+            {showRefreshDialog && (
+                <div 
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                    }}
+                    onClick={handleRefreshCancel} // Click outside to close
+                >
+                    <div 
+                        style={{
+                            backgroundColor: 'rgba(20, 20, 40, 0.95)',
+                            border: '2px solid #00aaff',
+                            borderRadius: '8px',
+                            padding: '24px',
+                            maxWidth: '400px',
+                            textAlign: 'center',
+                            boxShadow: '0 0 30px rgba(0, 170, 255, 0.3)',
+                        }}
+                        onClick={(e) => e.stopPropagation()} // Prevent click from bubbling up
+                    >
+                        <div style={{
+                            color: '#00ddff',
+                            fontSize: '16px',
+                            marginBottom: '12px',
+                            textShadow: '0 0 10px rgba(0, 221, 255, 0.5)',
+                            fontWeight: 'bold',
+                        }}>
+                            ⚠️ NEUROVEIL DISCONNECTION WARNING
+                        </div>
+                        
+                        <div style={{
+                            color: '#e0e0e0',
+                            fontSize: '14px',
+                            lineHeight: '1.6',
+                            marginBottom: '24px',
+                            padding: '16px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                            borderRadius: '4px',
+                        }}>
+                            Your ocular implant is requesting to disengage from the Babachain neural network. 
+                            This will terminate your current session and require full system reinitialization.
+                            <br /><br />
+                            Are you sure you want to proceed?
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            gap: '12px',
+                            justifyContent: 'center',
+                        }}>
+                            <button
+                                onClick={handleRefreshConfirm}
+                                style={{
+                                    backgroundColor: '#d32f2f',
+                                    color: 'white',
+                                    border: '1px solid #f44336',
+                                    padding: '12px 18px',
+                                    borderRadius: '4px',
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
+                                    transition: 'all 0.2s ease',
+                                    fontWeight: 'bold',
+                                }}
+                                onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#f44336';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#d32f2f';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                }}
+                            >
+                                DISENGAGE
+                            </button>
+                            
+                            <button
+                                onClick={handleRefreshCancel}
+                                style={{
+                                    backgroundColor: '#00aaff',
+                                    color: 'white',
+                                    border: '1px solid #00ddff',
+                                    padding: '12px 18px',
+                                    borderRadius: '4px',
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                    boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
+                                    transition: 'all 0.2s ease',
+                                    fontWeight: 'bold',
+                                }}
+                                onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#00ddff';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                }}
+                                onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#00aaff';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                }}
+                            >
+                                MAINTAIN CONNECTION
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <GameCanvas
                 players={players}
                 trees={trees}

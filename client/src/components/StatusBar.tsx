@@ -1,160 +1,130 @@
 import React from 'react';
 
-export interface StatusBarProps {
+interface StatusBarProps {
   label: string;
-  icon: string; // Placeholder for icon, e.g., emoji or text
+  icon?: string;
   value: number;
   maxValue: number;
   barColor: string;
-  glow?: boolean; // If true, show glow/pulse effect
-  hasActiveEffect?: boolean; // For healing/regen effects
-  hasBleedEffect?: boolean; // For bleed effect
-  pendingHealAmount?: number; // ADDED: Potential heal from effects like BandageBurst
+  pendingHealAmount?: number;
+  glow?: boolean;
+  hasActiveEffect?: boolean;
+  hasBleedEffect?: boolean;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({ 
   label, 
-  icon, 
+  icon = '', 
   value, 
   maxValue, 
   barColor, 
-  glow, 
-  hasActiveEffect, 
-  hasBleedEffect, 
-  pendingHealAmount = 0 // Default to 0 if not provided
+  pendingHealAmount = 0,
+  glow = false,
+  hasActiveEffect = false,
+  hasBleedEffect = false
 }) => {
   const percentage = Math.max(0, Math.min(100, (value / maxValue) * 100));
-  const pendingHealPercentage = Math.max(0, Math.min(100, ((value + pendingHealAmount) / maxValue) * 100));
-
-  React.useEffect(() => {
-    // Glow Pulse Keyframes
-    if (glow) {
-      const sanitizedBarColorForId = barColor.replace(/[^a-zA-Z0-9]/g, '');
-      const keyframeName = `statusBarGlowPulse_${sanitizedBarColorForId}`;
-      const barColorWithAlpha = barColor.startsWith('#') ? `${barColor}AA` : barColor; // Add AA for ~66% alpha if hex
-
-      if (!document.getElementById(keyframeName)) {
-        const style = document.createElement('style');
-        style.id = keyframeName;
-        style.innerHTML = `
-          @keyframes ${keyframeName} {
-            0%   { box-shadow: 0 0 8px 2px ${barColorWithAlpha}, 0 0 0 0 ${barColorWithAlpha}; transform: scale(1); }
-            50%  { box-shadow: 0 0 16px 6px ${barColor}, 0 0 0 0 ${barColor}; transform: scale(1.04); }
-            100% { box-shadow: 0 0 8px 2px ${barColorWithAlpha}, 0 0 0 0 ${barColorWithAlpha}; transform: scale(1); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    }
-    
-    // Regen/Healing Animation Keyframes
-    if (hasActiveEffect && !document.getElementById('status-bar-regen-keyframes')) {
-        const style = document.createElement('style');
-        style.id = 'status-bar-regen-keyframes';
-        style.innerHTML = `
-          @keyframes statusBarRegenAnimation {
-            0% { background-position: 0 0; }
-            100% { background-position: 20px 0; }
-          }
-        `;
-        document.head.appendChild(style);
-    }
-
-    // Bleed Animation Keyframes
-    if (hasBleedEffect && !document.getElementById('status-bar-bleed-keyframes')) {
-        const style = document.createElement('style');
-        style.id = 'status-bar-bleed-keyframes';
-        style.innerHTML = `
-          @keyframes statusBarBleedAnimation {
-            0% { background-position: 0 0; }
-            100% { background-position: -20px 0; } /* Moves left */
-          }
-        `;
-        document.head.appendChild(style);
-    }
-  }, [glow, barColor, hasActiveEffect, hasBleedEffect]);
-
-  const filledBarStyle: React.CSSProperties = {
-    height: '100%',
-    width: `${percentage}%`,
-    backgroundColor: barColor,
-    transition: 'box-shadow 0.2s, transform 0.2s, width 0.3s ease-in-out',
-    boxShadow: glow ? `0 0 16px 6px ${barColor}` : undefined,
-    animation: glow ? `statusBarGlowPulse_${barColor.replace(/[^a-zA-Z0-9]/g, '')} 1.2s infinite` : undefined,
-    zIndex: 1,
-    position: 'relative', 
-    overflow: 'hidden', 
-  };
-
-  const pendingHealBarStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: `${percentage}%`, // Start drawing from the end of the current health
-    height: '100%',
-    width: `${Math.max(0, pendingHealPercentage - percentage)}%`, // Only draw the difference
-    backgroundColor: 'rgba(255, 130, 130, 0.5)', // Lighter shade of red (or barColor with transparency)
-    zIndex: 0, // Behind the main filled bar, but above the background
-    transition: 'width 0.3s ease-in-out, left 0.3s ease-in-out',
-  };
-
-  let activeEffectOverlayStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    zIndex: 2, // Ensure overlay is on top of the base filled bar
-  };
-
-  if (hasActiveEffect) { // Healing effect - original red, moves right
-    activeEffectOverlayStyle = {
-      ...activeEffectOverlayStyle,
-      backgroundImage: `repeating-linear-gradient(
-        -45deg, 
-        rgba(255, 100, 100, 0.7), /* Lighter semi-transparent red */
-        rgba(255, 100, 100, 0.7) 10px,
-        rgba(180, 50, 50, 0.7) 10px,  /* Darker semi-transparent red */
-        rgba(180, 50, 50, 0.7) 20px
-      )`,
-      animation: 'statusBarRegenAnimation 0.8s linear infinite',
-    };
-  } else if (hasBleedEffect) { // Bleed effect - darker red, reflected, moves left
-    activeEffectOverlayStyle = {
-      ...activeEffectOverlayStyle,
-      backgroundImage: `repeating-linear-gradient(
-        45deg, /* Reflected angle */
-        rgba(180, 0, 0, 0.7), /* Darker red */
-        rgba(180, 0, 0, 0.7) 10px,
-        rgba(130, 0, 0, 0.7) 10px, /* Even darker red */
-        rgba(130, 0, 0, 0.7) 20px
-      )`,
-      animation: 'statusBarBleedAnimation 0.8s linear infinite',
-    };
-  }
+  const totalWithPending = Math.min(maxValue, value + pendingHealAmount);
+  const totalPercentage = Math.max(0, Math.min(100, (totalWithPending / maxValue) * 100));
 
   return (
-    <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center' }}>
-      <span style={{ marginRight: '5px', minWidth: '18px', textAlign: 'center', fontSize: '14px' }}>{icon}</span>
-      <div style={{ flexGrow: 1 }}>
-        <div style={{
-          height: '8px',
-          backgroundColor: '#555',
-          borderRadius: '2px',
-          overflow: 'hidden',
-          border: '1px solid #333',
-          position: 'relative', 
+    <div style={{
+      marginBottom: '8px',
+      fontFamily: '"Press Start 2P", cursive',
+      fontSize: '9px',
+      color: '#00ffff',
+      textShadow: '0 0 4px rgba(0, 255, 255, 0.6)',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '4px',
+      }}>
+        <span style={{
+          color: '#00aaff',
+          textShadow: '0 0 6px rgba(0, 170, 255, 0.8)',
         }}>
-          <div style={filledBarStyle}>
-            {(hasActiveEffect || hasBleedEffect) && <div style={activeEffectOverlayStyle}></div>}
-          </div>
-          {label === "HP" && pendingHealAmount > 0 && (
-            <div style={pendingHealBarStyle}></div>
-          )}
-        </div>
+          {icon} {label}
+        </span>
+        <span style={{
+          color: glow || hasBleedEffect ? '#ff6666' : '#ffffff',
+          fontSize: '8px',
+          animation: glow || hasBleedEffect ? 'pulse 1.5s ease-in-out infinite alternate' : 'none',
+          textShadow: glow || hasBleedEffect ? '0 0 8px rgba(255, 102, 102, 0.8)' : '0 0 4px rgba(255, 255, 255, 0.6)',
+        }}>
+          {Math.round(value)}/{maxValue}
+        </span>
       </div>
-      <span style={{ marginLeft: '5px', fontSize: '10px', minWidth: '30px', textAlign: 'right' }}>
-        {value.toFixed(0)}
-      </span>
+      
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '12px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(10, 10, 25, 0.9))',
+        borderRadius: '6px',
+        border: '1px solid rgba(0, 170, 255, 0.4)',
+        boxShadow: 'inset 0 0 8px rgba(0, 170, 255, 0.2)',
+        overflow: 'hidden',
+      }}>
+        {/* Pending heal amount bar (ghost bar) */}
+        {pendingHealAmount > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            width: `${totalPercentage}%`,
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(200, 200, 200, 0.3))',
+            borderRadius: '5px',
+            opacity: 0.6,
+            boxShadow: '0 0 8px rgba(255, 255, 255, 0.4)',
+          }}
+        />)}
+        
+        {/* Main status bar */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: '100%',
+          width: `${percentage}%`,
+          background: hasBleedEffect 
+            ? 'linear-gradient(135deg, #cc2222, #ff4444)'
+            : hasActiveEffect 
+              ? 'linear-gradient(135deg, #44ff44, #66ff66)'
+              : `linear-gradient(135deg, ${barColor}, ${barColor}dd)`,
+          borderRadius: '5px',
+          transition: 'width 0.3s ease, background 0.3s ease',
+          boxShadow: hasBleedEffect 
+            ? '0 0 12px rgba(255, 68, 68, 0.6), inset 0 0 6px rgba(255, 68, 68, 0.3)'
+            : hasActiveEffect 
+              ? '0 0 12px rgba(68, 255, 68, 0.6), inset 0 0 6px rgba(68, 255, 68, 0.3)'
+              : `0 0 10px ${barColor}66, inset 0 0 5px ${barColor}44`,
+        }} />
+
+        {/* Scan line effect */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '1px',
+          background: 'linear-gradient(90deg, transparent, #00ffff, transparent)',
+          animation: 'statusScan 3s linear infinite',
+        }} />
+      </div>
+
+      <style>{`
+        @keyframes statusScan {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        @keyframes pulse {
+          0% { opacity: 1; }
+          100% { opacity: 0.6; }
+        }
+      `}</style>
     </div>
   );
 };

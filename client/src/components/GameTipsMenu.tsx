@@ -98,11 +98,12 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                 left: 0,
                 width: '100%',
                 height: '100%',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                background: 'linear-gradient(135deg, rgba(25, 10, 40, 0.95), rgba(15, 5, 30, 0.98))',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 zIndex: 2000,
+                backdropFilter: 'blur(8px)',
             }}
             onClick={handleBackdropClick}
         >
@@ -111,11 +112,26 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                 style={{
                     maxWidth: '500px',
                     maxHeight: '80vh',
+                    background: 'linear-gradient(145deg, rgba(30, 15, 50, 0.95), rgba(20, 10, 40, 0.98))',
+                    border: '2px solid #00ffff',
+                    borderRadius: '12px',
+                    boxShadow: '0 0 30px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <h2 className={styles.menuTitle}>
-                    Game Tips
+                <h2 className={styles.menuTitle}
+                    style={{
+                        fontFamily: '"Press Start 2P", cursive',
+                        fontSize: '18px',
+                        color: '#00ffff',
+                        textAlign: 'center',
+                        marginBottom: '25px',
+                        textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
+                    }}
+                >
+                    SURVIVAL DATABANK
                 </h2>
 
                 <div 
@@ -128,9 +144,9 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                 style={{
                                     fontFamily: '"Press Start 2P", cursive',
                                     fontSize: '14px',
-                                    color: '#a0a0c0',
+                                    color: '#00aaff',
                                     marginBottom: '15px',
-                                    textShadow: '1px 1px 0px rgba(0,0,0,0.8)',
+                                    textShadow: '0 0 8px rgba(0, 170, 255, 0.8)',
                                 }}
                             >
                                 {section.title}
@@ -142,19 +158,21 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                         style={{
                                             display: 'flex',
                                             alignItems: 'flex-start',
-                                            padding: '12px 15px',
-                                            backgroundColor: 'rgba(60, 60, 80, 0.6)',
-                                            borderRadius: '4px',
-                                            border: '1px solid rgba(160, 160, 192, 0.3)',
+                                            padding: '15px 18px',
+                                            background: 'linear-gradient(135deg, rgba(20, 30, 60, 0.6), rgba(15, 25, 50, 0.8))',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(0, 170, 255, 0.3)',
+                                            boxShadow: '0 0 10px rgba(0, 170, 255, 0.1), inset 0 0 5px rgba(0, 170, 255, 0.05)',
                                         }}
                                     >
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '16px',
+                                                fontSize: '14px',
                                                 color: '#ffdd44',
-                                                marginRight: '10px',
+                                                marginRight: '12px',
                                                 marginTop: '2px',
+                                                textShadow: '0 0 6px rgba(255, 221, 68, 0.6)',
                                             }}
                                         >
                                             •
@@ -162,14 +180,15 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '14px',
-                                                color: 'white',
+                                                fontSize: '12px',
+                                                color: '#ffffff',
                                                 lineHeight: '1.7',
                                                 flex: 1,
                                                 textAlign: 'left',
                                                 wordWrap: 'break-word',
                                                 overflowWrap: 'break-word',
                                                 hyphens: 'auto',
+                                                textShadow: '0 0 4px rgba(255, 255, 255, 0.4)',
                                             }}
                                         >
                                             {tip}
@@ -185,12 +204,38 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                     <button
                         onClick={onBack}
                         className={styles.menuButton}
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(80, 40, 20, 0.8), rgba(60, 30, 15, 0.9))',
+                            color: '#ffffff',
+                            border: '2px solid #ff8833',
+                            borderRadius: '8px',
+                            padding: '12px 20px',
+                            fontFamily: '"Press Start 2P", cursive',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            boxShadow: '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)',
+                            textShadow: '0 0 5px rgba(255, 136, 51, 0.8)',
+                        }}
                     >
                         Back to Menu
                     </button>
                     <button
                         onClick={onClose}
                         className={`${styles.menuButton} ${styles.menuButtonPrimary}`}
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))',
+                            color: '#ffffff',
+                            border: '2px solid #00aaff',
+                            borderRadius: '8px',
+                            padding: '12px 20px',
+                            fontFamily: '"Press Start 2P", cursive',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+                            textShadow: '0 0 5px rgba(0, 170, 255, 0.8)',
+                        }}
                     >
                         Back to Game
                     </button>

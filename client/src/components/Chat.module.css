@@ -2,15 +2,202 @@
 
 .chatContainer {
   position: fixed;
-  bottom: 15px;
-  left: 15px;
-  width: 350px;
+  bottom: 80px;
+  left: 20px;
+  width: 400px;
   max-height: 200px;
+  background: linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95));
+  border: 2px solid #00aaff;
+  border-radius: 10px;
+  font-family: "Press Start 2P", cursive;
+  box-shadow: 0 0 25px rgba(0, 170, 255, 0.4), inset 0 0 15px rgba(0, 170, 255, 0.1);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+}
+
+.chatHeader {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.2));
+  color: #00ffff;
+  padding: 8px 12px;
+  font-size: 10px;
+  border-bottom: 1px solid rgba(0, 170, 255, 0.4);
+  border-radius: 8px 8px 0 0;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+  text-align: center;
+}
+
+.messagesContainer {
+  height: 120px;
+  overflow-y: auto;
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(15, 15, 35, 0.6), rgba(10, 10, 25, 0.8));
+  border-radius: 0 0 8px 8px;
+}
+
+.messagesContainer::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messagesContainer::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.messagesContainer::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #00aaff, #0088cc);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(0, 170, 255, 0.5);
+}
+
+.messagesContainer::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #00ccff, #00aaff);
+  box-shadow: 0 0 10px rgba(0, 204, 255, 0.8);
+}
+
+.message {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  background: linear-gradient(135deg, rgba(20, 30, 60, 0.4), rgba(15, 25, 50, 0.6));
+  border-radius: 6px;
+  border: 1px solid rgba(0, 170, 255, 0.2);
+  box-shadow: 0 0 8px rgba(0, 170, 255, 0.1);
+  animation: messageGlow 0.5s ease-in;
+}
+
+@keyframes messageGlow {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    box-shadow: 0 0 8px rgba(0, 170, 255, 0.1);
+  }
+}
+
+.messageHeader {
   display: flex;
-  flex-direction: column;
-  z-index: 50;
-  font-family: 'Press Start 2P', cursive;
-  transition: all 0.2s ease-out;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.playerName {
+  font-size: 8px;
+  color: #00ffff;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+}
+
+.timestamp {
+  font-size: 7px;
+  color: #88aacc;
+  text-shadow: 0 0 4px rgba(136, 170, 204, 0.6);
+}
+
+.messageContent {
+  font-size: 9px;
+  color: #ffffff;
+  line-height: 1.4;
+  word-wrap: break-word;
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.4);
+}
+
+.inputContainer {
+  position: relative;
+  border-top: 1px solid rgba(0, 170, 255, 0.4);
+  background: linear-gradient(135deg, rgba(20, 30, 60, 0.6), rgba(15, 25, 50, 0.8));
+  border-radius: 0 0 8px 8px;
+}
+
+.messageInput {
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: #00ffff;
+  font-family: "Press Start 2P", cursive;
+  font-size: 8px;
+  outline: none;
+  resize: none;
+  border-radius: 0 0 8px 8px;
+  text-shadow: 0 0 4px rgba(0, 255, 255, 0.6);
+}
+
+.messageInput::placeholder {
+  color: rgba(0, 170, 255, 0.6);
+  text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
+}
+
+.messageInput:focus {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.1), rgba(0, 150, 255, 0.05));
+  box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.toggleButton {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95));
+  color: #00ffff;
+  border: 2px solid #00aaff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: "Press Start 2P", cursive;
+  font-size: 9px;
+  cursor: pointer;
+  z-index: 999;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 8px rgba(0, 170, 255, 0.1);
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.8);
+}
+
+.toggleButton:hover {
+  background: linear-gradient(135deg, rgba(40, 20, 60, 0.95), rgba(30, 15, 50, 1));
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 170, 255, 0.5), inset 0 0 12px rgba(0, 170, 255, 0.2);
+  text-shadow: 0 0 8px rgba(0, 255, 255, 1);
+}
+
+.toggleButton:active {
+  transform: translateY(0);
+  box-shadow: 0 0 10px rgba(0, 170, 255, 0.4), inset 0 0 6px rgba(0, 170, 255, 0.15);
+}
+
+/* Scan line effect for chat container */
+.chatContainer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #00ffff, transparent);
+  animation: chatScan 4s linear infinite;
+  z-index: 1;
+}
+
+@keyframes chatScan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chatContainer {
+    width: 300px;
+    bottom: 60px;
+    left: 10px;
+  }
+  
+  .toggleButton {
+    bottom: 15px;
+    left: 10px;
+    padding: 6px 10px;
+    font-size: 8px;
+  }
 }
 
 /* No background for inactive container */
@@ -64,14 +251,6 @@
   border-radius: 10px;
 }
 
-.message {
-  margin-bottom: 4px;
-  font-size: 12px;
-  color: white;
-  word-wrap: break-word;
-  text-align: left; /* Ensure left alignment */
-}
-
 .senderName {
   color: #ffcc00;
   margin-right: 5px;
@@ -80,25 +259,6 @@
 
 .messageText {
   color: #ffffff;
-}
-
-.chatInput {
-  margin-top: 8px;
-  padding: 8px 10px;
-  width: 100%; /* Full width to match container */
-  background-color: rgba(40, 40, 60, 0.85);
-  color: white;
-  border: 1px solid #a0a0c0;
-  border-radius: 4px;
-  font-family: 'Press Start 2P', cursive;
-  font-size: 10px;
-  box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
-  box-sizing: border-box; /* Ensure padding is included in width */
-}
-
-.chatInput:focus {
-  outline: none;
-  border-color: #ffcc00;
 }
 
 /* Fade out messages slightly when inactive */

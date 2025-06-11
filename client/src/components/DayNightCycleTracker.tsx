@@ -2,9 +2,9 @@ import React from 'react';
 import { WorldState, TimeOfDay } from '../generated';
 
 // Style constants
-const UI_BG_COLOR = 'rgba(40, 40, 60, 0.85)';
-const UI_BORDER_COLOR = '#a0a0c0';
-const UI_SHADOW = '2px 2px 0px rgba(0,0,0,0.5)';
+const UI_BG_COLOR = 'linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95))';
+const UI_BORDER_COLOR = '#00aaff';
+const UI_SHADOW = '0 0 20px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.1)';
 const UI_FONT_FAMILY = '"Press Start 2P", cursive';
 
 // Colors for different times of day
@@ -52,25 +52,27 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
       position: 'fixed',
       top: '15px',
       right: '15px',
-      backgroundColor: UI_BG_COLOR,
-      color: 'white',
-      padding: '10px 15px',
-      borderRadius: '4px',
-      border: `1px solid ${UI_BORDER_COLOR}`,
+      background: UI_BG_COLOR,
+      color: '#00ffff',
+      padding: '12px 18px',
+      borderRadius: '8px',
+      border: `2px solid ${UI_BORDER_COLOR}`,
       fontFamily: UI_FONT_FAMILY,
       boxShadow: UI_SHADOW,
       zIndex: 50,
-      width: '220px',
+      width: '240px',
       fontSize: '10px',
+      textShadow: '0 0 6px rgba(0, 255, 255, 0.6)',
     }}>
       {/* Progress bar */}
       <div style={{
         position: 'relative',
-        height: '16px',
-        backgroundColor: '#333',
-        borderRadius: '8px',
+        height: '18px',
+        background: 'linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(10, 10, 25, 0.9))',
+        borderRadius: '10px',
         overflow: 'hidden',
-        border: '1px solid #555',
+        border: '2px solid rgba(0, 170, 255, 0.4)',
+        boxShadow: 'inset 0 0 10px rgba(0, 170, 255, 0.2)',
       }}>
         {/* Gradient background representing the day/night cycle */}
         <div style={{
@@ -80,6 +82,7 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
           width: '100%',
           height: '100%',
           background: getBackgroundGradient(),
+          opacity: '0.8',
         }}></div>
         
         {/* Position indicator/dial */}
@@ -90,10 +93,29 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
           transform: 'translateX(-50%)',
           width: '4px',
           height: '100%',
-          backgroundColor: 'white',
-          boxShadow: '0 0 3px 1px rgba(255,255,255,0.8)',
+          background: 'linear-gradient(to bottom, #00ffff, #ffffff)',
+          boxShadow: '0 0 8px rgba(255, 255, 255, 0.9), 0 0 15px rgba(0, 255, 255, 0.7)',
+          borderRadius: '2px',
         }}></div>
+        
+        {/* Scan line effect */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '1px',
+          background: 'linear-gradient(90deg, transparent, #00ffff, transparent)',
+          animation: 'cycleScan 4s linear infinite',
+        }} />
       </div>
+      
+      <style>{`
+        @keyframes cycleScan {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
     </div>
   );
 };

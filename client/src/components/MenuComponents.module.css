@@ -37,13 +37,15 @@
 }
 
 .menuTitle {
-    font-family: "Press Start 2P", cursive;
+    font-family: 'Courier New', Consolas, Monaco, monospace;
     font-size: 18px;
     color: white;
     text-align: center;
     margin-bottom: 30px;
     text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
     flex-shrink: 0;
+    font-weight: bold;
+    letter-spacing: 2px;
 }
 
 .menuContent {
@@ -67,11 +69,13 @@
     border: 2px solid #a0a0c0;
     border-radius: 4px;
     padding: 12px 20px;
-    font-family: "Press Start 2P", cursive;
+    font-family: 'Courier New', Consolas, Monaco, monospace;
     font-size: 12px;
     cursor: pointer;
     transition: all 0.1s ease;
     box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+    font-weight: bold;
+    letter-spacing: 1px;
 }
 
 .menuButton:hover {

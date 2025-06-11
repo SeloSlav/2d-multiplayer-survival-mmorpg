@@ -13,24 +13,29 @@ const GameMenuButton: React.FC<GameMenuButtonProps> = ({ onClick }) => {
                 top: '15px',
                 left: '15px',
                 zIndex: 999,
-                backgroundColor: 'rgba(40, 40, 60, 0.9)',
-                color: 'white',
-                border: '2px solid #a0a0c0',
-                borderRadius: '4px',
-                padding: '8px 12px',
+                background: 'linear-gradient(135deg, rgba(20, 40, 80, 0.9), rgba(10, 30, 70, 0.95))',
+                color: '#00ffff',
+                border: '2px solid #00aaff',
+                borderRadius: '8px',
+                padding: '10px 15px',
                 fontFamily: '"Press Start 2P", cursive',
                 fontSize: '12px',
                 cursor: 'pointer',
-                boxShadow: '2px 2px 0px rgba(0,0,0,0.5)',
-                transition: 'all 0.1s ease',
+                boxShadow: '0 0 15px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+                transition: 'all 0.3s ease',
+                textShadow: '0 0 8px rgba(0, 255, 255, 0.8)',
             }}
             onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(60, 60, 80, 0.9)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 50, 100, 0.95), rgba(15, 40, 90, 1))';
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 170, 255, 0.7), inset 0 0 15px rgba(0, 170, 255, 0.2)';
+                e.currentTarget.style.textShadow = '0 0 12px rgba(0, 255, 255, 1), 0 0 20px rgba(0, 255, 255, 0.6)';
             }}
             onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(40, 40, 60, 0.9)';
-                e.currentTarget.style.transform = 'translateY(0px)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(20, 40, 80, 0.9), rgba(10, 30, 70, 0.95))';
+                e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.1)';
+                e.currentTarget.style.textShadow = '0 0 8px rgba(0, 255, 255, 0.8)';
             }}
         >
             Menu

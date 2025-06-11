@@ -89,7 +89,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                 errorMessage.includes('NetworkError')) {
                 console.warn('[GameConn LOG] Caught unhandled promise rejection - connection error:', reason);
                 setIsConnecting(false);
-                setConnectionError('SpacetimeDB server is not responding');
+                // setConnectionError('SpacetimeDB server is not responding');
                 event.preventDefault(); // Prevent the error from appearing in console as unhandled
             } else {
                 console.warn('[GameConn LOG] Unhandled promise rejection (not connection-related):', reason);
