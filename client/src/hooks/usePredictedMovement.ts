@@ -6,9 +6,14 @@ import { gameConfig } from '../config/gameConfig';
 const MOVEMENT_UPDATE_INTERVAL_MS = 50; // 20 times per second
 
 // 🎯 ANTI-JITTER SYSTEM: Fine-tuned reconciliation
-const RECONCILIATION_DEAD_ZONE = 8.0; // Ignore differences smaller than 8 pixels (prevents micro-jittering)
-const RECONCILIATION_INTERPOLATION_SPEED = 8.0; // Slower, smoother interpolation (was 20.0)
-const RECONCILIATION_SNAP_THRESHOLD = 100.0; // Snap if off by more than 100px (was 150.0)
+const RECONCILIATION_DEAD_ZONE = 16.0; // Increased from 8px - ignore differences smaller than 16px
+const RECONCILIATION_INTERPOLATION_SPEED = 6.0; // Slower, smoother interpolation (was 8.0)
+const RECONCILIATION_SNAP_THRESHOLD = 120.0; // Higher threshold before snapping (was 100.0)
+
+// 🚧 COLLISION HANDLING: Simplified approach
+const COLLISION_DETECTION_THRESHOLD = 80.0; // Higher threshold - only detect major collisions
+const POST_COLLISION_GRACE_PERIOD_MS = 300; // Shorter grace period
+const POST_COLLISION_DEAD_ZONE_MULTIPLIER = 2.0; // Less aggressive multiplier
 
 // 🔍 DEBUG: Measure prediction accuracy
 const ENABLE_PREDICTION_LOGGING = true;
@@ -29,6 +34,14 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
   // 🔍 Prediction accuracy tracking
   const predictionErrorsRef = useRef<number[]>([]);
   const lastLogTimeRef = useRef<number>(0);
+
+  // 🏃 Sprint state tracking
+  const lastSprintStateRef = useRef<boolean>(false);
+  const sprintTransitionTimeRef = useRef<number>(0);
+
+  // 🚧 Collision detection tracking
+  const lastCollisionTimeRef = useRef<number>(0);
+  const lastPredictionErrorRef = useRef<number>(0);
 
   // Initialize render position from server position
   useEffect(() => {
@@ -69,19 +82,41 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     }
 
     // 🎯 ANTI-JITTER: Dead zone - ignore tiny differences
-    if (distance <= RECONCILIATION_DEAD_ZONE) {
+    // 🏃 Use larger dead zone during sprint transitions to reduce jitter
+    const timeSinceSprintTransition = Date.now() - sprintTransitionTimeRef.current;
+    const isInSprintTransition = timeSinceSprintTransition < 200; // 200ms grace period
+    
+    // 🚧 Detect potential collision (simple approach)
+    const isLikelyCollision = distance > COLLISION_DETECTION_THRESHOLD;
+    const timeSinceCollision = Date.now() - lastCollisionTimeRef.current;
+    const isInPostCollisionPeriod = timeSinceCollision < POST_COLLISION_GRACE_PERIOD_MS;
+    
+    if (isLikelyCollision) {
+      lastCollisionTimeRef.current = Date.now();
+      console.log(`🚧 Collision detected! Error: ${distance.toFixed(1)}px`);
+    }
+    
+    // Calculate adaptive dead zone
+    let currentDeadZone = RECONCILIATION_DEAD_ZONE;
+    if (isInSprintTransition) currentDeadZone *= 3; // Sprint transition
+    if (isInPostCollisionPeriod) currentDeadZone *= POST_COLLISION_DEAD_ZONE_MULTIPLIER; // Post-collision
+    
+    lastPredictionErrorRef.current = distance; // Track for next comparison
+    
+    if (distance <= currentDeadZone) {
       // Update last server position but don't move render position
       lastServerPositionRef.current = { ...serverPos };
       return;
     }
 
-    // 🎯 ANTI-JITTER: Snap for large differences, interpolate for medium ones
+    // 🎯 ANTI-JITTER: Snap for very large differences, interpolate for others
     if (distance > RECONCILIATION_SNAP_THRESHOLD) {
       console.log(`⚡️ Snapping due to large error: ${distance.toFixed(1)}px`);
       renderPositionRef.current = { ...serverPos };
     } else {
       // Smooth interpolation towards server position
-      const interpolationFactor = Math.min(1.0, RECONCILIATION_INTERPOLATION_SPEED * (MOVEMENT_UPDATE_INTERVAL_MS / 1000));
+      const baseSpeed = isInPostCollisionPeriod ? RECONCILIATION_INTERPOLATION_SPEED * 0.7 : RECONCILIATION_INTERPOLATION_SPEED;
+      const interpolationFactor = Math.min(1.0, baseSpeed * (MOVEMENT_UPDATE_INTERVAL_MS / 1000));
       renderPositionRef.current = {
         x: renderPos.x + deltaX * interpolationFactor,
         y: renderPos.y + deltaY * interpolationFactor,
@@ -96,6 +131,13 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState }: Pr
     if (!connection || !renderPositionRef.current || !localPlayer) return;
 
     const { direction, sprinting } = inputState;
+    
+    // 🏃 Send sprint state changes to server
+    if (sprinting !== lastSprintStateRef.current) {
+      connection.reducers.setSprinting(sprinting);
+      lastSprintStateRef.current = sprinting;
+      sprintTransitionTimeRef.current = Date.now(); // Mark transition time
+    }
     
     // No movement - no prediction needed
     if (direction.x === 0 && direction.y === 0) return;
