@@ -75,7 +75,7 @@ const ENABLE_CHUNK_BATCHING = true; // 🔥 ULTRA PERFORMANCE: Batch multiple ch
 const CHUNKS_PER_MEGA_BATCH = 50; // Number of chunks to batch together in a single subscription
 
 // 🎯 CHUNK UPDATE THROTTLING: Prevent rapid chunk subscription changes
-const CHUNK_UPDATE_THROTTLE_MS = 100; // Minimum time between chunk updates (prevents spam)
+const CHUNK_UPDATE_THROTTLE_MS = 150; // Minimum time between chunk updates (prevents spam and rapid re-subscriptions)
 const CHUNK_CROSSING_COOLDOWN_MS = 50; // Minimum time between chunk crossings
 
 // 🚀 PROGRESSIVE LOADING: Load chunks gradually to prevent frame drops
@@ -190,6 +190,7 @@ export const useSpacetimeTables = ({
     // Store spatial subs per chunk index (RESTORED FROM WORKING VERSION)
     const spatialSubHandlesMapRef = useRef<Map<number, SubscriptionHandle[]>>(new Map()); 
     const callbacksRegisteredRef = useRef(false);
+    const initialSpatialSubsDoneRef = useRef(false); // 🎯 NEW: Track if initial spatial subscriptions are done
     
     // Throttle spatial subscription updates to prevent frame drops
     const lastSpatialUpdateRef = useRef<number>(0);
@@ -496,7 +497,7 @@ export const useSpacetimeTables = ({
             // PERF: Log when no changes are needed (should be fast)
             const totalTime = performance.now() - startTime;
             if (totalTime > 5) {
-                console.warn(`[CHUNK_PERF] No-op chunk update took ${totalTime.toFixed(2)}ms (unexpected!)`);
+                // console.warn(`[CHUNK_PERF] No-op chunk update took ${totalTime.toFixed(2)}ms (unexpected!)`);
             }
         }
     };
@@ -1114,6 +1115,12 @@ export const useSpacetimeTables = ({
 
         // --- START OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
         if (connection && viewport) {
+             // 🎯 NEW: Guard for invalid viewport values to prevent crashes
+            if (isNaN(viewport.minX) || isNaN(viewport.minY) || isNaN(viewport.maxX) || isNaN(viewport.maxY)) {
+                console.warn('[SPATIAL] Viewport contains NaN values, skipping spatial update.', viewport);
+                return;
+            }
+
             // MASTER SWITCH: Skip spatial subscription logic if all spatial subscriptions are disabled
             if (DISABLE_ALL_SPATIAL_SUBSCRIPTIONS) {
                 // Clean up any existing spatial subscriptions if they exist
@@ -1130,35 +1137,92 @@ export const useSpacetimeTables = ({
                 }
                 return; // Early return to skip all spatial logic
             }
+            
+            // 🎯 NEW: Separate logic for initial subscription vs. subsequent updates
+            // This prevents race conditions on startup.
+            if (!initialSpatialSubsDoneRef.current) {
+                // --- INITIAL SUBSCRIPTION ---
+                console.log("[SPATIAL] First valid viewport received. Performing initial subscription.", viewport);
 
-            // OPTIMIZED: Get new viewport chunk indices with buffer zone
-            const viewportStartTime = performance.now(); // PERF: Track viewport processing
-            const newChunkIndicesSet = new Set(getChunkIndicesForViewportWithBuffer(viewport, CHUNK_BUFFER_SIZE));
-            const viewportCalcTime = performance.now() - viewportStartTime;
-            
-            // PERF: Log viewport calculation if it's slow
-            if (viewportCalcTime > 5) {
-                console.warn(`[CHUNK_PERF] Viewport chunk calculation took ${viewportCalcTime.toFixed(2)}ms (${newChunkIndicesSet.size} chunks)`);
-            }
-            
-            // Store the pending update and schedule async processing
-            const now = performance.now();
-            pendingChunkUpdateRef.current = { chunks: newChunkIndicesSet, timestamp: now };
-            
-            // Throttle updates to prevent frame drops (max 20 times per second for smoother buffering)
-            const timeSinceLastUpdate = now - lastSpatialUpdateRef.current;
-            const minUpdateInterval = 50; // 50ms = 20fps (faster for buffered system)
-            
-            if (timeSinceLastUpdate >= minUpdateInterval) {
-                // Process immediately
-                processPendingChunkUpdate();
+                // Ensure any old subscriptions are cleared (shouldn't be any, but for safety)
+                spatialSubHandlesMapRef.current.forEach((handles) => handles.forEach(safeUnsubscribe));
+                spatialSubHandlesMapRef.current.clear();
+                chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
+                chunkUnsubscribeTimersRef.current.clear();
+
+                const newChunkIndicesSet = new Set(getChunkIndicesForViewportWithBuffer(viewport, CHUNK_BUFFER_SIZE));
+                
+                // Use a helper to subscribe without diffing logic
+                const subscribeToInitialChunks = (chunksToSub: number[]) => {
+                    chunksToSub.forEach(chunkIndex => {
+                         // This is the same logic from processPendingChunkUpdate, but called directly
+                        const newHandlesForChunk: SubscriptionHandle[] = [];
+                        try {
+                            if (ENABLE_BATCHED_SUBSCRIPTIONS) {
+                                 const resourceQueries = [
+                                    `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`
+                                ];
+                                newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
+
+                                const farmingQueries = [
+                                    `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`
+                                ];
+                                newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Farming Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(farmingQueries));
+                                
+                                const environmentalQueries = [];
+                                if (ENABLE_CLOUDS) environmentalQueries.push(`SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`);
+                                if (ENABLE_WORLD_TILES) {
+                                    const worldWidthChunks = gameConfig.worldWidthChunks;
+                                    const chunkX = chunkIndex % worldWidthChunks;
+                                    const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                                    environmentalQueries.push(`SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`);
+                                }
+                                if (environmentalQueries.length > 0) {
+                                    newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Environmental Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(environmentalQueries));
+                                }
+                            } else {
+                                // Legacy individual subscriptions can be added here if needed for fallback
+                                console.error("Batched subscriptions are disabled, but non-batched initial subscription is not fully implemented in this path.");
+                            }
+                            spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
+                        } catch (error) {
+                            newHandlesForChunk.forEach(safeUnsubscribe);
+                            console.error(`[CHUNK_ERROR] Failed to create initial subscriptions for chunk ${chunkIndex}:`, error);
+                        }
+                    });
+                };
+                
+                subscribeToInitialChunks([...newChunkIndicesSet]);
+                
+                currentChunksRef.current = [...newChunkIndicesSet];
+                initialSpatialSubsDoneRef.current = true; // Mark initial subs as done
+                lastSpatialUpdateRef.current = performance.now(); // Set initial timestamp
+
             } else {
-                // Schedule delayed processing
-                const delay = minUpdateInterval - timeSinceLastUpdate;
-                setTimeout(processPendingChunkUpdate, delay);
+                // --- SUBSEQUENT UPDATES (existing logic) ---
+                const newChunkIndicesSet = new Set(getChunkIndicesForViewportWithBuffer(viewport, CHUNK_BUFFER_SIZE));
+                
+                // Store the pending update and schedule async processing
+                const now = performance.now();
+                pendingChunkUpdateRef.current = { chunks: newChunkIndicesSet, timestamp: now };
+                
+                // Throttle updates to prevent frame drops
+                const timeSinceLastUpdate = now - lastSpatialUpdateRef.current;
+                
+                if (timeSinceLastUpdate >= CHUNK_UPDATE_THROTTLE_MS) {
+                    // Process immediately
+                    processPendingChunkUpdate();
+                } else {
+                    // Schedule delayed processing
+                    const delay = CHUNK_UPDATE_THROTTLE_MS - timeSinceLastUpdate;
+                    setTimeout(processPendingChunkUpdate, delay);
+                }
             }
         } else if (!viewport) {
-            // If viewport becomes null, clean up ALL spatial subs
+            // If viewport becomes null, clean up ALL spatial subs and reset the flag
             if (spatialSubHandlesMapRef.current.size > 0) {
                 spatialSubHandlesMapRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
@@ -1168,6 +1232,7 @@ export const useSpacetimeTables = ({
                 // Clear any pending unsubscribe timers
                 chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
                 chunkUnsubscribeTimersRef.current.clear();
+                initialSpatialSubsDoneRef.current = false; // 🎯 Reset on viewport loss
             }
         }
         // --- END OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
@@ -1193,6 +1258,7 @@ export const useSpacetimeTables = ({
                  chunkUnsubscribeTimersRef.current.clear(); 
                 
                  callbacksRegisteredRef.current = false;
+                 initialSpatialSubsDoneRef.current = false; // 🎯 Reset on connection loss
                  currentChunksRef.current = [];
                  setLocalPlayerRegistered(false);
                  // Reset table states
