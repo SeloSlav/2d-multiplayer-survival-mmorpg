@@ -1172,11 +1172,16 @@ async function success(ctx: any, value: any): Promise<Response> {
 
     console.log('[Token Endpoint] Code verified. Generating JWT...');
     
+    // Look up user to get email for token
+    const user = await db.getUserById(userId);
+    const userEmail = user?.email;
+    
     const payload = {
         iss: ISSUER_URL,
         sub: userId,
         aud: clientIdForm,
         iat: Math.floor(Date.now() / 1000),
+        email: userEmail, // Include email in token
     };
 
     const signOptions: jwt.SignOptions = {

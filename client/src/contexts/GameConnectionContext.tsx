@@ -77,20 +77,48 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
             return;
         }
 
+        // Add global unhandled promise rejection handler for SpacetimeDB errors
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            const reason = event.reason;
+            const errorMessage = reason?.message || reason?.toString() || 'Unknown error';
+            
+            // Check for connection-related errors
+            if (errorMessage.includes('ERR_CONNECTION_REFUSED') || 
+                errorMessage.includes('Failed to fetch') ||
+                errorMessage.includes('fetch') ||
+                errorMessage.includes('NetworkError')) {
+                console.warn('[GameConn LOG] Caught unhandled promise rejection - connection error:', reason);
+                setIsConnecting(false);
+                setConnectionError('SpacetimeDB server is not responding');
+                event.preventDefault(); // Prevent the error from appearing in console as unhandled
+            } else {
+                console.warn('[GameConn LOG] Unhandled promise rejection (not connection-related):', reason);
+            }
+        };
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
         // --- Condition to attempt connection --- 
         // console.log("[GameConn LOG] Attempting SpacetimeDB connection..."); // <-- LOG
         setIsConnecting(true); 
         setConnectionError(null);
         let newConnectionInstance: DbConnection | null = null;
+        
+        // Add timeout to handle cases where SpacetimeDB is completely down
+        const connectionTimeout = setTimeout(() => {
+            console.warn('[GameConn LOG] Connection timeout - SpacetimeDB server may be down');
+            setIsConnecting(false);
+            setConnectionError('Connection timeout - SpacetimeDB server may be down');
+        }, 1500); // 1.5 second timeout - faster response for better UX
 
         try {
-            // console.log("[GameConn LOG] Calling DbConnection.builder().build()..."); // <-- LOG
-            newConnectionInstance = DbConnection.builder()
+            console.log("[GameConn LOG] Calling DbConnection.builder().build()..."); // <-- LOG  
+            const builder = DbConnection.builder()
                 .withUri(SPACETIME_DB_ADDRESS)
                 .withModuleName(SPACETIME_DB_NAME)
                 .withToken(spacetimeToken) 
                 .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
                     // console.log('[GameConn LOG] onConnect: SpacetimeDB Connected. Identity:', identity.toHexString()); // <-- LOG
+                    clearTimeout(connectionTimeout); // Clear timeout on successful connection
                     connectionInstanceRef.current = conn; 
                     setConnection(conn);
                     setDbIdentity(identity);
@@ -123,13 +151,14 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                 })
                 .onConnectError((context: any, err: Error) => {
                     console.error('[GameConn LOG] onConnectError: SpacetimeDB Connection Error:', err); // <-- LOG
+                    clearTimeout(connectionTimeout); // Clear timeout on connection error
                     connectionInstanceRef.current = null; 
                     setConnection(null);
                     setDbIdentity(null);
                     setIsConnected(false);
                     setIsConnecting(false); 
                     const errorMessage = err.message || err.toString();
-                    // setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
+                    setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
                     // Improved error detection - be more aggressive about auth failures
                     if (errorMessage.includes("401") || 
                         errorMessage.toLowerCase().includes("unauthorized") ||
@@ -141,10 +170,41 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                         console.warn("[GameConn LOG] onConnectError: Error suggests auth issue, invalidating token. Error:", errorMessage);
                         invalidateCurrentToken(); 
                     }
-                })
-                .build();
+                });
+
+            // Use Promise.resolve to handle potential sync/async build() issues
+            // Also add a race condition with a faster timeout for immediate failures
+            console.log("[GameConn LOG] About to call builder.build()");
+            
+            try {
+                const buildPromise = Promise.resolve(builder.build());
+                const fastTimeout = new Promise<never>((_, reject) => 
+                    setTimeout(() => reject(new Error('Connection attempt timed out')), 1000)
+                );
+                
+                Promise.race([buildPromise, fastTimeout])
+                    .then((connection: DbConnection) => {
+                        console.log("[GameConn LOG] Build promise resolved successfully");
+                        clearTimeout(connectionTimeout);
+                        newConnectionInstance = connection;
+                    })
+                    .catch((err: any) => {
+                        console.error('[GameConn LOG] Build promise rejected:', err);
+                        clearTimeout(connectionTimeout);
+                        const errorMessage = err.message || err.toString();
+                        setConnectionError(`SpacetimeDB Connection failed: ${errorMessage}`);
+                        setIsConnecting(false);
+                    });
+            } catch (syncErr: any) {
+                console.error('[GameConn LOG] Synchronous error from builder.build():', syncErr);
+                clearTimeout(connectionTimeout);
+                setConnectionError(`SpacetimeDB Connection failed: ${syncErr.message || syncErr}`);
+                setIsConnecting(false);
+            }
+
         } catch (err: any) { 
             console.error('[GameConn LOG] Failed to build SpacetimeDB connection:', err); // <-- LOG
+            clearTimeout(connectionTimeout); // Clear timeout on build error
             setConnectionError(`SpacetimeDB Build failed: ${err.message || err}`);
             setIsConnecting(false); 
         }
@@ -152,6 +212,8 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
         // Cleanup (Using REF variable for disconnect call)
         return () => {
             // console.log("[GameConn LOG] useEffect cleanup running..."); // <-- LOG
+            clearTimeout(connectionTimeout); // Clear timeout on cleanup
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection); // Clean up event listener
             if (connectionInstanceRef.current) { 
                 // console.log("[GameConn LOG] Cleanup: Calling disconnect on connection instance (ref)."); // <-- LOG
                 connectionInstanceRef.current.disconnect();

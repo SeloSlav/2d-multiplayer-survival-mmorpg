@@ -10,7 +10,7 @@
  *  - Passing down necessary state and action callbacks to the active screen (`LoginScreen` or `GameScreen`).
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // Components
 import LoginScreen from './components/LoginScreen';
@@ -400,12 +400,52 @@ function AppContent() {
     // --- Determine overall loading state ---
     // Loading if either Auth is loading OR SpacetimeDB connection is loading
     const overallIsLoading = authLoading || (isAuthenticated && spacetimeLoading);
+    
+    // Debug logging for loading states
+    console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, overallIsLoading: ${overallIsLoading}`);
 
     // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
+    
+    // Debug logging for connection error
+    if (connectionError) {
+        console.log(`[App DEBUG] connectionError: ${connectionError}`);
+    }
 
     // --- Find the logged-in player data from the tables --- 
     const loggedInPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) ?? null : null;
+
+    // --- Store last known player info for connection error fallback ---
+    useEffect(() => {
+        if (loggedInPlayer && dbIdentity) {
+            const playerInfo = {
+                identity: dbIdentity.toHexString(),
+                username: loggedInPlayer.username,
+                lastStored: Date.now()
+            };
+            localStorage.setItem('lastKnownPlayerInfo', JSON.stringify(playerInfo));
+        }
+    }, [loggedInPlayer, dbIdentity]);
+
+    // --- Get stored username for connection error cases ---
+    const getStoredUsername = useMemo(() => {
+        if (connectionError && isAuthenticated && dbIdentity) {
+            const stored = localStorage.getItem('lastKnownPlayerInfo');
+            if (stored) {
+                try {
+                    const playerInfo = JSON.parse(stored);
+                    // Only use if it's for the same identity and within last 7 days
+                    if (playerInfo.identity === dbIdentity.toHexString() && 
+                        (Date.now() - playerInfo.lastStored) < 7 * 24 * 60 * 60 * 1000) {
+                        return playerInfo.username;
+                    }
+                } catch (e) {
+                    console.warn('[App] Failed to parse stored player info:', e);
+                }
+            }
+        }
+        return null;
+    }, [connectionError, isAuthenticated, dbIdentity]);
 
     // --- Render Logic --- 
     // console.log("[AppContent] Rendering. Hemps map:", hemps); // <<< TEMP DEBUG LOG
@@ -418,13 +458,29 @@ function AppContent() {
             {overallIsLoading && (
                 <div style={{ 
                     display: 'flex', 
+                    flexDirection: 'column',
                     justifyContent: 'center', 
                     alignItems: 'center', 
                     height: '100vh',
                     color: 'white',
-                    fontFamily: '"Press Start 2P", cursive'
+                    fontFamily: '"Press Start 2P", cursive',
+                    gap: '20px'
                 }}>
-                    {authLoading ? 'Authenticating...' : 'Connecting to Server...'}
+                    <div>{authLoading ? 'Authenticating...' : 'Connecting to Server...'}</div>
+                    <div style={{
+                        width: '40px',
+                        height: '40px',
+                        border: '4px solid rgba(255, 255, 255, 0.3)',
+                        borderTop: '4px solid white',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                    }}></div>
+                    <style>{`
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    `}</style>
                 </div>
             )}
 
@@ -441,8 +497,9 @@ function AppContent() {
             {!overallIsLoading && isAuthenticated && !localPlayerRegistered && (
                  <LoginScreen 
                     handleJoinGame={handleAttemptRegisterPlayer} // Pass the updated handler
-                    loggedInPlayer={null}
+                    loggedInPlayer={loggedInPlayer}
                     connectionError={connectionError}
+                    storedUsername={getStoredUsername}
                  />
             )}
             

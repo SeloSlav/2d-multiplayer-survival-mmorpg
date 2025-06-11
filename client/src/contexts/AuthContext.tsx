@@ -27,7 +27,8 @@ const LOCAL_STORAGE_KEYS = {
 
 interface UserProfile {
     userId: string; // Extracted from id_token subject
-    // Add other relevant fields if available in the token (e.g., email, username)
+    email?: string; // Email from id_token if available
+    // Add other relevant fields if available in the token (e.g., username)
 }
 
 interface AuthContextType {
@@ -316,7 +317,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                  console.error("Could not find userId (sub or userId) in token payload:", decoded);
                  return null;
             }
-            return { userId: userId };
+            
+            // Extract email from token
+            const email = decoded.email || undefined;
+            
+            return { 
+                userId: userId,
+                email: email 
+            };
        } catch (error) {
             console.error("Error parsing token:", error);
             // Don't set authError here directly, let callers handle

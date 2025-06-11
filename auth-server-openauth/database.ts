@@ -145,6 +145,26 @@ class DatabaseService {
     }
   }
 
+  async getUserById(userId: string): Promise<UserRecord | null> {
+    if (this.isProduction && this.sql) {
+      // Production: Use PostgreSQL
+      const result = await this.sql`
+        SELECT user_id, email, password_hash 
+        FROM users 
+        WHERE user_id = ${userId}
+      `;
+      return result[0] ? {
+        userId: result[0].user_id,
+        email: result[0].email,
+        passwordHash: result[0].password_hash
+      } : null;
+    } else {
+      // Development: Use JSON file
+      const storage = this.readJsonStorage();
+      return storage.users.find(u => u.userId === userId) || null;
+    }
+  }
+
   async updateUserPassword(userId: string, passwordHash: string): Promise<boolean> {
     if (this.isProduction && this.sql) {
       // Production: Use PostgreSQL

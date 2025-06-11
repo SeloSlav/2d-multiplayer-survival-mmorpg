@@ -46,12 +46,14 @@ interface LoginScreenProps {
     handleJoinGame: (usernameToRegister: string | null) => Promise<void>; // Accepts null for existing players, returns Promise to handle errors
     loggedInPlayer: Player | null; // Player data from SpacetimeDB if exists
     connectionError?: string | null; // SpacetimeDB connection error from GameConnectionContext
+    storedUsername?: string | null; // Username from localStorage for connection error fallback
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
     handleJoinGame,
     loggedInPlayer,
     connectionError,
+    storedUsername,
 }) => {
     // Get OpenAuth state and functions
     const {
@@ -413,6 +415,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             }}>
                                 Welcome back, {loggedInPlayer.username}!
                             </p>
+                        ) : storedUsername && connectionError ? (
+                            // Connection error but we have stored username: Show "Playing as [username]"
+                            <p style={{
+                                marginBottom: '20px',
+                                fontSize: '14px'
+                            }}>
+                                Playing as <strong>{storedUsername}</strong>
+                            </p>
+                        ) : connectionError ? (
+                            // Connection error without stored username: Show generic authenticated message
+                            <p style={{
+                                marginBottom: '20px',
+                                fontSize: '14px'
+                            }}>
+                                Authenticated - Reconnect to game
+                            </p>
                         ) : (
                             // New Player: Show username input ONLY if no authError, no connectionError and no localError
                             !authError && !connectionError && !localError ? (
@@ -485,21 +503,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         )
                     ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
-                    {/* Render Login/Join button only if not loading and no authError and no connectionError */}
-                    {!authIsLoading && !authError && !connectionError && !localError && (
+                    {/* Render Login/Join button only if not loading and no authError and (no connectionError OR we have storedUsername) */}
+                    {!authIsLoading && !authError && (!connectionError || storedUsername) && !localError && (
                         <form onSubmit={handleSubmit}>
                             <button
                                 type="submit"
-                                // Disable if there's any auth error, even if technically "authenticated"
-                                disabled={authError !== null || connectionError !== null || localError !== null}
+                                // Disable if there's any auth error, or connection error without stored username
+                                disabled={authError !== null || (connectionError !== null && !storedUsername) || localError !== null}
                                 onMouseEnter={(e) => {
-                                    if (!authError && !connectionError && !localError) {
+                                    if (!authError && (!connectionError || storedUsername) && !localError) {
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,165,0,0.3)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!authError && !connectionError && !localError) {
+                                    if (!authError && (!connectionError || storedUsername) && !localError) {
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
                                     }
@@ -507,14 +525,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 style={{
                                     padding: '16px 32px',
                                     border: '2px solid rgba(255, 165, 0, 0.6)',
-                                    backgroundColor: (authError || connectionError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
-                                    background: (authError || connectionError || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
-                                    color: (authError || connectionError || localError) ? '#ccc' : 'white',
+                                    backgroundColor: (authError || (connectionError && !storedUsername) || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
+                                    background: (authError || (connectionError && !storedUsername) || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
+                                    color: (authError || (connectionError && !storedUsername) || localError) ? '#ccc' : 'white',
                                     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     fontSize: '16px',
                                     fontWeight: 'bold',
-                                    cursor: (authError || connectionError || localError) ? 'not-allowed' : 'pointer',
-                                    boxShadow: (authError || connectionError || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                    cursor: (authError || (connectionError && !storedUsername) || localError) ? 'not-allowed' : 'pointer',
+                                    boxShadow: (authError || (connectionError && !storedUsername) || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
                                     display: 'inline-block',
                                     boxSizing: 'border-box',
                                     textTransform: 'uppercase',
@@ -658,7 +676,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     display: 'block',
                                     marginBottom: '8px'
                                 }}>
-                                    (ID: {userProfile.userId})
+                                    ({userProfile.email || userProfile.userId})
                                 </span>
                             )}
                             <button
@@ -1245,6 +1263,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                     { name: "🌍 Advanced World Generation", status: "20%" },
                                                                     { name: "🏗️ Advanced Construction", status: "10%" },
                                                                     { name: "🦌 Hunting & Wildlife", status: "10%" },
+                                                                    { name: "🎣 Fishing & Aquaculture", status: "10%" },
                                                                     { name: "🔫 Firearms & Advanced Combat", status: "10%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
