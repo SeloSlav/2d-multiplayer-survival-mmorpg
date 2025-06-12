@@ -462,13 +462,7 @@ function AppContent() {
     ]); // Add other entity maps to dependency array if new cases are added
 
     // --- Determine overall loading state ---
-    // Loading screen should ONLY show when:
-    // 1. Auth is loading, OR
-    // 2. User is authenticated AND SpacetimeDB is loading, OR  
-    // 3. User is authenticated AND sequence not complete
-    const shouldShowLoadingScreen = authLoading || 
-                                   (isAuthenticated && spacetimeLoading) || 
-                                   (isAuthenticated && !loadingSequenceComplete);
+    // We'll determine this after loggedInPlayer and getStoredUsername are defined
     
     // Debug logging for loading states
     // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, loadingSequenceComplete: ${loadingSequenceComplete}, shouldShowLoadingScreen: ${shouldShowLoadingScreen}`);
@@ -478,12 +472,7 @@ function AppContent() {
         setLoadingSequenceComplete(true);
     }, []);
 
-    // Reset sequence completion when loading starts again
-    useEffect(() => {
-        if (shouldShowLoadingScreen && loadingSequenceComplete) {
-            setLoadingSequenceComplete(false);
-        }
-    }, [shouldShowLoadingScreen, loadingSequenceComplete]);
+    // Reset sequence completion when loading starts again - will be moved after shouldShowLoadingScreen is defined
 
     // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
@@ -527,6 +516,24 @@ function AppContent() {
         }
         return null;
     }, [connectionError, isAuthenticated, dbIdentity]);
+
+    // --- Determine loading screen visibility ---
+    // Loading screen should ONLY show when:
+    // 1. Auth is loading, OR
+    // 2. User is authenticated AND has player data/username AND SpacetimeDB is loading, OR  
+    // 3. User is authenticated AND has player data/username AND sequence not complete
+    // Do NOT show loading screen for new players without username - they need to enter it first
+    const hasPlayerDataOrUsername = loggedInPlayer || getStoredUsername;
+    const shouldShowLoadingScreen = authLoading || 
+                                   (isAuthenticated && hasPlayerDataOrUsername && spacetimeLoading) || 
+                                   (isAuthenticated && hasPlayerDataOrUsername && !loadingSequenceComplete);
+
+    // Reset sequence completion when loading starts again
+    useEffect(() => {
+        if (shouldShowLoadingScreen && loadingSequenceComplete) {
+            setLoadingSequenceComplete(false);
+        }
+    }, [shouldShowLoadingScreen, loadingSequenceComplete]);
 
     // --- Render Logic --- 
     // console.log("[AppContent] Rendering. Hemps map:", hemps); // <<< TEMP DEBUG LOG

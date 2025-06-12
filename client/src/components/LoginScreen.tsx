@@ -178,13 +178,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             }
 
             try {
-                if (loggedInPlayer || storedUsername) {
-                    // Existing player: Join directly, pass null for username
+                if (loggedInPlayer) {
+                    // Existing player with loaded player data: Join directly
                     await handleJoinGame(null);
-                } else {
-                    // New player: Validate the entered username and join
+                } else if (storedUsername) {
+                    // Existing player reconnecting with stored username: Join directly
+                    await handleJoinGame(null);
+                } else if (inputUsername.trim()) {
+                    // New player with entered username: Validate and join
                     if (validateNewUsername()) {
                         await handleJoinGame(inputUsername);
+                    }
+                } else {
+                    // No player data and no username entered
+                    // Only show validation error if username input is actually visible
+                    const shouldShowUsernameInput = !authError && !connectionError && !localError && isSpacetimeConnected && !loggedInPlayer && !storedUsername;
+                    if (shouldShowUsernameInput) {
+                        setLocalError('Username is required to join the game');
+                    } else {
+                        // Fallback: try to join anyway (might be a returning player with slow loading)
+                        await handleJoinGame(null);
                     }
                 }
             } catch (error) {
@@ -472,9 +485,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 Authenticated - Reconnect to game
                             </p>
                         ) : (
-                            // New Player: Show username input ONLY if no authError, no connectionError, no localError
-                            // AND SpacetimeDB is connected AND no stored username (to ensure this is genuinely a new user)
-                            !authError && !connectionError && !localError && isSpacetimeConnected && !storedUsername ? (
+                            // New Player: Show username input if we're confident this is a new user
+                            // Show input if: authenticated, connected, no errors, no existing player data
+                            !authError && !connectionError && !localError && isSpacetimeConnected && !loggedInPlayer && !storedUsername ? (
                                 <div style={{
                                     maxWidth: '350px',
                                     margin: '0 auto',
@@ -531,14 +544,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                // Show appropriate error message when authenticated but there's an error
-                                // <p style={{
-                                //     marginBottom: '20px',
-                                //     fontSize: '14px',
-                                //     color: 'red'
-                                // }}>
-                                //     Unable to access game servers. Please try refreshing the page.
-                                // </p>
+                                // Not showing username input - show loading message
                                 <></>
                             )
                         )
