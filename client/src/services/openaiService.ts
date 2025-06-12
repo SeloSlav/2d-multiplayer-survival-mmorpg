@@ -10,6 +10,14 @@ export interface OpenAIResponse {
   success: boolean;
   response?: string;
   error?: string;
+  timing?: {
+    requestStartTime: number;
+    responseReceivedTime: number;
+    totalLatencyMs: number;
+    promptLength: number;
+    responseLength: number;
+    timestamp: string;
+  };
 }
 
 export interface SOVAPromptRequest {
@@ -29,10 +37,21 @@ class OpenAIService {
    * Generate SOVA's AI response using OpenAI GPT-4
    */
   async generateSOVAResponse(request: SOVAPromptRequest): Promise<OpenAIResponse> {
-    try {
-      const systemPrompt = this.buildSOVASystemPrompt();
-      const userPrompt = this.buildUserPrompt(request);
+    const systemPrompt = this.buildSOVASystemPrompt();
+    const userPrompt = this.buildUserPrompt(request);
+    
+    const timing = {
+      requestStartTime: performance.now(),
+      responseReceivedTime: 0,
+      totalLatencyMs: 0,
+      promptLength: systemPrompt.length + userPrompt.length,
+      responseLength: 0,
+      timestamp: new Date().toISOString(),
+    };
 
+    console.log(`[OpenAI] 🤖 Starting AI response generation - Prompt: ${timing.promptLength} chars`);
+
+    try {
       console.log('[OpenAI] Generating SOVA response for:', request.userMessage);
 
       const response = await fetch(OPENAI_API_URL, {
@@ -54,6 +73,11 @@ class OpenAIService {
         }),
       });
 
+      timing.responseReceivedTime = performance.now();
+      timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
+
+      console.log(`[OpenAI] ⚡ OpenAI GPT response received in ${timing.totalLatencyMs.toFixed(2)}ms`);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('[OpenAI] API error:', errorData);
@@ -67,23 +91,37 @@ class OpenAIService {
         throw new Error('No response generated from OpenAI');
       }
 
-      console.log('[OpenAI] SOVA response generated:', sovaResponse);
+      timing.responseLength = sovaResponse.length;
+
+      console.log(`[OpenAI] 🎯 AI response generated: "${sovaResponse.substring(0, 100)}${sovaResponse.length > 100 ? '...' : ''}" (${timing.responseLength} chars)`);
+      console.log(`[OpenAI] 📊 OpenAI Performance:`, {
+        latency: `${timing.totalLatencyMs.toFixed(2)}ms`,
+        promptLength: `${timing.promptLength} chars`,
+        responseLength: `${timing.responseLength} chars`,
+        throughput: `${(timing.responseLength / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`
+      });
 
       return {
         success: true,
         response: sovaResponse,
+        timing,
       };
 
     } catch (error) {
+      timing.responseReceivedTime = timing.responseReceivedTime || performance.now();
+      timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
+
       console.error('[OpenAI] Failed to generate SOVA response:', error);
       
       // Fallback to predefined responses if OpenAI fails
       const fallbackResponse = this.getFallbackResponse(request.userMessage);
+      timing.responseLength = fallbackResponse.length;
       
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
         response: fallbackResponse, // Still provide a response even on error
+        timing,
       };
     }
   }

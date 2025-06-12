@@ -57,6 +57,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   const [activeTab, setActiveTab] = useState<ChatTab>('global');
   const [sovaMessages, setSovaMessages] = useState<Array<{id: string, text: string, isUser: boolean, timestamp: Date}>>([]);
   const [sovaInputValue, setSovaInputValue] = useState('');
+  const [showPerformanceReport, setShowPerformanceReport] = useState(false);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const sovaInputRef = useRef<HTMLInputElement>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -263,6 +264,42 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
       sovaInputRef.current.focus();
     }
   }, [sovaInputValue, setIsChatting, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, localPlayerIdentity]);
+
+  // Handle performance report generation
+  const handleGenerateReport = useCallback(() => {
+    kikashiService.logPerformanceReport();
+    setShowPerformanceReport(true);
+  }, []);
+
+  // Handle copying report to clipboard
+  const handleCopyReport = useCallback(async () => {
+    try {
+      const report = kikashiService.generateFormattedReport();
+      await navigator.clipboard.writeText(report);
+      
+      // Add a message to SOVA chat confirming the copy
+      const confirmMessage = {
+        id: `sova-report-${Date.now()}`,
+        text: 'Performance report copied to clipboard! You can now share it with the Kikashi API team.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setSovaMessages(prev => [...prev, confirmMessage]);
+      
+      setShowPerformanceReport(false);
+    } catch (error) {
+      console.error('[Chat] Failed to copy report:', error);
+      
+      // Add error message to SOVA chat
+      const errorMessage = {
+        id: `sova-error-${Date.now()}`,
+        text: 'Failed to copy report to clipboard. Check console for the report text.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setSovaMessages(prev => [...prev, errorMessage]);
+    }
+  }, []);
 
   // Handle placeholder click
   const handlePlaceholderClick = useCallback(() => {
@@ -515,6 +552,38 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
             <div ref={sovaMessageEndRef} />
           </div>
           
+          {/* SOVA Performance Report Button */}
+          <div style={{
+            padding: '5px 10px',
+            borderTop: '1px solid rgba(0, 170, 255, 0.2)',
+            background: 'rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            justifyContent: 'center'
+          }}>
+            <button
+              onClick={handleGenerateReport}
+              style={{
+                background: 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.3))',
+                border: '1px solid #00aaff',
+                borderRadius: '4px',
+                color: '#00ffff',
+                padding: '4px 8px',
+                fontSize: '8px',
+                fontFamily: '"Press Start 2P", cursive',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.4), rgba(0, 150, 255, 0.5))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.3))';
+              }}
+            >
+              API PERFORMANCE REPORT
+            </button>
+          </div>
+          
           {/* SOVA Input */}
           {isChatting ? (
             <ChatInput
@@ -534,6 +603,111 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
             </div>
           )}
         </>
+      )}
+
+      {/* Performance Report Modal */}
+      {showPerformanceReport && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          fontFamily: 'monospace'
+        }}>
+          <div style={{
+            backgroundColor: 'rgba(10, 10, 20, 0.95)',
+            border: '2px solid #00aaff',
+            borderRadius: '8px',
+            padding: '20px',
+            maxWidth: '90%',
+            maxHeight: '90%',
+            overflow: 'auto',
+            boxShadow: '0 0 30px rgba(0, 170, 255, 0.3)'
+          }}>
+            <div style={{
+              color: '#00ffff',
+              fontSize: '16px',
+              textAlign: 'center',
+              marginBottom: '15px',
+              textShadow: '0 0 10px rgba(0, 255, 255, 0.5)'
+            }}>
+              🎤 KIKASHI API PERFORMANCE REPORT
+            </div>
+            
+            <pre style={{
+              color: '#ffffff',
+              fontSize: '11px',
+              lineHeight: '1.4',
+              whiteSpace: 'pre-wrap',
+              margin: 0,
+              padding: '15px',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '4px',
+              border: '1px solid rgba(0, 170, 255, 0.2)'
+            }}>
+              {kikashiService.generateFormattedReport()}
+            </pre>
+            
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'center',
+              marginTop: '15px'
+            }}>
+              <button
+                onClick={handleCopyReport}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.4))',
+                  border: '1px solid #00aaff',
+                  borderRadius: '4px',
+                  color: '#00ffff',
+                  padding: '8px 16px',
+                  fontSize: '10px',
+                  fontFamily: '"Press Start 2P", cursive',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.5), rgba(0, 150, 255, 0.6))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.4))';
+                }}
+              >
+                COPY TO CLIPBOARD
+              </button>
+              
+              <button
+                onClick={() => setShowPerformanceReport(false)}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(100, 100, 100, 0.3), rgba(80, 80, 80, 0.4))',
+                  border: '1px solid #666',
+                  borderRadius: '4px',
+                  color: '#ccc',
+                  padding: '8px 16px',
+                  fontSize: '10px',
+                  fontFamily: '"Press Start 2P", cursive',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(120, 120, 120, 0.5), rgba(100, 100, 100, 0.6))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(100, 100, 100, 0.3), rgba(80, 80, 80, 0.4))';
+                }}
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

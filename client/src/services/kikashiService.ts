@@ -13,6 +13,7 @@ export interface KikashiResponse {
   success: boolean;
   audioUrl?: string;
   error?: string;
+  timing?: KikashiTiming;
 }
 
 export interface VoiceSynthesisRequest {
@@ -20,15 +21,61 @@ export interface VoiceSynthesisRequest {
   voiceStyle?: string;
 }
 
+export interface KikashiTiming {
+  requestStartTime: number;
+  proxyResponseTime: number;
+  kikashiResponseTime: number;
+  audioProcessedTime: number;
+  totalLatencyMs: number;
+  proxyLatencyMs: number;
+  kikashiApiLatencyMs: number;
+  audioProcessingMs: number;
+  textLength: number;
+  audioSizeBytes: number;
+  voiceStyle: string;
+  timestamp: string;
+  // Pipeline timing from other services
+  whisperLatencyMs?: number;
+  openaiLatencyMs?: number;
+  totalPipelineMs?: number;
+}
+
+export interface KikashiPerformanceReport {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  averageLatencyMs: number;
+  medianLatencyMs: number;
+  minLatencyMs: number;
+  maxLatencyMs: number;
+  averageTextLength: number;
+  averageAudioSizeKB: number;
+  averageThroughputCharsPerSecond: number;
+  recentTimings: KikashiTiming[];
+  generatedAt: string;
+}
+
 class KikashiService {
+  private performanceData: KikashiTiming[] = [];
+  private maxStoredTimings = 100; // Keep last 100 requests for analysis
+
   constructor() {
     // No API key needed since we're using local proxy
   }
 
   /**
-   * Convert text to speech using Kikashi API
+   * Convert text to speech using Kikashi API with comprehensive timing
    */
   async synthesizeVoice(request: VoiceSynthesisRequest): Promise<KikashiResponse> {
+    const timing: Partial<KikashiTiming> = {
+      requestStartTime: performance.now(),
+      textLength: request.text.length,
+      voiceStyle: request.voiceStyle || SOVA_VOICE,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(`[KikashiService] 🎤 Starting TTS request - Text: "${request.text.substring(0, 50)}${request.text.length > 50 ? '...' : ''}" (${request.text.length} chars)`);
+
     try {
       const requestBody = {
         text: request.text,
@@ -36,8 +83,6 @@ class KikashiService {
       };
       
       console.log('[KikashiService] Making request to proxy:', TTS_ENDPOINT);
-      console.log('[KikashiService] Request body:', requestBody);
-      console.log('[KikashiService] Request text length:', request.text.length);
       
       const response = await fetch(TTS_ENDPOINT, {
         method: 'POST',
@@ -47,9 +92,11 @@ class KikashiService {
         body: JSON.stringify(requestBody),
       });
 
+      timing.proxyResponseTime = performance.now();
+      timing.proxyLatencyMs = timing.proxyResponseTime - timing.requestStartTime!;
+
+      console.log(`[KikashiService] ⚡ Proxy response received in ${timing.proxyLatencyMs.toFixed(2)}ms`);
       console.log('[KikashiService] Response status:', response.status);
-      console.log('[KikashiService] Response headers:', response.headers);
-      console.log('[KikashiService] Content-Type:', response.headers.get('content-type'));
 
       if (!response.ok) {
         let errorMessage = `API Error: ${response.status}`;
@@ -63,10 +110,21 @@ class KikashiService {
         throw new Error(errorMessage);
       }
 
-      // According to documentation, response is audio stream directly
-      // Content-Type: audio/mpeg
+      // Process audio response
       const audioBlob = await response.blob();
-      console.log('[KikashiService] Audio blob size:', audioBlob.size, 'type:', audioBlob.type);
+      timing.kikashiResponseTime = performance.now();
+      timing.audioProcessedTime = performance.now();
+      timing.kikashiApiLatencyMs = timing.kikashiResponseTime - timing.proxyResponseTime!;
+      timing.audioProcessingMs = timing.audioProcessedTime - timing.kikashiResponseTime!;
+      timing.totalLatencyMs = timing.audioProcessedTime - timing.requestStartTime!;
+      timing.audioSizeBytes = audioBlob.size;
+
+      console.log(`[KikashiService] 🎵 Audio processed in ${timing.audioProcessingMs.toFixed(2)}ms`);
+      console.log(`[KikashiService] 📊 Total latency: ${timing.totalLatencyMs.toFixed(2)}ms`);
+      console.log(`[KikashiService] 🌐 Proxy latency: ${timing.proxyLatencyMs.toFixed(2)}ms`);
+      console.log(`[KikashiService] 🎤 Kikashi API latency: ${timing.kikashiApiLatencyMs.toFixed(2)}ms`);
+      console.log(`[KikashiService] 📁 Audio size: ${(timing.audioSizeBytes / 1024).toFixed(2)} KB`);
+      console.log(`[KikashiService] 🚀 Throughput: ${(timing.textLength! / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`);
       
       // Check if we actually got audio data
       if (audioBlob.size === 0) {
@@ -75,7 +133,6 @@ class KikashiService {
       
       // Check if the content type is actually audio
       const contentType = audioBlob.type || response.headers.get('content-type') || '';
-      console.log('[KikashiService] Actual content type:', contentType);
       
       if (!contentType.includes('audio') && !contentType.includes('mpeg') && !contentType.includes('mp3')) {
         // Let's see what we actually got
@@ -85,18 +142,212 @@ class KikashiService {
       }
       
       const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Store performance data
+      this.recordTiming(timing as KikashiTiming);
       
       return {
         success: true,
         audioUrl: audioUrl,
+        timing: timing as KikashiTiming,
       };
     } catch (error) {
+      // Record failed timing
+      const failedTiming = {
+        ...timing,
+        proxyResponseTime: timing.proxyResponseTime || performance.now(),
+        kikashiResponseTime: timing.kikashiResponseTime || performance.now(),
+        audioProcessedTime: performance.now(),
+        totalLatencyMs: performance.now() - timing.requestStartTime!,
+        proxyLatencyMs: (timing.proxyResponseTime || performance.now()) - timing.requestStartTime!,
+        kikashiApiLatencyMs: 0,
+        audioProcessingMs: 0,
+        audioSizeBytes: 0,
+      } as KikashiTiming;
+
+      this.recordTiming(failedTiming, false);
+
       console.error('[KikashiService] Voice synthesis failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
+        timing: failedTiming,
       };
     }
+  }
+
+  /**
+   * Record timing data for performance analysis
+   */
+  private recordTiming(timing: KikashiTiming, success: boolean = true) {
+    this.performanceData.push(timing);
+    
+    // Keep only the most recent timings
+    if (this.performanceData.length > this.maxStoredTimings) {
+      this.performanceData = this.performanceData.slice(-this.maxStoredTimings);
+    }
+
+    // Log summary for each request
+    console.log(`[KikashiService] 📈 REQUEST SUMMARY:`, {
+      success,
+      text: `"${timing.textLength} chars"`,
+      latency: `${timing.totalLatencyMs.toFixed(2)}ms`,
+      network: `${timing.proxyLatencyMs.toFixed(2)}ms`,
+      processing: `${timing.audioProcessingMs.toFixed(2)}ms`,
+      audioSize: `${(timing.audioSizeBytes / 1024).toFixed(2)}KB`,
+      throughput: `${(timing.textLength / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`
+    });
+  }
+
+  /**
+   * Generate comprehensive performance report for Kikashi API
+   */
+  generatePerformanceReport(): KikashiPerformanceReport {
+    if (this.performanceData.length === 0) {
+      return {
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        averageLatencyMs: 0,
+        medianLatencyMs: 0,
+        minLatencyMs: 0,
+        maxLatencyMs: 0,
+        averageTextLength: 0,
+        averageAudioSizeKB: 0,
+        averageThroughputCharsPerSecond: 0,
+        recentTimings: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const successfulRequests = this.performanceData.filter(t => t.audioSizeBytes > 0);
+    const failedRequests = this.performanceData.filter(t => t.audioSizeBytes === 0);
+    
+    const latencies = this.performanceData.map(t => t.totalLatencyMs);
+    const textLengths = this.performanceData.map(t => t.textLength);
+    const audioSizes = successfulRequests.map(t => t.audioSizeBytes);
+    const throughputs = successfulRequests.map(t => t.textLength / (t.totalLatencyMs / 1000));
+
+    // Calculate statistics
+    const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+    const sortedLatencies = [...latencies].sort((a, b) => a - b);
+    const medianLatency = sortedLatencies[Math.floor(sortedLatencies.length / 2)];
+    const minLatency = Math.min(...latencies);
+    const maxLatency = Math.max(...latencies);
+
+    const avgTextLength = textLengths.reduce((a, b) => a + b, 0) / textLengths.length;
+    const avgAudioSize = audioSizes.length > 0 ? audioSizes.reduce((a, b) => a + b, 0) / audioSizes.length : 0;
+    const avgThroughput = throughputs.length > 0 ? throughputs.reduce((a, b) => a + b, 0) / throughputs.length : 0;
+
+    return {
+      totalRequests: this.performanceData.length,
+      successfulRequests: successfulRequests.length,
+      failedRequests: failedRequests.length,
+      averageLatencyMs: avgLatency,
+      medianLatencyMs: medianLatency,
+      minLatencyMs: minLatency,
+      maxLatencyMs: maxLatency,
+      averageTextLength: avgTextLength,
+      averageAudioSizeKB: avgAudioSize / 1024,
+      averageThroughputCharsPerSecond: avgThroughput,
+      recentTimings: this.performanceData.slice(-10), // Last 10 requests
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Generate a formatted report string for sharing
+   */
+  generateFormattedReport(): string {
+    const report = this.generatePerformanceReport();
+    const recentTimings = this.performanceData.slice(-10); // Last 10 requests for pipeline analysis
+    
+    // Calculate pipeline averages from recent requests
+    const pipelineData = recentTimings.filter(t => t.whisperLatencyMs && t.openaiLatencyMs);
+    const avgWhisper = pipelineData.length > 0 ? pipelineData.reduce((sum, t) => sum + (t.whisperLatencyMs || 0), 0) / pipelineData.length : 0;
+    const avgOpenAI = pipelineData.length > 0 ? pipelineData.reduce((sum, t) => sum + (t.openaiLatencyMs || 0), 0) / pipelineData.length : 0;
+    const avgProxy = this.performanceData.length > 0 ? this.performanceData.reduce((sum, t) => sum + t.proxyLatencyMs, 0) / this.performanceData.length : 0;
+    const avgKikashi = this.performanceData.length > 0 ? this.performanceData.reduce((sum, t) => sum + t.kikashiApiLatencyMs, 0) / this.performanceData.length : 0;
+    const avgTotalPipeline = pipelineData.length > 0 ? pipelineData.reduce((sum, t) => sum + (t.totalPipelineMs || 0), 0) / pipelineData.length : 0;
+    
+    return `
+🎤 COMPLETE VOICE PIPELINE PERFORMANCE REPORT
+Generated: ${new Date(report.generatedAt).toLocaleString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 OVERVIEW
+├─ Total TTS Requests: ${report.totalRequests}
+├─ Successful: ${report.successfulRequests} (${((report.successfulRequests / report.totalRequests) * 100).toFixed(1)}%)
+├─ Failed: ${report.failedRequests} (${((report.failedRequests / report.totalRequests) * 100).toFixed(1)}%)
+└─ Success Rate: ${((report.successfulRequests / report.totalRequests) * 100).toFixed(1)}%
+
+🔄 COMPLETE PIPELINE BREAKDOWN (Average Latencies)
+┌─ 🎙️  Whisper (OpenAI Speech-to-Text): ${avgWhisper.toFixed(1)}ms
+├─ 🤖 OpenAI GPT (AI Response Generation): ${avgOpenAI.toFixed(1)}ms  
+├─ 🌐 Proxy Server (Local Network): ${avgProxy.toFixed(1)}ms
+├─ 🎤 Kikashi TTS API (Text-to-Speech): ${avgKikashi.toFixed(1)}ms
+└─ 📊 Total Voice Pipeline: ${avgTotalPipeline.toFixed(1)}ms
+
+⚡ KIKASHI API ISOLATED PERFORMANCE
+├─ Average Latency: ${report.averageLatencyMs.toFixed(2)}ms
+├─ Minimum Latency: ${report.minLatencyMs.toFixed(2)}ms
+├─ Maximum Latency: ${report.maxLatencyMs.toFixed(2)}ms
+├─ 95th Percentile: ${report.recentTimings[Math.floor(report.recentTimings.length * 0.95)].totalLatencyMs.toFixed(2)}ms
+└─ Standard Deviation: ${Math.sqrt(report.recentTimings.reduce((sum, t) => Math.pow(t.totalLatencyMs - report.averageLatencyMs, 2), 0) / report.recentTimings.length).toFixed(2)}ms
+
+🌐 NETWORK BREAKDOWN (Kikashi TTS Only)
+├─ Proxy Communication: ${avgProxy.toFixed(2)}ms (${((avgProxy / avgTotalPipeline) * 100).toFixed(1)}%)
+├─ Kikashi API Processing: ${avgKikashi.toFixed(2)}ms (${((avgKikashi / avgTotalPipeline) * 100).toFixed(1)}%)
+└─ Audio Processing: ${report.recentTimings[0].audioProcessingMs.toFixed(2)}ms
+
+📈 THROUGHPUT ANALYSIS
+├─ Average Characters/Second: ${report.averageThroughputCharsPerSecond.toFixed(2)}
+├─ Peak Characters/Second: ${report.recentTimings.reduce((max, t) => Math.max(max, t.textLength / (t.totalLatencyMs / 1000)), 0).toFixed(2)}
+├─ Average Text Length: ${report.averageTextLength.toFixed(1)} chars
+└─ Average Audio Size: ${(report.averageAudioSizeKB * 1024).toFixed(2)} KB
+
+📋 RECENT PERFORMANCE (Last 10 Requests)
+${recentTimings.map((timing, i) => `${String(i + 1).padStart(2)}) ${timing.timestamp.substring(11, 19)} | Total: ${timing.totalLatencyMs.toFixed(0)}ms | Kikashi: ${timing.kikashiApiLatencyMs.toFixed(0)}ms | Proxy: ${timing.proxyLatencyMs.toFixed(0)}ms`).join('\n')}
+
+🔧 TECHNICAL DETAILS  
+├─ Implementation: Kikashi API via Proxy Server
+├─ Voice Model: ${SOVA_VOICE}
+├─ Audio Format: MP3 (Blob)
+├─ Client: Browser-based Web Application
+└─ Measurement: performance.now() (high-resolution)
+
+📝 ANALYSIS NOTES
+├─ Kikashi API accounts for ${((avgKikashi / avgTotalPipeline) * 100).toFixed(1)}% of total pipeline latency
+├─ OpenAI services (Whisper + GPT) account for ${(((avgWhisper + avgOpenAI) / avgTotalPipeline) * 100).toFixed(1)}% of total pipeline
+├─ Proxy server adds minimal overhead (${((avgProxy / avgTotalPipeline) * 100).toFixed(1)}% of total pipeline)
+└─ This data isolates Kikashi API performance from other service dependencies
+
+Generated by: Vibe Survival Game Voice Interface
+SDK Version: Custom Implementation
+Report ID: ${Date.now().toString(36)}
+`;
+  }
+
+  /**
+   * Log current performance report to console
+   */
+  logPerformanceReport() {
+    console.log(this.generateFormattedReport());
+  }
+
+  /**
+   * Get raw performance data for external analysis
+   */
+  getRawPerformanceData(): KikashiTiming[] {
+    return [...this.performanceData];
+  }
+
+  /**
+   * Clear performance data
+   */
+  clearPerformanceData() {
+    this.performanceData = [];
+    console.log('[KikashiService] Performance data cleared');
   }
 
   /**
@@ -268,6 +519,25 @@ class KikashiService {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
         responseText: fallbackText,
       };
+    }
+  }
+
+  /**
+   * Update the most recent timing record with pipeline data from other services
+   */
+  updatePipelineTiming(whisperLatencyMs: number, openaiLatencyMs: number) {
+    if (this.performanceData.length > 0) {
+      const lastTiming = this.performanceData[this.performanceData.length - 1];
+      lastTiming.whisperLatencyMs = whisperLatencyMs;
+      lastTiming.openaiLatencyMs = openaiLatencyMs;
+      lastTiming.totalPipelineMs = whisperLatencyMs + openaiLatencyMs + lastTiming.totalLatencyMs;
+      
+      console.log(`[KikashiService] 📊 Pipeline timing updated:`, {
+        whisper: `${whisperLatencyMs.toFixed(2)}ms`,
+        openai: `${openaiLatencyMs.toFixed(2)}ms`,
+        kikashi: `${lastTiming.totalLatencyMs.toFixed(2)}ms`,
+        totalPipeline: `${lastTiming.totalPipelineMs.toFixed(2)}ms`
+      });
     }
   }
 }

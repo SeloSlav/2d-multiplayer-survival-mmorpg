@@ -133,7 +133,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       }
 
       const transcribedText = transcriptionResult.text;
-      console.log('[VoiceInterface] Transcription successful:', transcribedText);
+      console.log('[VoiceInterface] ✅ Transcription successful:', transcribedText);
 
       setVoiceState(prev => ({
         ...prev,
@@ -161,28 +161,51 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           console.error('[VoiceInterface] Error adding user voice message:', error);
         }
       } else {
-        console.warn('[VoiceInterface] Cannot add user message - onAddSOVAMessage:', !!onAddSOVAMessage, 'transcribedText:', !!transcribedText.trim());
+        console.warn('[VoiceInterface] Cannot add user message - onAddSOVAMessage not available or empty text');
       }
 
-      // Generate SOVA AI response
-      try {
-        const gameContext = buildGameContext({
+      // Generate AI response with comprehensive timing tracking
+      console.log('[VoiceInterface] 🤖 Generating AI response...');
+      const aiResponse = await openaiService.generateSOVAResponse({
+        userMessage: transcribedText,
+        gameContext: buildGameContext({
           worldState,
           localPlayer,
           itemDefinitions,
           activeEquipments,
           inventoryItems,
           localPlayerIdentity,
+        }),
+      });
+
+      if (aiResponse.success && aiResponse.response) {
+        console.log('[VoiceInterface] ✅ AI response generated successfully');
+
+        // Generate voice synthesis with timing data collection
+        console.log('[VoiceInterface] 🎤 Generating voice synthesis...');
+        const voiceResponse = await kikashiService.synthesizeVoice({
+          text: aiResponse.response,
+          voiceStyle: 'robot2'
         });
 
-        const aiResponse = await openaiService.generateSOVAResponse({
-          userMessage: transcribedText,
-          playerName: localPlayerIdentity,
-          gameContext,
-        });
+        // Update Kikashi service with complete pipeline timing
+        if (transcriptionResult.timing && aiResponse.timing && voiceResponse.timing) {
+          kikashiService.updatePipelineTiming(
+            transcriptionResult.timing.totalLatencyMs,
+            aiResponse.timing.totalLatencyMs
+          );
+          
+          console.log('[VoiceInterface] 📊 Complete Pipeline Performance:', {
+            whisperLatency: `${transcriptionResult.timing.totalLatencyMs.toFixed(2)}ms`,
+            openaiLatency: `${aiResponse.timing.totalLatencyMs.toFixed(2)}ms`,
+            proxyLatency: `${voiceResponse.timing.proxyLatencyMs.toFixed(2)}ms`,
+            kikashiLatency: `${voiceResponse.timing.kikashiApiLatencyMs.toFixed(2)}ms`,
+            totalPipeline: `${(transcriptionResult.timing.totalLatencyMs + aiResponse.timing.totalLatencyMs + voiceResponse.timing.totalLatencyMs).toFixed(2)}ms`
+          });
+        }
 
-        if (aiResponse.success && aiResponse.response) {
-          console.log('[VoiceInterface] SOVA AI response:', aiResponse.response);
+        if (voiceResponse.success && voiceResponse.audioUrl) {
+          console.log('[VoiceInterface] ✅ Voice synthesis successful');
 
           // Add SOVA response to chat
           if (onAddSOVAMessage) {
@@ -203,29 +226,19 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
             console.warn('[VoiceInterface] Cannot add SOVA response - onAddSOVAMessage not available');
           }
 
-          // Synthesize voice response
-          try {
-            const voiceResult = await kikashiService.synthesizeVoice({
-              text: aiResponse.response,
-              voiceStyle: 'robot2'
-            });
-            
-            if (voiceResult.success && voiceResult.audioUrl) {
-              await kikashiService.playAudio(voiceResult.audioUrl);
-              console.log('[VoiceInterface] SOVA voice response played');
-            } else {
-              console.error('[VoiceInterface] Voice synthesis failed:', voiceResult.error);
-            }
-          } catch (error) {
-            console.error('[VoiceInterface] Failed to play SOVA voice response:', error);
-          }
+          // Play audio response
+          console.log('[VoiceInterface] 🔊 Playing audio response...');
+          await kikashiService.playAudio(voiceResponse.audioUrl);
+          console.log('[VoiceInterface] ✅ Audio playback completed');
+        } else {
+          console.error('[VoiceInterface] ❌ Voice synthesis failed:', voiceResponse.error);
         }
-      } catch (error) {
-        console.error('[VoiceInterface] Failed to generate SOVA response:', error);
+      } else {
+        console.error('[VoiceInterface] ❌ AI response generation failed:', aiResponse.error);
       }
 
     } catch (error) {
-      console.error('[VoiceInterface] Processing failed:', error);
+      console.error('[VoiceInterface] ❌ Error in voice processing pipeline:', error);
       const errorMessage = error instanceof Error ? error.message : 'Voice processing failed';
       setVoiceState(prev => ({
         ...prev,

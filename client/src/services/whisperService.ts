@@ -8,6 +8,14 @@ export interface WhisperResponse {
   success: boolean;
   text?: string;
   error?: string;
+  timing?: {
+    requestStartTime: number;
+    responseReceivedTime: number;
+    totalLatencyMs: number;
+    audioSizeBytes: number;
+    textLength: number;
+    timestamp: string;
+  };
 }
 
 export interface VoiceRecordingState {
@@ -99,6 +107,17 @@ class WhisperService {
    * Transcribe audio blob using OpenAI Whisper
    */
   async transcribeAudio(audioBlob: Blob): Promise<WhisperResponse> {
+    const timing = {
+      requestStartTime: performance.now(),
+      responseReceivedTime: 0,
+      totalLatencyMs: 0,
+      audioSizeBytes: audioBlob.size,
+      textLength: 0,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(`[Whisper] 🎙️ Starting transcription - Audio: ${(audioBlob.size / 1024).toFixed(2)} KB`);
+
     try {
       console.log('[Whisper] Starting transcription...');
 
@@ -117,6 +136,11 @@ class WhisperService {
         body: formData,
       });
 
+      timing.responseReceivedTime = performance.now();
+      timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
+
+      console.log(`[Whisper] ⚡ OpenAI Whisper response received in ${timing.totalLatencyMs.toFixed(2)}ms`);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('[Whisper] API error:', errorData);
@@ -130,18 +154,31 @@ class WhisperService {
         throw new Error('No text transcribed from audio');
       }
 
-      console.log('[Whisper] Transcription successful:', transcribedText);
+      timing.textLength = transcribedText.length;
+
+      console.log(`[Whisper] 📝 Transcription successful: "${transcribedText}" (${timing.textLength} chars)`);
+      console.log(`[Whisper] 📊 Whisper Performance:`, {
+        latency: `${timing.totalLatencyMs.toFixed(2)}ms`,
+        audioSize: `${(timing.audioSizeBytes / 1024).toFixed(2)}KB`,
+        textLength: `${timing.textLength} chars`,
+        throughput: `${(timing.textLength / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`
+      });
 
       return {
         success: true,
         text: transcribedText,
+        timing,
       };
 
     } catch (error) {
+      timing.responseReceivedTime = timing.responseReceivedTime || performance.now();
+      timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
+
       console.error('[Whisper] Transcription failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown transcription error',
+        timing,
       };
     }
   }
