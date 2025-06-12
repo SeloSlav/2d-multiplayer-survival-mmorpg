@@ -1,5 +1,6 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table};
 use log;
+use rand::Rng;
 
 // Import table traits needed for database access
 use crate::player as PlayerTableTrait;
@@ -830,9 +831,9 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.2; // 20% tolerance
-const MAX_TELEPORT_DISTANCE: f32 = 200.0; // Max distance per update to prevent teleporting
-const POSITION_UPDATE_TIMEOUT_MS: u64 = 5000; // 5 second timeout for position updates
+const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.5; // Increased tolerance from 1.2 to 1.5
+const MAX_TELEPORT_DISTANCE: f32 = 300.0; // Increased from 200.0 to reduce false positives
+const POSITION_UPDATE_TIMEOUT_MS: u64 = 10000; // Increased from 5000 to 10000ms for better latency tolerance
 
 /// Simple timestamped position update from client
 /// This replaces complex prediction with simple client-authoritative movement
@@ -868,30 +869,31 @@ pub fn update_player_position_simple(
         return Err("Position out of world bounds".to_string());
     }
 
-    // 3. Check for teleporting (distance-based validation)
+    // 3. Check for teleporting (distance-based validation) - More lenient
     let distance_moved = ((new_x - current_player.position_x).powi(2) + 
                          (new_y - current_player.position_y).powi(2)).sqrt();
     
     if distance_moved > MAX_TELEPORT_DISTANCE {
-        log::warn!("Player {:?} teleport detected: moved {:.1}px in one update", sender_id, distance_moved);
+        log::warn!("Player {:?} teleport detected: moved {:.1}px in one update (max: {})", sender_id, distance_moved, MAX_TELEPORT_DISTANCE);
         return Err("Movement too large, possible teleport".to_string());
     }
 
-    // 4. Speed hack detection (basic)
+    // 4. Speed hack detection (more lenient)
     let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
     let last_update_ms = (current_player.last_update.to_micros_since_unix_epoch() / 1000) as u64;
     let time_diff_ms = now_ms.saturating_sub(last_update_ms);
     
-    if time_diff_ms > 0 && distance_moved > 0.0 {
+    // Only check speed if there's been enough time between updates to get accurate measurements
+    if time_diff_ms > 20 && distance_moved > 10.0 { // Minimum thresholds for accurate speed calculation
         let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
         if speed_px_per_sec > MAX_MOVEMENT_SPEED {
-            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1})", 
-                      sender_id, speed_px_per_sec, MAX_MOVEMENT_SPEED);
+            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}) over {}ms", 
+                      sender_id, speed_px_per_sec, MAX_MOVEMENT_SPEED, time_diff_ms);
             return Err("Movement speed too high".to_string());
         }
     }
 
-    // 5. Check timestamp age (prevent replay attacks)
+    // 5. Check timestamp age (prevent replay attacks) - More lenient
     if now_ms.saturating_sub(client_timestamp_ms) > POSITION_UPDATE_TIMEOUT_MS {
         log::warn!("Player {:?} position update too old: {}ms", sender_id, now_ms.saturating_sub(client_timestamp_ms));
         return Err("Position update too old".to_string());
@@ -917,13 +919,14 @@ pub fn update_player_position_simple(
     current_player.direction = facing_direction; // Accept client-provided direction
     current_player.last_update = ctx.timestamp;
 
-    // Note: Player table doesn't have chunk field - chunk optimization can be added later if needed
-
     players.identity().update(current_player);
 
-    log::trace!("Player {:?} position accepted: ({:.1}, {:.1}) speed: {:.1}px/s", 
-               sender_id, final_x, final_y, 
-               if time_diff_ms > 0 { (distance_moved * 1000.0) / time_diff_ms as f32 } else { 0.0 });
+    // Only log successful updates occasionally to reduce spam
+    if ctx.rng().gen_bool(0.01) { // 1% chance to log
+        log::trace!("Player {:?} position accepted: ({:.1}, {:.1}) speed: {:.1}px/s", 
+                   sender_id, final_x, final_y, 
+                   if time_diff_ms > 0 { (distance_moved * 1000.0) / time_diff_ms as f32 } else { 0.0 });
+    }
 
     Ok(())
 }

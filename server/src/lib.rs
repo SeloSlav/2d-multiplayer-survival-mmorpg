@@ -173,8 +173,8 @@ use crate::campfire::{Campfire, WARMTH_RADIUS_SQUARED, WARMTH_PER_SECOND, CAMPFI
 // --- Global Constants ---
 pub const TILE_SIZE_PX: u32 = 48;
 pub const PLAYER_RADIUS: f32 = 32.0; // Player collision radius
-pub const PLAYER_SPEED: f32 = 1200.0; // Speed in pixels per second
-pub const PLAYER_SPRINT_MULTIPLIER: f32 = 1.5;
+pub const PLAYER_SPEED: f32 = 400.0; // Speed in pixels per second - balanced for 60s world traversal
+pub const PLAYER_SPRINT_MULTIPLIER: f32 = 2.0; // 2x speed for sprinting (800 px/s)
 
 // ADD: Crouching reduces collision radius by half
 pub const CROUCHING_RADIUS_MULTIPLIER: f32 = 0.5;

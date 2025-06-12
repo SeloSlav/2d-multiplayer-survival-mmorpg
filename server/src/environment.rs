@@ -444,15 +444,15 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 || grasses.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Clouds: {}, Grass: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count(), grasses.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Clouds: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds, grass)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -481,9 +481,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
-    // Grass seeding parameters (using constants from grass.rs)
-    let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
-    let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
+    // Grass seeding parameters (using constants from grass.rs) - COMMENTED OUT
+    // let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
+    // let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
 
     // --- NEW: Region parameters for grass types ---
     const GRASS_REGION_SIZE_CHUNKS: u32 = 10; // Each region is 10x10 chunks
@@ -502,7 +502,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
-    log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts);
+    // log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts); // COMMENTED OUT
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -517,7 +517,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_grass_positions = Vec::<(f32, f32)>::new();
+    // let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // COMMENTED OUT
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -535,8 +535,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut pumpkin_attempts = 0;
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
-    let mut spawned_grass_count = 0;
-    let mut grass_attempts = 0;
+    // let mut spawned_grass_count = 0; // COMMENTED OUT
+    // let mut grass_attempts = 0; // COMMENTED OUT
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -886,7 +886,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_hemp_count, target_hemp_count, hemp_attempts
     );
 
-    // --- Seed Grass --- (New Section)
+    // --- Seed Grass --- (New Section) - COMMENTED OUT
+    /*
     log::info!("Seeding Grass...");
     let (grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::grass::GRASS_SPAWN_WORLD_MARGIN_TILES);
@@ -1016,7 +1017,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         "Finished seeding {} grass patches (target: {}, attempts: {}).",
         spawned_grass_count, target_grass_count, grass_attempts
     );
-    // --- End Seed Grass ---
+    */
+    // --- End Seed Grass --- (COMMENTED OUT)
 
     // --- Seed Clouds ---
     log::info!("Seeding Clouds...");

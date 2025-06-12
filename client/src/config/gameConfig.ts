@@ -39,9 +39,9 @@ export const gameConfig = {
   get worldHeightPx() { return this.worldHeightTiles * this.tileSize; },
 
   // Player Movement
-  playerSpeed: 1200.0,
-  sprintMultiplier: 1.5,
-  crouchMultiplier: 0.5, // Speed reduction when crouching
+  playerSpeed: 400.0, // Balanced for 60s world traversal (24,000px / 400px/s = 60s)
+  sprintMultiplier: 2.0, // 2x speed for sprinting (800 px/s)
+  crouchMultiplier: 0.5, // Half speed when crouching (200 px/s)
   waterSpeedPenalty: 0.5, // Speed reduction in water
 
   // Jumping Mechanics

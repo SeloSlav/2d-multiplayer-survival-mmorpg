@@ -96,7 +96,7 @@ export const useMovementInput = ({
   // Get player actions for jump, dodge roll, etc.
   const { jump } = usePlayerActions();
 
-  // Enhanced key processing with restored auto-walking logic + performance monitoring
+  // Enhanced key processing with performance monitoring and stable movement
   const processKeys = useCallback(() => {
     const processStartTime = performance.now();
     
@@ -117,43 +117,43 @@ export const useMovementInput = ({
       let x = 0, y = 0;
       const sprinting = keysPressed.current.has('ShiftLeft') || keysPressed.current.has('ShiftRight');
 
-      // Simple manual movement
+      // Simple manual movement with normalized precision
       if (keysPressed.current.has('KeyW') || keysPressed.current.has('ArrowUp')) y -= 1;
       if (keysPressed.current.has('KeyS') || keysPressed.current.has('ArrowDown')) y += 1;
       if (keysPressed.current.has('KeyA') || keysPressed.current.has('ArrowLeft')) x -= 1;
       if (keysPressed.current.has('KeyD') || keysPressed.current.has('ArrowRight')) x += 1;
 
-      // Normalize diagonal movement - keeping the new method
+      // Normalize diagonal movement for consistent speed
       if (x !== 0 && y !== 0) {
         const magnitude = Math.sqrt(x * x + y * y);
-        x /= magnitude;
-        y /= magnitude;
+        x = Number((x / magnitude).toFixed(3)); // Limit precision to reduce floating point noise
+        y = Number((y / magnitude).toFixed(3));
       }
 
-      // RESTORED: Only update state if values changed + performance check
-      const newState = { direction: { x, y }, sprinting };
+      // Create new state with rounded values to prevent micro-jitter
+      const newState = { 
+        direction: { 
+          x: Math.abs(x) < 0.001 ? 0 : x, 
+          y: Math.abs(y) < 0.001 ? 0 : y 
+        }, 
+        sprinting 
+      };
       const lastState = lastComputedStateRef.current;
       
       // More robust state change detection with tolerance for floating point precision
-      const hasStateChanged = Math.abs(newState.direction.x - lastState.direction.x) > 0.001 || 
-                             Math.abs(newState.direction.y - lastState.direction.y) > 0.001 || 
+      const hasStateChanged = Math.abs(newState.direction.x - lastState.direction.x) > 0.01 || 
+                             Math.abs(newState.direction.y - lastState.direction.y) > 0.01 || 
                              newState.sprinting !== lastState.sprinting;
       
       if (hasStateChanged) {
         lastComputedStateRef.current = newState;
         setInputState(newState);
-        
-        // DEBUG: Log significant movement changes
-        if (Math.abs(newState.direction.x) < 0.001 && Math.abs(newState.direction.y) < 0.001 && 
-            (Math.abs(lastState.direction.x) > 0.001 || Math.abs(lastState.direction.y) > 0.001)) {
-          // console.log(`🛑 [MovementInput] Movement stopped - direction: (${x.toFixed(3)}, ${y.toFixed(3)})`);
-        }
       } else {
         inputMonitor.logSkippedInput('No state change');
       }
 
     } catch (error) {
-      // console.error(`❌ [MovementInput] Error in processKeys:`, error);
+      console.error(`❌ [MovementInput] Error in processKeys:`, error);
     } finally {
       isProcessingInput.current = false;
       const processTime = performance.now() - processStartTime;
@@ -161,10 +161,10 @@ export const useMovementInput = ({
     }
   }, [isUIFocused]);
 
-  // Throttled key processing - keeping the new performance optimization
+  // More aggressive throttling to reduce CPU usage and conflicts
   const throttledProcessKeys = useCallback(() => {
     const now = performance.now();
-    if (now - lastInputTime.current < 16) { // ~60fps throttle
+    if (now - lastInputTime.current < 20) { // Reduced from 16ms to 20ms (~50fps throttle)
       inputMonitor.logSkippedInput('Throttled input');
       return;
     }

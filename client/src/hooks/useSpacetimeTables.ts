@@ -996,9 +996,9 @@ export const useSpacetimeTables = ({
             connection.db.cloud.onDelete(handleCloudDelete);
 
             // Register Grass callbacks - DISABLED for performance
-            connection.db.grass.onInsert(handleGrassInsert);
-            connection.db.grass.onUpdate(handleGrassUpdate);
-            connection.db.grass.onDelete(handleGrassDelete);
+            // connection.db.grass.onInsert(handleGrassInsert);
+            // connection.db.grass.onUpdate(handleGrassUpdate);
+            // connection.db.grass.onDelete(handleGrassDelete);
 
             // Register KnockedOutStatus callbacks
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);

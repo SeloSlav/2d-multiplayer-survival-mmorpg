@@ -140,7 +140,7 @@ interface GameCanvasProps {
   showAutotileDebug: boolean;
   minimapCache: any; // Add this for minimapCache
   isGameMenuOpen: boolean; // Add this prop
-  onAutoActionStatesChange?: (isAutoAttacking: boolean, isAutoWalking: boolean) => void;
+  onAutoActionStatesChange?: (isAutoAttacking: boolean) => void;
 }
 
 /**
@@ -313,7 +313,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isActivelyHolding,
     currentJumpOffsetY,
     isAutoAttacking,
-    isAutoWalking,
     isCrouching: localPlayerIsCrouching,
     processInputsAndActions,
   } = useInputHandler({
@@ -494,9 +493,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Notify parent component of auto-action state changes
   useEffect(() => {
     if (onAutoActionStatesChange) {
-      onAutoActionStatesChange(isAutoAttacking, isAutoWalking);
+      onAutoActionStatesChange(isAutoAttacking);
     }
-  }, [isAutoAttacking, isAutoWalking, onAutoActionStatesChange]);
+  }, [isAutoAttacking, onAutoActionStatesChange]);
 
   // Use the particle hooks - they now run independently
   const campfireParticles = useCampfireParticles({

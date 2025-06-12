@@ -59,7 +59,6 @@ export interface InputHandlerState {
     isActivelyHolding: boolean;
     currentJumpOffsetY: number; // <<< ADDED
     isAutoAttacking: boolean; // Auto-attack state
-    isAutoWalking: boolean; // Auto-walk state
     isCrouching: boolean; // Local crouch state for immediate visual feedback
     // Function to be called each frame by the game loop
     processInputsAndActions: () => void;
@@ -83,7 +82,7 @@ const getDirectionVector = (direction: string): { dx: number; dy: number } => {
         case 'up_right': return { dx: 1, dy: -1 };
         case 'down_left': return { dx: -1, dy: 1 };
         case 'down_right': return { dx: 1, dy: 1 };
-        default: 
+        default:
             console.warn('[getDirectionVector] Unknown direction:', direction, 'defaulting to down');
             return { dx: 0, dy: 1 }; // Default to down
     }
@@ -132,11 +131,8 @@ export const useInputHandler = ({
 
     // --- Internal State and Refs ---
     const [isAutoAttacking, setIsAutoAttacking] = useState(false);
-    const [isAutoWalking, setIsAutoWalking] = useState(false);
     const [isCrouching, setIsCrouching] = useState(false);
-    
-    // Ref to track auto-walk state for event handlers (to avoid stale closure issues)
-    const isAutoWalkingRef = useRef(false);
+
     const keysPressed = useRef<Set<string>>(new Set());
     const isEHeldDownRef = useRef<boolean>(false);
     const isMouseDownRef = useRef<boolean>(false);
@@ -149,15 +145,7 @@ export const useInputHandler = ({
     // Use ref for jump offset to avoid re-renders every frame
     const currentJumpOffsetYRef = useRef<number>(0);
 
-    // Auto-walk direction tracking
-    const autoWalkDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
-    const lastValidDirectionTimeRef = useRef<number>(Date.now());
     const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 });
-
-    // Keep the ref in sync with the state
-    useEffect(() => {
-        isAutoWalkingRef.current = isAutoWalking;
-    }, [isAutoWalking]);
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -187,7 +175,7 @@ export const useInputHandler = ({
 
     // Add after existing refs in the hook
     const isRightMouseDownRef = useRef<boolean>(false);
-    
+
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
 
@@ -198,21 +186,18 @@ export const useInputHandler = ({
 
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && isEHeldDownRef.current) {
-             // console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
-             isEHeldDownRef.current = false;
-             if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-             eKeyHoldTimerRef.current = null;
-             setInteractionProgress(null);
-             setIsActivelyHolding(false);
+            // console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
+            isEHeldDownRef.current = false;
+            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
+            eKeyHoldTimerRef.current = null;
+            setInteractionProgress(null);
+            setIsActivelyHolding(false);
         }
         // Also clear auto-attack state if player dies
         if (localPlayer?.isDead && isAutoAttacking) {
             setIsAutoAttacking(false);
         }
-        // Also clear auto-walk state if player dies
-        if (localPlayer?.isDead && isAutoWalking) {
-            setIsAutoWalking(false);
-        }
+        // Auto-walk removed - movement handled by usePredictedMovement
     }, [localPlayer?.isDead]); // Depend on death state and the reducer callback
 
     // Update refs when props change
@@ -236,14 +221,14 @@ export const useInputHandler = ({
             knockedOutPlayer: closestInteractableKnockedOutPlayerId, // Added for knocked out player
         };
     }, [
-        closestInteractableMushroomId, 
+        closestInteractableMushroomId,
         closestInteractableCornId,
         closestInteractablePotatoId,
         closestInteractablePumpkinId,
         closestInteractableHempId,
-        closestInteractableCampfireId, 
-        closestInteractableDroppedItemId, 
-        closestInteractableBoxId, 
+        closestInteractableCampfireId,
+        closestInteractableDroppedItemId,
+        closestInteractableBoxId,
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
         closestInteractableStashId, // Changed from bigint to number for Stash ID
@@ -271,10 +256,10 @@ export const useInputHandler = ({
                 // Re-check if we are still close to the original target.
                 const stillClosest = closestIdsRef.current;
                 // console.log(`[E-Timer] stillClosest check:`, stillClosest);
-                
+
                 let actionTaken = false;
-                
-                switch(holdTarget.targetType) {
+
+                switch (holdTarget.targetType) {
                     case 'knocked_out_player':
                         if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
                             // console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
@@ -331,10 +316,10 @@ export const useInputHandler = ({
                 eKeyHoldTimerRef.current = null;
             }
         }, duration);
-        
+
         eKeyHoldTimerRef.current = timerId;
         // console.log(`[E-Timer] Timer assigned to ref. Timer ID:`, timerId);
-        
+
         // Debug: Check if timer ref gets cleared unexpectedly
         setTimeout(() => {
             if (eKeyHoldTimerRef.current === null) {
@@ -345,7 +330,7 @@ export const useInputHandler = ({
                 // console.log(`[E-Timer] Timer ${timerId} ref still valid at 100ms checkpoint`);
             }
         }, 100);
-    }, []); 
+    }, []);
 
     const clearHoldTimer = useCallback(() => {
         if (eKeyHoldTimerRef.current) {
@@ -358,7 +343,7 @@ export const useInputHandler = ({
     // --- Attempt Swing Function (extracted from canvas click logic) ---
     const attemptSwing = useCallback(() => {
         if (!connectionRef.current?.reducers || !localPlayerId) return;
-        
+
         const localEquipment = activeEquipmentsRef.current?.get(localPlayerId);
         const itemDef = itemDefinitionsRef.current?.get(String(localEquipment?.equippedItemDefId));
 
@@ -371,15 +356,15 @@ export const useInputHandler = ({
                 connectionRef.current.reducers.useEquippedItem();
                 lastClientSwingAttemptRef.current = nowUnarmed;
                 lastServerSwingTimestampRef.current = nowUnarmed;
-            } catch (err) { 
-                console.error("[attemptSwing Unarmed] Error calling useEquippedItem reducer:", err); 
+            } catch (err) {
+                console.error("[attemptSwing Unarmed] Error calling useEquippedItem reducer:", err);
             }
         } else {
             // Armed (melee/tool)
             if (!itemDef) return;
             if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
                 // Ranged/Bandage/Selo Olive Oil should not be triggered by swing
-                return; 
+                return;
             }
             const now = Date.now();
             const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
@@ -390,41 +375,11 @@ export const useInputHandler = ({
                 connectionRef.current.reducers.useEquippedItem();
                 lastClientSwingAttemptRef.current = now;
                 lastServerSwingTimestampRef.current = now;
-            } catch (err) { 
-                console.error("[attemptSwing Armed] Error calling useEquippedItem reducer:", err); 
+            } catch (err) {
+                console.error("[attemptSwing Armed] Error calling useEquippedItem reducer:", err);
             }
         }
     }, [localPlayerId]);
-
-    // Helper function to update auto-walk direction based on currently pressed keys
-    const updateAutoWalkDirection = () => {
-        if (!isAutoWalking) return;
-        
-        console.log('[Auto-Walk Update] Current pressed keys:', Array.from(keysPressed.current));
-        
-        const newDirection = {
-            dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
-            dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
-        };
-        
-        console.log('[Auto-Walk Update] Calculated new direction:', newDirection);
-        console.log('[Auto-Walk Update] Previous autoWalkDirectionRef:', autoWalkDirectionRef.current);
-        
-        if (newDirection.dx !== 0 || newDirection.dy !== 0) {
-            console.log('[Auto-Walk Update] *** UPDATING DIRECTION ***:', newDirection);
-            autoWalkDirectionRef.current = { ...newDirection };
-            lastValidDirectionTimeRef.current = Date.now(); // Update timestamp when we have a valid direction
-        } else {
-            // If no movement keys are pressed, keep the current direction to prevent stopping auto-walk
-            console.log('[Auto-Walk Update] No movement keys pressed, keeping current direction:', autoWalkDirectionRef.current);
-            // DON'T update the direction - keep the existing one to maintain auto-walk
-            // Don't update the timestamp either - let the move function handle timeout
-        }
-        
-        console.log('[Auto-Walk Update] Final autoWalkDirectionRef:', autoWalkDirectionRef.current);
-    };
 
     // --- Input Event Handlers ---
     useEffect(() => {
@@ -441,7 +396,7 @@ export const useInputHandler = ({
             if ((isInventoryOpen || isMinimapOpen) && !allowedKeysInUI.includes(key)) {
                 return;
             }
-            
+
             // Handle toggles first, as they should work even if other conditions fail
             if (!event.repeat) {
                 switch (key) {
@@ -449,60 +404,10 @@ export const useInputHandler = ({
                         setIsAutoAttacking(prev => {
                             const newState = !prev;
                             if (newState) {
-                                setIsAutoWalking(false); // Stop walking if starting to attack
                                 // Trigger immediate swing when enabling auto-attack
                                 setTimeout(() => attemptSwing(), 0);
                             }
                             return newState;
-                        });
-                        return; // Handled
-                    case 'q':
-                        setIsAutoWalking(prev => {
-                            if (prev) {
-                                // Currently auto-walking, stop it
-                                // console.log('[Auto-Walk] Q pressed - stopping auto-walk');
-                                return false;
-                            } else {
-                                // Start auto-walking - use most recent movement input if available, otherwise server direction
-                                let directionVector;
-                                let directionSource;
-                                
-                                // Check if there's recent movement input (within last 1000ms)
-                                const timeSinceLastMovement = Date.now() - lastValidDirectionTimeRef.current;
-                                const hasRecentMovement = timeSinceLastMovement < 1000;
-                                
-                                // Check current movement input
-                                const currentMovementInput = {
-                                    dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                                        (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
-                                    dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                                        (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
-                                };
-                                
-                                if (currentMovementInput.dx !== 0 || currentMovementInput.dy !== 0) {
-                                    // Use current active movement input
-                                    directionVector = currentMovementInput;
-                                    directionSource = 'current input';
-                                } else if (hasRecentMovement && (lastMovementDirectionRef.current.dx !== 0 || lastMovementDirectionRef.current.dy !== 0)) {
-                                    // Use recent movement direction
-                                    directionVector = lastMovementDirectionRef.current;
-                                    directionSource = 'recent movement';
-                                } else {
-                                    // Fall back to server direction
-                                    const serverDirection = localPlayer?.direction || 'down';
-                                    directionVector = getDirectionVector(serverDirection);
-                                    directionSource = `server direction (${serverDirection})`;
-                                }
-                                
-                                // console.log('[Auto-Walk] Q pressed - using', directionSource, ':', directionVector);
-                                // console.log('[Auto-Walk] Q pressed - setting autoWalkDirectionRef to:', directionVector);
-                                
-                                // Stop auto-attack if it's active
-                                setIsAutoAttacking(false);
-                                // Set the auto-walk direction
-                                autoWalkDirectionRef.current = { ...directionVector };
-                                return true;
-                            }
                         });
                         return; // Handled
                     case 'c':
@@ -524,8 +429,6 @@ export const useInputHandler = ({
                 return;
             }
 
-
-
             // Movement keys are now handled by useMovementInput hook
             // Only handle non-movement keys here to avoid conflicts
 
@@ -535,55 +438,30 @@ export const useInputHandler = ({
                 if (isGameMenuOpen) {
                     return; // Let menus handle spacebar for scrolling
                 }
-                
+
                 // Don't trigger actions when in menu components (to prevent interfering with scrolling)
                 const target = event.target as Element;
                 if (target) {
-                    const isInMenu = target.closest('[data-scrollable-region]') || 
-                                    target.closest('.menuContainer') ||
-                                    target.closest('[style*="zIndex: 2000"]') ||
-                                    target.closest('[style*="z-index: 2000"]') ||
-                                    document.querySelector('[style*="zIndex: 2000"]') ||
-                                    document.querySelector('[style*="z-index: 2000"]');
+                    const isInMenu = target.closest('[data-scrollable-region]') ||
+                        target.closest('.menuContainer') ||
+                        target.closest('[style*="zIndex: 2000"]') ||
+                        target.closest('[style*="z-index: 2000"]') ||
+                        document.querySelector('[style*="zIndex: 2000"]') ||
+                        document.querySelector('[style*="z-index: 2000"]');
                     if (isInMenu) {
                         return; // Let the menu handle spacebar for scrolling
                     }
                 }
-                
-                const currentConnection = connectionRef.current;
-                const currentLocalPlayer = localPlayerRef.current;
-                
-                if (currentConnection?.reducers && currentLocalPlayer && !currentLocalPlayer.isDead) {
+
+                if (localPlayerRef.current && !localPlayerRef.current.isDead) {
+                    event.preventDefault(); // Prevent spacebar from scrolling the page
+                    
                     try {
-                        // Check if any movement keys are currently pressed
-                        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                                  (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-                        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                                  (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
-                        
-                        const hasMovementInput = dx !== 0 || dy !== 0;
-                        const hasAutoWalk = isAutoWalking;
-                        
-                        if (hasMovementInput || hasAutoWalk) {
-                            // Movement keys pressed OR auto-walking = DODGE ROLL
-                            let finalDx = dx;
-                            let finalDy = dy;
-                            
-                            if (dx === 0 && dy === 0 && hasAutoWalk) {
-                                // Use auto-walk direction if no movement keys are pressed but auto-walking
-                                finalDx = autoWalkDirectionRef.current.dx;
-                                finalDy = autoWalkDirectionRef.current.dy;
-                            }
-                            
-                            currentConnection.reducers.dodgeRoll(finalDx, finalDy);
-                            console.log('[Input] Dodge roll triggered - movement input or auto-walk detected');
-                        } else {
-                            // No movement input and not auto-walking = JUMP
-                            currentConnection.reducers.jump();
-                            console.log('[Input] Jump triggered - standing still');
-                        }
+                        // Space always triggers jump - dodge roll is handled by movement system
+                        jump();
+                        console.log('[Input] Jump triggered');
                     } catch (err) {
-                        console.error("[InputHandler] Error calling spacebar action:", err);
+                        console.error("[InputHandler] Error calling jump:", err);
                     }
                 }
             }
@@ -600,7 +478,7 @@ export const useInputHandler = ({
 
                 // Set up a timer for ANY potential hold action.
                 // The keyUp handler will decide if it was a tap or a hold.
-                
+
                 // Determine the highest priority holdable target
                 let holdTarget: InteractionProgressState | null = null;
                 if (closest.knockedOutPlayer) {
@@ -617,7 +495,7 @@ export const useInputHandler = ({
                     console.log('[E-Hold START]', { holdTarget });
                     setInteractionProgress(holdTarget);
                     setIsActivelyHolding(true);
-                    
+
                     startHoldTimer(holdTarget, currentConnection);
                 }
             }
@@ -633,7 +511,7 @@ export const useInputHandler = ({
             if (key === 'e') {
                 if (isEHeldDownRef.current) { // Check if E was being held for an interaction
                     const holdDuration = Date.now() - eKeyDownTimestampRef.current;
-                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash; 
+                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash;
                     const RETAINED_CLOSEST_CORPSE_ID = closestIdsRef.current.corpse;
                     const RETAINED_CLOSEST_BOX_ID = closestIdsRef.current.box;
                     const RETAINED_CLOSEST_CAMPFIRE_ID = closestIdsRef.current.campfire;
@@ -661,10 +539,10 @@ export const useInputHandler = ({
 
                     // Check if it was a TAP or HOLD based on duration
                     const expectedDuration = RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
-                    
+
                     console.log('[E-KeyUp] Processing hold/tap decision:', {
                         holdDuration,
-                        expectedDuration, 
+                        expectedDuration,
                         wasLongEnough: holdDuration >= expectedDuration,
                         hasClosestIds: {
                             campfire: RETAINED_CLOSEST_CAMPFIRE_ID,
@@ -674,7 +552,7 @@ export const useInputHandler = ({
                             knockedOut: RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID
                         }
                     });
-                    
+
                     if (holdDuration >= expectedDuration) {
                         // This was a HOLD that completed naturally - actions should have been handled by timer
                         console.log('[E-KeyUp] HOLD completed naturally - timer should have handled action');
@@ -682,7 +560,7 @@ export const useInputHandler = ({
                         // This was a TAP (or early release) - handle tap interactions
                         console.log('[E-KeyUp] Processing as TAP interaction');
                         let tapActionTaken = false;
-                        
+
                         // Get the retained closest IDs for harvesting/pickup
                         const RETAINED_CLOSEST_MUSHROOM_ID = closestIdsRef.current.mushroom;
                         const RETAINED_CLOSEST_CORN_ID = closestIdsRef.current.corn;
@@ -690,7 +568,7 @@ export const useInputHandler = ({
                         const RETAINED_CLOSEST_PUMPKIN_ID = closestIdsRef.current.pumpkin;
                         const RETAINED_CLOSEST_HEMP_ID = closestIdsRef.current.hemp;
                         const RETAINED_CLOSEST_DROPPED_ITEM_ID = closestIdsRef.current.droppedItem;
-                        
+
                         // Handle harvest/pickup actions FIRST (these are the main tap actions)
                         if (connectionRef.current?.reducers) {
                             if (RETAINED_CLOSEST_MUSHROOM_ID !== null) {
@@ -739,7 +617,7 @@ export const useInputHandler = ({
                         } else {
                             console.warn('[E-Tap ACTION] No connection/reducers available for tap actions');
                         }
-                        
+
                         console.log('[E-KeyUp] TAP processing complete. Action taken:', tapActionTaken);
                     }
                 }
@@ -749,9 +627,9 @@ export const useInputHandler = ({
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
             if (isPlayerDead) return;
-            if (event.target !== canvasRef?.current) return; 
-            if (isInventoryOpen) return; 
-            if (isActivelyHolding) return; 
+            if (event.target !== canvasRef?.current) return;
+            if (isInventoryOpen) return;
+            if (isActivelyHolding) return;
 
             if (event.button === 0) { // Left Click
                 // Normal left click logic for attacks, interactions, etc.
@@ -760,19 +638,19 @@ export const useInputHandler = ({
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
                 // console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
-                if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
-                    const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
-                   //  console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item Def (raw object): ", equippedItemDef);
-                    
-                    if (equippedItemDef) { 
+                if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
+                    const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
+                    //  console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item Def (raw object): ", equippedItemDef);
+
+                    if (equippedItemDef) {
                         // console.log("[InputHandler DEBUG MOUSEDOWN] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
-                        
+
                         // 1. Ranged Weapon Firing
-                        if (equippedItemDef.category?.tag === "RangedWeapon") { 
+                        if (equippedItemDef.category?.tag === "RangedWeapon") {
                             if (localPlayerActiveEquipment.isReadyToFire) {
                                 if (connectionRef.current?.reducers && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                                     // console.log("[InputHandler MOUSEDOWN] Ranged weapon loaded. Firing!");
-                                    connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y); 
+                                    connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                                 } else {
                                     console.warn("[InputHandler MOUSEDOWN] Cannot fire ranged weapon: No connection/reducers or invalid mouse position.");
                                 }
@@ -789,12 +667,12 @@ export const useInputHandler = ({
                         // 3. Bandage: Prevent left-click swing (already handled by right-click)
                         else if (equippedItemDef.name === "Bandage") {
                             // console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
-                            return; 
+                            return;
                         }
                         // 4. Selo Olive Oil: Prevent left-click swing (only right-click allowed)
                         else if (equippedItemDef.name === "Selo Olive Oil") {
                             // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
-                            return; 
+                            return;
                         }
                         // If none of the above special cases, fall through to default item use (melee/tool)
                     } else {
@@ -812,15 +690,15 @@ export const useInputHandler = ({
                         // ignore for now
                     }
                 } else {
-                     // console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
+                    // console.warn("[InputHandler MOUSEDOWN] Cannot use item: No localPlayerId or connection/reducers.");
                 }
             } else if (event.button === 2) { // Right Click
                 if (isPlayerDead) return;
-                if (isInventoryOpen) return; 
-                
+                if (isInventoryOpen) return;
+
                 // console.log("[InputHandler] Right mouse button pressed");
                 isRightMouseDownRef.current = true;
-                
+
                 // Normal right-click logic for context menu, etc.
             }
         };
@@ -837,16 +715,16 @@ export const useInputHandler = ({
         // --- Canvas Click for Placement ---
         const handleCanvasClick = (event: MouseEvent) => {
             if (isPlayerDead) return;
-            
+
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 const localPlayerPosition = localPlayerRef.current;
-                const isTooFar = localPlayerPosition 
+                const isTooFar = localPlayerPosition
                     ? isPlacementTooFar(placementInfo, localPlayerPosition.positionX, localPlayerPosition.positionY, worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y)
                     : false;
                 placementActionsRef.current?.attemptPlacement(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y, isTooFar);
-                return; 
+                return;
             }
-            if (isInventoryOpen) return; 
+            if (isInventoryOpen) return;
             if (isActivelyHolding) return;
             if (event.target !== canvasRef?.current) return;
 
@@ -855,13 +733,13 @@ export const useInputHandler = ({
                 const localEquipment = activeEquipmentsRef.current.get(localPlayerId);
                 if (localEquipment?.equippedItemDefId) {
                     const itemDef = itemDefinitionsRef.current.get(String(localEquipment.equippedItemDefId));
-                    
+
                     if (itemDef && (itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon)) {
                         try {
                             connectionRef.current.reducers.fireProjectile(worldMousePosRefInternal.current.x, worldMousePosRefInternal.current.y);
                             lastClientSwingAttemptRef.current = Date.now();
-                            lastServerSwingTimestampRef.current = Date.now(); 
-                            return; 
+                            lastServerSwingTimestampRef.current = Date.now();
+                            return;
                         } catch (err) {
                             console.error("[CanvasClick Ranged] Error calling fireProjectile reducer:", err);
                         }
@@ -891,7 +769,7 @@ export const useInputHandler = ({
                 if (!itemDef) return;
                 if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil" || itemDef.name === "Hunting Bow" || itemDef.category === SpacetimeDB.ItemCategory.RangedWeapon) {
                     // Ranged/Bandage/Selo Olive Oil already handled or should not be triggered by this melee path
-                    return; 
+                    return;
                 }
                 const now = Date.now();
                 const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
@@ -909,28 +787,28 @@ export const useInputHandler = ({
         // --- Context Menu for Placement Cancellation ---
         const handleContextMenu = (event: MouseEvent) => {
             if (isPlayerDead) return;
-            if (isInventoryOpen) return; 
-            
+            if (isInventoryOpen) return;
+
             const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
             // console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
 
-            if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) { 
-                const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId)); 
+            if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
+                const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
                 // console.log("[InputHandler DEBUG CTXMENU] Equipped item Def (raw object): ", equippedItemDef);
 
                 if (equippedItemDef) { // <<< NULL CHECK ADDED
                     // console.log("[InputHandler DEBUG CTXMENU] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
-                    if (equippedItemDef.category?.tag === "RangedWeapon") { 
+                    if (equippedItemDef.category?.tag === "RangedWeapon") {
                         // console.log("[InputHandler CTXMENU] Ranged Weapon equipped. Attempting to load.");
-                        event.preventDefault(); 
+                        event.preventDefault();
                         if (connectionRef.current?.reducers) {
                             // console.log("[InputHandler CTXMENU] Calling loadRangedWeapon reducer.");
-                            connectionRef.current.reducers.loadRangedWeapon(); 
+                            connectionRef.current.reducers.loadRangedWeapon();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call loadRangedWeapon.");
                         }
-                        return; 
-                    } 
+                        return;
+                    }
                     else if (equippedItemDef.name === "Torch") {
                         // console.log("[InputHandler CTXMENU] Torch equipped. Attempting to toggle.");
                         event.preventDefault();
@@ -940,27 +818,27 @@ export const useInputHandler = ({
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call toggleTorch.");
                         }
-                        return; 
+                        return;
                     } else if (equippedItemDef.name === "Bandage") {
                         // console.log("[InputHandler CTXMENU] Bandage equipped. Attempting to use.");
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
                             // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Bandage.");
-                            connectionRef.current.reducers.useEquippedItem(); 
+                            connectionRef.current.reducers.useEquippedItem();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Bandage.");
                         }
-                        return; 
+                        return;
                     } else if (equippedItemDef.name === "Selo Olive Oil") {
                         // console.log("[InputHandler CTXMENU] Selo Olive Oil equipped. Attempting to use.");
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
                             // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Selo Olive Oil.");
-                            connectionRef.current.reducers.useEquippedItem(); 
+                            connectionRef.current.reducers.useEquippedItem();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Selo Olive Oil.");
                         }
-                        return; 
+                        return;
                     }
                     else {
                         // console.log("[InputHandler DEBUG CTXMENU] Equipped item is not Ranged, Torch, or Bandage. Proceeding to placement check.");
@@ -969,84 +847,71 @@ export const useInputHandler = ({
                     // console.log("[InputHandler DEBUG CTXMENU] Equipped item definition NOT FOUND for ID:", localPlayerActiveEquipment.equippedItemDefId);
                 }
             } else {
-                 // console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
+                // console.log("[InputHandler DEBUG CTXMENU] No active equipment or itemDefinitions for right-click logic.");
             }
 
             // Check if the equipped item is throwable and handle throwing
             if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
                 const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
-                
+
                 if (equippedItemDef && isItemThrowable(equippedItemDef)) {
                     console.log("[InputHandler] Right-click - attempting to throw item:", equippedItemDef.name);
                     event.preventDefault();
-                    
+
                     // Quick checks
                     if (!connectionRef.current?.reducers || !localPlayerId || isPlayerDead) {
                         console.log("[InputHandler] Right-click throw - basic requirements not met");
                         return;
                     }
-                    
+
                     const player = localPlayerRef.current;
                     if (!player) {
                         console.log("[InputHandler] Right-click throw - no local player found");
                         return;
                     }
-                    
+
                     // Determine throwing direction based on movement or facing direction
                     let throwingDirection = { dx: 0, dy: 1 }; // Default: facing down
-                    
+
                     // Check if player is currently moving
                     const isCurrentlyMoving = (
                         keysPressed.current.has('w') || keysPressed.current.has('arrowup') ||
                         keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ||
                         keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ||
-                        keysPressed.current.has('d') || keysPressed.current.has('arrowright') ||
-                        isAutoWalking
+                        keysPressed.current.has('d') || keysPressed.current.has('arrowright')
                     );
-                    
+
                     if (isCurrentlyMoving) {
                         // Use current movement direction
-                        if (isAutoWalking) {
-                            throwingDirection = autoWalkDirectionRef.current;
-                        } else {
-                            const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                                       (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-                            const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                                       (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
-                            
-                            if (dx !== 0 || dy !== 0) {
-                                throwingDirection = { dx, dy };
-                            }
+                        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
+                            (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
+                        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
+                            (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
+
+                        if (dx !== 0 || dy !== 0) {
+                            throwingDirection = { dx, dy };
                         }
                         console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
-                    } else {
-                        // Use last movement direction if available
-                        if (autoWalkDirectionRef.current.dx !== 0 || autoWalkDirectionRef.current.dy !== 0) {
-                            throwingDirection = autoWalkDirectionRef.current;
-                            console.log("[InputHandler] Right-click throw - using last movement direction:", throwingDirection);
-                        } else {
-                            console.log("[InputHandler] Right-click throw - using default direction (down):", throwingDirection);
-                        }
                     }
-                    
+
                     // Calculate target position based on direction and throwing distance
                     const THROWING_DISTANCE = 400.0;
                     const magnitude = Math.sqrt(throwingDirection.dx * throwingDirection.dx + throwingDirection.dy * throwingDirection.dy);
                     const normalizedDx = magnitude > 0 ? throwingDirection.dx / magnitude : 0;
                     const normalizedDy = magnitude > 0 ? throwingDirection.dy / magnitude : 1;
-                    
+
                     const targetX = player.positionX + (normalizedDx * THROWING_DISTANCE);
                     const targetY = player.positionY + (normalizedDy * THROWING_DISTANCE);
-                    
+
                     console.log("[InputHandler] Right-click - THROWING:", equippedItemDef.name, "from", player.positionX, player.positionY, "to", targetX, targetY, "direction:", throwingDirection);
-                    
+
                     try {
                         connectionRef.current.reducers.throwItem(targetX, targetY);
                         console.log("[InputHandler] Right-click throw - throwItem called successfully!");
                     } catch (err) {
                         console.error("[InputHandler] Right-click throw - Error throwing item:", err);
                     }
-                    
+
                     return; // Always return after handling throw
                 }
             }
@@ -1064,7 +929,7 @@ export const useInputHandler = ({
             if (isGameMenuOpen) {
                 return; // Let menus handle their own scrolling
             }
-            
+
             if (placementInfo) {
                 placementActionsRef.current?.cancelPlacement();
             }
@@ -1078,13 +943,11 @@ export const useInputHandler = ({
             isMouseDownRef.current = false;
             isRightMouseDownRef.current = false; // Reset right mouse state
             isEHeldDownRef.current = false;
-            if(eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
+            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
             eKeyHoldTimerRef.current = null;
             setInteractionProgress(null);
             // Clear auto-attack state when window loses focus
             setIsAutoAttacking(false);
-            // Clear auto-walk state when window loses focus
-            setIsAutoWalking(false);
         };
 
         // Add global listeners
@@ -1099,9 +962,9 @@ export const useInputHandler = ({
         // Add listener for canvas click (if canvas ref is passed in)
         const canvas = canvasRef?.current; // Get canvas element from ref
         if (canvas) {
-           // Attach the locally defined handler
-           canvas.addEventListener('click', handleCanvasClick);
-           // console.log("[useInputHandler] Added canvas click listener.");
+            // Attach the locally defined handler
+            canvas.addEventListener('click', handleCanvasClick);
+            // console.log("[useInputHandler] Added canvas click listener.");
         } else {
             // console.warn("[useInputHandler] Canvas ref not available on mount to add click listener.");
         }
@@ -1117,8 +980,8 @@ export const useInputHandler = ({
             window.removeEventListener('blur', handleBlur);
             // Remove canvas listener on cleanup
             if (canvas) {
-               canvas.removeEventListener('click', handleCanvasClick);
-               // console.log("[useInputHandler] Removed canvas click listener.");
+                canvas.removeEventListener('click', handleCanvasClick);
+                // console.log("[useInputHandler] Removed canvas click listener.");
             }
             // Don't clear timers on cleanup - they're short-lived (250ms) and self-cleaning
             // The cleanup was causing timers to be cleared when dependencies changed during hold
@@ -1130,68 +993,7 @@ export const useInputHandler = ({
         };
     }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
 
-    useEffect(() => {
-        if (!isAutoWalking || isChatting || isGameMenuOpen || !!isSearchingCraftRecipes) {
-            return;
-        }
-
-        const move = () => {
-            const player = localPlayerRef.current;
-            if (!player || !connectionRef.current?.reducers) return;
-
-            // Use LIVE movement input if any keys are pressed, otherwise use stored direction
-            const currentInput = {
-                dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                    (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
-                dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                    (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
-            };
-
-            // Use current input if available, otherwise use stored direction
-            let direction;
-            if (currentInput.dx !== 0 || currentInput.dy !== 0) {
-                // User is actively pressing movement keys - use that direction
-                direction = currentInput;
-                // Update stored direction to remember this for when keys are released
-                autoWalkDirectionRef.current = { ...currentInput };
-                // console.log('[Auto-Walk] Using live input and updating stored direction:', direction);
-            } else {
-                // No keys pressed - use the last direction we were moving
-                direction = autoWalkDirectionRef.current;
-                // console.log('[Auto-Walk] No input, using stored direction:', direction);
-            }
-            
-            // Only stop auto-walk if no direction for more than 500ms (longer timeout for better UX)
-            if (direction.dx === 0 && direction.dy === 0) {
-                const timeSinceLastValidDirection = Date.now() - lastValidDirectionTimeRef.current;
-                if (timeSinceLastValidDirection > 500) {
-                    // console.log('[Auto-Walk] No direction for', timeSinceLastValidDirection, 'ms, stopping auto-walk');
-                    setIsAutoWalking(false);
-                    return;
-                } else {
-                    // console.log('[Auto-Walk] No direction but only for', timeSinceLastValidDirection, 'ms, continuing...');
-                    return; // Skip this frame but don't stop auto-walk yet
-                }
-            } else {
-                // Update the last valid direction timestamp when we have movement
-                lastValidDirectionTimeRef.current = Date.now();
-            }
-
-            // Send movement command in the current direction
-            try {
-                // console.log('[Auto-Walk Move] Sending movement command:', direction.dx, direction.dy);
-                connectionRef.current.reducers.updatePlayerPosition(direction.dx, direction.dy);
-            } catch (err) {
-                console.error('[Auto-Walk] Error sending movement command:', err);
-            }
-        };
-
-        // Start moving immediately, then continue every 50ms
-        move();
-        const intervalId = setInterval(move, 50); // Move 20 times per second
-
-        return () => clearInterval(intervalId);
-    }, [isAutoWalking, isChatting, isGameMenuOpen, isSearchingCraftRecipes]);
+    // Auto-walk functionality removed - movement handled by usePredictedMovement hook
 
     // Movement throttling refs
     const lastMovementUpdateRef = useRef<number>(0);
@@ -1209,17 +1011,15 @@ export const useInputHandler = ({
 
         // Get input disabled state based ONLY on player death
         const isInputDisabledState = currentLocalPlayer.isDead;
-        
+
         // Input is disabled if the player is dead
         // Do not process any game-related input if disabled
         if (isInputDisabledState) {
             return; // Early return - player is dead, skip all input processing
         }
-        
+
         // MODIFIED: Do nothing if player is dead, or if chatting/searching
         if (!currentLocalPlayer || currentLocalPlayer.isDead || isChatting || isSearchingCraftRecipes) {
-            // This hook no longer manages sprinting, so no need to reset it here.
-
             // Reset auto-attack state when in UI states
             if (isAutoAttacking && (isChatting || isSearchingCraftRecipes)) {
                 setIsAutoAttacking(false);
@@ -1230,28 +1030,28 @@ export const useInputHandler = ({
             }
             return;
         }
-        
+
         // --- Jump Offset Calculation (moved here for per-frame update) ---
         // Note: Visual animation only, no cooldown logic (server handles that)
         if (currentLocalPlayer && currentLocalPlayer.jumpStartTimeMs > 0) {
             // Server handles all jump cooldown logic - we just show visual animation
             const jumpStartTime = Number(currentLocalPlayer.jumpStartTimeMs);
             const playerId = currentLocalPlayer.identity.toHexString();
-            
+
             // Check if this is a NEW jump by comparing server timestamps
             const lastKnownServerTime = lastKnownServerJumpTimes.current.get(playerId) || 0;
-            
+
             if (jumpStartTime !== lastKnownServerTime) {
                 // NEW jump detected! Record both server time and client time
                 lastKnownServerJumpTimes.current.set(playerId, jumpStartTime);
                 clientJumpStartTimes.current.set(playerId, Date.now());
             }
-            
+
             // Calculate animation based on client time for smooth animation
             const clientStartTime = clientJumpStartTimes.current.get(playerId);
             if (clientStartTime) {
                 const elapsedJumpTime = Date.now() - clientStartTime;
-                
+
                 if (elapsedJumpTime < JUMP_DURATION_MS) {
                     const t = elapsedJumpTime / JUMP_DURATION_MS;
                     const jumpOffset = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
@@ -1271,26 +1071,7 @@ export const useInputHandler = ({
         }
         // --- End Jump Offset Calculation ---
 
-        // This hook doesn't send movement updates, but it does need to track the last
-        // direction for actions like throwing.
-        const dx = (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                   (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0);
-        const dy = (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                   (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0);
-
-        if (dx !== 0 || dy !== 0) {
-            lastMovementDirectionRef.current = { dx, dy };
-            
-            // Don't override auto-walk direction when auto-walking is active
-            // The updateAutoWalkDirection function handles that
-            if (!isAutoWalking) {
-                autoWalkDirectionRef.current = { dx, dy };
-                lastValidDirectionTimeRef.current = Date.now();
-            }
-        }
-
-        // Handle continuous swing check
-        // MODIFIED: Guard this with isChatting, isSearchingCraftRecipes, AND isInventoryOpen
+        // Handle continuous swing check (removed movement tracking for weapons)
         if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
             attemptSwing(); // Call internal attemptSwing function
         }
@@ -1302,10 +1083,10 @@ export const useInputHandler = ({
     }, [
         isPlayerDead, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId, 
-        closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, 
+        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
+        closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId,
         isClosestInteractableBoxEmpty, onSetInteractingWith,
-        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen 
+        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen
     ]);
 
     // Helper function to check if an item is throwable
@@ -1314,9 +1095,9 @@ export const useInputHandler = ({
             console.log("[isItemThrowable] No item definition provided");
             return false;
         }
-        
+
         console.log("[isItemThrowable] Checking item:", itemDef.name, "category:", itemDef.category);
-        
+
         // Don't allow throwing ranged weapons, bandages, or consumables
         if (itemDef.category?.tag === "RangedWeapon") {
             console.log("[isItemThrowable] Rejected: RangedWeapon");
@@ -1330,23 +1111,23 @@ export const useInputHandler = ({
             console.log("[isItemThrowable] Rejected: Torch");
             return false;
         }
-        
+
         // Allow throwing tools and melee weapons
         const throwableNames = [
-            "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle", 
+            "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
             "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
             "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife"
         ];
-        
+
         const nameMatch = throwableNames.includes(itemDef.name);
         const categoryMatch = itemDef.category?.tag === "Weapon" || itemDef.category?.tag === "Tool";
-        
+
         console.log("[isItemThrowable] Name match:", nameMatch, "Category match:", categoryMatch);
         console.log("[isItemThrowable] Category tag:", itemDef.category?.tag);
-        
+
         const result = nameMatch || categoryMatch;
         console.log("[isItemThrowable] Final result:", result);
-        
+
         return result;
     }, []);
 
@@ -1356,7 +1137,6 @@ export const useInputHandler = ({
         isActivelyHolding,
         currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
         isAutoAttacking,
-        isAutoWalking,
         isCrouching, // Include local crouch state
         processInputsAndActions,
     };
