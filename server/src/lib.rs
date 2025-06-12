@@ -64,6 +64,7 @@ mod respawn; // <<< ADDED respawn module
 mod player_collision; // <<< ADDED player_collision module
 mod shelter; // <<< ADDED shelter module
 mod world_generation; // <<< ADDED world generation module
+mod fishing; // <<< ADDED fishing module
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -79,6 +80,9 @@ pub use sleeping_bag::respawn_at_sleeping_bag;
 
 // ADD: Re-export world generation reducer
 pub use world_generation::generate_world;
+
+// ADD: Re-export fishing reducers
+pub use fishing::{cast_fishing_line, finish_fishing, cancel_fishing};
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -148,6 +152,7 @@ use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile tab
 use crate::minimap_cache as MinimapCacheTableTrait; // <<< ADDED: Import MinimapCache table trait
 use crate::player_movement::player_dodge_roll_state as PlayerDodgeRollStateTableTrait; // <<< ADDED: Import PlayerDodgeRollState table trait
 use crate::world_chunk_data as WorldChunkDataTableTrait; // <<< ADDED: Import WorldChunkData table trait
+use crate::fishing::fishing_session as FishingSessionTableTrait; // <<< ADDED: Import FishingSession table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;

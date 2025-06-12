@@ -19,6 +19,7 @@ import DayNightCycleTracker from './DayNightCycleTracker';
 import Chat from './Chat';
 import SpeechBubbleManager from './SpeechBubbleManager';
 import TargetingReticle from './TargetingReticle';
+import FishingManager from './FishingManager';
 
 // Import menu components
 import GameMenuButton from './GameMenuButton';
@@ -659,6 +660,56 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 gameCanvasRef={canvasRef}
                 cameraOffsetX={cameraOffsetX}
                 cameraOffsetY={cameraOffsetY}
+            />
+
+            <FishingManager
+                localPlayer={localPlayer || null}
+                playerIdentity={playerIdentity}
+                activeItemDef={activeItemDef}
+                gameCanvasRef={canvasRef}
+                cameraOffsetX={cameraOffsetX}
+                cameraOffsetY={cameraOffsetY}
+                connection={connection}
+                                isWaterTile={(worldX: number, worldY: number) => {
+                    if (!connection) return false;
+                    
+                    // Debug database once
+                    if (!(window as any).dbDebugged) {
+                        (window as any).dbDebugged = true;
+                        console.log('[WATER DEBUG] Database tables:', Object.keys(connection.db));
+                        console.log('[WATER DEBUG] WorldTile exists:', !!connection.db.worldTile);
+                        
+                        if (connection.db.worldTile) {
+                            const allTiles = Array.from(connection.db.worldTile.iter());
+                            console.log('[WATER DEBUG] Total tiles in DB:', allTiles.length);
+                            if (allTiles.length > 0) {
+                                console.log('[WATER DEBUG] Sample tiles:', allTiles.slice(0, 3));
+                            }
+                        }
+                        
+                        // Also check worldTiles prop
+                        console.log('[WATER DEBUG] WorldTiles prop size:', worldTiles.size);
+                        if (worldTiles.size > 0) {
+                            const sampleEntries = Array.from(worldTiles.entries()).slice(0, 3);
+                            console.log('[WATER DEBUG] Sample worldTiles entries:', sampleEntries);
+                        }
+                    }
+                    
+                    // Use the exact same algorithm as placementRenderingUtils.ts
+                    const tileX = Math.floor(worldX / 48); // TILE_SIZE is 48, not 32!
+                    const tileY = Math.floor(worldY / 48);
+                    
+                    // Check all world tiles to find the one at this position
+                    for (const tile of connection.db.worldTile.iter()) {
+                        if (tile.worldX === tileX && tile.worldY === tileY) {
+                            // Found the tile at this position, check if it's water
+                            return tile.tileType.tag === 'Sea';
+                        }
+                    }
+                    
+                    // No tile found at this position, assume it's not water
+                    return false;
+                }}
             />
 
             {/* Voice Interface - SOVA Voice Commands */}

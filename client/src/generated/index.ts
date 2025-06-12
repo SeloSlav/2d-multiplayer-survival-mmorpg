@@ -40,6 +40,10 @@ import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
 export { CancelAllCrafting };
 import { CancelCraftingItem } from "./cancel_crafting_item_reducer.ts";
 export { CancelCraftingItem };
+import { CancelFishing } from "./cancel_fishing_reducer.ts";
+export { CancelFishing };
+import { CastFishingLine } from "./cast_fishing_line_reducer.ts";
+export { CastFishingLine };
 import { CheckFinishedCrafting } from "./check_finished_crafting_reducer.ts";
 export { CheckFinishedCrafting };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
@@ -70,6 +74,8 @@ import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
 export { EquipArmorFromDrag };
 import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts";
 export { EquipArmorFromInventory };
+import { FinishFishing } from "./finish_fishing_reducer.ts";
+export { FinishFishing };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
 export { FireProjectile };
 import { GenerateDefaultWorld } from "./generate_default_world_reducer.ts";
@@ -304,6 +310,8 @@ import { DroppedItemTableHandle } from "./dropped_item_table.ts";
 export { DroppedItemTableHandle };
 import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_schedule_table.ts";
 export { DroppedItemDespawnScheduleTableHandle };
+import { FishingSessionTableHandle } from "./fishing_session_table.ts";
+export { FishingSessionTableHandle };
 import { GlobalTickScheduleTableHandle } from "./global_tick_schedule_table.ts";
 export { GlobalTickScheduleTableHandle };
 import { GrassTableHandle } from "./grass_table.ts";
@@ -430,6 +438,8 @@ import { EquipmentSlotType } from "./equipment_slot_type_type.ts";
 export { EquipmentSlotType };
 import { EquippedLocationData } from "./equipped_location_data_type.ts";
 export { EquippedLocationData };
+import { FishingSession } from "./fishing_session_type.ts";
+export { FishingSession };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
 import { Grass } from "./grass_type.ts";
@@ -609,6 +619,11 @@ const REMOTE_MODULE = {
       tableName: "dropped_item_despawn_schedule",
       rowType: DroppedItemDespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    fishing_session: {
+      tableName: "fishing_session",
+      rowType: FishingSession.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
     },
     global_tick_schedule: {
       tableName: "global_tick_schedule",
@@ -818,6 +833,14 @@ const REMOTE_MODULE = {
       reducerName: "cancel_crafting_item",
       argsType: CancelCraftingItem.getTypeScriptAlgebraicType(),
     },
+    cancel_fishing: {
+      reducerName: "cancel_fishing",
+      argsType: CancelFishing.getTypeScriptAlgebraicType(),
+    },
+    cast_fishing_line: {
+      reducerName: "cast_fishing_line",
+      argsType: CastFishingLine.getTypeScriptAlgebraicType(),
+    },
     check_finished_crafting: {
       reducerName: "check_finished_crafting",
       argsType: CheckFinishedCrafting.getTypeScriptAlgebraicType(),
@@ -877,6 +900,10 @@ const REMOTE_MODULE = {
     equip_armor_from_inventory: {
       reducerName: "equip_armor_from_inventory",
       argsType: EquipArmorFromInventory.getTypeScriptAlgebraicType(),
+    },
+    finish_fishing: {
+      reducerName: "finish_fishing",
+      argsType: FinishFishing.getTypeScriptAlgebraicType(),
     },
     fire_projectile: {
       reducerName: "fire_projectile",
@@ -1313,6 +1340,8 @@ export type Reducer = never
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
+| { name: "CancelFishing", args: CancelFishing }
+| { name: "CastFishingLine", args: CastFishingLine }
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
@@ -1328,6 +1357,7 @@ export type Reducer = never
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
+| { name: "FinishFishing", args: FinishFishing }
 | { name: "FireProjectile", args: FireProjectile }
 | { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
 | { name: "GenerateMinimapData", args: GenerateMinimapData }
@@ -1492,6 +1522,34 @@ export class RemoteReducers {
 
   removeOnCancelCraftingItem(callback: (ctx: ReducerEventContext, queueItemId: bigint) => void) {
     this.connection.offReducer("cancel_crafting_item", callback);
+  }
+
+  cancelFishing() {
+    this.connection.callReducer("cancel_fishing", new Uint8Array(0), this.setCallReducerFlags.cancelFishingFlags);
+  }
+
+  onCancelFishing(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("cancel_fishing", callback);
+  }
+
+  removeOnCancelFishing(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("cancel_fishing", callback);
+  }
+
+  castFishingLine(targetX: number, targetY: number) {
+    const __args = { targetX, targetY };
+    let __writer = new BinaryWriter(1024);
+    CastFishingLine.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("cast_fishing_line", __argsBuffer, this.setCallReducerFlags.castFishingLineFlags);
+  }
+
+  onCastFishingLine(callback: (ctx: ReducerEventContext, targetX: number, targetY: number) => void) {
+    this.connection.onReducer("cast_fishing_line", callback);
+  }
+
+  removeOnCastFishingLine(callback: (ctx: ReducerEventContext, targetX: number, targetY: number) => void) {
+    this.connection.offReducer("cast_fishing_line", callback);
   }
 
   checkFinishedCrafting(schedule: CraftingFinishSchedule) {
@@ -1728,6 +1786,22 @@ export class RemoteReducers {
 
   removeOnEquipArmorFromInventory(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("equip_armor_from_inventory", callback);
+  }
+
+  finishFishing(success: boolean, caughtItems: string[]) {
+    const __args = { success, caughtItems };
+    let __writer = new BinaryWriter(1024);
+    FinishFishing.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("finish_fishing", __argsBuffer, this.setCallReducerFlags.finishFishingFlags);
+  }
+
+  onFinishFishing(callback: (ctx: ReducerEventContext, success: boolean, caughtItems: string[]) => void) {
+    this.connection.onReducer("finish_fishing", callback);
+  }
+
+  removeOnFinishFishing(callback: (ctx: ReducerEventContext, success: boolean, caughtItems: string[]) => void) {
+    this.connection.offReducer("finish_fishing", callback);
   }
 
   fireProjectile(targetWorldX: number, targetWorldY: number) {
@@ -3289,6 +3363,16 @@ export class SetReducerFlags {
     this.cancelCraftingItemFlags = flags;
   }
 
+  cancelFishingFlags: CallReducerFlags = 'FullUpdate';
+  cancelFishing(flags: CallReducerFlags) {
+    this.cancelFishingFlags = flags;
+  }
+
+  castFishingLineFlags: CallReducerFlags = 'FullUpdate';
+  castFishingLine(flags: CallReducerFlags) {
+    this.castFishingLineFlags = flags;
+  }
+
   checkFinishedCraftingFlags: CallReducerFlags = 'FullUpdate';
   checkFinishedCrafting(flags: CallReducerFlags) {
     this.checkFinishedCraftingFlags = flags;
@@ -3362,6 +3446,11 @@ export class SetReducerFlags {
   equipArmorFromInventoryFlags: CallReducerFlags = 'FullUpdate';
   equipArmorFromInventory(flags: CallReducerFlags) {
     this.equipArmorFromInventoryFlags = flags;
+  }
+
+  finishFishingFlags: CallReducerFlags = 'FullUpdate';
+  finishFishing(flags: CallReducerFlags) {
+    this.finishFishingFlags = flags;
   }
 
   fireProjectileFlags: CallReducerFlags = 'FullUpdate';
@@ -3922,6 +4011,10 @@ export class RemoteTables {
 
   get droppedItemDespawnSchedule(): DroppedItemDespawnScheduleTableHandle {
     return new DroppedItemDespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<DroppedItemDespawnSchedule>(REMOTE_MODULE.tables.dropped_item_despawn_schedule));
+  }
+
+  get fishingSession(): FishingSessionTableHandle {
+    return new FishingSessionTableHandle(this.connection.clientCache.getOrCreateTable<FishingSession>(REMOTE_MODULE.tables.fishing_session));
   }
 
   get globalTickSchedule(): GlobalTickScheduleTableHandle {
