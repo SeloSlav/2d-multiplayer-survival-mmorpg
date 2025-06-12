@@ -153,6 +153,13 @@ function AppContent() {
         inputState,
         connection,
         isUIFocused,
+        entities: {
+            trees,
+            stones,
+            boxes: woodenStorageBoxes,
+            shelters,
+            players
+        }
     });
 
     // --- Game Performance Monitor ---

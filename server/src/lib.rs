@@ -109,7 +109,7 @@ pub struct PrivateMessage {
 pub use chat::Message;
 
 // Re-export player movement reducer for client bindings
-pub use player_movement::update_player_position;
+pub use player_movement::update_player_position_simple;
 
 // Re-export campfire reducer for client bindings
 pub use campfire::place_campfire;

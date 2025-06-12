@@ -1,0 +1,1 @@
+{"rustc":10895048813736897673,"features":"[]","declared_features":"[]","target":17698849193518812729,"profile":15657897354478470176,"path":13847469781490709114,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug\\.fingerprint\\scoped-tls-d81f4121e53f2fde\\dep-lib-scoped_tls","checksum":false}}],"rustflags":["-A","warnings"],"config":2069994364910194474,"compile_kind":0}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Player, DbConnection } from '../generated';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
+import { resolveClientCollision, GameEntities } from '../utils/clientCollision';
 
 // Simple client-authoritative movement constants
 const POSITION_UPDATE_INTERVAL_MS = 33; // 30fps as requested by manager (better for high ping)
@@ -26,6 +27,7 @@ interface SimpleMovementProps {
   localPlayer: Player | undefined | null;
   inputState: MovementInputState;
   isUIFocused: boolean; // Added for key handling
+  entities: GameEntities;
 }
 
 // Performance monitoring for simple movement
@@ -75,7 +77,7 @@ class SimpleMovementMonitor {
 const movementMonitor = new SimpleMovementMonitor();
 
 // Simple client-authoritative movement hook with optimized rendering
-export const usePredictedMovement = ({ connection, localPlayer, inputState, isUIFocused }: SimpleMovementProps) => {
+export const usePredictedMovement = ({ connection, localPlayer, inputState, isUIFocused, entities }: SimpleMovementProps) => {
   // Use refs instead of state to avoid re-renders during movement
   const clientPositionRef = useRef<{ x: number; y: number } | null>(null);
   const serverPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -215,18 +217,20 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         const speed = PLAYER_SPEED * speedMultiplier;
         const moveDistance = speed * deltaTime;
         
-        const newPos = {
+        const targetPos = {
           x: clientPositionRef.current.x + direction.x * moveDistance,
           y: clientPositionRef.current.y + direction.y * moveDistance
         };
         
-        // World bounds clamping
-        const WORLD_WIDTH = 24000;
-        const WORLD_HEIGHT = 24000;
-        const PLAYER_RADIUS = 32;
-        
-        newPos.x = Math.max(PLAYER_RADIUS, Math.min(WORLD_WIDTH - PLAYER_RADIUS, newPos.x));
-        newPos.y = Math.max(PLAYER_RADIUS, Math.min(WORLD_HEIGHT - PLAYER_RADIUS, newPos.y));
+        // Apply client-side collision detection with smooth sliding
+        const collisionResult = resolveClientCollision(
+          clientPositionRef.current.x,
+          clientPositionRef.current.y,
+          targetPos.x,
+          targetPos.y,
+          localPlayer.identity.toHexString(),
+          entities
+        );
         
         // Update facing direction based on movement
         if (Math.abs(direction.x) > 0.1 || Math.abs(direction.y) > 0.1) {
@@ -237,9 +241,9 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
           lastFacingDirection.current = newFacingDirection;
         }
         
-        // Update client position immediately for responsiveness
-        clientPositionRef.current = newPos;
-        pendingPosition.current = newPos;
+        // Use collision-resolved position
+        clientPositionRef.current = { x: collisionResult.x, y: collisionResult.y };
+        pendingPosition.current = { x: collisionResult.x, y: collisionResult.y };
         
         // Only force re-render every few frames to reduce React overhead
         if (Math.floor(now / 16) % 2 === 0) { // ~30fps re-renders
