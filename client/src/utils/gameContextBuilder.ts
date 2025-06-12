@@ -15,6 +15,26 @@ export interface GameContext {
   craftableItems: string[];
   nearbyItems: string[];
   currentResources: string[];
+  // New detailed inventory/hotbar data for SOVA
+  inventorySlots: InventorySlotInfo[];
+  hotbarSlots: HotbarSlotInfo[];
+  totalInventorySlots: number;
+  totalHotbarSlots: number;
+}
+
+export interface InventorySlotInfo {
+  slotIndex: number;
+  itemName: string | null;
+  quantity: number;
+  isEmpty: boolean;
+}
+
+export interface HotbarSlotInfo {
+  slotIndex: number;
+  itemName: string | null;
+  quantity: number;
+  isEmpty: boolean;
+  isActiveItem: boolean;
 }
 
 export interface GameContextBuilderProps {
@@ -180,6 +200,110 @@ const getCurrentInventoryResources = (inventoryItems?: Map<string, any>, itemDef
 };
 
 /**
+ * Get detailed inventory slot information (24 slots total)
+ */
+const getInventorySlots = (inventoryItems?: Map<string, any>, itemDefinitions?: Map<string, any>, localPlayerIdentity?: string): InventorySlotInfo[] => {
+  const TOTAL_INVENTORY_SLOTS = 24;
+  const slots: InventorySlotInfo[] = [];
+  
+  // Initialize all slots as empty
+  for (let i = 0; i < TOTAL_INVENTORY_SLOTS; i++) {
+    slots.push({
+      slotIndex: i,
+      itemName: null,
+      quantity: 0,
+      isEmpty: true,
+    });
+  }
+  
+  if (!inventoryItems || !itemDefinitions || !localPlayerIdentity) {
+    return slots;
+  }
+  
+  // Fill slots with actual items
+  inventoryItems.forEach(item => {
+    // Check if item belongs to the player and is in inventory location
+    if (item.ownerId?.toHexString() === localPlayerIdentity && 
+        item.location && 
+        item.location.tag === 'Inventory') {
+      
+      const slotIndex = item.location.value?.slotIndex;
+      if (slotIndex !== undefined && slotIndex >= 0 && slotIndex < TOTAL_INVENTORY_SLOTS) {
+        const itemDef = itemDefinitions.get(item.itemDefId.toString());
+        const itemName = itemDef?.name || 'Unknown Item';
+        
+        slots[slotIndex] = {
+          slotIndex,
+          itemName,
+          quantity: item.quantity || 0,
+          isEmpty: false,
+        };
+      }
+    }
+  });
+  
+  return slots;
+};
+
+/**
+ * Get detailed hotbar slot information (6 slots total)
+ */
+const getHotbarSlots = (
+  inventoryItems?: Map<string, any>, 
+  itemDefinitions?: Map<string, any>, 
+  activeEquipments?: Map<string, any>,
+  localPlayerIdentity?: string
+): HotbarSlotInfo[] => {
+  const TOTAL_HOTBAR_SLOTS = 6;
+  const slots: HotbarSlotInfo[] = [];
+  
+  // Initialize all slots as empty
+  for (let i = 0; i < TOTAL_HOTBAR_SLOTS; i++) {
+    slots.push({
+      slotIndex: i,
+      itemName: null,
+      quantity: 0,
+      isEmpty: true,
+      isActiveItem: false,
+    });
+  }
+  
+  if (!inventoryItems || !itemDefinitions || !localPlayerIdentity) {
+    return slots;
+  }
+  
+  // Get active item instance ID
+  const playerEquipment = activeEquipments?.get(localPlayerIdentity);
+  const activeItemInstanceId = playerEquipment?.equippedItemInstanceId;
+  
+  // Fill slots with actual items
+  inventoryItems.forEach(item => {
+    // Check if item belongs to the player and is in hotbar location
+    if (item.ownerId?.toHexString() === localPlayerIdentity && 
+        item.location && 
+        item.location.tag === 'Hotbar') {
+      
+      const slotIndex = item.location.value?.slotIndex;
+      if (slotIndex !== undefined && slotIndex >= 0 && slotIndex < TOTAL_HOTBAR_SLOTS) {
+        const itemDef = itemDefinitions.get(item.itemDefId.toString());
+        const itemName = itemDef?.name || 'Unknown Item';
+        const isActiveItem = activeItemInstanceId === item.instanceId;
+        
+        slots[slotIndex] = {
+          slotIndex,
+          itemName,
+          quantity: item.quantity || 0,
+          isEmpty: false,
+          isActiveItem,
+        };
+      }
+    }
+  });
+  
+  return slots;
+};
+
+/**
  * Build comprehensive game context for SOVA AI responses
  */
 export const buildGameContext = (props: GameContextBuilderProps): GameContext => {
@@ -202,6 +326,10 @@ export const buildGameContext = (props: GameContextBuilderProps): GameContext =>
     craftableItems: getCraftableItems(itemDefinitions),
     nearbyItems: [], // Could be enhanced to show nearby dropped items
     currentResources, // Add current inventory resources
+    inventorySlots: getInventorySlots(inventoryItems, itemDefinitions, localPlayerIdentity),
+    hotbarSlots: getHotbarSlots(inventoryItems, itemDefinitions, activeEquipments, localPlayerIdentity),
+    totalInventorySlots: 24,
+    totalHotbarSlots: 6,
   };
 };
 

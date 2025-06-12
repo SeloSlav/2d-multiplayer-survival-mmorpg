@@ -180,7 +180,7 @@ function AppContent() {
                 
                 if (frameTime > RENDER_LAG_THRESHOLD) {
                     lagSpikes++;
-                    console.warn(`🐌 [App] RENDER LAG SPIKE: ${frameTime.toFixed(2)}ms`);
+                    // console.warn(`🐌 [App] RENDER LAG SPIKE: ${frameTime.toFixed(2)}ms`);
                 }
                 
                 const now = Date.now();

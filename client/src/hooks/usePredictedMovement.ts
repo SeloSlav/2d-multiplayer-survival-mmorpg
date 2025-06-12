@@ -44,7 +44,7 @@ class SimpleMovementMonitor {
     
     if (updateTime > LAG_SPIKE_THRESHOLD) {
       this.lagSpikes++;
-      console.warn(`🐌 [SimpleMovement] UPDATE LAG SPIKE: ${updateTime.toFixed(2)}ms (threshold: ${LAG_SPIKE_THRESHOLD}ms)`);
+      // console.warn(`🐌 [SimpleMovement] UPDATE LAG SPIKE: ${updateTime.toFixed(2)}ms (threshold: ${LAG_SPIKE_THRESHOLD}ms)`);
     }
 
     const now = Date.now();
@@ -118,7 +118,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       pendingPosition.current = serverPos;
       // ADDED: Initialize facing direction
       lastFacingDirection.current = localPlayer.direction || 'down';
-      console.log(`🎯 [SimpleMovement] Initialized position: (${serverPos.x.toFixed(1)}, ${serverPos.y.toFixed(1)}) facing: ${lastFacingDirection.current}`);
+      // console.log(`🎯 [SimpleMovement] Initialized position: (${serverPos.x.toFixed(1)}, ${serverPos.y.toFixed(1)}) facing: ${lastFacingDirection.current}`);
     }
   }, [localPlayer?.identity, clientPosition]);
 
@@ -136,7 +136,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
 
     // If server position differs too much, rubber band back to server
     if (distance > RUBBER_BAND_THRESHOLD) {
-      console.warn(`🔄 [SimpleMovement] RUBBER BANDING: Server pos (${serverPos.x.toFixed(1)}, ${serverPos.y.toFixed(1)}) differs from client pos (${clientPosition.x.toFixed(1)}, ${clientPosition.y.toFixed(1)}) by ${distance.toFixed(1)}px`);
+      // console.warn(`🔄 [SimpleMovement] RUBBER BANDING: Server pos (${serverPos.x.toFixed(1)}, ${serverPos.y.toFixed(1)}) differs from client pos (${clientPosition.x.toFixed(1)}, ${clientPosition.y.toFixed(1)}) by ${distance.toFixed(1)}px`);
       setClientPosition(serverPos);
       pendingPosition.current = serverPos;
       movementMonitor.logUpdate(0, false, true);
@@ -145,7 +145,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
     // ADDED: Track server facing direction updates
     if (localPlayer.direction && localPlayer.direction !== lastFacingDirection.current) {
       lastFacingDirection.current = localPlayer.direction;
-      console.log(`🧭 [SimpleMovement] Server updated facing direction: ${localPlayer.direction}`);
+      // console.log(`🧭 [SimpleMovement] Server updated facing direction: ${localPlayer.direction}`);
     }
 
     setLastServerPosition(serverPos);
@@ -167,7 +167,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
 
       // Skip large deltas (e.g., tab switching)
       if (deltaTime > 0.1) {
-        console.warn(`🐌 [SimpleMovement] Large delta time detected: ${deltaTime.toFixed(3)}s - skipping update`);
+        // console.warn(`🐌 [SimpleMovement] Large delta time detected: ${deltaTime.toFixed(3)}s - skipping update`);
         movementMonitor.logUpdate(performance.now() - updateStartTime, false);
         return;
       }
@@ -177,7 +177,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
 
       // ADDED: Cancel auto-walk if manual movement detected
       if (isMoving.current && isAutoWalking && !isUIFocused) {
-        console.log(`🛑 [SimpleMovement] Manual movement detected, canceling auto-walk`);
+        // console.log(`🛑 [SimpleMovement] Manual movement detected, canceling auto-walk`);
         stopAutoWalk();
       }
 
@@ -212,7 +212,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
           
           // Only log if direction actually changed
           if (newFacingDirection !== lastFacingDirection.current) {
-            console.log(`🧭 [SimpleMovement] Facing direction: ${lastFacingDirection.current} → ${newFacingDirection}`);
+            // console.log(`🧭 [SimpleMovement] Facing direction: ${lastFacingDirection.current} → ${newFacingDirection}`);
             lastFacingDirection.current = newFacingDirection;
           }
         }
@@ -231,7 +231,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
                  try {
           // Use the new simple position update reducer
           if (!connection.reducers.updatePlayerPositionSimple) {
-            console.error(`❌ [SimpleMovement] updatePlayerPositionSimple reducer not available!`);
+            // console.error(`❌ [SimpleMovement] updatePlayerPositionSimple reducer not available!`);
             movementMonitor.logUpdate(performance.now() - updateStartTime, false);
             return;
           }
@@ -246,10 +246,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
           );
           
           lastSentTime.current = now;
-          console.log(`📡 [SimpleMovement] Sent position update: (${pendingPosition.current.x.toFixed(1)}, ${pendingPosition.current.y.toFixed(1)}) facing: ${lastFacingDirection.current} sprinting: ${sprinting && isMoving.current}`);
+          // console.log(`📡 [SimpleMovement] Sent position update: (${pendingPosition.current.x.toFixed(1)}, ${pendingPosition.current.y.toFixed(1)}) facing: ${lastFacingDirection.current} sprinting: ${sprinting && isMoving.current}`);
           movementMonitor.logUpdate(performance.now() - updateStartTime, true);
         } catch (error) {
-          console.error(`❌ [SimpleMovement] Failed to send position update:`, error);
+          // console.error(`❌ [SimpleMovement] Failed to send position update:`, error);
           movementMonitor.logUpdate(performance.now() - updateStartTime, false);
         }
       } else {
@@ -257,7 +257,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       }
 
     } catch (error) {
-      console.error(`❌ [SimpleMovement] Error in updatePosition:`, error);
+      // console.error(`❌ [SimpleMovement] Error in updatePosition:`, error);
       movementMonitor.logUpdate(performance.now() - updateStartTime, false);
     }
   }, [connection, localPlayer, clientPosition, inputState, isAutoWalking, stopAutoWalk, isUIFocused]);

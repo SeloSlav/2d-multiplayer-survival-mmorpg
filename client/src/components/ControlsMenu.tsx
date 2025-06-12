@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './MenuComponents.module.css';
+import { controlSections } from '../utils/gameKnowledgeExtractor';
 
 interface ControlsMenuProps {
     onBack: () => void;
@@ -28,56 +29,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
         };
     }, [onBack]);
 
-    const controlSections = [
-        {
-            title: 'Movement',
-            controls: [
-                { key: 'W/A/S/D', description: 'Move player' },
-                { key: 'Left Shift', description: 'Sprint (hold)' },
-                { key: 'Space', description: 'Jump (standing still) / Dodge roll (with movement)' },
-                { key: 'C', description: 'Crouch' },
-            ]
-        },
-        {
-            title: 'Interaction',
-            controls: [
-                { key: 'Left Click', description: 'Use equipped tool/weapon' },
-                { key: 'E (Hold)', description: 'Pick up empty wooden storage boxes' },
-                { key: 'E (Hold)', description: 'Toggle campfire on/off' },
-                { key: 'E (Hold)', description: 'Hide/surface stashes' },
-                { key: 'E (Hold)', description: 'Revive knocked out players' },
-            ]
-        },
-        {
-            title: 'Inventory & Hotbar',
-            controls: [
-                { key: 'Tab', description: 'Toggle inventory' },
-                { key: '1-6', description: 'Select hotbar slot' },
-                { key: 'Mouse Wheel', description: 'Cycle through hotbar slots' },
-                { key: 'Right Click', description: 'Quick move items between containers' },
-            ]
-        },
-        {
-            title: 'Interface',
-            controls: [
-                { key: 'Enter', description: 'Open chat' },
-                { key: 'Escape', description: 'Close menus/cancel actions' },
-                { key: 'G', description: 'Toggle minimap' },
-                { key: 'V (Hold)', description: 'Talk to SOVA personal AI assistant' },
-            ]
-        },
-        {
-            title: 'Combat',
-            controls: [
-                { key: 'Left Click', description: 'Attack with equipped weapon' },
-                { key: 'Left Click', description: 'Shoot with ranged weapons' },
-                { key: 'Right Click', description: 'Set arrows / Toggle arrow types' },
-                { key: 'Right Click', description: 'Throw equipped melee weapons' },
-                { key: 'Z', description: 'Toggle auto attack' },
-                { key: 'Consumables', description: 'Click twice on hotbar to consume' },
-            ]
-        }
-    ];
+    // Control sections now imported from shared game knowledge extractor
 
     return (
         <div

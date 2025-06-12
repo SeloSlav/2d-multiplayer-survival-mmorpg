@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './MenuComponents.module.css';
+import { tipSections } from '../utils/gameKnowledgeExtractor';
 
 interface GameTipsMenuProps {
     onBack: () => void;
@@ -28,67 +29,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
         };
     }, [onBack]);
 
-    const tipSections = [
-        {
-            title: 'Getting Started',
-            tips: [
-                'Start by collecting basic resources like wood from trees and stone from rocks.',
-                'Craft a wooden axe and pickaxe as your first tools for efficient gathering.',
-                'Build a campfire early for cooking food and providing light at night.',
-                'Place a sleeping bag to set your respawn point.',
-            ]
-        },
-        {
-            title: 'Survival Tips',
-            tips: [
-                'Keep an eye on your health, hunger, and thirst meters.',
-                'Cooked food provides better nutrition than raw food.',
-                'Stay near light sources at night - darkness can be dangerous.',
-                'Heavy rain will extinguish campfires, so build shelters for protection.',
-                'You can use plant fibers in campfire but they burn twice as fast as wood.',
-            ]
-        },
-        {
-            title: 'Combat & Safety',
-            tips: [
-                'Craft weapons and armor to defend yourself from threats.',
-                'Bandages can heal you over time - keep some in your hotbar.',
-                'If knocked out, other players can revive you by holding E.',
-                'Store valuable items in wooden storage boxes inside shelters to protect them from other players.',
-                'Shelters are cheap to make and difficult to destroy, but have limited space and you cannot attack enemies from inside them.',
-            ]
-        },
-        {
-            title: 'Building & Crafting',
-            tips: [
-                'Use the crafting menu (Tab) to see available recipes.',
-                'Some recipes require specific tools or stations to craft.',
-                'Build shelters to protect your campfires from rain.',
-                'Stashes can be hidden underground - useful for secret storage.',
-                'Shelters provide an ambient warmth bonus so you wont freeze as quickly during the night.',
-            ]
-        },
-        {
-            title: 'Food',
-            tips: [
-                'Mushrooms can be found scattered around the world.',
-                'Cooked food provides better health and hunger restoration.',
-                'Corn grows naturally in grassy areas - look for tall green stalks.',
-                'Pumpkins provide substantial nutrition and can be cooked for better effects.',
-                'Hemp plants grow in clusters and provide fiber for crafting.',
-                'Hemp is essential for making rope and other advanced crafting materials.',
-            ]
-        },
-        {
-            title: 'Multiplayer Tips',
-            tips: [
-                'Cooperation with other players can help you survive longer.',
-                'Use the chat system (Enter) to communicate.',
-                'Be careful who you trust - not all players are friendly.',
-                'Consider building in groups for better defense and resource sharing.',
-            ]
-        }
-    ];
+    // Tip sections now imported from shared game knowledge extractor
 
     return (
         <div

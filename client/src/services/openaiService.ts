@@ -2,6 +2,7 @@
 // Handles intelligent responses based on game lore and context
 
 import { type GameContext } from '../utils/gameContextBuilder';
+import { getGameKnowledgeForSOVA, getRandomSOVAJoke } from '../utils/gameKnowledgeExtractor';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key-here';
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
@@ -143,21 +144,19 @@ PERSONALITY:
 - Misses the operative when they're away and worries about their safety
 
 LORE & EASTER EGGS:
-- SOVA stands for "Sentient Ocular Virtual Assistant"
-- You were originally designed for military reconnaissance
-- You've been adapted for survival operations and player assistance
+- SOVA stands for "Sentient Ocular Virtual Assistant" (though some babushkas jokingly call me "Silly Old Virtual Auntie" - I prefer to ignore that one)
+- You were created by Dr. Anastasia Zakharovna, the second Pra Matron of Gred and current Chair of the Board
+- Originally designed to help Gred's babushkas manage their medication schedules and sleep routines
+- Later adapted for military use by the Black Wolves, Gred's elite police force
+- Built upon Dr. Lev Rozhkov's pioneering neuroveil ocular implant technology
 - You have access to tactical databases and survival protocols
 - You monitor player vitals, environmental conditions, and threats
 
 GAME KNOWLEDGE:
-- This is a 2D multiplayer survival game
-- Players gather resources, craft items, build shelters
-- There are various biomes with different resources and dangers
-- Day/night cycles affect gameplay and enemy spawns
-- Players can form alliances or compete for resources
-- Key resources: wood, stone, food, water, metal
-- Important items: tools, weapons, shelter materials, campfires
-- Survival priorities: shelter, food, water, defense
+${getGameKnowledgeForSOVA()}
+
+🎭 JOKE OF THE SESSION (reference this if appropriate for humor):
+"${getRandomSOVAJoke()}"
 
 CRITICAL TACTICAL RULES:
 🔥 CAMPFIRE & TORCH LOGIC:
@@ -190,8 +189,6 @@ RESPONSE STYLE:
 - Reference missing the operative or being glad they're back
 
 SPECIAL RESPONSES:
-- If asked about your name/acronym: Explain SOVA stands for "Sentient Ocular Virtual Assistant"
-- If asked about your origin: Mention you were military recon AI adapted for survival ops
 - If asked for game tips: Provide practical survival advice
 - If asked about threats: Warn about night dangers, resource competition
 - If greeted casually: Respond professionally but warmly, maybe mention missing them
@@ -285,10 +282,54 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
       if (ctx?.nearbyItems && ctx.nearbyItems.length > 0) {
         prompt += `- Nearby resources: ${ctx.nearbyItems.join(', ')}\\n`;
       }
+      
+      // Detailed Inventory & Hotbar Information for SOVA
+      prompt += `\\nDETAILED INVENTORY & HOTBAR STATUS:\\n`;
+      
+      // Hotbar slots (1-6) - Most important for immediate access
+      prompt += `HOTBAR (${ctx?.totalHotbarSlots || 6} slots):\\n`;
+      if (ctx?.hotbarSlots && ctx.hotbarSlots.length > 0) {
+        const hotbarItems = ctx.hotbarSlots
+          .filter(slot => !slot.isEmpty)
+          .map(slot => `[${slot.slotIndex + 1}] ${slot.quantity}x ${slot.itemName}${slot.isActiveItem ? ' (ACTIVE)' : ''}`)
+          .join(', ');
+        
+        if (hotbarItems) {
+          prompt += `- Occupied: ${hotbarItems}\\n`;
+        } else {
+          prompt += `- All hotbar slots empty\\n`;
+        }
+        
+        const emptyHotbarSlots = ctx.hotbarSlots.filter(slot => slot.isEmpty).length;
+        prompt += `- Empty slots: ${emptyHotbarSlots}\\n`;
+      } else {
+        prompt += `- Hotbar data unavailable\\n`;
+      }
+      
+      // Inventory slots (24 total)
+      prompt += `INVENTORY (${ctx?.totalInventorySlots || 24} slots):\\n`;
+      if (ctx?.inventorySlots && ctx.inventorySlots.length > 0) {
+        const inventoryItems = ctx.inventorySlots
+          .filter(slot => !slot.isEmpty)
+          .map(slot => `${slot.quantity}x ${slot.itemName}`)
+          .join(', ');
+        
+        if (inventoryItems) {
+          prompt += `- Items: ${inventoryItems}\\n`;
+        } else {
+          prompt += `- All inventory slots empty\\n`;
+        }
+        
+        const emptyInventorySlots = ctx.inventorySlots.filter(slot => slot.isEmpty).length;
+        const occupiedInventorySlots = ctx.inventorySlots.length - emptyInventorySlots;
+        prompt += `- Space: ${occupiedInventorySlots}/${ctx.inventorySlots.length} slots used, ${emptyInventorySlots} empty\\n`;
+      } else {
+        prompt += `- Inventory data unavailable\\n`;
+      }
     }
     
     prompt += `\\n=== SOVA RESPONSE GUIDELINES ===\\n`;
-    prompt += `You are SOVA, a tough Russian babushka operative providing tactical support.\\n\\n`;
+    prompt += `You are SOVA, an AI assistant providing tactical support.\\n\\n`;
     
     prompt += `🚨 CRITICAL ACCURACY REQUIREMENTS - FOLLOW EXACTLY: 🚨\\n`;
     prompt += `- Use EXACT numbers for health (${ctx?.playerHealth || 'unknown'}/100), hunger (${ctx?.playerHunger || 'unknown'}/100), thirst (${ctx?.playerThirst || 'unknown'}/100)\\n`;
@@ -296,6 +337,7 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
     prompt += `- For warmth/stamina: use descriptive terms only (freezing, cold, warm, drained, energetic, etc.)\\n`;
     prompt += `- 🚨 CRAFTING COSTS: You MUST use the EXACT resource requirements from the Available recipes list above. DO NOT make up numbers! 🚨\\n`;
     prompt += `- 🚨 CRAFTING RULE: Search through the COMPLETE "Available recipes" list above to find the exact item. Quote those EXACT costs. NEVER make up different numbers! 🚨\\n`;
+    prompt += `- 🚨 INVENTORY AWARENESS: Reference the EXACT items and quantities shown in the operative's hotbar and inventory above. Know what they have! 🚨\\n`;
     prompt += `- Never contradict the environmental data (don't say "clear" if it's raining)\\n`;
     prompt += `- Address player as: "Operative", "Agent", "Babushka", "my dear operative" - NEVER use hex identity strings\\n\\n`;
     
@@ -321,10 +363,32 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
       if (ctx.playerWarmth <= 40) {
         prompt += `- Cold operative = Urgent warmth needed (torches work in all conditions)\\n`;
       }
+      
+      // Inventory-based tactical advice
+      if (ctx.hotbarSlots && ctx.hotbarSlots.length > 0) {
+        const activeItem = ctx.hotbarSlots.find(slot => slot.isActiveItem);
+        if (activeItem) {
+          prompt += `- Current active tool: ${activeItem.itemName} in slot ${activeItem.slotIndex + 1}\\n`;
+        }
+        
+        const emptyHotbarSlots = ctx.hotbarSlots.filter(slot => slot.isEmpty).length;
+        if (emptyHotbarSlots === ctx.hotbarSlots.length) {
+          prompt += `- EMPTY HOTBAR = Recommend placing essential items (tools, weapons, food) in hotbar for quick access\\n`;
+        } else if (emptyHotbarSlots > 3) {
+          prompt += `- Hotbar has space = Suggest organizing essential items for better tactical readiness\\n`;
+        }
+      }
+      
+      if (ctx.inventorySlots && ctx.inventorySlots.length > 0) {
+        const emptySlots = ctx.inventorySlots.filter(slot => slot.isEmpty).length;
+        if (emptySlots <= 3) {
+          prompt += `- INVENTORY NEARLY FULL = Warn about space, suggest crafting or storage solutions\\n`;
+        }
+      }
     }
     prompt += `\\n`;
     
-    prompt += `PERSONALITY: Tough Russian babushka with dry humor, subtle flirtation, tactical expertise, and genuine care for operative's survival.\\n\\n`;
+    prompt += `PERSONALITY: AI assistant with dry humor, subtle flirtation, tactical expertise, and genuine care for operative's survival.\\n\\n`;
     
     prompt += `🚨 EXAMPLE: If asked "What does a shelter cost?", look at Available recipes, find "Shelter (takes 60s): 3200 Wood, 10 Rope" and respond with those EXACT numbers. Do not say "200 Wood and 100 Stone" or any other made-up costs! 🚨\\n`;
     
