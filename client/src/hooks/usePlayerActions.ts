@@ -23,13 +23,13 @@ export const usePlayerActions = (): PlayerActions => {
     // --- Player Movement Actions ---
     const updatePlayerPosition = useCallback((moveX: number, moveY: number) => {
         if (!connection?.reducers) {
-            console.warn("[usePlayerActions] Connection not ready for updatePlayerPosition");
+            console.warn("[usePlayerActions] Connection not ready for updatePlayerPositionSimple");
             return;
         }
         try {
-            connection.reducers.updatePlayerPosition(moveX, moveY);
+            connection.reducers.updatePlayerPositionSimple(moveX, moveY, BigInt(Date.now()), false, "right");
         } catch (err) {
-            console.error("[usePlayerActions] Error calling updatePlayerPosition reducer:", err);
+            console.error("[usePlayerActions] Error calling updatePlayerPositionSimple reducer:", err);
         }
     }, [connection]);
 
