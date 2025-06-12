@@ -20,7 +20,7 @@ class InputPerformanceMonitor {
     
     if (inputTime > INPUT_LAG_THRESHOLD) {
       this.lagSpikes++;
-      console.warn(`🐌 [MovementInput] INPUT LAG SPIKE: ${inputType} took ${inputTime.toFixed(2)}ms (threshold: ${INPUT_LAG_THRESHOLD}ms)`);
+      // console.warn(`🐌 [MovementInput] INPUT LAG SPIKE: ${inputType} took ${inputTime.toFixed(2)}ms (threshold: ${INPUT_LAG_THRESHOLD}ms)`);
     }
 
     const now = Date.now();
@@ -33,7 +33,7 @@ class InputPerformanceMonitor {
 
   logSkippedInput(reason: string) {
     this.skippedInputs++;
-    console.log(`⏭️ [MovementInput] Input skipped: ${reason}`);
+    // console.log(`⏭️ [MovementInput] Input skipped: ${reason}`);
   }
 
   private reportPerformance() {
@@ -146,14 +146,14 @@ export const useMovementInput = ({
         // DEBUG: Log significant movement changes
         if (Math.abs(newState.direction.x) < 0.001 && Math.abs(newState.direction.y) < 0.001 && 
             (Math.abs(lastState.direction.x) > 0.001 || Math.abs(lastState.direction.y) > 0.001)) {
-          console.log(`🛑 [MovementInput] Movement stopped - direction: (${x.toFixed(3)}, ${y.toFixed(3)})`);
+          // console.log(`🛑 [MovementInput] Movement stopped - direction: (${x.toFixed(3)}, ${y.toFixed(3)})`);
         }
       } else {
         inputMonitor.logSkippedInput('No state change');
       }
 
     } catch (error) {
-      console.error(`❌ [MovementInput] Error in processKeys:`, error);
+      // console.error(`❌ [MovementInput] Error in processKeys:`, error);
     } finally {
       isProcessingInput.current = false;
       const processTime = performance.now() - processStartTime;
@@ -207,10 +207,10 @@ export const useMovementInput = ({
             dodgeY /= magnitude;
           }
           
-          console.log(`🤸 [MovementInput] Dodge roll triggered: (${dodgeX.toFixed(2)}, ${dodgeY.toFixed(2)})`);
+          // console.log(`🤸 [MovementInput] Dodge roll triggered: (${dodgeX.toFixed(2)}, ${dodgeY.toFixed(2)})`);
           // TODO: Call dodge roll reducer when we find it
         } else {
-          console.log(`🦘 [MovementInput] Jump triggered`);
+          // console.log(`🦘 [MovementInput] Jump triggered`);
           jump();
         }
         return;
@@ -220,7 +220,7 @@ export const useMovementInput = ({
 
       if (key === 'KeyZ') {
         event.preventDefault();
-        console.log(`⚔️ [MovementInput] Auto-attack toggle triggered`);
+        // console.log(`⚔️ [MovementInput] Auto-attack toggle triggered`);
         onToggleAutoAttack?.();
         return;
       }
@@ -233,7 +233,7 @@ export const useMovementInput = ({
         }
       }
     } catch (error) {
-      console.error(`❌ [MovementInput] Error in handleKeyDown:`, error);
+      // console.error(`❌ [MovementInput] Error in handleKeyDown:`, error);
     } finally {
       const keyTime = performance.now() - keyStartTime;
       inputMonitor.logInputTime(keyTime, `KeyDown-${event.code}`);
@@ -251,7 +251,7 @@ export const useMovementInput = ({
         processKeys();
       }
     } catch (error) {
-      console.error(`❌ [MovementInput] Error in handleKeyUp:`, error);
+      // console.error(`❌ [MovementInput] Error in handleKeyUp:`, error);
     } finally {
       const keyTime = performance.now() - keyStartTime;
       inputMonitor.logInputTime(keyTime, `KeyUp-${event.code}`);
@@ -268,7 +268,7 @@ export const useMovementInput = ({
 
       const setupTime = performance.now() - setupStartTime;
       if (setupTime > 5) {
-        console.warn(`🐌 [MovementInput] Slow event listener setup: ${setupTime.toFixed(2)}ms`);
+        // console.warn(`🐌 [MovementInput] Slow event listener setup: ${setupTime.toFixed(2)}ms`);
       }
 
       return () => {
@@ -278,11 +278,11 @@ export const useMovementInput = ({
         const cleanupTime = performance.now() - cleanupStartTime;
         
         if (cleanupTime > 5) {
-          console.warn(`🐌 [MovementInput] Slow event listener cleanup: ${cleanupTime.toFixed(2)}ms`);
+          // console.warn(`🐌 [MovementInput] Slow event listener cleanup: ${cleanupTime.toFixed(2)}ms`);
         }
       };
     } catch (error) {
-      console.error(`❌ [MovementInput] Error in event listener setup:`, error);
+      // console.error(`❌ [MovementInput] Error in event listener setup:`, error);
     }
   }, [handleKeyDown, handleKeyUp]);
 
@@ -299,7 +299,7 @@ export const useMovementInput = ({
       
       const clearTime = performance.now() - clearStartTime;
       if (clearTime > 5) {
-        console.warn(`🐌 [MovementInput] Slow input clear: ${clearTime.toFixed(2)}ms`);
+        // console.warn(`🐌 [MovementInput] Slow input clear: ${clearTime.toFixed(2)}ms`);
       }
     }
   }, [isUIFocused]);

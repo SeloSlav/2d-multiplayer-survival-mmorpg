@@ -200,12 +200,47 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
   }
 
   /**
-   * Build comprehensive user prompt with game context for SOVA AI
+   * Build the user prompt with current game context
    */
   private buildUserPrompt(request: SOVAPromptRequest): string {
     const { userMessage, playerName, gameContext: ctx } = request;
     
-    let prompt = `🚨 IMPORTANT: You MUST use the EXACT data provided below. Do NOT make up numbers or guess! 🚨\\n\\n`;
+    console.log('🚨🚨🚨 [OpenAI] BUILDING USER PROMPT 🚨🚨🚨');
+    console.log('🔍 [OpenAI] Game context received in buildUserPrompt:', {
+      hasGameContext: !!ctx,
+      inventorySlots: ctx?.inventorySlots?.length || 0,
+      hotbarSlots: ctx?.hotbarSlots?.length || 0,
+      inventoryOccupied: ctx?.inventorySlots?.filter(s => !s.isEmpty).length || 0,
+      hotbarOccupied: ctx?.hotbarSlots?.filter(s => !s.isEmpty).length || 0,
+      currentResources: ctx?.currentResources?.length || 0,
+      playerHealth: ctx?.playerHealth,
+      currentEquipment: ctx?.currentEquipment,
+    });
+    
+    if (ctx?.inventorySlots) {
+      const occupiedInventory = ctx.inventorySlots.filter(s => !s.isEmpty);
+      console.log('📦📦📦 [OpenAI] OCCUPIED INVENTORY SLOTS:', occupiedInventory.map(s => ({
+        slot: s.slotIndex,
+        item: s.itemName,
+        quantity: s.quantity
+      })));
+    } else {
+      console.log('❌ [OpenAI] NO INVENTORY SLOTS DATA');
+    }
+    
+    if (ctx?.hotbarSlots) {
+      const occupiedHotbar = ctx.hotbarSlots.filter(s => !s.isEmpty);
+      console.log('🎮🎮🎮 [OpenAI] OCCUPIED HOTBAR SLOTS:', occupiedHotbar.map(s => ({
+        slot: s.slotIndex + 1,
+        item: s.itemName,
+        quantity: s.quantity,
+        active: s.isActiveItem
+      })));
+    } else {
+      console.log('❌ [OpenAI] NO HOTBAR SLOTS DATA');
+    }
+
+    let prompt = `CURRENT SITUATION:\\n`;
     prompt += `User Message: \"${userMessage}\"\\n\\n`;
     
     if (ctx) {
@@ -283,48 +318,55 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
         prompt += `- Nearby resources: ${ctx.nearbyItems.join(', ')}\\n`;
       }
       
-      // Detailed Inventory & Hotbar Information for SOVA
-      prompt += `\\nDETAILED INVENTORY & HOTBAR STATUS:\\n`;
+      // Detailed Inventory & Hotbar Status
+      prompt += `\\\\nDETAILED INVENTORY & HOTBAR STATUS:\\\\n`;
       
-      // Hotbar slots (1-6) - Most important for immediate access
-      prompt += `HOTBAR (${ctx?.totalHotbarSlots || 6} slots):\\n`;
+      console.log('[OpenAI] Inventory/Hotbar data being sent to SOVA:', {
+        inventorySlotCount: ctx?.inventorySlots?.length || 0,
+        hotbarSlotCount: ctx?.hotbarSlots?.length || 0,
+        inventoryOccupied: ctx?.inventorySlots?.filter(s => !s.isEmpty).length || 0,
+        hotbarOccupied: ctx?.hotbarSlots?.filter(s => !s.isEmpty).length || 0,
+        totalInventorySlots: ctx?.totalInventorySlots || 0,
+        totalHotbarSlots: ctx?.totalHotbarSlots || 0,
+      });
+      
+      // Hotbar Status (6 slots)
       if (ctx?.hotbarSlots && ctx.hotbarSlots.length > 0) {
-        const hotbarItems = ctx.hotbarSlots
-          .filter(slot => !slot.isEmpty)
-          .map(slot => `[${slot.slotIndex + 1}] ${slot.quantity}x ${slot.itemName}${slot.isActiveItem ? ' (ACTIVE)' : ''}`)
-          .join(', ');
-        
-        if (hotbarItems) {
-          prompt += `- Occupied: ${hotbarItems}\\n`;
-        } else {
-          prompt += `- All hotbar slots empty\\n`;
-        }
-        
-        const emptyHotbarSlots = ctx.hotbarSlots.filter(slot => slot.isEmpty).length;
-        prompt += `- Empty slots: ${emptyHotbarSlots}\\n`;
+        prompt += `HOTBAR SLOTS (1-6):\\\\n`;
+        ctx.hotbarSlots.forEach(slot => {
+          if (!slot.isEmpty) {
+            const activeIndicator = slot.isActiveItem ? ' [ACTIVE/EQUIPPED]' : '';
+            prompt += `- Slot ${slot.slotIndex + 1}: ${slot.itemName} (x${slot.quantity})${activeIndicator}\\\\n`;
+            console.log(`[OpenAI] Hotbar slot ${slot.slotIndex + 1}:`, {
+              itemName: slot.itemName,
+              quantity: slot.quantity,
+              isActive: slot.isActiveItem,
+            });
+          } else {
+            prompt += `- Slot ${slot.slotIndex + 1}: [EMPTY]\\\\n`;
+          }
+        });
       } else {
-        prompt += `- Hotbar data unavailable\\n`;
+        prompt += `HOTBAR: No hotbar data available\\\\n`;
+        console.log('[OpenAI] No hotbar data available for SOVA');
       }
       
-      // Inventory slots (24 total)
-      prompt += `INVENTORY (${ctx?.totalInventorySlots || 24} slots):\\n`;
+      // Inventory Status (24 slots) - Summary
       if (ctx?.inventorySlots && ctx.inventorySlots.length > 0) {
-        const inventoryItems = ctx.inventorySlots
-          .filter(slot => !slot.isEmpty)
-          .map(slot => `${slot.quantity}x ${slot.itemName}`)
-          .join(', ');
+        const occupiedSlots = ctx.inventorySlots.filter(slot => !slot.isEmpty);
+        const inventoryItems = occupiedSlots.map(slot => `${slot.itemName} (x${slot.quantity})`);
         
-        if (inventoryItems) {
-          prompt += `- Items: ${inventoryItems}\\n`;
+        prompt += `\\\\nINVENTORY STATUS (${occupiedSlots.length}/${ctx.totalInventorySlots} slots used):\\\\n`;
+        if (occupiedSlots.length > 0) {
+          prompt += `Items in inventory: ${inventoryItems.join(', ')}\\\\n`;
+          console.log('[OpenAI] Inventory items being sent to SOVA:', inventoryItems);
         } else {
-          prompt += `- All inventory slots empty\\n`;
+          prompt += `Inventory appears to be empty\\\\n`;
+          console.log('[OpenAI] SOVA thinks inventory is empty!');
         }
-        
-        const emptyInventorySlots = ctx.inventorySlots.filter(slot => slot.isEmpty).length;
-        const occupiedInventorySlots = ctx.inventorySlots.length - emptyInventorySlots;
-        prompt += `- Space: ${occupiedInventorySlots}/${ctx.inventorySlots.length} slots used, ${emptyInventorySlots} empty\\n`;
       } else {
-        prompt += `- Inventory data unavailable\\n`;
+        prompt += `\\\\nINVENTORY: No inventory data available\\\\n`;
+        console.log('[OpenAI] No inventory data available for SOVA');
       }
     }
     
@@ -338,6 +380,7 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
     prompt += `- 🚨 CRAFTING COSTS: You MUST use the EXACT resource requirements from the Available recipes list above. DO NOT make up numbers! 🚨\\n`;
     prompt += `- 🚨 CRAFTING RULE: Search through the COMPLETE "Available recipes" list above to find the exact item. Quote those EXACT costs. NEVER make up different numbers! 🚨\\n`;
     prompt += `- 🚨 INVENTORY AWARENESS: Reference the EXACT items and quantities shown in the operative's hotbar and inventory above. Know what they have! 🚨\\n`;
+    prompt += `- 🚨 NATURAL LANGUAGE: When describing inventory items, use natural language like "5 wood", "a single torch", "25 stone" instead of "x5", "x1", "x25" format! 🚨\\n`;
     prompt += `- Never contradict the environmental data (don't say "clear" if it's raining)\\n`;
     prompt += `- Address player as: "Operative", "Agent", "Babushka", "my dear operative" - NEVER use hex identity strings\\n\\n`;
     

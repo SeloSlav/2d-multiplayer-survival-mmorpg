@@ -206,6 +206,12 @@ const getInventorySlots = (inventoryItems?: Map<string, any>, itemDefinitions?: 
   const TOTAL_INVENTORY_SLOTS = 24;
   const slots: InventorySlotInfo[] = [];
   
+  console.log('[GameContext] getInventorySlots called with:', {
+    inventoryItemsSize: inventoryItems?.size || 0,
+    itemDefinitionsSize: itemDefinitions?.size || 0,
+    localPlayerIdentity,
+  });
+  
   // Initialize all slots as empty
   for (let i = 0; i < TOTAL_INVENTORY_SLOTS; i++) {
     slots.push({
@@ -217,29 +223,133 @@ const getInventorySlots = (inventoryItems?: Map<string, any>, itemDefinitions?: 
   }
   
   if (!inventoryItems || !itemDefinitions || !localPlayerIdentity) {
+    console.log('[GameContext] Missing required data for inventory extraction:', {
+      hasInventoryItems: !!inventoryItems,
+      hasItemDefinitions: !!itemDefinitions,
+      hasLocalPlayerIdentity: !!localPlayerIdentity,
+    });
     return slots;
   }
   
+  let itemsProcessed = 0;
+  let playerItems = 0;
+  let inventoryItems_found = 0;
+  
   // Fill slots with actual items
-  inventoryItems.forEach(item => {
-    // Check if item belongs to the player and is in inventory location
-    if (item.ownerId?.toHexString() === localPlayerIdentity && 
-        item.location && 
-        item.location.tag === 'Inventory') {
-      
-      const slotIndex = item.location.value?.slotIndex;
-      if (slotIndex !== undefined && slotIndex >= 0 && slotIndex < TOTAL_INVENTORY_SLOTS) {
-        const itemDef = itemDefinitions.get(item.itemDefId.toString());
-        const itemName = itemDef?.name || 'Unknown Item';
-        
-        slots[slotIndex] = {
-          slotIndex,
-          itemName,
-          quantity: item.quantity || 0,
-          isEmpty: false,
-        };
+  inventoryItems.forEach((item, key) => {
+    itemsProcessed++;
+    
+    // Debug: Log first few items to see structure
+    if (itemsProcessed <= 3) {
+      console.log(`[GameContext] Processing inventory item ${itemsProcessed}:`, {
+        key,
+        item: {
+          ownerId: item.ownerId?.toHexString ? item.ownerId.toHexString() : item.ownerId,
+          instanceId: item.instanceId,
+          itemDefId: item.itemDefId,
+          quantity: item.quantity,
+          location: item.location,
+          // Log the full item to see all properties
+          fullItem: item,
+        }
+      });
+    }
+    
+    // Check if item belongs to the player - handle multiple possible ownerId formats
+    let itemOwnerId: string | undefined;
+    
+    // First, try to get owner ID from the location data (based on server structure)
+    if (item.location?.value?.owner_id?.toHexString) {
+      itemOwnerId = item.location.value.owner_id.toHexString();
+    } else if (typeof item.location?.value?.owner_id === 'string') {
+      itemOwnerId = item.location.value.owner_id;
+    } else if (item.location?.value?.ownerId?.toHexString) {
+      // Try camelCase variant
+      itemOwnerId = item.location.value.ownerId.toHexString();
+    } else if (typeof item.location?.value?.ownerId === 'string') {
+      itemOwnerId = item.location.value.ownerId;
+    } else if (item.ownerId?.toHexString) {
+      // Fallback to direct ownerId property
+      itemOwnerId = item.ownerId.toHexString();
+    } else if (typeof item.ownerId === 'string') {
+      itemOwnerId = item.ownerId;
+    } else if (item.owner_id?.toHexString) {
+      // Try alternative property name
+      itemOwnerId = item.owner_id.toHexString();
+    } else if (typeof item.owner_id === 'string') {
+      itemOwnerId = item.owner_id;
+    } else {
+      // If no ownerId found, check if this might be a player item by other means
+      // For now, log this case for debugging
+      if (itemsProcessed <= 3) {
+        console.log(`[GameContext] Item ${itemsProcessed} has no recognizable ownerId:`, {
+          ownerId: item.ownerId,
+          owner_id: item.owner_id,
+          locationValue: item.location?.value,
+          allKeys: Object.keys(item),
+          locationKeys: item.location ? Object.keys(item.location) : 'no location',
+          locationValueKeys: item.location?.value ? Object.keys(item.location.value) : 'no location.value',
+        });
       }
     }
+    
+    if (itemOwnerId === localPlayerIdentity) {
+      playerItems++;
+      
+      // Check if item is in inventory location
+      if (item.location && item.location.tag === 'Inventory') {
+        inventoryItems_found++;
+        
+        const slotIndex = item.location.value?.slotIndex;
+        console.log(`[GameContext] Found inventory item in slot ${slotIndex}:`, {
+          itemDefId: item.itemDefId,
+          quantity: item.quantity,
+          slotIndex,
+        });
+        
+        if (slotIndex !== undefined && slotIndex >= 0 && slotIndex < TOTAL_INVENTORY_SLOTS) {
+          const itemDef = itemDefinitions.get(item.itemDefId.toString());
+          const itemName = itemDef?.name || 'Unknown Item';
+          
+          console.log(`[GameContext] Placing item in slot ${slotIndex}:`, {
+            itemName,
+            quantity: item.quantity,
+            itemDef: itemDef ? 'found' : 'missing',
+          });
+          
+          slots[slotIndex] = {
+            slotIndex,
+            itemName,
+            quantity: item.quantity || 0,
+            isEmpty: false,
+          };
+        }
+      } else {
+        // Debug: Log non-inventory locations for player items
+        if (itemsProcessed <= 5) {
+          console.log(`[GameContext] Player item not in inventory:`, {
+            location: item.location,
+            itemDefId: item.itemDefId,
+          });
+        }
+      }
+    } else if (itemsProcessed <= 3) {
+      // Debug: Log why item doesn't match player
+      console.log(`[GameContext] Item ${itemsProcessed} doesn't match player:`, {
+        itemOwnerId,
+        localPlayerIdentity,
+        matches: itemOwnerId === localPlayerIdentity,
+      });
+    }
+  });
+  
+  const occupiedSlots = slots.filter(slot => !slot.isEmpty).length;
+  console.log('[GameContext] Inventory extraction summary:', {
+    totalItemsProcessed: itemsProcessed,
+    playerItems,
+    inventoryItemsFound: inventoryItems_found,
+    occupiedSlots,
+    totalSlots: TOTAL_INVENTORY_SLOTS,
   });
   
   return slots;
@@ -257,6 +367,13 @@ const getHotbarSlots = (
   const TOTAL_HOTBAR_SLOTS = 6;
   const slots: HotbarSlotInfo[] = [];
   
+  console.log('[GameContext] getHotbarSlots called with:', {
+    inventoryItemsSize: inventoryItems?.size || 0,
+    itemDefinitionsSize: itemDefinitions?.size || 0,
+    activeEquipmentsSize: activeEquipments?.size || 0,
+    localPlayerIdentity,
+  });
+  
   // Initialize all slots as empty
   for (let i = 0; i < TOTAL_HOTBAR_SLOTS; i++) {
     slots.push({
@@ -269,6 +386,11 @@ const getHotbarSlots = (
   }
   
   if (!inventoryItems || !itemDefinitions || !localPlayerIdentity) {
+    console.log('[GameContext] Missing required data for hotbar extraction:', {
+      hasInventoryItems: !!inventoryItems,
+      hasItemDefinitions: !!itemDefinitions,
+      hasLocalPlayerIdentity: !!localPlayerIdentity,
+    });
     return slots;
   }
   
@@ -276,18 +398,66 @@ const getHotbarSlots = (
   const playerEquipment = activeEquipments?.get(localPlayerIdentity);
   const activeItemInstanceId = playerEquipment?.equippedItemInstanceId;
   
+  console.log('[GameContext] Active equipment info:', {
+    playerEquipment,
+    activeItemInstanceId,
+  });
+  
+  let hotbarItemsFound = 0;
+  
   // Fill slots with actual items
-  inventoryItems.forEach(item => {
+  inventoryItems.forEach((item, key) => {
     // Check if item belongs to the player and is in hotbar location
-    if (item.ownerId?.toHexString() === localPlayerIdentity && 
+    let itemOwnerId: string | undefined;
+    
+    // First, try to get owner ID from the location data (based on server structure)
+    if (item.location?.value?.owner_id?.toHexString) {
+      itemOwnerId = item.location.value.owner_id.toHexString();
+    } else if (typeof item.location?.value?.owner_id === 'string') {
+      itemOwnerId = item.location.value.owner_id;
+    } else if (item.location?.value?.ownerId?.toHexString) {
+      // Try camelCase variant
+      itemOwnerId = item.location.value.ownerId.toHexString();
+    } else if (typeof item.location?.value?.ownerId === 'string') {
+      itemOwnerId = item.location.value.ownerId;
+    } else if (item.ownerId?.toHexString) {
+      // Fallback to direct ownerId property
+      itemOwnerId = item.ownerId.toHexString();
+    } else if (typeof item.ownerId === 'string') {
+      itemOwnerId = item.ownerId;
+    } else if (item.owner_id?.toHexString) {
+      // Try alternative property name
+      itemOwnerId = item.owner_id.toHexString();
+    } else if (typeof item.owner_id === 'string') {
+      itemOwnerId = item.owner_id;
+    }
+    
+    if (itemOwnerId === localPlayerIdentity && 
         item.location && 
         item.location.tag === 'Hotbar') {
       
+      hotbarItemsFound++;
+      
       const slotIndex = item.location.value?.slotIndex;
+      console.log(`[GameContext] Found hotbar item in slot ${slotIndex}:`, {
+        itemDefId: item.itemDefId,
+        quantity: item.quantity,
+        instanceId: item.instanceId,
+        slotIndex,
+        isActive: activeItemInstanceId === item.instanceId,
+      });
+      
       if (slotIndex !== undefined && slotIndex >= 0 && slotIndex < TOTAL_HOTBAR_SLOTS) {
         const itemDef = itemDefinitions.get(item.itemDefId.toString());
         const itemName = itemDef?.name || 'Unknown Item';
         const isActiveItem = activeItemInstanceId === item.instanceId;
+        
+        console.log(`[GameContext] Placing hotbar item in slot ${slotIndex}:`, {
+          itemName,
+          quantity: item.quantity,
+          isActiveItem,
+          itemDef: itemDef ? 'found' : 'missing',
+        });
         
         slots[slotIndex] = {
           slotIndex,
@@ -300,6 +470,14 @@ const getHotbarSlots = (
     }
   });
   
+  const occupiedSlots = slots.filter(slot => !slot.isEmpty).length;
+  console.log('[GameContext] Hotbar extraction summary:', {
+    hotbarItemsFound,
+    occupiedSlots,
+    totalSlots: TOTAL_HOTBAR_SLOTS,
+    activeItemInstanceId,
+  });
+  
   return slots;
 };
 
@@ -309,10 +487,35 @@ const getHotbarSlots = (
 export const buildGameContext = (props: GameContextBuilderProps): GameContext => {
   const { worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, localPlayerIdentity } = props;
 
+  console.log('[GameContext] buildGameContext called with props:', {
+    hasWorldState: !!worldState,
+    hasLocalPlayer: !!localPlayer,
+    hasItemDefinitions: !!itemDefinitions,
+    itemDefinitionsSize: itemDefinitions?.size || 0,
+    hasActiveEquipments: !!activeEquipments,
+    activeEquipmentsSize: activeEquipments?.size || 0,
+    hasInventoryItems: !!inventoryItems,
+    inventoryItemsSize: inventoryItems?.size || 0,
+    localPlayerIdentity,
+  });
+
   // Get current inventory resources for crafting advice
   const currentResources = getCurrentInventoryResources(inventoryItems, itemDefinitions, localPlayerIdentity);
+  
+  console.log('[GameContext] Current resources extracted:', currentResources);
 
-  return {
+  // Get detailed inventory and hotbar information
+  const inventorySlots = getInventorySlots(inventoryItems, itemDefinitions, localPlayerIdentity);
+  const hotbarSlots = getHotbarSlots(inventoryItems, itemDefinitions, activeEquipments, localPlayerIdentity);
+  
+  console.log('[GameContext] Slots extracted:', {
+    inventorySlotsCount: inventorySlots.length,
+    inventoryOccupied: inventorySlots.filter(s => !s.isEmpty).length,
+    hotbarSlotsCount: hotbarSlots.length,
+    hotbarOccupied: hotbarSlots.filter(s => !s.isEmpty).length,
+  });
+
+  const gameContext = {
     timeOfDay: getTimeOfDayString(worldState?.timeOfDay),
     currentWeather: getWeatherString(worldState?.currentWeather),
     rainIntensity: worldState?.rainIntensity || 0,
@@ -326,11 +529,24 @@ export const buildGameContext = (props: GameContextBuilderProps): GameContext =>
     craftableItems: getCraftableItems(itemDefinitions),
     nearbyItems: [], // Could be enhanced to show nearby dropped items
     currentResources, // Add current inventory resources
-    inventorySlots: getInventorySlots(inventoryItems, itemDefinitions, localPlayerIdentity),
-    hotbarSlots: getHotbarSlots(inventoryItems, itemDefinitions, activeEquipments, localPlayerIdentity),
+    inventorySlots,
+    hotbarSlots,
     totalInventorySlots: 24,
     totalHotbarSlots: 6,
   };
+  
+  console.log('[GameContext] Final game context created:', {
+    timeOfDay: gameContext.timeOfDay,
+    currentWeather: gameContext.currentWeather,
+    playerHealth: gameContext.playerHealth,
+    currentEquipment: gameContext.currentEquipment,
+    currentResourcesCount: gameContext.currentResources.length,
+    inventorySlotsCount: gameContext.inventorySlots.length,
+    hotbarSlotsCount: gameContext.hotbarSlots.length,
+    craftableItemsCount: gameContext.craftableItems.length,
+  });
+  
+  return gameContext;
 };
 
 export default buildGameContext; 

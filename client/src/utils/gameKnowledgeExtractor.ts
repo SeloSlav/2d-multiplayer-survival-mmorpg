@@ -90,11 +90,13 @@ export const tipSections: TipSection[] = [
     {
         title: 'Combat & Safety',
         tips: [
-            'Craft weapons and armor to defend yourself from threats.',
-            'Bandages can heal you over time - keep some in your hotbar.',
-            'If knocked out, other players can revive you by holding E.',
-            'Store valuable items in wooden storage boxes inside shelters to protect them from other players.',
-            'Shelters are cheap to make and difficult to destroy, but have limited space and you cannot attack enemies from inside them.',
+            'Craft weapons early - even a wooden spear is better than fighting with a wooden spoon.',
+            'Keep bandages in your hotbar for quick healing during combat.',
+            'Stay near light sources at night, but be aware that darkness can hide threats.',
+            'Build sleeping bags to set respawn points in safe locations.',
+            'Torches and campfires provide warmth and light at night, but make you visible to other players on the minimap at long distances.',
+            'Consider the tactical trade-off: warmth and visibility vs. stealth when using torches.',
+            'In nighttime PvP situations, extinguish torches when you need to move unseen.',
         ]
     },
     {

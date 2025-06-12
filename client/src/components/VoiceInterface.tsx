@@ -166,16 +166,53 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
       // Generate AI response with comprehensive timing tracking
       console.log('[VoiceInterface] 🤖 Generating AI response...');
+      
+      // Debug: Log what props we're passing to buildGameContext
+      console.log('🚨🚨🚨 [VoiceInterface] PROPS BEING PASSED TO buildGameContext 🚨🚨🚨');
+      console.log('[VoiceInterface] Game context props:', {
+        hasWorldState: !!worldState,
+        hasLocalPlayer: !!localPlayer,
+        hasItemDefinitions: !!itemDefinitions,
+        itemDefinitionsSize: itemDefinitions?.size || 0,
+        hasActiveEquipments: !!activeEquipments,
+        activeEquipmentsSize: activeEquipments?.size || 0,
+        hasInventoryItems: !!inventoryItems,
+        inventoryItemsSize: inventoryItems?.size || 0,
+        localPlayerIdentity,
+      });
+      
+      // Debug: Sample some inventory items if they exist
+      if (inventoryItems && inventoryItems.size > 0) {
+        console.log('📦📦📦 [VoiceInterface] SAMPLE INVENTORY ITEMS:');
+        let count = 0;
+        inventoryItems.forEach((item, key) => {
+          if (count < 3) {
+            console.log(`[VoiceInterface] Item ${count + 1}:`, {
+              key,
+              ownerId: item.ownerId?.toHexString ? item.ownerId.toHexString() : item.ownerId,
+              itemDefId: item.itemDefId,
+              quantity: item.quantity,
+              location: item.location,
+            });
+            count++;
+          }
+        });
+      } else {
+        console.log('❌ [VoiceInterface] NO INVENTORY ITEMS AVAILABLE');
+      }
+      
+      const gameContext = buildGameContext({
+        worldState,
+        localPlayer,
+        itemDefinitions,
+        activeEquipments,
+        inventoryItems,
+        localPlayerIdentity,
+      });
+      
       const aiResponse = await openaiService.generateSOVAResponse({
         userMessage: transcribedText,
-        gameContext: buildGameContext({
-          worldState,
-          localPlayer,
-          itemDefinitions,
-          activeEquipments,
-          inventoryItems,
-          localPlayerIdentity,
-        }),
+        gameContext,
       });
 
       if (aiResponse.success && aiResponse.response) {

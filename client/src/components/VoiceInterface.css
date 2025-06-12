@@ -19,6 +19,32 @@
   justify-content: center;
 }
 
+/* Black circular background behind all rings */
+.voice-interface-rings::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.85));
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 0 50px rgba(0, 0, 0, 0.8),
+    inset 0 0 30px rgba(0, 0, 0, 0.5);
+  z-index: -1;
+}
+
+/* Enhanced background when recording */
+.voice-interface-rings:has(.recording)::before {
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.98), rgba(0, 20, 20, 0.9));
+  border-color: rgba(0, 255, 255, 0.2);
+  box-shadow: 
+    0 0 60px rgba(0, 255, 255, 0.3),
+    0 0 100px rgba(0, 0, 0, 0.9),
+    inset 0 0 40px rgba(0, 255, 255, 0.1);
+}
+
 /* Outer Ring - Pulsing */
 .voice-interface-outer-ring {
   position: absolute;
@@ -26,11 +52,18 @@
   height: 280px;
   border-radius: 50%;
   border: 4px solid #00ffff;
-  box-shadow: 0 0 40px #00ffff, inset 0 0 40px rgba(0, 255, 255, 0.15);
+  box-shadow: 
+    0 0 40px #00ffff, 
+    inset 0 0 40px rgba(0, 255, 255, 0.15),
+    0 0 80px rgba(0, 255, 255, 0.3);
 }
 
 .voice-interface-outer-ring.recording {
   animation: voice-pulse 1.5s infinite;
+  box-shadow: 
+    0 0 50px #00ffff, 
+    inset 0 0 50px rgba(0, 255, 255, 0.25),
+    0 0 100px rgba(0, 255, 255, 0.4);
 }
 
 /* Middle Ring - Rotating */
@@ -42,11 +75,16 @@
   border: 3px solid #ff00ff;
   border-top: 3px solid transparent;
   border-right: 3px solid transparent;
-  box-shadow: 0 0 30px #ff00ff;
+  box-shadow: 
+    0 0 30px #ff00ff,
+    0 0 60px rgba(255, 0, 255, 0.3);
 }
 
 .voice-interface-middle-ring.recording {
   animation: voice-rotate 2s linear infinite;
+  box-shadow: 
+    0 0 40px #ff00ff,
+    0 0 80px rgba(255, 0, 255, 0.4);
 }
 
 /* Inner Ring - Counter-rotating */
@@ -58,37 +96,49 @@
   border: 3px solid #ffff00;
   border-bottom: 3px solid transparent;
   border-left: 3px solid transparent;
-  box-shadow: 0 0 25px #ffff00;
+  box-shadow: 
+    0 0 25px #ffff00,
+    0 0 50px rgba(255, 255, 0, 0.3);
 }
 
 .voice-interface-inner-ring.recording {
   animation: voice-rotate 1.5s linear infinite reverse;
+  box-shadow: 
+    0 0 35px #ffff00,
+    0 0 70px rgba(255, 255, 0, 0.4);
 }
 
-/* Center Circle - Enhanced with black background */
+/* Center Circle - Enhanced with better contrast */
 .voice-interface-center {
   position: absolute;
   width: 120px;
   height: 120px;
   border-radius: 50%;
   border: 3px solid #ffffff;
-  box-shadow: 0 0 35px rgba(255, 255, 255, 0.6), inset 0 0 35px rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 0 35px rgba(255, 255, 255, 0.6), 
+    inset 0 0 35px rgba(255, 255, 255, 0.15),
+    0 0 70px rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.95));
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.95), rgba(10, 10, 10, 0.98));
   backdrop-filter: blur(5px);
+  z-index: 10;
 }
 
 .voice-interface-center.recording {
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.85), rgba(0, 40, 40, 0.9));
-  box-shadow: 0 0 45px rgba(0, 255, 255, 0.8), inset 0 0 35px rgba(0, 255, 255, 0.2);
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.9), rgba(0, 30, 30, 0.95));
+  box-shadow: 
+    0 0 45px rgba(0, 255, 255, 0.8), 
+    inset 0 0 35px rgba(0, 255, 255, 0.2),
+    0 0 90px rgba(0, 255, 255, 0.4);
   border-color: #00ffff;
 }
 
 .voice-interface-center.idle {
-  background: radial-gradient(circle, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.95));
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.95), rgba(10, 10, 10, 0.98));
 }
 
 /* SOVA Icon - Much larger and more prominent */
@@ -200,8 +250,8 @@
     opacity: 1; 
   }
   50% { 
-    transform: scale(1.08); 
-    opacity: 0.8; 
+    transform: scale(1.05); 
+    opacity: 0.85; 
   }
   100% { 
     transform: scale(1); 
@@ -220,7 +270,19 @@
 
 /* Additional glow effects for recording state */
 .voice-interface-rings:has(.recording) {
-  filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.3));
+  filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.4));
+}
+
+/* Enhanced overall glow when recording */
+.voice-interface-rings:has(.recording)::after {
+  content: '';
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 60%, rgba(0, 255, 255, 0.1) 80%, transparent 100%);
+  z-index: -2;
+  animation: voice-pulse 2s infinite;
 }
 
 /* Hover effects for better interactivity feel */
