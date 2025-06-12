@@ -259,4 +259,49 @@
   .timestamp {
     font-size: 7px; /* Increased from 4px to maintain readability */
   }
+}
+
+/* Tab Navigation */
+.tabContainer {
+  display: flex;
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.1), rgba(0, 150, 255, 0.05));
+  border-bottom: 1px solid rgba(0, 170, 255, 0.3);
+  padding: 0;
+  margin: 0;
+}
+
+.tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: rgba(0, 170, 255, 0.7);
+  font-family: '"Press Start 2P", cursive';
+  font-size: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
+  letter-spacing: 0.5px;
+  border-right: 1px solid rgba(0, 170, 255, 0.2);
+}
+
+.tab:last-child {
+  border-right: none;
+}
+
+.tab:hover {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.15), rgba(0, 150, 255, 0.1));
+  color: rgba(0, 170, 255, 0.9);
+  text-shadow: 0 0 6px rgba(0, 170, 255, 0.6);
+}
+
+.activeTab {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.2)) !important;
+  color: #00ffff !important;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.8) !important;
+  box-shadow: inset 0 0 10px rgba(0, 170, 255, 0.2);
+}
+
+.activeTab:hover {
+  background: linear-gradient(135deg, rgba(0, 170, 255, 0.35), rgba(0, 150, 255, 0.25)) !important;
 } 

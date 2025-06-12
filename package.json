@@ -22,7 +22,10 @@
     "@supabase/supabase-js": "^2.49.4",
     "@types/bcrypt": "^5.0.2",
     "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "jose": "^6.0.10",
+    "node-fetch": "^3.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "use-debounce": "^10.0.4"

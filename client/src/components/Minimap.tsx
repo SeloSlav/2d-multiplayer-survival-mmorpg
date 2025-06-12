@@ -10,23 +10,20 @@ const worldAspectRatio = worldPixelHeight / worldPixelWidth;
 const BASE_MINIMAP_WIDTH = 600; // Base width for calculation
 const calculatedMinimapHeight = BASE_MINIMAP_WIDTH * worldAspectRatio;
 
-// Minimap constants
+// Minimap constants - UPDATED TO CYBERPUNK THEME
 const MINIMAP_WIDTH = BASE_MINIMAP_WIDTH;
 const MINIMAP_HEIGHT = Math.round(calculatedMinimapHeight); // Use calculated height
-const MINIMAP_BG_COLOR_NORMAL = 'rgba(40, 40, 60, 0.9)'; // Increased opacity for better visibility
-const MINIMAP_BG_COLOR_HOVER = 'rgba(60, 60, 80, 0.95)'; // Increased opacity for better visibility
-const MINIMAP_BORDER_COLOR = '#a0a0c0';
-const MINIMAP_BORDER_WIDTH = 2; // Thicker border
-const MINIMAP_INNER_BORDER_COLOR = '#ffffff'; // White inner border
+
+// Cyberpunk color scheme
+const MINIMAP_BG_COLOR_NORMAL = 'rgba(15, 23, 35, 0.95)'; // Dark blue-black
+const MINIMAP_BG_COLOR_HOVER = 'rgba(20, 30, 45, 0.98)'; // Slightly lighter on hover
+const MINIMAP_BORDER_COLOR = '#00d4ff'; // Bright cyan border
+const MINIMAP_BORDER_WIDTH = 2;
+const MINIMAP_INNER_BORDER_COLOR = '#7c3aed'; // Purple inner border
 const MINIMAP_INNER_BORDER_WIDTH = 1;
-// X button constants
-const X_BUTTON_SIZE = 24;
-const X_BUTTON_PADDING = 8;
-const X_BUTTON_BG_COLOR = 'rgba(180, 60, 60, 0.8)'; // Red background
-const X_BUTTON_BG_COLOR_HOVER = 'rgba(220, 80, 80, 0.9)'; // Brighter red on hover
-const X_BUTTON_BORDER_COLOR = '#ffffff';
-const X_BUTTON_BORDER_WIDTH = 1;
-const X_BUTTON_TEXT_COLOR = '#ffffff';
+const MINIMAP_GLOW_COLOR = '#00d4ff'; // Cyan glow effect
+
+// Tab and X button functionality now handled by React components
 const PLAYER_DOT_SIZE = 3;
 const LOCAL_PLAYER_DOT_COLOR = '#FFFF00';
 // Player icon constants - Updated for directional triangular icons
@@ -175,7 +172,6 @@ interface MinimapProps {
   canvasWidth: number; // Canvas width for calculating minimap position
   canvasHeight: number; // Canvas height for calculating minimap position
   isMouseOverMinimap: boolean; // Whether the mouse is over the minimap
-  isMouseOverXButton?: boolean; // Whether the mouse is over the X button
   zoomLevel: number; // Zoom level for minimap
   minimapCache: MinimapCache | null; // Cached minimap data
   // Add new props with defaults
@@ -187,6 +183,7 @@ interface MinimapProps {
   localPlayerDeathMarker?: SpacetimeDBDeathMarker | null; // Death marker for the local player
   deathMarkerImage?: HTMLImageElement | null; // Death marker image for rendering
   worldState?: WorldState | null; // World state for various info
+  // Tab functionality now handled by React components
 }
 
 // Helper function to map color values to terrain colors (UPDATED with Rust-style colors)
@@ -225,7 +222,7 @@ export function drawMinimapOntoCanvas({
   canvasWidth,
   canvasHeight,
   isMouseOverMinimap,
-  isMouseOverXButton = false, // Destructure with default
+  // isMouseOverXButton removed - X button now handled by React components
   zoomLevel, // Destructure zoomLevel
   viewCenterOffset, // Destructure pan offset
   minimapCache, // Destructure minimapCache
@@ -310,21 +307,30 @@ export function drawMinimapOntoCanvas({
   // Apply current animated opacity (smoothly transitioning)
   ctx.globalAlpha = animatedOpacity;
 
-  // Apply shadow (draw rectangle slightly offset first, then the main one)
-  const shadowOffset = 3;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  // Apply cyberpunk glow shadow effect
+  const shadowOffset = 4;
+  ctx.shadowColor = MINIMAP_GLOW_COLOR;
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
   ctx.fillRect(minimapX + shadowOffset, minimapY + shadowOffset, minimapWidth, minimapHeight);
+  ctx.shadowBlur = 0; // Reset shadow
 
-  // 1. Draw Overall Minimap Background (Dark UI Color)
-  ctx.fillStyle = isMouseOverMinimap ? MINIMAP_BG_COLOR_HOVER : MINIMAP_BG_COLOR_NORMAL;
+  // 1. Draw Overall Minimap Background with cyberpunk gradient
+  const bgGradient = ctx.createLinearGradient(minimapX, minimapY, minimapX + minimapWidth, minimapY + minimapHeight);
+  bgGradient.addColorStop(0, isMouseOverMinimap ? MINIMAP_BG_COLOR_HOVER : MINIMAP_BG_COLOR_NORMAL);
+  bgGradient.addColorStop(1, 'rgba(30, 41, 59, 0.95)'); // Darker blue-slate at bottom
+  ctx.fillStyle = bgGradient;
   ctx.fillRect(minimapX, minimapY, minimapWidth, minimapHeight);
 
-  // Draw enhanced border (outer border)
+  // Draw enhanced cyberpunk border with glow effect
   ctx.strokeStyle = MINIMAP_BORDER_COLOR;
   ctx.lineWidth = MINIMAP_BORDER_WIDTH;
+  ctx.shadowColor = MINIMAP_GLOW_COLOR;
+  ctx.shadowBlur = 8;
   ctx.strokeRect(minimapX, minimapY, minimapWidth, minimapHeight);
+  ctx.shadowBlur = 0; // Reset shadow
   
-  // Draw inner border for more definition
+  // Draw inner border for more definition with purple accent
   ctx.strokeStyle = MINIMAP_INNER_BORDER_COLOR;
   ctx.lineWidth = MINIMAP_INNER_BORDER_WIDTH;
   ctx.strokeRect(minimapX + MINIMAP_BORDER_WIDTH, minimapY + MINIMAP_BORDER_WIDTH, 
@@ -846,41 +852,13 @@ export function drawMinimapOntoCanvas({
       }
   }
 
-  // --- Draw X Button (outside of clipped area) ---
-  ctx.restore(); // Restore context before drawing X button (removes clip)
-  
-  // Calculate X button position (top-right corner of minimap)
-  const xButtonX = minimapX + minimapWidth - X_BUTTON_SIZE - X_BUTTON_PADDING;
-  const xButtonY = minimapY + X_BUTTON_PADDING;
-  
-  // Draw X button background
-  ctx.fillStyle = isMouseOverXButton ? X_BUTTON_BG_COLOR_HOVER : X_BUTTON_BG_COLOR;
-  ctx.fillRect(xButtonX, xButtonY, X_BUTTON_SIZE, X_BUTTON_SIZE);
-  
-  // Draw X button border
-  ctx.strokeStyle = X_BUTTON_BORDER_COLOR;
-  ctx.lineWidth = X_BUTTON_BORDER_WIDTH;
-  ctx.strokeRect(xButtonX, xButtonY, X_BUTTON_SIZE, X_BUTTON_SIZE);
-  
-  // Draw X symbol
-  ctx.strokeStyle = X_BUTTON_TEXT_COLOR;
-  ctx.lineWidth = 2;
-  const xPadding = 6;
-  const xLeft = xButtonX + xPadding;
-  const xRight = xButtonX + X_BUTTON_SIZE - xPadding;
-  const xTop = xButtonY + xPadding;
-  const xBottom = xButtonY + X_BUTTON_SIZE - xPadding;
-  
-  // Draw X lines
-  ctx.beginPath();
-  ctx.moveTo(xLeft, xTop);
-  ctx.lineTo(xRight, xBottom);
-  ctx.moveTo(xRight, xTop);
-  ctx.lineTo(xLeft, xBottom);
-  ctx.stroke();
+  // X button now handled by React components, not canvas drawing
+  ctx.restore(); // Restore context after drawing all elements
 
   // Restore context after drawing all elements
   ctx.restore(); // Final restore for the opacity/shadow effects
+
+  // Tab bar now handled by React components, not canvas drawing
 }
 
 // Export the calculated dimensions for potential use elsewhere (e.g., mouse interaction checks)
@@ -944,23 +922,7 @@ export const calculateMinimapViewport = (
     return { currentScale, drawOffsetX, drawOffsetY, viewMinXWorld, viewMinYWorld };
 };
 
-// Helper function to check if a point is within the X button bounds
-export const isPointInXButton = (
-  mouseX: number,
-  mouseY: number,
-  canvasWidth: number,
-  canvasHeight: number
-): boolean => {
-  const minimapX = (canvasWidth - MINIMAP_WIDTH) / 2;
-  const minimapY = (canvasHeight - MINIMAP_HEIGHT) / 2;
-  const xButtonX = minimapX + MINIMAP_WIDTH - X_BUTTON_SIZE - X_BUTTON_PADDING;
-  const xButtonY = minimapY + X_BUTTON_PADDING;
-  
-  return mouseX >= xButtonX && 
-         mouseX <= xButtonX + X_BUTTON_SIZE && 
-         mouseY >= xButtonY && 
-         mouseY <= xButtonY + X_BUTTON_SIZE;
-};
+// X button functionality now handled by React components
 
 // Helper function to check if a point is within the minimap bounds
 export const isPointInMinimap = (
@@ -987,5 +949,7 @@ export const isClickOutsideMinimap = (
 ): boolean => {
   return !isPointInMinimap(mouseX, mouseY, canvasWidth, canvasHeight);
 };
+
+// Tab functionality moved to React components
 
 export default drawMinimapOntoCanvas;

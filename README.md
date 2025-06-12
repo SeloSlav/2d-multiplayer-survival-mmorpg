@@ -19,6 +19,7 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 *   [🔐 Authentication Setup](#-authentication-setup)
 *   [📜 Cursor Rules & Code Maintainability](#-cursor-rules--code-maintainability)
 *   [⚙️ Client Configuration](#️-client-configuration)
+*   [🤖 SOVA AI Assistant Configuration](#-sova-ai-assistant-configuration)
 *   [🌍 World Configuration](#-world-configuration-tile-size--map-dimensions)
 *   [📁 Project Structure](#-project-structure)
 *   [🔧 Troubleshooting Local Setup](#-troubleshooting-local-setup)
@@ -274,6 +275,49 @@ const SPACETIME_DB_NAME = 'vibe-survival-game';
 
 *   **For Local Development:** Use the default values (`ws://localhost:3000` and your module name).
 *   **For Maincloud Deployment:** Replace `SPACETIME_DB_ADDRESS` with your Maincloud WebSocket URI (e.g., `wss://maincloud.spacetimedb.net`) and `SPACETIME_DB_NAME` with your Maincloud database name (e.g., `your-identity/your-database-name`).
+
+## 🤖 SOVA AI Assistant Configuration
+
+This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent AI assistant with voice synthesis capabilities. SOVA provides tactical advice, game tips, and responds with a military-themed personality.
+
+### Quick Setup
+
+1. **Voice Synthesis (Kikashi API):**
+   ```bash
+   # Set environment variable (recommended)
+   export KIKASHI_API_KEY="your-kikashi-api-key-here"
+   
+   # Start proxy server and game
+   ./start-with-proxy.sh  # macOS/Linux
+   # OR
+   start-with-proxy.bat   # Windows
+   ```
+
+2. **AI Personality (OpenAI API):**
+   ```bash
+   # Create client/.env file
+   echo "VITE_OPENAI_API_KEY=sk-your-openai-api-key-here" > client/.env
+   ```
+
+### Features
+- 🎤 **Voice Synthesis:** Robot voice responses using Kikashi API
+- 🎙️ **Voice Commands:** Hold V key for speech-to-text input (OpenAI Whisper)
+- 🧠 **AI Personality:** Intelligent responses powered by OpenAI GPT-4o
+- 🎯 **Game Knowledge:** Contextual survival tips and tactical advice
+- 🎪 **Easter Eggs:** Special responses (try asking "What does SOVA stand for?")
+- 🔄 **Fallback System:** Works without API keys using predefined responses
+
+### Voice Interface
+- **Push-to-Talk:** Hold **V** key to activate voice recording
+- **Cyberpunk UI:** Animated recording interface with status indicators
+- **Speech-to-Text:** OpenAI Whisper converts speech to text
+- **Chat Integration:** Voice messages appear in chat like typed messages
+- **AI Response:** SOVA responds intelligently with voice synthesis
+
+### Documentation
+- **[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)** - Complete environment variable guide
+- **[OPENAI_SETUP.md](./OPENAI_SETUP.md)** - AI personality configuration
+- **[VOICE_PROXY_README.md](./VOICE_PROXY_README.md)** - Voice synthesis setup
 
 ## 🌍 World Configuration (Tile Size & Map Dimensions)
 

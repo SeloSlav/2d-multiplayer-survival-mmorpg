@@ -3,6 +3,10 @@ import ChatMessageHistory from './ChatMessageHistory';
 import ChatInput from './ChatInput';
 import { DbConnection, Message as SpacetimeDBMessage, Player as SpacetimeDBPlayer, PrivateMessage as SpacetimeDBPrivateMessage, EventContext } from '../generated'; // Assuming types
 import styles from './Chat.module.css';
+import sovaIcon from '../assets/ui/sova.png';
+import { kikashiService } from '../services/kikashiService';
+import { openaiService } from '../services/openaiService';
+import { buildGameContext, type GameContextBuilderProps } from '../utils/gameContextBuilder';
 
 interface ChatProps {
   connection: DbConnection | null;
@@ -11,15 +15,52 @@ interface ChatProps {
   isChatting: boolean; // Receive chat state
   setIsChatting: (isChatting: boolean) => void; // Receive state setter
   localPlayerIdentity: string | undefined; // Changed from string | null
+  onSOVAMessageAdderReady?: (addMessage: (message: { id: string; text: string; isUser: boolean; timestamp: Date }) => void) => void;
+  // Game context props for SOVA
+  worldState?: any;
+  localPlayer?: any;
+  itemDefinitions?: Map<string, any>;
+  activeEquipments?: Map<string, any>;
+  inventoryItems?: Map<string, any>;
 }
 
-const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, setIsChatting, localPlayerIdentity }) => {
+type ChatTab = 'global' | 'sova';
+
+// SOVA Message Component - moved outside to prevent re-renders
+const SOVAMessage: React.FC<{message: {id: string, text: string, isUser: boolean, timestamp: Date}}> = React.memo(({ message }) => (
+  <div className={styles.message} style={{ 
+    background: message.isUser 
+      ? 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.1))'
+      : 'linear-gradient(135deg, rgba(255, 100, 0, 0.2), rgba(255, 80, 0, 0.1))'
+  }}>
+    <div className={styles.messageHeader}>
+      <span className={styles.playerName} style={{ 
+        color: message.isUser ? '#00ffff' : '#ff6600' 
+      }}>
+        {message.isUser ? 'You' : 'SOVA'}
+      </span>
+      <span className={styles.timestamp}>
+        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+    <div className={styles.messageContent}>
+      {message.text}
+    </div>
+  </div>
+));
+
+const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, setIsChatting, localPlayerIdentity, onSOVAMessageAdderReady, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems }) => {
   // console.log("[Chat Component Render] Props - Connection:", !!connection, "LocalPlayerIdentity:", localPlayerIdentity);
   const [inputValue, setInputValue] = useState('');
   const [privateMessages, setPrivateMessages] = useState<Map<string, SpacetimeDBPrivateMessage>>(new Map());
   const [isMinimized, setIsMinimized] = useState(false);
+  const [activeTab, setActiveTab] = useState<ChatTab>('global');
+  const [sovaMessages, setSovaMessages] = useState<Array<{id: string, text: string, isUser: boolean, timestamp: Date}>>([]);
+  const [sovaInputValue, setSovaInputValue] = useState('');
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const sovaInputRef = useRef<HTMLInputElement>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const sovaMessageEndRef = useRef<HTMLDivElement>(null);
   const lastMessageCountRef = useRef<number>(0);
   const privateMessageSubscriptionRef = useRef<any | null>(null); // Changed back to any for now
 
@@ -116,11 +157,112 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   const handleCloseChat = useCallback(() => {
     setIsChatting(false);
     setInputValue('');
+    setSovaInputValue('');
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     document.body.focus();
   }, [setIsChatting]);
+
+  // Handle tab switching
+  const handleTabSwitch = useCallback((tab: ChatTab) => {
+    setActiveTab(tab);
+  }, []);
+
+  // Handle SOVA message sending with voice synthesis and game context
+  const handleSendSOVAMessage = useCallback(async () => {
+    if (!sovaInputValue.trim()) return;
+
+    const userMessageText = sovaInputValue.trim();
+
+    // Add user message to SOVA chat immediately
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      text: userMessageText,
+      isUser: true,
+      timestamp: new Date()
+    };
+    
+    setSovaMessages(prev => [...prev, userMessage]);
+    setSovaInputValue('');
+
+    try {
+      // Build game context for SOVA AI
+      const gameContext = buildGameContext({
+        worldState,
+        localPlayer,
+        itemDefinitions,
+        activeEquipments,
+        inventoryItems,
+        localPlayerIdentity,
+      });
+
+      console.log('[Chat] Generating SOVA AI response with game context for:', userMessageText);
+      
+      // Generate SOVA AI response using OpenAI service with game context
+      const aiResponse = await openaiService.generateSOVAResponse({
+        userMessage: userMessageText,
+        playerName: localPlayerIdentity,
+        gameContext,
+      });
+
+      if (aiResponse.success && aiResponse.response) {
+        console.log('[Chat] SOVA AI response generated:', aiResponse.response);
+
+        // Add SOVA's text response to chat
+        const botResponse = {
+          id: `sova-${Date.now()}`,
+          text: aiResponse.response,
+          isUser: false,
+          timestamp: new Date()
+        };
+        setSovaMessages(prev => [...prev, botResponse]);
+
+        // Try to synthesize and play voice response
+        try {
+          const voiceResult = await kikashiService.synthesizeVoice({
+            text: aiResponse.response,
+            voiceStyle: 'robot2'
+          });
+          
+          if (voiceResult.success && voiceResult.audioUrl) {
+            await kikashiService.playAudio(voiceResult.audioUrl);
+            console.log('[Chat] SOVA voice response played successfully');
+          } else {
+            console.error('[Chat] Voice synthesis failed:', voiceResult.error);
+          }
+        } catch (voiceError) {
+          console.error('[Chat] Failed to play SOVA voice response:', voiceError);
+        }
+
+      } else {
+        // Fallback response if AI generation fails
+        const fallbackResponse = {
+          id: `sova-${Date.now()}`,
+          text: `SOVA: AI response error - ${aiResponse.error || 'Unknown error'}. Message received: "${userMessageText}". Please try again.`,
+          isUser: false,
+          timestamp: new Date()
+        };
+        setSovaMessages(prev => [...prev, fallbackResponse]);
+        console.error('[Chat] SOVA AI response failed:', aiResponse.error);
+      }
+    } catch (error) {
+      // Error handling for API failures
+      const errorResponse = {
+        id: `sova-${Date.now()}`,
+        text: `SOVA: System error occurred. Message received: "${userMessageText}". Please try again later.`,
+        isUser: false,
+        timestamp: new Date()
+      };
+      setSovaMessages(prev => [...prev, errorResponse]);
+      console.error('[Chat] SOVA API error:', error);
+    }
+
+    // Clear input and maintain chat focus
+    if (sovaInputRef.current) {
+      sovaInputRef.current.focus();
+    }
+  }, [sovaInputValue, setIsChatting, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, localPlayerIdentity]);
 
   // Handle placeholder click
   const handlePlaceholderClick = useCallback(() => {
@@ -152,7 +294,8 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
       
     // Skip if we're focused on some other input that isn't our chat
     const isChatInputFocused = activeElement === chatInputRef.current;
-    if (isInputFocused && !isChatInputFocused) return;
+    const isSOVAInputFocused = activeElement === sovaInputRef.current;
+    if (isInputFocused && !isChatInputFocused && !isSOVAInputFocused) return;
 
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -170,6 +313,41 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
       handleCloseChat();
     }
   }, [isChatting, setIsChatting, handleCloseChat, isMinimized]);
+
+  // Track new SOVA messages and scroll to bottom
+  useEffect(() => {
+    if (activeTab === 'sova' && sovaMessages.length > 0 && sovaMessageEndRef.current) {
+      sovaMessageEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [sovaMessages, activeTab]);
+
+  // Create the addSOVAMessage function to pass to parent
+  const addSOVAMessage = useCallback((message: { id: string; text: string; isUser: boolean; timestamp: Date }) => {
+    // Safety check to prevent null/undefined messages
+    if (!message || !message.id || !message.text) {
+      console.error('[Chat] Invalid SOVA message received:', message);
+      return;
+    }
+    
+    console.log('[Chat] Adding SOVA message:', message);
+    setSovaMessages(prev => [...prev, message]);
+    
+    // Auto-switch to SOVA tab when voice messages are added
+    if (message.id.includes('voice')) {
+      console.log('[Chat] Auto-switching to SOVA tab for voice message');
+      setActiveTab('sova');
+    }
+  }, []);
+
+  // Call the parent callback with our function
+  useEffect(() => {
+    if (onSOVAMessageAdderReady) {
+      console.log('[Chat] Calling onSOVAMessageAdderReady with addSOVAMessage function');
+      onSOVAMessageAdderReady(addSOVAMessage);
+    } else {
+      console.log('[Chat] onSOVAMessageAdderReady not available');
+    }
+  }, [onSOVAMessageAdderReady, addSOVAMessage]);
 
   // Message sending handler
   const handleSendMessage = useCallback(() => {
@@ -227,7 +405,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
           transition: 'all 0.3s ease',
         }}
       >
-        💬
+        <img src={sovaIcon} alt="SOVA" style={{ width: '60px', height: '60px' }} />
       </div>
     );
   }
@@ -266,32 +444,96 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
         −
       </div>
 
-      {/* Always render message history for gameplay awareness */}
-      <ChatMessageHistory 
-        messages={messages} 
-        privateMessages={privateMessages}
-        players={players}
-        localPlayerIdentity={localPlayerIdentity}
-        messageEndRef={messageEndRef as React.RefObject<HTMLDivElement>}
-      />
-      
-      {/* Render either the input or the placeholder */}
-      {isChatting ? (
-        <ChatInput
-          ref={chatInputRef}
-          inputValue={inputValue}
-          onInputChange={setInputValue}
-          onSendMessage={handleSendMessage}
-          onCloseChat={handleCloseChat}
-          isActive={isChatting}
-        />
-      ) : (
-        <div 
-          className={styles.chatPlaceholder} 
-          onClick={handlePlaceholderClick}
+      {/* Tab Navigation */}
+      <div className={styles.tabContainer}>
+        <button 
+          className={`${styles.tab} ${activeTab === 'global' ? styles.activeTab : ''}`}
+          onClick={() => handleTabSwitch('global')}
         >
-          Press Enter to chat...
-        </div>
+          Global
+        </button>
+        <button 
+          className={`${styles.tab} ${activeTab === 'sova' ? styles.activeTab : ''}`}
+          onClick={() => handleTabSwitch('sova')}
+        >
+          SOVA
+        </button>
+      </div>
+
+      {/* Conditional Content Based on Active Tab */}
+      {activeTab === 'global' ? (
+        <>
+          {/* Global Chat - Always render message history for gameplay awareness */}
+          <ChatMessageHistory 
+            messages={messages} 
+            privateMessages={privateMessages}
+            players={players}
+            localPlayerIdentity={localPlayerIdentity}
+            messageEndRef={messageEndRef as React.RefObject<HTMLDivElement>}
+          />
+          
+          {/* Render either the input or the placeholder */}
+          {isChatting ? (
+            <ChatInput
+              ref={chatInputRef}
+              inputValue={inputValue}
+              onInputChange={setInputValue}
+              onSendMessage={handleSendMessage}
+              onCloseChat={handleCloseChat}
+              isActive={isChatting}
+            />
+          ) : (
+            <div 
+              className={styles.chatPlaceholder} 
+              onClick={handlePlaceholderClick}
+            >
+              Press Enter to chat...
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* SOVA Chat */}
+          <div className={styles.messageHistory}>
+            {sovaMessages.length === 0 ? (
+              <div style={{ 
+                color: 'rgba(0, 170, 255, 0.6)', 
+                fontSize: '10px', 
+                textAlign: 'center', 
+                padding: '20px',
+                fontStyle: 'italic'
+              }}>
+                Welcome to SOVA AI Assistant
+                <br />
+                Ask me anything about the game!
+              </div>
+            ) : (
+              sovaMessages.filter(message => message && message.id).map(message => (
+                <SOVAMessage key={message.id} message={message} />
+              ))
+            )}
+            <div ref={sovaMessageEndRef} />
+          </div>
+          
+          {/* SOVA Input */}
+          {isChatting ? (
+            <ChatInput
+              ref={sovaInputRef}
+              inputValue={sovaInputValue}
+              onInputChange={setSovaInputValue}
+              onSendMessage={handleSendSOVAMessage}
+              onCloseChat={handleCloseChat}
+              isActive={isChatting}
+            />
+          ) : (
+            <div 
+              className={styles.chatPlaceholder} 
+              onClick={handlePlaceholderClick}
+            >
+              Ask SOVA anything...
+            </div>
+          )}
+        </>
       )}
     </div>
   );

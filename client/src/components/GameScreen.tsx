@@ -71,6 +71,10 @@ import { DraggedItemInfo, DragSourceSlotInfo } from '../types/dragDropTypes';
 // Import useSpeechBubbleManager hook
 import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
+// Import voice interface components and hooks
+import VoiceInterface from './VoiceInterface';
+import { useVoiceInterface } from '../hooks/useVoiceInterface';
+
 // Import other necessary imports
 import { useInteractionManager } from '../hooks/useInteractionManager';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -166,6 +170,23 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     // Add refresh confirmation dialog state
     const [showRefreshDialog, setShowRefreshDialog] = useState(false);
     
+    // SOVA message adder function from Chat component
+    const [sovaMessageAdder, setSOVAMessageAdder] = useState<((message: { id: string; text: string; isUser: boolean; timestamp: Date }) => void) | null>(null);
+    
+    // Debug logging for SOVA message adder
+    useEffect(() => {
+        console.log('[GameScreen] SOVA message adder changed:', sovaMessageAdder ? 'Available' : 'Not available');
+        if (sovaMessageAdder) {
+            console.log('[GameScreen] SOVA message adder function is now ready for VoiceInterface');
+        }
+    }, [sovaMessageAdder]);
+    
+    // Callback to receive SOVA message adder from Chat
+    const handleSOVAMessageAdderReady = useCallback((addMessage: (message: { id: string; text: string; isUser: boolean; timestamp: Date }) => void) => {
+        console.log('[GameScreen] Received SOVA message adder from Chat component');
+        setSOVAMessageAdder(() => addMessage); // Use function form to avoid stale closure
+    }, []);
+    
     // Debug context
     const { showAutotileDebug, toggleAutotileDebug } = useDebug();
     
@@ -201,6 +222,19 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
+
+    // Voice interface hook
+    const {
+        voiceState,
+        handleTranscriptionComplete,
+        handleError: handleVoiceError,
+        forceClose: forceCloseVoice,
+    } = useVoiceInterface({
+        isEnabled: true,
+        isChatting,
+        isGameMenuOpen: currentMenu !== null,
+        isInventoryOpen: showInventoryState,
+    });
 
     // You can also add a useEffect here if the above doesn't show up
     useEffect(() => {
@@ -628,6 +662,12 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isChatting={isChatting}
                 setIsChatting={setIsChatting}
                 localPlayerIdentity={localPlayerId}
+                onSOVAMessageAdderReady={handleSOVAMessageAdderReady}
+                worldState={worldState}
+                localPlayer={localPlayer}
+                itemDefinitions={itemDefinitions}
+                activeEquipments={activeEquipments}
+                inventoryItems={inventoryItems}
             />
 
             <TargetingReticle
@@ -638,6 +678,20 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 gameCanvasRef={canvasRef}
                 cameraOffsetX={cameraOffsetX}
                 cameraOffsetY={cameraOffsetY}
+            />
+
+            {/* Voice Interface - SOVA Voice Commands */}
+            <VoiceInterface
+                isVisible={voiceState.isVisible}
+                onTranscriptionComplete={handleTranscriptionComplete}
+                onError={handleVoiceError}
+                onAddSOVAMessage={sovaMessageAdder}
+                localPlayerIdentity={localPlayerId}
+                worldState={worldState}
+                localPlayer={localPlayer}
+                itemDefinitions={itemDefinitions}
+                activeEquipments={activeEquipments}
+                inventoryItems={inventoryItems}
             />
         </div>
     );

@@ -1,0 +1,7 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node proxy-server.cjs"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10 

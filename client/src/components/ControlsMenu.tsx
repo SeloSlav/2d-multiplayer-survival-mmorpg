@@ -65,6 +65,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 { key: 'Enter', description: 'Open chat' },
                 { key: 'Escape', description: 'Close menus/cancel actions' },
                 { key: 'G', description: 'Toggle minimap' },
+                { key: 'V (Hold)', description: 'Talk to SOVA personal AI assistant' },
             ]
         },
         {

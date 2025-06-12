@@ -72,6 +72,7 @@ import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
+import InterfaceContainer from './InterfaceContainer';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import { HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
@@ -205,6 +206,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const placementActionsRef = useRef(placementActions);
   const prevPlayerHealthRef = useRef<number | undefined>(undefined);
   const [damagingCampfireIds, setDamagingCampfireIds] = useState<Set<string>>(new Set());
+  
+  // Minimap canvas ref for the InterfaceContainer
+  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Particle system refs
   const campfireParticlesRef = useRef<Particle[]>([]);
@@ -301,6 +305,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     shelters,
   });
 
+
+
   // --- Action Input Handler ---
   const {
     interactionProgress: holdInteractionProgress,
@@ -338,7 +344,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     onSetInteractingWith: onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
-    isChatting,
+    isChatting: isChatting,
     isInventoryOpen: showInventory,
     isGameMenuOpen,
     isSearchingCraftRecipes,
@@ -411,13 +417,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, isMouseOverXButton, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
-    canvasRef: gameCanvasRef,
+    canvasRef: minimapCanvasRef, // Use minimap canvas instead of game canvas
     localPlayer,
     isMinimapOpen,
     connection,
     playerPins,
     localPlayerId,
-    canvasSize,
+    canvasSize: { width: 650, height: 650 }, // Use updated minimap dimensions
     setIsMinimapOpen
   });
 
@@ -909,38 +915,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     ctx.restore();
 
-    // Re-added Minimap drawing call
-    if (isMinimapOpen) {
-      // Ensure props are valid Maps before passing
-      const validPlayers = players instanceof Map ? players : new Map();
-      const validTrees = trees instanceof Map ? trees : new Map();
-      const validStones = stones instanceof Map ? stones : new Map();
-      const validSleepingBags = sleepingBags instanceof Map ? sleepingBags : new Map();
-      const validCampfires = campfires instanceof Map ? campfires : new Map();
-
-      drawMinimapOntoCanvas({
-        ctx: ctx!,
-        players: validPlayers,
-        trees: validTrees,
-        stones: validStones,
-        campfires: validCampfires,
-        sleepingBags: validSleepingBags,
-        localPlayer,
-        localPlayerId,
-        viewCenterOffset,
-        playerPin: localPlayerPin,
-        canvasWidth: currentCanvasWidth,
-        canvasHeight: currentCanvasHeight,
-        isMouseOverMinimap,
-        isMouseOverXButton,
-        zoomLevel: minimapZoom,
-        sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'),
-        localPlayerDeathMarker: localPlayerDeathMarker,
-        deathMarkerImage: deathMarkerImg,
-        worldState: worldState,
-        minimapCache: minimapCache,
-      });
-    }
+    // Minimap now rendered as React component overlay, not on game canvas
 
   }, [
     // Dependencies
@@ -1110,6 +1085,66 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, [connection]);
 
+  // --- Minimap rendering effect ---
+  useEffect(() => {
+    if (!isMinimapOpen || !minimapCanvasRef.current) return;
+
+    const canvas = minimapCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Ensure props are valid Maps before passing
+    const validPlayers = players instanceof Map ? players : new Map();
+    const validTrees = trees instanceof Map ? trees : new Map();
+    const validStones = stones instanceof Map ? stones : new Map();
+    const validSleepingBags = sleepingBags instanceof Map ? sleepingBags : new Map();
+    const validCampfires = campfires instanceof Map ? campfires : new Map();
+
+    drawMinimapOntoCanvas({
+      ctx,
+      players: validPlayers,
+      trees: validTrees,
+      stones: validStones,
+      campfires: validCampfires,
+      sleepingBags: validSleepingBags,
+      localPlayer,
+      localPlayerId,
+      viewCenterOffset,
+      playerPin: localPlayerPin,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      isMouseOverMinimap,
+      zoomLevel: minimapZoom,
+      sleepingBagImage: itemImagesRef.current?.get('sleeping_bag.png'),
+      localPlayerDeathMarker: localPlayerDeathMarker,
+      deathMarkerImage: deathMarkerImg,
+      worldState: worldState,
+      minimapCache: minimapCache,
+    });
+  }, [
+    isMinimapOpen,
+    players,
+    trees,
+    stones,
+    sleepingBags,
+    campfires,
+    localPlayer,
+    localPlayerId,
+    viewCenterOffset,
+    localPlayerPin,
+    isMouseOverMinimap,
+    isMouseOverXButton,
+    minimapZoom,
+    itemImagesRef,
+    localPlayerDeathMarker,
+    deathMarkerImg,
+    worldState,
+    minimapCache,
+  ]);
+
   // Game loop for processing actions
   useGameLoop(processInputsAndActions);
 
@@ -1156,6 +1191,40 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           worldState={worldState}
           minimapCache={minimapCache} // Add minimapCache prop
         />
+      )}
+
+      {isMinimapOpen && (
+        <>
+          {/* Subtle overlay to indicate interface is blocking interaction */}
+          <div 
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              zIndex: 999,
+              pointerEvents: 'none', // Don't block interface interactions
+            }}
+          />
+          <InterfaceContainer
+            canvasWidth={canvasSize.width}
+            canvasHeight={canvasSize.height}
+            style={{
+              zIndex: 1000,
+            }}
+            onClose={() => setIsMinimapOpen(false)}
+
+          >
+            <canvas
+              ref={minimapCanvasRef}
+              width={650}
+              height={650}
+              style={{ width: '100%', height: '100%' }}
+            />
+          </InterfaceContainer>
+        </>
       )}
     </div>
   );

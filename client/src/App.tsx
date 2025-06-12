@@ -405,7 +405,7 @@ function AppContent() {
     const overallIsLoading = !actualLoadingComplete || !loadingSequenceComplete;
     
     // Debug logging for loading states
-    console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, actualLoadingComplete: ${actualLoadingComplete}, loadingSequenceComplete: ${loadingSequenceComplete}, overallIsLoading: ${overallIsLoading}`);
+    // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, actualLoadingComplete: ${actualLoadingComplete}, loadingSequenceComplete: ${loadingSequenceComplete}, overallIsLoading: ${overallIsLoading}`);
 
     // --- Handle loading sequence completion ---
     const handleSequenceComplete = useCallback(() => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, RefObject, useMemo } from 'react';
 import { Player as SpacetimeDBPlayer, PlayerPin } from '../generated';
 import { gameConfig } from '../config/gameConfig';
-import { MINIMAP_DIMENSIONS, isPointInXButton, isPointInMinimap } from '../components/Minimap'; // Import dimensions
+import { MINIMAP_DIMENSIONS, isPointInMinimap } from '../components/Minimap'; // Import dimensions
 
 // Hook Constants
 const MINIMAP_MAX_ZOOM = 10;
@@ -52,12 +52,12 @@ export function useMinimapInteraction({
 
     // --- Base Scale Calculation ---
     const baseScale = useMemo(() => {
-        const minimapWidth = MINIMAP_DIMENSIONS.width;
-        const minimapHeight = MINIMAP_DIMENSIONS.height;
+        const minimapWidth = canvasSize.width;
+        const minimapHeight = canvasSize.height;
         const baseScaleX = minimapWidth / worldPixelWidth;
         const baseScaleY = minimapHeight / worldPixelHeight;
         return Math.min(baseScaleX, baseScaleY);
-    }, [worldPixelWidth, worldPixelHeight]); // Depends only on config/constants
+    }, [worldPixelWidth, worldPixelHeight, canvasSize.width, canvasSize.height]);
 
     // Derive local player's pin
     const localPlayerPin = useMemo(() => {
@@ -72,13 +72,9 @@ export function useMinimapInteraction({
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
 
-        const minimapWidth = MINIMAP_DIMENSIONS.width;
-        const minimapHeight = MINIMAP_DIMENSIONS.height;
-        const minimapX = (canvasSize.width - minimapWidth) / 2;
-        const minimapY = (canvasSize.height - minimapHeight) / 2;
-
-        return mouseX >= minimapX && mouseX <= minimapX + minimapWidth &&
-            mouseY >= minimapY && mouseY <= minimapY + minimapHeight;
+        // For dedicated minimap canvas, the entire canvas is the minimap area
+        return mouseX >= 0 && mouseX <= canvasSize.width &&
+            mouseY >= 0 && mouseY <= canvasSize.height;
     }, [canvasRef, canvasSize.width, canvasSize.height, isMinimapOpen]);
 
     // Handle mouse move for hover effect & panning
@@ -86,15 +82,15 @@ export function useMinimapInteraction({
         const isOver = checkMouseOverMinimap(event);
         setIsMouseOverMinimap(isOver);
         
-        // Check if mouse is over X button
+        // Check if mouse is over X button - for dedicated minimap canvas, X button is positioned differently
         if (!canvasRef.current || !isMinimapOpen) {
             setIsMouseOverXButton(false);
         } else {
             const rect = canvasRef.current.getBoundingClientRect();
             const mouseX = event.clientX - rect.left;
             const mouseY = event.clientY - rect.top;
-            const isOverXButton = isPointInXButton(mouseX, mouseY, canvasSize.width, canvasSize.height);
-            setIsMouseOverXButton(isOverXButton);
+            // X button is in top-right of the minimap canvas (will be handled by InterfaceContainer)
+            setIsMouseOverXButton(false); // Disable for now - container handles close button
         }
 
         if (isPanning && panStartCoords && isOver) {
@@ -123,8 +119,8 @@ export function useMinimapInteraction({
             const potentialViewCenterX = targetDefaultCenterXWorld + potentialNewOffsetX;
             const potentialViewCenterY = targetDefaultCenterYWorld + potentialNewOffsetY;
 
-            const viewWidthWorld = MINIMAP_DIMENSIONS.width / currentScale;
-            const viewHeightWorld = MINIMAP_DIMENSIONS.height / currentScale;
+            const viewWidthWorld = canvasSize.width / currentScale;
+            const viewHeightWorld = canvasSize.height / currentScale;
             
             // Calculate potential view boundaries
             const potentialViewMinX = potentialViewCenterX - viewWidthWorld / 2;
@@ -184,10 +180,11 @@ export function useMinimapInteraction({
         const mouseXCanvas = event.clientX - rect.left;
         const mouseYCanvas = event.clientY - rect.top;
 
-        const minimapWidth = MINIMAP_DIMENSIONS.width;
-        const minimapHeight = MINIMAP_DIMENSIONS.height;
-        const minimapX = (canvasSize.width - minimapWidth) / 2;
-        const minimapY = (canvasSize.height - minimapHeight) / 2;
+        // For dedicated minimap canvas, use the full canvas dimensions
+        const minimapWidth = canvasSize.width;
+        const minimapHeight = canvasSize.height;
+        const minimapX = 0; // Top-left of canvas
+        const minimapY = 0;
 
         // Determine the CURRENT view center (player + offset, or world center)
         let currentViewCenterXWorld: number;
@@ -269,10 +266,11 @@ export function useMinimapInteraction({
         const clickXCanvas = event.clientX - rect.left;
         const clickYCanvas = event.clientY - rect.top;
 
-        const minimapWidth = MINIMAP_DIMENSIONS.width;
-        const minimapHeight = MINIMAP_DIMENSIONS.height;
-        const minimapX = (canvasSize.width - minimapWidth) / 2;
-        const minimapY = (canvasSize.height - minimapHeight) / 2;
+        // For dedicated minimap canvas, use the full canvas dimensions
+        const minimapWidth = canvasSize.width;
+        const minimapHeight = canvasSize.height;
+        const minimapX = 0; // Top-left of canvas
+        const minimapY = 0;
 
         let worldX: number | undefined; // Initialize as undefined
         let worldY: number | undefined;
@@ -354,20 +352,10 @@ export function useMinimapInteraction({
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
         
-        // Check if clicking X button
-        if (event.button === 0 && isPointInXButton(mouseX, mouseY, canvasSize.width, canvasSize.height)) {
-            event.preventDefault();
-            event.stopPropagation(); // Prevent game actions from triggering
-            setIsMinimapOpen(false);
-            return;
-        }
+        console.log('[Minimap] Mouse down detected, button:', event.button, 'zoom:', minimapZoom, 'isOverMinimap:', checkMouseOverMinimap(event));
         
-        // Check if clicking outside minimap to close it
-        if (event.button === 0 && !isPointInMinimap(mouseX, mouseY, canvasSize.width, canvasSize.height)) {
-            // Don't prevent event propagation here - allow game actions to proceed
-            setIsMinimapOpen(false);
-            return;
-        }
+        // For dedicated canvas, clicking anywhere on canvas is within minimap
+        // X button clicks are handled by InterfaceContainer, not here
         
         // If clicking on minimap but not on X button, handle normal minimap interactions
         if (checkMouseOverMinimap(event)) {
@@ -377,6 +365,7 @@ export function useMinimapInteraction({
             
             // Middle mouse button reset
             if (event.button === 1) {
+                console.log('[Minimap] Middle click - resetting zoom');
                 setMinimapZoom(MINIMAP_MIN_ZOOM);
                 setViewCenterOffset({ x: 0, y: 0 });
                 setIsPanning(false); // Ensure panning stops
@@ -386,6 +375,7 @@ export function useMinimapInteraction({
 
             // Only pan with left click when zoomed and over the minimap
             if (event.button === 0 && minimapZoom > MINIMAP_MIN_ZOOM) {
+                console.log('[Minimap] Starting panning');
                 setIsPanning(true);
                 setPanStartCoords({ screenX: event.screenX, screenY: event.screenY });
             }
@@ -394,7 +384,40 @@ export function useMinimapInteraction({
 
     // Handle Mouse Up for Panning (Define BEFORE useEffect)
     const handleMouseUp = useCallback((event: MouseEvent) => {
-        if (event.button === 0 && isPanning) {
+        // Always clear panning state regardless of which button was released
+        // This ensures we don't get stuck in panning mode
+        console.log('[Minimap] Mouse up detected, isPanning:', isPanning, 'button:', event.button);
+        if (isPanning) {
+            console.log('[Minimap] Stopping panning');
+            setIsPanning(false);
+            setPanStartCoords(null);
+        }
+    }, [isPanning]);
+
+    // Handle mouse leave to ensure we stop panning if mouse leaves the canvas
+    const handleMouseLeave = useCallback(() => {
+        console.log('[Minimap] Mouse leave detected, isPanning:', isPanning);
+        if (isPanning) {
+            console.log('[Minimap] Stopping panning due to mouse leave');
+            setIsPanning(false);
+            setPanStartCoords(null);
+        }
+    }, [isPanning]);
+
+    // Handle visibility change to stop panning if tab becomes hidden
+    const handleVisibilityChange = useCallback(() => {
+        if (document.hidden && isPanning) {
+            console.log('[Minimap] Stopping panning due to visibility change');
+            setIsPanning(false);
+            setPanStartCoords(null);
+        }
+    }, [isPanning]);
+
+    // Add a global mouse up handler that works even if events are stopped
+    const handleGlobalMouseUp = useCallback((event: MouseEvent) => {
+        console.log('[Minimap] Global mouse up detected, isPanning:', isPanning);
+        if (isPanning) {
+            console.log('[Minimap] Force stopping panning via global handler');
             setIsPanning(false);
             setPanStartCoords(null);
         }
@@ -409,17 +432,28 @@ export function useMinimapInteraction({
         canvas.addEventListener('wheel', handleWheel, { passive: false });
         canvas.addEventListener('contextmenu', handleContextMenu);
         canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mouseup', handleMouseUp); // Add canvas mouseup
+        canvas.addEventListener('mouseleave', handleMouseLeave);
+        
         // Add mouseup listener to window to catch panning ending outside canvas
-        window.addEventListener('mouseup', handleMouseUp); 
+        window.addEventListener('mouseup', handleMouseUp);
+        // Add a more aggressive global mouseup handler with capture
+        document.addEventListener('mouseup', handleGlobalMouseUp, true);
+        // Add visibility change listener to stop panning when tab is hidden
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             canvas.removeEventListener('mousemove', handleMouseMove);
             canvas.removeEventListener('wheel', handleWheel);
             canvas.removeEventListener('contextmenu', handleContextMenu);
             canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('mouseup', handleMouseUp); // Remove canvas mouseup
+            canvas.removeEventListener('mouseleave', handleMouseLeave);
             window.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mouseup', handleGlobalMouseUp, true);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [canvasRef, handleMouseMove, handleWheel, handleContextMenu, handleMouseDown, handleMouseUp]); // Add mouse down/up handlers
+    }, [canvasRef, handleMouseMove, handleWheel, handleContextMenu, handleMouseDown, handleMouseUp, handleMouseLeave, handleVisibilityChange, handleGlobalMouseUp]); // Add global handler
 
     // Effect to manage cursor style
     useEffect(() => {
@@ -457,6 +491,14 @@ export function useMinimapInteraction({
             setPanStartCoords(null);
         }
     }, [isMinimapOpen, minimapZoom]);
+
+    // Force cleanup of panning state on component unmount or when canvas changes
+    useEffect(() => {
+        return () => {
+            setIsPanning(false);
+            setPanStartCoords(null);
+        };
+    }, [canvasRef]);
 
     return {
         minimapZoom,

@@ -1,0 +1,103 @@
+.interface-container {
+  z-index: 1000;
+  position: relative;
+  /* Cyberpunk border styling */
+  background: linear-gradient(135deg, rgba(15, 23, 35, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+  border: 0px solid;
+  border-radius: 12px;
+  box-shadow: 
+    0 0 20px rgba(0, 212, 255, 0.3),
+    inset 0 0 20px rgba(124, 58, 237, 0.1);
+  backdrop-filter: blur(10px);
+  overflow: visible; /* Changed from hidden to visible to show tabs */
+  /* Ensure click events are captured */
+  pointer-events: all;
+  user-select: none;
+}
+
+.interface-container::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #00d4ff, #7c3aed, #00d4ff);
+  border-radius: 12px;
+  z-index: -1;
+  animation: borderGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes borderGlow {
+  0% {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
+  }
+}
+
+.interface-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 35, 0.8);
+  border-radius: 8px; /* Match parent radius minus border width */
+  overflow: hidden; /* Keep overflow hidden on content to clip minimap/sova content */
+}
+
+.minimap-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(15, 23, 35, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%);
+  /* Remove border-radius to prevent nested radius effect */
+  overflow: hidden;
+}
+
+.minimap-canvas {
+  width: 100%;
+  height: 100%;
+  /* Remove border-radius to prevent triple nested radius effect */
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border: 2px solid #ff006e;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 0 8px rgba(255, 0, 110, 0.4),
+    inset 0 0 4px rgba(255, 255, 255, 0.1);
+  z-index: 1001;
+  backdrop-filter: blur(5px);
+}
+
+.close-button:hover {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  border-color: #ff1f8a;
+  box-shadow: 
+    0 0 15px rgba(255, 0, 110, 0.7),
+    inset 0 0 8px rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.close-button:active {
+  transform: scale(0.95);
+  box-shadow: 
+    0 0 10px rgba(255, 0, 110, 0.5),
+    inset 0 0 6px rgba(0, 0, 0, 0.3);
+} 

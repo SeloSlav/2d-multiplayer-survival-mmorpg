@@ -135,6 +135,9 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       localPlayerDeathMarker,
       deathMarkerImage,
       worldState, // <-- Pass worldState for time of day
+      // Add new tab-related props (disabled for death screen)
+      isMouseOverSOVATab: false,
+      onSOVATabClick: undefined, // No tab functionality needed in death screen
     });
 
     // Draw hover effect (simple circle) - This is illustrative
@@ -304,7 +307,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   );
 };
 
-// Basic styling - can be moved to CSS/modules later
+// Basic styling - UPDATED TO CYBERPUNK THEME
 const styles: { [key: string]: React.CSSProperties } = {
   overlay: {
     position: 'absolute',
@@ -312,69 +315,95 @@ const styles: { [key: string]: React.CSSProperties } = {
     left: 0,
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(255, 0, 0, 0.8)', // <<< TEMPORARY: Bright red background for debugging
+    backgroundColor: 'rgba(15, 23, 35, 0.95)', // Dark cyberpunk background
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000, // Ensure it's above the canvas
-    fontFamily: '"Press Start 2P", cursive', // Match game font
-    color: 'white',
+    fontFamily: '"Courier New", monospace', // Cyberpunk monospace font
+    color: '#ffffff',
+    backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(124, 58, 237, 0.1) 0%, transparent 50%)', // Subtle cyberpunk glow
   },
   container: {
     textAlign: 'center',
     padding: '40px',
-    backgroundColor: 'rgba(50, 50, 50, 0.8)',
-    borderRadius: '10px',
+    backgroundColor: 'rgba(30, 41, 59, 0.9)', // Dark slate with high opacity
+    borderRadius: '8px',
+    border: '2px solid #00d4ff', // Bright cyan border
+    boxShadow: '0 0 20px rgba(0, 212, 255, 0.3), 0 0 40px rgba(124, 58, 237, 0.2)', // Cyan and purple glow
+    backdropFilter: 'blur(10px)', // Glass morphism effect
   },
   title: {
-    color: '#DC143C', // Crimson Red
+    color: '#ff006e', // Neon pink
     fontSize: '2.5em',
     marginBottom: '20px',
-    textShadow: '2px 2px 4px #000000',
+    textShadow: '0 0 10px #ff006e, 2px 2px 4px #000000', // Neon glow + shadow
+    fontWeight: 'bold',
+    letterSpacing: '2px',
   },
   timerText: {
       fontSize: '1.2em',
       marginBottom: '30px',
+      color: '#94a3b8', // Slate gray
+      textShadow: '1px 1px 2px #000000',
   },
   buttonEnabled: {
     padding: '15px 30px',
-    fontSize: '1.2em',
-    fontFamily: '"Press Start 2P", cursive',
-    backgroundColor: '#4CAF50', // Green
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
+    fontSize: '1.1em',
+    fontFamily: '"Courier New", monospace',
+    background: 'linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%)', // Cyan to purple gradient
+    color: '#ffffff',
+    border: '2px solid #00d4ff',
+    borderRadius: '6px',
     cursor: 'pointer',
-    transition: 'background-color 0.3s',
+    transition: 'all 0.3s ease',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    fontWeight: 'bold',
+    boxShadow: '0 0 15px rgba(0, 212, 255, 0.4)',
   },
    buttonDisabled: {
     padding: '15px 30px',
-    fontSize: '1.2em',
-    fontFamily: '"Press Start 2P", cursive',
-    backgroundColor: '#777', // Grey
-    color: '#ccc',
-    border: 'none',
-    borderRadius: '5px',
+    fontSize: '1.1em',
+    fontFamily: '"Courier New", monospace',
+    backgroundColor: 'rgba(71, 85, 105, 0.5)', // Dark slate
+    color: '#64748b', // Muted slate
+    border: '2px solid #475569',
+    borderRadius: '6px',
     cursor: 'not-allowed',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    fontWeight: 'bold',
   },
-  // Add style for the minimap canvas itself
+  // Enhanced minimap canvas styling
   minimapCanvas: {
-      border: '1px solid #a0a0c0', // Border like the original minimap
-      marginBottom: '20px', // Space before the button
+      border: '2px solid #00d4ff', // Cyan border to match theme
+      borderRadius: '4px',
+      marginBottom: '25px', // More space before the button
       cursor: 'pointer', // Indicate it's clickable
+      boxShadow: '0 0 15px rgba(0, 212, 255, 0.3)', // Subtle cyan glow
+      backdropFilter: 'blur(5px)',
   },
   noBagsText: {
-    marginTop: '15px',
+    marginTop: '20px',
     fontSize: '0.9em',
-    color: '#cccccc',
+    color: '#94a3b8', // Slate gray
+    textShadow: '1px 1px 2px #000000',
+    fontStyle: 'italic',
   },
   deathInfo: {
-    marginBottom: '20px',
+    marginBottom: '25px',
+    padding: '15px',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)', // Subtle red background
+    borderRadius: '6px',
+    border: '1px solid #ef4444',
   },
   deathMessage: {
     fontSize: '1.2em',
     marginBottom: '10px',
-    color: '#ffcccc',
+    color: '#fecaca', // Light red
+    textShadow: '1px 1px 2px #000000',
+    fontWeight: 'bold',
   },
 };
 
