@@ -3,9 +3,10 @@ import { Player, DbConnection } from '../generated';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 
 // Simple client-authoritative movement constants
-const POSITION_UPDATE_INTERVAL_MS = 50; // Reduced to 20fps for more stable updates
+const POSITION_UPDATE_INTERVAL_MS = 33; // 30fps as requested by manager (better for high ping)
 const PLAYER_SPEED = 400; // pixels per second - balanced for 60s world traversal
 const SPRINT_MULTIPLIER = 2.0; // 2x speed for sprinting (800 px/s)
+const WATER_SPEED_PENALTY = 0.5; // Half speed in water (matches server WATER_SPEED_PENALTY)
 const RUBBER_BAND_THRESHOLD = 100; // Reduced threshold for tighter sync
 const SMOOTH_INTERPOLATION_SPEED = 0.2; // For smoother rubber banding
 
@@ -181,12 +182,6 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       const deltaTime = Math.min((now - lastUpdateTime.current) / 1000, 0.1); // Cap delta time
       lastUpdateTime.current = now;
 
-      // Skip updates that are too small to prevent jitter
-      if (deltaTime < 0.008) { // ~120fps cap
-        movementMonitor.logUpdate(performance.now() - updateStartTime, false);
-        return;
-      }
-
       const { direction, sprinting } = inputState;
       isMoving.current = Math.abs(direction.x) > 0.01 || Math.abs(direction.y) > 0.01;
 
@@ -208,6 +203,13 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         // Apply crouch speed reduction (must match server)
         if (localPlayer.isCrouching) {
           speedMultiplier *= 0.5; // Half speed when crouching
+        }
+        
+        // Apply water speed penalty (must match server) - but not while jumping
+        const isJumping = localPlayer.jumpStartTimeMs > 0 && 
+          (Date.now() - Number(localPlayer.jumpStartTimeMs)) < 500; // 500ms jump duration
+        if (localPlayer.isOnWater && !isJumping) {
+          speedMultiplier *= WATER_SPEED_PENALTY;
         }
         
         const speed = PLAYER_SPEED * speedMultiplier;

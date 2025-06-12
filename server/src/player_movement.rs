@@ -180,15 +180,9 @@ pub fn update_player_position(
     let is_moving = move_x.abs() > 0.01 || move_y.abs() > 0.01;
     let mut current_sprinting_state = current_player.is_sprinting;
 
-    // ADD: Disable sprinting on water (but allow sprinting while jumping over water)
-    if was_on_water && !is_jumping && current_sprinting_state {
-        current_sprinting_state = false;
-        // Reduced logging during sprinting for performance
-        if !current_player.is_sprinting { // Only log once when state changes
-            log::trace!("Player {:?} sprinting disabled due to water (not jumping)", sender_id);
-        }
-    }
-
+    // REMOVED: Allow sprinting on water - players can sprint in water now
+    // The water speed penalty will still apply, making sprint-in-water slower than normal walking
+    
     // Determine speed multiplier based on current sprint state and stamina
     if current_sprinting_state && new_stamina > 0.0 { // Check current stamina > 0
         base_speed_multiplier = SPRINT_SPEED_MULTIPLIER;
@@ -507,10 +501,7 @@ pub fn set_sprinting(ctx: &ReducerContext, sprinting: bool) -> Result<(), String
             return Err("Cannot sprint while knocked out.".to_string());
         }
 
-        // ADD: Don't allow sprinting on water
-        // if sprinting && is_player_on_water(ctx, player.position_x, player.position_y) {
-        //     return Err("Cannot sprint on water.".to_string());
-        // }
+        // Players can sprint in water (with speed penalty applied during movement calculation)
 
         // Only update if the state is actually changing
         if player.is_sprinting != sprinting {
@@ -831,9 +822,9 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.5; // Increased tolerance from 1.2 to 1.5
-const MAX_TELEPORT_DISTANCE: f32 = 300.0; // Increased from 200.0 to reduce false positives
-const POSITION_UPDATE_TIMEOUT_MS: u64 = 10000; // Increased from 5000 to 10000ms for better latency tolerance
+const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // More lenient for high ping users
+const MAX_TELEPORT_DISTANCE: f32 = 400.0; // Increased for high ping tolerance  
+const POSITION_UPDATE_TIMEOUT_MS: u64 = 15000; // 15 seconds for users with 100+ ms ping
 
 /// Simple timestamped position update from client
 /// This replaces complex prediction with simple client-authoritative movement
@@ -878,13 +869,13 @@ pub fn update_player_position_simple(
         return Err("Movement too large, possible teleport".to_string());
     }
 
-    // 4. Speed hack detection (more lenient)
+    // 4. Speed hack detection (more lenient for high ping users)
     let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
     let last_update_ms = (current_player.last_update.to_micros_since_unix_epoch() / 1000) as u64;
     let time_diff_ms = now_ms.saturating_sub(last_update_ms);
     
-    // Only check speed if there's been enough time between updates to get accurate measurements
-    if time_diff_ms > 20 && distance_moved > 10.0 { // Minimum thresholds for accurate speed calculation
+    // More lenient thresholds for high ping users (100+ ms ping)
+    if time_diff_ms > 50 && distance_moved > 20.0 { // Increased thresholds for accuracy
         let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
         if speed_px_per_sec > MAX_MOVEMENT_SPEED {
             log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}) over {}ms", 
@@ -914,7 +905,7 @@ pub fn update_player_position_simple(
     // --- Update player state ---
     current_player.position_x = final_x;
     current_player.position_y = final_y;
-    current_player.is_sprinting = is_sprinting && !is_on_water; // Disable sprint on water
+    current_player.is_sprinting = is_sprinting; // Allow sprinting in water
     current_player.is_on_water = is_on_water;
     current_player.direction = facing_direction; // Accept client-provided direction
     current_player.last_update = ctx.timestamp;
@@ -922,10 +913,8 @@ pub fn update_player_position_simple(
     players.identity().update(current_player);
 
     // Only log successful updates occasionally to reduce spam
-    if ctx.rng().gen_bool(0.01) { // 1% chance to log
-        log::trace!("Player {:?} position accepted: ({:.1}, {:.1}) speed: {:.1}px/s", 
-                   sender_id, final_x, final_y, 
-                   if time_diff_ms > 0 { (distance_moved * 1000.0) / time_diff_ms as f32 } else { 0.0 });
+    if ctx.rng().gen_bool(0.01) { // 1% of successful updates
+        log::info!("Player {:?} position updated to ({:.1}, {:.1})", sender_id, final_x, final_y);
     }
 
     Ok(())
