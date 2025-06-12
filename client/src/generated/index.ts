@@ -266,6 +266,8 @@ import { UpdatePlayerFacingDirection } from "./update_player_facing_direction_re
 export { UpdatePlayerFacingDirection };
 import { UpdatePlayerPosition } from "./update_player_position_reducer.ts";
 export { UpdatePlayerPosition };
+import { UpdatePlayerPositionSimple } from "./update_player_position_simple_reducer.ts";
+export { UpdatePlayerPositionSimple };
 import { UpdateProjectiles } from "./update_projectiles_reducer.ts";
 export { UpdateProjectiles };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
@@ -1270,6 +1272,10 @@ const REMOTE_MODULE = {
       reducerName: "update_player_position",
       argsType: UpdatePlayerPosition.getTypeScriptAlgebraicType(),
     },
+    update_player_position_simple: {
+      reducerName: "update_player_position_simple",
+      argsType: UpdatePlayerPositionSimple.getTypeScriptAlgebraicType(),
+    },
     update_projectiles: {
       reducerName: "update_projectiles",
       argsType: UpdateProjectiles.getTypeScriptAlgebraicType(),
@@ -1426,6 +1432,7 @@ export type Reducer = never
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
 | { name: "UpdatePlayerFacingDirection", args: UpdatePlayerFacingDirection }
 | { name: "UpdatePlayerPosition", args: UpdatePlayerPosition }
+| { name: "UpdatePlayerPositionSimple", args: UpdatePlayerPositionSimple }
 | { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
@@ -3222,6 +3229,22 @@ export class RemoteReducers {
     this.connection.offReducer("update_player_position", callback);
   }
 
+  updatePlayerPositionSimple(newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) {
+    const __args = { newX, newY, clientTimestampMs, isSprinting, facingDirection };
+    let __writer = new BinaryWriter(1024);
+    UpdatePlayerPositionSimple.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_player_position_simple", __argsBuffer, this.setCallReducerFlags.updatePlayerPositionSimpleFlags);
+  }
+
+  onUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) => void) {
+    this.connection.onReducer("update_player_position_simple", callback);
+  }
+
+  removeOnUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) => void) {
+    this.connection.offReducer("update_player_position_simple", callback);
+  }
+
   updateProjectiles(args: ProjectileUpdateSchedule) {
     const __args = { args };
     let __writer = new BinaryWriter(1024);
@@ -3842,6 +3865,11 @@ export class SetReducerFlags {
   updatePlayerPositionFlags: CallReducerFlags = 'FullUpdate';
   updatePlayerPosition(flags: CallReducerFlags) {
     this.updatePlayerPositionFlags = flags;
+  }
+
+  updatePlayerPositionSimpleFlags: CallReducerFlags = 'FullUpdate';
+  updatePlayerPositionSimple(flags: CallReducerFlags) {
+    this.updatePlayerPositionSimpleFlags = flags;
   }
 
   updateProjectilesFlags: CallReducerFlags = 'FullUpdate';

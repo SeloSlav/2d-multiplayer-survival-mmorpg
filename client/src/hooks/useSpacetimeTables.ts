@@ -275,7 +275,7 @@ export const useSpacetimeTables = ({
             
             // 🚀 PERFORMANCE OPTIMIZATION: Limit chunk processing to prevent frame drops
             if (addedChunks.length > 20) {
-                console.warn(`[CHUNK_PERF] 🎯 PERFORMANCE LIMIT: Reducing ${addedChunks.length} chunks to 20 to prevent lag spike`);
+                // console.warn(`[CHUNK_PERF] 🎯 PERFORMANCE LIMIT: Reducing ${addedChunks.length} chunks to 20 to prevent lag spike`);
                 addedChunks.splice(20); // Keep only first 20 chunks
             }
             // PERF: Track chunk crossing frequency for lag detection
@@ -286,7 +286,7 @@ export const useSpacetimeTables = ({
             // Reset counter every 5 seconds
             if (now - stats.lastResetTime > 5000) {
                 if (stats.crossingCount > 8) { // More than 8 crossings per 5 seconds (with buffer=2, should be reasonable)
-                    console.warn(`[CHUNK_PERF] High chunk crossing frequency: ${stats.crossingCount} crossings in 5 seconds - consider smoother movement or larger buffer!`);
+                    // console.warn(`[CHUNK_PERF] High chunk crossing frequency: ${stats.crossingCount} crossings in 5 seconds - consider smoother movement or larger buffer!`);
                 }
                 stats.crossingCount = 0;
                 stats.lastResetTime = now;
@@ -294,7 +294,7 @@ export const useSpacetimeTables = ({
             
             // Detect rapid chunk crossings (potential boundary jitter) - should be rare with buffer=2 and throttling
             if (now - stats.lastCrossing < MIN_CHUNK_UPDATE_INTERVAL_MS && stats.lastCrossing > 0) {
-                console.warn(`[CHUNK_PERF] ⚡ Rapid chunk crossing detected! ${(now - stats.lastCrossing).toFixed(1)}ms since last crossing (throttling should prevent this)`);
+                // console.warn(`[CHUNK_PERF] ⚡ Rapid chunk crossing detected! ${(now - stats.lastCrossing).toFixed(1)}ms since last crossing (throttling should prevent this)`);
             }
             stats.lastCrossing = now;
             
@@ -364,7 +364,7 @@ export const useSpacetimeTables = ({
                                 const batchTime = performance.now() - batchStart;
                                 
                                 if (batchTime > 5) { // Log slow batch subscriptions > 5ms
-                                    console.warn(`[CHUNK_PERF] Slow ${batchName} batch subscription for chunk ${chunkIndex}: ${batchTime.toFixed(2)}ms (${queries.length} queries)`);
+                                    // console.warn(`[CHUNK_PERF] Slow ${batchName} batch subscription for chunk ${chunkIndex}: ${batchTime.toFixed(2)}ms (${queries.length} queries)`);
                                 }
                                 
                                 return handle;
@@ -427,7 +427,7 @@ export const useSpacetimeTables = ({
                                 const singleSubTime = performance.now() - singleSubStart;
                                 
                                 if (singleSubTime > 2) { // Log slow subscriptions > 2ms
-                                    console.warn(`[CHUNK_PERF] Slow ${queryName} subscription for chunk ${chunkIndex}: ${singleSubTime.toFixed(2)}ms`);
+                                    // console.warn(`[CHUNK_PERF] Slow ${queryName} subscription for chunk ${chunkIndex}: ${singleSubTime.toFixed(2)}ms`);
                                 }
                                 
                                 return handle;
@@ -473,9 +473,9 @@ export const useSpacetimeTables = ({
                         const expectedHandles = ENABLE_BATCHED_SUBSCRIPTIONS ? 3 : 12; // Batched: 3 batches vs Individual: ~12 subs
                         
                         if (subTime > 10) { // Log if subscriptions take more than 10ms
-                            console.warn(`[CHUNK_PERF] Chunk ${chunkIndex} ${subscriptionMethod} subscriptions took ${subTime.toFixed(2)}ms (${newHandlesForChunk.length}/${expectedHandles} subs)`);
+                            // console.warn(`[CHUNK_PERF] Chunk ${chunkIndex} ${subscriptionMethod} subscriptions took ${subTime.toFixed(2)}ms (${newHandlesForChunk.length}/${expectedHandles} subs)`);
                         } else if (subTime > 5) {
-                            console.log(`[CHUNK_PERF] Chunk ${chunkIndex} ${subscriptionMethod} subscriptions: ${subTime.toFixed(2)}ms (${newHandlesForChunk.length} subs)`);
+                            // console.log(`[CHUNK_PERF] Chunk ${chunkIndex} ${subscriptionMethod} subscriptions: ${subTime.toFixed(2)}ms (${newHandlesForChunk.length} subs)`);
                         }
                     } catch (error) {
                         // Attempt to clean up any partial subscriptions for this chunk if error occurred mid-way
@@ -490,7 +490,7 @@ export const useSpacetimeTables = ({
                 // PERF: Log total chunk update timing
                 const totalTime = performance.now() - startTime;
                 if (totalTime > 16) { // Log if chunk update takes more than one frame (16ms at 60fps)
-                    console.warn(`[CHUNK_PERF] Total chunk update took ${totalTime.toFixed(2)}ms (frame budget exceeded!)`);
+                    // console.warn(`[CHUNK_PERF] Total chunk update took ${totalTime.toFixed(2)}ms (frame budget exceeded!)`);
                 }
             }, 0);
         } else {

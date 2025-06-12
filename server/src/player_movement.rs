@@ -826,3 +826,104 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 
     Ok(())
 }
+
+// === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
+
+/// Simple movement validation constants
+const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.2; // 20% tolerance
+const MAX_TELEPORT_DISTANCE: f32 = 200.0; // Max distance per update to prevent teleporting
+const POSITION_UPDATE_TIMEOUT_MS: u64 = 5000; // 5 second timeout for position updates
+
+/// Simple timestamped position update from client
+/// This replaces complex prediction with simple client-authoritative movement
+#[spacetimedb::reducer]
+pub fn update_player_position_simple(
+    ctx: &ReducerContext,
+    new_x: f32,
+    new_y: f32,
+    client_timestamp_ms: u64,
+    is_sprinting: bool,
+    facing_direction: String,
+) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players = ctx.db.player();
+    
+    let mut current_player = players.identity()
+        .find(sender_id)
+        .ok_or_else(|| "Player not found".to_string())?;
+
+    // --- Basic validation checks ---
+    
+    // 1. Check if player is dead
+    if current_player.is_dead {
+        log::trace!("Ignoring position update for dead player {:?}", sender_id);
+        return Err("Player is dead".to_string());
+    }
+
+    // 2. Check world bounds
+    let effective_radius = get_effective_player_radius(current_player.is_crouching);
+    if new_x < effective_radius || new_x > WORLD_WIDTH_PX - effective_radius ||
+       new_y < effective_radius || new_y > WORLD_HEIGHT_PX - effective_radius {
+        log::warn!("Player {:?} position out of bounds: ({}, {})", sender_id, new_x, new_y);
+        return Err("Position out of world bounds".to_string());
+    }
+
+    // 3. Check for teleporting (distance-based validation)
+    let distance_moved = ((new_x - current_player.position_x).powi(2) + 
+                         (new_y - current_player.position_y).powi(2)).sqrt();
+    
+    if distance_moved > MAX_TELEPORT_DISTANCE {
+        log::warn!("Player {:?} teleport detected: moved {:.1}px in one update", sender_id, distance_moved);
+        return Err("Movement too large, possible teleport".to_string());
+    }
+
+    // 4. Speed hack detection (basic)
+    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+    let last_update_ms = (current_player.last_update.to_micros_since_unix_epoch() / 1000) as u64;
+    let time_diff_ms = now_ms.saturating_sub(last_update_ms);
+    
+    if time_diff_ms > 0 && distance_moved > 0.0 {
+        let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
+        if speed_px_per_sec > MAX_MOVEMENT_SPEED {
+            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1})", 
+                      sender_id, speed_px_per_sec, MAX_MOVEMENT_SPEED);
+            return Err("Movement speed too high".to_string());
+        }
+    }
+
+    // 5. Check timestamp age (prevent replay attacks)
+    if now_ms.saturating_sub(client_timestamp_ms) > POSITION_UPDATE_TIMEOUT_MS {
+        log::warn!("Player {:?} position update too old: {}ms", sender_id, now_ms.saturating_sub(client_timestamp_ms));
+        return Err("Position update too old".to_string());
+    }
+
+    // --- Apply collision detection ---
+    let (final_x, final_y) = player_collision::resolve_push_out_collision(
+        ctx, 
+        sender_id, 
+        new_x,
+        new_y
+    );
+
+    // --- Water detection for new position ---
+    let is_on_water = is_player_on_water(ctx, final_x, final_y);
+    let is_jumping = is_player_jumping(current_player.jump_start_time_ms, now_ms);
+
+    // --- Update player state ---
+    current_player.position_x = final_x;
+    current_player.position_y = final_y;
+    current_player.is_sprinting = is_sprinting && !is_on_water; // Disable sprint on water
+    current_player.is_on_water = is_on_water;
+    current_player.direction = facing_direction; // Accept client-provided direction
+    current_player.last_update = ctx.timestamp;
+
+    // Note: Player table doesn't have chunk field - chunk optimization can be added later if needed
+
+    players.identity().update(current_player);
+
+    log::trace!("Player {:?} position accepted: ({:.1}, {:.1}) speed: {:.1}px/s", 
+               sender_id, final_x, final_y, 
+               if time_diff_ms > 0 { (distance_moved * 1000.0) / time_diff_ms as f32 } else { 0.0 });
+
+    Ok(())
+}

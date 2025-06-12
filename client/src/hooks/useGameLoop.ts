@@ -24,7 +24,7 @@ export function useGameLoop(
   const {
     targetFPS = 60,
     maxFrameTime = 16.67, // ~60fps target
-    enableProfiling = process.env.NODE_ENV === 'development'
+    enableProfiling = false
   } = options;
 
   const requestIdRef = useRef<number>(0);

@@ -447,8 +447,13 @@ export const useInputHandler = ({
                 switch (key) {
                     case 'z':
                         setIsAutoAttacking(prev => {
-                            if (!prev) setIsAutoWalking(false); // Stop walking if starting to attack
-                            return !prev;
+                            const newState = !prev;
+                            if (newState) {
+                                setIsAutoWalking(false); // Stop walking if starting to attack
+                                // Trigger immediate swing when enabling auto-attack
+                                setTimeout(() => attemptSwing(), 0);
+                            }
+                            return newState;
                         });
                         return; // Handled
                     case 'q':
@@ -521,37 +526,8 @@ export const useInputHandler = ({
 
 
 
-            // Handle movement keys (WASD) - no longer needed for movement, but tracked for other actions
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                // Debug Shift+WASD stopping (check BEFORE adding key to avoid race conditions)
-                // console.log('[Auto-Walk DEBUG] Movement key pressed:', key, 'Shift held:', event.shiftKey, 'Auto-walking (ref):', isAutoWalkingRef.current);
-                
-                // Stop auto-walk when Shift+WASD is pressed (use ref to avoid stale closure)
-                if (event.shiftKey && isAutoWalkingRef.current) {
-                    // console.log('[Auto-Walk] ✅ Shift+Movement key pressed, stopping auto-walk');
-                    setIsAutoWalking(false);
-                    return; // Don't add the key to keysPressed to prevent auto-walk from continuing
-                }
-                
-                // This hook no longer processes movement keys directly,
-                // but we need to track them for dodge rolls.
-                keysPressed.current.add(key);
-                
-                // Update the last movement direction tracking for auto-walk initialization
-                const currentMovementInput = {
-                    dx: (keysPressed.current.has('d') || keysPressed.current.has('arrowright') ? 1 : 0) -
-                        (keysPressed.current.has('a') || keysPressed.current.has('arrowleft') ? 1 : 0),
-                    dy: (keysPressed.current.has('s') || keysPressed.current.has('arrowdown') ? 1 : 0) -
-                        (keysPressed.current.has('w') || keysPressed.current.has('arrowup') ? 1 : 0)
-                };
-                
-                if (currentMovementInput.dx !== 0 || currentMovementInput.dy !== 0) {
-                    lastMovementDirectionRef.current = { ...currentMovementInput };
-                    lastValidDirectionTimeRef.current = Date.now();
-                }
-                
-                return; // Movement keys handled
-            }
+            // Movement keys are now handled by useMovementInput hook
+            // Only handle non-movement keys here to avoid conflicts
 
             // Spacebar Handler (Jump or Dodge Roll)
             if (key === ' ' && !event.repeat) {
@@ -651,20 +627,8 @@ export const useInputHandler = ({
             const key = event.key.toLowerCase();
             keysPressed.current.delete(key);
 
-            // Update movement direction tracking when movement keys are released
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                // Check if we still have any movement keys pressed
-                const stillMoving = keysPressed.current.has('w') || keysPressed.current.has('a') || 
-                                   keysPressed.current.has('s') || keysPressed.current.has('d') ||
-                                   keysPressed.current.has('arrowup') || keysPressed.current.has('arrowleft') ||
-                                   keysPressed.current.has('arrowdown') || keysPressed.current.has('arrowright');
-                
-                if (!stillMoving) {
-                    // No movement keys pressed anymore, but don't reset the direction tracking
-                    // Keep the last direction for a longer time to help with auto-walk initialization
-                    // console.log('[Auto-Walk] All movement keys released, preserving last direction:', lastMovementDirectionRef.current);
-                }
-            }
+            // Movement key handling is now done by useMovementInput hook
+            // Only handle non-movement keys here to avoid conflicts
 
             if (key === 'e') {
                 if (isEHeldDownRef.current) { // Check if E was being held for an interaction

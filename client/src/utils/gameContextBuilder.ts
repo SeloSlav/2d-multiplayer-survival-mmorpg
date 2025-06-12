@@ -53,8 +53,23 @@ const getTimeOfDayString = (timeOfDay: any): string => {
  */
 const getWeatherString = (weather: any): string => {
   if (!weather) return 'Clear';
+  
+  // Handle string values directly
   if (typeof weather === 'string') return weather;
   
+  // Handle tagged union pattern from SpacetimeDB
+  if (weather.tag) {
+    switch (weather.tag) {
+      case 'Clear': return 'Clear';
+      case 'LightRain': return 'Light Rain';
+      case 'ModerateRain': return 'Moderate Rain';
+      case 'HeavyRain': return 'Heavy Rain';
+      case 'HeavyStorm': return 'Heavy Storm';
+      default: return weather.tag || 'Clear';
+    }
+  }
+  
+  // Handle direct enum values (fallback)
   switch (weather) {
     case 'Clear': return 'Clear';
     case 'LightRain': return 'Light Rain';

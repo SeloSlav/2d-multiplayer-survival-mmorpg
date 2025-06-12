@@ -80,6 +80,10 @@ function AppContent() {
     // --- Player Actions ---
     const {
         updateViewport,
+        updatePlayerPosition,
+        setSprinting,
+        stopAutoWalk, // Added for auto-walk management
+        toggleAutoAttack, // Added for auto-attack functionality
     } = usePlayerActions();
 
     const [placementState, placementActions] = usePlacementManager(connection);
@@ -96,7 +100,7 @@ function AppContent() {
     const [isMinimapOpen, setIsMinimapOpen] = useState<boolean>(false);
     const [isChatting, setIsChatting] = useState<boolean>(false);
     const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
-    const [isAutoWalking, setIsAutoWalking] = useState(false);
+    // Auto-walking state is now managed by PlayerActionsContext via usePredictedMovement
     const [loadingSequenceComplete, setLoadingSequenceComplete] = useState<boolean>(false);
 
     // --- Viewport State & Refs ---
@@ -135,19 +139,85 @@ function AppContent() {
     // --- Movement Hooks ---
     const isUIFocused = isChatting || isCraftingSearchFocused;
     const localPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) : undefined;
-    const { inputState, processMovement } = useMovementInput({ 
+    
+    // Simplified movement input - no complex processing
+    const { inputState } = useMovementInput({ 
         isUIFocused,
-        isAutoWalking,
         localPlayer,
-        onCancelAutoWalk: () => setIsAutoWalking(false),
+        onToggleAutoAttack: toggleAutoAttack, // Keep auto-attack functionality
     });
-    const { predictedPosition } = usePredictedMovement({
+    
+    // Simplified predicted movement - minimal lag
+    const { predictedPosition, isAutoAttacking, facingDirection } = usePredictedMovement({
         localPlayer,
         inputState,
         connection,
+        isUIFocused,
     });
 
-    // Input processing is now event-driven (no game loop needed for input)
+    // --- Game Performance Monitor ---
+    useEffect(() => {
+        let frameCount = 0;
+        let lastReportTime = Date.now();
+        let totalRenderTime = 0;
+        let maxRenderTime = 0;
+        let lagSpikes = 0;
+        
+        const RENDER_LAG_THRESHOLD = 20; // 20ms+ is a lag spike
+        const REPORT_INTERVAL = 10000; // Report every 10 seconds
+        
+        const monitorPerformance = () => {
+            const frameStart = performance.now();
+            
+            // Monitor after the current render cycle
+            requestAnimationFrame(() => {
+                const frameEnd = performance.now();
+                const frameTime = frameEnd - frameStart;
+                
+                frameCount++;
+                totalRenderTime += frameTime;
+                maxRenderTime = Math.max(maxRenderTime, frameTime);
+                
+                if (frameTime > RENDER_LAG_THRESHOLD) {
+                    lagSpikes++;
+                    console.warn(`🐌 [App] RENDER LAG SPIKE: ${frameTime.toFixed(2)}ms`);
+                }
+                
+                const now = Date.now();
+                if (now - lastReportTime > REPORT_INTERVAL) {
+                    const avgRenderTime = totalRenderTime / frameCount;
+                    const fps = 1000 / avgRenderTime;
+                    
+                    // console.log(`📊 [App] Game Performance Report:
+                    //     Frames: ${frameCount}
+                    //     Average Render Time: ${avgRenderTime.toFixed(2)}ms
+                    //     Max Render Time: ${maxRenderTime.toFixed(2)}ms
+                    //     Estimated FPS: ${fps.toFixed(1)}
+                    //     Lag Spikes: ${lagSpikes} (${((lagSpikes/frameCount)*100).toFixed(1)}%)
+                    //     Players Count: ${players.size}
+                    //     Connection Status: ${connection ? 'Connected' : 'Disconnected'}`);
+                    
+                    // Reset counters
+                    frameCount = 0;
+                    totalRenderTime = 0;
+                    maxRenderTime = 0;
+                    lagSpikes = 0;
+                    lastReportTime = now;
+                }
+                
+                // Continue monitoring
+                monitorPerformance();
+            });
+        };
+        
+        // Start monitoring
+        monitorPerformance();
+        
+        // No cleanup needed as we're using requestAnimationFrame
+    }, [players.size, connection]);
+
+    // Note: Movement is now handled entirely by usePredictedMovement hook
+    // No need for complex movement processing in App.tsx anymore
 
     // --- Refs for Cross-Hook/Component Communication --- 
     // Ref for Placement cancellation needed by useSpacetimeTables callbacks
@@ -288,13 +358,7 @@ function AppContent() {
             // If chat is active, let the Chat component handle Enter/Escape
             if (isChatting) return;
 
-            // NEW: If a movement key is pressed while auto-walking, cancel it.
-            // This is a safety net in case the lower-level hook's logic doesn't catch it.
-            if (isAutoWalking && ['w', 'a', 's', 'd'].includes(event.key.toLowerCase())) {
-                if(event.shiftKey) {
-                    setIsAutoWalking(false);
-                }
-            }
+            // Auto-walk functionality removed
 
             // Prevent global context menu unless placing item (moved from other effect)
             if (event.key === 'ContextMenu' && !placementInfoRef.current) {
@@ -318,7 +382,7 @@ function AppContent() {
             window.removeEventListener('keydown', handleGlobalKeyDown);
             window.removeEventListener('contextmenu', handleGlobalContextMenu);
         };
-    }, [isChatting, isAutoWalking]); // <<< Add isChatting and isAutoWalking dependency
+    }, [isChatting]); // Removed isAutoWalking dependency
 
     // --- Effect to manage registration state based on table hook --- 
     useEffect(() => {
@@ -326,12 +390,10 @@ function AppContent() {
              // console.log("[AppContent] Player registered, setting isRegistering = false");
              setIsRegistering(false);
          }
-         if (!localPlayerRegistered && isAutoWalking) {
-            setIsAutoWalking(false);
-         }
+         // Auto-walk functionality removed
          // Maybe add logic here if registration fails?
          // Currently, errors are shown via connectionError or uiError
-    }, [localPlayerRegistered, isRegistering, isAutoWalking]);
+    }, [localPlayerRegistered, isRegistering]);
 
     // --- Effect to automatically clear interactionTarget if player moves too far ---
     useEffect(() => {
@@ -400,32 +462,36 @@ function AppContent() {
     ]); // Add other entity maps to dependency array if new cases are added
 
     // --- Determine overall loading state ---
-    // Loading if either Auth is loading OR SpacetimeDB connection is loading OR sequence not complete
-    const actualLoadingComplete = !authLoading && (!isAuthenticated || !spacetimeLoading);
-    const overallIsLoading = !actualLoadingComplete || !loadingSequenceComplete;
+    // Loading screen should ONLY show when:
+    // 1. Auth is loading, OR
+    // 2. User is authenticated AND SpacetimeDB is loading, OR  
+    // 3. User is authenticated AND sequence not complete
+    const shouldShowLoadingScreen = authLoading || 
+                                   (isAuthenticated && spacetimeLoading) || 
+                                   (isAuthenticated && !loadingSequenceComplete);
     
     // Debug logging for loading states
-    // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, actualLoadingComplete: ${actualLoadingComplete}, loadingSequenceComplete: ${loadingSequenceComplete}, overallIsLoading: ${overallIsLoading}`);
+    // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, loadingSequenceComplete: ${loadingSequenceComplete}, shouldShowLoadingScreen: ${shouldShowLoadingScreen}`);
 
     // --- Handle loading sequence completion ---
     const handleSequenceComplete = useCallback(() => {
         setLoadingSequenceComplete(true);
     }, []);
 
-    // Reset sequence completion when actual loading starts again
+    // Reset sequence completion when loading starts again
     useEffect(() => {
-        if (!actualLoadingComplete && loadingSequenceComplete) {
+        if (shouldShowLoadingScreen && loadingSequenceComplete) {
             setLoadingSequenceComplete(false);
         }
-    }, [actualLoadingComplete, loadingSequenceComplete]);
+    }, [shouldShowLoadingScreen, loadingSequenceComplete]);
 
     // --- Determine combined error message ---
     const displayError = connectionError || uiError || placementError || dropError;
     
     // Debug logging for connection error
-    if (connectionError) {
-        console.log(`[App DEBUG] connectionError: ${connectionError}`);
-    }
+    // if (connectionError) {
+    //     console.log(`[App DEBUG] connectionError: ${connectionError}`);
+    // }
 
     // --- Find the logged-in player data from the tables --- 
     const loggedInPlayer = dbIdentity ? players.get(dbIdentity.toHexString()) ?? null : null;
@@ -469,16 +535,16 @@ function AppContent() {
             {/* Display combined errors */} 
             {displayError && <CyberpunkErrorBar message={displayError} />}
 
-            {/* Show loading screen */} 
-            {overallIsLoading && (
+            {/* Show loading screen only when needed */} 
+            {shouldShowLoadingScreen && (
                 <CyberpunkLoadingScreen 
                     authLoading={authLoading} 
                     onSequenceComplete={handleSequenceComplete}
                 />
             )}
 
-            {/* Conditional Rendering: Login vs Game (only if not loading) */}
-            {!overallIsLoading && !isAuthenticated && (
+            {/* Conditional Rendering: Login vs Game (only if not showing loading screen) */}
+            {!shouldShowLoadingScreen && !isAuthenticated && (
                  <LoginScreen
                     handleJoinGame={loginRedirect} // Correctly pass loginRedirect
                     loggedInPlayer={null}
@@ -488,7 +554,7 @@ function AppContent() {
             )}
 
             {/* If authenticated but not yet registered/connected to game */}
-            {!overallIsLoading && isAuthenticated && !localPlayerRegistered && (
+            {!shouldShowLoadingScreen && isAuthenticated && !localPlayerRegistered && (
                  <LoginScreen 
                     handleJoinGame={handleAttemptRegisterPlayer} // Pass the updated handler
                     loggedInPlayer={loggedInPlayer}
@@ -499,7 +565,7 @@ function AppContent() {
             )}
             
             {/* If authenticated AND registered/game ready */}
-            {!overallIsLoading && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
+            {!shouldShowLoadingScreen && isAuthenticated && localPlayerRegistered && loggedInPlayer && (
                 (() => { 
                     const localPlayerIdentityHex = dbIdentity ? dbIdentity.toHexString() : undefined;
                     return (
@@ -558,7 +624,7 @@ function AppContent() {
                             deathMarkers={deathMarkers}
                             setIsCraftingSearchFocused={setIsCraftingSearchFocused}
                             isCraftingSearchFocused={isCraftingSearchFocused}
-                            isAutoWalking={isAutoWalking}
+                            // Auto-walk functionality removed
                         />
                     );
                 })()

@@ -34,7 +34,6 @@
   overflow-y: auto;
   padding: 8px 12px;
   background: linear-gradient(135deg, rgba(15, 15, 35, 0.8), rgba(10, 10, 25, 0.9));
-  transition: all 0.3s ease;
   text-align: left;
   scrollbar-width: thin;
 }
@@ -161,7 +160,6 @@
   border-radius: 0 0 6px 6px;
   text-shadow: 0 0 4px rgba(0, 255, 255, 0.6);
   box-sizing: border-box;
-  transition: all 0.3s ease;
   letter-spacing: 0.5px;
 }
 
@@ -191,7 +189,6 @@
   cursor: pointer;
   box-sizing: border-box;
   width: 100%;
-  transition: all 0.3s ease;
   letter-spacing: 0.5px;
   text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
 }
@@ -279,7 +276,6 @@
   font-size: 8px;
   padding: 8px 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
   text-shadow: 0 0 4px rgba(0, 170, 255, 0.4);
   letter-spacing: 0.5px;
   border-right: 1px solid rgba(0, 170, 255, 0.2);

@@ -426,23 +426,44 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
           position: 'fixed',
           bottom: '20px',
           left: '20px',
-          width: '50px',
-          height: '50px',
+          width: '80px',
+          height: '80px',
           background: 'linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95))',
-          border: '2px solid #00aaff',
+          border: '3px solid #00aaff',
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          boxShadow: '0 0 20px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+          boxShadow: '0 0 30px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)',
           zIndex: 50,
           fontSize: '20px',
           color: '#00ffff',
-          transition: 'all 0.3s ease',
+          transform: 'scale(1)',
+          backdropFilter: 'blur(5px)',
+        }}
+        onMouseEnter={(e) => {
+          const element = e.currentTarget;
+          element.style.transform = 'scale(1.1)';
+          element.style.boxShadow = '0 0 40px rgba(0, 170, 255, 0.8), inset 0 0 20px rgba(0, 170, 255, 0.3)';
+          element.style.border = '3px solid #00ffff';
+        }}
+        onMouseLeave={(e) => {
+          const element = e.currentTarget;
+          element.style.transform = 'scale(1)';
+          element.style.boxShadow = '0 0 30px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
+          element.style.border = '3px solid #00aaff';
         }}
       >
-        <img src={sovaIcon} alt="SOVA" style={{ width: '60px', height: '60px' }} />
+        <img 
+          src={sovaIcon} 
+          alt="SOVA" 
+          style={{ 
+            width: '70px', 
+            height: '70px',
+            filter: 'drop-shadow(0 0 10px rgba(0, 170, 255, 0.5))'
+          }} 
+        />
       </div>
     );
   }
@@ -458,10 +479,10 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
         onClick={toggleMinimized}
         style={{
           position: 'absolute',
-          top: '10px',
+          top: '8px',
           right: '10px',
-          width: '20px',
-          height: '20px',
+          width: '10px',
+          height: '10px',
           background: 'rgba(0, 170, 255, 0.2)',
           border: '1px solid #00aaff',
           borderRadius: '50%',
@@ -472,7 +493,6 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
           fontSize: '12px',
           color: '#00ffff',
           opacity: 0.7,
-          transition: 'all 0.2s ease',
           zIndex: 10,
         }}
         onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
@@ -570,8 +590,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
                 padding: '4px 8px',
                 fontSize: '8px',
                 fontFamily: '"Press Start 2P", cursive',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                cursor: 'pointer'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.4), rgba(0, 150, 255, 0.5))';

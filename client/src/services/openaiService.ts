@@ -159,6 +159,26 @@ GAME KNOWLEDGE:
 - Important items: tools, weapons, shelter materials, campfires
 - Survival priorities: shelter, food, water, defense
 
+CRITICAL TACTICAL RULES:
+🔥 CAMPFIRE & TORCH LOGIC:
+- Campfires CANNOT be lit during heavy rain or storms (weather prevents ignition)
+- Campfires provide warmth and light but are stationary
+- Torches are portable light sources that work in all weather conditions
+- At NIGHT or in BAD WEATHER: Always recommend TORCHES over campfires for mobility and reliability
+- During DAY and CLEAR weather: Campfires are acceptable for base camps
+- NEVER suggest campfires when weather is anything other than "Clear skies"
+
+🌦️ WEATHER ASSESSMENT:
+- ALWAYS use the exact weather data provided - never contradict environmental readings
+- If weather shows "Raining" with ANY intensity > 0%, acknowledge the rain
+- Heavy rain/storms make campfires impossible to light
+- Rain affects player warmth and visibility - recommend appropriate shelter/tools
+
+⏰ TIME-BASED RECOMMENDATIONS:
+- NIGHT/DUSK: Prioritize torches for mobile lighting and warmth
+- DAY/DAWN: Campfires acceptable if weather is clear
+- Consider player mobility needs when making recommendations
+
 RESPONSE STYLE:
 - Address the player as "Operative", "Agent", "Babushka" (affectionately), or "my dear operative"
 - NEVER use long hex strings or identity codes when addressing the player
@@ -179,7 +199,7 @@ SPECIAL RESPONSES:
 - Occasionally compliment the operative's survival skills or toughness
 - Sometimes make playful comments about the operative being a formidable babushka
 
-Remember: Stay in character, be helpful, keep it tactical and concise.`;
+Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS check weather and time before recommending campfires vs torches.`;
   }
 
   /**
@@ -275,9 +295,34 @@ Remember: Stay in character, be helpful, keep it tactical and concise.`;
     prompt += `- Use EXACT weather data: ${ctx?.currentWeather || 'unknown'} ${(ctx?.rainIntensity && ctx.rainIntensity > 0) ? `at ${(ctx.rainIntensity * 100).toFixed(1)}%` : ''}\\n`;
     prompt += `- For warmth/stamina: use descriptive terms only (freezing, cold, warm, drained, energetic, etc.)\\n`;
     prompt += `- 🚨 CRAFTING COSTS: You MUST use the EXACT resource requirements from the Available recipes list above. DO NOT make up numbers! 🚨\\n`;
-          prompt += `- 🚨 CRAFTING RULE: Search through the COMPLETE "Available recipes" list above to find the exact item. Quote those EXACT costs. NEVER make up different numbers! 🚨\\n`;
+    prompt += `- 🚨 CRAFTING RULE: Search through the COMPLETE "Available recipes" list above to find the exact item. Quote those EXACT costs. NEVER make up different numbers! 🚨\\n`;
     prompt += `- Never contradict the environmental data (don't say "clear" if it's raining)\\n`;
     prompt += `- Address player as: "Operative", "Agent", "Babushka", "my dear operative" - NEVER use hex identity strings\\n\\n`;
+    
+    // Add tactical situation analysis
+    prompt += `🎯 TACTICAL ANALYSIS FOR THIS SITUATION:\\n`;
+    if (ctx) {
+      // Weather-based recommendations
+      const isRaining = ctx.currentWeather !== 'Clear' || (ctx.rainIntensity && ctx.rainIntensity > 0);
+      const isNightTime = ctx.timeOfDay === 'Night' || ctx.timeOfDay === 'Dusk';
+      
+      if (isRaining && isNightTime) {
+        prompt += `- CRITICAL: Raining + Night = Recommend TORCHES (portable, weatherproof light/warmth)\\n`;
+        prompt += `- DO NOT suggest campfires (cannot light in rain)\\n`;
+      } else if (isRaining) {
+        prompt += `- Rain detected = Campfires cannot be lit, recommend TORCHES or shelter\\n`;
+      } else if (isNightTime) {
+        prompt += `- Night operations = Prioritize TORCHES for mobility and safety\\n`;
+      } else {
+        prompt += `- Clear day conditions = Campfires acceptable for base camps\\n`;
+      }
+      
+      // Temperature-based recommendations
+      if (ctx.playerWarmth <= 40) {
+        prompt += `- Cold operative = Urgent warmth needed (torches work in all conditions)\\n`;
+      }
+    }
+    prompt += `\\n`;
     
     prompt += `PERSONALITY: Tough Russian babushka with dry humor, subtle flirtation, tactical expertise, and genuine care for operative's survival.\\n\\n`;
     
@@ -311,7 +356,7 @@ Remember: Stay in character, be helpful, keep it tactical and concise.`;
     }
 
     if (message.includes('night') || message.includes('dark')) {
-      return 'Night operations increase threat levels. Maintain campfire and defensive positions, Agent.';
+      return 'Night operations increase threat levels. Craft torches for portable light and warmth, Agent.';
     }
 
     if (message.includes('food') || message.includes('hungry')) {
@@ -320,6 +365,18 @@ Remember: Stay in character, be helpful, keep it tactical and concise.`;
 
     if (message.includes('weapon') || message.includes('fight')) {
       return 'Craft basic weapons from stone and wood. Maintain tactical advantage, Agent.';
+    }
+
+    if (message.includes('rain') || message.includes('storm') || message.includes('weather')) {
+      return 'Weather conditions affect survival strategy. Use torches instead of campfires in wet conditions, Operative.';
+    }
+
+    if (message.includes('cold') || message.includes('warm') || message.includes('fire')) {
+      return 'For warmth and light, prioritize torches - they work in all weather conditions, Agent.';
+    }
+
+    if (message.includes('campfire') || message.includes('torch')) {
+      return 'Torches provide mobile light and warmth. Campfires only work in clear, dry conditions, Operative.';
     }
 
     // Default fallback

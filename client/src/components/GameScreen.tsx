@@ -153,7 +153,6 @@ interface GameScreenProps {
     deathMarkers: Map<string, SpacetimeDBDeathMarker>;
     setIsCraftingSearchFocused: React.Dispatch<React.SetStateAction<boolean>>;
     isCraftingSearchFocused: boolean;
-    isAutoWalking: boolean;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -165,7 +164,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     const [currentMenu, setCurrentMenu] = useState<MenuType>(null);
     
     // Add auto-action state management
-    const [autoActionStates, setAutoActionStates] = useState({ isAutoAttacking: false, isAutoWalking: false });
+    const [autoActionStates, setAutoActionStates] = useState({ isAutoAttacking: false });
     
     // Add refresh confirmation dialog state
     const [showRefreshDialog, setShowRefreshDialog] = useState(false);
@@ -218,7 +217,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         deathMarkers,
         setIsCraftingSearchFocused,
         isCraftingSearchFocused,
-        isAutoWalking,
+        // Auto-walking removed
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -271,9 +270,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     };
 
     // Handler for auto-action state changes from GameCanvas
-    const handleAutoActionStatesChange = useCallback((isAutoAttacking: boolean, isAutoWalking: boolean) => {
-        console.log('[GameScreen] Auto-action states changed:', { isAutoAttacking, isAutoWalking });
-        setAutoActionStates({ isAutoAttacking, isAutoWalking });
+    const handleAutoActionStatesChange = useCallback((isAutoAttacking: boolean) => {
+        console.log('[GameScreen] Auto-action states changed:', { isAutoAttacking });
+        setAutoActionStates({ isAutoAttacking });
     }, []);
 
     // Combined keyboard handler for game menu (Escape) and refresh confirmation (Ctrl+R)
@@ -331,7 +330,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             
             {/* Auto-Action Status Indicators */}
             {/* Debug: {JSON.stringify(autoActionStates)} */}
-            {(autoActionStates.isAutoAttacking || autoActionStates.isAutoWalking) && (
+            {autoActionStates.isAutoAttacking && (
                 <div style={{
                     position: 'fixed',
                     top: '70px', // Position below DayNightCycleTracker (which is at 15px)
@@ -358,24 +357,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             animation: 'pulse 2s infinite'
                         }}>
                             ⚔️ AUTO ATTACK (Z)
-                        </div>
-                    )}
-                    {autoActionStates.isAutoWalking && (
-                        <div style={{
-                            backgroundColor: 'rgba(40, 40, 60, 0.85)', // Same as DayNightCycleTracker
-                            color: 'white',
-                            padding: '8px 12px', // Slightly less padding for compact look
-                            borderRadius: '4px', // Same as DayNightCycleTracker
-                            fontSize: '10px', // Same as DayNightCycleTracker
-                            fontFamily: '"Press Start 2P", cursive', // Same as DayNightCycleTracker
-                            fontWeight: 'normal', // Remove bold for pixel font
-                            textAlign: 'center',
-                            border: '1px solid #a0a0c0', // Same border as DayNightCycleTracker
-                            boxShadow: '2px 2px 0px rgba(0,0,0,0.5)', // Same shadow as DayNightCycleTracker
-                            width: '140px', // Fixed width for consistency
-                            animation: 'pulse 2s infinite'
-                        }}>
-                            🚶 AUTO WALK (Q)
                         </div>
                     )}
                 </div>

@@ -166,7 +166,7 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
     const audioPreloadStarted = useRef(false);
     const consoleLogsRef = useRef<HTMLDivElement>(null);
 
-    const logs = authLoading ? [
+    const logs = React.useMemo(() => authLoading ? [
         "└─ Initializing quantum encryption protocols...",
         "└─ Verifying neural identity matrix...",
         "└─ Establishing secure link to authentication nexus...",
@@ -183,7 +183,7 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
         "└─ [WORLD] Verifying territorial claims and resource deposits...",
         "└─ Initializing real-time consensus mechanisms...",
         "└─ [READY] Connection to Babachain established. Entering world...",
-    ];
+    ], [authLoading]);
 
     // Auto-scroll to bottom function
     const scrollToBottom = () => {
@@ -415,6 +415,7 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
 
     useEffect(() => {
         if (currentLogIndex < logs.length) {
+            console.log(`[CyberpunkLoadingScreen] Showing log ${currentLogIndex + 1}/${logs.length}: ${logs[currentLogIndex]}`);
             const timer = setTimeout(() => {
                 setVisibleLogs(prev => [...prev, logs[currentLogIndex]]);
                 setCurrentLogIndex(prev => prev + 1);
@@ -425,6 +426,7 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
             return () => clearTimeout(timer);
         } else if (currentLogIndex >= logs.length && !isSequenceComplete) {
             // Sequence is complete, add a small delay then show click to continue
+            console.log(`[CyberpunkLoadingScreen] All logs complete, setting sequence complete`);
             const timer = setTimeout(() => {
                 setIsSequenceComplete(true);
                 // Scroll to bottom to show the continue button
@@ -435,19 +437,38 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
         }
     }, [currentLogIndex, logs, isSequenceComplete]);
 
-    // Handle click to continue
+    // Handle click to continue - always allow continuation regardless of player state
     const handleContinueClick = () => {
-        if (isSequenceComplete) {
-            onSequenceComplete?.();
-        }
+        console.log(`[CyberpunkLoadingScreen] User clicked continue, calling onSequenceComplete (player state: any)`);
+        onSequenceComplete?.();
     };
-
-    // Reset when authLoading changes
+    
+    // Fallback: If sequence gets stuck, auto-complete after a timeout
     useEffect(() => {
-        setVisibleLogs([]);
-        setCurrentLogIndex(0);
-        setIsSequenceComplete(false);
-    }, [authLoading]);
+        if (currentLogIndex >= logs.length && !isSequenceComplete) {
+            const fallbackTimer = setTimeout(() => {
+                console.log('[CyberpunkLoadingScreen] Fallback: Force completing sequence');
+                setIsSequenceComplete(true);
+            }, 2000); // 2 second fallback
+            
+            return () => clearTimeout(fallbackTimer);
+        }
+    }, [currentLogIndex, logs.length, isSequenceComplete]);
+
+    // Reset when authLoading changes, but only if we haven't started the sequence at all
+    // Once started, let the sequence complete regardless of player state (including death)
+    useEffect(() => {
+        // Only reset if absolutely nothing has started yet
+        if (currentLogIndex === 0 && visibleLogs.length === 0 && !isSequenceComplete) {
+            console.log('[CyberpunkLoadingScreen] Resetting loading sequence due to authLoading change');
+            setVisibleLogs([]);
+            setCurrentLogIndex(0);
+            setIsSequenceComplete(false);
+        } else if (visibleLogs.length > 0 || currentLogIndex > 0) {
+            // Sequence has started - don't reset, let it complete regardless of auth changes
+            console.log('[CyberpunkLoadingScreen] Sequence in progress, ignoring authLoading changes');
+        }
+    }, [authLoading, currentLogIndex, visibleLogs.length, isSequenceComplete]);
 
     // Handle manual audio enable button click
     const handleEnableAudioClick = () => {
