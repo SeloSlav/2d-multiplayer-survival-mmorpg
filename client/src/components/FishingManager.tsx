@@ -217,6 +217,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
         <FishingSystem
           playerX={localPlayer.positionX}
           playerY={localPlayer.positionY}
+          playerDirection={localPlayer.direction || 'down'}
           castTargetX={fishingState.castTarget.x}
           castTargetY={fishingState.castTarget.y}
           castDistance={castDistance}
@@ -237,6 +238,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
 interface FishingSystemProps {
   playerX: number;
   playerY: number;
+  playerDirection: string; // Add player direction for rod alignment
   castTargetX: number;
   castTargetY: number;
   castDistance: number; // Distance from player to cast target
@@ -268,6 +270,7 @@ interface BobberState {
 const FishingSystem: React.FC<FishingSystemProps> = ({
   playerX,
   playerY,
+  playerDirection,
   castTargetX,
   castTargetY,
   castDistance,
@@ -644,8 +647,41 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
   if (!canvas) return null;
 
   const canvasRect = canvas.getBoundingClientRect();
-  const playerScreenX = playerX + cameraOffsetX + canvasRect.left;
-  const playerScreenY = playerY + cameraOffsetY + canvasRect.top;
+  
+  // Get player direction from the fishing manager props to access localPlayer
+  // We'll need to pass localPlayer to FishingSystem to get direction
+  const FishingManagerComponent = (props: any) => props.children; // Temporary approach - we need player direction
+  
+  // Rod offset adjustments to align with fishing rod visually
+  const ROD_OFFSET_X = 24; // Base offset to the right
+  const ROD_OFFSET_Y = -18; // Offset up to align with rod tip
+  
+  // Calculate rod tip position based on player direction (from localPlayer prop that we need to add)
+  // For now, assume default direction - we'll need to pass player direction through props
+  let rodOffsetX = ROD_OFFSET_X;
+  let rodOffsetY = ROD_OFFSET_Y;
+  
+  // Apply direction-based offset mirroring
+  switch (playerDirection) {
+    case 'left':
+      rodOffsetX = -ROD_OFFSET_X; // Mirror horizontally when facing left
+      break;
+    case 'up':
+      rodOffsetX = -ROD_OFFSET_X + 64; // Additional offset to the left when facing up
+      rodOffsetY = -ROD_OFFSET_Y - 40; // Additional offset upward when facing up
+      break;
+    case 'down':
+      rodOffsetX = -ROD_OFFSET_X - 18; // Additional offset to the left when facing up
+      rodOffsetY = ROD_OFFSET_Y - 2; // Additional offset downward when facing down
+      break;
+    case 'right':
+    default:
+      // Use default offsets for right direction
+      break;
+  }
+  
+  const playerScreenX = playerX + cameraOffsetX + canvasRect.left + rodOffsetX;
+  const playerScreenY = playerY + cameraOffsetY + canvasRect.top + rodOffsetY;
   const bobberScreenX = bobber.x + cameraOffsetX + canvasRect.left;
   const bobberScreenY = bobber.y + cameraOffsetY + canvasRect.top;
 
@@ -655,13 +691,8 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
   );
   const stressRatio = currentDistance / FISHING_CONSTANTS.BREAK_DISTANCE;
   
-  // Line color changes based on stress
-  let lineColor = 'rgba(139, 69, 19, 0.8)';
-  if (stressRatio > 0.7) {
-    lineColor = 'rgba(255, 100, 100, 0.9)';
-  } else if (stressRatio > 0.5) {
-    lineColor = 'rgba(255, 255, 100, 0.8)';
-  }
+  // Keep fishing line always white as requested
+  const lineColor = 'rgba(255, 255, 255, 0.9)';
 
   // Calculate arc for fishing line when fish is pulling
   const calculateArcPath = () => {

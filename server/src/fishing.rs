@@ -4,6 +4,7 @@ use crate::player;
 use crate::active_equipment::active_equipment;
 use crate::items::{inventory_item, item_definition};
 use crate::dropped_item::{create_dropped_item_entity, calculate_drop_position};
+use crate::world_state::{world_state as WorldStateTableTrait, TimeOfDay};
 use rand::Rng;
 
 // Fishing state tracking
@@ -59,17 +60,68 @@ pub fn get_fishing_loot_table() -> Vec<FishingLoot> {
     ]
 }
 
-// Generate loot for a successful fishing attempt
+// Generate loot for a successful fishing attempt with time-of-day bonuses
 pub fn generate_fishing_loot(ctx: &ReducerContext) -> Vec<String> {
-    // Simplified: Always give at least one fish, sometimes give junk too
     let mut loot = vec!["Raw Twigfish".to_string()]; // Always get a fish
     
-    // 50% chance for bonus tin can
-    if ctx.rng().gen_range(0.0..1.0) < 0.5 {
+    // Get current time of day for fishing bonuses
+    let time_of_day = get_current_time_of_day(ctx);
+    
+    // Calculate fishing effectiveness multiplier based on time of day
+    let fishing_effectiveness = get_fishing_effectiveness_multiplier(&time_of_day);
+    
+    // Base chances modified by time of day
+    let base_bonus_fish_chance = 0.3; // 30% base chance for bonus fish
+    let base_junk_chance = 0.5; // 50% base chance for junk
+    
+    // Apply time-of-day bonuses
+    let bonus_fish_chance = base_bonus_fish_chance * fishing_effectiveness;
+    let junk_chance = base_junk_chance * (2.0 - fishing_effectiveness); // Less junk during good fishing times
+    
+    // Roll for bonus fish (better during dawn/dusk)
+    if ctx.rng().gen_range(0.0..1.0) < bonus_fish_chance {
+        loot.push("Raw Twigfish".to_string());
+        log::info!("Bonus fish caught during {:?}! (effectiveness: {:.2})", time_of_day, fishing_effectiveness);
+    }
+    
+    // Roll for junk (less likely during dawn/dusk)
+    if ctx.rng().gen_range(0.0..1.0) < junk_chance {
         loot.push("Tin Can".to_string());
     }
     
+    // Very rare bonus during optimal fishing times (dawn/dusk)
+    if fishing_effectiveness > 1.5 && ctx.rng().gen_range(0.0..1.0) < 0.2 {
+        loot.push("Raw Twigfish".to_string());
+        log::info!("🐟 Excellent fishing conditions! Extra bonus fish during {:?}", time_of_day);
+    }
+    
     loot
+}
+
+// Helper function to get current time of day from world state
+fn get_current_time_of_day(ctx: &ReducerContext) -> TimeOfDay {
+    match ctx.db.world_state().iter().next() {
+        Some(world_state) => world_state.time_of_day.clone(),
+        None => {
+            log::warn!("No world state found, defaulting to Noon for fishing calculations");
+            TimeOfDay::Noon
+        }
+    }
+}
+
+// Calculate fishing effectiveness multiplier based on time of day
+fn get_fishing_effectiveness_multiplier(time_of_day: &TimeOfDay) -> f32 {
+    match time_of_day {
+        TimeOfDay::Dawn => 1.8,           // 80% better fishing at dawn
+        TimeOfDay::Dusk => 1.8,           // 80% better fishing at dusk  
+        TimeOfDay::TwilightMorning => 1.4, // 40% better during morning twilight
+        TimeOfDay::TwilightEvening => 1.4, // 40% better during evening twilight
+        TimeOfDay::Morning => 1.1,        // 10% better in morning
+        TimeOfDay::Afternoon => 1.1,      // 10% better in afternoon
+        TimeOfDay::Night => 0.8,          // 20% worse at night
+        TimeOfDay::Midnight => 0.6,       // 40% worse at midnight
+        TimeOfDay::Noon => 1.0,           // Normal fishing at noon
+    }
 }
 
 // Water tile detection using the existing tile system

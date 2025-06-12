@@ -121,6 +121,21 @@ export const tipSections: TipSection[] = [
         ]
     },
     {
+        title: 'Fishing',
+        tips: [
+            'Craft a fishing rod using common reed stalks, plant fiber, and a Bone Gaff Hook to start fishing.',
+            'Find bodies of water like lakes, rivers, or coastal areas to fish.',
+            'Cast your line by left-clicking with the fishing rod equipped.',
+            'Wait for the bobber to move or change color - this indicates a bite.',
+            'Right-click quickly when you see the bite indicator to reel in the fish.',
+            'Different water sources may have different types of fish.',
+            'Cook your caught fish at a campfire for better nutrition and health restoration.',
+            'Fishing is a quiet, sustainable way to gather food without alerting other players.',
+            'Fish provide excellent nutrition and are more reliable than foraging.',
+            'Consider fishing at dawn or dusk when fish are more active.',
+        ]
+    },
+    {
         title: 'Multiplayer Tips',
         tips: [
             'Cooperation with other players can help you survive longer.',
