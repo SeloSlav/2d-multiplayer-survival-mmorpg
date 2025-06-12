@@ -135,9 +135,6 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       localPlayerDeathMarker,
       deathMarkerImage,
       worldState, // <-- Pass worldState for time of day
-      // Add new tab-related props (disabled for death screen)
-      isMouseOverSOVATab: false,
-      onSOVATabClick: undefined, // No tab functionality needed in death screen
     });
 
     // Draw hover effect (simple circle) - This is illustrative
