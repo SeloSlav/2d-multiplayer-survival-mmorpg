@@ -8,16 +8,16 @@ const PLAYER_RADIUS = 32;
 
 // Unified collision radii for consistency - match visual sprite sizes
 const COLLISION_RADII = {
-  TREE: 25,        // Perfect radius for trees
-  STONE: 25,       // Smaller radius for flattened stones
-  STORAGE_BOX: 5, // Much tighter radius for boxes
+  TREE: 38,        // Perfect radius for trees
+  STONE: 28,       // Smaller radius for flattened stones
+  STORAGE_BOX: 25, // Much tighter radius for boxes
   PLAYER: PLAYER_RADIUS,
 } as const;
 
 // Collision offsets for sprite positioning - align with visual sprite base
 const COLLISION_OFFSETS = {
   TREE: { x: 0, y: -60 },      // Perfect Y position for tree base
-  STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base  
+  STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
 } as const;
@@ -281,59 +281,50 @@ function checkAABBCollision(
 }
 
 function calculateSlideResponse(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  moveDir: { x: number; y: number },
-  hit: CollisionHit
-): { x: number; y: number } {
-  const originalMoveLength = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
-  
-  // Start from the original position for smooth movement
-  let resultPos = { x: from.x, y: from.y };
-  
-  // Calculate slide direction (remove component of movement that goes into surface)
-  const dotProduct = moveDir.x * hit.normal.x + moveDir.y * hit.normal.y;
-  
-  if (dotProduct < 0) {
-    // Moving into surface - calculate slide vector
-    const slideDir = {
-      x: moveDir.x - dotProduct * hit.normal.x,
-      y: moveDir.y - dotProduct * hit.normal.y
-    };
-    
-    const slideLength = Math.sqrt(slideDir.x ** 2 + slideDir.y ** 2);
-    
-    if (slideLength > 0.001) {
-      // Apply full sliding motion for smooth movement
-      const normalizedSlideDir = {
-        x: slideDir.x / slideLength,
-        y: slideDir.y / slideLength
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    moveDir: { x: number; y: number },
+    hit: CollisionHit
+  ): { x: number; y: number } {
+      // Only apply penetration correction if deeply overlapping (more forgiving)
+  let correctedTo = { x: to.x, y: to.y };
+  if (hit.penetration > 3.0) {
+      correctedTo = {
+        x: to.x + hit.normal.x * hit.penetration,
+        y: to.y + hit.normal.y * hit.penetration,
       };
-      
-      resultPos.x += normalizedSlideDir.x * originalMoveLength;
-      resultPos.y += normalizedSlideDir.y * originalMoveLength;
     }
-  } else {
-    // Not moving into surface - allow normal movement but stay just outside collision
-    const safeDistance = 1.0; // Small buffer to prevent overlap
-    resultPos.x = hit.shape.x - hit.normal.x * (hit.shape.radius || PLAYER_RADIUS) - hit.normal.x * safeDistance;
-    resultPos.y = hit.shape.y - hit.normal.y * (hit.shape.radius || PLAYER_RADIUS) - hit.normal.y * safeDistance;
+  
+    // Allowed movement vector
+    const allowedMoveVec = {
+      x: correctedTo.x - from.x,
+      y: correctedTo.y - from.y
+    };
+  
+    // Project onto normal
+    const dotProduct = allowedMoveVec.x * hit.normal.x + allowedMoveVec.y * hit.normal.y;
+  
+    // Slide vector
+    let slideVec = {
+      x: allowedMoveVec.x - dotProduct * hit.normal.x,
+      y: allowedMoveVec.y - dotProduct * hit.normal.y
+    };
+  
+    // If slide vector is very small (stuck), nudge along tangent
+    const slideLen = Math.sqrt(slideVec.x * slideVec.x + slideVec.y * slideVec.y);
+    if (slideLen < 0.01) {
+      // Tangent to the normal
+      const tangent = { x: -hit.normal.y, y: hit.normal.x };
+      slideVec.x += tangent.x * 1.5; // 1.5px nudge
+      slideVec.y += tangent.y * 1.5;
+    }
+  
+    // Final position
+    return {
+      x: from.x + slideVec.x,
+      y: from.y + slideVec.y,
+    };
   }
-  
-  // If still penetrating after slide, apply minimal separation
-  const finalDx = resultPos.x - hit.shape.x;
-  const finalDy = resultPos.y - hit.shape.y;
-  const finalDist = Math.sqrt(finalDx * finalDx + finalDy * finalDy);
-  const minDistance = (hit.shape.radius || PLAYER_RADIUS) + PLAYER_RADIUS;
-  
-  if (finalDist < minDistance && finalDist > 0.001) {
-    const separationNeeded = minDistance - finalDist + 0.5; // Small buffer
-    resultPos.x += (finalDx / finalDist) * separationNeeded;
-    resultPos.y += (finalDy / finalDist) * separationNeeded;
-  }
-  
-  return resultPos;
-}
 
 // ===== ENTITY PROCESSING =====
 function buildCollisionShapes(entities: GameEntities, localPlayerId: string): CollisionShape[] {
@@ -345,7 +336,7 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     
     shapes.push({
       id: playerId,
-      type: `player-${playerId.substring(0, 8)}`,
+        type: `player-${playerId.substring(0, 8)}`,
       x: player.positionX,
       y: player.positionY,
       radius: COLLISION_RADII.PLAYER
@@ -358,7 +349,7 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     
     shapes.push({
       id: treeId,
-      type: `tree-${treeId}`,
+        type: `tree-${treeId}`,
       x: tree.posX + COLLISION_OFFSETS.TREE.x,
       y: tree.posY + COLLISION_OFFSETS.TREE.y,
       radius: COLLISION_RADII.TREE
@@ -371,7 +362,7 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     
     shapes.push({
       id: stoneId,
-      type: `stone-${stoneId}`,
+        type: `stone-${stoneId}`,
       x: stone.posX + COLLISION_OFFSETS.STONE.x,
       y: stone.posY + COLLISION_OFFSETS.STONE.y,
       radius: COLLISION_RADII.STONE
@@ -382,7 +373,7 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
   for (const [boxId, box] of entities.boxes) {
     shapes.push({
       id: boxId,
-      type: `storage-box-${boxId}`,
+        type: `storage-box-${boxId}`,
       x: box.posX + COLLISION_OFFSETS.STORAGE_BOX.x,
       y: box.posY + COLLISION_OFFSETS.STORAGE_BOX.y,
       radius: COLLISION_RADII.STORAGE_BOX
@@ -400,7 +391,7 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     
     shapes.push({
       id: shelterId,
-      type: `shelter-${shelterId}`,
+          type: `shelter-${shelterId}`,
       x: shelter.posX + COLLISION_OFFSETS.SHELTER.x,
       y: shelter.posY + COLLISION_OFFSETS.SHELTER.y,
       width: SHELTER_DIMS.WIDTH,

@@ -30,6 +30,8 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Bandage", 3, Some(1u8), None),
         ("Stone Hatchet", 99, Some(2u8), None),
         ("Stone Pickaxe", 1, Some(3u8), None),
+        ("Primitive Reed Fishing Rod", 1, Some(4u8), None),
+        ("Bone Gaff Hook", 1, Some(5u8), None),
 
         // Starting materials in Inventory (Slots 0-23 typically)
         ("Sleeping Bag", 1, None, Some(0u16)),
