@@ -4,7 +4,6 @@ import { useGameConnection } from '../contexts/GameConnectionContext';
 // Define the return type for this hook
 interface PlayerActions {
     // Movement actions
-    updatePlayerPosition: (moveX: number, moveY: number) => void;
     jump: () => void;
     setSprinting: (isSprinting: boolean) => void;
     
@@ -21,17 +20,6 @@ export const usePlayerActions = (): PlayerActions => {
     const { connection } = useGameConnection();
     
     // --- Player Movement Actions ---
-    const updatePlayerPosition = useCallback((moveX: number, moveY: number) => {
-        if (!connection?.reducers) {
-            console.warn("[usePlayerActions] Connection not ready for updatePlayerPositionSimple");
-            return;
-        }
-        try {
-            connection.reducers.updatePlayerPositionSimple(moveX, moveY, BigInt(Date.now()), false, "right");
-        } catch (err) {
-            console.error("[usePlayerActions] Error calling updatePlayerPositionSimple reducer:", err);
-        }
-    }, [connection]);
 
     const setSprinting = useCallback((isSprinting: boolean) => {
         if (!connection?.reducers) {
@@ -71,7 +59,6 @@ export const usePlayerActions = (): PlayerActions => {
     }, [connection]);
 
     return {
-        updatePlayerPosition,
         jump,
         setSprinting,
         updateViewport
