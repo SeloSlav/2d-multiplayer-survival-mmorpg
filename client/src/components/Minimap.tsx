@@ -36,7 +36,9 @@ const TREE_DOT_COLOR = '#37ff7a'; // Bright emerald green with excellent visibil
 const ROCK_DOT_COLOR = '#bbbbff'; // Light slate blue for rocks
 const RESOURCE_ICON_OUTLINE_COLOR = '#000000'; // Black outline for resource icons
 const RESOURCE_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
-const CAMPFIRE_DOT_COLOR = '#FFA500'; // Orange for campfires and lit players
+const CAMPFIRE_DOT_COLOR = '#FF6600'; // Bright orange for campfires and lit players
+const CAMPFIRE_GLOW_COLOR = '#FF8800'; // Orange glow effect
+const CAMPFIRE_ICON_SIZE = 8; // Larger size for better visibility
 const SLEEPING_BAG_DOT_COLOR = '#A0522D'; // Sienna (brownish)
 // Water tile rendering on minimap
 const WATER_TILE_COLOR = '#1E90FF'; // Bright blue for water features
@@ -54,11 +56,11 @@ const REGULAR_BAG_BG_COLOR = 'rgba(0, 0, 0, 0.3)'; // Slightly transparent black
 const MINIMAP_WORLD_BG_COLOR = 'rgba(52, 88, 52, 0.2)';
 const OUT_OF_BOUNDS_COLOR = 'rgba(20, 35, 20, 0.2)'; // Darker shade for outside world bounds
 
-// Updated pin styling
-const PIN_COLOR = '#FFD700'; // Golden yellow for pin
+// Updated pin styling - Simple classic design
+const PIN_COLOR = '#FFD700'; // Bright yellow for pin body
 const PIN_BORDER_COLOR = '#000000'; // Black border
-const PIN_SIZE = 24; // Double the player icon size (12px * 2)
-const PIN_BORDER_WIDTH = 2; // Thicker border width
+const PIN_SIZE = 24; // Standard size
+const PIN_BORDER_WIDTH = 1; // Thin border width
 
 // Grid Constants - Divisions will be calculated dynamically
 const GRID_LINE_COLOR = 'rgba(200, 200, 200, 0.3)';
@@ -183,6 +185,11 @@ interface MinimapProps {
   localPlayerDeathMarker?: SpacetimeDBDeathMarker | null; // Death marker for the local player
   deathMarkerImage?: HTMLImageElement | null; // Death marker image for rendering
   worldState?: WorldState | null; // World state for various info
+  // Add pin marker image prop
+  pinMarkerImage?: HTMLImageElement | null; // Pin marker image for rendering
+  // Add campfire and torch image props
+  campfireWarmthImage?: HTMLImageElement | null; // Warmth image for campfires
+  torchOnImage?: HTMLImageElement | null; // Torch image for torch-lit players
   // Tab functionality now handled by React components
 }
 
@@ -235,6 +242,11 @@ export function drawMinimapOntoCanvas({
   localPlayerDeathMarker = null,
   deathMarkerImage = null,
   worldState, // <-- Add this
+  // Destructure pin marker image prop
+  pinMarkerImage = null, // Default to null
+  // Destructure campfire and torch image props
+  campfireWarmthImage = null, // Default to null
+  torchOnImage = null, // Default to null
 }: MinimapProps) {
   const minimapWidth = MINIMAP_WIDTH;
   const minimapHeight = MINIMAP_HEIGHT;
@@ -245,6 +257,12 @@ export function drawMinimapOntoCanvas({
   // Calculate top-left corner for centering the minimap UI element
   const minimapX = (canvasWidth - minimapWidth) / 2;
   const minimapY = (canvasHeight - minimapHeight) / 2;
+  
+  // DEBUG: Log drawing coordinate calculation values
+  console.log(`[Minimap] Drawing coordinate calculation:
+    canvasSize: ${canvasWidth}x${canvasHeight}
+    minimapSize: ${minimapWidth}x${minimapHeight}
+    minimapPos: (${minimapX}, ${minimapY})`);
 
   // --- Calculate Base Scale (Zoom Level 1) ---
   const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;
@@ -592,18 +610,68 @@ export function drawMinimapOntoCanvas({
 
   // --- Draw Campfires ---
   if (showNightLights) {
-    ctx.fillStyle = CAMPFIRE_DOT_COLOR;
     campfires.forEach(campfire => {
       // Only draw burning campfires
       if (campfire.isBurning) {
         const screenCoords = worldToMinimap(campfire.posX, campfire.posY);
         if (screenCoords) {
-          ctx.fillRect(
-            screenCoords.x - LIT_ENTITY_DOT_SIZE / 2,
-            screenCoords.y - LIT_ENTITY_DOT_SIZE / 2,
-            LIT_ENTITY_DOT_SIZE,
-            LIT_ENTITY_DOT_SIZE
-          );
+          const x = screenCoords.x;
+          const y = screenCoords.y;
+          const size = CAMPFIRE_ICON_SIZE;
+          
+          ctx.save();
+          
+          // Use warmth image if available, otherwise fallback to drawn flame
+          if (campfireWarmthImage && campfireWarmthImage.complete && campfireWarmthImage.naturalHeight !== 0) {
+            // Draw the warmth image centered at the campfire location
+            ctx.drawImage(
+              campfireWarmthImage,
+              x - size / 2,   // Center horizontally
+              y - size / 2,   // Center vertically
+              size,
+              size
+            );
+          } else {
+            // Fallback to drawn flame if image not loaded
+            // Draw glow effect
+            ctx.shadowColor = CAMPFIRE_GLOW_COLOR;
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
+            // Draw flame-like shape (diamond with rounded top)
+            ctx.beginPath();
+            ctx.moveTo(x, y - size/2); // Top point
+            ctx.quadraticCurveTo(x + size/3, y - size/4, x + size/2, y); // Right curve
+            ctx.lineTo(x, y + size/2); // Bottom point
+            ctx.lineTo(x - size/2, y); // Left point
+            ctx.quadraticCurveTo(x - size/3, y - size/4, x, y - size/2); // Left curve back to top
+            ctx.closePath();
+            
+            // Fill with bright orange
+            ctx.fillStyle = CAMPFIRE_DOT_COLOR;
+            ctx.fill();
+            
+            // Add inner flame detail
+            ctx.shadowBlur = 0; // Remove shadow for inner detail
+            ctx.beginPath();
+            ctx.moveTo(x, y - size/3); // Smaller inner flame
+            ctx.quadraticCurveTo(x + size/6, y - size/6, x + size/4, y);
+            ctx.lineTo(x, y + size/4);
+            ctx.lineTo(x - size/4, y);
+            ctx.quadraticCurveTo(x - size/6, y - size/6, x, y - size/3);
+            ctx.closePath();
+            
+            ctx.fillStyle = '#FFAA00'; // Brighter yellow-orange for inner flame
+            ctx.fill();
+            
+            // Add black outline for definition
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+          
+          ctx.restore();
         }
       }
     });
@@ -621,25 +689,46 @@ export function drawMinimapOntoCanvas({
       if (player.isTorchLit) {
         const screenCoords = worldToMinimap(player.positionX, player.positionY);
         if (screenCoords) {
-          // Convert player direction to rotation angle (radians)
-          let rotation = 0;
-          switch (player.direction) {
-            case 'right': rotation = 0; break;           // Point right (0°)
-            case 'down': rotation = Math.PI / 2; break;  // Point down (90°)
-            case 'left': rotation = Math.PI; break;      // Point left (180°)
-            case 'up': rotation = -Math.PI / 2; break;   // Point up (-90°)
-            default: rotation = 0; break;                // Default to right
+          const x = screenCoords.x;
+          const y = screenCoords.y;
+          const size = PLAYER_ICON_SIZE * 1.5; // Larger for torch-lit players
+          
+          ctx.save();
+          
+          // Use torch image if available, otherwise fallback to drawn player icon
+          if (torchOnImage && torchOnImage.complete && torchOnImage.naturalHeight !== 0) {
+            // Draw the torch image centered at the player location
+            ctx.drawImage(
+              torchOnImage,
+              x - size / 2,   // Center horizontally
+              y - size / 2,   // Center vertically
+              size,
+              size
+            );
+          } else {
+            // Fallback to drawn player icon if image not loaded
+            // Convert player direction to rotation angle (radians)
+            let rotation = 0;
+            switch (player.direction) {
+              case 'right': rotation = 0; break;           // Point right (0°)
+              case 'down': rotation = Math.PI / 2; break;  // Point down (90°)
+              case 'left': rotation = Math.PI; break;      // Point left (180°)
+              case 'up': rotation = -Math.PI / 2; break;   // Point up (-90°)
+              default: rotation = 0; break;                // Default to right
+            }
+            
+            // Draw torch-lit players with larger, orange icons for visibility
+            drawPlayerIcon(
+              ctx, 
+              x, 
+              y, 
+              rotation, 
+              CAMPFIRE_DOT_COLOR, 
+              size
+            );
           }
           
-          // Draw torch-lit players with larger, orange icons for visibility
-          drawPlayerIcon(
-            ctx, 
-            screenCoords.x, 
-            screenCoords.y, 
-            rotation, 
-            CAMPFIRE_DOT_COLOR, 
-            PLAYER_ICON_SIZE * 1.5 // Larger for torch-lit players
-          );
+          ctx.restore();
         }
       }
     });
@@ -803,67 +892,68 @@ export function drawMinimapOntoCanvas({
           const y = pinScreenCoords.y;
           const size = PIN_SIZE;
           
+          console.log(`[Minimap] Drawing pin - World coords: (${playerPin.pinX}, ${playerPin.pinY}) -> Screen coords: (${x}, ${y})`);
+          
           // Save context for styling
           ctx.save();
           
-          // Draw a modern map pin icon (teardrop/location pin shape)
-          const pinWidth = size * 0.6;  // Width of the pin body
-          const pinHeight = size;       // Total height including point
-          const pinBodyHeight = size * 0.7; // Height of the circular body
-          const pinBodyRadius = pinWidth / 2;
-          
-          // Calculate pin body center (offset up from the point)
-          const pinBodyCenterX = x;
-          const pinBodyCenterY = y - (pinHeight - pinBodyHeight);
-          
-          ctx.beginPath();
-          
-          // Draw the teardrop shape
-          // Start at the bottom point
-          ctx.moveTo(x, y);
-          
-          // Curve to the left side of the circle
-          ctx.quadraticCurveTo(
-            x - pinBodyRadius * 1.2, 
-            pinBodyCenterY + pinBodyRadius * 0.3,
-            x - pinBodyRadius, 
-            pinBodyCenterY
-          );
-          
-          // Draw the top arc (semicircle)
-          ctx.arc(
-            pinBodyCenterX, 
-            pinBodyCenterY, 
-            pinBodyRadius, 
-            Math.PI, 
-            0, 
-            false
-          );
-          
-          // Curve back to the bottom point
-          ctx.quadraticCurveTo(
-            x + pinBodyRadius * 1.2, 
-            pinBodyCenterY + pinBodyRadius * 0.3,
-            x, 
-            y
-          );
-          
-          ctx.closePath();
-          
-          // Fill the pin
-          ctx.fillStyle = PIN_COLOR;
-          ctx.fill();
-          
-          // Draw border
-          ctx.lineWidth = PIN_BORDER_WIDTH;
-          ctx.strokeStyle = PIN_BORDER_COLOR;
-          ctx.stroke();
-          
-          // Draw inner dot for detail
-          ctx.beginPath();
-          ctx.arc(pinBodyCenterX, pinBodyCenterY, pinBodyRadius * 0.3, 0, Math.PI * 2);
-          ctx.fillStyle = PIN_BORDER_COLOR;
-          ctx.fill();
+          // Use image if available, otherwise fallback to drawn pin
+          if (pinMarkerImage && pinMarkerImage.complete && pinMarkerImage.naturalHeight !== 0) {
+              // Draw the pin image centered at the world coordinates (no offset adjustments)
+              // This ensures the pin appears exactly where the coordinate conversion places it
+              const imageWidth = size;
+              const imageHeight = size;
+              
+              console.log('[Minimap] Drawing pin image at world coordinates - Screen pos:', x, y);
+              ctx.drawImage(
+                  pinMarkerImage,
+                  x - imageWidth / 2,   // Center horizontally
+                  y - imageHeight / 2,  // Center vertically (no special pin point offset)
+                  imageWidth,
+                  imageHeight
+              );
+          } else {
+              console.log('[Minimap] Pin image not available, using fallback. Image:', !!pinMarkerImage, 'complete:', pinMarkerImage?.complete, 'naturalHeight:', pinMarkerImage?.naturalHeight);
+              // Fallback to drawn pin if image not loaded
+              // Draw a classic map pin (long base with narrow triangle)
+              const pinWidth = size * 0.4;   // Narrow width
+              const pinHeight = size;        // Full height
+              const baseHeight = size * 0.75; // Long base (75% of total height)
+              const triangleHeight = size * 0.25; // Short triangle (25% of total height)
+              
+              // Calculate positions
+              const baseTop = y - pinHeight;
+              const baseBottom = y - triangleHeight;
+              const triangleTop = baseBottom;
+              const triangleBottom = y; // Point at the actual pin location
+              
+              ctx.beginPath();
+              
+              // Draw the rectangular base
+              ctx.rect(
+                x - pinWidth / 2,  // Left edge
+                baseTop,           // Top edge
+                pinWidth,          // Width
+                baseHeight         // Height
+              );
+              
+              // Draw the triangle point
+              ctx.moveTo(x - pinWidth / 2, triangleTop);     // Bottom-left of base
+              ctx.lineTo(x, triangleBottom);                 // Point at pin location
+              ctx.lineTo(x + pinWidth / 2, triangleTop);     // Bottom-right of base
+              ctx.lineTo(x - pinWidth / 2, triangleTop);     // Back to start
+              
+              ctx.closePath();
+              
+              // Fill with bright yellow
+              ctx.fillStyle = PIN_COLOR;
+              ctx.fill();
+              
+              // Draw thin black border
+              ctx.strokeStyle = PIN_BORDER_COLOR;
+              ctx.lineWidth = PIN_BORDER_WIDTH;
+              ctx.stroke();
+          }
           
           // Restore context after pin drawing
           ctx.restore();

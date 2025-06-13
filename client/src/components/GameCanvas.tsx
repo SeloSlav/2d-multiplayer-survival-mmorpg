@@ -263,6 +263,46 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return img;
   }, [itemImagesRef, imageLoadTrigger]);
 
+  // Minimap icon images loading using imports (Vite way)
+  const [pinMarkerImg, setPinMarkerImg] = useState<HTMLImageElement | null>(null);
+  const [campfireWarmthImg, setCampfireWarmthImg] = useState<HTMLImageElement | null>(null);
+  const [torchOnImg, setTorchOnImg] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    // Load pin marker image using dynamic import
+    import('../assets/ui/marker.png').then((module) => {
+      const pinImg = new Image();
+      pinImg.onload = () => {
+        console.log('[GameCanvas] Pin marker image loaded successfully');
+        setPinMarkerImg(pinImg);
+      };
+      pinImg.onerror = () => console.error('Failed to load pin marker image');
+      pinImg.src = module.default;
+    });
+
+    // Load campfire warmth image using dynamic import
+    import('../assets/ui/warmth.png').then((module) => {
+      const warmthImg = new Image();
+      warmthImg.onload = () => {
+        console.log('[GameCanvas] Campfire warmth image loaded successfully');
+        setCampfireWarmthImg(warmthImg);
+      };
+      warmthImg.onerror = () => console.error('Failed to load campfire warmth image');
+      warmthImg.src = module.default;
+    });
+
+    // Load torch image using dynamic import
+    import('../assets/items/torch_on.png').then((module) => {
+      const torchImg = new Image();
+      torchImg.onload = () => {
+        console.log('[GameCanvas] Torch image loaded successfully');
+        setTorchOnImg(torchImg);
+      };
+      torchImg.onerror = () => console.error('Failed to load torch image');
+      torchImg.src = module.default;
+    });
+  }, []);
+
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({
     worldState,
     campfires,
@@ -1122,6 +1162,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       deathMarkerImage: deathMarkerImg,
       worldState: worldState,
       minimapCache: minimapCache,
+      // Add the new minimap icon images
+      pinMarkerImage: pinMarkerImg,
+      campfireWarmthImage: campfireWarmthImg,
+      torchOnImage: torchOnImg,
     });
   }, [
     isMinimapOpen,
@@ -1142,6 +1186,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     deathMarkerImg,
     worldState,
     minimapCache,
+    // Add new image dependencies
+    pinMarkerImg,
+    campfireWarmthImg,
+    torchOnImg,
   ]);
 
   // Game loop for processing actions
@@ -1189,6 +1237,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           deathMarkerImage={deathMarkerImg}
           worldState={worldState}
           minimapCache={minimapCache} // Add minimapCache prop
+          // Add the new minimap icon images
+          pinMarkerImage={pinMarkerImg}
+          campfireWarmthImage={campfireWarmthImg}
+          torchOnImage={torchOnImg}
         />
       )}
 

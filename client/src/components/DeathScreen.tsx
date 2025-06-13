@@ -24,6 +24,10 @@ interface DeathScreenProps {
   deathMarkerImage?: HTMLImageElement | null;
   worldState: WorldState | null; // <-- Fix type here
   minimapCache: MinimapCache | null; // Add minimapCache prop
+  // Add new minimap icon image props
+  pinMarkerImage?: HTMLImageElement | null;
+  campfireWarmthImage?: HTMLImageElement | null;
+  torchOnImage?: HTMLImageElement | null;
 }
 
 const DeathScreen: React.FC<DeathScreenProps> = ({
@@ -42,6 +46,10 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   deathMarkerImage,
   worldState, // <-- Correct type
   minimapCache, // <-- Correct type
+  // Destructure new minimap icon image props
+  pinMarkerImage,
+  campfireWarmthImage,
+  torchOnImage,
 }) => {
   // Add debug logging
   // console.log('[DeathScreen] Rendering with props:', {
@@ -175,6 +183,10 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       localPlayerDeathMarker,
       deathMarkerImage,
       worldState, // <-- Pass worldState for time of day
+      // Pass new minimap icon images
+      pinMarkerImage,
+      campfireWarmthImage,
+      torchOnImage,
     });
 
     // Draw hover effect (simple circle) - This is illustrative
@@ -204,6 +216,10 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     deathMarkerImage,
     worldState,
     minimapCache,
+    // Add new image dependencies
+    pinMarkerImage,
+    campfireWarmthImage,
+    torchOnImage,
   ]);
 
   // --- Click Handler for Minimap Canvas ---
