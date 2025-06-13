@@ -1354,12 +1354,16 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
                    inventory_item.quantity, inventory_item.location);
         
         if inventory_item.quantity > 1 {
+            // Capture quantities before moving the values
+            let original_quantity = inventory_item.quantity;
+            let new_quantity = original_quantity - 1;
+            
             // Reduce quantity by 1
             let mut updated_item = inventory_item;
-            updated_item.quantity -= 1;
+            updated_item.quantity = new_quantity;
             inventory_items_table.instance_id().update(updated_item);
             log::info!("[ThrowItem] Reduced item quantity from {} to {} for instance {}", 
-                       inventory_item.quantity, updated_item.quantity, equipped_item_instance_id);
+                       original_quantity, new_quantity, equipped_item_instance_id);
             item_found = true;
         } else {
             // Remove the item entirely
