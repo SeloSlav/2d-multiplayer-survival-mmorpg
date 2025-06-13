@@ -26,45 +26,59 @@ const SpeechBubbleManager: React.FC<SpeechBubbleManagerProps> = ({
 }) => {
   const [activeBubbles, setActiveBubbles] = useState<SpeechBubbleData[]>([]);
   const [lastMessageCount, setLastMessageCount] = useState<number>(0);
+  const [processedMessageIds] = useState<Set<string>>(new Set());
   
   // Check for new messages and create bubbles
   useEffect(() => {
     // Only process if we have new messages
     if (messages.size > lastMessageCount) {
+      const now = Date.now();
+      const RECENT_MESSAGE_THRESHOLD = 10000; // 10 seconds - only show bubbles for very recent messages
+      
       // Get all messages sorted by timestamp (sent time)
       const allMessages = Array.from(messages.values())
         .sort((a, b) => Number(b.sent.microsSinceUnixEpoch - a.sent.microsSinceUnixEpoch));
       
       // Look for new messages that should trigger speech bubbles
-      if (allMessages.length > 0) {
-        const latestMessage = allMessages[0];
-        const senderId = latestMessage.sender.toHexString();
+      for (const message of allMessages) {
+        const messageId = message.id.toString();
+        const senderId = message.sender.toHexString();
         
-        // Don't add a bubble if we already have one for this message
-        const messageId = latestMessage.id.toString();
+        // Skip if we've already processed this message
+        if (processedMessageIds.has(messageId)) {
+          continue;
+        }
         
-        // Remove any existing bubble from the same player
-        // This ensures only the most recent message from each player is shown
-        setActiveBubbles(prev => {
-          // Filter out any bubbles from the same player
-          const filteredBubbles = prev.filter(bubble => bubble.playerId !== senderId);
-          
-          // Add the new bubble
-          return [
-            ...filteredBubbles,
-            {
-              id: messageId,
-              message: latestMessage.text,
-              playerId: senderId,
-              timestamp: Date.now()
-            }
-          ];
-        });
+        // Mark this message as processed
+        processedMessageIds.add(messageId);
+        
+        // Convert SpacetimeDB timestamp to JavaScript timestamp
+        const messageSentTime = Number(message.sent.microsSinceUnixEpoch / 1000n); // Convert microseconds to milliseconds
+        
+        // Only show speech bubble if message was sent recently
+        if (now - messageSentTime <= RECENT_MESSAGE_THRESHOLD) {
+          // Remove any existing bubble from the same player
+          setActiveBubbles(prev => {
+            // Filter out any bubbles from the same player
+            const filteredBubbles = prev.filter(bubble => bubble.playerId !== senderId);
+            
+            // Add the new bubble
+            return [
+              ...filteredBubbles,
+              {
+                id: messageId,
+                message: message.text,
+                playerId: senderId,
+                timestamp: now // Use current time for bubble lifetime tracking
+              }
+            ];
+          });
+        }
       }
       
       setLastMessageCount(messages.size);
     }
-  }, [messages, lastMessageCount]);
+  }, [messages, lastMessageCount, processedMessageIds]);
   
   // Clean up expired bubbles
   useEffect(() => {

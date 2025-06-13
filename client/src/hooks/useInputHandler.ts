@@ -892,6 +892,11 @@ export const useInputHandler = ({
                             throwingDirection = { dx, dy };
                         }
                         console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
+                    } else {
+                        // Player is not moving, use their stored facing direction
+                        const playerFacingDirection = player.direction || 'down';
+                        throwingDirection = getDirectionVector(playerFacingDirection);
+                        console.log("[InputHandler] Right-click throw - using player facing direction:", playerFacingDirection, "->", throwingDirection);
                     }
 
                     // Calculate target position based on direction and throwing distance
@@ -1116,7 +1121,7 @@ export const useInputHandler = ({
         const throwableNames = [
             "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
             "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
-            "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife"
+            "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook"
         ];
 
         const nameMatch = throwableNames.includes(itemDef.name);

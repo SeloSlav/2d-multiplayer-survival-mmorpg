@@ -1228,15 +1228,28 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
     }
 
-    // Create dropped items for missed projectiles (with 10% chance to break)
+    // Create dropped items for missed projectiles (with different break chances)
     for (projectile_id, ammo_def_id, pos_x, pos_y) in missed_projectiles_for_drops {
-        // Get the ammunition name for better logging
-        let ammo_name = item_defs_table.id().find(ammo_def_id)
+        // Get the ammunition definition for break chance calculation
+        let ammo_item_def = item_defs_table.id().find(ammo_def_id);
+        let ammo_name = ammo_item_def
             .map(|def| def.name.clone())
             .unwrap_or_else(|| format!("Unknown (ID: {})", ammo_def_id));
         
-        // 20% chance for the projectile to break and be destroyed
-        if rng.gen::<f32>() < 0.15 {
+        // Check if this is a thrown weapon (ammo_def_id == item_def_id)
+        let projectile_record = ctx.db.projectile().id().find(&projectile_id);
+        let is_thrown_weapon = projectile_record
+            .map(|p| p.ammo_def_id == p.item_def_id)
+            .unwrap_or(false);
+        
+        // Different break chances: 5% for thrown weapons, 15% for arrows/projectiles
+        let break_chance = if is_thrown_weapon {
+            0.05 // 5% chance for thrown weapons to break
+        } else {
+            0.15 // 15% chance for arrows and other projectiles to break
+        };
+        
+        if rng.gen::<f32>() < break_chance {
             log::info!("[ProjectileMiss] Projectile {} broke on impact - '{}' (def_id: {}) destroyed at ({:.1}, {:.1})", 
                      projectile_id, ammo_name, ammo_def_id, pos_x, pos_y);
             
@@ -1309,7 +1322,7 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
             let throwable_names = [
                 "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
                 "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
-                "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife"
+                "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook"
             ];
             
             throwable_names.contains(&item_def.name.as_str()) ||
@@ -1328,23 +1341,36 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
         return Err(format!("Item '{}' cannot be thrown.", item_def.name));
     }
 
-    // Remove the item from the player's equipment and inventory
+    // --- IMPROVED: Remove the item from the player's equipment and inventory ---
     let inventory_items_table = ctx.db.inventory_item();
     let mut item_found = false;
 
+    log::info!("[ThrowItem] Attempting to remove item instance {} (def_id: {}) from player {}", 
+               equipped_item_instance_id, equipped_item_def_id, player_id.to_string());
+
     // Find and remove the specific item instance
     if let Some(inventory_item) = inventory_items_table.instance_id().find(&equipped_item_instance_id) {
+        log::info!("[ThrowItem] Found inventory item: quantity={}, location={:?}", 
+                   inventory_item.quantity, inventory_item.location);
+        
         if inventory_item.quantity > 1 {
             // Reduce quantity by 1
             let mut updated_item = inventory_item;
             updated_item.quantity -= 1;
             inventory_items_table.instance_id().update(updated_item);
+            log::info!("[ThrowItem] Reduced item quantity from {} to {} for instance {}", 
+                       inventory_item.quantity, updated_item.quantity, equipped_item_instance_id);
             item_found = true;
         } else {
             // Remove the item entirely
             inventory_items_table.instance_id().delete(&equipped_item_instance_id);
+            log::info!("[ThrowItem] Completely removed item instance {} from inventory", 
+                       equipped_item_instance_id);
             item_found = true;
         }
+    } else {
+        log::error!("[ThrowItem] Could not find inventory item with instance_id {} for player {}", 
+                    equipped_item_instance_id, player_id.to_string());
     }
 
     if !item_found {
@@ -1352,10 +1378,12 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
     }
 
     // Clear the equipped item since we threw it
+    log::info!("[ThrowItem] Clearing equipped item from player {} equipment", player_id.to_string());
     equipment.equipped_item_def_id = None;
     equipment.equipped_item_instance_id = None;
     equipment.swing_start_time_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
     ctx.db.active_equipment().player_identity().update(equipment);
+    log::info!("[ThrowItem] Equipment cleared for player {}", player_id.to_string());
 
     // --- NEW: Check shelter protection rule for thrown items ---
     // Players inside their own shelter cannot throw items outside
@@ -1433,6 +1461,22 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
         ctx.db.player_last_attack_timestamp().player_id().update(timestamp_record);
     } else {
         ctx.db.player_last_attack_timestamp().insert(timestamp_record);
+    }
+
+    // --- VERIFICATION: Double-check that item was actually removed ---
+    let verification_item = inventory_items_table.instance_id().find(&equipped_item_instance_id);
+    let verification_equipment = ctx.db.active_equipment().player_identity().find(&player_id);
+    
+    if verification_item.is_some() {
+        log::warn!("[ThrowItem] WARNING: Item instance {} still exists in inventory after throwing!", 
+                   equipped_item_instance_id);
+    }
+    
+    if let Some(eq) = verification_equipment {
+        if eq.equipped_item_instance_id.is_some() {
+            log::warn!("[ThrowItem] WARNING: Player {} still has equipped item after throwing!", 
+                       player_id.to_string());
+        }
     }
 
     log::info!("Item '{}' thrown by player {} towards ({:.1}, {:.1}) with initial V_x={:.1}, V_y={:.1}", 
