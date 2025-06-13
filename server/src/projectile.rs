@@ -1381,13 +1381,24 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
         return Err("Could not find equipped item in inventory to throw.".to_string());
     }
 
-    // Clear the equipped item since we threw it
-    log::info!("[ThrowItem] Clearing equipped item from player {} equipment", player_id.to_string());
-    equipment.equipped_item_def_id = None;
-    equipment.equipped_item_instance_id = None;
-    equipment.swing_start_time_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
-    ctx.db.active_equipment().player_identity().update(equipment);
-    log::info!("[ThrowItem] Equipment cleared for player {}", player_id.to_string());
+    // Only clear the equipped item if it was completely consumed (quantity reached 0)
+    // Check if the item still exists after throwing
+    let item_still_exists = inventory_items_table.instance_id().find(&equipped_item_instance_id).is_some();
+    
+    if !item_still_exists {
+        // Item was completely consumed - clear it from equipment
+        log::info!("[ThrowItem] Item completely consumed - clearing equipped item from player {} equipment", player_id.to_string());
+        equipment.equipped_item_def_id = None;
+        equipment.equipped_item_instance_id = None;
+        equipment.swing_start_time_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+        ctx.db.active_equipment().player_identity().update(equipment);
+        log::info!("[ThrowItem] Equipment cleared for player {}", player_id.to_string());
+    } else {
+        // Item still has quantity remaining - keep it equipped but update swing time
+        log::info!("[ThrowItem] Item still has quantity remaining - keeping equipped for player {}", player_id.to_string());
+        equipment.swing_start_time_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+        ctx.db.active_equipment().player_identity().update(equipment);
+    }
 
     // --- NEW: Check shelter protection rule for thrown items ---
     // Players inside their own shelter cannot throw items outside
