@@ -91,7 +91,47 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
     // console.log("[DeathScreen] Final ownedBags map size:", owned.size);
     return owned;
   }, [sleepingBags, localPlayerIdentity]);
+
+  // --- Find Nearest Sleeping Bag to Death Location ---
+  const nearestBag = useMemo(() => {
+    if (!localPlayerDeathMarker || ownedBags.size === 0) {
+      return null;
+    }
+
+    let closest: SleepingBag | null = null;
+    let minDistance = Infinity;
+
+    ownedBags.forEach((bag) => {
+      const dx = bag.posX - localPlayerDeathMarker.posX;
+      const dy = bag.posY - localPlayerDeathMarker.posY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closest = bag;
+      }
+    });
+
+    return closest;
+  }, [localPlayerDeathMarker, ownedBags]);
   const ownedSleepingBagIds = useMemo(() => new Set(ownedBags.keys()), [ownedBags]);
+
+  // --- Block G key (minimap toggle) while death screen is open ---
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'G' || event.key === 'g') {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    // Add listener with capture to catch the event before other handlers
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    };
+  }, []);
 
   // --- Draw Minimap Effect ---
   useEffect(() => {
@@ -257,6 +297,13 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
      setHoveredBagId(null);
   }, []);
 
+  // Handler for nearest bag respawn
+  const handleNearestBagRespawn = useCallback(() => {
+    if (nearestBag) {
+      onRespawnAtBag((nearestBag as SleepingBag).id);
+    }
+  }, [nearestBag, onRespawnAtBag]);
+
   return (
     <div style={styles.overlay}>
       <div style={styles.container}>
@@ -288,13 +335,33 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
           onMouseLeave={handleCanvasMouseLeave} // Clear hover on leave
         />
 
-        {/* Random Respawn Button */} 
-        <button
-          onClick={onRespawnRandomly}
-          style={styles.buttonEnabled} // Always enabled
-        >
-          Respawn Randomly
-        </button>
+        {/* Respawn Buttons Container */}
+        <div style={styles.buttonContainer}>
+          {/* Random Respawn Button */} 
+          <button
+            onClick={onRespawnRandomly}
+            style={styles.buttonEnabled} // Always enabled
+          >
+            Respawn Randomly
+          </button>
+
+          {/* Nearest Sleeping Bag Respawn Button */}
+          {nearestBag ? (
+            <button
+              onClick={handleNearestBagRespawn}
+              style={styles.buttonYellow}
+            >
+              Respawn at Nearest Sleeping Bag
+            </button>
+          ) : (
+            <button
+              disabled
+              style={styles.buttonDisabled}
+            >
+              No Sleeping Bags Available
+            </button>
+          )}
+        </div>
         
         {ownedBags.size === 0 && (
             <p style={styles.noBagsText}>No sleeping bags placed.</p>
@@ -372,6 +439,29 @@ const styles: { [key: string]: React.CSSProperties } = {
     letterSpacing: '1px',
     fontWeight: 'bold',
   },
+  buttonContainer: {
+    display: 'flex',
+    gap: '15px',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  buttonYellow: {
+    padding: '15px 30px',
+    fontSize: '1.1em',
+    fontFamily: '"Courier New", monospace',
+    background: 'linear-gradient(135deg, #ffeb3b 0%, #ff9800 100%)', // Yellow to orange gradient
+    color: '#000000', // Black text for better contrast on yellow
+    border: '2px solid #ffeb3b',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    fontWeight: 'bold',
+    boxShadow: '0 0 15px rgba(255, 235, 59, 0.4)',
+    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.3)',
+  },
   // Enhanced minimap canvas styling
   minimapCanvas: {
       border: '2px solid #00d4ff', // Cyan border to match theme
@@ -380,6 +470,9 @@ const styles: { [key: string]: React.CSSProperties } = {
       cursor: 'pointer', // Indicate it's clickable
       boxShadow: '0 0 15px rgba(0, 212, 255, 0.3)', // Subtle cyan glow
       backdropFilter: 'blur(5px)',
+      display: 'block', // Ensure block display for margin centering
+      marginLeft: 'auto', // Center horizontally
+      marginRight: 'auto', // Center horizontally
   },
   noBagsText: {
     marginTop: '20px',

@@ -663,13 +663,31 @@ export function drawMinimapOntoCanvas({
     if (screenCoords) {
       const isOwned = ownedSleepingBagIds.has(bag.id);
       if (isDeathScreen && isOwned) {
-        // Draw owned bags on death screen - USE SAME LOGIC as regular bags but potentially different size
+        // Draw owned bags on death screen with yellow glow
         const iconRadius = OWNED_BAG_DOT_SIZE / 2; // Use owned size
         const iconDiameter = OWNED_BAG_DOT_SIZE;
         const cx = screenCoords.x;
         const cy = screenCoords.y;
 
-        ctx.save(); // Save before clipping
+        ctx.save(); // Save before drawing
+
+        // 1. Draw yellow glow effect (multiple layers for stronger glow)
+        ctx.shadowColor = '#ffeb3b'; // Bright yellow
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        // Draw multiple glow layers for stronger effect
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, iconRadius + (i * 2), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 235, 59, ${0.3 - (i * 0.1)})`; // Fading yellow glow
+          ctx.fill();
+        }
+
+        // Reset shadow for main icon
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
 
         // 2. Clip to circle
         ctx.beginPath();
@@ -690,9 +708,9 @@ export function drawMinimapOntoCanvas({
         
         ctx.restore(); // Restore context after drawing image (removes clip)
 
-        // 4. Draw border around the circle (Ensure it's the white one)
-        ctx.strokeStyle = REGULAR_BAG_BORDER_COLOR; 
-        ctx.lineWidth = REGULAR_BAG_BORDER_WIDTH;
+        // 4. Draw bright yellow border around the circle for extra visibility
+        ctx.strokeStyle = '#ffeb3b'; // Bright yellow border instead of white
+        ctx.lineWidth = REGULAR_BAG_BORDER_WIDTH + 1; // Slightly thicker
         ctx.beginPath();
         ctx.arc(cx, cy, iconRadius, 0, Math.PI * 2);
         ctx.stroke();

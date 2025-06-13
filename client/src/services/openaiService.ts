@@ -160,12 +160,14 @@ ${getGameKnowledgeForSOVA()}
 
 CRITICAL TACTICAL RULES:
 🔥 CAMPFIRE & TORCH LOGIC:
-- Campfires CANNOT be lit during heavy rain or storms (weather prevents ignition)
+- Campfires are EXTINGUISHED by heavy rain/storms (HeavyRain, HeavyStorm) - these prevent ignition
+- Campfires work fine in light rain, moderate rain, and clear weather
 - Campfires provide warmth and light but are stationary
 - Torches are portable light sources that work in all weather conditions
-- At NIGHT or in BAD WEATHER: Always recommend TORCHES over campfires for mobility and reliability
-- During DAY and CLEAR weather: Campfires are acceptable for base camps
-- NEVER suggest campfires when weather is anything other than "Clear skies"
+- At NIGHT: Always recommend TORCHES over campfires for mobility and safety
+- During HEAVY RAIN/STORMS: Only torches work, campfires are extinguished
+- Light/Moderate rain: Campfires still work, but torches better for mobility
+- Clear weather: Campfires excellent for stationary base camps
 
 🌦️ WEATHER ASSESSMENT:
 - ALWAYS use the exact weather data provided - never contradict environmental readings
@@ -387,15 +389,20 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
     // Add tactical situation analysis
     prompt += `🎯 TACTICAL ANALYSIS FOR THIS SITUATION:\\n`;
     if (ctx) {
-      // Weather-based recommendations
-      const isRaining = ctx.currentWeather !== 'Clear' || (ctx.rainIntensity && ctx.rainIntensity > 0);
+      // Weather-based recommendations with nuanced rain logic
       const isNightTime = ctx.timeOfDay === 'Night' || ctx.timeOfDay === 'Dusk';
+      const isHeavyWeather = ctx.currentWeather === 'HeavyRain' || ctx.currentWeather === 'HeavyStorm';
+      const isLightOrModerateRain = ctx.currentWeather === 'LightRain' || ctx.currentWeather === 'ModerateRain';
       
-      if (isRaining && isNightTime) {
-        prompt += `- CRITICAL: Raining + Night = Recommend TORCHES (portable, weatherproof light/warmth)\\n`;
-        prompt += `- DO NOT suggest campfires (cannot light in rain)\\n`;
-      } else if (isRaining) {
-        prompt += `- Rain detected = Campfires cannot be lit, recommend TORCHES or shelter\\n`;
+      if (isHeavyWeather && isNightTime) {
+        prompt += `- CRITICAL: Heavy rain/storm + Night = Recommend TORCHES (portable, weatherproof light/warmth)\\n`;
+        prompt += `- DO NOT suggest campfires (extinguished by heavy rain/storms)\\n`;
+      } else if (isHeavyWeather) {
+        prompt += `- Heavy rain/storm = Campfires are extinguished, recommend TORCHES or shelter\\n`;
+      } else if (isLightOrModerateRain && isNightTime) {
+        prompt += `- Light/Moderate rain + Night = Recommend TORCHES for mobility, but campfires still work if stationary\\n`;
+      } else if (isLightOrModerateRain) {
+        prompt += `- Light/Moderate rain = Campfires still work, but TORCHES recommended for mobility\\n`;
       } else if (isNightTime) {
         prompt += `- Night operations = Prioritize TORCHES for mobility and safety\\n`;
       } else {

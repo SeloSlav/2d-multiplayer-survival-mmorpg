@@ -4,7 +4,6 @@ import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
 import StatusBar from './StatusBar';
-import { itemIcons } from '../utils/itemIconUtils';
 // Import drag/drop types from shared file
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 // NEW: Import placement types
@@ -482,6 +481,89 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             .some(item => item.playerIdentity.isEqual(identity));
     }, [identity, craftingQueueItems]);
 
+    // Calculate active status effects for display
+    const activeStatusEffects = React.useMemo(() => {
+        const effects: string[] = [];
+        
+        if (!localPlayer) return effects;
+
+        // Check for cold status (warmth below 20)
+        if (localPlayer.warmth < 20) {
+            effects.push('Cold');
+        }
+
+        // Check active consumable effects if available
+        if (activeConsumableEffects && identity) {
+            const localPlayerIdHex = identity.toHexString();
+            
+            // Track effect names for display
+            const effectNames = new Set<string>();
+            
+            activeConsumableEffects.forEach((effect) => {
+                const effectPlayerIdHex = effect.playerId.toHexString();
+                const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
+                const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+                
+                                 // Calculate remaining time using available fields
+                 const now = Date.now();
+                 const endsAtTime = effect.endsAt ? Number(effect.endsAt.microsSinceUnixEpoch / 1000n) : now;
+                 const remainingTime = Math.max(0, (endsAtTime - now) / 1000);
+                
+                // Check if this effect applies to the local player
+                let effectApplies = false;
+                let effectName = '';
+                
+                if (effectPlayerIdHex === localPlayerIdHex) {
+                    switch (effectTypeTag) {
+                        case 'Bleed':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Bleeding (${Math.ceil(remainingTime)}s)` : 'Bleeding';
+                            break;
+                        case 'Burn':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Burning (${Math.ceil(remainingTime)}s)` : 'Burning';
+                            break;
+                        case 'HealthRegen':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Regenerating (${Math.ceil(remainingTime)}s)` : 'Regenerating';
+                            break;
+                        case 'BandageBurst':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Bandaged (${Math.ceil(remainingTime)}s)` : 'Bandaged';
+                            break;
+                    }
+                } else if (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst') {
+                    // Check if remote bandage healer is in range
+                    const healer = players.get(effectPlayerIdHex);
+                    const target = players.get(localPlayerIdHex);
+                    
+                    if (healer && target) {
+                        const dx = healer.positionX - target.positionX;
+                        const dy = healer.positionY - target.positionY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const HEALING_RANGE = 4.0 * 32.0; // Must match server's range
+                        
+                        if (distance <= HEALING_RANGE) {
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Being Bandaged (${Math.ceil(remainingTime)}s)` : 'Being Bandaged';
+                        }
+                    }
+                }
+                
+                if (effectApplies && effectName) {
+                    effectNames.add(effectName);
+                }
+            });
+            
+            // Add effects to display list
+            effectNames.forEach((effectName) => {
+                effects.push(effectName);
+            });
+        }
+
+        return effects;
+    }, [localPlayer, activeConsumableEffects, identity, players]);
+
     if (!localPlayer) {
         return null;
     }
@@ -581,6 +663,37 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 </div>
             )}
             {/* --- END NEW: Knocked Out Status Overlay --- */}
+
+            {/* Status Effects Text - appears above status bars */}
+            {activeStatusEffects.length > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '140px', // Position above status bars
+                    right: '15px',
+                    fontFamily: 'Courier New, Consolas, Monaco, monospace',
+                    fontSize: '11px',
+                    color: '#ffffff', // White text for better contrast
+                    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
+                    backgroundColor: 'rgba(139, 69, 69, 0.9)', // Matte red background
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '2px solid rgba(180, 50, 50, 0.8)',
+                    backdropFilter: 'blur(3px)',
+                    minWidth: '220px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    zIndex: 55, // Above status bars (50) but below other UI
+                }}>
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span style={{ fontWeight: 'bold' }}>
+                            {activeStatusEffects.join(' | ')}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Status Bars UI */}
             <div style={{
