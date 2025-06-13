@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Player, ItemDefinition } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { FISHING_CONSTANTS } from '../types/fishing';
@@ -27,45 +27,68 @@ const FishingReticle: React.FC<FishingReticleProps> = ({
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isValidTarget, setIsValidTarget] = useState(false);
   const reticleRef = useRef<HTMLDivElement>(null);
+  const canvasRectRef = useRef<DOMRect | null>(null);
+  const lastUpdateRef = useRef<number>(0);
 
   // Check if player has a valid fishing rod
   const hasValidRod = activeItemDef && FISHING_CONSTANTS.VALID_FISHING_RODS.some(rod => rod === activeItemDef.name);
 
+  // Cache canvas rect and update it less frequently
+  const updateCanvasRect = useCallback(() => {
+    if (gameCanvasRef.current) {
+      canvasRectRef.current = gameCanvasRef.current.getBoundingClientRect();
+    }
+  }, [gameCanvasRef]);
+
+  // Update canvas rect on mount and when camera changes
+  useEffect(() => {
+    updateCanvasRect();
+    // Also update on window resize
+    window.addEventListener('resize', updateCanvasRect);
+    return () => window.removeEventListener('resize', updateCanvasRect);
+  }, [updateCanvasRect, cameraOffsetX, cameraOffsetY]);
+
+  // Memoize fishing range squared to avoid Math.sqrt in distance checks
+  const fishingRangeSquared = useMemo(() => FISHING_CONSTANTS.RANGE * FISHING_CONSTANTS.RANGE, []);
+
+  // Throttled validation function
+  const validateTarget = useCallback((worldX: number, worldY: number, playerWorldX: number, playerWorldY: number) => {
+    // Use squared distance to avoid Math.sqrt
+    const distanceSquared = (worldX - playerWorldX) ** 2 + (worldY - playerWorldY) ** 2;
+    const inRange = distanceSquared <= fishingRangeSquared;
+    
+    // Early return if not in range - avoid expensive water tile check
+    if (!inRange) return false;
+    
+    // Only check water tile if in range
+    return isWaterTile(worldX, worldY);
+  }, [isWaterTile, fishingRangeSquared]);
+
   useEffect(() => {
     if (!hasValidRod || !localPlayer || !gameCanvasRef.current) return;
 
-    const canvas = gameCanvasRef.current;
-    const canvasRect = canvas.getBoundingClientRect();
+    updateCanvasRect(); // Ensure we have fresh canvas rect
 
     const handleMouseMove = (event: MouseEvent) => {
-      // Calculate mouse position relative to canvas
-      const mouseX = event.clientX - canvasRect.left;
-      const mouseY = event.clientY - canvasRect.top;
+      // Throttle updates to ~60fps max
+      const now = performance.now();
+      if (now - lastUpdateRef.current < 16) return; // ~60fps throttling
+      lastUpdateRef.current = now;
+
+      if (!canvasRectRef.current) return;
+
+      // Calculate mouse position relative to canvas using cached rect
+      const mouseX = event.clientX - canvasRectRef.current.left;
+      const mouseY = event.clientY - canvasRectRef.current.top;
       
       // Convert to world coordinates
       const worldX = mouseX - cameraOffsetX;
       const worldY = mouseY - cameraOffsetY;
       
-      // Check if within fishing range
       const playerWorldX = localPlayer.positionX;
       const playerWorldY = localPlayer.positionY;
-      const distance = Math.sqrt(
-        Math.pow(worldX - playerWorldX, 2) + Math.pow(worldY - playerWorldY, 2)
-      );
       
-      const inRange = distance <= FISHING_CONSTANTS.RANGE;
-      const onWater = isWaterTile(worldX, worldY);
-      const valid = inRange && onWater;
-      
-      // console.log('[FishingReticle] Mouse move:', {
-      //   screenPos: { x: mouseX, y: mouseY },
-      //   worldPos: { x: worldX, y: worldY },
-      //   playerPos: { x: playerWorldX, y: playerWorldY },
-      //   distance,
-      //   inRange,
-      //   onWater,
-      //   valid
-      // });
+      const valid = validateTarget(worldX, worldY, playerWorldX, playerWorldY);
       
       setMousePos({ x: event.clientX, y: event.clientY });
       setIsValidTarget(valid);
@@ -75,16 +98,14 @@ const FishingReticle: React.FC<FishingReticleProps> = ({
       // Only handle left clicks (button 0)
       if (event.button !== 0) return;
       
-      console.log('[FishingReticle] Left click detected');
-      
-      if (!isValidTarget) {
+      if (!isValidTarget || !canvasRectRef.current) {
         console.log('[FishingReticle] Invalid target, not casting');
         return;
       }
 
-      // Calculate world coordinates
-      const mouseX = event.clientX - canvasRect.left;
-      const mouseY = event.clientY - canvasRect.top;
+      // Calculate world coordinates using cached rect
+      const mouseX = event.clientX - canvasRectRef.current.left;
+      const mouseY = event.clientY - canvasRectRef.current.top;
       const worldX = mouseX - cameraOffsetX;
       const worldY = mouseY - cameraOffsetY;
       
@@ -99,13 +120,13 @@ const FishingReticle: React.FC<FishingReticleProps> = ({
 
     // Add event listeners
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleLeftClick, true); // Use capture phase for priority
+    window.addEventListener('mousedown', handleLeftClick, true);
     
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleLeftClick, true);
     };
-  }, [hasValidRod, localPlayer, gameCanvasRef, cameraOffsetX, cameraOffsetY, isValidTarget, onCast, isWaterTile]);
+  }, [hasValidRod, localPlayer, gameCanvasRef, cameraOffsetX, cameraOffsetY, isValidTarget, onCast, validateTarget, updateCanvasRect]);
 
   // Don't render if no valid fishing rod
   if (!hasValidRod) {
@@ -199,4 +220,4 @@ const FishingReticle: React.FC<FishingReticleProps> = ({
   );
 };
 
-export default FishingReticle; 
+export default FishingReticle;
