@@ -302,7 +302,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
 
   const WAIT_DURATION = 8000; // 8 seconds to wait for bite
   const BOBBER_MOVE_RADIUS = 80; // How far bobber can move from cast point
-  const REEL_DISTANCE_PER_CLICK = 15; // How much closer bobber gets per right-click
+  const REEL_DISTANCE_PER_CLICK = 30; // How much closer bobber gets per right-click (doubled for easier fishing)
 
   // Fish fighting mechanics constants
   const FISH_ZIG_ZAG_SPEED = 120; // pixels per second - much more dramatic movement
