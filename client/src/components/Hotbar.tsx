@@ -149,6 +149,9 @@ const Hotbar: React.FC<HotbarProps> = ({
     const itemInSlot = findItemForSlot(slotIndex);
     if (!itemInSlot) return false;
     
+    // Allow torches to be used in water
+    if (itemInSlot.definition.name === 'Torch') return false;
+    
     const categoryTag = itemInSlot.definition.category.tag;
     return categoryTag === 'Weapon' || 
            categoryTag === 'RangedWeapon' || 
@@ -408,6 +411,11 @@ const Hotbar: React.FC<HotbarProps> = ({
       if (selectedSlot >= 0 && selectedSlot < numSlots) {
         const currentItem = findItemForSlot(selectedSlot);
         if (currentItem) {
+          // Don't auto-unequip torches in water
+          if (currentItem.definition.name === 'Torch') {
+            return; // Keep torch equipped
+          }
+          
           const categoryTag = currentItem.definition.category.tag;
           const isWeaponType = categoryTag === 'Weapon' || 
                               categoryTag === 'RangedWeapon' || 
@@ -535,15 +543,15 @@ const Hotbar: React.FC<HotbarProps> = ({
     const instanceId = BigInt(itemInSlot.instance.instanceId);
     const isEquippable = itemInSlot.definition.isEquippable;
 
-    // Check if player is in water and trying to use a weapon
+    // Check if player is in water and trying to use a weapon (except torches)
     const isWeaponType = categoryTag === 'Weapon' || 
                         categoryTag === 'RangedWeapon' || 
                         categoryTag === 'Tool' ||
                         isEquippable;
     
-    if (localPlayer?.isOnWater && isWeaponType) {
+    if (localPlayer?.isOnWater && isWeaponType && itemInSlot.definition.name !== 'Torch') {
       console.log('[Hotbar] Cannot use weapons while in water:', itemInSlot.definition.name);
-      return; // Prevent weapon activation in water
+      return; // Prevent weapon activation in water (except torches)
     }
 
     // console.log(`[Hotbar] Activating slot ${slotIndex}: "${itemInSlot.definition.name}" (Category: ${categoryTag}, Equippable: ${isEquippable})`);
