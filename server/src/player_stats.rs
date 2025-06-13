@@ -58,7 +58,7 @@ pub(crate) const HEALTH_RECOVERY_PER_SEC: f32 = 1.0;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.25;
 
 // Add the constants moved from lib.rs and make them pub(crate)
-pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 1.5;
+pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 2.0; // MUST MATCH CLIENT (2.0)
 pub(crate) const JUMP_COOLDOWN_MS: u64 = 300; // Reduced to 300ms for faster jumping
 pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
 pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
