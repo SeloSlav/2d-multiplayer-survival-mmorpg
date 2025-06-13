@@ -411,7 +411,7 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // More lenient for high ping users
+const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.5; // 1200 px/s max (50% buffer over 800 px/s sprint speed)
 const MAX_TELEPORT_DISTANCE: f32 = 400.0; // Increased for high ping tolerance  
 const POSITION_UPDATE_TIMEOUT_MS: u64 = 15000; // 15 seconds for users with 100+ ms ping
 
@@ -458,13 +458,13 @@ pub fn update_player_position_simple(
         return Err("Movement too large, possible teleport".to_string());
     }
 
-    // 4. Speed hack detection (more lenient for high ping users)
+    // 4. Speed hack detection (optimized for 30fps client updates)
     let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
     let last_update_ms = (current_player.last_update.to_micros_since_unix_epoch() / 1000) as u64;
     let time_diff_ms = now_ms.saturating_sub(last_update_ms);
     
-    // More lenient thresholds for high ping users (100+ ms ping)
-    if time_diff_ms > 50 && distance_moved > 20.0 { // Increased thresholds for accuracy
+    // Only validate speed for reasonable time intervals (avoid false positives from lag spikes)
+    if time_diff_ms >= 25 && time_diff_ms <= 200 && distance_moved > 10.0 { // 25-200ms window, min 10px movement
         let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
         if speed_px_per_sec > MAX_MOVEMENT_SPEED {
             log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}) over {}ms", 
@@ -492,14 +492,13 @@ pub fn update_player_position_simple(
     // Calculate how far the client wants to move
     let movement_distance = ((clamped_x - current_player.position_x).powi(2) + (clamped_y - current_player.position_y).powi(2)).sqrt();
     
-    // DEBUG: Add logging to see if collision is being called
-    log::info!("Player {:?} movement: distance={:.1}, from ({:.1},{:.1}) to ({:.1},{:.1})", 
-               sender_id, movement_distance, current_player.position_x, current_player.position_y, clamped_x, clamped_y);
+    // DEBUG: Reduced logging to avoid spam
+    if movement_distance > 50.0 {
+        log::debug!("Player {:?} large movement: distance={:.1}", sender_id, movement_distance);
+    }
     
     // Only apply collision correction for reasonable movements to avoid rubber banding
     let (final_x, final_y) = if movement_distance < 100.0 { // Allow larger movements before correction
-        log::info!("Player {:?} applying collision detection (movement < 100px)", sender_id);
-        
         // Apply collision detection but with reduced aggressiveness
         let server_dx = clamped_x - current_player.position_x;
         let server_dy = clamped_y - current_player.position_y;
@@ -516,24 +515,15 @@ pub fn update_player_position_simple(
             server_dy
         );
         
-        log::info!("Player {:?} after sliding: ({:.1},{:.1}) -> ({:.1},{:.1})", 
-                   sender_id, clamped_x, clamped_y, slid_x, slid_y);
-        
         // Only apply push-out if the sliding didn't resolve the collision
         let slide_distance = ((slid_x - clamped_x).powi(2) + (slid_y - clamped_y).powi(2)).sqrt();
         if slide_distance > 5.0 { // If sliding moved us significantly, skip push-out to avoid double correction
-            log::info!("Player {:?} using sliding result (slide distance: {:.1})", sender_id, slide_distance);
             (slid_x, slid_y)
         } else {
-            log::info!("Player {:?} applying push-out collision", sender_id);
             // Apply gentle push-out collision
-            let result = player_collision::resolve_push_out_collision(ctx, sender_id, slid_x, slid_y);
-            log::info!("Player {:?} after push-out: ({:.1},{:.1}) -> ({:.1},{:.1})", 
-                       sender_id, slid_x, slid_y, result.0, result.1);
-            result
+            player_collision::resolve_push_out_collision(ctx, sender_id, slid_x, slid_y)
         }
     } else {
-        log::info!("Player {:?} trusting client (movement >= 100px)", sender_id);
         // For large movements (teleports, lag spikes), trust the client more
         (clamped_x, clamped_y)
     };
@@ -552,9 +542,9 @@ pub fn update_player_position_simple(
 
     players.identity().update(current_player);
 
-    // Only log successful updates occasionally to reduce spam
-    if ctx.rng().gen_bool(0.01) { // 1% of successful updates
-        log::info!("Player {:?} position updated to ({:.1}, {:.1})", sender_id, final_x, final_y);
+    // Only log successful updates very rarely to reduce spam
+    if ctx.rng().gen_bool(0.001) { // 0.1% of successful updates
+        log::debug!("Player {:?} position updated to ({:.1}, {:.1})", sender_id, final_x, final_y);
     }
 
     Ok(())
