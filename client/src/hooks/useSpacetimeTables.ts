@@ -40,7 +40,7 @@ import { gameConfig } from '../config/gameConfig';
 // SPATIAL SUBSCRIPTION CONTROL FLAGS
 const DISABLE_ALL_SPATIAL_SUBSCRIPTIONS = false; // Master switch - turns off ALL spatial subscriptions
 const ENABLE_CLOUDS = true; // Controls cloud spatial subscriptions
-const ENABLE_GRASS = true; // 🚫 DISABLED: Grass subscriptions cause massive lag spikes
+const ENABLE_GRASS = false; // 🚫 DISABLED: Grass subscriptions cause massive lag spikes
 const ENABLE_WORLD_TILES = true; // Controls world tile spatial subscriptions
 
 // PERFORMANCE TESTING FLAGS
@@ -996,9 +996,9 @@ export const useSpacetimeTables = ({
             connection.db.cloud.onDelete(handleCloudDelete);
 
             // Register Grass callbacks - DISABLED for performance
-            // connection.db.grass.onInsert(handleGrassInsert);
-            // connection.db.grass.onUpdate(handleGrassUpdate);
-            // connection.db.grass.onDelete(handleGrassDelete);
+            connection.db.grass.onInsert(handleGrassInsert);
+            connection.db.grass.onUpdate(handleGrassUpdate);
+            connection.db.grass.onDelete(handleGrassDelete);
 
             // Register KnockedOutStatus callbacks
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
