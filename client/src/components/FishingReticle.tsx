@@ -203,7 +203,7 @@ const FishingReticle: React.FC<FishingReticleProps> = ({
           padding: '12px 16px',
           borderRadius: '8px',
           fontSize: '13px',
-          zIndex: 9999,
+          zIndex: 50,
           border: '2px solid #64c8ff',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           backdropFilter: 'blur(4px)',

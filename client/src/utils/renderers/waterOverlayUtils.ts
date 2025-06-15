@@ -36,46 +36,46 @@ interface WaterOverlayState {
 
 // Water overlay configuration constants
 const WATER_CONFIG = {
-  // Line density - increased for better coverage
-  LINES_PER_SCREEN_AREA: 1.2, // line groups per 1000x1000 pixel area (increased for better coverage)
+  // Line density - significantly reduced for subtle sparkling effect
+  LINES_PER_SCREEN_AREA: 0.3, // Reduced from 1.2 to 0.3 for much fewer lines
   
-  // Line properties - much shorter like in screenshot
-  MIN_LENGTH: 8,   // Much shorter lines
-  MAX_LENGTH: 25,  // Maximum still quite short
-  MIN_OPACITY: 0.15, // More subtle
-  MAX_OPACITY: 0.4,  // Reduced for subtlety
+  // Line properties - keep short like screenshot but make more subtle
+  MIN_LENGTH: 6,   // Slightly shorter
+  MAX_LENGTH: 20,  // Reduced max length
+  MIN_OPACITY: 0.1, // More subtle
+  MAX_OPACITY: 0.3,  // Reduced maximum opacity
   MIN_THICKNESS: 1,
   MAX_THICKNESS: 1, // Keep thickness consistent
   
-  // Growth animation properties - organic water reflection timing
-  MIN_GROWTH_SPEED: 2.0, // more natural, varied speed
-  MAX_GROWTH_SPEED: 8.0, // varied growth creates organic feel
-  GROWTH_DURATION: 0.3, // slightly longer for more natural appearance
+  // Growth animation properties - 3x faster for quick sparkling effect
+  MIN_GROWTH_SPEED: 6.0, // 3x faster (was 2.0)
+  MAX_GROWTH_SPEED: 24.0, // 3x faster (was 8.0)
+  GROWTH_DURATION: 0.1, // Much shorter growth phase (was 0.3)
   
-  // Line lifetime properties - organic timing like real water
-  MIN_LIFETIME: 0.8, // natural pause before fading
-  MAX_LIFETIME: 1.5, // varied lifetime for organic feel
-  FADE_DURATION: 0.4, // gentle fade like real reflections
+  // Line lifetime properties - 3x faster cycling for Sea of Stars effect
+  MIN_LIFETIME: 0.25, // Much shorter (was 0.8)
+  MAX_LIFETIME: 0.5, // Much shorter (was 1.5)
+  FADE_DURATION: 0.15, // 3x faster fade (was 0.4)
   
   // Visual variety for natural look
   MAX_ANGLE_DEVIATION: 0.1, // slight rotation in radians (about 6 degrees)
   FLICKER_SPEED: 2.0, // subtle opacity variation speed
   
-  // Multi-line cluster properties
-  MIN_LINES_PER_GROUP: 1, // Sometimes just single lines
-  MAX_LINES_PER_GROUP: 3, // Sometimes up to 3 lines per group
+  // Multi-line cluster properties - reduce group sizes
+  MIN_LINES_PER_GROUP: 1, // More single lines
+  MAX_LINES_PER_GROUP: 2, // Reduced from 3 to 2 lines per group max
   LINE_SPACING: 1, // Vertical spacing between parallel lines (pixels)
-  HORIZONTAL_OFFSET_RANGE: 8, // Reduced horizontal offset
+  HORIZONTAL_OFFSET_RANGE: 6, // Reduced horizontal offset
   
   // Visual properties - light/white for visibility against blue water
   WATER_LINE_COLOR: '#E2E8F0', // Light gray/white for good contrast
   WATER_LINE_GLOW_COLOR: '#F7FAFC', // Very light white for subtle glow
   
-  // Screen margins (spawn lines across much larger area for seamless coverage)
-  SPAWN_MARGIN: 800, // Increased from 200 to 800 for much better coverage
+  // Screen margins (keep large for seamless coverage)
+  SPAWN_MARGIN: 800, // Keep large spawn area
   
-  // Global wave effect - slower for more realistic water motion
-  GLOBAL_WAVE_SPEED: 0.15, // Global phase shift speed (slower)
+  // Global wave effect - slightly faster for more dynamic feel
+  GLOBAL_WAVE_SPEED: 0.25, // Slightly faster global phase shift (was 0.15)
 };
 
 let waterSystem: WaterOverlayState = {
@@ -194,7 +194,7 @@ function createWaterLineGroup(
   const parentId = Math.floor(Math.random() * 1000000); // Random ID for the group
   const lines: WaterLine[] = [];
   
-  // Randomly determine how many lines in this group (1 to 3)
+  // Randomly determine how many lines in this group (1 to 2)
   const linesInGroup = WATER_CONFIG.MIN_LINES_PER_GROUP + 
     Math.floor(Math.random() * (WATER_CONFIG.MAX_LINES_PER_GROUP - WATER_CONFIG.MIN_LINES_PER_GROUP + 1));
   

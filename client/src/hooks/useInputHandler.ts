@@ -49,6 +49,7 @@ interface InputHandlerProps {
     isInventoryOpen: boolean;
     isGameMenuOpen: boolean;
     isSearchingCraftRecipes?: boolean;
+    isFishing: boolean;
 }
 
 // --- Hook Return Value Interface ---
@@ -120,6 +121,7 @@ export const useInputHandler = ({
     isSearchingCraftRecipes,
     isInventoryOpen, // Destructure new prop
     isGameMenuOpen, // Destructure new prop
+    isFishing,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
@@ -342,6 +344,12 @@ export const useInputHandler = ({
 
     // --- Attempt Swing Function (extracted from canvas click logic) ---
     const attemptSwing = useCallback(() => {
+        // 🎣 FISHING INPUT FIX: Disable weapon swinging while fishing
+        if (isFishing) {
+            console.log('[Input] Swing blocked - player is fishing');
+            return;
+        }
+        
         if (!connectionRef.current?.reducers || !localPlayerId) return;
 
         const localEquipment = activeEquipmentsRef.current?.get(localPlayerId);
@@ -379,7 +387,7 @@ export const useInputHandler = ({
                 console.error("[attemptSwing Armed] Error calling useEquippedItem reducer:", err);
             }
         }
-    }, [localPlayerId]);
+    }, [localPlayerId, isFishing]); // 🎣 FISHING INPUT FIX: Add isFishing dependency
 
     // --- Input Event Handlers ---
     useEffect(() => {
@@ -434,6 +442,15 @@ export const useInputHandler = ({
 
             // Spacebar Handler (Jump or Dodge Roll)
             if (key === ' ' && !event.repeat) {
+                // 🎣 FISHING INPUT FIX: Disable jumping while fishing
+                if (isFishing) {
+                    console.log('[Input] Jump blocked - player is fishing');
+                    event.preventDefault();
+                    event.stopPropagation(); // 🎣 FISHING INPUT FIX: Stop event from reaching other handlers
+                    event.stopImmediatePropagation(); // 🎣 FISHING INPUT FIX: Stop all other listeners
+                    return;
+                }
+                
                 // Don't trigger actions when game menus are open
                 if (isGameMenuOpen) {
                     return; // Let menus handle spacebar for scrolling
@@ -632,6 +649,13 @@ export const useInputHandler = ({
             if (isActivelyHolding) return;
 
             if (event.button === 0) { // Left Click
+                // 🎣 FISHING INPUT FIX: Disable left mouse button actions while fishing
+                if (isFishing) {
+                    console.log('[Input] Left mouse blocked - player is fishing');
+                    event.preventDefault();
+                    return;
+                }
+                
                 // Normal left click logic for attacks, interactions, etc.
                 isMouseDownRef.current = true;
 
@@ -716,6 +740,13 @@ export const useInputHandler = ({
         const handleCanvasClick = (event: MouseEvent) => {
             if (isPlayerDead) return;
 
+            // 🎣 FISHING INPUT FIX: Disable canvas click actions while fishing
+            if (isFishing) {
+                console.log('[Input] Canvas click blocked - player is fishing');
+                event.preventDefault();
+                return;
+            }
+
             if (placementInfo && worldMousePosRefInternal.current.x !== null && worldMousePosRefInternal.current.y !== null) {
                 const localPlayerPosition = localPlayerRef.current;
                 const isTooFar = localPlayerPosition
@@ -788,6 +819,13 @@ export const useInputHandler = ({
         const handleContextMenu = (event: MouseEvent) => {
             if (isPlayerDead) return;
             if (isInventoryOpen) return;
+
+            // 🎣 FISHING INPUT FIX: Disable context menu actions while fishing
+            if (isFishing) {
+                console.log('[Input] Context menu blocked - player is fishing');
+                event.preventDefault();
+                return;
+            }
 
             const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
             // console.log("[InputHandler DEBUG CTXMENU] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
@@ -956,7 +994,7 @@ export const useInputHandler = ({
         };
 
         // Add global listeners
-        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKeyDown, { capture: true });
         window.addEventListener('keyup', handleKeyUp);
         window.addEventListener('mousedown', handleMouseDown);
         window.addEventListener('mouseup', handleMouseUp);
@@ -976,7 +1014,8 @@ export const useInputHandler = ({
 
         // Cleanup
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
+            // Remove global listeners
+            window.removeEventListener('keydown', handleKeyDown, { capture: true }); // 🎣 FISHING INPUT FIX: Match capture option in cleanup
             window.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
@@ -996,7 +1035,7 @@ export const useInputHandler = ({
             //     eKeyHoldTimerRef.current = null;
             // }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, isFishing]);
 
     // Auto-walk functionality removed - movement handled by usePredictedMovement hook
 
@@ -1078,12 +1117,18 @@ export const useInputHandler = ({
 
         // Handle continuous swing check (removed movement tracking for weapons)
         if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
-            attemptSwing(); // Call internal attemptSwing function
+            // 🎣 FISHING INPUT FIX: Disable continuous swing while fishing
+            if (!isFishing) {
+                attemptSwing(); // Call internal attemptSwing function
+            }
         }
 
         // Handle auto-attack
         if (isAutoAttacking && !placementInfo && !isChatting && !isSearchingCraftRecipes && !isInventoryOpen) {
-            attemptSwing(); // Call internal attemptSwing function for auto-attack
+            // 🎣 FISHING INPUT FIX: Disable auto-attack while fishing
+            if (!isFishing) {
+                attemptSwing(); // Call internal attemptSwing function for auto-attack
+            }
         }
     }, [
         isPlayerDead, attemptSwing, placementInfo,
@@ -1091,7 +1136,8 @@ export const useInputHandler = ({
         closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
         closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId,
         isClosestInteractableBoxEmpty, onSetInteractingWith,
-        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen
+        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen,
+        isAutoAttacking, isFishing
     ]);
 
     // Helper function to check if an item is throwable

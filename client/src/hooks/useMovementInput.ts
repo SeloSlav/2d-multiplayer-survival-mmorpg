@@ -74,13 +74,16 @@ interface MovementInputProps {
   isUIFocused: boolean;
   localPlayer?: Player | null;
   onToggleAutoAttack?: () => void;
+  // 🎣 FISHING INPUT FIX: Add prop to disable input during fishing
+  isFishing?: boolean;
 }
 
 // Simplified movement input hook without auto-walk
 export const useMovementInput = ({ 
   isUIFocused, 
   localPlayer,
-  onToggleAutoAttack
+  onToggleAutoAttack,
+  isFishing = false // 🎣 FISHING INPUT FIX: Default to false
 }: MovementInputProps) => {
   const [inputState, setInputState] = useState<MovementInputState>({
     direction: { x: 0, y: 0 },
@@ -188,6 +191,14 @@ export const useMovementInput = ({
       if (key === 'Space') {
         event.preventDefault();
         
+        // 🎣 FISHING INPUT FIX: Disable jumping while fishing
+        if (isFishing) {
+          console.log('[MovementInput] Jump blocked - player is fishing');
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return;
+        }
+        
         // Space: Jump (standing still) / Dodge roll (with movement)
         const isMoving = keysPressed.current.has('KeyW') || keysPressed.current.has('KeyS') || 
                         keysPressed.current.has('KeyA') || keysPressed.current.has('KeyD');
@@ -238,7 +249,7 @@ export const useMovementInput = ({
       const keyTime = performance.now() - keyStartTime;
       inputMonitor.logInputTime(keyTime, `KeyDown-${event.code}`);
     }
-  }, [isUIFocused, throttledProcessKeys, jump, onToggleAutoAttack]);
+  }, [isUIFocused, throttledProcessKeys, jump, onToggleAutoAttack, isFishing]);
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
     const keyStartTime = performance.now();

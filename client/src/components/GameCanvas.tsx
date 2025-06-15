@@ -141,6 +141,7 @@ interface GameCanvasProps {
   minimapCache: any; // Add this for minimapCache
   isGameMenuOpen: boolean; // Add this prop
   onAutoActionStatesChange?: (isAutoAttacking: boolean) => void;
+  isFishing: boolean;
 }
 
 /**
@@ -196,6 +197,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   minimapCache,
   isGameMenuOpen,
   onAutoActionStatesChange,
+  isFishing,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -387,6 +389,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isInventoryOpen: showInventory,
     isGameMenuOpen,
     isSearchingCraftRecipes,
+    isFishing,
   });
 
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation

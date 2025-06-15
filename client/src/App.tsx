@@ -102,6 +102,8 @@ function AppContent() {
     const [isCraftingSearchFocused, setIsCraftingSearchFocused] = useState(false);
     // Auto-walking state is now managed by PlayerActionsContext via usePredictedMovement
     const [loadingSequenceComplete, setLoadingSequenceComplete] = useState<boolean>(false);
+    // 🎣 FISHING INPUT FIX: Add fishing state to App level
+    const [isFishing, setIsFishing] = useState(false);
 
     // --- Viewport State & Refs ---
     const [currentViewport, setCurrentViewport] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null);
@@ -145,6 +147,8 @@ function AppContent() {
         isUIFocused,
         localPlayer,
         onToggleAutoAttack: toggleAutoAttack, // Keep auto-attack functionality
+        // 🎣 FISHING INPUT FIX: Pass fishing state to disable input during fishing
+        isFishing,
     });
     
     // Simplified predicted movement - minimal lag
@@ -638,7 +642,7 @@ function AppContent() {
                             deathMarkers={deathMarkers}
                             setIsCraftingSearchFocused={setIsCraftingSearchFocused}
                             isCraftingSearchFocused={isCraftingSearchFocused}
-                            // Auto-walk functionality removed
+                            onFishingStateChange={setIsFishing}
                         />
                     );
                 })()

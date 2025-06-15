@@ -154,6 +154,9 @@ interface GameScreenProps {
     deathMarkers: Map<string, SpacetimeDBDeathMarker>;
     setIsCraftingSearchFocused: React.Dispatch<React.SetStateAction<boolean>>;
     isCraftingSearchFocused: boolean;
+
+    // 🎣 FISHING INPUT FIX: Add callback to notify parent of fishing state changes
+    onFishingStateChange?: (isFishing: boolean) => void;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -172,6 +175,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // SOVA message adder function from Chat component
     const [sovaMessageAdder, setSOVAMessageAdder] = useState<((message: { id: string; text: string; isUser: boolean; timestamp: Date }) => void) | null>(null);
+    
+    // 🎣 FISHING INPUT FIX: Track fishing state to disable input
+    const [isFishing, setIsFishing] = useState(false);
     
     // Debug logging for SOVA message adder
     useEffect(() => {
@@ -219,6 +225,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         setIsCraftingSearchFocused,
         isCraftingSearchFocused,
         // Auto-walking removed
+        onFishingStateChange,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -591,6 +598,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 minimapCache={minimapCache}
                 isGameMenuOpen={currentMenu !== null}
                 onAutoActionStatesChange={handleAutoActionStatesChange}
+                isFishing={isFishing}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -670,6 +678,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 cameraOffsetX={cameraOffsetX}
                 cameraOffsetY={cameraOffsetY}
                 connection={connection}
+                // 🎣 FISHING INPUT FIX: Add callback to track fishing state
+                onFishingStateChange={setIsFishing}
                                 isWaterTile={(worldX: number, worldY: number) => {
                     if (!connection) return false;
                     

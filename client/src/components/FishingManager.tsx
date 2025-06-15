@@ -14,6 +14,7 @@ interface FishingManagerProps {
   cameraOffsetY: number;
   isWaterTile: (worldX: number, worldY: number) => boolean;
   connection: DbConnection | null;
+  onFishingStateChange?: (isActive: boolean) => void;
 }
 
 const FishingManager: React.FC<FishingManagerProps> = ({
@@ -25,6 +26,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
   cameraOffsetY,
   isWaterTile,
   connection,
+  onFishingStateChange,
 }) => {
   const [fishingState, setFishingState] = useState<FishingState>({
     isActive: false,
@@ -187,6 +189,13 @@ const FishingManager: React.FC<FishingManagerProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [fishingState.isActive, handleCancel]);
+
+  // 🎣 FISHING INPUT FIX: Notify parent when fishing state changes
+  React.useEffect(() => {
+    if (onFishingStateChange) {
+      onFishingStateChange(fishingState.isActive);
+    }
+  }, [fishingState.isActive, onFishingStateChange]);
 
   // TODO: Add reducer callback to show success notification when server confirms
   // For now, items will just appear as dropped items at player's feet
@@ -741,7 +750,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           width: '100vw',
           height: '100vh',
           pointerEvents: 'none',
-          zIndex: 9000,
+          zIndex: 40,
         }}
       >
         <path
@@ -764,7 +773,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           width: '24px',
           height: '24px',
           pointerEvents: 'none',
-          zIndex: 9500,
+          zIndex: 45,
           transform: phase === 'caught' ? 
             `scale(${1.2 + stressRatio * 0.3}) rotate(${15 + stressRatio * 30}deg)` : 
             'scale(1)',
@@ -791,7 +800,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             borderRadius: '12px',
             fontSize: '18px',
             fontWeight: 'bold',
-            zIndex: 15000,
+            zIndex: 150,
             textAlign: 'center',
             border: `3px solid ${showResult.type === 'success' ? '#64ff64' : '#ff6464'}`,
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
@@ -818,7 +827,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           padding: '12px 16px',
           borderRadius: '8px',
           fontSize: '13px',
-          zIndex: 10000,
+          zIndex: 50,
           border: '2px solid #64c8ff',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           backdropFilter: 'blur(4px)',
