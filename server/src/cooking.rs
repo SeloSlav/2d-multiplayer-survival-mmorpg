@@ -53,6 +53,13 @@ pub(crate) fn transform_item_in_appliance<T: CookableAppliance>(
     let mut source_item = inventory_items_table.instance_id().find(source_item_instance_id)
         .ok_or_else(|| format!("[TransformItem] Source item instance {} not found in DB for slot {}.", source_item_instance_id, slot_index))?;
 
+    // Get the source item definition to check for crafting_output_quantity
+    let source_item_def = item_defs_table.id().find(source_item.item_def_id)
+        .ok_or_else(|| format!("[TransformItem] Source item definition {} not found.", source_item.item_def_id))?;
+
+    // Determine output quantity: use crafting_output_quantity if available, otherwise default to 1
+    let output_quantity = source_item_def.crafting_output_quantity.unwrap_or(1);
+
     if source_item.quantity > 0 {
         source_item.quantity -= 1;
     } else {
@@ -76,14 +83,14 @@ pub(crate) fn transform_item_in_appliance<T: CookableAppliance>(
     let new_inventory_item = InventoryItem {
         instance_id: 0, 
         item_def_id: new_item_def.id,
-        quantity: 1, 
+        quantity: output_quantity, // 🔥 NOW USES crafting_output_quantity!
         location: ItemLocation::Unknown, 
     };
 
     let inserted_item = inventory_items_table.try_insert(new_inventory_item)
         .map_err(|e| format!("[TransformItem] Failed to insert new transformed item '{}': {}", new_item_def_name, e))?;
-    log::info!("[TransformItem] Appliance {}: Produced 1 unit of {} (New Instance ID: {}) from slot {}. Caller will place it.", 
-             appliance_id_for_log, new_item_def_name, inserted_item.instance_id, slot_index);
+    log::info!("[TransformItem] Appliance {}: Produced {} unit(s) of {} (New Instance ID: {}) from slot {}. Caller will place it.", 
+             appliance_id_for_log, output_quantity, new_item_def_name, inserted_item.instance_id, slot_index);
 
     Ok((new_item_def.clone(), inserted_item.instance_id))
 }
@@ -102,6 +109,11 @@ pub(crate) fn handle_transformed_item_placement<T: CookableAppliance>(
     let new_item_def = item_defs_table.id().find(new_item_def_id)
         .ok_or_else(|| format!("[TransformedPlacement] Definition not found for new item def ID {}", new_item_def_id))?;
 
+    // Get the quantity of the new item to handle stacking properly
+    let new_item = inventory_items_table.instance_id().find(new_item_instance_id)
+        .ok_or_else(|| format!("[TransformedPlacement] New item instance {} not found.", new_item_instance_id))?;
+    let new_item_quantity = new_item.quantity;
+
     // 1. Try to stack with existing items of the same type in OTHER appliance slots
     for i in 0..appliance.num_processing_slots() as u8 {
         if appliance.get_slot_def_id(i) == Some(new_item_def_id) {
@@ -110,12 +122,29 @@ pub(crate) fn handle_transformed_item_placement<T: CookableAppliance>(
                 // This check might be redundant if new_item_instance_id starts with ItemLocation::Unknown
                 if target_slot_instance_id != new_item_instance_id { 
                     if let Some(mut target_item) = inventory_items_table.instance_id().find(target_slot_instance_id) {
-                        if target_item.quantity < new_item_def.stack_size {
-                            target_item.quantity += 1; // Transformed items are qty 1
+                        let space_available = new_item_def.stack_size.saturating_sub(target_item.quantity);
+                        if space_available > 0 {
+                            let amount_to_stack = std::cmp::min(space_available, new_item_quantity);
+                            target_item.quantity += amount_to_stack;
                             inventory_items_table.instance_id().update(target_item);
-                            inventory_items_table.instance_id().delete(new_item_instance_id); 
-                            log::info!("[TransformedPlacement] Appliance {}: Stacked item (Def {}) onto existing stack in slot {}.", appliance.get_appliance_entity_id(), new_item_def_id, i);
-                            return Ok(false); 
+                            
+                            if amount_to_stack >= new_item_quantity {
+                                // All of the new item was stacked
+                                inventory_items_table.instance_id().delete(new_item_instance_id); 
+                                log::info!("[TransformedPlacement] Appliance {}: Stacked {} unit(s) of item (Def {}) onto existing stack in slot {}.", 
+                                         appliance.get_appliance_entity_id(), amount_to_stack, new_item_def_id, i);
+                                return Ok(false); 
+                            } else {
+                                // Partial stack - update the new item quantity and continue trying to place the rest
+                                let mut updated_new_item = inventory_items_table.instance_id().find(new_item_instance_id)
+                                    .ok_or_else(|| format!("[TransformedPlacement] New item instance {} disappeared during stacking.", new_item_instance_id))?;
+                                updated_new_item.quantity -= amount_to_stack;
+                                let remaining_quantity = updated_new_item.quantity; // Store before move
+                                inventory_items_table.instance_id().update(updated_new_item);
+                                log::info!("[TransformedPlacement] Appliance {}: Partially stacked {} unit(s) of item (Def {}) onto existing stack in slot {}. {} remaining.", 
+                                         appliance.get_appliance_entity_id(), amount_to_stack, new_item_def_id, i, remaining_quantity);
+                                // Continue to try placing the remaining quantity
+                            }
                         }
                     }
                 }
@@ -144,12 +173,19 @@ pub(crate) fn handle_transformed_item_placement<T: CookableAppliance>(
 
     // 3. If not added to appliance (full or error), drop it
     let (appliance_x, appliance_y) = appliance.get_appliance_world_position();
-    log::info!("[TransformedPlacement] Appliance {}: Slots full. Dropping item (Instance {}, Def {}).", appliance.get_appliance_entity_id(), new_item_instance_id, new_item_def_id);
+    
+    // Get the current quantity of the item to drop
+    let final_item_to_drop = inventory_items_table.instance_id().find(new_item_instance_id)
+        .ok_or_else(|| format!("[TransformedPlacement] Item instance {} not found for dropping.", new_item_instance_id))?;
+    let quantity_to_drop = final_item_to_drop.quantity;
+    
+    log::info!("[TransformedPlacement] Appliance {}: Slots full. Dropping {} unit(s) of item (Instance {}, Def {}).", 
+             appliance.get_appliance_entity_id(), quantity_to_drop, new_item_instance_id, new_item_def_id);
     
     // Delete the temporary item that was in ItemLocation::Unknown
     inventory_items_table.instance_id().delete(new_item_instance_id);
-    // Create a new dropped item entity in the world
-    dropped_item::create_dropped_item_entity(ctx, new_item_def_id, 1, appliance_x, appliance_y + dropped_item::DROP_OFFSET / 2.0)?;
+    // Create a new dropped item entity in the world with the correct quantity
+    dropped_item::create_dropped_item_entity(ctx, new_item_def_id, quantity_to_drop, appliance_x, appliance_y + dropped_item::DROP_OFFSET / 2.0)?;
     
     Ok(false) 
 }

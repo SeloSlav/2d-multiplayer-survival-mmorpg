@@ -157,14 +157,14 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Charcoal".to_string(),
-            description: "Residue from burnt wood. Useful for crafting.".to_string(),
+            description: "Carbon residue from burnt organic matter. Essential crafting material for ammunition and advanced items.".to_string(),
             category: ItemCategory::Material,
             icon_asset_name: "charcoal.png".to_string(),
             is_stackable: true,
             stack_size: 1000,
             is_equippable: false,
             equipment_slot_type: None,
-            fuel_burn_duration_secs: None,
+            fuel_burn_duration_secs: None, // 🎯 MATERIAL: Not fuel - used for crafting ammo and advanced items
             primary_target_damage_min: None,
             primary_target_damage_max: None,
             primary_target_yield_min: None,
@@ -1252,7 +1252,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Mushroom".to_string(),
-            description: "Oops, cooked it too long. Barely edible.".to_string(),
+            description: "Oops, cooked it too long. Barely edible, but can be turned into charcoal with more heat.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_mushroom.png".to_string(),
             is_stackable: true,
@@ -1269,7 +1269,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(12), // 🎯 ECONOMICS: 12 charcoal justifies 90+ seconds + food loss
             crafting_time_secs: None,
             consumable_health_gain: Some(-3.0),     // Damages health
             consumable_hunger_satiated: Some(3.0),  // Minimal hunger value
@@ -1279,8 +1279,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(45.0), // Takes 45 seconds to turn into charcoal
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
@@ -1363,7 +1363,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Corn".to_string(),
-            description: "Charred and disappointing. Mostly carbon now.".to_string(),
+            description: "Charred and disappointing. Mostly carbon now, but can be processed into charcoal.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_corn.png".to_string(),
             is_stackable: true,
@@ -1380,7 +1380,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(15), // 🎯 ECONOMICS: 15 charcoal for 100+ seconds + valuable crop loss
             crafting_time_secs: None,
             consumable_health_gain: Some(-5.0),     // Damages health
             consumable_hunger_satiated: Some(5.0),  // Minimal hunger
@@ -1390,8 +1390,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(50.0), // Takes 50 seconds to turn into charcoal
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(60),
@@ -1474,7 +1474,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Pumpkin".to_string(),
-            description: "A blackened, mushy mess. Not recommended.".to_string(),
+            description: "A blackened, mushy mess. Not recommended for eating, but can be processed into charcoal.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_pumpkin.png".to_string(), 
             is_stackable: true,
@@ -1491,7 +1491,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(18), // 🎯 ECONOMICS: 18 charcoal for 120+ seconds + huge food loss
             crafting_time_secs: None,
             consumable_health_gain: Some(-8.0),     // Damages health
             consumable_hunger_satiated: Some(8.0),  // Minimal hunger
@@ -1501,8 +1501,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(60.0), // Takes 60 seconds to turn into charcoal (largest food)
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
@@ -1786,7 +1786,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Human Flesh".to_string(),
-            description: "Overcooked human flesh. Charred and inedible.".to_string(),
+            description: "Overcooked human flesh. Charred and inedible, but can be processed into charcoal.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_human_meat.png".to_string(),
             is_stackable: true,
@@ -1803,7 +1803,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(14), // 🎯 ECONOMICS: 14 charcoal for 110+ seconds + protein loss
             crafting_time_secs: None,
             consumable_health_gain: Some(-5.0),
             consumable_hunger_satiated: Some(5.0),
@@ -1813,8 +1813,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(55.0), // Takes 55 seconds to turn into charcoal
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(30),
@@ -2285,7 +2285,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Potato".to_string(),
-            description: "Charred and bitter. Barely edible.".to_string(),
+            description: "Charred and bitter. Barely edible, but can be processed into charcoal.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_potato.png".to_string(),
             is_stackable: true,
@@ -2302,7 +2302,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(13), // 🎯 ECONOMICS: 13 charcoal for 90+ seconds + staple food loss
             crafting_time_secs: None,
             consumable_health_gain: Some(-4.0),     // Damages health
             consumable_hunger_satiated: Some(10.0), // Some hunger value
@@ -2312,8 +2312,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(40.0), // Takes 40 seconds to turn into charcoal
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(80),
@@ -2594,7 +2594,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Burnt Twigfish".to_string(),
-            description: "A badly overcooked twigfish. Not very appetizing.".to_string(),
+            description: "A badly overcooked twigfish. Not very appetizing, but can be processed into charcoal.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "burnt_twigfish.png".to_string(),
             is_stackable: true,
@@ -2611,7 +2611,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_min: None,
             pvp_damage_max: None,
             crafting_cost: None,
-            crafting_output_quantity: None,
+            crafting_output_quantity: Some(8), // 🎯 ECONOMICS: 8 charcoal for 80+ seconds + fish loss
             crafting_time_secs: None,
             consumable_health_gain: Some(2.0),
             consumable_hunger_satiated: Some(5.0),
@@ -2621,8 +2621,8 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             bleed_damage_per_tick: None,
             bleed_duration_seconds: None,
             bleed_tick_interval_seconds: None,
-            cook_time_secs: None,
-            cooked_item_def_name: None,
+            cook_time_secs: Some(35.0), // Takes 35 seconds to turn into charcoal
+            cooked_item_def_name: Some("Charcoal".to_string()),
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: None,
