@@ -261,17 +261,16 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
         prompt += `- Weather: ${ctx.currentWeather}\n`;
       }
       
-      // Moon phase - Smart timing based on time of day
-      if (ctx.isFullMoon) {
-        const isDaytime = ctx.timeOfDay === 'Dawn' || ctx.timeOfDay === 'Day' || ctx.timeOfDay === 'Dusk';
-        if (isDaytime) {
-          prompt += `- Moon: Full moon tonight\n`;
-        } else {
+      // Moon phase - Only mention during night time when it's actually relevant
+      const isNightTime = ctx.timeOfDay === 'Night' || ctx.timeOfDay === 'Midnight';
+      if (isNightTime) {
+        if (ctx.isFullMoon) {
           prompt += `- Moon: Full moon (visible now)\n`;
+        } else {
+          prompt += `- Moon: Not full moon\n`;
         }
-      } else {
-        prompt += `- Moon: Not full moon\n`;
       }
+      // Don't mention moon during day/dawn/dusk - not relevant for tactical decisions
       
       prompt += `- Cycle: ${(ctx.cycleProgress * 100).toFixed(1)}% through current day\n`;
       
@@ -390,23 +389,26 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
     prompt += `🎯 TACTICAL ANALYSIS FOR THIS SITUATION:\\n`;
     if (ctx) {
       // Weather-based recommendations with nuanced rain logic
-      const isNightTime = ctx.timeOfDay === 'Night' || ctx.timeOfDay === 'Dusk';
+      const isNightTime = ctx.timeOfDay === 'Night' || ctx.timeOfDay === 'Midnight';
+      const isDuskTime = ctx.timeOfDay === 'Dusk';
       const isHeavyWeather = ctx.currentWeather === 'HeavyRain' || ctx.currentWeather === 'HeavyStorm';
       const isLightOrModerateRain = ctx.currentWeather === 'LightRain' || ctx.currentWeather === 'ModerateRain';
       
-      if (isHeavyWeather && isNightTime) {
-        prompt += `- CRITICAL: Heavy rain/storm + Night = Recommend TORCHES (portable, weatherproof light/warmth)\\n`;
+      if (isHeavyWeather && (isNightTime || isDuskTime)) {
+        prompt += `- CRITICAL: Heavy rain/storm + Dark conditions = Recommend TORCHES (portable, weatherproof light/warmth)\\n`;
         prompt += `- DO NOT suggest campfires (extinguished by heavy rain/storms)\\n`;
       } else if (isHeavyWeather) {
         prompt += `- Heavy rain/storm = Campfires are extinguished, recommend TORCHES or shelter\\n`;
-      } else if (isLightOrModerateRain && isNightTime) {
-        prompt += `- Light/Moderate rain + Night = Recommend TORCHES for mobility, but campfires still work if stationary\\n`;
+      } else if (isLightOrModerateRain && (isNightTime || isDuskTime)) {
+        prompt += `- Light/Moderate rain + Dark conditions = Recommend TORCHES for mobility, but campfires still work if stationary\\n`;
       } else if (isLightOrModerateRain) {
         prompt += `- Light/Moderate rain = Campfires still work, but TORCHES recommended for mobility\\n`;
       } else if (isNightTime) {
         prompt += `- Night operations = Prioritize TORCHES for mobility and safety\\n`;
+      } else if (isDuskTime) {
+        prompt += `- Dusk approaching = Consider preparing lighting (torches) for upcoming darkness\\n`;
       } else {
-        prompt += `- Clear day conditions = Campfires acceptable for base camps\\n`;
+        prompt += `- Clear day conditions = Good visibility, campfires acceptable for base camps\\n`;
       }
       
       // Temperature-based recommendations

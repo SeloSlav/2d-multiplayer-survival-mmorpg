@@ -62,7 +62,7 @@ interface RenderLabelsParams {
     closestInteractableKnockedOutPlayerId: string | null;
 }
 
-const LABEL_FONT = '14px "Press Start 2P", cursive';
+const LABEL_FONT = '14px "Courier New", Consolas, Monaco, monospace'; // 🎯 CYBERPUNK: Match game's main font
 const LABEL_FILL_STYLE = "white";
 const LABEL_STROKE_STYLE = "black";
 const LABEL_LINE_WIDTH = 2;
