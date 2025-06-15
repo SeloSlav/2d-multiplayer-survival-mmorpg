@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Player, ItemDefinition, DbConnection } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import FishingReticle from './FishingReticle';
@@ -35,7 +35,6 @@ const FishingManager: React.FC<FishingManagerProps> = ({
     castTarget: null,
     fishingRod: null,
   });
-  const [castDistance, setCastDistance] = useState<number>(0); // Track cast distance for bite probability
 
   // Check if player has a valid fishing rod equipped
   const isValidFishingRod = useCallback(() => {
@@ -49,14 +48,11 @@ const FishingManager: React.FC<FishingManagerProps> = ({
       return;
     }
 
-    // Calculate cast distance for bite probability
-    const distance = Math.sqrt(
-      Math.pow(worldX - localPlayer.positionX, 2) + 
-      Math.pow(worldY - localPlayer.positionY, 2)
-    );
-    setCastDistance(distance);
-
-    console.log('[FishingManager] Casting at:', { worldX, worldY, distance: distance.toFixed(1) });
+    console.log('[FishingManager] Casting at:', { worldX, worldY });
+    
+    // 🎣 FISHING EXPLOIT FIX: Distance-based bonuses are now calculated from bobber position to shore,
+    // not from player position to cast target. This prevents players from standing far away and 
+    // casting near shore to exploit deep water bonuses while actually fishing in shallow water.
     
     // Set fishing state to active with cast target
     setFishingState({
@@ -229,7 +225,6 @@ const FishingManager: React.FC<FishingManagerProps> = ({
           playerDirection={localPlayer.direction || 'down'}
           castTargetX={fishingState.castTarget.x}
           castTargetY={fishingState.castTarget.y}
-          castDistance={castDistance}
           cameraOffsetX={cameraOffsetX}
           cameraOffsetY={cameraOffsetY}
           gameCanvasRef={gameCanvasRef}
@@ -250,7 +245,6 @@ interface FishingSystemProps {
   playerDirection: string; // Add player direction for rod alignment
   castTargetX: number;
   castTargetY: number;
-  castDistance: number; // Distance from player to cast target
   cameraOffsetX: number;
   cameraOffsetY: number;
   gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -282,7 +276,6 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
   playerDirection,
   castTargetX,
   castTargetY,
-  castDistance,
   cameraOffsetX,
   cameraOffsetY,
   gameCanvasRef,
@@ -321,17 +314,96 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
   const FISH_BURST_CHANCE = 0.01; // 1% chance per frame for sudden burst movement (very rare)
   const FISH_BURST_DISTANCE = 60; // Distance for burst movements
   const FISH_SWIM_SPEED = 70; // pixels per second - slower to give player more time to react
-  const ZIG_ZAG_DISTANCE = 280; // How far fish moves perpendicular for zig-zag - dramatic but manageable
+  const ZIG_ZAG_DISTANCE = 280;
+
+  // 🚀 PERFORMANCE: Cache shore distance calculation
+  const shoreDistanceCacheRef = useRef<{ 
+    bobberX: number; 
+    bobberY: number; 
+    distance: number; 
+    lastCalculated: number;
+  } | null>(null);
+
+  // 🎣 FISHING EXPLOIT FIX: Calculate distance from bobber to nearest shore
+  const calculateBobberToShoreDistance = useCallback((bobberX: number, bobberY: number, isWaterTile: (x: number, y: number) => boolean): number => {
+    // 🚀 PERFORMANCE: Check cache first - only recalculate if bobber moved significantly
+    const cache = shoreDistanceCacheRef.current;
+    const now = performance.now();
+    const CACHE_THRESHOLD = 20; // Only recalculate if bobber moved 20+ pixels
+    const CACHE_TIMEOUT = 500; // Recalculate every 500ms regardless
+    
+    if (cache) {
+      const distanceMoved = Math.sqrt(
+        Math.pow(bobberX - cache.bobberX, 2) + Math.pow(bobberY - cache.bobberY, 2)
+      );
+      const timeSinceLastCalc = now - cache.lastCalculated;
+      
+      // Use cached value if bobber hasn't moved much and cache isn't too old
+      if (distanceMoved < CACHE_THRESHOLD && timeSinceLastCalc < CACHE_TIMEOUT) {
+        return cache.distance;
+      }
+    }
+    
+    // 🚀 PERFORMANCE FIX: Use efficient radial search instead of grid search
+    // This reduces checks from ~1,000 to ~50-100 and stops early when shore is found
+    
+    const maxRadius = 200; // Maximum search distance
+    const radiusStep = 16; // Check every 16 pixels radially
+    const angleStep = Math.PI / 8; // Check 16 directions (22.5° apart)
+    
+    let minDistance = maxRadius;
+    
+    // Search outward in concentric circles
+    for (let radius = radiusStep; radius <= maxRadius; radius += radiusStep) {
+      let foundShoreAtThisRadius = false;
+      
+      // Check points around the circle at this radius
+      for (let angle = 0; angle < Math.PI * 2; angle += angleStep) {
+        const checkX = bobberX + Math.cos(angle) * radius;
+        const checkY = bobberY + Math.sin(angle) * radius;
+        
+        // If this position is not water (i.e., it's shore/land)
+        if (!isWaterTile(checkX, checkY)) {
+          minDistance = Math.min(minDistance, radius);
+          foundShoreAtThisRadius = true;
+        }
+      }
+      
+      // Early exit: if we found shore at this radius, we don't need to search further
+      // (since we're searching outward, this is likely the minimum distance)
+      if (foundShoreAtThisRadius) {
+        break;
+      }
+    }
+    
+    // 🚀 PERFORMANCE: Cache the result
+    shoreDistanceCacheRef.current = {
+      bobberX,
+      bobberY,
+      distance: minDistance,
+      lastCalculated: now
+    };
+    
+    return minDistance;
+  }, []);
 
   // Calculate distance-based bite probability multiplier
   const getDistanceBasedBiteMultiplier = (distance: number): number => {
+    // 🎣 FISHING EXPLOIT FIX: Calculate distance from bobber to nearest shore, not player to cast target
+    // This prevents players from standing far away and casting near shore to get deep water bonuses
+    
+    // Find the nearest shore tile to the bobber position
+    const bobberToShoreDistance = calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile);
+    
     // Normalize distance to 0-1 range (0 = shore, 1 = max range)
-    const normalizedDistance = Math.min(distance / FISHING_CONSTANTS.RANGE, 1);
+    // Use a reasonable max distance for shore detection (200 pixels = deep water)
+    const maxShoreDistance = 200;
+    const normalizedDistance = Math.min(bobberToShoreDistance / maxShoreDistance, 1);
     
     // Create a curve where:
     // - Distance 0 (shore): 0.2x bite chance (very low)
-    // - Distance 300 (half range): 1.0x bite chance (normal)
-    // - Distance 600 (max range): 2.5x bite chance (high reward for risk)
+    // - Distance 100 (medium depth): 1.0x bite chance (normal)
+    // - Distance 200+ (deep water): 2.5x bite chance (high reward for risk)
     
     // Quadratic curve for smooth progression
     const baseMultiplier = 0.2; // Minimum at shore
@@ -340,11 +412,11 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
     
     const multiplier = baseMultiplier + (maxMultiplier - baseMultiplier) * Math.pow(normalizedDistance, curveExponent);
     
-    console.log(`[FishingSystem] Distance: ${distance.toFixed(1)}, Normalized: ${normalizedDistance.toFixed(2)}, Bite multiplier: ${multiplier.toFixed(2)}x`);
+    console.log(`[FishingSystem] Bobber to shore distance: ${bobberToShoreDistance.toFixed(1)}, Normalized: ${normalizedDistance.toFixed(2)}, Bite multiplier: ${multiplier.toFixed(2)}x`);
     return multiplier;
   };
 
-  const distanceBiteMultiplier = getDistanceBasedBiteMultiplier(castDistance);
+  const distanceBiteMultiplier = getDistanceBasedBiteMultiplier(calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile));
 
   // Check if player moved too far from bobber and break line
   React.useEffect(() => {
@@ -843,7 +915,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             {/* Fishing depth and bite chance indicator */}
             <div style={{ marginBottom: '8px', fontSize: '12px' }}>
               <div style={{ color: '#64c8ff', marginBottom: '4px' }}>
-                📏 Cast Distance: <span style={{ fontWeight: 'bold' }}>{castDistance.toFixed(0)}px</span>
+                📏 Depth: <span style={{ fontWeight: 'bold' }}>{calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile).toFixed(0)}px from shore</span>
                 <span style={{ 
                   marginLeft: '8px',
                   color: distanceBiteMultiplier > 1.5 ? '#44ff44' : distanceBiteMultiplier > 1.0 ? '#ffaa44' : '#ff6464',
