@@ -840,21 +840,21 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
         alt="Fishing Bobber"
         style={{
           position: 'fixed',
-          left: bobberScreenX - 12,
-          top: bobberScreenY - 12,
-          width: '24px',
-          height: '24px',
+          left: bobberScreenX - 24,
+          top: bobberScreenY - 24,
+          width: '48px',
+          height: '48px',
           pointerEvents: 'none',
           zIndex: 45,
           transform: phase === 'caught' ? 
-            `scale(${1.2 + stressRatio * 0.3}) rotate(${15 + stressRatio * 30}deg)` : 
-            'scale(1)',
+            `rotate(${15 + stressRatio * 30}deg)` : 
+            'none',
           transition: phase === 'caught' ? 'transform 0.05s ease-out' : 'transform 0.2s ease-out',
           filter: phase === 'caught' ? 
-            `drop-shadow(0 0 ${12 + stressRatio * 8}px rgba(255, 100, 100, ${0.8 + stressRatio * 0.2})) drop-shadow(0 0 6px rgba(100, 200, 255, 0.6))` : 
+            `drop-shadow(0 0 12px rgba(255, 100, 100, ${0.8 + stressRatio * 0.2})) drop-shadow(0 0 6px rgba(100, 200, 255, 0.6))` : 
             'drop-shadow(0 0 8px rgba(100, 200, 255, 0.8))',
           animation: phase === 'caught' && stressRatio > 0.6 ? 
-            `shake ${0.2 - stressRatio * 0.1}s infinite` : 'none', // Faster shaking at higher stress
+            `bobberShake ${0.2 - stressRatio * 0.1}s infinite` : 'none',
         }}
       />
       
@@ -1024,7 +1024,9 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           </>
         )}
         
-        <div style={{ fontSize: '11px', opacity: 0.8, fontStyle: 'italic' }}>ESC to cancel</div>
+        <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '8px' }}>
+          Right-click to reel in the fish!
+        </div>
       </div>
 
       {/* Add CSS animation for result popup */}
@@ -1041,13 +1043,14 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
         }
       `}</style>
 
-      {/* Add CSS keyframes for more intense shake animation */}
+      {/* Custom shake animation that only translates, no scaling */}
       <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translate(0, 0) scale(${1.2 + stressRatio * 0.3}) rotate(${15 + stressRatio * 30}deg); }
-          25% { transform: translate(-4px, -4px) scale(${1.2 + stressRatio * 0.3}) rotate(${10 + stressRatio * 25}deg); }
-          50% { transform: translate(4px, -4px) scale(${1.2 + stressRatio * 0.3}) rotate(${20 + stressRatio * 35}deg); }
-          75% { transform: translate(-4px, 4px) scale(${1.2 + stressRatio * 0.3}) rotate(${10 + stressRatio * 25}deg); }
+        @keyframes bobberShake {
+          0% { transform: translate(0, 0) rotate(${phase === 'caught' ? 15 + stressRatio * 30 : 0}deg); }
+          25% { transform: translate(2px, -1px) rotate(${phase === 'caught' ? 15 + stressRatio * 30 : 0}deg); }
+          50% { transform: translate(-1px, 2px) rotate(${phase === 'caught' ? 15 + stressRatio * 30 : 0}deg); }
+          75% { transform: translate(-2px, -1px) rotate(${phase === 'caught' ? 15 + stressRatio * 30 : 0}deg); }
+          100% { transform: translate(0, 0) rotate(${phase === 'caught' ? 15 + stressRatio * 30 : 0}deg); }
         }
       `}</style>
 
