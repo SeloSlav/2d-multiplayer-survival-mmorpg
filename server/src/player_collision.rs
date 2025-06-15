@@ -31,6 +31,9 @@ pub fn calculate_slide_collision(
 ) -> (f32, f32) {
     let mut final_x = proposed_x;
     let mut final_y = proposed_y;
+    
+    // 🚀 GRAVITY WELL FIX: Add minimum separation for sliding collision
+    const SLIDE_SEPARATION_DISTANCE: f32 = 8.0; // Ensure separation after sliding
 
     let players = ctx.db.player();
     let trees = ctx.db.tree();
@@ -38,7 +41,7 @@ pub fn calculate_slide_collision(
     let wooden_storage_boxes = ctx.db.wooden_storage_box();
     let player_corpses = ctx.db.player_corpse(); // Access player_corpse table
     let shelters = ctx.db.shelter(); // Access shelter table
-
+    
     // GET: Current player's crouching state for effective radius calculation
     let current_player = players.identity().find(&sender_id);
     let current_player_radius = if let Some(player) = current_player {
@@ -60,7 +63,7 @@ pub fn calculate_slide_collision(
                     let dx = final_x - other_player.position_x;
                     let dy = final_y - other_player.position_y;
                     let dist_sq = dx * dx + dy * dy;
-                    let min_dist = current_player_radius * 2.0;
+                    let min_dist = (current_player_radius * 2.0) + SLIDE_SEPARATION_DISTANCE; // Add separation
                     let min_dist_sq = min_dist * min_dist;
 
                     if dist_sq < min_dist_sq {
@@ -74,12 +77,30 @@ pub fn calculate_slide_collision(
                             let norm_x = collision_normal_x / normal_mag;
                             let norm_y = collision_normal_y / normal_mag;
                             let dot_product = server_dx * norm_x + server_dy * norm_y;
-                            let projection_x = dot_product * norm_x;
-                            let projection_y = dot_product * norm_y;
-                            let slide_dx = server_dx - projection_x;
-                            let slide_dy = server_dy - projection_y;
-                            final_x = current_player_pos_x + slide_dx;
-                            final_y = current_player_pos_y + slide_dy;
+                            
+                            // Only slide if moving toward the object (dot_product < 0)
+                            if dot_product < 0.0 {
+                                let projection_x = dot_product * norm_x;
+                                let projection_y = dot_product * norm_y;
+                                let slide_dx = server_dx - projection_x;
+                                let slide_dy = server_dy - projection_y;
+                                final_x = current_player_pos_x + slide_dx;
+                                final_y = current_player_pos_y + slide_dy;
+                                
+                                // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                let final_dx = final_x - other_player.position_x;
+                                let final_dy = final_y - other_player.position_y;
+                                let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                if final_dist < min_dist {
+                                    let separation_direction = if final_dist > 0.001 {
+                                        (final_dx / final_dist, final_dy / final_dist)
+                                    } else {
+                                        (1.0, 0.0) // Default direction
+                                    };
+                                    final_x = other_player.position_x + separation_direction.0 * min_dist;
+                                    final_y = other_player.position_y + separation_direction.1 * min_dist;
+                                }
+                            }
                             final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
                             final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                         }
@@ -93,7 +114,10 @@ pub fn calculate_slide_collision(
                     let dx = final_x - tree.pos_x;
                     let dy = final_y - tree_collision_y;
                     let dist_sq = dx * dx + dy * dy;
-                    if dist_sq < crate::tree::PLAYER_TREE_COLLISION_DISTANCE_SQUARED {
+                    let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS + SLIDE_SEPARATION_DISTANCE; // Add separation
+                    let min_dist_sq = min_dist * min_dist;
+                    
+                    if dist_sq < min_dist_sq {
                         log::debug!("Player-Tree collision for slide: {:?} vs tree {}", sender_id, tree.id);
                          let collision_normal_x = dx;
                          let collision_normal_y = dy;
@@ -103,12 +127,30 @@ pub fn calculate_slide_collision(
                             let norm_x = collision_normal_x / normal_mag;
                             let norm_y = collision_normal_y / normal_mag;
                             let dot_product = server_dx * norm_x + server_dy * norm_y;
-                            let projection_x = dot_product * norm_x;
-                            let projection_y = dot_product * norm_y;
-                            let slide_dx = server_dx - projection_x;
-                            let slide_dy = server_dy - projection_y;
-                            final_x = current_player_pos_x + slide_dx;
-                            final_y = current_player_pos_y + slide_dy;
+                            
+                            // Only slide if moving toward the object (dot_product < 0)
+                            if dot_product < 0.0 {
+                                let projection_x = dot_product * norm_x;
+                                let projection_y = dot_product * norm_y;
+                                let slide_dx = server_dx - projection_x;
+                                let slide_dy = server_dy - projection_y;
+                                final_x = current_player_pos_x + slide_dx;
+                                final_y = current_player_pos_y + slide_dy;
+                                
+                                // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                let final_dx = final_x - tree.pos_x;
+                                let final_dy = final_y - tree_collision_y;
+                                let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                if final_dist < min_dist {
+                                    let separation_direction = if final_dist > 0.001 {
+                                        (final_dx / final_dist, final_dy / final_dist)
+                                    } else {
+                                        (1.0, 0.0) // Default direction
+                                    };
+                                    final_x = tree.pos_x + separation_direction.0 * min_dist;
+                                    final_y = tree_collision_y + separation_direction.1 * min_dist;
+                                }
+                            }
                             final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
                             final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                         }
@@ -122,7 +164,10 @@ pub fn calculate_slide_collision(
                      let dx = final_x - stone.pos_x;
                      let dy = final_y - stone_collision_y;
                      let dist_sq = dx * dx + dy * dy;
-                     if dist_sq < crate::stone::PLAYER_STONE_COLLISION_DISTANCE_SQUARED {
+                     let min_dist = current_player_radius + crate::stone::STONE_RADIUS + SLIDE_SEPARATION_DISTANCE; // Add separation
+                     let min_dist_sq = min_dist * min_dist;
+                     
+                     if dist_sq < min_dist_sq {
                         log::debug!("Player-Stone collision for slide: {:?} vs stone {}", sender_id, stone.id);
                          let collision_normal_x = dx;
                          let collision_normal_y = dy;
@@ -132,12 +177,30 @@ pub fn calculate_slide_collision(
                              let norm_x = collision_normal_x / normal_mag;
                              let norm_y = collision_normal_y / normal_mag;
                              let dot_product = server_dx * norm_x + server_dy * norm_y;
-                             let projection_x = dot_product * norm_x;
-                             let projection_y = dot_product * norm_y;
-                             let slide_dx = server_dx - projection_x;
-                             let slide_dy = server_dy - projection_y;
-                             final_x = current_player_pos_x + slide_dx;
-                             final_y = current_player_pos_y + slide_dy;
+                             
+                             // Only slide if moving toward the object (dot_product < 0)
+                             if dot_product < 0.0 {
+                                 let projection_x = dot_product * norm_x;
+                                 let projection_y = dot_product * norm_y;
+                                 let slide_dx = server_dx - projection_x;
+                                 let slide_dy = server_dy - projection_y;
+                                 final_x = current_player_pos_x + slide_dx;
+                                 final_y = current_player_pos_y + slide_dy;
+                                 
+                                 // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                 let final_dx = final_x - stone.pos_x;
+                                 let final_dy = final_y - stone_collision_y;
+                                 let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                 if final_dist < min_dist {
+                                     let separation_direction = if final_dist > 0.001 {
+                                         (final_dx / final_dist, final_dy / final_dist)
+                                     } else {
+                                         (1.0, 0.0) // Default direction
+                                     };
+                                     final_x = stone.pos_x + separation_direction.0 * min_dist;
+                                     final_y = stone_collision_y + separation_direction.1 * min_dist;
+                                 }
+                             }
                              final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
                              final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                          }
@@ -150,7 +213,10 @@ pub fn calculate_slide_collision(
                     let dx = final_x - box_instance.pos_x;
                     let dy = final_y - box_collision_y;
                     let dist_sq = dx * dx + dy * dy;
-                    if dist_sq < crate::wooden_storage_box::PLAYER_BOX_COLLISION_DISTANCE_SQUARED {
+                    let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS + SLIDE_SEPARATION_DISTANCE; // Add separation
+                    let min_dist_sq = min_dist * min_dist;
+                    
+                    if dist_sq < min_dist_sq {
                         log::debug!("Player-Box collision for slide: {:?} vs box {}", sender_id, box_instance.id);
                          let collision_normal_x = dx;
                          let collision_normal_y = dy;
@@ -160,12 +226,30 @@ pub fn calculate_slide_collision(
                              let norm_x = collision_normal_x / normal_mag;
                              let norm_y = collision_normal_y / normal_mag;
                              let dot_product = server_dx * norm_x + server_dy * norm_y;
-                             let projection_x = dot_product * norm_x;
-                             let projection_y = dot_product * norm_y;
-                             let slide_dx = server_dx - projection_x;
-                             let slide_dy = server_dy - projection_y;
-                             final_x = current_player_pos_x + slide_dx;
-                             final_y = current_player_pos_y + slide_dy;
+                             
+                             // Only slide if moving toward the object (dot_product < 0)
+                             if dot_product < 0.0 {
+                                 let projection_x = dot_product * norm_x;
+                                 let projection_y = dot_product * norm_y;
+                                 let slide_dx = server_dx - projection_x;
+                                 let slide_dy = server_dy - projection_y;
+                                 final_x = current_player_pos_x + slide_dx;
+                                 final_y = current_player_pos_y + slide_dy;
+                                 
+                                 // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                 let final_dx = final_x - box_instance.pos_x;
+                                 let final_dy = final_y - box_collision_y;
+                                 let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                 if final_dist < min_dist {
+                                     let separation_direction = if final_dist > 0.001 {
+                                         (final_dx / final_dist, final_dy / final_dist)
+                                     } else {
+                                         (1.0, 0.0) // Default direction
+                                     };
+                                     final_x = box_instance.pos_x + separation_direction.0 * min_dist;
+                                     final_y = box_collision_y + separation_direction.1 * min_dist;
+                                 }
+                             }
                              final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
                              final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
                          }
@@ -252,7 +336,7 @@ pub fn calculate_slide_collision(
                     let dx = final_x - corpse.pos_x;
                     let dy = final_y - corpse_collision_y;
                     let dist_sq = dx * dx + dy * dy;
-                    let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS;
+                    let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS + SLIDE_SEPARATION_DISTANCE; // Add separation
                     let min_dist_sq = min_dist * min_dist;
 
                     if dist_sq < min_dist_sq {
@@ -265,19 +349,34 @@ pub fn calculate_slide_collision(
                             let norm_x = collision_normal_x / normal_mag;
                             let norm_y = collision_normal_y / normal_mag;
                             let dot_product = server_dx * norm_x + server_dy * norm_y;
-                            if dot_product > 0.0 { // Moving towards the corpse
+                            
+                            // Only slide if moving toward the object (dot_product < 0)
+                            if dot_product < 0.0 {
                                 let projection_x = dot_product * norm_x;
                                 let projection_y = dot_product * norm_y;
                                 let slide_dx = server_dx - projection_x;
                                 let slide_dy = server_dy - projection_y;
                                 final_x = current_player_pos_x + slide_dx;
                                 final_y = current_player_pos_y + slide_dy;
-                                final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
-                                final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
+                                
+                                // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                let final_dx = final_x - corpse.pos_x;
+                                let final_dy = final_y - corpse_collision_y;
+                                let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                if final_dist < min_dist {
+                                    let separation_direction = if final_dist > 0.001 {
+                                        (final_dx / final_dist, final_dy / final_dist)
+                                    } else {
+                                        (1.0, 0.0) // Default direction
+                                    };
+                                    final_x = corpse.pos_x + separation_direction.0 * min_dist;
+                                    final_y = corpse_collision_y + separation_direction.1 * min_dist;
+                                }
                             }
                         } else {
-                            final_x = current_player_pos_x; // Fallback if magnitude is zero
-                            final_y = current_player_pos_y;
+                            // Fallback: ensure minimum separation
+                            final_x = corpse.pos_x + SLIDE_SEPARATION_DISTANCE;
+                            final_y = corpse_collision_y;
                         }
                     }
                 }
@@ -301,7 +400,8 @@ pub fn resolve_push_out_collision(
     let mut resolved_x = initial_x;
     let mut resolved_y = initial_y;
     let resolution_iterations = 5;
-    let epsilon = 0.01; // Small value to prevent floating point issues and ensure separation
+    // 🚀 GRAVITY WELL FIX: Much larger separation to prevent trapping
+    let separation_distance = 10.0; // Increased from 0.01 to 10.0 pixels for proper separation
 
     let players = ctx.db.player();
     let trees = ctx.db.tree();
@@ -342,16 +442,15 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - other_player.position_x;
                          let dy = resolved_y - other_player.position_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius * 2.0;
+                         let min_dist = current_player_radius * 2.0 + separation_distance; // Add separation
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 { // Added dist_sq > 0.0 to avoid division by zero
                              overlap_found_in_iter = true;
                              let distance = dist_sq.sqrt();
-                             let overlap = min_dist - distance;
-                             // Push current player by half the overlap, ideally other player also pushed.
-                             let push_amount = (overlap / 2.0) + epsilon; 
-                             resolved_x += (dx / distance) * push_amount;
-                             resolved_y += (dy / distance) * push_amount;
+                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
+                             // Push current player by the full overlap amount for proper separation
+                             resolved_x += (dx / distance) * overlap;
+                             resolved_y += (dy / distance) * overlap;
                          }
                     }
                 },
@@ -363,12 +462,12 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - tree.pos_x;
                          let dy = resolved_y - tree_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS;
+                         let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS + separation_distance; // Add separation
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
                              let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + epsilon;
+                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
                              resolved_x += (dx / distance) * overlap;
                              resolved_y += (dy / distance) * overlap;
                          }
@@ -382,12 +481,12 @@ pub fn resolve_push_out_collision(
                         let dx = resolved_x - stone.pos_x;
                         let dy = resolved_y - stone_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + crate::stone::STONE_RADIUS;
+                        let min_dist = current_player_radius + crate::stone::STONE_RADIUS + separation_distance; // Add separation
                         let min_dist_sq = min_dist * min_dist;
                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
                              let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + epsilon;
+                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
                              resolved_x += (dx / distance) * overlap;
                              resolved_y += (dy / distance) * overlap;
                         }
@@ -400,12 +499,12 @@ pub fn resolve_push_out_collision(
                          let dx = resolved_x - box_instance.pos_x;
                          let dy = resolved_y - box_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS;
+                         let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS + separation_distance; // Add separation
                          let min_dist_sq = min_dist * min_dist;
                          if dist_sq < min_dist_sq && dist_sq > 0.0 {
                              overlap_found_in_iter = true;
                              let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + epsilon;
+                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
                              resolved_x += (dx / distance) * overlap;
                              resolved_y += (dy / distance) * overlap;
                          }
@@ -455,7 +554,7 @@ pub fn resolve_push_out_collision(
                             overlap_found_in_iter = true;
                             if dist_sq_resolve > 0.0 {
                                 let distance = dist_sq_resolve.sqrt();
-                                let overlap = (current_player_radius - distance) + epsilon; // Push out by the overlap plus epsilon
+                                let overlap = (current_player_radius - distance) + separation_distance; // Push out by the overlap plus separation
                                 resolved_x += (dx_resolve / distance) * overlap;
                                 resolved_y += (dy_resolve / distance) * overlap;
                                 log::debug!(
@@ -501,22 +600,22 @@ pub fn resolve_push_out_collision(
                                     // Push out horizontally (left or right face is closer)
                                     if penetration_left < penetration_right {
                                         // Push out through left face
-                                        resolved_x = aabb_left - current_player_radius - epsilon;
+                                        resolved_x = aabb_left - current_player_radius - separation_distance;
                                         log::debug!("[ShelterPushDirection] Pushing LEFT: new X = {:.1}", resolved_x);
                                     } else {
                                         // Push out through right face
-                                        resolved_x = aabb_right + current_player_radius + epsilon;
+                                        resolved_x = aabb_right + current_player_radius + separation_distance;
                                         log::debug!("[ShelterPushDirection] Pushing RIGHT: new X = {:.1}", resolved_x);
                                     }
                                 } else {
                                     // Push out vertically (top or bottom face is closer)
                                     if penetration_top < penetration_bottom {
                                         // Push out through top face
-                                        resolved_y = aabb_top - current_player_radius - epsilon;
+                                        resolved_y = aabb_top - current_player_radius - separation_distance;
                                         log::debug!("[ShelterPushDirection] Pushing UP: new Y = {:.1}", resolved_y);
                                     } else {
                                         // Push out through bottom face
-                                        resolved_y = aabb_bottom + current_player_radius + epsilon;
+                                        resolved_y = aabb_bottom + current_player_radius + separation_distance;
                                         log::debug!("[ShelterPushDirection] Pushing DOWN: new Y = {:.1}", resolved_y);
                                     }
                                 }
@@ -541,17 +640,17 @@ pub fn resolve_push_out_collision(
                         let dx = resolved_x - corpse.pos_x;
                         let dy = resolved_y - corpse_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS;
+                        let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS + separation_distance; // Add separation
                         let min_dist_sq = min_dist * min_dist;
                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
                             overlap_found_in_iter = true;
                             let distance = dist_sq.sqrt();
-                            let overlap = (min_dist - distance) + epsilon;
+                            let overlap = (min_dist - distance) + separation_distance; // Ensure separation
                             resolved_x += (dx / distance) * overlap;
                             resolved_y += (dy / distance) * overlap;
                         } else if dist_sq == 0.0 { // Player center is exactly on corpse center (unlikely)
                             overlap_found_in_iter = true;
-                            resolved_x += epsilon; // Minimal push
+                            resolved_x += separation_distance; // Minimal push
                         }
                     }
                 },

@@ -286,12 +286,17 @@ function calculateSlideResponse(
     moveDir: { x: number; y: number },
     hit: CollisionHit
   ): { x: number; y: number } {
-      // Only apply penetration correction if deeply overlapping (more forgiving)
-  let correctedTo = { x: to.x, y: to.y };
-  if (hit.penetration > 3.0) {
+    // 🚀 GRAVITY WELL FIX: Ensure much larger separation to prevent trapping
+    const MIN_SEPARATION = 8.0; // Minimum separation distance (was 1.5px, now 8px)
+    
+    // Always apply penetration correction for proper separation
+    let correctedTo = { x: to.x, y: to.y };
+    if (hit.penetration > 0.1) { // Much lower threshold (was 3.0)
+      // Push player out by full penetration PLUS minimum separation
+      const totalSeparation = hit.penetration + MIN_SEPARATION;
       correctedTo = {
-        x: to.x + hit.normal.x * hit.penetration,
-        y: to.y + hit.normal.y * hit.penetration,
+        x: to.x + hit.normal.x * totalSeparation,
+        y: to.y + hit.normal.y * totalSeparation,
       };
     }
   
@@ -304,26 +309,45 @@ function calculateSlideResponse(
     // Project onto normal
     const dotProduct = allowedMoveVec.x * hit.normal.x + allowedMoveVec.y * hit.normal.y;
   
-    // Slide vector
+    // Slide vector - only remove the component moving INTO the object
     let slideVec = {
-      x: allowedMoveVec.x - dotProduct * hit.normal.x,
-      y: allowedMoveVec.y - dotProduct * hit.normal.y
+      x: allowedMoveVec.x - (dotProduct > 0 ? 0 : dotProduct * hit.normal.x),
+      y: allowedMoveVec.y - (dotProduct > 0 ? 0 : dotProduct * hit.normal.y)
     };
   
-    // If slide vector is very small (stuck), nudge along tangent
+    // If slide vector is very small (stuck), use a larger nudge along the tangent
     const slideLen = Math.sqrt(slideVec.x * slideVec.x + slideVec.y * slideVec.y);
-    if (slideLen < 0.01) {
-      // Tangent to the normal
+    if (slideLen < 0.1) {
+      // Tangent to the normal (perpendicular direction)
       const tangent = { x: -hit.normal.y, y: hit.normal.x };
-      slideVec.x += tangent.x * 1.5; // 1.5px nudge
-      slideVec.y += tangent.y * 1.5;
+      const nudgeDistance = MIN_SEPARATION; // Much larger nudge (was 1.5px)
+      slideVec.x += tangent.x * nudgeDistance;
+      slideVec.y += tangent.y * nudgeDistance;
     }
   
-    // Final position
-    return {
-      x: from.x + slideVec.x,
-      y: from.y + slideVec.y,
-    };
+    // Final position with guaranteed separation
+    const finalX = from.x + slideVec.x;
+    const finalY = from.y + slideVec.y;
+    
+    // 🛡️ SAFETY CHECK: Ensure we're actually separated from the object
+    const finalDx = finalX - (hit.shape.x || 0);
+    const finalDy = finalY - (hit.shape.y || 0);
+    const finalDistance = Math.sqrt(finalDx * finalDx + finalDy * finalDy);
+    const requiredDistance = PLAYER_RADIUS + (hit.shape.radius || 0) + MIN_SEPARATION;
+    
+    if (finalDistance < requiredDistance && hit.shape.radius) {
+      // Force minimum separation
+      const separationDirection = finalDistance > 0.001 
+        ? { x: finalDx / finalDistance, y: finalDy / finalDistance }
+        : { x: 1, y: 0 }; // Default direction if positions are identical
+        
+      return {
+        x: hit.shape.x + separationDirection.x * requiredDistance,
+        y: hit.shape.y + separationDirection.y * requiredDistance
+      };
+    }
+    
+    return { x: finalX, y: finalY };
   }
 
 // ===== ENTITY PROCESSING =====
