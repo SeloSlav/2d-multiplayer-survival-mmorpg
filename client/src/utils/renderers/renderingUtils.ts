@@ -387,8 +387,8 @@ export const renderYSortedEntities = ({
             // Render tree, skip its dynamic shadow in this pass
             renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, true);
         } else if (type === 'stone') {
-            // Render stone, skip its dynamic shadow in this pass
-            renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, true);
+            // Render stone with its shadow in the normal order (shadow first, then stone)
+            renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, false);
         } else if (type === 'shelter') {
             const shelter = entity as SpacetimeDBShelter;
             if (shelterImage) { 
@@ -492,7 +492,7 @@ export const renderYSortedEntities = ({
         if (type === 'tree') {
             // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
         } else if (type === 'stone') {
-            renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, true, false);
+            // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.

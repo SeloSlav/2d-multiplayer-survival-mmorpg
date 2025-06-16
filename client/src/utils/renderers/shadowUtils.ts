@@ -150,48 +150,72 @@ export function drawDynamicGroundShadow({
   pivotYOffset = 0,
 }: DynamicGroundShadowParams): void {
   let overallAlpha: number;
-  let currentStretch: number;
-  let skewX: number;
+  let shadowLength: number; // How far the shadow extends
+  let shadowShearX: number; // Horizontal shear for shadow direction
+  let shadowScaleY: number; // Vertical scaling for shadow length
 
+  // Calculate sun position throughout the day
+  // 0.0 = midnight, 0.25 = dawn, 0.5 = noon, 0.75 = dusk, 1.0 = midnight
+  
   // Day: 0.0 (Dawn) to 0.75 (Dusk ends). Night: 0.75 to 1.0
   if (cycleProgress < 0.05) { // Dawn (0.0 - 0.05)
     const t = cycleProgress / 0.05;
     overallAlpha = lerp(0, maxShadowAlpha, t); // Fade in
-    currentStretch = lerp(maxStretchFactor * 0.7, maxStretchFactor * 0.5, t); // Long, shortening
-    skewX = lerp(0.3, 0.2, t); // Positive skew for behind-right orientation
+    shadowLength = lerp(maxStretchFactor * 0.8, maxStretchFactor * 0.6, t); // Long shadows
+    // Dawn: Sun low in the east, shadows point west (positive X direction)
+    shadowShearX = lerp(1.2, 0.8, t); // Strong rightward lean
+    shadowScaleY = lerp(0.3, 0.4, t); // Flattened shadow
   } else if (cycleProgress < 0.40) { // Morning to Pre-Noon (0.05 - 0.40)
     const t = (cycleProgress - 0.05) / (0.40 - 0.05);
     overallAlpha = maxShadowAlpha;
-    currentStretch = lerp(maxStretchFactor * 0.5, minStretchFactor, t); // Shortening
-    skewX = lerp(0.2, 0.1, t); // Moving towards minimal skew
+    shadowLength = lerp(maxStretchFactor * 0.6, minStretchFactor * 2, t); // Shortening
+    // Morning: Sun rising, shadows moving from right to center
+    shadowShearX = lerp(0.8, 0.1, t); // Reducing rightward lean
+    shadowScaleY = lerp(0.4, 0.7, t); // Less flattened
   } else if (cycleProgress < 0.50) { // Noon-ish (0.40 - 0.50)
     overallAlpha = maxShadowAlpha;
-    currentStretch = minStretchFactor; // Shortest
-    skewX = 0.1; // Slight skew to maintain behind-right orientation
+    shadowLength = minStretchFactor; // Shortest
+    // Noon: Sun overhead, shadow directly below
+    shadowShearX = 0; // No horizontal lean
+    shadowScaleY = 0.8; // Mostly vertical, minimal shadow
   } else if (cycleProgress < 0.70) { // Afternoon (0.50 - 0.70)
     const t = (cycleProgress - 0.50) / (0.70 - 0.50);
     overallAlpha = maxShadowAlpha;
-    currentStretch = lerp(minStretchFactor, maxStretchFactor * 0.5, t); // Lengthening
-    skewX = lerp(0.1, 0.2, t); // Increasing skew
+    shadowLength = lerp(minStretchFactor * 2, maxStretchFactor * 0.6, t); // Lengthening
+    // Afternoon: Sun moving west, shadows pointing east (negative X direction)
+    shadowShearX = lerp(-0.1, -0.8, t); // Increasing leftward lean
+    shadowScaleY = lerp(0.7, 0.4, t); // More flattened
   } else if (cycleProgress < 0.75) { // Dusk (0.70 - 0.75)
     const t = (cycleProgress - 0.70) / 0.05;
-    overallAlpha = lerp(maxShadowAlpha, 0, t); // Fade out
-    currentStretch = lerp(maxStretchFactor * 0.5, maxStretchFactor * 0.7, t); // Lengthening
-    skewX = lerp(0.2, 0.3, t); // Back towards dawn skew
-  } else { // Night (0.75 - 1.0)
-    overallAlpha = maxShadowAlpha * 0.2; // Subtle night shadows instead of completely invisible
-    currentStretch = maxStretchFactor * 0.7;
-    skewX = 0.3;
+    overallAlpha = lerp(maxShadowAlpha, 0, t); // Fade out completely
+    shadowLength = lerp(maxStretchFactor * 0.6, maxStretchFactor * 0.8, t); // Long shadows
+    // Dusk: Sun low in the west, shadows continue pointing east (negative X direction)
+    shadowShearX = lerp(-0.8, -1.2, t); // Continue strong leftward lean
+    shadowScaleY = lerp(0.4, 0.3, t); // Very flattened
+  } else if (cycleProgress < 0.85) { // Early Night (0.75 - 0.85)
+    // Shadows should be completely invisible during early night
+    overallAlpha = 0;
+    shadowLength = 0;
+    shadowShearX = 0;
+    shadowScaleY = 0.5;
+  } else { // Late Night to Midnight (0.85 - 1.0)
+    // Shadows start to appear again as we approach dawn
+    const t = (cycleProgress - 0.85) / 0.15;
+    overallAlpha = lerp(0, maxShadowAlpha * 0.3, t); // Very subtle pre-dawn shadows
+    shadowLength = lerp(0, maxStretchFactor * 0.9, t); // Long pre-dawn shadows
+    // Pre-dawn: Preparing for sun to rise in east, shadows will point west
+    shadowShearX = lerp(0, 1.3, t); // Building up rightward lean for dawn
+    shadowScaleY = lerp(0.5, 0.25, t); // Very flattened pre-dawn shadows
   }
 
-  if (overallAlpha < 0.01 || currentStretch < 0.01) {
+  if (overallAlpha < 0.01 || shadowLength < 0.01) {
     // Debug: Log when shadows are skipped
-    // console.log(`[Dynamic Shadow] Skipped shadow - Alpha: ${overallAlpha.toFixed(3)}, Stretch: ${currentStretch.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
+    console.log(`[Dynamic Shadow] Skipped shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
     return; // No shadow if invisible or too small
   }
   
-  // Debug: Log when shadows are rendered (temporarily enabled for debugging)
-  // console.log(`[Dynamic Shadow] Rendering shadow - Alpha: ${overallAlpha.toFixed(3)}, Stretch: ${currentStretch.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
+  // Debug: Log when shadows are rendered (enabled for debugging)
+  console.log(`[Dynamic Shadow] Rendering shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, ShearX: ${shadowShearX.toFixed(2)}, ScaleY: ${shadowScaleY.toFixed(2)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
 
   // Generate a cache key for the silhouette
   const cacheKey = entityImage instanceof HTMLImageElement 
@@ -231,24 +255,18 @@ export function drawDynamicGroundShadow({
   // --- Render onto the main canvas --- 
   ctx.save();
 
-  // Move origin to the entity's base center for shadow manipulation
+  // Move origin to the entity's base center (this is the anchor point)
   ctx.translate(entityCenterX, entityBaseY - pivotYOffset);
 
-  // Create a proper cast shadow using shear transformation
-  // This projects the object onto the ground plane as if light is coming from upper-left
-  const shearX = -0.6; // Increased rightward shear for more visible silhouette (was -0.3)
-  const shearY = -0.1; // Reduced vertical compression (was -0.3)
-  const shadowScale = 0.9; // Less scaling to preserve shape (was 0.8)
-  
-  // Apply the shadow transformation matrix
-  // This creates a shear that makes the shadow appear cast on the ground
+  // Apply shadow transformation matrix to create realistic shadow casting
+  // The shadow is anchored at the entity's base and stretches/leans based on sun position
   ctx.transform(
-    shadowScale,           // Scale X (make shadow slightly smaller)
-    shearY * shadowScale,  // Shear Y (compress vertically)
-    shearX * shadowScale,  // Shear X (lean to the right)
-    shadowScale * 0.6,     // Scale Y (less flattening to preserve shape, was 0.3)
-    0,                     // Translate X (no additional translation)
-    0                      // Translate Y (no additional translation)
+    1.0,                    // Scale X (keep original width)
+    0,                      // Shear Y (no vertical shear)
+    shadowShearX,           // Shear X (horizontal lean based on sun position)
+    shadowScaleY,           // Scale Y (vertical compression/stretch)
+    0,                      // Translate X (no additional translation - anchored)
+    0                       // Translate Y (no additional translation - anchored)
   );
 
   // Apply blur to the drawing of the offscreen (silhouette) canvas
@@ -260,10 +278,11 @@ export function drawDynamicGroundShadow({
   ctx.globalAlpha = overallAlpha;
   
   // Draw the offscreen (silhouette) canvas onto the main canvas
+  // The shadow is drawn from the anchor point (entity base)
   ctx.drawImage(
     offscreenCanvas,     // Source is now the prepared offscreen canvas
-    -imageDrawWidth / 2, // Centered horizontally
-    -imageDrawHeight,    // Position at the base
+    -imageDrawWidth / 2, // Centered horizontally on the anchor
+    -imageDrawHeight,    // Position so the bottom of the shadow aligns with the anchor
     imageDrawWidth,
     imageDrawHeight
   );

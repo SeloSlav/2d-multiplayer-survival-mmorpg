@@ -15,9 +15,9 @@ use crate::world_state::thunder_event as ThunderEventTableTrait;
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
 
 // --- Constants ---
-const DAY_DURATION_SECONDS: f32 = 2700.0; // 45 minutes
-const NIGHT_DURATION_SECONDS: f32 = 900.0;  // 15 minutes
-const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // Now 60 seconds total
+const DAY_DURATION_SECONDS: f32 = 900.0; // 15 minutes (was 45 seconds for debug)
+const NIGHT_DURATION_SECONDS: f32 = 300.0;  // 5 minutes (was 15 seconds for debug)
+const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 20 minutes total
 
 // Full moon occurs roughly every 3 cycles (adjust as needed)
 const FULL_MOON_CYCLE_INTERVAL: u32 = 3;
