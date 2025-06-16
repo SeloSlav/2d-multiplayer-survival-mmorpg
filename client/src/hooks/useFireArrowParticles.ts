@@ -65,6 +65,10 @@ export function useFireArrowParticles({
     const projectileEmissionAccumulatorRef = useRef<Map<string, number>>(new Map()); // NEW: For projectiles
     const lastUpdateTimeRef = useRef<number>(performance.now());
     const animationFrameRef = useRef<number>(0);
+    
+    // FIXED: Add timing tracking maps (same as projectileRenderingUtils.ts)
+    const clientProjectileStartTimes = useRef<Map<string, number>>(new Map());
+    const lastKnownServerProjectileTimes = useRef<Map<string, number>>(new Map());
 
     // --- Create a derived state string that changes when any fire arrow's loaded status changes ---
     const fireArrowStatesKey = useMemo(() => {
@@ -243,21 +247,42 @@ export function useFireArrowParticles({
                     return;
                 }
 
-                // Calculate projectile's current position using server physics
-                const startTimeMs = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
-                const currentTime = Date.now(); // Use Date.now() for Unix timestamp comparison
-                const elapsedTime = (currentTime - startTimeMs) / 1000; // Convert to seconds
+                // FIXED: Use the same timing calculation as projectile rendering for synchronization
+                const projectileIdStr = projectile.id.toString();
+                const serverStartTimeMicros = Number(projectile.startTime.microsSinceUnixEpoch);
+                const serverStartTimeMs = serverStartTimeMicros / 1000;
+                
+                // Use the same client-side timing approach as projectileRenderingUtils.ts
+                const lastKnownServerTime = lastKnownServerProjectileTimes.current.get(projectileIdStr) || 0;
+                let elapsedTime = 0;
+                
+                if (serverStartTimeMs !== lastKnownServerTime) {
+                    // NEW projectile detected! Track it with client timing
+                    lastKnownServerProjectileTimes.current.set(projectileIdStr, serverStartTimeMs);
+                    clientProjectileStartTimes.current.set(projectileIdStr, now); // Use client time
+                    elapsedTime = 0; // Start at 0 for immediate rendering
+                } else {
+                    // Use client-tracked time for smooth position calculation
+                    const clientStartTime = clientProjectileStartTimes.current.get(projectileIdStr);
+                    if (clientStartTime) {
+                        const elapsedClientMs = now - clientStartTime;
+                        elapsedTime = elapsedClientMs / 1000;
+                    } else {
+                        // Fallback: Use current time as start time
+                        clientProjectileStartTimes.current.set(projectileIdStr, now);
+                        elapsedTime = 0;
+                    }
+                }
                 
                 if (elapsedTime < 0) {
-                    projectileEmissionAccumulatorRef.current.set(projectileId, 0);
-                    return; // Projectile hasn't started yet
+                    elapsedTime = 0; // Force to 0 for immediate visibility
                 }
 
                 // Get weapon definition to determine gravity effect (matching server logic)
                 const weaponDef = itemDefinitions.get(projectile.itemDefId.toString());
                 let gravityMultiplier = 1.0; // Default for bows
                 if (weaponDef && weaponDef.name === "Crossbow") {
-                    gravityMultiplier = 0.1; // Crossbow projectiles have 10% gravity effect
+                    gravityMultiplier = 0.0; // Crossbow projectiles have NO gravity effect (straight line)
                 }
 
                 // Check if this is a thrown item (ammo_def_id == item_def_id) - no gravity for thrown items
@@ -278,7 +303,7 @@ export function useFireArrowParticles({
                     projAcc -= 1;
                     const lifetime = PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MIN + Math.random() * (PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MAX - PROJECTILE_FIRE_ARROW_PARTICLE_LIFETIME_MIN);
                     newGeneratedParticlesThisFrame.push({
-                        id: `projectile_fire_arrow_${projectileId}_${currentTime}_${Math.random()}`,
+                        id: `projectile_fire_arrow_${projectileId}_${now}_${Math.random()}`,
                         type: 'fire',
                         x: currentX + (Math.random() - 0.5) * 3, // Small spread around projectile
                         y: currentY + (Math.random() - 0.5) * 3,
@@ -296,7 +321,7 @@ export function useFireArrowParticles({
                     if (Math.random() < FIRE_ARROW_SMOKE_PARTICLES_PER_FIRE_PARTICLE) {
                         const smokeLifetime = FIRE_ARROW_SMOKE_LIFETIME_MIN + Math.random() * (FIRE_ARROW_SMOKE_LIFETIME_MAX - FIRE_ARROW_SMOKE_LIFETIME_MIN);
                         newGeneratedParticlesThisFrame.push({
-                            id: `projectile_fire_arrow_smoke_${projectileId}_${currentTime}_${Math.random()}`,
+                            id: `projectile_fire_arrow_smoke_${projectileId}_${now}_${Math.random()}`,
                             type: 'smoke',
                             x: currentX + (Math.random() - 0.5) * 4, // Slightly wider spread for smoke trail
                             y: currentY - 2 + (Math.random() - 0.5) * 3, // Start smoke slightly behind projectile

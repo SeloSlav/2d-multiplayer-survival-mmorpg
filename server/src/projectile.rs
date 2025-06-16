@@ -268,11 +268,11 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         let distance = distance_sq.sqrt();
         let time_to_target = distance / v0;
         
-        // Direct line calculation with minimal gravity compensation
+        // Direct line calculation - no gravity pre-compensation since minimal gravity will be applied during flight
         final_vx = delta_x / time_to_target;
-        final_vy = delta_y / time_to_target + 0.5 * g * time_to_target * 0.1; // Reduced gravity effect (10% of normal)
+        final_vy = delta_y / time_to_target; // Simple straight-line trajectory
         
-        log::info!("Crossbow fired: straight-line trajectory with minimal gravity. Distance: {:.1}, Time: {:.3}s", distance, time_to_target);
+        log::info!("Crossbow fired: straight-line trajectory. Distance: {:.1}, Time: {:.3}s", distance, time_to_target);
     } else {
         // Existing bow physics with full gravity arc
         if delta_x.abs() < 1e-6 { // Target is (almost) vertically aligned
@@ -474,7 +474,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let weapon_item_def = item_defs_table.id().find(projectile.item_def_id);
         let gravity_multiplier = if let Some(weapon_def) = weapon_item_def {
             if weapon_def.name == "Crossbow" {
-                0.1 // Crossbow projectiles have 10% gravity effect
+                0.0 // Crossbow projectiles have NO gravity effect (straight line)
             } else {
                 1.0 // Bow projectiles have full gravity effect
             }

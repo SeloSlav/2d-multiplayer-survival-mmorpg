@@ -20,6 +20,7 @@ interface RenderProjectileProps {
   projectile: SpacetimeDBProjectile;
   arrowImage: HTMLImageElement;
   currentTimeMs: number;
+  itemDefinitions?: Map<string, any>; // NEW: Add itemDefinitions to determine weapon type
 }
 
 export const renderProjectile = ({
@@ -27,6 +28,7 @@ export const renderProjectile = ({
   projectile,
   arrowImage,
   currentTimeMs,
+  itemDefinitions, // NEW: Add itemDefinitions parameter
 }: RenderProjectileProps) => {
   if (!arrowImage || !arrowImage.complete || arrowImage.naturalHeight === 0) {
     console.warn('[DEBUG] Arrow image not loaded or invalid for projectile:', projectile.id);
@@ -86,10 +88,20 @@ export const renderProjectile = ({
   // Check if this is a thrown item (ammo_def_id == item_def_id)
   const isThrown = projectile.ammoDefId === projectile.itemDefId;
   
+  // FIXED: Determine gravity multiplier based on weapon type (matching server physics)
+  let gravityMultiplier = 1.0; // Default for bows
+  if (itemDefinitions) {
+    const weaponDef = itemDefinitions.get(projectile.itemDefId.toString());
+    if (weaponDef && weaponDef.name === "Crossbow") {
+      gravityMultiplier = 0.0; // Crossbow projectiles have NO gravity effect (straight line)
+    }
+  }
+  
   // Calculate current position with sub-pixel precision
   const currentX = projectile.startPosX + (projectile.velocityX * elapsedTimeSeconds);
-  // Apply gravity only to non-thrown items (arrows, crossbow bolts)
-  const gravityEffect = isThrown ? 0 : 0.5 * GRAVITY * elapsedTimeSeconds * elapsedTimeSeconds;
+  // FIXED: Apply gravity with correct multiplier based on weapon type
+  const finalGravityMultiplier = isThrown ? 0.0 : gravityMultiplier;
+  const gravityEffect = 0.5 * GRAVITY * finalGravityMultiplier * elapsedTimeSeconds * elapsedTimeSeconds;
   const currentY = projectile.startPosY + (projectile.velocityY * elapsedTimeSeconds) + gravityEffect;
 
   // Calculate rotation based on velocity vector
@@ -98,8 +110,8 @@ export const renderProjectile = ({
     // Thrown items maintain their initial trajectory angle (no gravity to change it)
     angle = Math.atan2(projectile.velocityY, projectile.velocityX) + (Math.PI / 4);
   } else {
-    // Calculate rotation based on instantaneous velocity vector considering gravity for arrows
-    const instantaneousVelocityY = projectile.velocityY + GRAVITY * elapsedTimeSeconds;
+    // FIXED: Calculate rotation based on instantaneous velocity vector with correct gravity
+    const instantaneousVelocityY = projectile.velocityY + GRAVITY * finalGravityMultiplier * elapsedTimeSeconds;
     angle = Math.atan2(instantaneousVelocityY, projectile.velocityX) + (Math.PI / 4);
   }
 

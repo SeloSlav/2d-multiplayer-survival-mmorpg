@@ -474,6 +474,7 @@ export const renderYSortedEntities = ({
                     projectile,
                     arrowImage: projectileImage, // Note: parameter name is still 'arrowImage' but now handles both
                     currentTimeMs: nowMs,
+                    itemDefinitions, // FIXED: Add itemDefinitions for weapon type detection
                 });
             } else {
                 console.warn(`🏹 [RENDER] Image not loaded: ${projectileImageName} for projectile ${projectile.id}`);
