@@ -23,8 +23,8 @@ export interface FishingSessionData {
 }
 
 export const FISHING_CONSTANTS = {
-  RANGE: 600, // Doubled from 300
-  BREAK_DISTANCE: 700, // Line breaks if player moves beyond this distance from cast point
+  RANGE: 800, // Increased maximum fishing cast distance 
+  BREAK_DISTANCE: 900, // Line breaks if player moves beyond this distance from cast point
   ENERGY_COST: 5,
   BITE_TIMER_DURATION: 10000, // 10 seconds
   VALID_FISHING_RODS: [

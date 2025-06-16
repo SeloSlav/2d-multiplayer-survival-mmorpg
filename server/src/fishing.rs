@@ -141,7 +141,7 @@ pub fn is_water_tile(ctx: &ReducerContext, x: f32, y: f32) -> bool {
 // Fishing range check
 pub fn is_within_fishing_range(player_x: f32, player_y: f32, target_x: f32, target_y: f32) -> bool {
     let distance = ((target_x - player_x).powi(2) + (target_y - player_y).powi(2)).sqrt();
-    distance <= 600.0 // Fishing range of 600 units (matches client FISHING_CONSTANTS.RANGE)
+    distance <= 800.0 // Fishing range of 800 units (matches client FISHING_CONSTANTS.RANGE)
 }
 
 #[reducer]
