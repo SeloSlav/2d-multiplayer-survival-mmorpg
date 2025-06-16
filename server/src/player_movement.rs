@@ -441,6 +441,31 @@ pub fn update_player_position_simple(
         return Err("Player is dead".to_string());
     }
 
+    // 2. Check if player is knocked out - severely restrict movement but allow facing direction updates
+    if current_player.is_knocked_out {
+        // Allow very limited movement for knocked out players (crawling)
+        let distance_moved = ((new_x - current_player.position_x).powi(2) + 
+                             (new_y - current_player.position_y).powi(2)).sqrt();
+        
+        const KNOCKED_OUT_MAX_MOVEMENT_PER_UPDATE: f32 = 5.0; // Very slow crawling
+        if distance_moved > KNOCKED_OUT_MAX_MOVEMENT_PER_UPDATE {
+            log::trace!("Knocked out player {:?} attempted to move too far: {:.1}px (max: {}px), but allowing facing direction update", 
+                       sender_id, distance_moved, KNOCKED_OUT_MAX_MOVEMENT_PER_UPDATE);
+            
+            // Don't reject the entire update - just update facing direction without moving
+            current_player.direction = facing_direction;
+            current_player.last_update = ctx.timestamp;
+            players.identity().update(current_player);
+            return Ok(()); // Accept the facing direction update
+        }
+        
+        // Force knocked out players to not sprint
+        if is_sprinting {
+            log::trace!("Knocked out player {:?} attempted to sprint", sender_id);
+            return Err("Cannot sprint while knocked out".to_string());
+        }
+    }
+
     // 2. Check world bounds
     let effective_radius = get_effective_player_radius(current_player.is_crouching);
     if new_x < effective_radius || new_x > WORLD_WIDTH_PX - effective_radius ||

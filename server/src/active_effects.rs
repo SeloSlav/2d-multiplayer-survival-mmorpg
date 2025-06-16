@@ -266,31 +266,17 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             log::trace!("[EffectTick] {:?} Pre-Damage for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health, amount_this_tick);
                             
-                            // --- PREVENT BLEED FROM KILLING KNOCKED OUT PLAYERS ---
-                            if player_to_update.is_knocked_out && effect.effect_type == EffectType::Bleed {
-                                // Bleed can damage knocked out players but cannot reduce health below 1.0
-                                let min_health_when_knocked_out = 1.0;
-                                let would_be_health = player_to_update.health - amount_this_tick;
-                                
-                                if would_be_health >= min_health_when_knocked_out {
-                                    // Safe to apply full damage
-                                    player_to_update.health = would_be_health;
-                                    log::trace!("[EffectTick] Bleed damaged knocked out player {:?}. Health: {:.2} -> {:.2}",
-                                        effect.player_id, player_to_update.health + amount_this_tick, player_to_update.health);
-                                } else {
-                                    // Would go below minimum, protect the player
-                                    let original_damage_intended = amount_this_tick;
-                                    let actual_damage_applied = player_to_update.health - min_health_when_knocked_out;
-                                    player_to_update.health = min_health_when_knocked_out;
-                                    amount_this_tick = actual_damage_applied; // Adjust amount_this_tick for accurate tracking
-                                    log::info!("[EffectTick] Bleed tried to kill knocked out player {:?} but was prevented. Health protected at {:.2} (applied {:.2} instead of {:.2})",
-                                        effect.player_id, min_health_when_knocked_out, actual_damage_applied, original_damage_intended);
-                                }
+                            // --- KNOCKED OUT PLAYERS ARE IMMUNE TO BLEED AND BURN DAMAGE ---
+                            if player_to_update.is_knocked_out && (effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::Burn) {
+                                // Knocked out players are completely immune to bleed and burn damage
+                                amount_this_tick = 0.0; // No damage applied
+                                log::info!("[EffectTick] Knocked out player {:?} is immune to {:?} damage. No damage applied.",
+                                    effect.player_id, effect.effect_type);
                             } else {
-                                // Normal damage application for non-knocked out players or non-bleed effects
+                                // Normal damage application for conscious players
                                 player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                             }
-                            // --- END BLEED PROTECTION ---
+                            // --- END KNOCKED OUT IMMUNITY ---
                             
                             log::trace!("[EffectTick] {:?} Post-Damage for Player {:?}: Health now {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health);

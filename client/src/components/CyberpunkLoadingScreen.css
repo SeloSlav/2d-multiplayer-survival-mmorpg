@@ -59,18 +59,21 @@
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
     filter: drop-shadow(0 0 20px rgba(0, 221, 255, 0.6));
-    animation: sova-glow 3s ease-in-out infinite alternate;
+    animation: sova-glow 6s ease-in-out infinite alternate;
     cursor: pointer;
     transition: all 0.3s ease;
+    border-radius: 0 !important;
+    border: none !important;
+    outline: none !important;
 }
 
 .sova-avatar:hover {
-    transform: translateX(-50%) scale(1.1);
+    transform: translateX(-50%) scale(1.05);
     filter: drop-shadow(0 0 25px rgba(0, 221, 255, 0.8));
 }
 
 .sova-avatar.speaking {
-    animation: sova-speaking 0.5s ease-in-out infinite alternate;
+    animation: sova-speaking 1s ease-in-out infinite alternate;
     filter: drop-shadow(0 0 30px rgba(0, 255, 255, 1)) brightness(1.2);
 }
 
@@ -81,18 +84,18 @@
     }
     100% { 
         filter: drop-shadow(0 0 30px rgba(0, 221, 255, 0.9));
-        transform: translateX(-50%) scale(1.05);
+        transform: translateX(-50%) scale(1.01);
     }
 }
 
 @keyframes sova-speaking {
     0% { 
-        transform: translateX(-50%) scale(1.1);
-        filter: drop-shadow(0 0 30px rgba(0, 255, 255, 1)) brightness(1.2);
+        transform: translateX(-50%) scale(1.01);
+        filter: drop-shadow(0 0 30px rgba(0, 255, 255, 1)) brightness(1.1);
     }
     100% { 
-        transform: translateX(-50%) scale(1.2);
-        filter: drop-shadow(0 0 40px rgba(0, 255, 255, 1)) brightness(1.4);
+        transform: translateX(-50%) scale(1.03);
+        filter: drop-shadow(0 0 40px rgba(0, 255, 255, 1)) brightness(1.2);
     }
 }
 

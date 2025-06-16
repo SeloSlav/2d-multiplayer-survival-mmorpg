@@ -475,7 +475,7 @@ export const useInputHandler = ({
                     }
                 }
 
-                if (localPlayerRef.current && !localPlayerRef.current.isDead) {
+                if (localPlayerRef.current && !localPlayerRef.current.isDead && !localPlayerRef.current.isKnockedOut) {
                     event.preventDefault(); // Prevent spacebar from scrolling the page
                     
                     try {

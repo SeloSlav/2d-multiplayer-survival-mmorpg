@@ -192,14 +192,22 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         stopAutoWalk();
       }
 
+      // For knocked out players, also check for facing direction updates even with minimal movement
+      const hasDirectionalInput = Math.abs(direction.x) > 0.01 || Math.abs(direction.y) > 0.01;
+      
       // Calculate new position with more stable movement
       if (isMoving.current && !isRubberBanding) {
         // Calculate speed multipliers (must match server logic)
         let speedMultiplier = 1.0;
         
-        // Apply sprint multiplier
-        if (sprinting) {
-          speedMultiplier *= SPRINT_MULTIPLIER;
+        // Apply knocked out movement restriction (must match server)
+        if (localPlayer.isKnockedOut) {
+          speedMultiplier *= 0.05; // Extremely slow crawling movement (5% of normal speed)
+        } else {
+          // Apply sprint multiplier (only if not knocked out)
+          if (sprinting) {
+            speedMultiplier *= SPRINT_MULTIPLIER;
+          }
         }
         
         // Apply crouch speed reduction (must match server)
@@ -233,7 +241,9 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         );
         
         // Update facing direction based on movement
-        if (Math.abs(direction.x) > 0.1 || Math.abs(direction.y) > 0.1) {
+        // For knocked out players, use a lower threshold since they move much slower
+        const movementThreshold = localPlayer.isKnockedOut ? 0.01 : 0.1;
+        if (Math.abs(direction.x) > movementThreshold || Math.abs(direction.y) > movementThreshold) {
           const newFacingDirection = Math.abs(direction.x) > Math.abs(direction.y) 
             ? (direction.x > 0 ? 'right' : 'left')
             : (direction.y > 0 ? 'down' : 'up');
@@ -248,6 +258,34 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         // Only force re-render every few frames to reduce React overhead
         if (Math.floor(now / 16) % 2 === 0) { // ~30fps re-renders
           forceUpdate({});
+        }
+      } else if (localPlayer.isKnockedOut && hasDirectionalInput) {
+        // Special case: knocked out players can still update facing direction without significant movement
+        const newFacingDirection = Math.abs(direction.x) > Math.abs(direction.y) 
+          ? (direction.x > 0 ? 'right' : 'left')
+          : (direction.y > 0 ? 'down' : 'up');
+        
+        // Only update if facing direction actually changed
+        if (newFacingDirection !== lastFacingDirection.current) {
+          lastFacingDirection.current = newFacingDirection;
+          
+          // Force immediate position update for knocked out players when facing direction changes
+          const clientTimestamp = BigInt(Date.now());
+          try {
+            if (connection.reducers.updatePlayerPositionSimple && pendingPosition.current) {
+              connection.reducers.updatePlayerPositionSimple(
+                pendingPosition.current.x,
+                pendingPosition.current.y,
+                clientTimestamp,
+                false, // Never sprinting when knocked out
+                lastFacingDirection.current
+              );
+              lastSentTime.current = now;
+              console.log(`[KnockedOut] Facing direction updated to: ${newFacingDirection}`);
+            }
+          } catch (error) {
+            console.error(`❌ [KnockedOut] Failed to send facing direction update:`, error);
+          }
         }
       }
 
@@ -267,7 +305,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
             pendingPosition.current.x,
             pendingPosition.current.y,
             clientTimestamp,
-            sprinting && isMoving.current,
+            sprinting && isMoving.current && !localPlayer.isKnockedOut, // Can't sprint when knocked out
             lastFacingDirection.current
           );
           

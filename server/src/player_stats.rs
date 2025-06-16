@@ -167,6 +167,15 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             continue;
         }
 
+        // --- Skip stat decay for knocked out players (they are immune to environmental damage) ---
+        if player.is_knocked_out {
+            log::trace!("Skipping stat decay for knocked out player {:?} (immune to environmental damage)", player_id);
+            // Still update the stat timestamp to prevent large future deltas when they recover
+            player.last_stat_update = current_time;
+            players.identity().update(player.clone());
+            continue;
+        }
+
         // Use the dedicated stat update timestamp
         let last_stat_update_time = player.last_stat_update;
         let elapsed_micros = current_time.to_micros_since_unix_epoch().saturating_sub(last_stat_update_time.to_micros_since_unix_epoch());

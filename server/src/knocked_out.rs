@@ -81,39 +81,44 @@ pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecove
     let armor_modifier = 1.0 + (crate::armor::calculate_total_damage_resistance(ctx, player_id) * 2.0);
     let stat_multiplier = (hunger_modifier * thirst_modifier * stamina_modifier * warmth_modifier * armor_modifier).clamp(0.2, 3.0);
 
-    // Calculate current recovery and death chances using updated algorithm
-    let base_recovery_chance = if knocked_out_duration_secs <= 15 {
-        let time_factor = (15 - knocked_out_duration_secs) as f64 / 15.0;
-        0.05 + (time_factor * 0.06)  // Range: 5% to 11%
-    } else if knocked_out_duration_secs <= 30 {
-        let time_factor = (30 - knocked_out_duration_secs) as f64 / 15.0;
-        0.03 + (time_factor * 0.02)  // Range: 3% to 5%
+    // Calculate what the recovery chance would be (for display and calculation)
+    let base_recovery_chance = if knocked_out_duration_secs <= 40 {
+        let time_factor = (40 - knocked_out_duration_secs) as f64 / 30.0;
+        0.08 + (time_factor * 0.12)  // Range: 8% to 20% (much higher early recovery)
+    } else if knocked_out_duration_secs <= 70 {
+        let time_factor = (70 - knocked_out_duration_secs) as f64 / 30.0;
+        0.05 + (time_factor * 0.03)  // Range: 5% to 8%
     } else {
-        let time_factor = ((knocked_out_duration_secs - 30) as f64 / 30.0).min(1.0);
-        0.03 - (time_factor * 0.02)  // Range: 3% down to 1%
+        let time_factor = ((knocked_out_duration_secs - 70) as f64 / 60.0).min(1.0);
+        0.05 - (time_factor * 0.03)  // Range: 5% down to 2%
     };
 
-    let modified_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.0, 0.20); // Max 20% recovery chance
-
-    // --- MODIFIED: Remove "safe time" by setting start time to 0 --- 
-    let base_death_start_time: f64 = 0.0; // Player is at risk of death from the start
-    // Escalation time is now effectively the duration of the first death phase
-    let base_death_escalation_time = base_death_start_time + 6.0; // Death chance ramps up over these 6 seconds
-
-    let death_chance = if knocked_out_duration_secs <= base_death_start_time as u32 { // This condition will likely always be false if start_time is 0
-        0.0 // Should effectively not be used if base_death_start_time is 0
-    } else if knocked_out_duration_secs <= base_death_escalation_time as u32 {
-        // Early death phase: (now 0s to 6s)
-        // Ensure time_factor doesn't become negative if duration is 0 and start_time is 0
-        let time_in_this_phase = (knocked_out_duration_secs as f64 - base_death_start_time).max(0.0);
-        let time_factor = time_in_this_phase / (base_death_escalation_time - base_death_start_time).max(1.0); // Avoid division by zero if times are equal
-        (time_factor * 0.40) / (stat_multiplier as f64).max(0.8) 
+    let theoretical_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.02, 0.35);
+    
+    // ENFORCE 10-second minimum: actual recovery chance is 0 if under 10 seconds
+    let actual_recovery_chance = if knocked_out_duration_secs < 10 {
+        0.0  // No recovery possible for first 10 seconds
     } else {
-        // Late death phase (now after 6s)
+        theoretical_recovery_chance
+    };
+
+    // --- REBALANCED: Give players more time before death risk starts ---
+    let base_death_start_time: f64 = 45.0; // Safe period of 45 seconds before death risk
+    let base_death_escalation_time = base_death_start_time + 30.0; // Death chance ramps up over 30 seconds (45s-75s)
+
+    let death_chance = if knocked_out_duration_secs <= base_death_start_time as u32 {
+        0.0 // No death risk for first 45 seconds
+    } else if knocked_out_duration_secs <= base_death_escalation_time as u32 {
+        // Early death phase: (45s to 75s) - gradual increase
+        let time_in_this_phase = (knocked_out_duration_secs as f64 - base_death_start_time).max(0.0);
+        let time_factor = time_in_this_phase / (base_death_escalation_time - base_death_start_time).max(1.0);
+        (time_factor * 0.15) / (stat_multiplier as f64).max(0.8) // Max 15% death chance in this phase
+    } else {
+        // Late death phase (after 75s) - more serious but still survivable
         let time_since_escalation = (knocked_out_duration_secs as f64 - base_death_escalation_time).max(0.0);
-        let time_factor = (time_since_escalation / 8.0).min(1.0); 
-        let base_late_chance = 0.40 + (time_factor * 0.55); 
-        base_late_chance / (1.0 + (stat_multiplier as f64 - 1.0) * 0.5).max(0.9) 
+        let time_factor = (time_since_escalation / 45.0).min(1.0); // Ramp over 45 seconds (75s-120s)
+        let base_late_chance = 0.15 + (time_factor * 0.25); // Range: 15% to 40%
+        base_late_chance / (1.0 + (stat_multiplier as f64 - 1.0) * 0.7).max(0.9) // Better stat protection
     };
 
     let time_until_death_risk = if knocked_out_duration_secs < base_death_start_time as u32 {
@@ -126,8 +131,8 @@ pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecove
     let mut rng = ctx.rng();
     let roll = rng.gen::<f64>();
 
-    log::info!("[KnockedOutRecovery] Player {:?} unconscious for {}s. Base recovery: {:.1}%, Modified recovery: {:.1}%, Death chance: {:.1}%, Roll: {:.3}", 
-             player_id, knocked_out_duration_secs, base_recovery_chance * 100.0, modified_recovery_chance * 100.0, death_chance * 100.0, roll);
+    log::info!("[KnockedOutRecovery] Player {:?} unconscious for {}s. Base recovery: {:.1}%, Theoretical recovery: {:.1}%, Actual recovery: {:.1}%, Death chance: {:.1}%, Roll: {:.3}", 
+             player_id, knocked_out_duration_secs, base_recovery_chance * 100.0, theoretical_recovery_chance * 100.0, actual_recovery_chance * 100.0, death_chance * 100.0, roll);
 
     if roll < death_chance {
         // Player dies
@@ -154,7 +159,7 @@ pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecove
         players.identity().update(player);
         recovery_schedule.schedule_id().delete(&schedule_id);
 
-    } else if roll < death_chance + modified_recovery_chance {
+    } else if roll < death_chance + actual_recovery_chance {
         // Player recovers on their own
         log::info!("[KnockedOutRecovery] Player {:?} recovered on their own after {}s unconscious", player_id, knocked_out_duration_secs);
         
@@ -215,7 +220,7 @@ pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecove
 pub fn schedule_knocked_out_recovery(ctx: &ReducerContext, player_id: Identity) -> Result<(), String> {
     let recovery_schedule_table = ctx.db.knocked_out_recovery_schedule();
     
-    let first_check_time = ctx.timestamp + std::time::Duration::from_secs(5); 
+    let first_check_time = ctx.timestamp + std::time::Duration::from_secs(10); 
     
     let schedule_entry = KnockedOutRecoverySchedule {
         schedule_id: 0, // Auto-incremented by SpacetimeDB
@@ -231,7 +236,7 @@ pub fn schedule_knocked_out_recovery(ctx: &ReducerContext, player_id: Identity) 
 
     match recovery_schedule_table.try_insert(schedule_entry) {
         Ok(_) => {
-            log::info!("[KnockedOutRecovery] Scheduled recovery checks for player {:?} starting in 5s", player_id);
+            log::info!("[KnockedOutRecovery] Scheduled recovery checks for player {:?} starting in 10s", player_id);
             Ok(())
         }
         Err(e) => {
@@ -361,19 +366,20 @@ pub fn get_knocked_out_status(ctx: &ReducerContext) -> Result<(), String> {
     let armor_modifier = 1.0 + (crate::armor::calculate_total_damage_resistance(ctx, sender_id) * 2.0);
     let stat_multiplier = (hunger_modifier * thirst_modifier * stamina_modifier * warmth_modifier * armor_modifier).clamp(0.2, 3.0);
 
-    // Calculate current recovery and death chances
-    let base_recovery_chance = if knocked_out_duration_secs <= 15 {
-        let time_factor = (15 - knocked_out_duration_secs) as f64 / 15.0;
-        0.05 + (time_factor * 0.06)  // Range: 5% to 11%
-    } else if knocked_out_duration_secs <= 30 {
-        let time_factor = (30 - knocked_out_duration_secs) as f64 / 15.0;
-        0.03 + (time_factor * 0.02)  // Range: 3% to 5%
+    // Calculate what the recovery chance would be (for UI display - matches main recovery logic)
+    let base_recovery_chance = if knocked_out_duration_secs <= 40 {
+        let time_factor = (40 - knocked_out_duration_secs) as f64 / 30.0;
+        0.08 + (time_factor * 0.12)  // Range: 8% to 20% (much higher early recovery)
+    } else if knocked_out_duration_secs <= 70 {
+        let time_factor = (70 - knocked_out_duration_secs) as f64 / 30.0;
+        0.05 + (time_factor * 0.03)  // Range: 5% to 8%
     } else {
-        let time_factor = ((knocked_out_duration_secs - 30) as f64 / 30.0).min(1.0);
-        0.03 - (time_factor * 0.02)  // Range: 3% down to 1%
+        let time_factor = ((knocked_out_duration_secs - 70) as f64 / 60.0).min(1.0);
+        0.05 - (time_factor * 0.03)  // Range: 5% down to 2%
     };
 
-    let modified_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.0, 0.20); // Max 20% recovery chance
+    // Show theoretical recovery chance for UI (what it would be, regardless of 10-second minimum)
+    let theoretical_recovery_chance = (base_recovery_chance * stat_multiplier as f64).clamp(0.02, 0.35);
 
     // --- MODIFIED: Remove "safe time" by setting start time to 0 --- 
     let base_death_start_time: f64 = 0.0; // Player is at risk of death from the start
@@ -406,7 +412,7 @@ pub fn get_knocked_out_status(ctx: &ReducerContext) -> Result<(), String> {
     let status = KnockedOutStatus {
         player_id: sender_id,
         knocked_out_at,
-        current_recovery_chance_percent: (modified_recovery_chance * 100.0) as f32,
+        current_recovery_chance_percent: (theoretical_recovery_chance * 100.0) as f32,
         current_death_chance_percent: (death_chance * 100.0) as f32,
         time_until_death_risk_starts_secs: time_until_death_risk,
         stat_multiplier: stat_multiplier as f32,
