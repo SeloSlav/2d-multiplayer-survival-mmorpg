@@ -3,420 +3,759 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Guide: Adding New Resources and Nodes
+# Guide: Adding New Collectible Resources (Streamlined)
 
-This guide outlines the steps required to add new consumable resources (like Pumpkins) or gatherable nodes (like Metal Ore) to the 2D Multiplayer Survival game. Follow these steps to ensure consistency with the existing architecture.
+This guide provides a systematic approach to adding new collectible resources (like Common Reed Stalk, Hemp, Corn, etc.) to the 2D Multiplayer Survival game. This workflow was tested and refined during the Common Reed Stalk implementation.
 
-## General Workflow
+## Quick Reference Checklist
 
-1.  **Define Data (Server):** Add necessary item definitions and entity table structures.
-2.  **Implement Logic (Server):** Create server-side reducers for interaction, harvesting, spawning, and respawning.
-3.  **Integrate (Server):** Update server logic (seeding, respawning) to include the new resource.
-4.  **Generate Bindings (CLI):** Run `spacetime generate` **before** making client-side changes that depend on new server types or reducers.
-5.  **Add Assets (Client):** Place images for the resource doodad and its corresponding item.
-6.  **Configure Resource (Client):** Add configuration to the unified resource system.
-7.  **Client-Side State Management:**
-    *   Update `useSpacetimeTables.ts` to manage the new entity's state.
-    *   Update `App.tsx` to fetch and pass the new entity's data.
-    *   Update `GameScreen.tsx` to receive and pass down the new entity's data.
-8.  **Client Integration (Client):**
-    *   Update type guards and entity filtering.
-    *   Update interaction finding and input handling.
-    *   Update item icon mapping.
-9.  **Testing:** Test spawning, interaction/harvesting, item yield, respawning, and UI rendering thoroughly.
+### Server-side (3 files)
+- [ ] Create `server/src/{resource_name}.rs` 
+- [ ] Update `server/src/lib.rs` (2 lines)
+- [ ] Update `server/src/environment.rs` (seeding + respawn)
+
+### Client-side (10 files)  
+- [ ] Update `client/src/types/resourceTypes.ts` (type guards)
+- [ ] Update `client/src/utils/renderers/resourceConfigurations.ts` (config)
+- [ ] Update `client/src/utils/renderers/unifiedResourceRenderer.ts` (render function)
+- [ ] Update `client/src/utils/renderers/renderingUtils.ts` (rendering integration)
+- [ ] Update `client/src/hooks/useSpacetimeTables.ts` (subscriptions)
+- [ ] Update `client/src/App.tsx` (data flow)
+- [ ] Update `client/src/components/GameScreen.tsx` (data flow)
+- [ ] Update `client/src/components/GameCanvas.tsx` (data flow)
+- [ ] Update `client/src/hooks/useEntityFiltering.ts` (filtering)
+- [ ] Update `client/src/utils/typeGuards.ts` (type detection)
+- [ ] Update `client/src/hooks/useInteractionFinder.ts` (interaction detection)
+- [ ] Update `client/src/hooks/useInputHandler.ts` (E key handling)
+- [ ] Update `client/src/utils/renderers/labelRenderingUtils.ts` (interaction labels)
 
 ---
 
-## Adding a Consumable Resource (e.g., Pumpkin)
+## Detailed Implementation Steps
 
-This resource type is picked up directly by the player, disappears, and respawns after a timer. It yields an item (e.g., "Pumpkin" item).
+### Step 1: Server-side Implementation
 
-### Server (`server/`)
+#### 1.1 Create Resource Module (`server/src/{resource_name}.rs`)
 
-1.  **Define Item:**
-    *   In `src/items_database.rs`, within the `get_item_definitions()` function's returned vector, add an `ItemDefinition` for the yielded item (e.g., "Pumpkin").
-        ```rust
-        ItemDefinition {
-            id: 0, // Will be auto-assigned
-            name: "Pumpkin".to_string(),
-            description: "A ripe pumpkin, good for eating or crafting.".to_string(),
-            category: ItemCategory::Consumable, // Or ItemCategory::Material if not directly edible
-            icon_asset_name: "pumpkin.png".to_string(), // Matches asset in client/src/assets/items/
-            is_stackable: true,
-            stack_size: 10,
-            // ... other fields as necessary
-            damage: None,
-            is_equippable: false,
-            equipment_slot_type: None,
-            fuel_burn_duration_secs: None,
-        }
-        ```
-2.  **Create Resource Module:**
-    *   Create a new file: `src/pumpkin.rs`.
-3.  **Define Entity Struct (`src/pumpkin.rs`):**
-    *   Define the `Pumpkin` struct:
-        ```rust
-        use spacetimedb::{table, ReducerContext, Identity, Timestamp, log};
-        use crate::collectible_resources::{validate_player_resource_interaction, collect_resource_and_schedule_respawn, BASE_RESOURCE_RADIUS, PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED};
-        use crate::TILE_SIZE_PX; // If needed for positioning logic, though not directly for basic consumable
+Create a new file following this exact pattern:
 
-        #[table(name = pumpkin, public)]
-        #[derive(Clone, Debug)]
-        pub struct Pumpkin {
-            #[primary_key]
-            #[auto_inc]
-            pub id: u64,
-            pub pos_x: f32,
-            pub pos_y: f32,
-            pub chunk_index: u32,
-            pub respawn_at: Option<Timestamp>,
-        }
+```rust
+/******************************************************************************
+ *                                                                            *
+ * Defines the {resource_name} resource system including spawning,           *
+ * collection, and respawning mechanics. {Resource_Name}s are a material     *
+ * resource that can be picked directly without tools.                       *
+ *                                                                            *
+ ******************************************************************************/
 
-        // Constants
-        pub const PUMPKIN_YIELD_ITEM_NAME: &str = "Pumpkin"; // Name of the item defined in items_database.rs
-        pub const PUMPKIN_YIELD_AMOUNT: u32 = 1;
-        pub const PUMPKIN_RESPAWN_TIME_SECS: u64 = 180; // Example: 3 minutes
-        pub const PUMPKIN_RADIUS: f32 = BASE_RESOURCE_RADIUS; // Or a custom radius
+// SpacetimeDB imports
+use spacetimedb::{Table, ReducerContext, Identity, Timestamp};
+use log;
+use rand::Rng;
+use crate::TILE_SIZE_PX;
 
-        // Spawning density and minimum distance constants (adjust as needed)
-        pub const PUMPKIN_DENSITY_PERCENT: f32 = 0.5;
-        pub const MIN_PUMPKIN_DISTANCE_SQ: f32 = (PUMPKIN_RADIUS * 2.0 + 50.0) * (PUMPKIN_RADIUS * 2.0 + 50.0);
-        pub const MIN_PUMPKIN_TREE_DISTANCE_SQ: f32 = (PUMPKIN_RADIUS + crate::tree::TREE_RADIUS + 50.0) * (PUMPKIN_RADIUS + crate::tree::TREE_RADIUS + 50.0);
-        pub const MIN_PUMPKIN_STONE_DISTANCE_SQ: f32 = (PUMPKIN_RADIUS + crate::stone::STONE_RADIUS + 50.0) * (PUMPKIN_RADIUS + crate::stone::STONE_RADIUS + 50.0);
-        // Add similar constants for other resources if needed (e.g., MIN_PUMPKIN_CORN_DISTANCE_SQ)
-        ```
-4.  **Implement Interaction Reducer (`src/pumpkin.rs`):**
-    *   Create a reducer `interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64)`.
-        ```rust
-        #[spacetimedb::reducer]
-        pub fn interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64) -> Result<(), String> {
-            let sender_id = ctx.sender;
+// Module imports
+use crate::collectible_resources::{
+    validate_player_resource_interaction, 
+    collect_resource_and_schedule_respawn, 
+    BASE_RESOURCE_RADIUS, 
+    PLAYER_RESOURCE_INTERACTION_DISTANCE_SQUARED
+};
 
-            let pumpkin_entity = ctx.db.pumpkin().id().find(pumpkin_id)
-                .ok_or_else(|| format!("Pumpkin with ID {} not found.", pumpkin_id))?;
+#[spacetimedb::table(name = {resource_name}, public)]
+#[derive(Clone, Debug)]
+pub struct {ResourceName} {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub chunk_index: u32,
+    pub respawn_at: Option<Timestamp>,
+}
 
-            validate_player_resource_interaction(ctx, sender_id, pumpkin_entity.pos_x, pumpkin_entity.pos_y)?;
+// --- Constants ---
+pub const {RESOURCE_NAME}_YIELD_ITEM_NAME: &str = "{Item Display Name}";
+pub const {RESOURCE_NAME}_YIELD_AMOUNT_MIN: u32 = 2;
+pub const {RESOURCE_NAME}_YIELD_AMOUNT_MAX: u32 = 4;
+pub const {RESOURCE_NAME}_SECONDARY_ITEM_NAME: &str = "Plant Fiber"; // Optional secondary yield
+pub const {RESOURCE_NAME}_SECONDARY_AMOUNT_MIN: u32 = 1;
+pub const {RESOURCE_NAME}_SECONDARY_AMOUNT_MAX: u32 = 3;
+pub const {RESOURCE_NAME}_SECONDARY_CHANCE: f32 = 0.75; // 75% chance
+pub const {RESOURCE_NAME}_RESPAWN_TIME_SECS: u64 = 900; // 15 minutes
+pub const {RESOURCE_NAME}_RADIUS: f32 = BASE_RESOURCE_RADIUS;
+pub const {RESOURCE_NAME}_DENSITY_PERCENT: f32 = 0.3; // Adjust spawn density
 
-            if pumpkin_entity.respawn_at.is_some() {
-                return Err("Pumpkin is not ready to be harvested.".to_string());
+// Minimum distance constants for spawning
+pub const MIN_{RESOURCE_NAME}_DISTANCE_SQ: f32 = ({RESOURCE_NAME}_RADIUS * 2.0 + 50.0) * ({RESOURCE_NAME}_RADIUS * 2.0 + 50.0);
+pub const MIN_{RESOURCE_NAME}_TREE_DISTANCE_SQ: f32 = ({RESOURCE_NAME}_RADIUS + crate::tree::TREE_RADIUS + 50.0) * ({RESOURCE_NAME}_RADIUS + crate::tree::TREE_RADIUS + 50.0);
+pub const MIN_{RESOURCE_NAME}_STONE_DISTANCE_SQ: f32 = ({RESOURCE_NAME}_RADIUS + crate::stone::STONE_RADIUS + 50.0) * ({RESOURCE_NAME}_RADIUS + crate::stone::STONE_RADIUS + 50.0);
+
+#[spacetimedb::reducer]
+pub fn interact_with_{resource_name}(ctx: &ReducerContext, {resource_name}_id: u64) -> Result<(), String> {
+    let sender_id = ctx.sender;
+
+    // Find the {resource_name} entity
+    let {resource_name}_entity = ctx.db.{resource_name}().id().find({resource_name}_id)
+        .ok_or_else(|| format!("{ResourceName} with ID {} not found.", {resource_name}_id))?;
+
+    // Validate player can interact (distance check, etc.)
+    validate_player_resource_interaction(ctx, sender_id, {resource_name}_entity.pos_x, {resource_name}_entity.pos_y)?;
+
+    // Check if resource is available (not respawning)
+    if {resource_name}_entity.respawn_at.is_some() {
+        return Err("{ResourceName} is not ready to be harvested.".to_string());
+    }
+
+    // Collect primary resource
+    let mut rng = rand::thread_rng();
+    let primary_amount = rng.gen_range({RESOURCE_NAME}_YIELD_AMOUNT_MIN..={RESOURCE_NAME}_YIELD_AMOUNT_MAX);
+    
+    collect_resource_and_schedule_respawn(
+        ctx,
+        sender_id,
+        {resource_name}_id,
+        {RESOURCE_NAME}_YIELD_ITEM_NAME.to_string(),
+        primary_amount,
+        {RESOURCE_NAME}_RESPAWN_TIME_SECS,
+        |db_{resource_name}_table, id_to_update, respawn_timestamp| {
+            if let Some(mut resource) = db_{resource_name}_table.id().find(id_to_update) {
+                resource.respawn_at = Some(respawn_timestamp);
+                db_{resource_name}_table.id().update(resource);
+                Ok(())
+            } else {
+                Err(format!("Failed to find {resource_name} {} to mark for respawn.", id_to_update))
             }
+        },
+        |{resource_name}_table_handle| {resource_name}_table_handle.id()
+    )?;
 
-            collect_resource_and_schedule_respawn(
-                ctx,
-                sender_id,
-                pumpkin_id, // The ID of the pumpkin entity itself
-                PUMPKIN_YIELD_ITEM_NAME.to_string(), // The *name* of the item to give
-                PUMPKIN_YIELD_AMOUNT,
-                PUMPKIN_RESPAWN_TIME_SECS,
-                |db_pumpkin_table, id_to_update, respawn_timestamp| { // Closure to update the pumpkin table
-                    if let Some(mut p) = db_pumpkin_table.id().find(id_to_update) {
-                        p.respawn_at = Some(respawn_timestamp);
-                        db_pumpkin_table.id().update(p);
-                        Ok(())
-                    } else {
-                        Err(format!("Failed to find pumpkin {} to mark for respawn.", id_to_update))
-                    }
-                },
-                |pumpkin_table_handle| pumpkin_table_handle.id() // Provide PK index accessor
-            )?;
-
-            log::info!("Player {} collected pumpkin {}", sender_id, pumpkin_id);
-            Ok(())
+    // Optional: Collect secondary resource with chance
+    if rng.gen::<f32>() < {RESOURCE_NAME}_SECONDARY_CHANCE {
+        let secondary_amount = rng.gen_range({RESOURCE_NAME}_SECONDARY_AMOUNT_MIN..={RESOURCE_NAME}_SECONDARY_AMOUNT_MAX);
+        if let Err(e) = crate::items::add_item_to_player_inventory(ctx, sender_id, {RESOURCE_NAME}_SECONDARY_ITEM_NAME, secondary_amount) {
+            log::warn!("Failed to give secondary item {}: {}", {RESOURCE_NAME}_SECONDARY_ITEM_NAME, e);
+        } else {
+            log::info!("Player {} received {} {} as secondary yield", sender_id, secondary_amount, {RESOURCE_NAME}_SECONDARY_ITEM_NAME);
         }
-        ```
-5.  **Register Module (`src/lib.rs`):**
-    *   Add `mod pumpkin;` to the module declarations.
-    *   Add `use crate::pumpkin::pumpkin as PumpkinTableTrait;` for the table trait import.
-6.  **Update Seeding (`src/environment.rs`):**
-    *   Add `use crate::pumpkin;` and `use crate::pumpkin::pumpkin as PumpkinTableTrait;`.
-    *   In `seed_environment`:
-        *   Get the table accessor: `let pumpkins = ctx.db.pumpkin();`
-        *   Initialize a position vector: `let mut spawned_pumpkin_positions: Vec<(f32, f32)> = Vec::new();`
-        *   Calculate `target_pumpkin_count` using `PUMPKIN_DENSITY_PERCENT`.
-        *   Add a loop calling `attempt_single_spawn`, providing:
-            *   `pumpkins` table accessor.
-            *   `spawned_pumpkin_positions`.
-            *   `PUMPKIN_RADIUS`.
-            *   Pumpkin-specific distance constants (e.g., `MIN_PUMPKIN_DISTANCE_SQ`, `MIN_PUMPKIN_TREE_DISTANCE_SQ`).
-            *   A closure to create a `crate::pumpkin::Pumpkin` instance (with `id: 0`, `pos_x`, `pos_y`, `chunk_index`, `respawn_at: None`).
-        *   Update `count_all_resources` to include `pumpkins.count() as i32`.
-7.  **Update Respawning (`src/environment.rs`):**
-    *   In `check_resource_respawns`, add a call to the `check_and_respawn_resource!` macro:
-        ```rust
-        check_and_respawn_resource!(
-            ctx,
-            pumpkin,                   // Table name (lowercase)
-            crate::pumpkin::Pumpkin,   // Struct type
-            "Pumpkin",                 // Log message name
-            |_p: &crate::pumpkin::Pumpkin| true, // Condition to check if respawn_at is set
-            |p: &mut crate::pumpkin::Pumpkin| { // Closure to reset respawn_at
-                p.respawn_at = None;
-            }
-        );
-        ```
-8.  **Add Consumable Effects (Optional - `src/consumables.rs`):**
-    *   If "Pumpkin" item is directly edible:
-        *   Define constants like `PUMPKIN_HEALTH_GAIN`.
-        *   Update the `consume_item` reducer's `match` statement to handle `"Pumpkin"`.
+    }
+
+    log::info!("Player {} collected {resource_name} {} (primary: {}, secondary chance applied)", sender_id, {resource_name}_id, primary_amount);
+    Ok(())
+}
+```
+
+#### 1.2 Register Module (`server/src/lib.rs`)
+
+Add these two lines in the appropriate sections:
+
+```rust
+// In module declarations section
+mod {resource_name}; // Added for {ResourceName} resource
+
+// In table trait imports section  
+use crate::{resource_name}::{resource_name} as {ResourceName}TableTrait; // Added for {ResourceName} resource
+```
+
+#### 1.3 Update Environment System (`server/src/environment.rs`)
+
+Add import:
+```rust
+use crate::{resource_name};
+use crate::{resource_name}::{resource_name} as {ResourceName}TableTrait;
+```
+
+In `seed_environment` function, add seeding logic (find the pattern from existing resources):
+```rust
+let target_{resource_name}_count = (total_tiles as f32 * crate::{resource_name}::{RESOURCE_NAME}_DENSITY_PERCENT) as u32;
+let max_{resource_name}_attempts = target_{resource_name}_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+let mut spawned_{resource_name}_positions = Vec::<(f32, f32)>::new();
+let mut spawned_{resource_name}_count = 0;
+let mut {resource_name}_attempts = 0;
+
+log::info!("Target {ResourceName}s: {}, Max Attempts: {}", target_{resource_name}_count, max_{resource_name}_attempts);
+
+// Add spawn location validation function if needed (e.g., for reeds: is_reed_location_suitable(ctx, pos_x, pos_y)
+while spawned_{resource_name}_count < target_{resource_name}_count && {resource_name}_attempts < max_{resource_name}_attempts {
+    {resource_name}_attempts += 1;
+    match attempt_single_spawn(
+        &mut rng,
+        &mut occupied_tiles,
+        &mut spawned_{resource_name}_positions,
+        &spawned_tree_positions,
+        &spawned_stone_positions,
+        min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+        ctx.db.{resource_name}(),
+        crate::{resource_name}::{RESOURCE_NAME}_RADIUS,
+        crate::{resource_name}::MIN_{RESOURCE_NAME}_DISTANCE_SQ,
+        crate::{resource_name}::MIN_{RESOURCE_NAME}_TREE_DISTANCE_SQ,
+        crate::{resource_name}::MIN_{RESOURCE_NAME}_STONE_DISTANCE_SQ,
+        noise_threshold, // Adjust as needed
+        |pos_x, pos_y, chunk_index| {
+            // Add custom location validation here if needed
+            // e.g., for reeds: is_reed_location_suitable(ctx, pos_x, pos_y)
+            true
+        },
+        |pos_x, pos_y, chunk_index| crate::{resource_name}::{ResourceName} {
+            id: 0,
+            pos_x,
+            pos_y,
+            chunk_index,
+            respawn_at: None,
+        }
+    ) {
+        Ok(_) => { spawned_{resource_name}_count += 1; }
+        Err(_) => {} // Continue trying
+    }
+}
+
+log::info!("Finished seeding {} {resource_name}s (target: {}, attempts: {}).", 
+    spawned_{resource_name}_count, target_{resource_name}_count, {resource_name}_attempts);
+```
+
+In `check_resource_respawns` function, add respawn logic:
+```rust
+// Respawn {ResourceName}s
+check_and_respawn_resource!(
+    ctx,
+    {resource_name}, // Table symbol
+    crate::{resource_name}::{ResourceName}, // Entity type
+    "{ResourceName}", // Name for logging
+    |_r: &crate::{resource_name}::{ResourceName}| true, // Filter: Always check if respawn_at is set
+    |r: &mut crate::{resource_name}::{ResourceName}| {
+        r.respawn_at = None;
+    }
+);
+```
+
+### Step 2: Generate Client Bindings
+
+**CRITICAL:** Run this command after server changes:
+```bash
+spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server
+```
+
+### Step 3: Client-side Implementation
+
+#### 3.1 Update Resource Types (`client/src/types/resourceTypes.ts`)
+
+Add to imports:
+```typescript
+import { /* existing imports */, {ResourceName} } from '../generated';
+```
+
+Add to union type:
+```typescript
+export type HarvestableResource = /* existing types */ | {ResourceName};
+export type ResourceType = /* existing types */ | '{resource_name}';
+```
+
+Add type guard function:
+```typescript
+export function is{ResourceName}(entity: any): entity is {ResourceName} {
+    return entity && 
+           typeof entity.posX === 'number' &&
+           typeof entity.posY === 'number' &&
+           typeof entity.id !== 'undefined' &&
+           typeof entity.chunkIndex === 'number' &&
+           (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined') &&
+           // Add specific distinguishing properties if needed
+           (entity.__resourceType === '{resource_name}' || 
+            (entity.hasOwnProperty('posX') && !entity.hasOwnProperty('health')));
+}
+```
+
+Update functions:
+```typescript
+export function isHarvestableResource(entity: any): entity is TypedHarvestableResource {
+  return /* existing checks */ || is{ResourceName}(entity);
+}
+
+export function getResourceType(entity: HarvestableResource): ResourceType {
+  // Add to existing checks
+  if (is{ResourceName}(entity)) return '{resource_name}';
+  // ... existing code
+}
+```
+
+#### 3.2 Configure Resource (`client/src/utils/renderers/resourceConfigurations.ts`)
+
+Add image import:
+```typescript
+import {resource_name}ImageSource from '../../assets/doodads/{resource_name}.png';
+```
+
+Add to `RESOURCE_CONFIGS`:
+```typescript
+{resource_name}: {
+  imageSource: {resource_name}ImageSource,
+  targetWidth: 58, // Adjust size as needed
+  shadowConfig: {
+    maxStretchFactor: 2.2,
+    shadowBlur: 10,
+    pivotYOffset: 0.25,
+    opacity: 0.4
+  },
+  interactionLabel: "Press E to Harvest {Resource Display Name}",
+  harvestAmount: { min: 2, max: 4 },
+  fallbackColor: '#228B22'
+  // No animation config - static resource
+},
+```
+
+#### 3.3 Add Renderer (`client/src/utils/renderers/unifiedResourceRenderer.ts`)
+
+Add import:
+```typescript
+import { /* existing imports */, render{ResourceName} } from './unifiedResourceRenderer';
+```
+
+Add render function:
+```typescript
+export function render{ResourceName}(
+  ctx: CanvasRenderingContext2D,
+  {resource_name}: HarvestableResource,
+  nowMs: number,
+  cycleProgress: number,
+  onlyDrawShadow?: boolean,
+  skipDrawingShadow?: boolean
+) {
+  renderHarvestableResourceWithType(ctx, {resource_name}, '{resource_name}', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
+}
+```
+
+#### 3.4 Update Rendering Pipeline (`client/src/utils/renderers/renderingUtils.ts`)
+
+Add import:
+```typescript
+import { /* existing imports */, render{ResourceName} } from './unifiedResourceRenderer';
+```
+
+Add rendering case in first pass:
+```typescript
+} else if (type === '{resource_name}') {
+    render{ResourceName}(ctx, entity as any, nowMs, cycleProgress);
+```
+
+Add to second pass:
+```typescript
+} else if (type === '{resource_name}') {
+    // {ResourceName} is fully rendered in the first pass - no second pass needed
+```
+
+#### 3.5 Update State Management (`client/src/hooks/useSpacetimeTables.ts`)
+
+Add to state interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB.{ResourceName}>;
+```
+
+Add state initialization:
+```typescript
+const [{resource_name}s, set{ResourceName}s] = useState<Map<string, SpacetimeDB.{ResourceName}>>(() => new Map());
+```
+
+Add subscription handlers:
+```typescript
+// --- {ResourceName} Subscriptions ---
+const handle{ResourceName}Insert = (ctx: any, {resource_name}: SpacetimeDB.{ResourceName}) => set{ResourceName}s(prev => new Map(prev).set({resource_name}.id.toString(), {resource_name}));
+const handle{ResourceName}Update = (ctx: any, old{ResourceName}: SpacetimeDB.{ResourceName}, new{ResourceName}: SpacetimeDB.{ResourceName}) => {
+    const changed = old{ResourceName}.posX !== new{ResourceName}.posX ||
+                    old{ResourceName}.posY !== new{ResourceName}.posY ||
+                    old{ResourceName}.respawnAt !== new{ResourceName}.respawnAt;
+    if (changed) {
+        set{ResourceName}s(prev => new Map(prev).set(new{ResourceName}.id.toString(), new{ResourceName}));
+    }
+};
+const handle{ResourceName}Delete = (ctx: any, {resource_name}: SpacetimeDB.{ResourceName}) => set{ResourceName}s(prev => { const newMap = new Map(prev); newMap.delete({resource_name}.id.toString()); return newMap; });
+```
+
+Add to connection event handlers:
+```typescript
+connection.db.{resource_name}.onInsert(handle{ResourceName}Insert); 
+connection.db.{resource_name}.onUpdate(handle{ResourceName}Update); 
+connection.db.{resource_name}.onDelete(handle{ResourceName}Delete);
+```
+
+Add to queries:
+```typescript
+const farmingQueries = [
+    /* existing queries */,
+    `SELECT * FROM {resource_name} WHERE chunk_index = ${chunkIndex}`
+];
+```
+
+Add to return statement:
+```typescript
+{resource_name}s,
+```
+
+#### 3.6 Update Data Flow - App.tsx (`client/src/App.tsx`)
+
+Add to destructuring:
+```typescript
+const { 
+  /* existing destructuring */,
+  {resource_name}s,
+  /* rest of destructuring */
+} = useSpacetimeTables();
+```
+
+Add to GameScreen props:
+```typescript
+{resource_name}s={{resource_name}s}
+```
+
+#### 3.7 Update Data Flow - GameScreen.tsx (`client/src/components/GameScreen.tsx`)
+
+Add to imports:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add to interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB{ResourceName}>;
+```
+
+Add to destructuring:
+```typescript
+{resource_name}s,
+```
+
+Add to GameCanvas props:
+```typescript
+{resource_name}s={{resource_name}s}
+```
+
+#### 3.8 Update Data Flow - GameCanvas.tsx (`client/src/components/GameCanvas.tsx`)
+
+Add to imports:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add to interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB{ResourceName}>;
+```
+
+Add to destructuring:
+```typescript
+{resource_name}s,
+```
+
+Add to useEntityFiltering call:
+```typescript
+{resource_name}s,
+```
+
+Add to useInteractionFinder destructuring:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to useInputHandler call:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to renderInteractionLabels call:
+```typescript
+{resource_name}s: visible{ResourceName}sMap,
+closestInteractable{ResourceName}Id,
+```
+
+#### 3.9 Update Entity Filtering (`client/src/hooks/useEntityFiltering.ts`)
+
+Add to imports:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add to type union:
+```typescript
+| { type: '{resource_name}'; entity: SpacetimeDB{ResourceName} }
+```
+
+Add to imports from type guards:
+```typescript
+is{ResourceName},
+```
+
+Add to props interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB{ResourceName}>,
+```
+
+Add to filtering logic:
+```typescript
+const visible{ResourceName}s = useMemo(() => 
+  {resource_name}s ? Array.from({resource_name}s.values())
+    .filter(e => isEntityInView(e, viewBounds, currentTime) && !e.respawnAt)
+    : []
+, [{resource_name}s, isEntityInView, viewBounds, currentTime]);
+```
+
+Add to Y-sorted entities:
+```typescript
+...visible{ResourceName}s.map(r => ({ type: '{resource_name}' as const, entity: r })),
+```
+
+Add to return interface:
+```typescript
+visible{ResourceName}s: SpacetimeDB{ResourceName}[];
+```
+
+Add to return statement:
+```typescript
+visible{ResourceName}s,
+visible{ResourceName}sMap: new Map(visible{ResourceName}s.map(r => [r.id.toString(), r])),
+```
+
+Add to isEntityInView function:
+```typescript
+} else if (is{ResourceName}(entity)) {
+  x = entity.posX;
+  y = entity.posY;
+  width = 32;
+  height = 76; // Adjust height as needed
+```
+
+Add to getSortY function:
+```typescript
+if (/* existing checks */ || is{ResourceName}(entity) /* other checks */) {
+  // These are ground-level resources
+  sortY = entity.posY;
+  return sortY;
+}
+```
+
+Add to dependencies:
+```typescript
+visible{ResourceName}s,
+```
+
+#### 3.10 Update Type Guards (`client/src/utils/typeGuards.ts`)
+
+Add import:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add type guard function:
+```typescript
+// Type guard for {ResourceName}
+export function is{ResourceName}(entity: any): entity is SpacetimeDB{ResourceName} {
+    const result = entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' && 
+           // Ensure it doesn't match other resource types or entities
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.health === 'undefined' && // Not a Stone (or other entities with health like Player)
+           typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, or SleepingBag
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           typeof entity.chunkIndex === 'number' && 
+           (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
+    
+    return result;
+}
+```
+
+#### 3.11 Update Interaction Finding (`client/src/hooks/useInteractionFinder.ts`)
+
+Add import:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add distance constant:
+```typescript
+const PLAYER_{RESOURCE_NAME}_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+```
+
+Add visual height constant:
+```typescript
+export const {RESOURCE_NAME}_VISUAL_HEIGHT_FOR_INTERACTION = 76;
+```
+
+Add to props interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB{ResourceName}>;
+```
+
+Add to result interface:
+```typescript
+closestInteractable{ResourceName}Id: bigint | null;
+```
+
+Add state:
+```typescript
+const [closestInteractable{ResourceName}Id, setClosestInteractable{ResourceName}Id] = useState<bigint | null>(null);
+```
+
+Add to useMemo variables:
+```typescript
+let closest{ResourceName}Id: bigint | null = null;
+let closest{ResourceName}DistSq = PLAYER_{RESOURCE_NAME}_INTERACTION_DISTANCE_SQUARED;
+```
+
+Add finding logic:
+```typescript
+// Find closest {resource_name}
+if ({resource_name}s) {
+    {resource_name}s.forEach(({resource_name}) => {
+        if ({resource_name}.respawnAt !== null && {resource_name}.respawnAt !== undefined) return;
+        const visualCenterY = {resource_name}.posY - (76 / 2);
+        const dx = playerX - {resource_name}.posX;
+        const dy = playerY - visualCenterY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < closest{ResourceName}DistSq) {
+            closest{ResourceName}DistSq = distSq;
+            closest{ResourceName}Id = {resource_name}.id;
+        }
+    });
+}
+```
+
+Add to return statement:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to useEffect:
+```typescript
+if (interactionResult.closestInteractable{ResourceName}Id !== closestInteractable{ResourceName}Id) {
+    setClosestInteractable{ResourceName}Id(interactionResult.closestInteractable{ResourceName}Id);
+}
+```
+
+Add to final return:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to dependencies:
+```typescript
+{resource_name}s,
+```
+
+#### 3.12 Update Input Handling (`client/src/hooks/useInputHandler.ts`)
+
+Add to props interface:
+```typescript
+closestInteractable{ResourceName}Id: bigint | null;
+```
+
+Add to destructuring:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to refs:
+```typescript
+{resource_name}: null as bigint | null,
+```
+
+Add to useEffect:
+```typescript
+{resource_name}: closestInteractable{ResourceName}Id,
+```
+
+Add to dependencies:
+```typescript
+closestInteractable{ResourceName}Id,
+```
+
+Add to tap action handling:
+```typescript
+const RETAINED_CLOSEST_{RESOURCE_NAME}_ID = closestIdsRef.current.{resource_name};
+
+// In the interaction logic:
+} else if (RETAINED_CLOSEST_{RESOURCE_NAME}_ID !== null) {
+    console.log('[E-Tap ACTION] Harvesting {resource_name}:', RETAINED_CLOSEST_{RESOURCE_NAME}_ID);
+    connectionRef.current.reducers.interactWith{ResourceName}(RETAINED_CLOSEST_{RESOURCE_NAME}_ID);
+    tapActionTaken = true;
+```
+
+#### 3.13 Update Interaction Labels (`client/src/utils/renderers/labelRenderingUtils.ts`)
+
+Add import:
+```typescript
+{ResourceName} as SpacetimeDB{ResourceName},
+```
+
+Add visual height import:
+```typescript
+{RESOURCE_NAME}_VISUAL_HEIGHT_FOR_INTERACTION,
+```
+
+Add to interface:
+```typescript
+{resource_name}s: Map<string, SpacetimeDB{ResourceName}>;
+closestInteractable{ResourceName}Id: bigint | null;
+```
+
+Add to destructuring:
+```typescript
+{resource_name}s,
+closestInteractable{ResourceName}Id,
+```
+
+Add label rendering:
+```typescript
+// {ResourceName} Label
+if (closestInteractable{ResourceName}Id !== null) {
+    const {resource_name} = {resource_name}s.get(closestInteractable{ResourceName}Id.toString());
+    if ({resource_name}) {
+        const text = getResourceInteractionLabel('{resource_name}');
+        const visualCenterY = {resource_name}.posY - ({RESOURCE_NAME}_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+        const textX = {resource_name}.posX;
+        const textY = visualCenterY - 30; // Offset above visual center
+        ctx.strokeText(text, textX, textY);
+        ctx.fillText(text, textX, textY);
+    }
+}
+```
 
 ---
-**IMPORTANT SERVER-SIDE STEP BEFORE CLIENT CHANGES:**
 
-9.  **Generate TypeScript Bindings:**
-    *   After all server-side changes are complete and the server compiles, run the following command in your project's root directory:
-        ```bash
-        spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server
-        ```
-    *   This updates the `client/src/generated` folder with new types (like `Pumpkin`) and reducer functions (like `interactWithPumpkin`) that the client will use. **Failure to do this will result in TypeScript errors on the client-side.**
+## Testing Checklist
 
----
+After implementation, verify:
 
-### Client (`client/`)
-
-1.  **Add Assets:**
-    *   Place the resource doodad image (e.g., `pumpkin_doodad.png`) in `client/src/assets/doodads/`.
-    *   Place the item icon image (e.g., `pumpkin_item.png`) in `client/src/assets/items/`. *(Note: the `icon_asset_name` in `items_database.rs` should match this filename, e.g., "pumpkin.png")*.
-
-2.  **Configure Resource in Unified System (`client/src/utils/renderers/resourceConfigurations.ts`):**
-    *   Import the doodad image:
-        ```typescript
-        import pumpkinImageSource from '../../assets/doodads/pumpkin_doodad.png';
-        ```
-    *   Add the resource type to the `ResourceType` union in `client/src/types/resourceTypes.ts`:
-        ```typescript
-        export type ResourceType = 'corn' | 'hemp' | 'mushroom' | 'pumpkin' | 'your_new_resource';
-        ```
-    *   Add configuration to `RESOURCE_CONFIGS`:
-        ```typescript
-        your_new_resource: {
-          imageSource: pumpkinImageSource,
-          targetWidth: 64,
-          shadowConfig: {
-            maxStretchFactor: 1.6,
-            shadowBlur: 12,
-            pivotYOffset: 0.18,
-            opacity: 0.45
-          },
-          interactionLabel: "Press E to Harvest Pumpkin",
-          harvestAmount: { min: 1, max: 1 },
-          fallbackColor: '#FF8C00'
-          // No animation config - resources are static by default
-        }
-        ```
-
-3.  **Update Type System (`client/src/types/resourceTypes.ts`):**
-    *   Add type guard function:
-        ```typescript
-        export function isPumpkin(entity: any): entity is SpacetimeDBPumpkin {
-          if (entity && entity.__resourceType === 'pumpkin') {
-            return true;
-          }
-          // Fallback to property checking
-          return entity &&
-                 typeof entity.posX === 'number' &&
-                 typeof entity.posY === 'number' &&
-                 typeof entity.id !== 'undefined' &&
-                 typeof entity.chunkIndex === 'number' &&
-                 (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
-        }
-        ```
-    *   Add to `addResourceTypeMarker` function:
-        ```typescript
-        export function addResourceTypeMarker<T extends HarvestableResource>(
-          entity: T, 
-          type: ResourceType
-        ): TypedHarvestableResource {
-          return { ...entity, __resourceType: type };
-        }
-        ```
-
-4.  **Update Unified Resource Renderer (`client/src/utils/renderers/unifiedResourceRenderer.ts`):**
-    *   Add specific render function:
-        ```typescript
-        export function renderPumpkin(
-          ctx: CanvasRenderingContext2D,
-          entity: SpacetimeDBPumpkin,
-          nowMs: number,
-          cycleProgress: number,
-          onlyDrawShadow: boolean = false,
-          skipShadow: boolean = false
-        ) {
-          const typedEntity = addResourceTypeMarker(entity, 'pumpkin');
-          return renderHarvestableResource(ctx, typedEntity, nowMs, cycleProgress, onlyDrawShadow, skipShadow);
-        }
-        ```
-
-5.  **Update Main Rendering (`client/src/utils/renderers/renderingUtils.ts`):**
-    *   Import the new render function:
-        ```typescript
-        import { renderCorn, renderHemp, renderMushroom, renderPumpkin, renderYourNewResource } from './unifiedResourceRenderer';
-        ```
-    *   Add rendering case in the entity loop:
-        ```typescript
-        } else if (type === 'your_new_resource') {
-            renderYourNewResource(ctx, entity as SpacetimeDBYourNewResource, nowMs, cycleProgress, onlyDrawShadow, skipShadow);
-        ```
-
-6.  **Update State Management (`client/src/hooks/useSpacetimeTables.ts`):**
-    *   Import `YourNewResource` from `../generated`.
-    *   Add to state interface and initialization.
-    *   Add table callbacks for insert/update/delete.
-    *   Add to subscription queries if using chunk-based subscriptions.
-
-7.  **Update Component Props Flow:**
-    *   **`App.tsx`:** Add `yourNewResources` to destructuring and pass to `<GameScreen />`.
-    *   **`GameScreen.tsx`:** Add to props interface, destructure, and pass to `<GameCanvas />`.
-    *   **`GameCanvas.tsx`:** Add to props interface and pass to `useEntityFiltering` and `useInteractionFinder`.
-
-8.  **Update Entity Filtering (`client/src/hooks/useEntityFiltering.ts`):**
-    *   Add to props interface and filtering logic.
-    *   Add `__resourceType` marker when creating visible entities.
-
-9.  **Update Interaction System:**
-    *   **`useInteractionFinder.ts`:** Add interaction distance checking and closest entity finding.
-    *   **`labelRenderingUtils.ts`:** Add label rendering for the new resource.
-    *   **`useInputHandler.ts`:** Add interaction handling for 'e' key press.
-
-10. **Update Item Icons (`client/src/utils/itemIconUtils.ts`):**
-    *   Import the item icon and add to the `iconMap`.
+- [ ] **Server Builds:** `spacetime build --project-path ./server` succeeds
+- [ ] **Client Bindings Generated:** Run `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
+- [ ] **Resources Spawn:** Resources appear on the map after world generation
+- [ ] **Visual Rendering:** Resources display correctly with proper shadows
+- [ ] **Interaction Detection:** "Press E to Harvest" label appears when close
+- [ ] **Harvesting Works:** E key successfully harvests and gives items
+- [ ] **Respawning Works:** Resources reappear after the respawn timer
+- [ ] **No Console Errors:** Check browser console for any TypeScript or rendering errors
 
 ---
 
-## Key Advantages of the New System
+## Common Issues & Solutions
 
-### Simplified Resource Addition
-The unified resource rendering system provides several major advantages:
+### TypeScript Errors
+- **"Property '{resource_name}' does not exist"** → Run `spacetime generate` after server changes
+- **"Type 'string' is not assignable to ResourceType"** → Add `as const` to type assignments
+- **"Cannot find name 'visible{ResourceName}sMap'"** → Check entity filtering return statement
 
-1. **No Individual Rendering Files:** No need to create separate `pumpkinRenderingUtils.ts` files.
-2. **Configuration-Based:** All visual properties are defined in a single configuration object.
-3. **Consistent Behavior:** All resources automatically get the same shadow system, interaction handling, and rendering pipeline.
-4. **Easy Customization:** Adjust size, shadows, animations, and interaction labels through simple configuration.
-5. **Automatic Integration:** Once configured, resources automatically work with the Y-sorted rendering system.
+### Rendering Issues  
+- **Resource not visible** → Check seeding logic in environment.rs
+- **Interaction not working** → Verify all input handling steps completed
+- **Labels not showing** → Check that resource is added to labelRenderingUtils.ts
 
-### What You No Longer Need to Do
-- ❌ Create individual rendering utility files
-- ❌ Manually implement shadow rendering for each resource
-- ❌ Handle image preloading separately for each resource
-- ❌ Implement custom animation systems per resource
-- ❌ Manually integrate with the main rendering loop
-
-### What the System Handles Automatically
-- ✅ Image preloading and caching
-- ✅ Consistent shadow rendering with day/night cycle
-- ✅ Y-sorted rendering integration
-- ✅ Fallback rendering if images fail to load
-- ✅ Consistent interaction label positioning
-- ✅ Performance optimizations (cached configurations, efficient rendering)
+### Performance
+- **Frame drops** → Ensure second pass rendering is handled correctly in renderingUtils.ts
+- **Memory leaks** → Verify state cleanup in useSpacetimeTables.ts
 
 ---
 
-## Adding a Gatherable Node (e.g., Metal Ore)
-
-This resource type has health, is harvested with tools, yields resources over time, disappears when depleted, and respawns (similar to Trees and Stones).
-
-### Server (`server/`)
-
-1.  **Define Item(s):**
-    *   In `src/items.rs::seed_items`, add the "Metal Ore" item definition.
-    *   If specific tools are required (e.g., "Iron Pickaxe"), ensure they are also defined.
-2.  **Create Module:**
-    *   Create a new file: `src/metal_node.rs`.
-3.  **Define Entity Struct (`src/metal_node.rs`):**
-    *   Define the `MetalNode` struct with `#[spacetimedb::table(name = metal_node, public)]`.
-    *   Include fields: `#[primary_key] #[auto_inc] id: u64`, `pos_x: f32`, `pos_y: f32`, `health: u32`, `last_hit_time: Option<Timestamp>`, `respawn_at: Option<Timestamp>`.
-4.  **Add Constants (`src/metal_node.rs`):**
-    *   Define constants for spawning: `METAL_NODE_DENSITY_PERCENT`, `MIN_METAL_NODE_DISTANCE_SQ`, `MIN_METAL_NODE_TREE_DISTANCE_SQ`, `MIN_METAL_NODE_STONE_DISTANCE_SQ`, etc.
-    *   Define interaction constants: `METAL_NODE_INITIAL_HEALTH`, `METAL_NODE_RADIUS` (for collision), `METAL_NODE_COLLISION_Y_OFFSET`, `PLAYER_METAL_NODE_COLLISION_DISTANCE_SQUARED`.
-5.  **Register Module (`src/lib.rs`):**
-    *   Add `mod metal_node;` to the module declarations.
-    *   Add `use crate::metal_node::metal_node as MetalNodeTableTrait;` to table trait imports.
-6.  **Update Seeding (`src/environment.rs`):**
-    *   In `seed_environment`, add a new loop similar to the stone loop:
-        *   Calculate `target_metal_node_count` and `max_metal_node_attempts`.
-        *   Call `attempt_single_spawn`, passing:
-            *   `metal_node` table accessor.
-            *   `spawned_metal_node_positions` vector.
-            *   Metal Node-specific constants for distances.
-            *   A closure to create a `crate::metal_node::MetalNode` instance with `METAL_NODE_INITIAL_HEALTH`.
-7.  **Update Respawning (`src/environment.rs`):**
-    *   In `check_resource_respawns`, add a call to `check_and_respawn_resource!` for `metal_node`, mirroring the logic for `stone` and `tree` (checking `health == 0` and resetting health, `respawn_at`, `last_hit_time`).
-8.  **Update Harvesting (`src/active_equipment.rs`):**
-    *   In `use_equipped_item`:
-        *   Add `let metal_nodes = ctx.db.metal_node();`
-        *   Add logic to find the closest `MetalNode` target within the attack cone, similar to trees and stones. Store in `closest_metal_node_target`.
-        *   Update the damage application logic:
-            *   Check the equipped item (`item_def.name`). If it's the correct tool (e.g., "Stone Pickaxe", "Iron Pickaxe"), proceed.
-            *   Prioritize hitting the Metal Node based on tool type (e.g., Pickaxe hits Stone > Metal Node > Player).
-            *   If a Metal Node is the target:
-                *   Find the `MetalNode` instance.
-                *   Decrease its `health` based on tool damage.
-                *   Set its `last_hit_time` to `Some(now_ts)`.
-                *   Find the "Metal Ore" `ItemDefinition`.
-                *   Call `crate::items::add_item_to_player_inventory` to grant the ore (amount based on damage or fixed).
-                *   If `health` reaches 0, calculate `respawn_time` and set `respawn_at`. Log depletion.
-                *   Update the `metal_node` table.
-9.  **Update Collision (`src/lib.rs`):**
-    *   In `register_player`'s spawn point finding loop, add a check for collision against `metal_nodes` using `METAL_NODE_COLLISION_Y_OFFSET` and `PLAYER_METAL_NODE_COLLISION_DISTANCE_SQUARED`.
-    *   In `place_campfire`'s validation logic, add a check against `metal_nodes` using a combined radius check (`METAL_NODE_RADIUS + CAMPFIRE_COLLISION_RADIUS`).
-    *   In `update_player_position`'s sliding collision checks and iterative resolution loops, add checks for `metal_nodes`, using `METAL_NODE_COLLISION_Y_OFFSET` and `PLAYER_METAL_NODE_COLLISION_DISTANCE_SQUARED` for sliding, and `METAL_NODE_RADIUS` for push-out resolution.
-
-### Client (`client/`)
-
-1.  **Add Asset:** Place the `metal_node.png` (or similar) in `client/src/assets/doodads/`.
-2.  **Configure in Unified System:** Add configuration to `resourceConfigurations.ts` (similar to consumable resources).
-3.  **Update State Management:** Add to `useSpacetimeTables.ts`, component prop flow, and entity filtering.
-4.  **Update Icons (`src/utils/itemIconUtils.ts`):** Add an entry for `"metal_ore"` if needed (and any new tools).
-5.  **Interaction:** No specific client interaction change is needed for harvesting, as it's handled by the server's `use_equipped_item` reducer when the player clicks/uses their tool.
-
----
-
-Remember to run `spacetime publish ...` and `spacetime generate --lang typescript ...` after making server-side schema or reducer changes.
-
-## Troubleshooting
-
-1.  **TypeScript Errors (Client-Side):**
-    *   `Property '<new_entity_name>' does not exist on type 'RemoteReducers'.` OR `Module '"../generated"' has no exported member '<NewEntityType>'.`
-        *   **Solution:** You likely forgot to run `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server` **after** making server-side changes to tables or reducers. Run this command and restart your client development server.
-    *   `Type 'string' is not assignable to type '"mushroom" | "pumpkin" | ...'`
-        *   **Solution:** When adding the `__resourceType` marker in `useEntityFiltering.ts` (or similar places), use `as const`:
-            ```typescript
-            .map(pumpkin => ({...pumpkin, __resourceType: 'pumpkin' as const}))
-            ```
-2.  **Resource Configuration Issues:**
-    *   **Resource Not Rendering Correctly:**
-        *   Check that the resource type is added to the `ResourceType` union in `resourceTypes.ts`.
-        *   Verify the configuration in `RESOURCE_CONFIGS` has all required properties.
-        *   Ensure the image import path is correct in `resourceConfigurations.ts`.
-    *   **All Resources Look the Same:**
-        *   This usually means the type detection is failing. Check that `addResourceTypeMarker` is being called correctly in `useEntityFiltering.ts`.
-        *   Verify that the specific render function (e.g., `renderPumpkin`) is being called in `renderingUtils.ts`.
-3.  **Image Loading/Rendering Issues:**
-    *   **Resource Not Appearing:**
-        *   Check server logs for seeding errors.
-        *   Verify `environment.rs` correctly calls `attempt_single_spawn` for the new resource.
-        *   Ensure the unified resource renderer is being called in the main rendering loop.
-    *   **Image Not Displayed (Broken Image or Invisible):**
-        *   Verify the image path in `resourceConfigurations.ts` import statement is correct.
-        *   Check the browser console for image loading errors.
-        *   Confirm the image asset exists in the specified path in `client/src/assets/doodads/`.
-    *   **Item Icon Not Displayed:**
-        *   Verify the `icon_asset_name` in `server/src/items_database.rs` matches the filename in `client/src/assets/items/`.
-        *   Ensure you've added the mapping in `client/src/utils/itemIconUtils.ts`.
-4.  **Interaction Issues:**
-    *   **"Press E" Label Not Showing:**
-        *   Check `useInteractionFinder.ts`: Is the closest interactable ID being set correctly?
-        *   Check `labelRenderingUtils.ts`: Is it receiving the correct data and using the right interaction label from the configuration?
-    *   **Interaction Reducer Not Called / Error on Call:**
-        *   Verify the reducer name in `useInputHandler.ts` exactly matches the function name generated in `client/src/generated/index.ts`.
-        *   Ensure the arguments passed to the reducer (especially IDs) are of the correct type (e.g., `BigInt` for `u64`).
-5.  **Data Not Flowing to Components:**
-    *   **ReferenceError: resource is not defined:**
-        *   This is a prop drilling issue. Systematically check the data flow:
-            1.  `useSpacetimeTables.ts`: Is it fetching, storing, and returning the resource map?
-            2.  `App.tsx`: Is it destructuring and passing the resource to `<GameScreen />`?
-            3.  `GameScreen.tsx`: Is it receiving and passing the resource to `<GameCanvas />`?
-            4.  `GameCanvas.tsx`: Is it receiving and passing the resource to the relevant hooks?
-
-By following these updated steps with the unified resource system, adding new resources becomes much more streamlined and less error-prone. The configuration-based approach ensures consistency while reducing boilerplate code significantly.
+This streamlined guide reduces resource addition time from hours to under 30 minutes by providing exact patterns and file locations. Each step has been tested with the Common Reed Stalk implementation.
 
 

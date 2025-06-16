@@ -1,0 +1,143 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# SpacetimeDB Development Workflow
+
+Essential commands and patterns for developing with SpacetimeDB in this 2D multiplayer survival game.
+
+## Core Development Commands
+
+### Server Development
+```bash
+# Build server (run from project root)
+spacetime build --project-path ./server
+
+# Publish to local database  
+spacetime publish --project-path ./server my-database
+
+# View server logs
+spacetime logs my-database
+
+# SQL query the database
+spacetime sql my-database "SELECT * FROM player LIMIT 5"
+
+# Clear database and republish (destructive!)
+spacetime publish -c --project-path ./server my-database
+```
+
+### Client Development
+```bash
+# Generate TypeScript bindings (CRITICAL after server changes)
+spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server
+
+# Start client development server
+npm run dev
+```
+
+## Essential Workflow Pattern
+
+### 1. Making Server Changes
+1. Edit server Rust files in `server/src/`
+2. Test build: `spacetime build --project-path ./server`
+3. Publish: `spacetime publish --project-path ./server my-database`
+4. **Generate client bindings**: `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
+
+### 2. Making Client Changes  
+1. Update client TypeScript files in `client/src/`
+2. Restart dev server if needed: `npm run dev`
+
+### 3. Testing Full Stack
+1. Server logs: `spacetime logs my-database`
+2. Browser console for client errors
+3. Database inspection: `spacetime sql my-database "SELECT * FROM {table}"`
+
+## Key Files & Patterns
+
+### Server-side Key Files
+- **[server/src/lib.rs](mdc:server/src/lib.rs)** - Module declarations and table trait imports
+- **[server/src/environment.rs](mdc:server/src/environment.rs)** - World generation and resource seeding
+- **[server/src/items_database.rs](mdc:server/src/items_database.rs)** - Item definitions
+
+### Client-side Key Files  
+- **[client/src/generated/](mdc:client/src/generated)** - Auto-generated SpacetimeDB bindings
+- **[client/src/hooks/useSpacetimeTables.ts](mdc:client/src/hooks/useSpacetimeTables.ts)** - Data subscriptions and state
+- **[client/src/App.tsx](mdc:client/src/App.tsx)** - Main data flow coordination
+
+## Common Errors & Solutions
+
+### "Property 'X' does not exist on RemoteReducers"
+**Cause:** Client bindings are outdated  
+**Solution:** Run `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
+
+### "Module has no exported member 'SomeType'"  
+**Cause:** Server table/type not published or bindings outdated  
+**Solution:** Ensure server builds and publishes, then regenerate bindings
+
+### "could not find 'X' in the crate root"
+**Cause:** Missing module declaration in server/src/lib.rs  
+**Solution:** Add `mod X;` and appropriate `use` statements
+
+### Client TypeScript Errors After Server Changes
+**Always run this sequence:**
+1. `spacetime build --project-path ./server`
+2. `spacetime publish --project-path ./server my-database` 
+3. `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
+4. Restart client dev server
+
+## Database Management
+
+### Viewing Data
+```bash
+# List all tables
+spacetime sql my-database "SHOW TABLES"
+
+# View specific table structure  
+spacetime sql my-database "DESCRIBE player"
+
+# Query with conditions
+spacetime sql my-database "SELECT * FROM mushroom WHERE respawn_at IS NOT NULL"
+```
+
+### Performance Monitoring
+```bash
+# View connection info
+spacetime list
+
+# Monitor logs in real-time
+spacetime logs -f my-database
+```
+
+## Development Tips
+
+### Reducer Testing
+- Check server logs for reducer errors: `spacetime logs my-database`
+- Use `log::info!()` in Rust reducers for debugging
+- Test reducer calls in browser dev console
+
+### State Management
+- Client state is automatically synced via subscriptions
+- Use `useState` + `useEffect` pattern for local client state
+- SpacetimeDB handles client-server synchronization
+
+### Performance
+- Chunk-based subscriptions reduce data transfer
+- Use `useMemo` for expensive client-side calculations  
+- Entity filtering happens client-side for smooth rendering
+
+## Quick Reference
+
+### New Resource Checklist
+See [resources.mdc](mdc:.cursor/rules/resources.mdc) for complete guide.
+
+### Data Flow Pattern
+Server Table → SpacetimeDB → Generated Bindings → useSpacetimeTables → App.tsx → Components
+
+### When to Regenerate Bindings
+- ✅ After adding/modifying tables
+- ✅ After adding/modifying reducers  
+- ✅ After changing table field types
+- ❌ Only changing reducer implementation (same signature)
+- ❌ Only changing client-side code
+

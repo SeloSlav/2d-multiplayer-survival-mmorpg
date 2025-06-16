@@ -1,0 +1,331 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Client-Side Data Flow Patterns
+
+This guide explains the data flow architecture used in the client-side React application for the 2D multiplayer survival game.
+
+## Data Flow Overview
+
+```
+SpacetimeDB Server
+        ↓
+Generated Bindings (client/src/generated/)
+        ↓  
+useSpacetimeTables Hook (subscriptions & state)
+        ↓
+App.tsx (main coordinator)
+        ↓
+GameScreen.tsx (game-specific data)
+        ↓
+GameCanvas.tsx (rendering coordination)
+        ↓
+Specialized Hooks (useEntityFiltering, useInteractionFinder, etc.)
+```
+
+## Key Data Flow Files
+
+### 1. SpacetimeDB Subscriptions - [useSpacetimeTables.ts](mdc:client/src/hooks/useSpacetimeTables.ts)
+
+**Purpose:** Central data subscription and state management for all SpacetimeDB tables.
+
+**Pattern for new entities:**
+```typescript
+// State declaration
+const [entityName, setEntityName] = useState<Map<string, SpacetimeDB.EntityType>>(() => new Map());
+
+// Subscription handlers
+const handleEntityInsert = (ctx: any, entity: SpacetimeDB.EntityType) => 
+  setEntityName(prev => new Map(prev).set(entity.id.toString(), entity));
+
+const handleEntityUpdate = (ctx: any, oldEntity: SpacetimeDB.EntityType, newEntity: SpacetimeDB.EntityType) => {
+  // Only update if relevant fields changed
+  const changed = oldEntity.posX !== newEntity.posX || /* other fields */;
+  if (changed) {
+    setEntityName(prev => new Map(prev).set(newEntity.id.toString(), newEntity));
+  }
+};
+
+const handleEntityDelete = (ctx: any, entity: SpacetimeDB.EntityType) => 
+  setEntityName(prev => { const newMap = new Map(prev); newMap.delete(entity.id.toString()); return newMap; });
+
+// Event registration
+connection.db.entityName.onInsert(handleEntityInsert);
+connection.db.entityName.onUpdate(handleEntityUpdate); 
+connection.db.entityName.onDelete(handleEntityDelete);
+
+// Return in hook
+return { entityName, /* ... */ };
+```
+
+### 2. Main Coordinator - [App.tsx](mdc:client/src/App.tsx)
+
+**Purpose:** Orchestrates all data subscriptions and passes down to main game component.
+
+**Pattern for new entities:**
+```typescript
+const {
+  // Destructure all entities from useSpacetimeTables
+  entityName,
+  // ... other entities
+} = useSpacetimeTables();
+
+// Pass to GameScreen
+<GameScreen
+  entityName={entityName}
+  // ... other props
+/>
+```
+
+### 3. Game Coordinator - [GameScreen.tsx](mdc:client/src/components/GameScreen.tsx)
+
+**Purpose:** Receives all game data and passes to GameCanvas for rendering.
+
+**Pattern for new entities:**
+```typescript
+interface GameScreenProps {
+  entityName: Map<string, SpacetimeDBEntityType>;
+  // ... other props
+}
+
+const GameScreen: React.FC<GameScreenProps> = ({
+  entityName,
+  // ... other props
+}) => {
+  return (
+    <GameCanvas
+      entityName={entityName}
+      // ... other props
+    />
+  );
+};
+```
+
+### 4. Rendering Coordinator - [GameCanvas.tsx](mdc:client/src/components/GameCanvas.tsx)
+
+**Purpose:** Coordinates rendering, interactions, and specialized processing hooks.
+
+**Pattern for new entities:**
+```typescript
+interface GameCanvasProps {
+  entityName: Map<string, SpacetimeDBEntityType>;
+  // ... other props  
+}
+
+const GameCanvas: React.FC<GameCanvasProps> = ({
+  entityName,
+  // ... other props
+}) => {
+  // Pass to entity filtering
+  const { visibleEntityNames } = useEntityFiltering(
+    // ... other entities,
+    entityName,
+    // ... other parameters
+  );
+
+  // Pass to interaction finding
+  const { closestInteractableEntityId } = useInteractionFinder({
+    // ... other entities,
+    entityName,
+    // ... other parameters
+  });
+
+  // Pass to input handling
+  useInputHandler({
+    // ... other parameters,
+    closestInteractableEntityId,
+    // ... other parameters
+  });
+};
+```
+
+## Specialized Hook Patterns
+
+### Entity Filtering - [useEntityFiltering.ts](mdc:client/src/hooks/useEntityFiltering.ts)
+
+**Purpose:** Filters entities for viewport culling and Y-sorting.
+
+**Pattern for new entities:**
+```typescript
+// Props interface
+interface UseEntityFilteringProps {
+  entityName: Map<string, SpacetimeDBEntityType>;
+  // ... other props
+}
+
+// Filtering logic
+const visibleEntityNames = useMemo(() => 
+  entityName ? Array.from(entityName.values())
+    .filter(e => isEntityInView(e, viewBounds, currentTime) && !e.respawnAt)
+    : []
+, [entityName, isEntityInView, viewBounds, currentTime]);
+
+// Y-sorted entities
+const ySortedEntities = useMemo(() => [
+  // ... other entities
+  ...visibleEntityNames.map(e => ({ type: 'entityName' as const, entity: e })),
+], [/* dependencies */]);
+
+// Return processed entities
+return {
+  visibleEntityNames,
+  visibleEntityNamesMap: new Map(visibleEntityNames.map(e => [e.id.toString(), e])),
+  // ... other returns
+};
+```
+
+### Interaction Finding - [useInteractionFinder.ts](mdc:client/src/hooks/useInteractionFinder.ts)
+
+**Purpose:** Finds closest interactable entities for player interaction.
+
+**Pattern for new entities:**
+```typescript
+// Props interface 
+interface UseInteractionFinderProps {
+  entityName: Map<string, SpacetimeDBEntityType>;
+  // ... other props
+}
+
+// State for closest entity
+const [closestInteractableEntityId, setClosestInteractableEntityId] = useState<bigint | null>(null);
+
+// Finding logic in useMemo
+const interactionResult = useMemo(() => {
+  let closestEntityId: bigint | null = null;
+  let closestEntityDistSq = PLAYER_ENTITY_INTERACTION_DISTANCE_SQUARED;
+
+  if (entityName) {
+    entityName.forEach((entity) => {
+      if (entity.respawnAt !== null && entity.respawnAt !== undefined) return;
+      const dx = playerX - entity.posX;
+      const dy = playerY - entity.posY;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < closestEntityDistSq) {
+        closestEntityDistSq = distSq;
+        closestEntityId = entity.id;
+      }
+    });
+  }
+
+  return { closestInteractableEntityId: closestEntityId };
+}, [localPlayer, entityName, /* other deps */]);
+
+// Return closest ID
+return { closestInteractableEntityId };
+```
+
+### Input Handling - [useInputHandler.ts](mdc:client/src/hooks/useInputHandler.ts)
+
+**Purpose:** Handles player input and triggers appropriate reducers.
+
+**Pattern for new entities:**
+```typescript
+// Props interface
+interface InputHandlerProps {
+  closestInteractableEntityId: bigint | null;
+  // ... other props
+}
+
+// Ref for tracking closest entities
+const closestIdsRef = useRef({
+  entity: null as bigint | null,
+  // ... other entities
+});
+
+// Update ref when closest entities change
+useEffect(() => {
+  closestIdsRef.current = {
+    entity: closestInteractableEntityId,
+    // ... other entities
+  };
+}, [closestInteractableEntityId, /* other deps */]);
+
+// Handle E key tap interactions
+if (RETAINED_CLOSEST_ENTITY_ID !== null) {
+  console.log('[E-Tap ACTION] Interacting with entity:', RETAINED_CLOSEST_ENTITY_ID);
+  connectionRef.current.reducers.interactWithEntity(RETAINED_CLOSEST_ENTITY_ID);
+  tapActionTaken = true;
+}
+```
+
+## State Management Best Practices
+
+### 1. Map-Based Storage
+- Store entities as `Map<string, EntityType>` with string ID keys
+- Enables O(1) lookups and efficient updates
+- Use `.toString()` on bigint IDs for consistent keys
+
+### 2. Optimistic Updates
+- SpacetimeDB handles optimistic updates automatically
+- Client state reflects server state changes immediately
+- No need for manual optimistic update logic
+
+### 3. Subscription Patterns
+- Subscribe to whole tables for simple entities
+- Use chunk-based subscriptions for spatial entities (resources, players)
+- Only update state when relevant fields change (performance optimization)
+
+### 4. Memory Management
+- Maps are automatically cleaned up when components unmount
+- Use `useState(() => new Map())` for initial state to avoid recreation
+- Subscription handlers create new Map instances to trigger React re-renders
+
+## Performance Optimization
+
+### 1. Memoization
+```typescript
+// Memoize expensive calculations
+const processedData = useMemo(() => {
+  return expensiveCalculation(rawData);
+}, [rawData]);
+
+// Memoize filtered arrays
+const visibleEntities = useMemo(() => 
+  entities.filter(isEntityVisible), 
+  [entities, viewBounds]
+);
+```
+
+### 2. Efficient Updates
+```typescript
+// Only update when necessary
+const handleEntityUpdate = (ctx: any, oldEntity: EntityType, newEntity: EntityType) => {
+  const hasRelevantChanges = oldEntity.posX !== newEntity.posX || 
+                            oldEntity.posY !== newEntity.posY ||
+                            oldEntity.health !== newEntity.health;
+  
+  if (hasRelevantChanges) {
+    setEntities(prev => new Map(prev).set(newEntity.id.toString(), newEntity));
+  }
+};
+```
+
+### 3. Viewport Culling
+```typescript
+// Filter entities based on viewport
+const visibleEntities = useMemo(() => 
+  allEntities.filter(entity => isEntityInView(entity, viewBounds)),
+  [allEntities, viewBounds]
+);
+```
+
+## Common Patterns
+
+### Adding New Entity Type
+1. Add to `useSpacetimeTables.ts` (subscription + state)
+2. Add to `App.tsx` (destructure + pass down)
+3. Add to `GameScreen.tsx` (interface + pass down) 
+4. Add to `GameCanvas.tsx` (interface + pass to hooks)
+5. Add to relevant hooks (`useEntityFiltering`, `useInteractionFinder`, etc.)
+
+### Debugging Data Flow
+1. Check SpacetimeDB connection: `connection.isConnected`
+2. Check subscription state: Log entity maps in `useSpacetimeTables`
+3. Check data propagation: Log props in each component
+4. Check filtering: Log visible entities in `useEntityFiltering`
+5. Check interactions: Log closest entities in `useInteractionFinder`
+
+This architecture ensures clean separation of concerns, efficient performance, and maintainable code as the game grows in complexity.
+
