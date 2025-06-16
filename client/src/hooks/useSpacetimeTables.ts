@@ -121,7 +121,8 @@ export interface SpacetimeTableStates {
     worldTiles: Map<string, SpacetimeDB.WorldTile>;
     minimapCache: SpacetimeDB.MinimapCache | null;
     playerDodgeRollStates: Map<string, SpacetimeDB.PlayerDodgeRollState>;
-}
+    fishingSessions: Map<string, SpacetimeDB.FishingSession>;
+}   
 
 // Define the props the hook accepts
 interface UseSpacetimeTablesProps {
@@ -175,6 +176,7 @@ export const useSpacetimeTables = ({
     const [worldTiles, setWorldTiles] = useState<Map<string, SpacetimeDB.WorldTile>>(() => new Map());
     const [minimapCache, setMinimapCache] = useState<SpacetimeDB.MinimapCache | null>(null);
     const [playerDodgeRollStates, setPlayerDodgeRollStates] = useState<Map<string, SpacetimeDB.PlayerDodgeRollState>>(() => new Map());
+    const [fishingSessions, setFishingSessions] = useState<Map<string, SpacetimeDB.FishingSession>>(() => new Map());
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -970,6 +972,20 @@ export const useSpacetimeTables = ({
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
 
+            // --- FishingSession Subscriptions ---
+            const handleFishingSessionInsert = (ctx: any, session: SpacetimeDB.FishingSession) => {
+                console.log('[useSpacetimeTables] FishingSession INSERT:', session.playerId.toHexString(), 'at', session.targetX, session.targetY);
+                setFishingSessions(prev => new Map(prev).set(session.playerId.toHexString(), session));
+            };
+            const handleFishingSessionUpdate = (ctx: any, oldSession: SpacetimeDB.FishingSession, newSession: SpacetimeDB.FishingSession) => {
+                console.log('[useSpacetimeTables] FishingSession UPDATE:', newSession.playerId.toHexString());
+                setFishingSessions(prev => new Map(prev).set(newSession.playerId.toHexString(), newSession));
+            };
+            const handleFishingSessionDelete = (ctx: any, session: SpacetimeDB.FishingSession) => {
+                console.log('[useSpacetimeTables] FishingSession DELETE:', session.playerId.toHexString());
+                setFishingSessions(prev => { const newMap = new Map(prev); newMap.delete(session.playerId.toHexString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1057,6 +1073,11 @@ export const useSpacetimeTables = ({
             connection.db.playerDodgeRollState.onUpdate(handlePlayerDodgeRollStateUpdate);
             connection.db.playerDodgeRollState.onDelete(handlePlayerDodgeRollStateDelete);
 
+            // Register FishingSession callbacks - ADDED
+            connection.db.fishingSession.onInsert(handleFishingSessionInsert);
+            connection.db.fishingSession.onUpdate(handleFishingSessionUpdate);
+            connection.db.fishingSession.onDelete(handleFishingSessionDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1125,6 +1146,10 @@ export const useSpacetimeTables = ({
                         console.log("[PLAYER_DODGE_ROLL_STATE] Subscription applied successfully!");
                     })
                     .subscribe('SELECT * FROM player_dodge_roll_state'),
+                 // ADDED FishingSession subscription for fishing states
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[FISHING_SESSION Sub Error]:", err))
+                    .subscribe('SELECT * FROM fishing_session'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1304,6 +1329,7 @@ export const useSpacetimeTables = ({
                  setPlayerDodgeRollStates(new Map());
                  // Clear the playerDodgeRollStates ref as well
                  playerDodgeRollStatesRef.current.clear();
+                 setFishingSessions(new Map());
              }
         };
 
@@ -1347,5 +1373,6 @@ export const useSpacetimeTables = ({
         worldTiles: worldTilesRef.current,
         minimapCache,
         playerDodgeRollStates: playerDodgeRollStatesRef.current,
+        fishingSessions,
     };
 }; 

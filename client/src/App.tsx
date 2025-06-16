@@ -131,7 +131,8 @@ function AppContent() {
       deathMarkers, // Ensure this is destructured
       shelters, // <<< ADD shelters HERE
       worldTiles, // <<< ADD worldTiles HERE
-      minimapCache // <<< ADD minimapCache HERE
+      minimapCache, // <<< ADD minimapCache HERE
+      fishingSessions // <<< ADD fishingSessions HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -654,10 +655,11 @@ function AppContent() {
                             knockedOutStatus={knockedOutStatus}
                             rangedWeaponStats={rangedWeaponStats}
                             projectiles={projectiles}
-                            deathMarkers={deathMarkers}
-                            setIsCraftingSearchFocused={setIsCraftingSearchFocused}
-                            isCraftingSearchFocused={isCraftingSearchFocused}
-                            onFishingStateChange={setIsFishing}
+                                                deathMarkers={deathMarkers}
+                    setIsCraftingSearchFocused={setIsCraftingSearchFocused}
+                    isCraftingSearchFocused={isCraftingSearchFocused}
+                    onFishingStateChange={setIsFishing}
+                    fishingSessions={fishingSessions}
                         />
                     );
                 })()

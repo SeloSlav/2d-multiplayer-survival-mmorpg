@@ -18,7 +18,7 @@ pub struct FishingState {
 }
 
 // Table to track active fishing sessions
-#[table(name = fishing_session)]
+#[table(name = fishing_session, public)]
 pub struct FishingSession {
     #[primary_key]
     pub player_id: Identity,

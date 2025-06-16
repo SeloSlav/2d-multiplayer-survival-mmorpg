@@ -63,7 +63,8 @@ import {
     Projectile as SpacetimeDBProjectile,
     DeathMarker as SpacetimeDBDeathMarker,
     Shelter as SpacetimeDBShelter,
-    MinimapCache as SpacetimeDBMinimapCache
+    MinimapCache as SpacetimeDBMinimapCache,
+    FishingSession
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -159,6 +160,9 @@ interface GameScreenProps {
 
     // 🎣 FISHING INPUT FIX: Add callback to notify parent of fishing state changes
     onFishingStateChange?: (isFishing: boolean) => void;
+    
+    // Add fishing sessions for rendering other players' fishing
+    fishingSessions: Map<string, FishingSession>;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -228,6 +232,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         isCraftingSearchFocused,
         // Auto-walking removed
         onFishingStateChange,
+        fishingSessions,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -673,6 +678,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 cameraOffsetY={cameraOffsetY}
             />
 
+
+
             <FishingManager
                 localPlayer={localPlayer || null}
                 playerIdentity={playerIdentity}
@@ -683,6 +690,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 connection={connection}
                 // 🎣 FISHING INPUT FIX: Add callback to track fishing state
                 onFishingStateChange={setIsFishing}
+                // Add fishing sessions and players for rendering other players' fishing
+                fishingSessions={fishingSessions}
+                players={players}
                                 isWaterTile={(worldX: number, worldY: number) => {
                     if (!connection) return false;
                     

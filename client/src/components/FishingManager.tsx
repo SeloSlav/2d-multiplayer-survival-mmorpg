@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { Player, ItemDefinition, DbConnection } from '../generated';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Player, ItemDefinition, DbConnection, FishingSession } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import FishingReticle from './FishingReticle';
 import { FishingState, FISHING_CONSTANTS } from '../types/fishing';
@@ -15,6 +15,9 @@ interface FishingManagerProps {
   isWaterTile: (worldX: number, worldY: number) => boolean;
   connection: DbConnection | null;
   onFishingStateChange?: (isActive: boolean) => void;
+  // Add new props for rendering other players' fishing
+  fishingSessions: Map<string, FishingSession>;
+  players: Map<string, Player>;
 }
 
 const FishingManager: React.FC<FishingManagerProps> = ({
@@ -27,6 +30,8 @@ const FishingManager: React.FC<FishingManagerProps> = ({
   isWaterTile,
   connection,
   onFishingStateChange,
+  fishingSessions,
+  players,
 }) => {
   const [fishingState, setFishingState] = useState<FishingState>({
     isActive: false,
@@ -63,54 +68,18 @@ const FishingManager: React.FC<FishingManagerProps> = ({
       fishingRod: activeItemDef?.name || null,
     });
 
-    // Call the server reducer
-    try {
-      if (connection) {
-        connection.reducers.castFishingLine(worldX, worldY);
-      }
-    } catch (error) {
-      console.error('[FishingManager] Failed to cast fishing line:', error);
-      // Reset state on error
-      setFishingState({
-        isActive: false,
-        isCasting: false,
-        isMinigameActive: false,
-        castTarget: null,
-        fishingRod: null,
-      });
+    // Call the server reducer to create fishing session
+    if (connection) {
+      connection.reducers.castFishingLine(worldX, worldY);
     }
   }, [localPlayer, playerIdentity, activeItemDef, isValidFishingRod, connection]);
 
   // Handle successful fishing
   const handleFishingSuccess = useCallback(async (loot: string[]) => {
-    console.log('[FishingManager] ===== FISHING SUCCESS CALLED =====');
-    console.log('[FishingManager] Loot:', loot);
-    console.log('[FishingManager] Connection exists:', !!connection);
-    console.log('[FishingManager] Player identity:', playerIdentity?.toHexString());
-    
-    try {
-      if (connection) {
-        console.log('[FishingManager] Calling server finishFishing(true, [])...');
-        // Call server to finish fishing - server will generate and spawn loot
-        await connection.reducers.finishFishing(true, loot);
-        console.log('[FishingManager] Server confirmed fishing success');
-      } else {
-        console.error('[FishingManager] No connection available!');
-      }
-    } catch (error) {
-      console.error('[FishingManager] Server rejected fishing success:', error);
-      // If server rejects, reset state without showing success
-      setFishingState({
-        isActive: false,
-        isCasting: false,
-        isMinigameActive: false,
-        castTarget: null,
-        fishingRod: null,
-      });
-      return;
+    if (connection) {
+      await connection.reducers.finishFishing(true, loot);
     }
     
-    // Reset fishing state only if server confirmed success
     setFishingState({
       isActive: false,
       isCasting: false,
@@ -118,21 +87,14 @@ const FishingManager: React.FC<FishingManagerProps> = ({
       castTarget: null,
       fishingRod: null,
     });
-  }, [connection, playerIdentity]);
+  }, [connection]);
 
   // Handle fishing failure
   const handleFishingFailure = useCallback(() => {
-    console.log('[FishingManager] Fishing failed');
-    
-    try {
-      if (connection) {
-        connection.reducers.finishFishing(false, []);
-      }
-    } catch (error) {
-      console.error('[FishingManager] Failed to finish fishing:', error);
+    if (connection) {
+      connection.reducers.finishFishing(false, []);
     }
     
-    // Reset fishing state
     setFishingState({
       isActive: false,
       isCasting: false,
@@ -144,17 +106,10 @@ const FishingManager: React.FC<FishingManagerProps> = ({
 
   // Handle canceling fishing (ESC key)
   const handleCancel = useCallback(() => {
-    console.log('[FishingManager] Fishing cancelled');
-    
-    try {
-      if (connection) {
-        connection.reducers.cancelFishing();
-      }
-    } catch (error) {
-      console.error('[FishingManager] Failed to cancel fishing:', error);
+    if (connection) {
+      connection.reducers.cancelFishing();
     }
     
-    // Reset fishing state
     setFishingState({
       isActive: false,
       isCasting: false,
@@ -167,7 +122,6 @@ const FishingManager: React.FC<FishingManagerProps> = ({
   // Check if fishing rod is unequipped during active fishing session
   React.useEffect(() => {
     if (fishingState.isActive && !isValidFishingRod()) {
-      console.log('[FishingManager] Fishing rod unequipped during session - canceling fishing');
       handleCancel();
     }
   }, [fishingState.isActive, isValidFishingRod, handleCancel]);
@@ -193,18 +147,15 @@ const FishingManager: React.FC<FishingManagerProps> = ({
     }
   }, [fishingState.isActive, onFishingStateChange]);
 
+
+
   // TODO: Add reducer callback to show success notification when server confirms
   // For now, items will just appear as dropped items at player's feet
 
-  // Don't render anything if player doesn't have a fishing rod
-  if (!isValidFishingRod()) {
-    return null;
-  }
-
   return (
     <>
-      {/* Show fishing reticle when not actively fishing */}
-      {!fishingState.isActive && (
+      {/* Show fishing reticle when not actively fishing and player has a fishing rod */}
+      {!fishingState.isActive && isValidFishingRod() && (
         <FishingReticle
           localPlayer={localPlayer}
           playerIdentity={playerIdentity}
@@ -234,6 +185,39 @@ const FishingManager: React.FC<FishingManagerProps> = ({
           isWaterTile={isWaterTile}
         />
       )}
+
+      {/* Render other players' fishing lines - always visible */}
+      {Array.from(fishingSessions.entries()).map(([playerId, session]) => {
+        // Skip local player (handled above)
+        if (playerIdentity && playerId === playerIdentity.toHexString()) return null;
+        
+        // Skip inactive sessions
+        if (!session.isActive) return null;
+        
+        // Get player data
+        const player = players.get(playerId);
+        if (!player) return null;
+        
+        return (
+          <FishingSystem
+            key={`fishing-${playerId}`}
+            playerX={player.positionX}
+            playerY={player.positionY}
+            playerDirection={player.direction || 'down'}
+            castTargetX={session.targetX}
+            castTargetY={session.targetY}
+            cameraOffsetX={cameraOffsetX}
+            cameraOffsetY={cameraOffsetY}
+            gameCanvasRef={gameCanvasRef}
+            onSuccess={() => {}} // No-op for other players
+            onFailure={() => {}} // No-op for other players
+            onCancel={() => {}} // No-op for other players
+            isWaterTile={isWaterTile}
+          />
+        );
+      })}
+
+
     </>
   );
 };
@@ -412,7 +396,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
     
     const multiplier = baseMultiplier + (maxMultiplier - baseMultiplier) * Math.pow(normalizedDistance, curveExponent);
     
-    console.log(`[FishingSystem] Bobber to shore distance: ${bobberToShoreDistance.toFixed(1)}, Normalized: ${normalizedDistance.toFixed(2)}, Bite multiplier: ${multiplier.toFixed(2)}x`);
+    // console.log(`[FishingSystem] Bobber to shore distance: ${bobberToShoreDistance.toFixed(1)}, Normalized: ${normalizedDistance.toFixed(2)}, Bite multiplier: ${multiplier.toFixed(2)}x`);
     return multiplier;
   };
 
@@ -425,7 +409,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
     );
     
     if (distance > FISHING_CONSTANTS.BREAK_DISTANCE) {
-      console.log('[FishingSystem] Line broke! Player moved too far from bobber:', distance);
+      // console.log('[FishingSystem] Line broke! Player moved too far from bobber:', distance);
       setShowResult({ type: 'failure', message: 'Line broke! You moved too far away.' });
       setTimeout(() => onCancel(), 2000);
     }
@@ -449,8 +433,8 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
       const finalBiteChance = baseBiteChance * progressMultiplier * distanceBiteMultiplier;
       
       if (Math.random() < finalBiteChance) {
-        console.log('[FishingSystem] Fish took the bait! Distance multiplier:', distanceBiteMultiplier.toFixed(2) + 'x', 
-                   'Final chance:', (finalBiteChance * 100).toFixed(2) + '%', 'Time progress:', (timeProgress * 100).toFixed(1) + '%');
+        //console.log('[FishingSystem] Fish took the bait! Distance multiplier:', distanceBiteMultiplier.toFixed(2) + 'x', 
+        //           'Final chance:', (finalBiteChance * 100).toFixed(2) + '%', 'Time progress:', (timeProgress * 100).toFixed(1) + '%');
         setPhase('caught');
         
         // Initialize fish fighting mechanics
@@ -472,7 +456,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
 
     // Automatic failure if timer fully expires
     const failureTimer = setTimeout(() => {
-      console.log('[FishingSystem] Bite timer expired - no fish bit the bait');
+      // console.log('[FishingSystem] Bite timer expired - no fish bit the bait');
       setShowResult({ type: 'failure', message: 'No fish bit the bait. Try again!' });
       setTimeout(() => onFailure(), 2000);
       clearInterval(biteCheckInterval);
@@ -519,7 +503,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
         // Check if line should break from stress
         const stressRatio = distanceToPlayer / FISHING_CONSTANTS.BREAK_DISTANCE;
         if (stressRatio >= LINE_BREAK_THRESHOLD) {
-          console.log('[FishingSystem] Line broke from stress! Distance:', distanceToPlayer.toFixed(1));
+          // console.log('[FishingSystem] Line broke from stress! Distance:', distanceToPlayer.toFixed(1));
           onFailure();
           return prev;
         }
@@ -557,8 +541,8 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             newBobber.zigZagTargetY = prev.y + perpY * ZIG_ZAG_DISTANCE * newBobber.fishDirection;
             newBobber.hasReachedTarget = false;
             
-            console.log('[FishingSystem] Fish committed to new dramatic sweep, distance:', ZIG_ZAG_DISTANCE, 
-                       'target:', newBobber.zigZagTargetX.toFixed(1), newBobber.zigZagTargetY.toFixed(1));
+            // console.log('[FishingSystem] Fish committed to new dramatic sweep, distance:', ZIG_ZAG_DISTANCE, 
+            //            'target:', newBobber.zigZagTargetX.toFixed(1), newBobber.zigZagTargetY.toFixed(1));
           }
         }
         
@@ -581,7 +565,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           } else {
             // Completed dramatic sweep - fish has made its run
             newBobber.hasReachedTarget = true;
-            console.log('[FishingSystem] Fish completed dramatic sweep - ready for about-face');
+            // console.log('[FishingSystem] Fish completed dramatic sweep - ready for about-face');
           }
         }
         
@@ -611,8 +595,8 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
           newBobber.zigZagTargetX = prev.x + burstX;
           newBobber.zigZagTargetY = prev.y + burstY;
           newBobber.hasReachedTarget = false;
-          console.log('[FishingSystem] Fish made a burst movement to:', 
-                     newBobber.zigZagTargetX.toFixed(1), newBobber.zigZagTargetY.toFixed(1));
+          // console.log('[FishingSystem] Fish made a burst movement to:', 
+          //            newBobber.zigZagTargetX.toFixed(1), newBobber.zigZagTargetY.toFixed(1));
         }
         
         // Ensure bobber stays in water (basic bounds check)
@@ -674,10 +658,10 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             
             // If we've reeled in at least 80% of the way, or if we hit land, trigger success
             if (foundLand || reelProgress >= 0.8) {
-              console.log('[FishingSystem] Fishing success! Found land:', foundLand, 'Reel progress:', (reelProgress * 100).toFixed(1) + '%');
-              console.log('[FishingSystem] Bobber position:', newX.toFixed(1), newY.toFixed(1));
-              console.log('[FishingSystem] Player position:', playerX.toFixed(1), playerY.toFixed(1));
-              console.log('[FishingSystem] Distance from player:', currentDistanceFromPlayer.toFixed(1));
+              // console.log('[FishingSystem] Fishing success! Found land:', foundLand, 'Reel progress:', (reelProgress * 100).toFixed(1) + '%');
+              // console.log('[FishingSystem] Bobber position:', newX.toFixed(1), newY.toFixed(1));
+              // console.log('[FishingSystem] Player position:', playerX.toFixed(1), playerY.toFixed(1));
+              // console.log('[FishingSystem] Distance from player:', currentDistanceFromPlayer.toFixed(1));
               onSuccess([]);
               return prev; // Don't move bobber further
             }
@@ -689,8 +673,8 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             };
           } else {
             // Bobber is very close to player - always success at this point
-            console.log('[FishingSystem] Bobber reached player position - success!');
-            console.log('[FishingSystem] Final distance:', distance.toFixed(1));
+            // console.log('[FishingSystem] Bobber reached player position - success!');
+            // console.log('[FishingSystem] Final distance:', distance.toFixed(1));
             onSuccess([]);
             return prev;
           }
@@ -1064,5 +1048,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
     </>
   );
 };
+
+
 
 export default FishingManager; 

@@ -27,7 +27,8 @@ import {
   DeathMarker as SpacetimeDBDeathMarker,
   Shelter as SpacetimeDBShelter,
   Potato as SpacetimeDBPotato,
-  MinimapCache as SpacetimeDBMinimapCache
+  MinimapCache as SpacetimeDBMinimapCache,
+  FishingSession
 } from '../generated';
 
 // --- Core Hooks ---
@@ -771,6 +772,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Render arrow break effects
       renderArrowBreakEffects(ctx, now_ms);
+
+      // Render other players' fishing lines and bobbers
+      if (typeof window !== 'undefined' && (window as any).renderOtherPlayersFishing) {
+        // console.log('[FISHING RENDER] Calling renderOtherPlayersFishing from GameCanvas');
+        (window as any).renderOtherPlayersFishing(ctx);
+      } else {
+        // console.log('[FISHING RENDER] renderOtherPlayersFishing not available on window');
+      }
     }
 
     renderInteractionLabels({
@@ -972,6 +981,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     });
     // --- End Torch Light ---
+
+
 
     ctx.restore();
 
