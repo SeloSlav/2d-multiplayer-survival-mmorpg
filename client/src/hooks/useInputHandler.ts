@@ -11,7 +11,7 @@ import { isPlacementTooFar } from '../utils/renderers/placementRenderingUtils';
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
 // If it was missing, this adds it.
-export const REVIVE_HOLD_DURATION_MS = 6000; // 6 seconds for reviving knocked out players
+export const REVIVE_HOLD_DURATION_MS = 3000; // 3 seconds for reviving knocked out players
 
 // --- Constants (Copied from GameCanvas) ---
 const SWING_COOLDOWN_MS = 500;
@@ -33,13 +33,13 @@ interface InputHandlerProps {
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
     closestInteractableReedId: bigint | null;
-    closestInteractableCampfireId: bigint | null;
+    closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
-    closestInteractableBoxId: bigint | null;
+    closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
     woodenStorageBoxes: Map<string, WoodenStorageBox>;
     closestInteractableCorpseId: bigint | null;
-    closestInteractableStashId: bigint | null;
+    closestInteractableStashId: number | null;
     stashes: Map<string, Stash>;
     closestInteractableKnockedOutPlayerId: string | null;
     players: Map<string, Player>;
@@ -163,12 +163,12 @@ export const useInputHandler = ({
         pumpkin: null as bigint | null,
         hemp: null as bigint | null,
         reed: null as bigint | null,
-        campfire: null as bigint | null,
+        campfire: null as number | null,
         droppedItem: null as bigint | null,
-        box: null as bigint | null,
+        box: null as number | null,
         boxEmpty: false,
         corpse: null as bigint | null,
-        stash: null as bigint | null,
+        stash: null as number | null,
         knockedOutPlayer: null as string | null, // Added for knocked out player
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
@@ -255,7 +255,7 @@ export const useInputHandler = ({
     const startHoldTimer = useCallback((holdTarget: InteractionProgressState, connection: DbConnection) => {
         const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
 
-        //console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
+        console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
         const timerId = setTimeout(() => {
             try {
                 // console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
@@ -269,11 +269,11 @@ export const useInputHandler = ({
                 switch (holdTarget.targetType) {
                     case 'knocked_out_player':
                         if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
-                            // console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
+                            console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
                             connection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
                             actionTaken = true;
                         } else {
-                            // console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
+                            console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
                         }
                         break;
                     case 'campfire':
@@ -497,6 +497,7 @@ export const useInputHandler = ({
                 if (!currentConnection?.reducers) return;
 
                 const closest = closestIdsRef.current;
+                console.log('[E-KeyDown] Current closest targets:', closest);
 
                 // Set up a timer for ANY potential hold action.
                 // The keyUp handler will decide if it was a tap or a hold.
@@ -505,6 +506,7 @@ export const useInputHandler = ({
                 let holdTarget: InteractionProgressState | null = null;
                 if (closest.knockedOutPlayer) {
                     holdTarget = { targetId: closest.knockedOutPlayer, targetType: 'knocked_out_player', startTime: eKeyDownTimestampRef.current };
+                    console.log('[E-KeyDown] Setting up knocked out player hold target:', holdTarget);
                 } else if (closest.campfire) {
                     holdTarget = { targetId: closest.campfire, targetType: 'campfire', startTime: eKeyDownTimestampRef.current };
                 } else if (closest.box && closest.boxEmpty) {
