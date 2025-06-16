@@ -18,7 +18,7 @@ interface RenderPlayerCorpseProps {
   heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
 }
 
-export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Increased from 64px to 96px for better accessibility
+export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Reduced from 96px to 64px for tighter interaction range that matches server expectations
 
 /**
  * Renders a player corpse entity onto the canvas using player sprite logic.

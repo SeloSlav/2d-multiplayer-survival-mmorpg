@@ -409,15 +409,18 @@ function AppContent() {
 
     // --- Effect to automatically clear interactionTarget if player moves too far ---
     useEffect(() => {
-        const player = localPlayerRef.current;
-        if (!player || !interactingWith) {
+        // Get the current local player directly instead of relying on ref
+        const localPlayer = connection?.identity ? players.get(connection.identity.toHexString()) : undefined;
+        
+        if (!localPlayer || !interactingWith) {
             // No player or not interacting with anything, so nothing to check.
             return;
         }
 
         // Add a small delay to prevent immediate clearing when interaction is first set
         const timeoutId = setTimeout(() => {
-            const currentPlayer = localPlayerRef.current;
+            // Re-get the current player to ensure we have the latest position
+            const currentPlayer = connection?.identity ? players.get(connection.identity.toHexString()) : undefined;
             if (!currentPlayer || !interactingWith) return;
 
             let entityPosition: { x: number, y: number } | null = null;
@@ -479,13 +482,14 @@ function AppContent() {
         return () => clearTimeout(timeoutId);
     }, [
         interactingWith, 
-        // Remove players from dependency array to prevent constant re-runs
+        players, // Re-add players dependency to trigger on position changes
+        connection?.identity, // Add connection identity dependency
         woodenStorageBoxes, 
         campfires, 
         stashes, 
-        playerCorpses, // Add playerCorpses to dependency array
+        playerCorpses,
         handleSetInteractingWith
-    ]); // Removed players dependency to prevent constant re-runs
+    ]); // Added back players dependency and connection identity to properly trigger on player position changes
 
     // --- Determine overall loading state ---
     // We'll determine this after loggedInPlayer and getStoredUsername are defined
