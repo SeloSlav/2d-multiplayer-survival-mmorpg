@@ -26,6 +26,7 @@ use crate::corn;
 use crate::potato;
 use crate::hemp;
 use crate::pumpkin;
+use crate::reed;
 use crate::cloud;
 use crate::grass;
 
@@ -37,6 +38,7 @@ use crate::corn::corn as CornTableTrait;
 use crate::potato::potato as PotatoTableTrait;
 use crate::pumpkin::pumpkin as PumpkinTableTrait;
 use crate::hemp::hemp as HempTableTrait;
+use crate::reed::reed as ReedTableTrait;
 use crate::items::ItemDefinition;
 use crate::cloud::{Cloud, CloudShapeType, CloudUpdateSchedule};
 use crate::utils::*;
