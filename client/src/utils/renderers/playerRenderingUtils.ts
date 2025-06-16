@@ -414,9 +414,9 @@ export const renderPlayer = (
   const shadowBaseYOffset = drawHeight * 0.4; 
   const finalIsOnline = isCorpse ? false : isOnline;
 
-  // --- Draw Dynamic Ground Shadow (for all players) ---
+  // --- Draw Dynamic Ground Shadow (for living players only) ---
   // Don't show shadow on water, but keep showing while jumping (same logic as sprite selection)
-  const shouldShowShadow = !(player.isOnWater && !isCurrentlyJumping);
+  const shouldShowShadow = !isCorpse && !(player.isOnWater && !isCurrentlyJumping);
   if (heroImg instanceof HTMLImageElement && shouldShowShadow) {
     // Extract the specific sprite frame for shadow rendering
     const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
@@ -435,10 +435,10 @@ export const renderPlayer = (
         0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight    // Destination: full temporary canvas
       );
       
-      // Adjust shadow parameters based on player state
-      const shadowAlpha = isCorpse ? 0.4 : (finalIsOnline ? 0.6 : 0.5); // Increased visibility for all cases
-      const shadowStretchMax = isCorpse ? 2.0 : 3.0; // More dramatic shadows
-      const shadowStretchMin = isCorpse ? 0.3 : 0.25; // Better minimum visibility
+      // Adjust shadow parameters based on player state  
+      const shadowAlpha = finalIsOnline ? 0.6 : 0.5; // Increased visibility for all cases
+      const shadowStretchMax = 3.0; // More dramatic shadows
+      const shadowStretchMin = 0.25; // Better minimum visibility
       
       drawDynamicGroundShadow({
         ctx,
@@ -459,8 +459,8 @@ export const renderPlayer = (
   }
   // --- End Dynamic Ground Shadow ---
 
-  // --- Draw Offline Shadow (or Corpse Shadow) --- 
-  if (!finalIsOnline && shouldShowShadow) { // This covers corpses (finalIsOnline = false) and offline players
+  // --- Draw Offline Shadow (corpses excluded - they're flat on the ground) --- 
+  if (!isCorpse && !finalIsOnline && shouldShowShadow) { // Exclude corpses from shadow rendering
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       
