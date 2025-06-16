@@ -6,7 +6,7 @@ import { openaiService, type SOVAPromptRequest } from './openaiService';
 const SOVA_VOICE = 'robot2';
 
 // Proxy server configuration
-const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:3001';
+const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'https://profound-bravery-production-9042.up.railway.app';
 const TTS_ENDPOINT = `${PROXY_URL}/api/tts`;
 
 export interface KikashiResponse {

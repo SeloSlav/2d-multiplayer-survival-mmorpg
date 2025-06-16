@@ -13,6 +13,10 @@ const PLAYER_WALKING_SPRITE_SWITCH_INTERVAL_MS = 400; // Switch sprite every 400
 // OPTIMIZATION: Prioritize performance during sprinting
 const SPRINT_OPTIMIZED_SHAKE_AMOUNT_PX = 2; // Reduced shake during sprinting for smoother movement
 
+// --- NEW: Combat effect timing compensation ---
+const COMBAT_EFFECT_LATENCY_BUFFER_MS = 300; // Extra time to account for network latency
+const MAX_REASONABLE_SERVER_LAG_MS = 1000; // Ignore hits that seem too old (probably stale data)
+
 // Defined here as it depends on spriteWidth from config
 const playerRadius = gameConfig.spriteWidth / 2;
 
@@ -30,7 +34,17 @@ interface PlayerVisualKnockbackState {
   interpolationTargetX: number;
   interpolationTargetY: number;
   interpolationStartTime: number; 
+  clientHitDetectionTime: number; // NEW: Track when we detected the hit on client
 }
+
+// --- NEW: Track hit states for reliable effect timing ---
+interface PlayerHitState {
+  lastProcessedHitTime: bigint;
+  clientDetectionTime: number;
+  effectStartTime: number;
+}
+
+const playerHitStates = new Map<string, PlayerHitState>();
 
 const playerVisualKnockbackState = new Map<string, PlayerVisualKnockbackState>();
 
@@ -173,6 +187,10 @@ export const renderPlayer = (
             // Removed log
             playerVisualKnockbackState.delete(playerHexIdForDelete);
         }
+        // --- NEW: Also cleanup hit states for dead players ---
+        if (playerHitStates.has(playerHexIdForDelete)) {
+            playerHitStates.delete(playerHexIdForDelete);
+        }
     }
     return; 
   }
@@ -185,8 +203,44 @@ export const renderPlayer = (
   const serverX = player.positionX;
   const serverY = player.positionY;
   const serverLastHitTimePropMicros = player.lastHitTime?.microsSinceUnixEpoch ?? 0n;
+  
+  // --- NEW: Improved hit detection and effect timing ---
+  let hitState = playerHitStates.get(playerHexId);
+  let isCurrentlyHit = false;
+  let hitEffectElapsed = 0;
+  
+  if (serverLastHitTimePropMicros > 0n) {
+    if (!hitState || serverLastHitTimePropMicros > hitState.lastProcessedHitTime) {
+      // NEW HIT DETECTED! Set up effect timing based on client time
+      hitState = {
+        lastProcessedHitTime: serverLastHitTimePropMicros,
+        clientDetectionTime: nowMs,
+        effectStartTime: nowMs
+      };
+      playerHitStates.set(playerHexId, hitState);
+      console.log(`🎯 [COMBAT] Hit detected for player ${playerHexId} at client time ${nowMs}`);
+    }
+    
+    // Calculate effect timing based on when WE detected the hit
+    if (hitState) {
+      hitEffectElapsed = nowMs - hitState.effectStartTime;
+      isCurrentlyHit = hitEffectElapsed < (PLAYER_SHAKE_DURATION_MS + COMBAT_EFFECT_LATENCY_BUFFER_MS);
+    }
+  } else {
+    // No hit time from server - clear hit state
+    if (hitState) {
+      playerHitStates.delete(playerHexId);
+    }
+  }
+  
+  // Legacy calculation for fallback (but prioritize new system)
   const serverLastHitTimeMs = serverLastHitTimePropMicros > 0n ? Number(serverLastHitTimePropMicros / 1000n) : 0;
   const elapsedSinceServerHitMs = serverLastHitTimeMs > 0 ? (nowMs - serverLastHitTimeMs) : Infinity;
+  
+  // Use new hit detection if available, otherwise fall back to old system
+  const effectiveHitElapsed = isCurrentlyHit ? hitEffectElapsed : elapsedSinceServerHitMs;
+  const shouldShowCombatEffects = isCurrentlyHit || elapsedSinceServerHitMs < PLAYER_SHAKE_DURATION_MS;
+  // --- END NEW hit detection ---
 
   // Only apply knockback interpolation for NON-local players
   // Local player position is handled by the prediction system
@@ -202,17 +256,30 @@ export const renderPlayer = (
         interpolationSourceX: serverX, interpolationSourceY: serverY,
         interpolationTargetX: serverX, interpolationTargetY: serverY, 
         interpolationStartTime: 0,
+        clientHitDetectionTime: 0,
       };
       playerVisualKnockbackState.set(playerHexId, visualState);
     } else {
-      // Update on new hit
-      if (serverLastHitTimePropMicros > visualState.lastHitTimeMicros) {
+      // --- IMPROVED: Use new hit detection for knockback interpolation ---
+      if (isCurrentlyHit && hitState && hitState.clientDetectionTime > visualState.clientHitDetectionTime) {
+        // NEW HIT DETECTED - start knockback interpolation
         visualState.interpolationSourceX = visualState.displayX;
         visualState.interpolationSourceY = visualState.displayY;
         visualState.interpolationTargetX = serverX;
         visualState.interpolationTargetY = serverY;
         visualState.interpolationStartTime = nowMs;
         visualState.lastHitTimeMicros = serverLastHitTimePropMicros;
+        visualState.clientHitDetectionTime = hitState.clientDetectionTime;
+        console.log(`🎯 [KNOCKBACK] Starting interpolation for player ${playerHexId} from (${visualState.interpolationSourceX.toFixed(1)}, ${visualState.interpolationSourceY.toFixed(1)}) to (${serverX.toFixed(1)}, ${serverY.toFixed(1)})`);
+      } else if (serverLastHitTimePropMicros > visualState.lastHitTimeMicros) {
+        // FALLBACK: Old detection method for compatibility
+        visualState.interpolationSourceX = visualState.displayX;
+        visualState.interpolationSourceY = visualState.displayY;
+        visualState.interpolationTargetX = serverX;
+        visualState.interpolationTargetY = serverY;
+        visualState.interpolationStartTime = nowMs;
+        visualState.lastHitTimeMicros = serverLastHitTimePropMicros;
+        visualState.clientHitDetectionTime = nowMs;
       }
       else if (!player.isDead && serverLastHitTimePropMicros === 0n && visualState.lastHitTimeMicros !== 0n) {
         visualState.lastHitTimeMicros = 0n;
@@ -321,11 +388,16 @@ export const renderPlayer = (
   // Shake Logic (directly uses elapsedSinceServerHitMs)
   let shakeX = 0;
   let shakeY = 0;
-  if (!isCorpse && !player.isDead && elapsedSinceServerHitMs < PLAYER_SHAKE_DURATION_MS) {
+  if (!isCorpse && !player.isDead && effectiveHitElapsed < PLAYER_SHAKE_DURATION_MS) {
     // OPTIMIZATION: Reduce shake during sprinting for smoother movement
     const shakeAmount = player.isSprinting ? SPRINT_OPTIMIZED_SHAKE_AMOUNT_PX : PLAYER_SHAKE_AMOUNT_PX;
     shakeX = (Math.random() - 0.5) * 2 * shakeAmount;
     shakeY = (Math.random() - 0.5) * 2 * shakeAmount;
+    
+    // --- DEBUG: Log shake effect for troubleshooting ---
+    if (effectiveHitElapsed < 50) { // Only log within first 50ms to avoid spam
+      console.log(`🎯 [SHAKE] Player ${playerHexId} shaking: elapsed=${effectiveHitElapsed.toFixed(1)}ms, isCurrentlyHit=${isCurrentlyHit}, shakeAmount=${shakeAmount}`);
+    }
   }
 
   const drawWidth = gameConfig.spriteWidth * 2;
@@ -336,7 +408,7 @@ export const renderPlayer = (
   const spriteDrawY = spriteBaseY - finalJumpOffsetY;
 
   // Flash Logic (directly uses elapsedSinceServerHitMs)
-  const isFlashing = !isCorpse && !player.isDead && elapsedSinceServerHitMs < PLAYER_HIT_FLASH_DURATION_MS;
+  const isFlashing = !isCorpse && !player.isDead && effectiveHitElapsed < PLAYER_HIT_FLASH_DURATION_MS;
 
   // Define shadow base offset here to be used by both online/offline
   const shadowBaseYOffset = drawHeight * 0.4; 

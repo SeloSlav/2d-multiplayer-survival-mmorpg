@@ -7,8 +7,25 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const app = express();
 const PORT = process.env.PROXY_PORT || 3001; // Different port from your main app
 
-// Enable CORS for all routes
-app.use(cors());
+// Configure CORS to allow your production domain
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000', 
+    'http://localhost:4173',
+    'https://brothandbullets.com',
+    'https://www.brothandbullets.com',
+    'https://broth-and-bullets-production-client-production.up.railway.app'
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 // Parse JSON bodies
 app.use(express.json());
