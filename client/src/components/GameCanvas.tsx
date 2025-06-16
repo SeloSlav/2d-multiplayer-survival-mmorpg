@@ -54,6 +54,7 @@ import { useWorldTileCache } from '../hooks/useWorldTileCache';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
+import { renderCyberpunkGridBackground } from '../utils/renderers/cyberpunkGridBackground';
 import { renderYSortedEntities } from '../utils/renderers/renderingUtils.ts';
 import { renderInteractionLabels } from '../utils/renderers/labelRenderingUtils.ts';
 import { renderPlacementPreview, isPlacementTooFar } from '../utils/renderers/placementRenderingUtils.ts';
@@ -634,8 +635,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- Rendering ---
     ctx.clearRect(0, 0, currentCanvasWidth, currentCanvasHeight);
-    ctx.fillStyle = '#000000'; // Should be black if no background, or ensure background draws over this
-    ctx.fillRect(0, 0, currentCanvasWidth, currentCanvasHeight);
+    
+    // 🎯 CYBERPUNK: Render SOVA simulation grid background instead of plain black
+    // This creates the lore-consistent illusion that the game world exists within a cyberpunk simulation
+    renderCyberpunkGridBackground(
+      ctx,
+      currentCanvasWidth,
+      currentCanvasHeight,
+      cameraOffsetX,
+      cameraOffsetY
+    );
 
     ctx.save();
     ctx.translate(cameraOffsetX, cameraOffsetY);

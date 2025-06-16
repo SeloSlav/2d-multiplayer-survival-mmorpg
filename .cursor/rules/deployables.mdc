@@ -1,5 +1,5 @@
 ---
-description: Guide for adding new deployable items (e.g., structures, placeables) to the world.
+description: 
 globs: 
 alwaysApply: false
 ---
