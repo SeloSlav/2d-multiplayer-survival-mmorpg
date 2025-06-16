@@ -62,7 +62,7 @@ class OpenAIService {
           'Authorization': `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'o3-2025-04-16',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

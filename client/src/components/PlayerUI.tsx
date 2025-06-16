@@ -453,9 +453,9 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
 
     // --- Open Inventory when Interaction Starts --- 
     useEffect(() => {
-        console.log('[PlayerUI] interactingWith changed:', interactingWith);
+        // console.log('[PlayerUI] interactingWith changed:', interactingWith);
         if (interactingWith) {
-            console.log('[PlayerUI] Opening inventory for interaction:', interactingWith);
+            // console.log('[PlayerUI] Opening inventory for interaction:', interactingWith);
             if (!showInventory) {
                 onToggleInventory();
             }

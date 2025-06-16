@@ -210,12 +210,12 @@ export function drawDynamicGroundShadow({
 
   if (overallAlpha < 0.01 || shadowLength < 0.01) {
     // Debug: Log when shadows are skipped
-    console.log(`[Dynamic Shadow] Skipped shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
+    // console.log(`[Dynamic Shadow] Skipped shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
     return; // No shadow if invisible or too small
   }
   
   // Debug: Log when shadows are rendered (enabled for debugging)
-  console.log(`[Dynamic Shadow] Rendering shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, ShearX: ${shadowShearX.toFixed(2)}, ScaleY: ${shadowScaleY.toFixed(2)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
+  // console.log(`[Dynamic Shadow] Rendering shadow - Alpha: ${overallAlpha.toFixed(3)}, Length: ${shadowLength.toFixed(3)}, ShearX: ${shadowShearX.toFixed(2)}, ScaleY: ${shadowScaleY.toFixed(2)}, CycleProgress: ${cycleProgress.toFixed(3)}`);
 
   // Generate a cache key for the silhouette
   const cacheKey = entityImage instanceof HTMLImageElement 

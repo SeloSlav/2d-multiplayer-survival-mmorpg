@@ -32,6 +32,7 @@ interface InputHandlerProps {
     closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
+    closestInteractableReedId: bigint | null;
     closestInteractableCampfireId: bigint | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: bigint | null;
@@ -104,6 +105,7 @@ export const useInputHandler = ({
     closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
+    closestInteractableReedId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -160,6 +162,7 @@ export const useInputHandler = ({
         potato: null as bigint | null,
         pumpkin: null as bigint | null,
         hemp: null as bigint | null,
+        reed: null as bigint | null,
         campfire: null as bigint | null,
         droppedItem: null as bigint | null,
         box: null as bigint | null,
@@ -214,6 +217,7 @@ export const useInputHandler = ({
             potato: closestInteractablePotatoId,
             pumpkin: closestInteractablePumpkinId,
             hemp: closestInteractableHempId,
+            reed: closestInteractableReedId,
             campfire: closestInteractableCampfireId,
             droppedItem: closestInteractableDroppedItemId,
             box: closestInteractableBoxId,
@@ -228,6 +232,7 @@ export const useInputHandler = ({
         closestInteractablePotatoId,
         closestInteractablePumpkinId,
         closestInteractableHempId,
+        closestInteractableReedId,
         closestInteractableCampfireId,
         closestInteractableDroppedItemId,
         closestInteractableBoxId,
@@ -584,6 +589,7 @@ export const useInputHandler = ({
                         const RETAINED_CLOSEST_POTATO_ID = closestIdsRef.current.potato;
                         const RETAINED_CLOSEST_PUMPKIN_ID = closestIdsRef.current.pumpkin;
                         const RETAINED_CLOSEST_HEMP_ID = closestIdsRef.current.hemp;
+                        const RETAINED_CLOSEST_REED_ID = closestIdsRef.current.reed;
                         const RETAINED_CLOSEST_DROPPED_ITEM_ID = closestIdsRef.current.droppedItem;
 
                         // Handle harvest/pickup actions FIRST (these are the main tap actions)
@@ -607,6 +613,10 @@ export const useInputHandler = ({
                             } else if (RETAINED_CLOSEST_HEMP_ID !== null) {
                                 console.log('[E-Tap ACTION] Harvesting hemp:', RETAINED_CLOSEST_HEMP_ID);
                                 connectionRef.current.reducers.interactWithHemp(RETAINED_CLOSEST_HEMP_ID);
+                                tapActionTaken = true;
+                            } else if (RETAINED_CLOSEST_REED_ID !== null) {
+                                console.log('[E-Tap ACTION] Harvesting reed:', RETAINED_CLOSEST_REED_ID);
+                                connectionRef.current.reducers.interactWithReed(RETAINED_CLOSEST_REED_ID);
                                 tapActionTaken = true;
                             } else if (RETAINED_CLOSEST_DROPPED_ITEM_ID !== null) {
                                 console.log('[E-Tap ACTION] Picking up dropped item:', RETAINED_CLOSEST_DROPPED_ITEM_ID);

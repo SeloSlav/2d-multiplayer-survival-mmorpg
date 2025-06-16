@@ -9,6 +9,7 @@ import hempImageSource from '../../assets/doodads/hemp.png';
 import mushroomImageSource from '../../assets/doodads/mushroom.png';
 import potatoImageSource from '../../assets/doodads/potato.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin.png';
+import reedImageSource from '../../assets/doodads/reed_stalk.png';
 
 // Resource-specific configuration interface
 export interface ResourceConfig {
@@ -118,6 +119,21 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     harvestAmount: { min: 1, max: 1 },
     fallbackColor: '#FF8C00'
     // No animation config - pumpkins are static
+  },
+  
+  reed: {
+    imageSource: reedImageSource,
+    targetWidth: 58,
+    shadowConfig: {
+      maxStretchFactor: 2.2,
+      shadowBlur: 7,
+      pivotYOffset: 0.10,
+      opacity: 0.3
+    },
+    interactionLabel: "Press E to Harvest Reed Stalks",
+    harvestAmount: { min: 2, max: 4 },
+    fallbackColor: '#9ACD32'
+    // No animation config - reeds are static
   }
 };
 

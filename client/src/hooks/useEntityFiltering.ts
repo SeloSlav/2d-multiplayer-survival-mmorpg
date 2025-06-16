@@ -13,6 +13,7 @@ import {
   Potato as SpacetimeDBPotato,
   Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
+  Reed as SpacetimeDBReed,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
   Projectile as SpacetimeDBProjectile,
@@ -24,6 +25,7 @@ import {
   isSleepingBag,
   isCorn,
   isHemp,
+  isReed,
   isPotato,
   isStash,
   isPumpkin,
@@ -53,6 +55,7 @@ interface EntityFilteringResult {
   visiblePotatoes: SpacetimeDBPotato[];
   visiblePumpkins: SpacetimeDBPumpkin[];
   visibleHemps: SpacetimeDBHemp[];
+  visibleReeds: SpacetimeDBReed[];
   visibleProjectiles: SpacetimeDBProjectile[];
   visibleMushroomsMap: Map<string, SpacetimeDBMushroom>;
   visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
@@ -62,6 +65,7 @@ interface EntityFilteringResult {
   visiblePotatoesMap: Map<string, SpacetimeDBPotato>;
   visiblePumpkinsMap: Map<string, SpacetimeDBPumpkin>;
   visibleHempsMap: Map<string, SpacetimeDBHemp>;
+  visibleReedsMap: Map<string, SpacetimeDBReed>;
   visibleProjectilesMap: Map<string, SpacetimeDBProjectile>;
   visiblePlayerCorpses: SpacetimeDBPlayerCorpse[];
   visiblePlayerCorpsesMap: Map<string, SpacetimeDBPlayerCorpse>;
@@ -87,6 +91,7 @@ export type YSortedEntityType =
   | { type: 'stash'; entity: SpacetimeDBStash }
   | { type: 'corn'; entity: SpacetimeDBCorn }
   | { type: 'hemp'; entity: SpacetimeDBHemp }
+  | { type: 'reed'; entity: SpacetimeDBReed }
   | { type: 'campfire'; entity: SpacetimeDBCampfire }
   | { type: 'dropped_item'; entity: SpacetimeDBDroppedItem }
   | { type: 'mushroom'; entity: SpacetimeDBMushroom }
@@ -106,6 +111,7 @@ export function useEntityFiltering(
   potatoes: Map<string, SpacetimeDBPotato>,
   pumpkins: Map<string, SpacetimeDBPumpkin>,
   hemps: Map<string, SpacetimeDBHemp>,
+  reeds: Map<string, SpacetimeDBReed>,
   droppedItems: Map<string, SpacetimeDBDroppedItem>,
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>,
   sleepingBags: Map<string, SpacetimeDBSleepingBag>,
@@ -200,6 +206,11 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 32;
       height = 48;
+    } else if (isReed(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      width = 32;
+      height = 76;
     } else if (isStash(entity)) {
       x = entity.posX;
       y = entity.posY;
@@ -351,6 +362,12 @@ export function useEntityFiltering(
       : []
   , [hemps, isEntityInView, viewBounds, currentTime]);
 
+  const visibleReeds = useMemo(() => 
+    reeds ? Array.from(reeds.values())
+      .filter(e => isEntityInView(e, viewBounds, currentTime) && !e.respawnAt)
+      : []
+  , [reeds, isEntityInView, viewBounds, currentTime]);
+
   const visibleProjectiles = useMemo(() => {
     const projectilesArray = Array.from(projectiles.values());
     
@@ -438,6 +455,11 @@ export function useEntityFiltering(
     [visibleHemps]
   );
 
+  const visibleReedsMap = useMemo(() => 
+    new Map(visibleReeds.map(r => [r.id.toString(), r])), 
+    [visibleReeds]
+  );
+
   const visibleProjectilesMap = useMemo(() => 
     new Map(visibleProjectiles.map(p => [p.id.toString(), p])), 
     [visibleProjectiles]
@@ -490,6 +512,7 @@ export function useEntityFiltering(
       ...visibleCorns.map(c => ({ type: 'corn' as const, entity: c })),
       ...visiblePotatoes.map(p => ({ type: 'potato' as const, entity: p })),
       ...visibleHemps.map(h => ({ type: 'hemp' as const, entity: h })),
+      ...visibleReeds.map(r => ({ type: 'reed' as const, entity: r })),
       ...visibleCampfires.map(cf => ({ type: 'campfire' as const, entity: cf })),
       ...visibleDroppedItems.map(di => ({ type: 'dropped_item' as const, entity: di })),
       ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
@@ -565,7 +588,7 @@ export function useEntityFiltering(
       }
 
       // Ground resources (crops, mushrooms, etc.) sort by their base
-      if (isCorn(entity) || isHemp(entity) || isPotato(entity) || isMushroom(entity) || isPumpkin(entity) || isDroppedItem(entity)) {
+      if (isCorn(entity) || isHemp(entity) || isReed(entity) || isPotato(entity) || isMushroom(entity) || isPumpkin(entity) || isDroppedItem(entity)) {
         // These are ground-level resources
         sortY = entity.posY;
         return sortY;
@@ -616,7 +639,7 @@ export function useEntityFiltering(
     return validEntities;
   }, [
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
-    visiblePlayerCorpses, visibleStashes, visibleCorns, visiblePotatoes, visibleHemps,
+    visiblePlayerCorpses, visibleStashes, visibleCorns, visiblePotatoes, visibleHemps, visibleReeds,
     visibleCampfires, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
     visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
     visibleShelters // ADDED visibleShelters to dependencies
@@ -628,6 +651,7 @@ export function useEntityFiltering(
     visiblePotatoes,
     visiblePumpkins,
     visibleHemps,
+    visibleReeds,
     visibleDroppedItems,
     visibleCampfires,
     visiblePlayers,
@@ -656,6 +680,7 @@ export function useEntityFiltering(
     visibleGrass,
     visibleGrassMap,
     visibleShelters,
-    visibleSheltersMap
+    visibleSheltersMap,
+    visibleReedsMap
   };
 } 

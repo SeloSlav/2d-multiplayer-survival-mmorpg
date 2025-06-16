@@ -137,5 +137,16 @@ export function renderPumpkin(
   renderHarvestableResourceWithType(ctx, pumpkin, 'pumpkin', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
 }
 
+export function renderReed(
+  ctx: CanvasRenderingContext2D,
+  reed: HarvestableResource,
+  nowMs: number,
+  cycleProgress: number,
+  onlyDrawShadow?: boolean,
+  skipDrawingShadow?: boolean
+) {
+  renderHarvestableResourceWithType(ctx, reed, 'reed', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
+}
+
 // Export the main function as default
 export default renderHarvestableResourceWithType; 

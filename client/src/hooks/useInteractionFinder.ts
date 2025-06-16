@@ -9,6 +9,7 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Corn as SpacetimeDBCorn,
     Hemp as SpacetimeDBHemp,
+    Reed as SpacetimeDBReed,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
@@ -27,6 +28,7 @@ const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+const PLAYER_REED_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
 const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; // Doubled distance for easier revive access
 
@@ -38,6 +40,7 @@ interface UseInteractionFinderProps {
     potatoes: Map<string, SpacetimeDBPotato>;
     pumpkins: Map<string, SpacetimeDBPumpkin>;
     hemps: Map<string, SpacetimeDBHemp>;
+    reeds: Map<string, SpacetimeDBReed>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -55,6 +58,7 @@ interface UseInteractionFinderResult {
     closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
+    closestInteractableReedId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -83,6 +87,7 @@ export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 export const CORN_VISUAL_HEIGHT_FOR_INTERACTION = 96;
 export const POTATO_VISUAL_HEIGHT_FOR_INTERACTION = 32;
 export const HEMP_VISUAL_HEIGHT_FOR_INTERACTION = 88;
+export const REED_VISUAL_HEIGHT_FOR_INTERACTION = 76;
 export const PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 
 // --- Shelter Access Control Constants ---
@@ -158,6 +163,7 @@ export function useInteractionFinder({
     sleepingBags,
     players,
     shelters,
+    reeds,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -166,6 +172,7 @@ export function useInteractionFinder({
     const [closestInteractablePotatoId, setClosestInteractablePotatoId] = useState<bigint | null>(null);
     const [closestInteractablePumpkinId, setClosestInteractablePumpkinId] = useState<bigint | null>(null);
     const [closestInteractableHempId, setClosestInteractableHempId] = useState<bigint | null>(null);
+    const [closestInteractableReedId, setClosestInteractableReedId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
     const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
     const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
@@ -191,6 +198,9 @@ export function useInteractionFinder({
 
         let closestHempId: bigint | null = null;
         let closestHempDistSq = PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED;
+
+        let closestReedId: bigint | null = null;
+        let closestReedDistSq = PLAYER_REED_INTERACTION_DISTANCE_SQUARED;
 
         let closestCampfireId: number | null = null;
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
@@ -288,6 +298,21 @@ export function useInteractionFinder({
                     if (distSq < closestHempDistSq) {
                         closestHempDistSq = distSq;
                         closestHempId = hemp.id;
+                    }
+                });
+            }
+
+            // Find closest reed
+            if (reeds) {
+                reeds.forEach((reed) => {
+                    if (reed.respawnAt !== null && reed.respawnAt !== undefined) return;
+                    const visualCenterY = reed.posY - (76 / 2);
+                    const dx = playerX - reed.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestReedDistSq) {
+                        closestReedDistSq = distSq;
+                        closestReedId = reed.id;
                     }
                 });
             }
@@ -466,9 +491,10 @@ export function useInteractionFinder({
             closestInteractableStashId: closestStashId,
             closestInteractableSleepingBagId: closestSleepingBagId,
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
+            closestInteractableReedId: closestReedId,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters]);
+    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -487,6 +513,9 @@ export function useInteractionFinder({
         }
         if (interactionResult.closestInteractableHempId !== closestInteractableHempId) {
             setClosestInteractableHempId(interactionResult.closestInteractableHempId);
+        }
+        if (interactionResult.closestInteractableReedId !== closestInteractableReedId) {
+            setClosestInteractableReedId(interactionResult.closestInteractableReedId);
         }
         if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
             setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
@@ -522,6 +551,7 @@ export function useInteractionFinder({
         closestInteractablePotatoId,
         closestInteractablePumpkinId,
         closestInteractableHempId,
+        closestInteractableReedId,
         closestInteractableCampfireId,
         closestInteractableDroppedItemId,
         closestInteractableBoxId,

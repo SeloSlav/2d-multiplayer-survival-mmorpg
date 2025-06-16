@@ -432,6 +432,48 @@ fn is_pumpkin_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) ->
     false
 }
 
+/// Checks if position is suitable for reed spawning (along inland water sources)
+/// Reeds prefer to grow directly adjacent to inland water (rivers/lakes) but not ocean water
+fn is_reed_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check if position is immediately adjacent to inland water
+    let search_radius = 1; // Check 1 tile in each direction (immediate neighbors)
+    let world_tiles = ctx.db.world_tile();
+    
+    for dy in -search_radius..=search_radius {
+        for dx in -search_radius..=search_radius {
+            let check_x = tile_x + dx;
+            let check_y = tile_y + dy;
+            
+            // Skip if out of bounds
+            if check_x < 0 || check_y < 0 || 
+               check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
+                continue;
+            }
+            
+            // Check if this nearby tile is water
+            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                if tile.tile_type == TileType::Sea {
+                    // Check if it's inland water (not ocean)
+                    if is_tile_inland_water(ctx, check_x, check_y) {
+                        // Make sure our own position is on a suitable tile (grass, dirt, or beach)
+                        for own_tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+                            if matches!(own_tile.tile_type, TileType::Grass | TileType::Dirt | TileType::Beach) {
+                                return true; // Adjacent to inland water and on good tile
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    false
+}
+
 // --- Environment Seeding ---
 
 #[spacetimedb::reducer]
@@ -443,18 +485,19 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let potatoes = ctx.db.potato();
     let pumpkins = ctx.db.pumpkin();
     let hemps = ctx.db.hemp();
+    let reeds = ctx.db.reed();
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || clouds.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Clouds: {}). Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), clouds.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}). Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, clouds)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, reeds, clouds)..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -476,6 +519,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_pumpkin_attempts = target_pumpkin_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_hemp_count = (total_tiles as f32 * crate::hemp::HEMP_DENSITY_PERCENT) as u32;
     let max_hemp_attempts = target_hemp_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+    let target_reed_count = (total_tiles as f32 * crate::reed::REED_DENSITY_PERCENT) as u32;
+    let max_reed_attempts = target_reed_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
 
     // Cloud seeding parameters
     const CLOUD_DENSITY_PERCENT: f32 = 0.005; // Example: 0.5% of tiles might have a cloud center
@@ -503,6 +548,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Potatoes: {}, Max Attempts: {}", target_potato_count, max_potato_attempts);
     log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
+    log::info!("Target Reeds: {}, Max Attempts: {}", target_reed_count, max_reed_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
     // log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts); // COMMENTED OUT
     // Calculate spawn bounds using helper
@@ -518,6 +564,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_potato_positions = Vec::<(f32, f32)>::new();
     let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_reed_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
     let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // COMMENTED OUT
 
@@ -535,6 +582,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut hemp_attempts = 0;
     let mut spawned_pumpkin_count = 0;
     let mut pumpkin_attempts = 0;
+    let mut spawned_reed_count = 0;
+    let mut reed_attempts = 0;
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
     let mut spawned_grass_count = 0; // COMMENTED OUT
@@ -888,6 +937,54 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_hemp_count, target_hemp_count, hemp_attempts
     );
 
+    // --- Seed Reeds --- Use helper function ---
+    log::info!("Seeding Reeds...");
+    let reed_noise_threshold = 0.62; // Lower threshold for reeds (easier to spawn near water)
+    while spawned_reed_count < target_reed_count && reed_attempts < max_reed_attempts {
+        reed_attempts += 1;
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_reed_positions,
+            &spawned_tree_positions,
+            &spawned_stone_positions,
+            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+            &fbm,
+            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
+            reed_noise_threshold,
+            crate::reed::MIN_REED_DISTANCE_SQ,
+            crate::reed::MIN_REED_TREE_DISTANCE_SQ,
+            crate::reed::MIN_REED_STONE_DISTANCE_SQ,
+            |pos_x, pos_y, _extra: ()| {
+                // Calculate chunk index for the reed
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                crate::reed::Reed {
+                    id: 0,
+                    pos_x,
+                    pos_y,
+                    chunk_index: chunk_idx,
+                    respawn_at: None,
+                }
+            },
+            (),
+            |pos_x, pos_y| {
+                // UPDATED: Combined water and location check for reeds
+                // Note: Reeds want to be NEAR water, not ON water, so we use the inverse
+                !is_reed_location_suitable(ctx, pos_x, pos_y)
+            },
+            reeds,
+        ) {
+            Ok(true) => spawned_reed_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} reeds (target: {}, attempts: {}).",
+        spawned_reed_count, target_reed_count, reed_attempts
+    );
+
     // --- Seed Grass --- (New Section) - COMMENTED OUT
     log::info!("Seeding Grass...");
     let (grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y) = 
@@ -1215,6 +1312,18 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |_h: &crate::hemp::Hemp| true, // Filter: Always check if respawn_at is set
         |h: &mut crate::hemp::Hemp| {
             h.respawn_at = None;
+        }
+    );
+
+    // Respawn Reeds
+    check_and_respawn_resource!(
+        ctx,
+        reed, // Table symbol
+        crate::reed::Reed, // Entity type
+        "Reed", // Name for logging
+        |_r: &crate::reed::Reed| true, // Filter: Always check if respawn_at is set
+        |r: &mut crate::reed::Reed| {
+            r.respawn_at = None;
         }
     );
 

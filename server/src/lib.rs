@@ -47,6 +47,7 @@ mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
 mod cooking; // <<< ADDED: For generic cooking logic
 mod hemp; // Added for Hemp resource
+mod reed; // Added for Reed resource
 mod stash; // Added Stash module
 pub mod pumpkin;
 pub mod active_effects; // Added for timed consumable effects
@@ -145,6 +146,7 @@ use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::chat::message as MessageTableTrait; // Import the trait for Message table
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
 use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
+use crate::reed::reed as ReedTableTrait; // Added for Reed resource
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
 use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
 use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait

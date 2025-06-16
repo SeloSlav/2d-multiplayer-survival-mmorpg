@@ -33,7 +33,7 @@ import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
 // Import unified resource renderer instead of individual ones
-import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin } from './unifiedResourceRenderer';
+import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin, renderReed } from './unifiedResourceRenderer';
 import { renderCampfire } from './campfireRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
@@ -408,6 +408,8 @@ export const renderYSortedEntities = ({
             renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress);
         } else if (type === 'hemp') {
             renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress);
+        } else if (type === 'reed') {
+            renderReed(ctx, entity as any, nowMs, cycleProgress);
         } else if (type === 'campfire') {
             renderCampfire(ctx, entity as SpacetimeDBCampfire, nowMs, cycleProgress);
         } else if (type === 'dropped_item') {
@@ -500,6 +502,8 @@ export const renderYSortedEntities = ({
             // Corn is fully rendered in the first pass - no second pass needed
         } else if (type === 'hemp') {
             // Hemp is fully rendered in the first pass - no second pass needed
+        } else if (type === 'reed') {
+            // Reed is fully rendered in the first pass - no second pass needed
         } else if (type === 'campfire') {
             // Campfires handle their own shadows, no separate pass needed here generally
         } else if (type === 'dropped_item') {

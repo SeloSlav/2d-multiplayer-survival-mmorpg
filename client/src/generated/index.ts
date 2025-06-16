@@ -106,6 +106,8 @@ import { InteractWithPotato } from "./interact_with_potato_reducer.ts";
 export { InteractWithPotato };
 import { InteractWithPumpkin } from "./interact_with_pumpkin_reducer.ts";
 export { InteractWithPumpkin };
+import { InteractWithReed } from "./interact_with_reed_reducer.ts";
+export { InteractWithReed };
 import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
 export { InteractWithSleepingBag };
 import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
@@ -366,6 +368,8 @@ import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
+import { ReedTableHandle } from "./reed_table.ts";
+export { ReedTableHandle };
 import { ShelterTableHandle } from "./shelter_table.ts";
 export { ShelterTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
@@ -508,6 +512,8 @@ import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
+import { Reed } from "./reed_type.ts";
+export { Reed };
 import { Shelter } from "./shelter_type.ts";
 export { Shelter };
 import { SleepingBag } from "./sleeping_bag_type.ts";
@@ -760,6 +766,11 @@ const REMOTE_MODULE = {
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
     },
+    reed: {
+      tableName: "reed",
+      rowType: Reed.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     shelter: {
       tableName: "shelter",
       rowType: Shelter.getTypeScriptAlgebraicType(),
@@ -964,6 +975,10 @@ const REMOTE_MODULE = {
     interact_with_pumpkin: {
       reducerName: "interact_with_pumpkin",
       argsType: InteractWithPumpkin.getTypeScriptAlgebraicType(),
+    },
+    interact_with_reed: {
+      reducerName: "interact_with_reed",
+      argsType: InteractWithReed.getTypeScriptAlgebraicType(),
     },
     interact_with_sleeping_bag: {
       reducerName: "interact_with_sleeping_bag",
@@ -1373,6 +1388,7 @@ export type Reducer = never
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
 | { name: "InteractWithPotato", args: InteractWithPotato }
 | { name: "InteractWithPumpkin", args: InteractWithPumpkin }
+| { name: "InteractWithReed", args: InteractWithReed }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
@@ -2010,6 +2026,22 @@ export class RemoteReducers {
 
   removeOnInteractWithPumpkin(callback: (ctx: ReducerEventContext, pumpkinId: bigint) => void) {
     this.connection.offReducer("interact_with_pumpkin", callback);
+  }
+
+  interactWithReed(reedId: bigint) {
+    const __args = { reedId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithReed.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_reed", __argsBuffer, this.setCallReducerFlags.interactWithReedFlags);
+  }
+
+  onInteractWithReed(callback: (ctx: ReducerEventContext, reedId: bigint) => void) {
+    this.connection.onReducer("interact_with_reed", callback);
+  }
+
+  removeOnInteractWithReed(callback: (ctx: ReducerEventContext, reedId: bigint) => void) {
+    this.connection.offReducer("interact_with_reed", callback);
   }
 
   interactWithSleepingBag(bagId: number) {
@@ -3518,6 +3550,11 @@ export class SetReducerFlags {
     this.interactWithPumpkinFlags = flags;
   }
 
+  interactWithReedFlags: CallReducerFlags = 'FullUpdate';
+  interactWithReed(flags: CallReducerFlags) {
+    this.interactWithReedFlags = flags;
+  }
+
   interactWithSleepingBagFlags: CallReducerFlags = 'FullUpdate';
   interactWithSleepingBag(flags: CallReducerFlags) {
     this.interactWithSleepingBagFlags = flags;
@@ -4123,6 +4160,10 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
+  }
+
+  get reed(): ReedTableHandle {
+    return new ReedTableHandle(this.connection.clientCache.getOrCreateTable<Reed>(REMOTE_MODULE.tables.reed));
   }
 
   get shelter(): ShelterTableHandle {

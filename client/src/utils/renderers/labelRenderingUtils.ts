@@ -7,6 +7,7 @@ import {
     Corn as SpacetimeDBCorn,
     Potato as SpacetimeDBPotato,
     Hemp as SpacetimeDBHemp,
+    Reed as SpacetimeDBReed,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
@@ -20,6 +21,7 @@ import {
     CORN_VISUAL_HEIGHT_FOR_INTERACTION,
     POTATO_VISUAL_HEIGHT_FOR_INTERACTION,
     HEMP_VISUAL_HEIGHT_FOR_INTERACTION,
+    REED_VISUAL_HEIGHT_FOR_INTERACTION,
     PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION
 } from '../../hooks/useInteractionFinder';
 
@@ -39,6 +41,7 @@ interface RenderLabelsParams {
     potatoes: Map<string, SpacetimeDBPotato>;
     pumpkins: Map<string, SpacetimeDBPumpkin>;
     hemps: Map<string, SpacetimeDBHemp>;
+    reeds: Map<string, SpacetimeDBReed>;
     campfires: Map<string, SpacetimeDBCampfire>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -52,6 +55,7 @@ interface RenderLabelsParams {
     closestInteractablePotatoId: bigint | null;
     closestInteractablePumpkinId: bigint | null;
     closestInteractableHempId: bigint | null;
+    closestInteractableReedId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -78,6 +82,7 @@ export function renderInteractionLabels({
     potatoes,
     pumpkins,
     hemps,
+    reeds,
     campfires,
     droppedItems,
     woodenStorageBoxes,
@@ -91,6 +96,7 @@ export function renderInteractionLabels({
     closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
+    closestInteractableReedId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -167,6 +173,19 @@ export function renderInteractionLabels({
             const text = getResourceInteractionLabel('hemp');
             const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = hemp.posX;
+            const textY = visualCenterY - 30; // Offset above visual center
+            ctx.strokeText(text, textX, textY);
+            ctx.fillText(text, textX, textY);
+        }
+    }
+
+    // Reed Label
+    if (closestInteractableReedId !== null) {
+        const reed = reeds.get(closestInteractableReedId.toString());
+        if (reed) {
+            const text = getResourceInteractionLabel('reed');
+            const visualCenterY = reed.posY - (REED_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+            const textX = reed.posX;
             const textY = visualCenterY - 30; // Offset above visual center
             ctx.strokeText(text, textX, textY);
             ctx.fillText(text, textX, textY);

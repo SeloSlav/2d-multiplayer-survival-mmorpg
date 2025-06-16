@@ -16,6 +16,7 @@ import {
   Corn as SpacetimeDBCorn,
   Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
+  Reed as SpacetimeDBReed,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
@@ -82,7 +83,6 @@ import {
   SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
 import { BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
-import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from '../hooks/useInteractionFinder';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { useRemotePlayerInterpolation } from '../hooks/useRemotePlayerInterpolation';
 
@@ -106,6 +106,7 @@ interface GameCanvasProps {
   potatoes: Map<string, SpacetimeDBPotato>;
   pumpkins: Map<string, SpacetimeDBPumpkin>;
   hemps: Map<string, SpacetimeDBHemp>;
+  reeds: Map<string, SpacetimeDBReed>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
@@ -162,6 +163,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   potatoes,
   pumpkins,
   hemps,
+  reeds,
   droppedItems,
   woodenStorageBoxes,
   sleepingBags,
@@ -322,6 +324,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
+    closestInteractableReedId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -345,6 +348,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     sleepingBags,
     players,
     shelters,
+    reeds,
   });
 
 
@@ -372,6 +376,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractablePotatoId,
     closestInteractablePumpkinId,
     closestInteractableHempId,
+    closestInteractableReedId,
     closestInteractableCampfireId: closestInteractableCampfireId as any,
     closestInteractableDroppedItemId,
     closestInteractableBoxId: closestInteractableBoxId as any,
@@ -418,6 +423,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visiblePotatoesMap,
     visiblePumpkinsMap,
     visibleHempsMap,
+    visibleReedsMap,
     visiblePlayerCorpses,
     visibleStashes,
     visiblePlayerCorpsesMap,
@@ -440,6 +446,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     potatoes,
     pumpkins,
     hemps,
+    reeds,
     droppedItems,
     woodenStorageBoxes,
     sleepingBags,
@@ -764,6 +771,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       potatoes: visiblePotatoesMap,
       pumpkins: visiblePumpkinsMap,
       hemps: visibleHempsMap,
+      reeds: visibleReedsMap,
       campfires: visibleCampfiresMap,
       droppedItems: visibleDroppedItemsMap,
       woodenStorageBoxes: visibleBoxesMap,
@@ -777,6 +785,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractablePotatoId,
       closestInteractablePumpkinId,
       closestInteractableHempId,
+      closestInteractableReedId,
       closestInteractableCampfireId,
       closestInteractableDroppedItemId,
       closestInteractableBoxId,

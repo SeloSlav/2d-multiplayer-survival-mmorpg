@@ -10,6 +10,7 @@ import {
   Potato as SpacetimeDBPotato,
   Pumpkin as SpacetimeDBPumpkin,
   Hemp as SpacetimeDBHemp,
+  Reed as SpacetimeDBReed,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
@@ -125,6 +126,25 @@ export function isHemp(entity: any): entity is SpacetimeDBHemp {
            // If Corn and Mushroom have a field that Hemp doesn't, that could be used.
            // This guard might need refinement if Hemp becomes structurally identical to Corn/Mushroom
            // without a specific type marker from the backend (like __entityType when mapped in client state).
+           true; // Placeholder for further differentiation if needed
+    
+    return result;
+}
+
+// Type guard for Reed
+export function isReed(entity: any): entity is SpacetimeDBReed {
+    const result = entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' && 
+           // Ensure it doesn't match other resource types or entities
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.health === 'undefined' && // Not a Stone (or other entities with health like Player)
+           typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, or SleepingBag
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           // Similar differentiation logic as Hemp
            true; // Placeholder for further differentiation if needed
     
     return result;
