@@ -192,7 +192,7 @@ export const renderPlayer = (
             playerHitStates.delete(playerHexIdForDelete);
         }
     }
-    return; 
+    return;
   }
 
   let currentDisplayX: number = player.positionX;
