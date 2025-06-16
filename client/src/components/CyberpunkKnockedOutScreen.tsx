@@ -61,6 +61,15 @@ const CyberpunkKnockedOutScreen: React.FC<CyberpunkKnockedOutScreenProps> = ({
 
   return (
     <div className={`cyberpunk-knocked-out-screen ${criticalState ? 'critical' : warningState ? 'warning' : 'stable'}`}>
+      {/* Independent SOVA Icon at top center */}
+      <div className="independent-sova-container">
+        <img 
+          src={sovaIcon} 
+          alt="SOVA" 
+          className={`independent-sova ${criticalState ? 'critical-pulse' : 'analyzing'}`} 
+        />
+      </div>
+
       {/* Animated grid background */}
       <div className="neural-grid-background"></div>
       
