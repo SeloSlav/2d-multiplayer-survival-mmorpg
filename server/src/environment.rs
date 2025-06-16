@@ -80,6 +80,29 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
 }
 
+/// Checks if position is in the central compound area where trees and stones should not spawn
+fn is_position_in_central_compound(pos_x: f32, pos_y: f32) -> bool {
+    // Convert to tile coordinates
+    let tile_x = (pos_x / crate::TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / crate::TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Calculate center of the world in tiles
+    let center_x = (WORLD_WIDTH_TILES / 2) as i32;
+    let center_y = (WORLD_HEIGHT_TILES / 2) as i32;
+    
+    // Central compound size + buffer zone (same as in world_generation.rs)
+    let compound_size = 8;
+    let buffer = 15; // Extra buffer to keep trees and stones away from roads and compound
+    
+    // Check if position is within the exclusion zone
+    let min_x = center_x - compound_size - buffer;
+    let max_x = center_x + compound_size + buffer;
+    let min_y = center_y - compound_size - buffer;
+    let max_y = center_y + compound_size + buffer;
+    
+    tile_x >= min_x && tile_x <= max_x && tile_y >= min_y && tile_y <= max_y
+}
+
 /// Checks if position is on a beach tile
 /// NEW: Uses compressed chunk data for better performance
 fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
@@ -641,7 +664,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             tree_type_roll_for_this_attempt, // Pass the roll as extra_args
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y), // Block water and central compound for trees
             trees,
         ) {
             Ok(true) => spawned_tree_count += 1,
@@ -686,7 +709,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 }
             },
             (),
-            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y), // NEW: Water check function
+            |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y), // Block water and central compound for stones
             stones,
         ) {
             Ok(true) => spawned_stone_count += 1,

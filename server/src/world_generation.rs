@@ -614,7 +614,7 @@ fn generate_road_network(config: &WorldGenConfig, noise: &Perlin, width: usize, 
         }
     }
     
-    // Roads from corners to center
+    // Roads from corners to center (the original cross pattern)
     let corners = [
         (20, 20),                    // Top-left
         (width - 21, 20),            // Top-right  
@@ -625,6 +625,9 @@ fn generate_road_network(config: &WorldGenConfig, noise: &Perlin, width: usize, 
     for (corner_x, corner_y) in corners {
         trace_road_to_center(&mut roads, corner_x, corner_y, center_x, center_y, width, height);
     }
+    
+    // Add ring road around the main island
+    trace_ring_road(&mut roads, noise, center_x, center_y, width, height);
     
     roads
 }
@@ -653,6 +656,123 @@ fn trace_road_to_center(roads: &mut Vec<Vec<bool>>, start_x: usize, start_y: usi
                     roads[road_y][road_x] = true;
                 }
             }
+        }
+    }
+}
+
+fn trace_ring_road(roads: &mut Vec<Vec<bool>>, noise: &Perlin, center_x: usize, center_y: usize, width: usize, height: usize) {
+    let center_x_f = center_x as f64;
+    let center_y_f = center_y as f64;
+    
+    // Calculate ring road radius - position it between the center and the island edge
+    // The main island has radius of about 35% of map size, so place ring at about 60% to stay on land
+    let base_ring_radius = (width.min(height) as f64 * 0.25).min(center_x_f.min(center_y_f) - 30.0);
+    
+    // Number of points around the circle - higher for smoother road
+    let num_points = (base_ring_radius * 0.8) as usize; // Adjust density based on radius
+    let angle_step = 2.0 * std::f64::consts::PI / num_points as f64;
+    
+    let mut ring_points = Vec::new();
+    
+    // Generate ring points with organic variation
+    for i in 0..num_points {
+        let base_angle = i as f64 * angle_step;
+        
+        // Add noise-based variation to make the ring more organic
+        let noise_x = center_x_f + base_angle.cos() * 20.0;
+        let noise_y = center_y_f + base_angle.sin() * 20.0;
+        let radius_noise = noise.get([noise_x * 0.01, noise_y * 0.01, 8000.0]);
+        let angle_noise = noise.get([noise_x * 0.015, noise_y * 0.015, 8500.0]);
+        
+        // Vary the radius and angle slightly for organic look
+        let varied_radius = base_ring_radius + radius_noise * 15.0; // ±15 tile variation
+        let varied_angle = base_angle + angle_noise * 0.3; // ±0.3 radian variation
+        
+        // Calculate point position
+        let x = center_x_f + varied_angle.cos() * varied_radius;
+        let y = center_y_f + varied_angle.sin() * varied_radius;
+        
+        // Ensure point is within bounds with some margin
+        let x = x.max(25.0).min(width as f64 - 25.0);
+        let y = y.max(25.0).min(height as f64 - 25.0);
+        
+        ring_points.push((x as i32, y as i32));
+    }
+    
+    // Connect the ring points to form a continuous road
+    for i in 0..ring_points.len() {
+        let current = ring_points[i];
+        let next = ring_points[(i + 1) % ring_points.len()]; // Wrap around to close the ring
+        
+        // Draw road segment between current and next point
+        draw_road_segment_between_points(roads, current.0, current.1, next.0, next.1, width, height);
+    }
+    
+    // Connect ring road to the main cross roads at strategic points
+    connect_ring_to_cross_roads(roads, &ring_points, center_x, center_y, width, height);
+}
+
+fn draw_road_segment_between_points(roads: &mut Vec<Vec<bool>>, x1: i32, y1: i32, x2: i32, y2: i32, width: usize, height: usize) {
+    // Use Bresenham's line algorithm to draw road between two points
+    let dx = (x2 - x1).abs();
+    let dy = (y2 - y1).abs();
+    let sx = if x1 < x2 { 1 } else { -1 };
+    let sy = if y1 < y2 { 1 } else { -1 };
+    let mut err = dx - dy;
+    
+    let mut x = x1;
+    let mut y = y1;
+    
+    loop {
+        // Draw road with width (3x3 for visibility)
+        for dy_offset in -1..=1 {
+            for dx_offset in -1..=1 {
+                let road_x = (x + dx_offset) as usize;
+                let road_y = (y + dy_offset) as usize;
+                if road_x < width && road_y < height {
+                    roads[road_y][road_x] = true;
+                }
+            }
+        }
+        
+        if x == x2 && y == y2 {
+            break;
+        }
+        
+        let e2 = 2 * err;
+        if e2 > -dy {
+            err -= dy;
+            x += sx;
+        }
+        if e2 < dx {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+fn connect_ring_to_cross_roads(roads: &mut Vec<Vec<bool>>, ring_points: &[(i32, i32)], center_x: usize, center_y: usize, width: usize, height: usize) {
+    // Find 4 connection points on the ring road that align roughly with the cross roads
+    let quarter_points = ring_points.len() / 4;
+    
+    let connection_indices = [
+        0,                           // North
+        quarter_points,              // East  
+        quarter_points * 2,          // South
+        quarter_points * 3,          // West
+    ];
+    
+    // Connect each quarter point to an intermediate point between ring and center
+    for &idx in &connection_indices {
+        if idx < ring_points.len() {
+            let ring_point = ring_points[idx];
+            
+            // Calculate intermediate point (halfway between ring and center)
+            let intermediate_x = (ring_point.0 + center_x as i32) / 2;
+            let intermediate_y = (ring_point.1 + center_y as i32) / 2;
+            
+            // Draw connecting road from ring to intermediate point
+            draw_road_segment_between_points(roads, ring_point.0, ring_point.1, intermediate_x, intermediate_y, width, height);
         }
     }
 }
