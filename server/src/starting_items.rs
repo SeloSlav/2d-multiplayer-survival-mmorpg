@@ -39,6 +39,8 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Camp Fire", 1, None, Some(2u16)),
         ("Wooden Arrow", 25, None, Some(3u16)),
         ("Shelter", 1, None, Some(4u16)),
+        ("Fire Arrow", 25, None, Some(5u16)),
+        ("Crossbow", 1, None, Some(6u16)),
 
     ];
 

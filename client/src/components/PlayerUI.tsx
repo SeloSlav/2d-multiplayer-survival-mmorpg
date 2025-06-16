@@ -14,6 +14,7 @@ import { InteractionTarget } from '../hooks/useInteractionManager';
 import { NotificationItem } from '../types/notifications';
 import ItemAcquisitionNotificationUI from './ItemAcquisitionNotificationUI';
 import ActiveCraftingQueueUI from './ActiveCraftingQueueUI';
+import CyberpunkKnockedOutScreen from './CyberpunkKnockedOutScreen';
 // --- END NEW IMPORTS ---
 
 interface PlayerUIProps {
@@ -589,82 +590,11 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             />
             {/* --- END NEW --- */}
 
-            {/* --- NEW: Knocked Out Status Overlay --- */}
+            {/* --- NEW: Cyberpunk Knocked Out Screen --- */}
             {localPlayer?.isKnockedOut && (
-                <div style={{
-                    position: 'fixed',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    background: 'linear-gradient(135deg, rgba(40, 10, 20, 0.95), rgba(30, 5, 15, 0.98))',
-                    color: '#ff6b6b',
-                    padding: '25px 30px',
-                    borderRadius: '12px',
-                    border: '2px solid #ff4444',
-                    fontFamily: '"Press Start 2P", cursive',
-                    fontSize: '12px',
-                    textAlign: 'center',
-                    minWidth: '350px',
-                    boxShadow: '0 0 30px rgba(255, 68, 68, 0.6), inset 0 0 20px rgba(255, 68, 68, 0.1)',
-                    zIndex: 1000,
-                    animation: 'pulse 2s ease-in-out infinite alternate',
-                    backdropFilter: 'blur(8px)',
-                }}>
-                    <h2 style={{ 
-                        margin: '0 0 15px 0', 
-                        fontSize: '16px', 
-                        color: '#ff4444',
-                        textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
-                    }}>
-                        ⚠️ YOU ARE WOUNDED ⚠️
-                    </h2>
-                    
-                    {localPlayerKnockedOutStatus ? (
-                        <div>
-                            <div style={{ marginBottom: '10px', color: '#ffaa44' }}>
-                                🏥 Recovery Chance: <span style={{ color: '#44ff44' }}>
-                                    {localPlayerKnockedOutStatus.currentRecoveryChancePercent.toFixed(1)}%
-                                </span>
-                            </div>
-                            
-                            <div style={{ marginBottom: '10px', color: '#ffaa44' }}>
-                                💀 Death Risk: <span style={{ color: '#ff4444' }}>
-                                    {localPlayerKnockedOutStatus.currentDeathChancePercent.toFixed(1)}%
-                                </span>
-                            </div>
-                            
-                            {localPlayerKnockedOutStatus.timeUntilDeathRiskStartsSecs > 0 && (
-                                <div style={{ marginBottom: '10px', color: '#44aaff' }}>
-                                    ⏱️ Safe Time: {Math.ceil(localPlayerKnockedOutStatus.timeUntilDeathRiskStartsSecs)}s
-                                </div>
-                            )}
-                            
-                            <div style={{ marginBottom: '15px', color: '#aaaaaa', fontSize: '10px' }}>
-                                Survival Factor: {localPlayerKnockedOutStatus.statMultiplier.toFixed(2)}x
-                                <br />
-                                (Based on hunger, thirst, stamina, warmth & armor)
-                            </div>
-                        </div>
-                    ) : (
-                        <div style={{ color: '#ffaa44' }}>
-                            Calculating status...
-                        </div>
-                    )}
-                    
-                    <div style={{ 
-                        fontSize: '10px', 
-                        color: '#cccccc',
-                        marginTop: '10px',
-                        borderTop: '1px solid #444',
-                        paddingTop: '10px'
-                    }}>
-                        💡 Another player can revive you!
-                        <br />
-                        Better stats = better survival chances
-                    </div>
-                </div>
+                <CyberpunkKnockedOutScreen knockedOutStatus={localPlayerKnockedOutStatus} />
             )}
-            {/* --- END NEW: Knocked Out Status Overlay --- */}
+            {/* --- END NEW: Cyberpunk Knocked Out Screen --- */}
 
             {/* Status Effects Text - appears above status bars */}
             {activeStatusEffects.length > 0 && (

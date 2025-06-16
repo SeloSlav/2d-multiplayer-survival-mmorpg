@@ -184,22 +184,22 @@ export const renderEquippedItem = (
       case 'up':
         itemOffsetX = gameConfig.spriteWidth * 0.3;
         itemOffsetY = -gameConfig.spriteHeight * 0.0;
-        rotation = -Math.PI / 2; // Point bow upward
+        rotation = -Math.PI / 2; // Point bow upward (with horizontal flip, -90° points up)
         break;
       case 'down':
         itemOffsetX = gameConfig.spriteWidth * -0.3;
         itemOffsetY = gameConfig.spriteHeight * 0.2;
-        rotation = Math.PI / 2; // Point bow downward
+        rotation = Math.PI / 2; // Point bow downward (with horizontal flip, +90° points down)
         break;
       case 'left':
         itemOffsetX = -gameConfig.spriteWidth * 0.2;
         itemOffsetY = 0;
-        rotation = Math.PI / 2; // Rotate bow 270 degrees counterclockwise
+        rotation = Math.PI / 2; // Rotate counterclockwise 90° to mirror the right direction
         break;
       case 'right':
         itemOffsetX = gameConfig.spriteWidth * -0.2;
         itemOffsetY = 4.0;
-        rotation = 0; // Point bow right (default)
+        rotation = 0; // Point bow right (0° is correct, this is our reference)
         break;
     }
     
@@ -217,22 +217,22 @@ export const renderEquippedItem = (
       case 'up':
         itemOffsetX = gameConfig.spriteWidth * 0.25;
         itemOffsetY = -gameConfig.spriteHeight * 0.05;
-        rotation = -Math.PI / 2; // Point crossbow upward
+        rotation = -Math.PI / 2; // Point crossbow upward (with horizontal flip, -90° points up)
         break;
       case 'down':
         itemOffsetX = gameConfig.spriteWidth * -0.25;
         itemOffsetY = gameConfig.spriteHeight * 0.25;
-        rotation = Math.PI / 2; // Point crossbow downward
+        rotation = Math.PI / 2; // Point crossbow downward (with horizontal flip, +90° points down)
         break;
       case 'left':
         itemOffsetX = -gameConfig.spriteWidth * 0.25;
         itemOffsetY = 0;
-        rotation = Math.PI / 2; // Rotate crossbow 270 degrees counterclockwise
+        rotation = Math.PI / 2; // Rotate counterclockwise 90° to mirror the right direction
         break;
       case 'right':
         itemOffsetX = gameConfig.spriteWidth * -0.25;
         itemOffsetY = 2.0;
-        rotation = 0; // Point crossbow right (default)
+        rotation = 0; // Point crossbow right (0° is correct, this is our reference)
         break;
     }
     
@@ -337,7 +337,10 @@ export const renderEquippedItem = (
           // currentAngle will be negative or zero, representing a CCW swing if positive was CW (and backwards).
           currentAngle = -(Math.sin(swingProgress * Math.PI) * SWING_ANGLE_MAX_RAD);
           // The 'rotation' variable is used for the slash arc. It should match the item's swing direction.
-          rotation = currentAngle; 
+          // Don't override rotation for ranged weapons - they should maintain their directional orientation
+          if (itemDef.name !== "Hunting Bow" && itemDef.name !== "Crossbow") {
+            rotation = currentAngle; 
+          }
       }
   }
   
@@ -575,8 +578,8 @@ export const renderEquippedItem = (
         } finally {
             ctx.restore();
         }
-    } else {
-      // Original slash arc effect for non-spear weapons
+    } else if (itemDef.name?.toLowerCase() !== "hunting bow" && itemDef.category?.tag !== "RangedWeapon") {
+      // Original slash arc effect for non-spear, non-ranged weapons
       ctx.save();
       try {
           const slashRadius = Math.max(displayItemWidth, displayItemHeight) * 0.5; 

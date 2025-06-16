@@ -67,8 +67,8 @@ class OpenAIService {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          max_tokens: 1500, // Increased significantly to handle large recipe lists
-          temperature: 0.3, // Reduced for more consistent, factual responses
+          max_completion_tokens: 1500, // Increased significantly to handle large recipe lists
+          temperature: 1, // Reduced for more consistent, factual responses
           presence_penalty: 0.0, // Removed to avoid penalizing factual information
           frequency_penalty: 0.0, // Removed to avoid penalizing repeated factual data
         }),
