@@ -45,8 +45,8 @@ const VIEWPORT_UPDATE_THRESHOLD_SQ = (VIEWPORT_WIDTH / 2) ** 2; // Increased thr
 const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) to reduce update frequency
 
 // Import interaction distance constants directly from their respective rendering utility files
-import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/woodenStorageBoxRenderingUtils';
-import { PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/campfireRenderingUtils';
+import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT } from './utils/renderers/woodenStorageBoxRenderingUtils';
+import { PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED, CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './utils/renderers/campfireRenderingUtils';
 import { PLAYER_STASH_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/stashRenderingUtils';
 import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/playerCorpseRenderingUtils';
 // Add other relevant interaction distances if new interactable container types are added
@@ -414,63 +414,77 @@ function AppContent() {
             return;
         }
 
-        let entityPosition: { x: number, y: number } | null = null;
-        let interactionDistanceSquared: number | null = null;
+        // Add a small delay to prevent immediate clearing when interaction is first set
+        const timeoutId = setTimeout(() => {
+            const currentPlayer = localPlayerRef.current;
+            if (!currentPlayer || !interactingWith) return;
 
-        switch (interactingWith.type) {
-            case 'wooden_storage_box':
-                const box = woodenStorageBoxes.get(interactingWith.id.toString());
-                if (box) {
-                    entityPosition = { x: box.posX, y: box.posY };
-                    interactionDistanceSquared = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED;
-                }
-                break;
-            case 'campfire':
-                const campfire = campfires.get(interactingWith.id.toString());
-                if (campfire) {
-                    entityPosition = { x: campfire.posX, y: campfire.posY };
-                    interactionDistanceSquared = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
-                }
-                break;
-            case 'stash':
-                const stash = stashes.get(interactingWith.id.toString());
-                if (stash) {
-                    entityPosition = { x: stash.posX, y: stash.posY };
-                    interactionDistanceSquared = PLAYER_STASH_INTERACTION_DISTANCE_SQUARED;
-                }
-                break;
-            case 'player_corpse': // Added case for player_corpse
-                // Player corpse ID is typically a bigint
-                const corpse = playerCorpses.get(interactingWith.id.toString());
-                if (corpse) {
-                    entityPosition = { x: corpse.posX, y: corpse.posY };
-                    interactionDistanceSquared = PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED;
-                }
-                break;
-            default:
-                // Unknown interaction type, or type not handled for auto-closing.
-                return;
-        }
+            let entityPosition: { x: number, y: number } | null = null;
+            let interactionDistanceSquared: number | null = null;
 
-        if (entityPosition && interactionDistanceSquared !== null) {
-            const dx = player.positionX - entityPosition.x;
-            const dy = player.positionY - entityPosition.y;
-            const currentDistSq = dx * dx + dy * dy;
-
-            if (currentDistSq > interactionDistanceSquared) {
-                // console.log(`[AppContent] Player moved too far from ${interactingWith.type} (ID: ${interactingWith.id}). Clearing interaction.`);
-                handleSetInteractingWith(null);
+            switch (interactingWith.type) {
+                case 'wooden_storage_box':
+                    const box = woodenStorageBoxes.get(interactingWith.id.toString());
+                    if (box) {
+                        // Use the visual center of the box (middle of the visible sprite)
+                        const visualCenterY = box.posY - (BOX_HEIGHT / 2) - 20;
+                        entityPosition = { x: box.posX, y: visualCenterY };
+                        interactionDistanceSquared = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED;
+                    }
+                    break;
+                case 'campfire':
+                    const campfire = campfires.get(interactingWith.id.toString());
+                    if (campfire) {
+                        // Use the same visual center calculation as useInteractionFinder
+                        const visualCenterY = campfire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+                        entityPosition = { x: campfire.posX, y: visualCenterY };
+                        interactionDistanceSquared = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
+                    }
+                    break;
+                case 'stash':
+                    const stash = stashes.get(interactingWith.id.toString());
+                    if (stash) {
+                        entityPosition = { x: stash.posX, y: stash.posY };
+                        interactionDistanceSquared = PLAYER_STASH_INTERACTION_DISTANCE_SQUARED;
+                    }
+                    break;
+                case 'player_corpse': // Added case for player_corpse
+                    // Player corpse ID is typically a bigint
+                    const corpse = playerCorpses.get(interactingWith.id.toString());
+                    if (corpse) {
+                        entityPosition = { x: corpse.posX, y: corpse.posY };
+                        interactionDistanceSquared = PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED;
+                    }
+                    break;
+                default:
+                    // Unknown interaction type, or type not handled for auto-closing.
+                    return;
             }
-        }
+
+            if (entityPosition && interactionDistanceSquared !== null) {
+                const dx = currentPlayer.positionX - entityPosition.x;
+                const dy = currentPlayer.positionY - entityPosition.y;
+                const currentDistSq = dx * dx + dy * dy;
+
+                console.log(`[App] Distance check for ${interactingWith.type} (ID: ${interactingWith.id}): distance=${Math.sqrt(currentDistSq).toFixed(1)}, threshold=${Math.sqrt(interactionDistanceSquared).toFixed(1)}`);
+
+                if (currentDistSq > interactionDistanceSquared) {
+                    console.log(`[App] Player moved too far from ${interactingWith.type} (ID: ${interactingWith.id}). Clearing interaction.`);
+                    handleSetInteractingWith(null);
+                }
+            }
+        }, 100); // Small delay to prevent immediate clearing
+
+        return () => clearTimeout(timeoutId);
     }, [
         interactingWith, 
-        players, // Depends on localPlayer, which comes from players map
+        // Remove players from dependency array to prevent constant re-runs
         woodenStorageBoxes, 
         campfires, 
         stashes, 
         playerCorpses, // Add playerCorpses to dependency array
         handleSetInteractingWith
-    ]); // Add other entity maps to dependency array if new cases are added
+    ]); // Removed players dependency to prevent constant re-runs
 
     // --- Determine overall loading state ---
     // We'll determine this after loggedInPlayer and getStoredUsername are defined

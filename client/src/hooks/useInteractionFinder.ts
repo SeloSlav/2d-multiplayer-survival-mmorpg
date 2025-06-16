@@ -19,6 +19,8 @@ import {
     CAMPFIRE_HEIGHT,
     CAMPFIRE_RENDER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
+import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../utils/renderers/playerCorpseRenderingUtils';
+import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
 
 // Define the constant for food item interactions (larger radius for easier pickup)
 const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
@@ -70,9 +72,9 @@ const INTERACTION_CHECK_INTERVAL = 100; // ms
 
 // --- Locally Defined Interaction Distance Constants (formerly in gameConfig.ts) ---
 export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
-export const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+// PLAYER_BOX_INTERACTION_DISTANCE_SQUARED is now imported from woodenStorageBoxRenderingUtils
 export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 100.0 * 100.0;
-export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0;
+// PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED is now imported from playerCorpseRenderingUtils
 export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 32.0 * 32.0;
 
@@ -327,10 +329,9 @@ export function useInteractionFinder({
             // Find closest wooden storage box and check emptiness
             if (woodenStorageBoxes) {
                 woodenStorageBoxes.forEach((box) => {
-                    // Account for the visual center offset that was applied during placement
-                    // The stored posY has BOX_COLLISION_Y_OFFSET (52.0) added to it
-                    const BOX_COLLISION_Y_OFFSET = 52.0;
-                    const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
+                    // Use the visual center of the box (middle of the visible sprite)
+                    // Rendering: drawY = entity.posY - drawHeight - 20, so visual center is halfway down
+                    const visualCenterY = box.posY - (BOX_HEIGHT / 2) - 20;
                     
                     const dx = playerX - box.posX;
                     const dy = playerY - visualCenterY; // Use visual center for interaction distance

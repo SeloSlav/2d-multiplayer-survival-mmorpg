@@ -15,7 +15,7 @@ export const useInteractionManager = (): InteractionManager => {
 
     // Combine setting and clearing into one handler
     const handleSetInteractingWith = useCallback((target: InteractionTarget) => {
-        // console.log("[useInteractionManager] Setting interaction target:", target);
+        console.log("[useInteractionManager] Setting interaction target:", target);
         setInteractingWith(target);
     }, []);
 

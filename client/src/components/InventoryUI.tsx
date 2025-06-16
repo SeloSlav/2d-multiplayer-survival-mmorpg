@@ -132,6 +132,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     const isPlacingItem = placementInfo !== null;
     const prevInteractionTargetRef = useRef<typeof interactionTarget | undefined>(undefined);
     const inventoryPanelRef = useRef<HTMLDivElement>(null); // Ref for the main panel
+    const currentInteractionTargetRef = useRef<typeof interactionTarget>(interactionTarget);
 
     // Tooltip State
     const [tooltipVisible, setTooltipVisible] = useState(false);
@@ -163,16 +164,32 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     }, [onItemDrop]);
 
     useEffect(() => {
+        // Update the current ref
+        currentInteractionTargetRef.current = interactionTarget;
+        
         // console.log('[InventoryUI Effect] Current interactionTarget:', interactionTarget);
         // console.log('[InventoryUI Effect] Previous interactionTarget from ref:', prevInteractionTargetRef.current);
 
         // If there was a defined interactionTarget in the previous render,
         // and now there isn't (interactionTarget is null or undefined),
         // it means the player has moved away or the target is no longer valid.
-        // In this case, automatically close the inventory.
+        // Add a small delay to prevent premature closing due to temporary target loss
         if (prevInteractionTargetRef.current && !interactionTarget) {
-            // console.log('[InventoryUI] Interaction target lost, auto-closing inventory. Calling handleClose.');
-            handleClose();
+            console.log('[InventoryUI] Interaction target lost, scheduling auto-close check...');
+            
+            // Use a small timeout to prevent closing due to temporary target loss
+            const timeoutId = setTimeout(() => {
+                // Double-check that the target is still null after the delay using the ref
+                if (!currentInteractionTargetRef.current) {
+                    console.log('[InventoryUI] Interaction target still lost after delay, auto-closing inventory.');
+                    handleClose();
+                } else {
+                    console.log('[InventoryUI] Interaction target recovered, not closing inventory.');
+                }
+            }, 150); // 150ms delay to prevent flicker-induced closes
+            
+            // Cleanup timeout if component unmounts or target changes
+            return () => clearTimeout(timeoutId);
         }
         // Update the ref to the current value for the next render cycle.
         prevInteractionTargetRef.current = interactionTarget;
@@ -711,38 +728,41 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
             {/* Right Pane: Always shows External Container if interacting */}
             <div className={styles.rightPane}> {/* Ensure rightPane class exists if needed */}
-                {interactionTarget ? (
-                    // If interacting, show the external container
-                <ExternalContainerUI
-                    interactionTarget={interactionTarget}
-                    inventoryItems={inventoryItems}
-                    itemDefinitions={itemDefinitions}
-                    campfires={campfires}
-                    woodenStorageBoxes={woodenStorageBoxes}
-                    playerCorpses={playerCorpses}
-                    stashes={stashes}
-                    currentStorageBox={currentStorageBox}
-                    connection={connection}
-                    onItemDragStart={onItemDragStart}
-                    onItemDrop={handleItemDropWithTracking}
-                    playerId={playerIdentity ? playerIdentity.toHexString() : null}
-                    onExternalItemMouseEnter={handleExternalItemMouseEnter}
-                    onExternalItemMouseLeave={handleExternalItemMouseLeave}
-                    onExternalItemMouseMove={handleExternalItemMouseMove}
-                    worldState={worldState}
-                />
-                ) : (
-                    // Otherwise, show the crafting UI
-            <CraftingUI
-                playerIdentity={playerIdentity}
-                recipes={recipes}
-                craftingQueueItems={craftingQueueItems}
-                itemDefinitions={itemDefinitions}
-                inventoryItems={inventoryItems}
-                connection={connection}
-                onCraftingSearchFocusChange={onCraftingSearchFocusChange}
-            />
-                )}
+                {(() => {
+                    console.log('[InventoryUI Render] Right pane decision - interactionTarget:', interactionTarget);
+                    return interactionTarget ? (
+                        // If interacting, show the external container
+                        <ExternalContainerUI
+                            interactionTarget={interactionTarget}
+                            inventoryItems={inventoryItems}
+                            itemDefinitions={itemDefinitions}
+                            campfires={campfires}
+                            woodenStorageBoxes={woodenStorageBoxes}
+                            playerCorpses={playerCorpses}
+                            stashes={stashes}
+                            currentStorageBox={currentStorageBox}
+                            connection={connection}
+                            onItemDragStart={onItemDragStart}
+                            onItemDrop={handleItemDropWithTracking}
+                            playerId={playerIdentity ? playerIdentity.toHexString() : null}
+                            onExternalItemMouseEnter={handleExternalItemMouseEnter}
+                            onExternalItemMouseLeave={handleExternalItemMouseLeave}
+                            onExternalItemMouseMove={handleExternalItemMouseMove}
+                            worldState={worldState}
+                        />
+                    ) : (
+                        // Otherwise, show the crafting UI
+                        <CraftingUI
+                            playerIdentity={playerIdentity}
+                            recipes={recipes}
+                            craftingQueueItems={craftingQueueItems}
+                            itemDefinitions={itemDefinitions}
+                            inventoryItems={inventoryItems}
+                            connection={connection}
+                            onCraftingSearchFocusChange={onCraftingSearchFocusChange}
+                        />
+                    );
+                })()}
             </div>
             <Tooltip content={tooltipContent} visible={tooltipVisible} position={tooltipPosition} />
         </div>
