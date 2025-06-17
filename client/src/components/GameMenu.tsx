@@ -118,8 +118,8 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                             lineHeight: '1.4',
                         }}
                     >
-                        <div>Rozhkov Neuroscience Neural Interface</div>
-                        <div>System v3.14</div>
+                        <div>ООО "Rozhkov Neuroscience"</div>
+                        <div>System v0.53</div>
                     </div>
                 </div>
                 

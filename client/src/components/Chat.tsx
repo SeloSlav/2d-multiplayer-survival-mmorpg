@@ -28,15 +28,9 @@ type ChatTab = 'global' | 'sova';
 
 // SOVA Message Component - moved outside to prevent re-renders
 const SOVAMessage: React.FC<{message: {id: string, text: string, isUser: boolean, timestamp: Date}}> = React.memo(({ message }) => (
-  <div className={styles.message} style={{ 
-    background: message.isUser 
-      ? 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.1))'
-      : 'linear-gradient(135deg, rgba(255, 100, 0, 0.2), rgba(255, 80, 0, 0.1))'
-  }}>
+  <div className={`${styles.message} ${message.isUser ? styles.sovaMessageUser : styles.sovaMessageBot}`}>
     <div className={styles.messageHeader}>
-      <span className={styles.playerName} style={{ 
-        color: message.isUser ? '#00ffff' : '#ff6600' 
-      }}>
+      <span className={`${styles.playerName} ${message.isUser ? styles.sovaPlayerNameUser : styles.sovaPlayerNameBot}`}>
         {message.isUser ? 'You' : 'SOVA'}
       </span>
       <span className={styles.timestamp}>
@@ -64,95 +58,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   const sovaMessageEndRef = useRef<HTMLDivElement>(null);
   const lastMessageCountRef = useRef<number>(0);
   const privateMessageSubscriptionRef = useRef<any | null>(null); // Changed back to any for now
-
-  // Subscribe to private messages and set up callbacks
-  useEffect(() => {
-    // console.log("[Chat] PrivateMsgEffect: Running. Connection:", !!connection, "LocalPlayerId:", localPlayerIdentity);
-
-    // If no connection or no local identity, we can't subscribe.
-    // Ensure any existing subscription is cleaned up.
-    if (!connection || !localPlayerIdentity) {
-      if (privateMessageSubscriptionRef.current) {
-        // console.log("[Chat] PrivateMsgEffect: Cleaning up old subscription (no connection/identity).");
-        try {
-          privateMessageSubscriptionRef.current.unsubscribe();
-        } catch (e) {
-          console.warn("[Chat] PrivateMsgEffect: Error unsubscribing stale subscription:", e);
-        }
-        privateMessageSubscriptionRef.current = null;
-      }
-      setPrivateMessages(new Map()); // Clear local private messages
-      return;
-    }
-
-    // Proceed with subscription as we have a connection and identity
-    const query = `SELECT * FROM private_message WHERE recipient_identity = '${localPlayerIdentity}'`;
-    // console.log("[Chat] PrivateMsgEffect: Attempting to subscribe with query:", query);
-
-    const subHandle = connection.subscriptionBuilder()
-      // .onApplied(() => console.log("[Chat] PrivateMsgEffect: Subscription APPLIED for query:", query))
-      .onError((errorContext) => console.error("[Chat] PrivateMsgEffect: Subscription ERROR:", errorContext))
-      .subscribe([query]);
-    privateMessageSubscriptionRef.current = subHandle;
-    // console.log("[Chat] PrivateMsgEffect: Subscription handle stored.");
-
-    const handlePrivateMessageInsert = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
-      // console.log("[Chat] PrivateMsgEffect: Private message INSERTED:", msg, "Context:", ctx);
-      setPrivateMessages(prev => new Map(prev).set(String(msg.id), msg));
-    };
-
-    const handlePrivateMessageDelete = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
-      // console.log("[Chat] PrivateMsgEffect: Private message DELETED:", msg, "Context:", ctx);
-      setPrivateMessages(prev => {
-        const next = new Map(prev);
-        next.delete(String(msg.id));
-        return next;
-      });
-    };
-    
-    const privateMessageTable = connection.db.privateMessage; 
-
-    if (privateMessageTable) {
-      // console.log("[Chat] PrivateMsgEffect: Attaching listeners to privateMessageTable.");
-      privateMessageTable.onInsert(handlePrivateMessageInsert);
-      privateMessageTable.onDelete(handlePrivateMessageDelete);
-    } else {
-      console.error("[Chat] PrivateMsgEffect: privateMessage table NOT FOUND in DB bindings!");
-    }
-
-    // Cleanup function for this effect
-    return () => {
-      // console.log("[Chat] PrivateMsgEffect: Cleanup initiated. Unsubscribing and removing listeners.");
-      if (privateMessageSubscriptionRef.current) {
-        // console.log("[Chat] PrivateMsgEffect: Calling unsubscribe() on stored handle.");
-        try {
-          privateMessageSubscriptionRef.current.unsubscribe();
-        } catch (e) {
-          console.warn("[Chat] PrivateMsgEffect: Error during unsubscribe:", e);
-        }
-        privateMessageSubscriptionRef.current = null;
-      }
-      if (privateMessageTable) {
-        // console.log("[Chat] PrivateMsgEffect: Removing listeners from privateMessageTable.");
-        privateMessageTable.removeOnInsert(handlePrivateMessageInsert);
-        privateMessageTable.removeOnDelete(handlePrivateMessageDelete);
-      }
-    };
-  }, [connection, localPlayerIdentity]); // Dependencies: re-run if connection or identity changes
-
-  // Track new messages (public or private) and scroll to bottom
-  useEffect(() => {
-    const currentPublicCount = messages.size;
-    const currentPrivateCount = privateMessages.size;
-    const totalCurrentCount = currentPublicCount + currentPrivateCount;
-    
-    if (totalCurrentCount > lastMessageCountRef.current || (isChatting && totalCurrentCount > 0)) {
-        if (messageEndRef.current) {
-            messageEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-    lastMessageCountRef.current = totalCurrentCount;
-  }, [messages, privateMessages, isChatting]);
+  const isAnimating = useRef(false);
 
   // Define handleCloseChat first for dependency ordering
   const handleCloseChat = useCallback(() => {
@@ -169,6 +75,66 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   const handleTabSwitch = useCallback((tab: ChatTab) => {
     setActiveTab(tab);
   }, []);
+
+  // Toggle minimize/maximize with smooth animation
+  const toggleMinimized = useCallback(() => {
+    if (isAnimating.current) return; // Prevent rapid toggling during animation
+    
+    isAnimating.current = true;
+    
+    if (!isMinimized) {
+      // Minimizing: Close chat input first, wait for animation, then minimize
+      if (isChatting) {
+        setIsChatting(false);
+        setInputValue('');
+        setSovaInputValue('');
+      }
+      
+      // Wait a bit for chat input to close smoothly before sliding out
+      setTimeout(() => {
+        setIsMinimized(true);
+        setTimeout(() => { isAnimating.current = false; }, 400); // Match transition duration
+      }, 100);
+    } else {
+      // Maximizing: Show container first, then enable interactions
+      setIsMinimized(false);
+      setTimeout(() => { isAnimating.current = false; }, 400); // Match transition duration
+    }
+  }, [isMinimized, isChatting, setIsChatting]);
+
+  // Global keyboard event handler
+  const handleGlobalKeyDown = useCallback((event: KeyboardEvent) => {
+    // Don't process if modifier keys are pressed
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    
+    // Check what element has focus
+    const activeElement = document.activeElement;
+    const isInputFocused = 
+      activeElement?.tagName === 'INPUT' || 
+      activeElement?.tagName === 'TEXTAREA' ||
+      activeElement?.getAttribute('contenteditable') === 'true';
+      
+    // Skip if we're focused on some other input that isn't our chat
+    const isChatInputFocused = activeElement === chatInputRef.current;
+    const isSOVAInputFocused = activeElement === sovaInputRef.current;
+    if (isInputFocused && !isChatInputFocused && !isSOVAInputFocused) return;
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      
+      // Only toggle chat open if not already chatting and not focused on another input and not minimized
+      if (!isChatting && !isInputFocused && !isMinimized) {
+        setIsChatting(true);
+      }
+      // If chatting, the Enter key is handled by ChatInput component
+      }
+    
+    // Close chat with Escape if it's open
+    if (event.key === 'Escape' && isChatting) {
+         event.preventDefault();
+      handleCloseChat();
+    }
+  }, [isChatting, setIsChatting, handleCloseChat, isMinimized]);
 
   // Handle SOVA message sending with voice synthesis and game context
   const handleSendSOVAMessage = useCallback(async () => {
@@ -307,85 +273,6 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     // Focus will be handled by the useEffect in ChatInput
   }, [setIsChatting]);
 
-  // Toggle minimize/maximize
-  const toggleMinimized = useCallback(() => {
-    setIsMinimized(!isMinimized);
-    // If minimizing while chatting, close the chat input
-    if (!isMinimized && isChatting) {
-      setIsChatting(false);
-      setInputValue('');
-    }
-  }, [isMinimized, isChatting, setIsChatting]);
-
-  // Global keyboard event handler
-  const handleGlobalKeyDown = useCallback((event: KeyboardEvent) => {
-    // Don't process if modifier keys are pressed
-    if (event.ctrlKey || event.altKey || event.metaKey) return;
-    
-    // Check what element has focus
-    const activeElement = document.activeElement;
-    const isInputFocused = 
-      activeElement?.tagName === 'INPUT' || 
-      activeElement?.tagName === 'TEXTAREA' ||
-      activeElement?.getAttribute('contenteditable') === 'true';
-      
-    // Skip if we're focused on some other input that isn't our chat
-    const isChatInputFocused = activeElement === chatInputRef.current;
-    const isSOVAInputFocused = activeElement === sovaInputRef.current;
-    if (isInputFocused && !isChatInputFocused && !isSOVAInputFocused) return;
-
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      
-      // Only toggle chat open if not already chatting and not focused on another input and not minimized
-      if (!isChatting && !isInputFocused && !isMinimized) {
-        setIsChatting(true);
-      }
-      // If chatting, the Enter key is handled by ChatInput component
-      }
-    
-    // Close chat with Escape if it's open
-    if (event.key === 'Escape' && isChatting) {
-         event.preventDefault();
-      handleCloseChat();
-    }
-  }, [isChatting, setIsChatting, handleCloseChat, isMinimized]);
-
-  // Track new SOVA messages and scroll to bottom
-  useEffect(() => {
-    if (activeTab === 'sova' && sovaMessages.length > 0 && sovaMessageEndRef.current) {
-      sovaMessageEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [sovaMessages, activeTab]);
-
-  // Create the addSOVAMessage function to pass to parent
-  const addSOVAMessage = useCallback((message: { id: string; text: string; isUser: boolean; timestamp: Date }) => {
-    // Safety check to prevent null/undefined messages
-    if (!message || !message.id || !message.text) {
-      console.error('[Chat] Invalid SOVA message received:', message);
-      return;
-    }
-    
-    console.log('[Chat] Adding SOVA message:', message);
-    setSovaMessages(prev => [...prev, message]);
-    
-    // Auto-switch to SOVA tab when voice messages are added
-    if (message.id.includes('voice')) {
-      console.log('[Chat] Auto-switching to SOVA tab for voice message');
-      setActiveTab('sova');
-    }
-  }, []);
-
-  // Call the parent callback with our function
-  useEffect(() => {
-    if (onSOVAMessageAdderReady) {
-      console.log('[Chat] Calling onSOVAMessageAdderReady with addSOVAMessage function');
-      onSOVAMessageAdderReady(addSOVAMessage);
-    } else {
-      console.log('[Chat] onSOVAMessageAdderReady not available');
-    }
-  }, [onSOVAMessageAdderReady, addSOVAMessage]);
-
   // Message sending handler
   const handleSendMessage = useCallback(() => {
     if (!connection?.reducers || !inputValue.trim()) return;
@@ -407,6 +294,130 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
     }
   }, [connection, inputValue, setIsChatting]);
 
+  // Create the addSOVAMessage function to pass to parent
+  const addSOVAMessage = useCallback((message: { id: string; text: string; isUser: boolean; timestamp: Date }) => {
+    // Safety check to prevent null/undefined messages
+    if (!message || !message.id || !message.text) {
+      console.error('[Chat] Invalid SOVA message received:', message);
+      return;
+    }
+    
+    console.log('[Chat] Adding SOVA message:', message);
+    setSovaMessages(prev => [...prev, message]);
+    
+    // Auto-switch to SOVA tab when voice messages are added
+    if (message.id.includes('voice')) {
+      console.log('[Chat] Auto-switching to SOVA tab for voice message');
+      setActiveTab('sova');
+    }
+  }, []);
+
+  // Subscribe to private messages and set up callbacks
+  useEffect(() => {
+    // console.log("[Chat] PrivateMsgEffect: Running. Connection:", !!connection, "LocalPlayerId:", localPlayerIdentity);
+
+    // If no connection or no local identity, we can't subscribe.
+    // Ensure any existing subscription is cleaned up.
+    if (!connection || !localPlayerIdentity) {
+      if (privateMessageSubscriptionRef.current) {
+        // console.log("[Chat] PrivateMsgEffect: Cleaning up old subscription (no connection/identity).");
+        try {
+          privateMessageSubscriptionRef.current.unsubscribe();
+        } catch (e) {
+          console.warn("[Chat] PrivateMsgEffect: Error unsubscribing stale subscription:", e);
+        }
+        privateMessageSubscriptionRef.current = null;
+      }
+      setPrivateMessages(new Map()); // Clear local private messages
+      return;
+    }
+
+    // Proceed with subscription as we have a connection and identity
+    const query = `SELECT * FROM private_message WHERE recipient_identity = '${localPlayerIdentity}'`;
+    // console.log("[Chat] PrivateMsgEffect: Attempting to subscribe with query:", query);
+
+    const subHandle = connection.subscriptionBuilder()
+      // .onApplied(() => console.log("[Chat] PrivateMsgEffect: Subscription APPLIED for query:", query))
+      .onError((errorContext) => console.error("[Chat] PrivateMsgEffect: Subscription ERROR:", errorContext))
+      .subscribe([query]);
+    privateMessageSubscriptionRef.current = subHandle;
+    // console.log("[Chat] PrivateMsgEffect: Subscription handle stored.");
+
+    const handlePrivateMessageInsert = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
+      // console.log("[Chat] PrivateMsgEffect: Private message INSERTED:", msg, "Context:", ctx);
+      setPrivateMessages(prev => new Map(prev).set(String(msg.id), msg));
+    };
+
+    const handlePrivateMessageDelete = (ctx: EventContext, msg: SpacetimeDBPrivateMessage) => {
+      // console.log("[Chat] PrivateMsgEffect: Private message DELETED:", msg, "Context:", ctx);
+      setPrivateMessages(prev => {
+        const next = new Map(prev);
+        next.delete(String(msg.id));
+        return next;
+      });
+    };
+    
+    const privateMessageTable = connection.db.privateMessage; 
+
+    if (privateMessageTable) {
+      // console.log("[Chat] PrivateMsgEffect: Attaching listeners to privateMessageTable.");
+      privateMessageTable.onInsert(handlePrivateMessageInsert);
+      privateMessageTable.onDelete(handlePrivateMessageDelete);
+    } else {
+      console.error("[Chat] PrivateMsgEffect: privateMessage table NOT FOUND in DB bindings!");
+    }
+
+    // Cleanup function for this effect
+    return () => {
+      // console.log("[Chat] PrivateMsgEffect: Cleanup initiated. Unsubscribing and removing listeners.");
+      if (privateMessageSubscriptionRef.current) {
+        // console.log("[Chat] PrivateMsgEffect: Calling unsubscribe() on stored handle.");
+        try {
+          privateMessageSubscriptionRef.current.unsubscribe();
+        } catch (e) {
+          console.warn("[Chat] PrivateMsgEffect: Error during unsubscribe:", e);
+        }
+        privateMessageSubscriptionRef.current = null;
+      }
+      if (privateMessageTable) {
+        // console.log("[Chat] PrivateMsgEffect: Removing listeners from privateMessageTable.");
+        privateMessageTable.removeOnInsert(handlePrivateMessageInsert);
+        privateMessageTable.removeOnDelete(handlePrivateMessageDelete);
+      }
+    };
+  }, [connection, localPlayerIdentity]); // Dependencies: re-run if connection or identity changes
+
+  // Track new messages (public or private) and scroll to bottom
+  useEffect(() => {
+    const currentPublicCount = messages.size;
+    const currentPrivateCount = privateMessages.size;
+    const totalCurrentCount = currentPublicCount + currentPrivateCount;
+    
+    if (totalCurrentCount > lastMessageCountRef.current || (isChatting && totalCurrentCount > 0)) {
+        if (messageEndRef.current) {
+            messageEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+    lastMessageCountRef.current = totalCurrentCount;
+  }, [messages, privateMessages, isChatting]);
+
+  // Track new SOVA messages and scroll to bottom
+  useEffect(() => {
+    if (activeTab === 'sova' && sovaMessages.length > 0 && sovaMessageEndRef.current) {
+      sovaMessageEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [sovaMessages, activeTab]);
+
+  // Call the parent callback with our function
+  useEffect(() => {
+    if (onSOVAMessageAdderReady) {
+      console.log('[Chat] Calling onSOVAMessageAdderReady with addSOVAMessage function');
+      onSOVAMessageAdderReady(addSOVAMessage);
+    } else {
+      console.log('[Chat] onSOVAMessageAdderReady not available');
+    }
+  }, [onSOVAMessageAdderReady, addSOVAMessage]);
+
   // Register/unregister global keyboard listeners
   useEffect(() => {
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -419,84 +430,32 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
   if (isMinimized) {
     return (
       <div 
-        className={styles.chatMinimized}
+        className={styles.sovaButtonMinimized}
         onClick={toggleMinimized}
         data-chat-container="true"
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          width: '80px',
-          height: '80px',
-          background: 'linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95))',
-          border: '3px solid #00aaff',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 0 30px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)',
-          zIndex: 50,
-          fontSize: '20px',
-          color: '#00ffff',
-          transform: 'scale(1)',
-          backdropFilter: 'blur(5px)',
-        }}
-        onMouseEnter={(e) => {
-          const element = e.currentTarget;
-          element.style.transform = 'scale(1.1)';
-          element.style.boxShadow = '0 0 40px rgba(0, 170, 255, 0.8), inset 0 0 20px rgba(0, 170, 255, 0.3)';
-          element.style.border = '3px solid #00ffff';
-        }}
-        onMouseLeave={(e) => {
-          const element = e.currentTarget;
-          element.style.transform = 'scale(1)';
-          element.style.boxShadow = '0 0 30px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
-          element.style.border = '3px solid #00aaff';
-        }}
       >
         <img 
           src={sovaIcon} 
           alt="SOVA" 
-          style={{ 
-            width: '70px', 
-            height: '70px',
-            filter: 'drop-shadow(0 0 10px rgba(0, 170, 255, 0.5))'
-          }} 
+          className={styles.sovaIcon}
         />
       </div>
     );
   }
 
-  // Create class for container - removed hasUnread class
+  // Create class for container with slide animation states
   const containerClass = isChatting ? `${styles.chatContainer} ${styles.active}` : styles.chatContainer;
+  const animationClass = isMinimized ? styles.chatContainerMinimized : styles.chatContainerVisible;
 
   return (
-    <div className={containerClass} data-chat-container="true">
+    <div 
+      className={`${containerClass} ${animationClass}`} 
+      data-chat-container="true"
+    >
       {/* Minimize button */}
       <div 
-        className={styles.chatMinimizeButton}
+        className={styles.minimizeButton}
         onClick={toggleMinimized}
-        style={{
-          position: 'absolute',
-          top: '8px',
-          right: '10px',
-          width: '10px',
-          height: '10px',
-          background: 'rgba(0, 170, 255, 0.2)',
-          border: '1px solid #00aaff',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          fontSize: '12px',
-          color: '#00ffff',
-          opacity: 0.7,
-          zIndex: 10,
-        }}
-        onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
-        onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = '0.7'; }}
       >
         −
       </div>
@@ -553,13 +512,7 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
           {/* SOVA Chat */}
           <div className={styles.messageHistory}>
             {sovaMessages.length === 0 ? (
-              <div style={{ 
-                color: 'rgba(0, 170, 255, 0.6)', 
-                fontSize: '10px', 
-                textAlign: 'center', 
-                padding: '20px',
-                fontStyle: 'italic'
-              }}>
+              <div className={styles.sovaWelcomeMessage}>
                 Welcome to SOVA AI Assistant
                 <br />
                 Ask me anything about the game!
@@ -573,31 +526,10 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
           </div>
           
           {/* SOVA Performance Report Button */}
-          <div style={{
-            padding: '5px 10px',
-            borderTop: '1px solid rgba(0, 170, 255, 0.2)',
-            background: 'rgba(0, 0, 0, 0.3)',
-            display: 'flex',
-            justifyContent: 'center'
-          }}>
+          <div className={styles.performanceReportContainer}>
             <button
               onClick={handleGenerateReport}
-              style={{
-                background: 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.3))',
-                border: '1px solid #00aaff',
-                borderRadius: '4px',
-                color: '#00ffff',
-                padding: '4px 8px',
-                fontSize: '8px',
-                fontFamily: '"Press Start 2P", cursive',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.4), rgba(0, 150, 255, 0.5))';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 150, 255, 0.3))';
-              }}
+              className={styles.performanceReportButton}
             >
               API PERFORMANCE REPORT
             </button>
@@ -626,101 +558,27 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
       {/* Performance Report Modal */}
       {showPerformanceReport && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-          fontFamily: 'monospace'
-        }}>
-          <div style={{
-            backgroundColor: 'rgba(10, 10, 20, 0.95)',
-            border: '2px solid #00aaff',
-            borderRadius: '8px',
-            padding: '20px',
-            maxWidth: '90%',
-            maxHeight: '90%',
-            overflow: 'auto',
-            boxShadow: '0 0 30px rgba(0, 170, 255, 0.3)'
-          }}>
-            <div style={{
-              color: '#00ffff',
-              fontSize: '16px',
-              textAlign: 'center',
-              marginBottom: '15px',
-              textShadow: '0 0 10px rgba(0, 255, 255, 0.5)'
-            }}>
+        <div className={styles.performanceReportModal}>
+          <div className={styles.performanceReportContent}>
+            <div className={styles.performanceReportTitle}>
               🎤 KIKASHI API PERFORMANCE REPORT
             </div>
             
-            <pre style={{
-              color: '#ffffff',
-              fontSize: '11px',
-              lineHeight: '1.4',
-              whiteSpace: 'pre-wrap',
-              margin: 0,
-              padding: '15px',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: '4px',
-              border: '1px solid rgba(0, 170, 255, 0.2)'
-            }}>
+            <pre className={styles.performanceReportText}>
               {kikashiService.generateFormattedReport()}
             </pre>
             
-            <div style={{
-              display: 'flex',
-              gap: '10px',
-              justifyContent: 'center',
-              marginTop: '15px'
-            }}>
+            <div className={styles.performanceReportActions}>
               <button
                 onClick={handleCopyReport}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.4))',
-                  border: '1px solid #00aaff',
-                  borderRadius: '4px',
-                  color: '#00ffff',
-                  padding: '8px 16px',
-                  fontSize: '10px',
-                  fontFamily: '"Press Start 2P", cursive',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.5), rgba(0, 150, 255, 0.6))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 170, 255, 0.3), rgba(0, 150, 255, 0.4))';
-                }}
+                className={styles.modalButtonPrimary}
               >
                 COPY TO CLIPBOARD
               </button>
               
               <button
                 onClick={() => setShowPerformanceReport(false)}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(100, 100, 100, 0.3), rgba(80, 80, 80, 0.4))',
-                  border: '1px solid #666',
-                  borderRadius: '4px',
-                  color: '#ccc',
-                  padding: '8px 16px',
-                  fontSize: '10px',
-                  fontFamily: '"Press Start 2P", cursive',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(120, 120, 120, 0.5), rgba(100, 100, 100, 0.6))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(100, 100, 100, 0.3), rgba(80, 80, 80, 0.4))';
-                }}
+                className={styles.modalButtonSecondary}
               >
                 CLOSE
               </button>
