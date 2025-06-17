@@ -31,6 +31,7 @@ use crate::player_corpse::PlayerCorpseClearer;
 use crate::stash::StashClearer; // Added StashClearer import
 use crate::ranged_weapon_stats::RangedWeaponStats; // For the struct
 use crate::ranged_weapon_stats::ranged_weapon_stats as ranged_weapon_stats_table_accessor; // For ctx.db.ranged_weapon_stats()
+use crate::active_effects::{FoodPoisoningRisk, food_poisoning_risk as FoodPoisoningRiskTableTrait}; // For food poisoning
 
 // --- Item Enums and Structs ---
 
@@ -183,6 +184,57 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
     }
 
     log::info!("Finished seeding {} ranged weapon stats.", seeded_count);
+    Ok(())
+}
+
+// Reducer to seed initial food poisoning risks
+#[spacetimedb::reducer]
+pub fn seed_food_poisoning_risks(ctx: &ReducerContext) -> Result<(), String> {
+    let food_risks = ctx.db.food_poisoning_risk();
+    if food_risks.iter().count() > 0 {
+        log::info!("Food poisoning risks already seeded ({}). Skipping.", food_risks.iter().count());
+        return Ok(());
+    }
+
+    log::info!("Seeding initial food poisoning risks...");
+
+    // Get item definitions to find IDs by name
+    let item_defs = ctx.db.item_definition();
+    let mut seeded_count = 0;
+
+    // Define food poisoning risks: (item_name, chance%, damage_per_tick, duration_secs, tick_interval_secs)
+    let food_risks_data = vec![
+        ("Raw Human Flesh", 100.0, 2.0, 15.0, 1.5), // 100% chance, 2 damage every 1.5s for 15s = 20 total damage
+        ("Mushroom", 10.0, 1.0, 8.0, 2.0),          // 10% chance, 1 damage every 2s for 8s = 4 total damage
+        ("Raw Corn", 5.0, 0.5, 6.0, 2.0),           // 5% chance, 0.5 damage every 2s for 6s = 1.5 total damage
+        ("Raw Potato", 3.0, 0.5, 4.0, 2.0),         // 3% chance, 0.5 damage every 2s for 4s = 1 total damage
+    ];
+
+    for (item_name, chance_percent, damage_per_tick, duration_seconds, tick_interval_seconds) in food_risks_data {
+        // Find the item definition by name
+        if let Some(item_def) = item_defs.iter().find(|def| def.name == item_name) {
+            let food_risk = crate::active_effects::FoodPoisoningRisk {
+                item_def_id: item_def.id,
+                poisoning_chance_percent: chance_percent,
+                damage_per_tick,
+                duration_seconds,
+                tick_interval_seconds,
+            };
+
+            match food_risks.try_insert(food_risk) {
+                Ok(_) => {
+                    seeded_count += 1;
+                    log::info!("Added food poisoning risk for '{}': {:.1}% chance, {:.1} damage per {:.1}s for {:.1}s", 
+                        item_name, chance_percent, damage_per_tick, tick_interval_seconds, duration_seconds);
+                }
+                Err(e) => log::error!("Failed to insert food poisoning risk for '{}': {}", item_name, e),
+            }
+        } else {
+            log::warn!("Item definition not found for food poisoning risk: '{}'", item_name);
+        }
+    }
+
+    log::info!("Finished seeding {} food poisoning risks.", seeded_count);
     Ok(())
 }
 

@@ -17,6 +17,8 @@ interface StatusBarProps {
   glow?: boolean;
   hasActiveEffect?: boolean;
   hasBleedEffect?: boolean;
+  hasSeawaterPoisoningEffect?: boolean;
+  hasFoodPoisoningEffect?: boolean;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({ 
@@ -28,7 +30,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
   pendingHealAmount = 0,
   glow = false,
   hasActiveEffect = false,
-  hasBleedEffect = false
+  hasBleedEffect = false,
+  hasSeawaterPoisoningEffect = false,
+  hasFoodPoisoningEffect = false
 }) => {
   const percentage = Math.max(0, Math.min(100, (value / maxValue) * 100));
   const pendingHealPercentage = Math.max(0, Math.min(100, ((value + pendingHealAmount) / maxValue) * 100));
@@ -100,7 +104,33 @@ const StatusBar: React.FC<StatusBarProps> = ({
         `;
         document.head.appendChild(style);
     }
-  }, [glow, barColor, hasActiveEffect, hasBleedEffect]);
+
+    // Seawater Poisoning Animation Keyframes
+    if (hasSeawaterPoisoningEffect && !document.getElementById('status-bar-seawater-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'status-bar-seawater-keyframes';
+        style.innerHTML = `
+          @keyframes statusBarSeawaterAnimation {
+            0% { background-position: 0 0; }
+            100% { background-position: 25px 0; } /* Moves right, different speed than regen */
+          }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Food Poisoning Animation Keyframes
+    if (hasFoodPoisoningEffect && !document.getElementById('status-bar-food-poisoning-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'status-bar-food-poisoning-keyframes';
+        style.innerHTML = `
+          @keyframes statusBarFoodPoisoningAnimation {
+            0% { background-position: 0 0; }
+            100% { background-position: -30px 0; } /* Moves left, faster than bleed */
+          }
+        `;
+        document.head.appendChild(style);
+    }
+      }, [glow, barColor, hasActiveEffect, hasBleedEffect, hasSeawaterPoisoningEffect, hasFoodPoisoningEffect]);
 
   const filledBarStyle: React.CSSProperties = {
     height: '100%',
@@ -158,6 +188,30 @@ const StatusBar: React.FC<StatusBarProps> = ({
       )`,
       animation: 'statusBarBleedAnimation 0.8s linear infinite',
     };
+  } else if (hasSeawaterPoisoningEffect) { // Seawater poisoning effect - green, moves right
+    activeEffectOverlayStyle = {
+      ...activeEffectOverlayStyle,
+      backgroundImage: `repeating-linear-gradient(
+        -30deg, /* Slightly different angle */
+        rgba(0, 180, 100, 0.7), /* Toxic green */
+        rgba(0, 180, 100, 0.7) 12px,
+        rgba(0, 130, 70, 0.7) 12px, /* Darker toxic green */
+        rgba(0, 130, 70, 0.7) 24px
+      )`,
+      animation: 'statusBarSeawaterAnimation 1.0s linear infinite', /* Slightly slower than regen */
+    };
+  } else if (hasFoodPoisoningEffect) { // Food poisoning effect - yellow/brown, moves left
+    activeEffectOverlayStyle = {
+      ...activeEffectOverlayStyle,
+      backgroundImage: `repeating-linear-gradient(
+        60deg, /* Different angle from others */
+        rgba(200, 150, 0, 0.7), /* Sickly yellow */
+        rgba(200, 150, 0, 0.7) 8px,
+        rgba(150, 100, 0, 0.7) 8px, /* Darker brown-yellow */
+        rgba(150, 100, 0, 0.7) 16px
+      )`,
+      animation: 'statusBarFoodPoisoningAnimation 0.6s linear infinite', /* Faster than bleed */
+    };
   }
 
   return (
@@ -198,7 +252,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         marginRight: '8px', // Reduced spacing
       }}>
         <div style={filledBarStyle}>
-          {(hasActiveEffect || hasBleedEffect) && <div style={activeEffectOverlayStyle}></div>}
+          {(hasActiveEffect || hasBleedEffect || hasSeawaterPoisoningEffect || hasFoodPoisoningEffect) && <div style={activeEffectOverlayStyle}></div>}
         </div>
         {label === "HP" && pendingHealAmount > 0 && (
           <div style={pendingHealBarStyle}></div>
@@ -219,13 +273,13 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
       {/* Value Text - Only show current value, larger font */}
       <span style={{
-        color: glow || hasBleedEffect ? '#ff6666' : '#ffffff',
+        color: glow || hasBleedEffect ? '#ff6666' : hasSeawaterPoisoningEffect ? '#66ff88' : hasFoodPoisoningEffect ? '#ffcc66' : '#ffffff',
         fontSize: '12px', // Reduced from 14px to be more compact
         minWidth: '35px', // Reduced width
         textAlign: 'right',
         fontWeight: 'bold', // Make numbers bolder
-        animation: glow || hasBleedEffect ? 'pulse 1.5s ease-in-out infinite alternate' : 'none',
-        textShadow: glow || hasBleedEffect ? '0 0 8px rgba(255, 102, 102, 0.8)' : '0 0 4px rgba(255, 255, 255, 0.6)',
+        animation: glow || hasBleedEffect || hasSeawaterPoisoningEffect || hasFoodPoisoningEffect ? 'pulse 1.5s ease-in-out infinite alternate' : 'none',
+        textShadow: glow || hasBleedEffect ? '0 0 8px rgba(255, 102, 102, 0.8)' : hasSeawaterPoisoningEffect ? '0 0 8px rgba(102, 255, 136, 0.8)' : hasFoodPoisoningEffect ? '0 0 8px rgba(255, 204, 102, 0.8)' : '0 0 4px rgba(255, 255, 255, 0.6)',
       }}>
         {Math.round(value)}
       </span>

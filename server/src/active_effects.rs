@@ -5,6 +5,7 @@ use crate::player; // For the table trait
 use crate::items::{ItemDefinition, item_definition as ItemDefinitionTableTrait}; // To check item properties
 use crate::items::{InventoryItem, inventory_item as InventoryItemTableTrait}; // Added for item consumption
 use crate::consumables::{MAX_HEALTH_VALUE, MIN_STAT_VALUE}; // Import constants from consumables
+use rand::Rng; // For random number generation
 use log;
 
 #[table(name = active_consumable_effect, public)] // public for client UI if needed
@@ -35,7 +36,21 @@ pub enum EffectType {
     Bleed,
     BandageBurst, // For self-use
     RemoteBandageBurst, // For targeting others
+    SeawaterPoisoning, // Dehydration from drinking seawater
+    FoodPoisoning, // From eating contaminated/raw foods
     // Potentially HungerRegen, ThirstRegen, StaminaRegen in future
+}
+
+// Table defining food poisoning risks for different food items
+#[table(name = food_poisoning_risk, public)]
+#[derive(Clone, Debug)]
+pub struct FoodPoisoningRisk {
+    #[primary_key]
+    pub item_def_id: u64, // The food item that can cause poisoning
+    pub poisoning_chance_percent: f32, // 0.0 to 100.0 chance of getting food poisoning
+    pub damage_per_tick: f32, // Damage dealt per tick
+    pub duration_seconds: f32, // How long the poisoning lasts
+    pub tick_interval_seconds: f32, // How often damage is applied
 }
 
 // Schedule table for processing effects
@@ -132,7 +147,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -281,6 +296,45 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             log::trace!("[EffectTick] {:?} Post-Damage for Player {:?}: Health now {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health);
                         }
+                        EffectType::SeawaterPoisoning => {
+                            log::trace!("[EffectTick] SeawaterPoisoning Pre-Damage for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
+                                effect.player_id, player_to_update.health, amount_this_tick);
+                            
+                            // --- KNOCKED OUT PLAYERS ARE IMMUNE TO SEAWATER POISONING ---
+                            if player_to_update.is_knocked_out {
+                                // Knocked out players are completely immune to seawater poisoning damage
+                                amount_this_tick = 0.0; // No damage applied
+                                log::info!("[EffectTick] Knocked out player {:?} is immune to SeawaterPoisoning damage. No damage applied.",
+                                    effect.player_id);
+                            } else {
+                                // Normal damage application for conscious players - always exactly 1 damage per tick
+                                amount_this_tick = 1.0; // Override calculated amount to ensure exactly 1 damage per tick
+                                player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
+                            }
+                            // --- END KNOCKED OUT IMMUNITY ---
+                            
+                            log::trace!("[EffectTick] SeawaterPoisoning Post-Damage for Player {:?}: Health now {:.2}",
+                                effect.player_id, player_to_update.health);
+                        }
+                        EffectType::FoodPoisoning => {
+                            log::trace!("[EffectTick] FoodPoisoning Pre-Damage for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
+                                effect.player_id, player_to_update.health, amount_this_tick);
+                            
+                            // --- KNOCKED OUT PLAYERS ARE IMMUNE TO FOOD POISONING ---
+                            if player_to_update.is_knocked_out {
+                                // Knocked out players are completely immune to food poisoning damage
+                                amount_this_tick = 0.0; // No damage applied
+                                log::info!("[EffectTick] Knocked out player {:?} is immune to FoodPoisoning damage. No damage applied.",
+                                    effect.player_id);
+                            } else {
+                                // Normal damage application for conscious players - use calculated amount_this_tick
+                                player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
+                            }
+                            // --- END KNOCKED OUT IMMUNITY ---
+                            
+                            log::trace!("[EffectTick] FoodPoisoning Post-Damage for Player {:?}: Health now {:.2}",
+                                effect.player_id, player_to_update.health);
+                        }
                         EffectType::BandageBurst | EffectType::RemoteBandageBurst => {
                             // No healing per tick for BandageBurst/RemoteBandageBurst, healing is applied only when the effect ends.
                             // This arm handles the per-tick calculation, so it should be 0 here.
@@ -291,7 +345,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                     if (player_to_update.health - old_health).abs() > f32::EPSILON {
                         player_effect_applied_this_iteration = true;
                     }
-                    current_effect_applied_so_far += amount_this_tick; // Increment amount applied *for this effect*
+                    
+                    // For SeawaterPoisoning, we don't track amount_applied_so_far since it's fixed 1 damage per tick
+                    // The effect ends based on time only, not accumulated damage
+                    if effect.effect_type != EffectType::SeawaterPoisoning {
+                        current_effect_applied_so_far += amount_this_tick; // Increment amount applied *for this effect*
+                    }
 
                     // If this effect was a damaging one and health was reduced, mark player for potential BandageBurst cancellation
                     // Only item-based direct Damage (not Bleed itself) counts as external for interrupting bandages.
@@ -306,8 +365,15 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                 }
 
                 // Check if effect should end based on amount or time
-                if current_effect_applied_so_far >= total_amount_val || current_time >= effect.ends_at {
-                    effect_ended = true;
+                // For SeawaterPoisoning, only end based on time, not accumulated damage
+                if effect.effect_type == EffectType::SeawaterPoisoning {
+                    if current_time >= effect.ends_at {
+                        effect_ended = true;
+                    }
+                } else {
+                    if current_effect_applied_so_far >= total_amount_val || current_time >= effect.ends_at {
+                        effect_ended = true;
+                    }
                 }
             }
         } else {
@@ -334,7 +400,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             // If health was reduced by a damaging effect, cancel any active HealthRegen effects for that player.
             // This check is now implicitly handled by player_ids_who_took_external_damage_this_tick below,
             // but we'll keep the direct health_was_reduced check for HealthRegen for clarity specific to it.
-            if health_was_reduced && (effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Bleed) {
+            if health_was_reduced && (effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::FoodPoisoning) {
                 cancel_health_regen_effects(ctx, effect.player_id);
                 // Note: BandageBurst cancellation due to taking damage is handled after iterating all effects using player_ids_who_took_external_damage_this_tick
             }
@@ -441,4 +507,135 @@ pub fn cancel_bandage_burst_effects(ctx: &ReducerContext, player_id: Identity) {
         ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
         log::info!("Cancelled BandageBurst/RemoteBandageBurst effect {} for player {:?} (e.g., due to damage or interruption).", effect_id, player_id);
     }
-} 
+}
+
+pub fn apply_food_poisoning_effect(ctx: &ReducerContext, player_id: Identity, item_def_id: u64) -> Result<(), String> {
+    // Get the food poisoning risk data for this item
+    let poisoning_risk = match ctx.db.food_poisoning_risk().item_def_id().find(&item_def_id) {
+        Some(risk) => risk,
+        None => {
+            log::debug!("No food poisoning risk defined for item_def_id: {}", item_def_id);
+            return Ok(()); // Not an error, just no risk defined
+        }
+    };
+
+    // Roll for poisoning chance
+    let roll = ctx.rng().gen_range(0.0..100.0);
+    if roll > poisoning_risk.poisoning_chance_percent {
+        log::debug!("Food poisoning roll failed for player {:?}, item {}: {:.1}% > {:.1}%", 
+            player_id, item_def_id, roll, poisoning_risk.poisoning_chance_percent);
+        return Ok(()); // No poisoning occurred
+    }
+
+    log::info!("Food poisoning triggered for player {:?}, item {}: {:.1}% <= {:.1}%", 
+        player_id, item_def_id, roll, poisoning_risk.poisoning_chance_percent);
+
+    // Check for existing food poisoning effects and extend if found
+    for existing_effect in ctx.db.active_consumable_effect().iter() {
+        if existing_effect.player_id == player_id && existing_effect.effect_type == EffectType::FoodPoisoning {
+            // Extend existing effect
+            let additional_duration = TimeDuration::from_micros((poisoning_risk.duration_seconds * 1_000_000.0) as i64);
+            let additional_damage = poisoning_risk.damage_per_tick * (poisoning_risk.duration_seconds / poisoning_risk.tick_interval_seconds);
+            
+            let mut updated_effect = existing_effect.clone();
+            updated_effect.ends_at = updated_effect.ends_at + additional_duration;
+            updated_effect.total_amount = Some(updated_effect.total_amount.unwrap_or(0.0) + additional_damage);
+            
+            let total_damage_amount = updated_effect.total_amount.unwrap_or(0.0);
+            ctx.db.active_consumable_effect().effect_id().update(updated_effect);
+            log::info!("Extended food poisoning effect for player {:?} by {:.1} seconds (total damage now: {:.1})", 
+                player_id, poisoning_risk.duration_seconds, total_damage_amount);
+            return Ok(());
+        }
+    }
+
+    // Create new food poisoning effect
+    let current_time = ctx.timestamp;
+    let duration_micros = (poisoning_risk.duration_seconds * 1_000_000.0) as i64;
+    let tick_interval_micros = (poisoning_risk.tick_interval_seconds * 1_000_000.0) as u64;
+    let total_damage = poisoning_risk.damage_per_tick * (poisoning_risk.duration_seconds / poisoning_risk.tick_interval_seconds);
+
+    let food_poisoning_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id,
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: current_time + TimeDuration::from_micros(duration_micros),
+        total_amount: Some(total_damage),
+        amount_applied_so_far: Some(0.0),
+        effect_type: EffectType::FoodPoisoning,
+        tick_interval_micros,
+        next_tick_at: current_time + TimeDuration::from_micros(tick_interval_micros as i64),
+    };
+
+    match ctx.db.active_consumable_effect().try_insert(food_poisoning_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied food poisoning effect {} to player {:?}: {:.1} damage over {:.1}s (every {:.1}s)", 
+                inserted_effect.effect_id, player_id, total_damage, poisoning_risk.duration_seconds, poisoning_risk.tick_interval_seconds);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply food poisoning effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply food poisoning effect".to_string())
+        }
+    }
+}
+
+pub fn apply_seawater_poisoning_effect(ctx: &ReducerContext, player_id: Identity, duration_seconds: u32) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    let duration_micros = (duration_seconds as u64) * 1_000_000;
+    let tick_interval_micros = 1_000_000u64; // 1 second per tick
+    let total_damage = duration_seconds as f32; // 1 damage per second
+    
+    // Check if player already has seawater poisoning - if so, extend the duration
+    let existing_effects: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|e| e.player_id == player_id && e.effect_type == EffectType::SeawaterPoisoning)
+        .collect();
+
+    if !existing_effects.is_empty() {
+        // Extend existing effect instead of creating a new one
+        for existing_effect in existing_effects {
+            let mut updated_effect = existing_effect.clone();
+            let additional_damage = duration_seconds as f32;
+            
+            // Extend the end time
+            updated_effect.ends_at = current_time + TimeDuration::from_micros(duration_micros as i64);
+            
+            // Add to total damage amount
+            if let Some(current_total) = updated_effect.total_amount {
+                updated_effect.total_amount = Some(current_total + additional_damage);
+            } else {
+                updated_effect.total_amount = Some(additional_damage);
+            }
+            
+            let total_damage_amount = updated_effect.total_amount.unwrap_or(0.0);
+            ctx.db.active_consumable_effect().effect_id().update(updated_effect);
+            log::info!("Extended seawater poisoning effect for player {:?} by {} seconds (total damage now: {:.1})", 
+                player_id, duration_seconds, total_damage_amount);
+        }
+    } else {
+        // Create new seawater poisoning effect
+        let effect = ActiveConsumableEffect {
+            effect_id: 0, // auto_inc
+            player_id,
+            target_player_id: None, // Self-inflicted
+            item_def_id: 0, // Not from an item
+            consuming_item_instance_id: None, // No item to consume
+            started_at: current_time,
+            ends_at: current_time + TimeDuration::from_micros(duration_micros as i64),
+            total_amount: Some(total_damage),
+            amount_applied_so_far: Some(0.0),
+            effect_type: EffectType::SeawaterPoisoning,
+            tick_interval_micros,
+            next_tick_at: current_time + TimeDuration::from_micros(tick_interval_micros as i64),
+        };
+
+        ctx.db.active_consumable_effect().insert(effect);
+        log::info!("Applied seawater poisoning effect to player {:?} for {} seconds ({} total damage)", 
+            player_id, duration_seconds, total_damage);
+    }
+    
+    Ok(())
+}

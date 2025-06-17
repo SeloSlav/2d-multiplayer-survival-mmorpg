@@ -335,6 +335,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractableStashId,
     closestInteractableSleepingBagId,
     closestInteractableKnockedOutPlayerId,
+    closestInteractableWaterPosition,
   } = useInteractionFinder({
     localPlayer,
     mushrooms,
@@ -351,6 +352,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     players,
     shelters,
     reeds,
+    connection,
   });
 
 
@@ -389,6 +391,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     stashes,
     closestInteractableKnockedOutPlayerId,
     players,
+    closestInteractableWaterPosition,
     onSetInteractingWith: onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -858,7 +861,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse' | 'knocked_out_player', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
       // If holdInteractionProgress is null (meaning no interaction is even being tracked by the state object),
       // or if the entity is not in view, do nothing.
       if (!isInView || !holdInteractionProgress) {
@@ -867,7 +870,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
       let targetId: number | bigint | string;
       if (typeof entityId === 'string') {
-        targetId = entityId; // For knocked out players (hex string)
+        targetId = entityId; // For knocked out players (hex string) or water ('water')
       } else if (typeof entityId === 'bigint') {
         targetId = BigInt(holdInteractionProgress.targetId ?? 0);
       } else {
@@ -935,6 +938,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     }
 
+    // Water Drinking Indicators
+    if (closestInteractableWaterPosition && holdInteractionProgress && holdInteractionProgress.targetType === 'water') {
+      // Draw indicator at the water position
+      drawIndicatorIfNeeded('water', 'water', closestInteractableWaterPosition.x, closestInteractableWaterPosition.y, 0, true);
+    }
+
     // Campfire Lights - Only draw for visible campfires
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -999,6 +1008,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
     closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
     closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
+    closestInteractableWaterPosition,
     holdInteractionProgress, hoveredPlayerIds, handlePlayerHover, messages,
     isMinimapOpen, isMouseOverMinimap, minimapZoom,
     activeConnections,

@@ -43,6 +43,7 @@ interface InputHandlerProps {
     stashes: Map<string, Stash>;
     closestInteractableKnockedOutPlayerId: string | null;
     players: Map<string, Player>;
+    closestInteractableWaterPosition: { x: number; y: number } | null;
     onSetInteractingWith: (target: any | null) => void;
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -68,7 +69,7 @@ export interface InputHandlerState {
 
 interface InteractionProgressState {
     targetId: number | bigint | string | null;
-    targetType: 'campfire' | 'wooden_storage_box' | 'stash' | 'knocked_out_player'; // Added 'knocked_out_player'
+    targetType: 'campfire' | 'wooden_storage_box' | 'stash' | 'knocked_out_player' | 'water'; // Added 'water'
     startTime: number;
 }
 
@@ -116,6 +117,7 @@ export const useInputHandler = ({
     stashes, // Added stashes map
     closestInteractableKnockedOutPlayerId, // Added for knocked out player
     players, // Added players map for knocked out revive
+    closestInteractableWaterPosition,
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -170,6 +172,7 @@ export const useInputHandler = ({
         corpse: null as bigint | null,
         stash: null as number | null,
         knockedOutPlayer: null as string | null, // Added for knocked out player
+        water: null as { x: number; y: number } | null, // NEW: Water position for drinking
     });
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
@@ -225,6 +228,7 @@ export const useInputHandler = ({
             corpse: closestInteractableCorpseId,
             stash: closestInteractableStashId, // Changed from bigint to number for Stash ID
             knockedOutPlayer: closestInteractableKnockedOutPlayerId, // Added for knocked out player
+            water: closestInteractableWaterPosition, // NEW: Water position for drinking
         };
     }, [
         closestInteractableMushroomId,
@@ -240,6 +244,7 @@ export const useInputHandler = ({
         closestInteractableCorpseId,
         closestInteractableStashId, // Changed from bigint to number for Stash ID
         closestInteractableKnockedOutPlayerId, // Added for knocked out player
+        closestInteractableWaterPosition, // NEW: Water position for drinking
     ]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
@@ -274,6 +279,15 @@ export const useInputHandler = ({
                             actionTaken = true;
                         } else {
                             console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
+                        }
+                        break;
+                    case 'water':
+                        if (stillClosest.water !== null) {
+                            console.log('[E-Hold ACTION] Attempting to drink water at position:', stillClosest.water);
+                            connection.reducers.drinkWater();
+                            actionTaken = true;
+                        } else {
+                            console.log('[E-Hold FAILED] No longer near water. Water position is null.');
                         }
                         break;
                     case 'campfire':
@@ -507,6 +521,9 @@ export const useInputHandler = ({
                 if (closest.knockedOutPlayer) {
                     holdTarget = { targetId: closest.knockedOutPlayer, targetType: 'knocked_out_player', startTime: eKeyDownTimestampRef.current };
                     console.log('[E-KeyDown] Setting up knocked out player hold target:', holdTarget);
+                } else if (closest.water) {
+                    holdTarget = { targetId: 'water', targetType: 'water', startTime: eKeyDownTimestampRef.current };
+                    console.log('[E-KeyDown] Setting up water drinking hold target:', holdTarget);
                 } else if (closest.campfire) {
                     holdTarget = { targetId: closest.campfire, targetType: 'campfire', startTime: eKeyDownTimestampRef.current };
                 } else if (closest.box && closest.boxEmpty) {

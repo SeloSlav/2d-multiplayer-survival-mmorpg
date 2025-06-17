@@ -219,6 +219,14 @@ pub fn apply_item_effects_and_consume(
     }
 
     player_to_update.last_consumed_at = Some(ctx.timestamp);
+    
+    // Check for food poisoning after consuming the item
+    if let Err(poisoning_error) = crate::active_effects::apply_food_poisoning_effect(ctx, player_id, item_def.id) {
+        log::error!("[EffectsHelper] Failed to apply food poisoning effect for player {:?}, item '{}': {}", 
+            player_id, item_def.name, poisoning_error);
+        // Don't fail the entire consumption - food poisoning is a "side effect"
+    }
+    
     // The caller of this helper will be responsible for updating the player table.
 
     Ok(())

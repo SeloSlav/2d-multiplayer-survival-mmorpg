@@ -58,6 +58,8 @@ import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
 import { DodgeRoll } from "./dodge_roll_reducer.ts";
 export { DodgeRoll };
+import { DrinkWater } from "./drink_water_reducer.ts";
+export { DrinkWater };
 import { DropItem } from "./drop_item_reducer.ts";
 export { DropItem };
 import { DropItemFromBoxSlotToWorld } from "./drop_item_from_box_slot_to_world_reducer.ts";
@@ -200,6 +202,8 @@ import { ScheduleNextCampfireProcessing } from "./schedule_next_campfire_process
 export { ScheduleNextCampfireProcessing };
 import { SeedEnvironment } from "./seed_environment_reducer.ts";
 export { SeedEnvironment };
+import { SeedFoodPoisoningRisks } from "./seed_food_poisoning_risks_reducer.ts";
+export { SeedFoodPoisoningRisks };
 import { SeedItems } from "./seed_items_reducer.ts";
 export { SeedItems };
 import { SeedRangedWeaponStats } from "./seed_ranged_weapon_stats_reducer.ts";
@@ -314,6 +318,8 @@ import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_sc
 export { DroppedItemDespawnScheduleTableHandle };
 import { FishingSessionTableHandle } from "./fishing_session_table.ts";
 export { FishingSessionTableHandle };
+import { FoodPoisoningRiskTableHandle } from "./food_poisoning_risk_table.ts";
+export { FoodPoisoningRiskTableHandle };
 import { GlobalTickScheduleTableHandle } from "./global_tick_schedule_table.ts";
 export { GlobalTickScheduleTableHandle };
 import { GrassTableHandle } from "./grass_table.ts";
@@ -344,6 +350,8 @@ import { PlayerCorpseDespawnScheduleTableHandle } from "./player_corpse_despawn_
 export { PlayerCorpseDespawnScheduleTableHandle };
 import { PlayerDodgeRollStateTableHandle } from "./player_dodge_roll_state_table.ts";
 export { PlayerDodgeRollStateTableHandle };
+import { PlayerDrinkingCooldownTableHandle } from "./player_drinking_cooldown_table.ts";
+export { PlayerDrinkingCooldownTableHandle };
 import { PlayerKillCommandCooldownTableHandle } from "./player_kill_command_cooldown_table.ts";
 export { PlayerKillCommandCooldownTableHandle };
 import { PlayerLastAttackTimestampTableHandle } from "./player_last_attack_timestamp_table.ts";
@@ -444,6 +452,8 @@ import { EquippedLocationData } from "./equipped_location_data_type.ts";
 export { EquippedLocationData };
 import { FishingSession } from "./fishing_session_type.ts";
 export { FishingSession };
+import { FoodPoisoningRisk } from "./food_poisoning_risk_type.ts";
+export { FoodPoisoningRisk };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
 import { Grass } from "./grass_type.ts";
@@ -486,6 +496,8 @@ import { PlayerCorpseDespawnSchedule } from "./player_corpse_despawn_schedule_ty
 export { PlayerCorpseDespawnSchedule };
 import { PlayerDodgeRollState } from "./player_dodge_roll_state_type.ts";
 export { PlayerDodgeRollState };
+import { PlayerDrinkingCooldown } from "./player_drinking_cooldown_type.ts";
+export { PlayerDrinkingCooldown };
 import { PlayerKillCommandCooldown } from "./player_kill_command_cooldown_type.ts";
 export { PlayerKillCommandCooldown };
 import { PlayerLastAttackTimestamp } from "./player_last_attack_timestamp_type.ts";
@@ -631,6 +643,11 @@ const REMOTE_MODULE = {
       rowType: FishingSession.getTypeScriptAlgebraicType(),
       primaryKey: "playerId",
     },
+    food_poisoning_risk: {
+      tableName: "food_poisoning_risk",
+      rowType: FoodPoisoningRisk.getTypeScriptAlgebraicType(),
+      primaryKey: "itemDefId",
+    },
     global_tick_schedule: {
       tableName: "global_tick_schedule",
       rowType: GlobalTickSchedule.getTypeScriptAlgebraicType(),
@@ -704,6 +721,11 @@ const REMOTE_MODULE = {
     player_dodge_roll_state: {
       tableName: "player_dodge_roll_state",
       rowType: PlayerDodgeRollState.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
+    },
+    player_drinking_cooldown: {
+      tableName: "player_drinking_cooldown",
+      rowType: PlayerDrinkingCooldown.getTypeScriptAlgebraicType(),
       primaryKey: "playerId",
     },
     player_kill_command_cooldown: {
@@ -879,6 +901,10 @@ const REMOTE_MODULE = {
     dodge_roll: {
       reducerName: "dodge_roll",
       argsType: DodgeRoll.getTypeScriptAlgebraicType(),
+    },
+    drink_water: {
+      reducerName: "drink_water",
+      argsType: DrinkWater.getTypeScriptAlgebraicType(),
     },
     drop_item: {
       reducerName: "drop_item",
@@ -1164,6 +1190,10 @@ const REMOTE_MODULE = {
       reducerName: "seed_environment",
       argsType: SeedEnvironment.getTypeScriptAlgebraicType(),
     },
+    seed_food_poisoning_risks: {
+      reducerName: "seed_food_poisoning_risks",
+      argsType: SeedFoodPoisoningRisks.getTypeScriptAlgebraicType(),
+    },
     seed_items: {
       reducerName: "seed_items",
       argsType: SeedItems.getTypeScriptAlgebraicType(),
@@ -1364,6 +1394,7 @@ export type Reducer = never
 | { name: "CrushBoneItem", args: CrushBoneItem }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DodgeRoll", args: DodgeRoll }
+| { name: "DrinkWater", args: DrinkWater }
 | { name: "DropItem", args: DropItem }
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
 | { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
@@ -1435,6 +1466,7 @@ export type Reducer = never
 | { name: "ReviveKnockedOutPlayer", args: ReviveKnockedOutPlayer }
 | { name: "ScheduleNextCampfireProcessing", args: ScheduleNextCampfireProcessing }
 | { name: "SeedEnvironment", args: SeedEnvironment }
+| { name: "SeedFoodPoisoningRisks", args: SeedFoodPoisoningRisks }
 | { name: "SeedItems", args: SeedItems }
 | { name: "SeedRangedWeaponStats", args: SeedRangedWeaponStats }
 | { name: "SeedRecipes", args: SeedRecipes }
@@ -1674,6 +1706,18 @@ export class RemoteReducers {
 
   removeOnDodgeRoll(callback: (ctx: ReducerEventContext, moveX: number, moveY: number) => void) {
     this.connection.offReducer("dodge_roll", callback);
+  }
+
+  drinkWater() {
+    this.connection.callReducer("drink_water", new Uint8Array(0), this.setCallReducerFlags.drinkWaterFlags);
+  }
+
+  onDrinkWater(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("drink_water", callback);
+  }
+
+  removeOnDrinkWater(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("drink_water", callback);
   }
 
   dropItem(itemInstanceId: bigint, quantityToDrop: number) {
@@ -2760,6 +2804,18 @@ export class RemoteReducers {
     this.connection.offReducer("seed_environment", callback);
   }
 
+  seedFoodPoisoningRisks() {
+    this.connection.callReducer("seed_food_poisoning_risks", new Uint8Array(0), this.setCallReducerFlags.seedFoodPoisoningRisksFlags);
+  }
+
+  onSeedFoodPoisoningRisks(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("seed_food_poisoning_risks", callback);
+  }
+
+  removeOnSeedFoodPoisoningRisks(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("seed_food_poisoning_risks", callback);
+  }
+
   seedItems() {
     this.connection.callReducer("seed_items", new Uint8Array(0), this.setCallReducerFlags.seedItemsFlags);
   }
@@ -3440,6 +3496,11 @@ export class SetReducerFlags {
     this.dodgeRollFlags = flags;
   }
 
+  drinkWaterFlags: CallReducerFlags = 'FullUpdate';
+  drinkWater(flags: CallReducerFlags) {
+    this.drinkWaterFlags = flags;
+  }
+
   dropItemFlags: CallReducerFlags = 'FullUpdate';
   dropItem(flags: CallReducerFlags) {
     this.dropItemFlags = flags;
@@ -3785,6 +3846,11 @@ export class SetReducerFlags {
     this.seedEnvironmentFlags = flags;
   }
 
+  seedFoodPoisoningRisksFlags: CallReducerFlags = 'FullUpdate';
+  seedFoodPoisoningRisks(flags: CallReducerFlags) {
+    this.seedFoodPoisoningRisksFlags = flags;
+  }
+
   seedItemsFlags: CallReducerFlags = 'FullUpdate';
   seedItems(flags: CallReducerFlags) {
     this.seedItemsFlags = flags;
@@ -4054,6 +4120,10 @@ export class RemoteTables {
     return new FishingSessionTableHandle(this.connection.clientCache.getOrCreateTable<FishingSession>(REMOTE_MODULE.tables.fishing_session));
   }
 
+  get foodPoisoningRisk(): FoodPoisoningRiskTableHandle {
+    return new FoodPoisoningRiskTableHandle(this.connection.clientCache.getOrCreateTable<FoodPoisoningRisk>(REMOTE_MODULE.tables.food_poisoning_risk));
+  }
+
   get globalTickSchedule(): GlobalTickScheduleTableHandle {
     return new GlobalTickScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GlobalTickSchedule>(REMOTE_MODULE.tables.global_tick_schedule));
   }
@@ -4112,6 +4182,10 @@ export class RemoteTables {
 
   get playerDodgeRollState(): PlayerDodgeRollStateTableHandle {
     return new PlayerDodgeRollStateTableHandle(this.connection.clientCache.getOrCreateTable<PlayerDodgeRollState>(REMOTE_MODULE.tables.player_dodge_roll_state));
+  }
+
+  get playerDrinkingCooldown(): PlayerDrinkingCooldownTableHandle {
+    return new PlayerDrinkingCooldownTableHandle(this.connection.clientCache.getOrCreateTable<PlayerDrinkingCooldown>(REMOTE_MODULE.tables.player_drinking_cooldown));
   }
 
   get playerKillCommandCooldown(): PlayerKillCommandCooldownTableHandle {

@@ -154,6 +154,40 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         return foundMatch;
     }, [localPlayer, activeConsumableEffects]);
 
+    // Determine if there's an active seawater poisoning effect for the local player
+    const isPlayerSeawaterPoisoned = React.useMemo(() => {
+        if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
+
+        const localPlayerIdHex = localPlayer.identity.toHexString();
+        let foundMatch = false;
+        activeConsumableEffects.forEach((effect) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+
+            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'SeawaterPoisoning') {
+                foundMatch = true;
+            }
+        });
+        return foundMatch;
+    }, [localPlayer, activeConsumableEffects]);
+
+    // Determine if there's an active food poisoning effect for the local player
+    const isPlayerFoodPoisoned = React.useMemo(() => {
+        if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return false;
+
+        const localPlayerIdHex = localPlayer.identity.toHexString();
+        let foundMatch = false;
+        activeConsumableEffects.forEach((effect) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+
+            if (effectPlayerIdHex === localPlayerIdHex && effectTypeTag === 'FoodPoisoning') {
+                foundMatch = true;
+            }
+        });
+        return foundMatch;
+    }, [localPlayer, activeConsumableEffects]);
+
     // Determine if there's an active BandageBurst effect and its potential heal amount
     const pendingBandageHealAmount = React.useMemo(() => {
         if (!localPlayer || !activeConsumableEffects || activeConsumableEffects.size === 0) return 0;
@@ -534,6 +568,14 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             effectApplies = true;
                             effectName = remainingTime > 0 ? `Bandaged (${Math.ceil(remainingTime)}s)` : 'Bandaged';
                             break;
+                        case 'SeawaterPoisoning':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Salt Sickness (${Math.ceil(remainingTime)}s)` : 'Salt Sickness';
+                            break;
+                        case 'FoodPoisoning':
+                            effectApplies = true;
+                            effectName = remainingTime > 0 ? `Food Poisoning (${Math.ceil(remainingTime)}s)` : 'Food Poisoning';
+                            break;
                     }
                 } else if (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst') {
                     // Check if remote bandage healer is in range
@@ -652,6 +694,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     barColor="#ff4040" 
                     hasActiveEffect={isHealthHealingOverTime}
                     hasBleedEffect={isPlayerBleeding}
+                    hasSeawaterPoisoningEffect={isPlayerSeawaterPoisoned}
+                    hasFoodPoisoningEffect={isPlayerFoodPoisoned}
                     pendingHealAmount={pendingBandageHealAmount}
                     glow={localPlayer.health < lowNeedThreshold}
                 />

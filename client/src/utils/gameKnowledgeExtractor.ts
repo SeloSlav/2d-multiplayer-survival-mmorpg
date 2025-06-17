@@ -33,6 +33,7 @@ export const controlSections: ControlSection[] = [
             { key: 'E (Hold)', description: 'Toggle campfire on/off' },
             { key: 'E (Hold)', description: 'Hide/surface stashes' },
             { key: 'E (Hold)', description: 'Revive knocked out players' },
+            { key: 'E (Hold)', description: 'Drink water from bodies of water' },
         ]
     },
     {
@@ -88,6 +89,19 @@ export const tipSections: TipSection[] = [
         ]
     },
     {
+        title: 'Water Sources',
+        tips: [
+            'Hold E over any water body to drink and restore thirst.',
+            'Coastal waters (beaches, bays, ocean inlets) are salty and cause dehydration.',
+            'Inland waters (mountain lakes, forest ponds, deep rivers) are fresh and restore thirst.',
+            'There is a 2-second cooldown between drinking attempts.',
+            'Salty water decreases thirst by 25 points - avoid drinking from the ocean.',
+            'Fresh water increases thirst by 75 points - seek out inland lakes and rivers.',
+            'Water near map edges tends to be salty due to ocean influence.',
+            'Deep inland areas usually have fresh water sources for survival.',
+        ]
+    },
+    {
         title: 'Combat & Safety',
         tips: [
             'Craft weapons early - even a wooden spear is better than fighting with a wooden spoon.',
@@ -139,7 +153,7 @@ export const tipSections: TipSection[] = [
         title: 'Multiplayer Tips',
         tips: [
             'Cooperation with other players can help you survive longer.',
-            'Use the chat system (Enter) to communicate.',
+            'Use the chat system to communicate.',
             'Be careful who you trust - not all players are friendly.',
             'Consider building in groups for better defense and resource sharing.',
         ]

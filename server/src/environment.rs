@@ -174,7 +174,7 @@ fn is_grass_water_check_blocked(ctx: &ReducerContext, pos_x: f32, pos_y: f32, gr
 
 /// Checks if the given position is on inland water (rivers/lakes) rather than ocean water
 /// Returns true for rivers and lakes, false for ocean and land
-fn is_position_on_inland_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+pub fn is_position_on_inland_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     // Convert pixel position to tile coordinates
     let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
@@ -198,12 +198,28 @@ fn is_position_on_inland_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> 
 }
 
 /// Helper function to determine if a water tile is inland (river/lake) vs ocean
-/// Uses distance from map edges to distinguish inland water from ocean water
-fn is_tile_inland_water(ctx: &ReducerContext, tile_x: i32, tile_y: i32) -> bool {
-    // Ocean water is typically near the map edges
-    // Rivers and lakes are further inland
+/// Uses aggressive coastal zone detection - most water is salty except deep inland areas
+pub fn is_tile_inland_water(ctx: &ReducerContext, tile_x: i32, tile_y: i32) -> bool {
+    // First, verify this is actually a water tile
+    let world_tiles = ctx.db.world_tile();
+    let mut is_water = false;
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        is_water = tile.tile_type == TileType::Sea;
+        break;
+    }
     
-    let ocean_margin_tiles = 40; // Water within 40 tiles of any edge is considered ocean
+    if !is_water {
+        return false; // Not water, so not inland water either
+    }
+    
+    // BALANCED COASTAL ZONE: Make coastal water salty, keep inland lakes/rivers fresh
+    // Use a reasonable percentage of map size for realistic coastal zones
+    let map_width = WORLD_WIDTH_TILES as f32;
+    let map_height = WORLD_HEIGHT_TILES as f32;
+    
+    // Coastal zone extends 20% into the map from each edge (40% total coastal coverage)
+    let coastal_zone_x = (map_width * 0.2) as i32;
+    let coastal_zone_y = (map_height * 0.2) as i32;
     
     // Calculate distance from each edge
     let distance_from_left = tile_x;
@@ -211,14 +227,15 @@ fn is_tile_inland_water(ctx: &ReducerContext, tile_x: i32, tile_y: i32) -> bool 
     let distance_from_top = tile_y;
     let distance_from_bottom = (WORLD_HEIGHT_TILES as i32) - 1 - tile_y;
     
-    // Find the minimum distance to any edge
-    let min_distance_to_edge = distance_from_left
-        .min(distance_from_right)
-        .min(distance_from_top)
-        .min(distance_from_bottom);
+    // Check if we're in the coastal zone from any direction
+    let in_coastal_zone = distance_from_left < coastal_zone_x ||
+                         distance_from_right < coastal_zone_x ||
+                         distance_from_top < coastal_zone_y ||
+                         distance_from_bottom < coastal_zone_y;
     
-    // If we're far enough from all edges, it's likely inland water
-    min_distance_to_edge >= ocean_margin_tiles
+    // If in coastal zone, water is salty (return false for "not inland")
+    // Only the very center of large landmasses has fresh water
+    !in_coastal_zone
 }
 
 /// Detects if a position is in a lake-like area (larger contiguous water body) vs a river

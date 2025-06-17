@@ -101,8 +101,24 @@ use crate::armor; // <<< ADDED for warmth bonus
 use crate::death_marker; // <<< ADDED for DeathMarker
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
 use crate::shelter; // <<< ADDED for shelter warmth bonus
+use crate::active_effects::{active_consumable_effect as ActiveConsumableEffectTableTrait, EffectType}; // <<< ADDED for checking damaging effects
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
+
+// Helper function to check if a player has any active damaging effects
+fn player_has_damaging_effects(ctx: &ReducerContext, player_id: Identity) -> bool {
+    for effect in ctx.db.active_consumable_effect().iter() {
+        if effect.player_id == player_id {
+            match effect.effect_type {
+                EffectType::Bleed | EffectType::Burn | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning => {
+                    return true;
+                }
+                _ => {} // Other effects don't block passive regen
+            }
+        }
+    }
+    false
+}
 
 // --- Player Stat Schedule Table (Reverted to scheduled pattern) ---
 #[spacetimedb::table(name = player_stat_schedule, scheduled(process_player_stats))]
@@ -287,12 +303,13 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_WARMTH;
         }
 
-        // Health recovery only if needs are met and not taking damage
+        // Health recovery only if needs are met and not taking damage from any source
         if health_change_per_sec == 0.0 && // No damage from needs
            player.health >= HEALTH_RECOVERY_THRESHOLD && // ADDED: Only regen if health is already high
            new_hunger >= HUNGER_RECOVERY_THRESHOLD &&
            new_thirst >= THIRST_RECOVERY_THRESHOLD &&
-           new_warmth >= low_need_threshold { // Ensure warmth is also at a decent level (using low_need_threshold for now)
+           new_warmth >= low_need_threshold && // Ensure warmth is also at a decent level
+           !player_has_damaging_effects(ctx, player_id) { // ADDED: No active damaging effects (bleed, burn, poisoning)
             health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
         }
 
