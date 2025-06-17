@@ -12,7 +12,7 @@ use crate::items::ItemCategory; // Import the enum itself
 use crate::models::ItemLocation; // Added import
 
 // Import active effects related items
-use crate::active_effects::{ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bleed_effects, cancel_health_regen_effects};
+use crate::active_effects::{ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bleed_effects, cancel_health_regen_effects, player_has_cozy_effect, COZY_FOOD_HEALING_MULTIPLIER};
 
 // --- Max Stat Value ---
 pub const MAX_HEALTH_VALUE: f32 = 100.0; // Max value for health
@@ -201,10 +201,10 @@ pub fn apply_item_effects_and_consume(
                 stat_changed_instantly = true;
             }
         } else {
-            apply_instant_effects_for_helper(item_def, player_to_update, &mut stat_changed_instantly);
+            apply_instant_effects_for_helper(ctx, item_def, player_id, player_to_update, &mut stat_changed_instantly);
         }
     } else {
-        apply_instant_effects_for_helper(item_def, player_to_update, &mut stat_changed_instantly);
+        apply_instant_effects_for_helper(ctx, item_def, player_id, player_to_update, &mut stat_changed_instantly);
     }
 
     if stat_changed_instantly {
@@ -233,9 +233,16 @@ pub fn apply_item_effects_and_consume(
 }
 
 // Renamed and adapted apply_instant_effects to be used by the helper
-fn apply_instant_effects_for_helper(item_def: &ItemDefinition, player: &mut Player, stat_changed: &mut bool) {
-    if let Some(health_gain) = item_def.consumable_health_gain {
+fn apply_instant_effects_for_helper(ctx: &ReducerContext, item_def: &ItemDefinition, player_id: Identity, player: &mut Player, stat_changed: &mut bool) {
+    if let Some(mut health_gain) = item_def.consumable_health_gain {
         if item_def.consumable_duration_secs.map_or(true, |d| d <= 0.0) {
+            // Apply cozy bonus to food healing (only for positive healing)
+            if health_gain > 0.0 && player_has_cozy_effect(ctx, player_id) {
+                health_gain *= COZY_FOOD_HEALING_MULTIPLIER;
+                log::info!("Player {:?} has cozy effect! Food healing boosted from {:.1} to {:.1}", 
+                    player_id, item_def.consumable_health_gain.unwrap_or(0.0), health_gain);
+            }
+            
             let old_val = player.health;
             player.health = (player.health + health_gain).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
             if player.health != old_val { *stat_changed = true; }

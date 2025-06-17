@@ -33,7 +33,7 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
       return '230px';
     } else {
       // Normal position when no crafting is active
-      return '160px';
+      return '190px';
     }
   };
 

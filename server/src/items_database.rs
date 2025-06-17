@@ -1197,7 +1197,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(2.0),      // Minimal health (early game food)
+            consumable_health_gain: Some(5.0),      // Decent health for emergency healing
             consumable_hunger_satiated: Some(8.0),  // Low hunger value
             consumable_thirst_quenched: Some(-3.0), // Makes you thirsty (raw mushrooms)
             consumable_stamina_gain: None,
@@ -1234,7 +1234,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(8.0),      // Good early-game health
+            consumable_health_gain: Some(12.0),     // Good cooked food health
             consumable_hunger_satiated: Some(25.0), // Decent hunger (10% of max)
             consumable_thirst_quenched: Some(5.0),  // Small thirst bonus when cooked
             consumable_stamina_gain: None,
@@ -1308,7 +1308,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(1.0),      // Minimal health (raw corn is hard to digest)
+            consumable_health_gain: Some(4.0),      // Decent health for raw corn
             consumable_hunger_satiated: Some(12.0), // Moderate hunger
             consumable_thirst_quenched: Some(8.0),  // Good thirst value (corn has water)
             consumable_stamina_gain: None,
@@ -1345,7 +1345,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(12.0),     // Good health restoration
+            consumable_health_gain: Some(18.0),     // Excellent health restoration when cooked
             consumable_hunger_satiated: Some(35.0), // Solid hunger value (14% of max)
             consumable_thirst_quenched: Some(20.0), // Excellent thirst value (corn's specialty)
             consumable_stamina_gain: Some(10.0),    // Energy boost from carbs
@@ -1419,7 +1419,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(3.0),      // Low health (raw pumpkin)
+            consumable_health_gain: Some(8.0),      // Good health for raw pumpkin
             consumable_hunger_satiated: Some(18.0), // Moderate hunger
             consumable_thirst_quenched: Some(15.0), // Good thirst (pumpkins are watery)
             consumable_stamina_gain: None,
@@ -1456,7 +1456,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(25.0),     // Excellent health (pumpkin's specialty - 25% of max)
+            consumable_health_gain: Some(30.0),     // Excellent health when cooked (pumpkin's specialty)
             consumable_hunger_satiated: Some(50.0), // High hunger value (20% of max)
             consumable_thirst_quenched: Some(30.0), // Great thirst value
             consumable_stamina_gain: Some(15.0),    // Good stamina boost
@@ -2230,7 +2230,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(2.0),      // Low health (raw potato is hard to digest)
+            consumable_health_gain: Some(6.0),      // Decent health for raw potato
             consumable_hunger_satiated: Some(15.0), // Good hunger value (potatoes are filling)
             consumable_thirst_quenched: Some(2.0),  // Minimal thirst (raw potatoes are dry)
             consumable_stamina_gain: None,
@@ -2267,7 +2267,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             crafting_cost: None,
             crafting_output_quantity: None,
             crafting_time_secs: None,
-            consumable_health_gain: Some(15.0),     // Good health restoration
+            consumable_health_gain: Some(20.0),     // Excellent health restoration when cooked
             consumable_hunger_satiated: Some(60.0), // Excellent hunger value (24% of max - potato's specialty)
             consumable_thirst_quenched: Some(12.0), // Moderate thirst value
             consumable_stamina_gain: Some(20.0),    // Excellent stamina boost (carb energy)

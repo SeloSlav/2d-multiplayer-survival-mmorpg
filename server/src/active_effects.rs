@@ -8,6 +8,11 @@ use crate::consumables::{MAX_HEALTH_VALUE, MIN_STAT_VALUE}; // Import constants 
 use rand::Rng; // For random number generation
 use log;
 
+// Import table traits for burn extinguishing functionality
+use crate::world_state::world_state as WorldStateTableTrait;
+use crate::shelter::shelter as ShelterTableTrait;
+use crate::tree::tree as TreeTableTrait;
+
 #[table(name = active_consumable_effect, public)] // public for client UI if needed
 #[derive(Clone, Debug)]
 pub struct ActiveConsumableEffect {
@@ -38,7 +43,7 @@ pub enum EffectType {
     RemoteBandageBurst, // For targeting others
     SeawaterPoisoning, // Dehydration from drinking seawater
     FoodPoisoning, // From eating contaminated/raw foods
-    // Potentially HungerRegen, ThirstRegen, StaminaRegen in future
+    Cozy, // Health regen bonus and food healing bonus when near campfires or in owned shelters
 }
 
 // Table defining food poisoning risks for different food items
@@ -94,6 +99,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             continue;
         }
 
+        // Skip cozy effects - they are managed by the player stats system, not the effect tick system
+        if effect.effect_type == EffectType::Cozy {
+            continue;
+        }
+
         let mut effect_ended = false;
         let mut player_effect_applied_this_iteration = false; // Tracks if this specific effect iteration changed player health
 
@@ -112,25 +122,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         let old_health = player_to_update.health;
         let mut current_effect_applied_so_far = effect.amount_applied_so_far.unwrap_or(0.0);
 
-        // --- Handle Environmental Damage (One-Shot) ---
-        if effect.effect_type == EffectType::Burn && effect.item_def_id == 0 {
-            if let Some(damage_to_apply) = effect.total_amount {
-                log::trace!("[EffectTick] ENV_BURN Pre-Damage for Player {:?}: Health {:.2}, DamageThisTick {:.2}",
-                    effect.player_id, player_to_update.health, damage_to_apply);
-                let health_before_env_damage = player_to_update.health;
-                player_to_update.health = (player_to_update.health - damage_to_apply).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
-                log::trace!("[EffectTick] ENV_BURN Post-Damage for Player {:?}: Health now {:.2}",
-                    effect.player_id, player_to_update.health);
-
-                if player_to_update.health < health_before_env_damage {
-                    player_effect_applied_this_iteration = true;
-                    player_ids_who_took_external_damage_this_tick.insert(effect.player_id); // Environmental damage is external
-                }
-            }
-            effect_ended = true;
-        }
+        // Note: Removed special case for environmental burn effects (item_def_id == 0)
+        // All burn effects now use the standard DOT processing below
+        
         // --- Handle BandageBurst (Delayed Burst Heal) ---
-        else if effect.effect_type == EffectType::BandageBurst || effect.effect_type == EffectType::RemoteBandageBurst {
+        if effect.effect_type == EffectType::BandageBurst || effect.effect_type == EffectType::RemoteBandageBurst {
             if let Some(burst_heal_amount) = effect.total_amount {
                 log::info!("[EffectTick] Processing bandage effect: type={:?}, player_id={:?}, target_id={:?}, amount={:?}, current_time={:?}, ends_at={:?}", 
                     effect.effect_type, effect.player_id, effect.target_player_id, burst_heal_amount, current_time, effect.ends_at);
@@ -147,7 +143,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -249,7 +245,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             }
         }
         // --- Handle Other Progressive Effects (HealthRegen, Bleed, item-based Damage) ---
-        else if let Some(total_amount_val) = effect.total_amount {
+        if let Some(total_amount_val) = effect.total_amount {
             let total_duration_micros = effect.ends_at.to_micros_since_unix_epoch().saturating_sub(effect.started_at.to_micros_since_unix_epoch());
 
             if total_duration_micros == 0 {
@@ -340,14 +336,21 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             // This arm handles the per-tick calculation, so it should be 0 here.
                             amount_this_tick = 0.0; 
                         }
+                        EffectType::Cozy => {
+                            // Cozy provides health regeneration bonus and food healing bonus
+                            // The health regen bonus is handled in player_stats.rs
+                            // The food healing bonus is handled in consumables.rs
+                            // This effect doesn't consume amount_applied_so_far
+                            amount_this_tick = 0.0;
+                        }
                     }
 
                     if (player_to_update.health - old_health).abs() > f32::EPSILON {
                         player_effect_applied_this_iteration = true;
                     }
                     
-                    // For SeawaterPoisoning, we don't track amount_applied_so_far since it's fixed 1 damage per tick
-                    // The effect ends based on time only, not accumulated damage
+                    // For SeawaterPoisoning, we don't track amount_applied_so_far
+                    // SeawaterPoisoning: fixed 1 damage per tick, ends based on time only
                     if effect.effect_type != EffectType::SeawaterPoisoning {
                         current_effect_applied_so_far += amount_this_tick; // Increment amount applied *for this effect*
                     }
@@ -469,6 +472,10 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         ctx.db.active_consumable_effect().effect_id().delete(&effect_id_to_remove);
         // Log already happened when added to effects_to_remove
     }
+
+    // Check for environmental conditions that should extinguish burn effects
+    check_and_extinguish_burns_from_environment(ctx)?;
+
     Ok(())
 }
 
@@ -638,4 +645,337 @@ pub fn apply_seawater_poisoning_effect(ctx: &ReducerContext, player_id: Identity
     }
     
     Ok(())
+}
+
+// Constants for cozy effect
+pub const COZY_HEALTH_REGEN_MULTIPLIER: f32 = 2.0; // Double passive health regeneration when cozy
+pub const COZY_FOOD_HEALING_MULTIPLIER: f32 = 1.5; // 50% bonus to food healing
+pub const COZY_EFFECT_CHECK_INTERVAL_SECONDS: u32 = 2; // Check cozy conditions every 2 seconds
+
+/// Checks if a player should have the cozy effect based on their proximity to campfires or owned shelters
+pub fn should_player_be_cozy(ctx: &ReducerContext, player_id: Identity, player_x: f32, player_y: f32) -> bool {
+    // Import necessary traits
+    use crate::campfire::{campfire as CampfireTableTrait, WARMTH_RADIUS_SQUARED};
+    use crate::shelter::{shelter as ShelterTableTrait, is_player_inside_shelter};
+    
+    // Check for nearby burning campfires
+    for campfire in ctx.db.campfire().iter() {
+        if campfire.is_burning {
+            let dx = player_x - campfire.pos_x;
+            let dy = player_y - campfire.pos_y;
+            let distance_squared = dx * dx + dy * dy;
+            
+            if distance_squared <= WARMTH_RADIUS_SQUARED {
+                log::debug!("Player {:?} is cozy near burning campfire {}", player_id, campfire.id);
+                return true;
+            }
+        }
+    }
+    
+    // Check for owned shelters
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { continue; }
+        if shelter.placed_by == player_id { // Only owned shelters provide cozy effect
+            if is_player_inside_shelter(player_x, player_y, &shelter) {
+                log::debug!("Player {:?} is cozy inside their own shelter {}", player_id, shelter.id);
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
+/// Applies or removes cozy effect based on player's current conditions
+pub fn update_player_cozy_status(ctx: &ReducerContext, player_id: Identity, player_x: f32, player_y: f32) -> Result<(), String> {
+    let should_be_cozy = should_player_be_cozy(ctx, player_id, player_x, player_y);
+    let has_cozy_effect = ctx.db.active_consumable_effect().iter()
+        .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Cozy);
+    
+    log::debug!("Cozy status check for player {:?}: should_be_cozy={}, has_cozy_effect={}", 
+        player_id, should_be_cozy, has_cozy_effect);
+    
+    if should_be_cozy && !has_cozy_effect {
+        // Apply cozy effect
+        log::info!("Applying cozy effect to player {:?}", player_id);
+        apply_cozy_effect(ctx, player_id)?;
+    } else if !should_be_cozy && has_cozy_effect {
+        // Remove cozy effect
+        log::info!("Removing cozy effect from player {:?}", player_id);
+        remove_cozy_effect(ctx, player_id);
+    }
+    // No need to extend - cozy effect is now permanent until removed
+    
+    Ok(())
+}
+
+/// Applies a cozy effect to a player
+fn apply_cozy_effect(ctx: &ReducerContext, player_id: Identity) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    // Set a very far future time (1 year from now) - effectively permanent
+    let very_far_future = current_time + TimeDuration::from_micros(365 * 24 * 60 * 60 * 1_000_000i64); // 1 year
+    
+    let cozy_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id: 0, // Not from an item
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: very_far_future, // Effectively permanent
+        total_amount: None, // No accumulation for cozy effect
+        amount_applied_so_far: None,
+        effect_type: EffectType::Cozy,
+        tick_interval_micros: 1_000_000, // 1 second ticks (not really used)
+        next_tick_at: current_time + TimeDuration::from_micros(1_000_000),
+    };
+    
+    match ctx.db.active_consumable_effect().try_insert(cozy_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied permanent cozy effect {} to player {:?}", inserted_effect.effect_id, player_id);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply cozy effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply cozy effect".to_string())
+        }
+    }
+}
+
+
+
+/// Removes cozy effect from a player
+fn remove_cozy_effect(ctx: &ReducerContext, player_id: Identity) {
+    let mut effects_to_remove = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter() {
+        if effect.player_id == player_id && effect.effect_type == EffectType::Cozy {
+            effects_to_remove.push(effect.effect_id);
+        }
+    }
+    
+    for effect_id in effects_to_remove {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+        log::info!("Removed cozy effect {} from player {:?}", effect_id, player_id);
+    }
+}
+
+/// Checks if a player currently has the cozy effect active
+pub fn player_has_cozy_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
+    ctx.db.active_consumable_effect().iter()
+        .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Cozy)
+}
+
+/// Extinguishes burn effects for a player due to water or rain
+/// Returns the number of burn effects that were extinguished
+pub fn extinguish_burn_effects(ctx: &ReducerContext, player_id: Identity, reason: &str) -> u32 {
+    let mut extinguished_count = 0;
+    
+    // Find all burn effects for this player
+    let burn_effects_to_remove: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Burn)
+        .collect();
+    
+    // Remove each burn effect
+    for effect in burn_effects_to_remove {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect.effect_id);
+        extinguished_count += 1;
+        log::info!("Extinguished burn effect {} for player {:?} due to {}", 
+                  effect.effect_id, player_id, reason);
+    }
+    
+    if extinguished_count > 0 {
+        log::info!("Extinguished {} burn effects for player {:?} due to {}", 
+                  extinguished_count, player_id, reason);
+    }
+    
+    extinguished_count
+}
+
+/// Checks if it's currently raining heavily enough to extinguish fires
+fn is_heavy_raining_for_extinguishing(ctx: &ReducerContext) -> bool {
+    if let Some(world_state) = ctx.db.world_state().iter().next() {
+        if world_state.rain_intensity <= 0.0 {
+            return false;
+        }
+        
+        // Check the weather type if available, otherwise fall back to intensity threshold
+        match &world_state.current_weather {
+            crate::world_state::WeatherType::HeavyRain => true,
+            crate::world_state::WeatherType::HeavyStorm => true,
+            _ => {
+                // For other weather types, fallback to intensity threshold (>= 0.8 is heavy rain/storm range)
+                world_state.rain_intensity >= 0.8
+            }
+        }
+    } else {
+        false
+    }
+}
+
+/// Checks for environmental conditions that should extinguish burn effects
+/// Should be called periodically for all players with burn effects
+pub fn check_and_extinguish_burns_from_environment(ctx: &ReducerContext) -> Result<(), String> {
+    // Get all players who currently have burn effects
+    let players_with_burns: Vec<Identity> = ctx.db.active_consumable_effect().iter()
+        .filter(|effect| effect.effect_type == EffectType::Burn)
+        .map(|effect| effect.player_id)
+        .collect::<std::collections::HashSet<_>>() // Remove duplicates
+        .into_iter()
+        .collect();
+    
+    if players_with_burns.is_empty() {
+        return Ok(()); // No players with burns, nothing to check
+    }
+    
+    // Check if it's raining heavily
+    let is_heavy_rain = is_heavy_raining_for_extinguishing(ctx);
+    
+    // Check each player with burn effects
+    for player_id in players_with_burns {
+        // Find the player to get their position
+        if let Some(player) = ctx.db.player().identity().find(&player_id) {
+            let mut should_extinguish = false;
+            let mut extinguish_reason = String::new();
+            
+            // Check if player is standing on water
+            if crate::is_player_on_water(ctx, player.position_x, player.position_y) {
+                should_extinguish = true;
+                extinguish_reason = "standing in water".to_string();
+            }
+            // Check if it's raining heavily and player is not protected
+            else if is_heavy_rain && !is_player_protected_from_rain(ctx, &player) {
+                should_extinguish = true;
+                extinguish_reason = "heavy rain".to_string();
+            }
+            
+            // Extinguish burn effects if conditions are met
+            if should_extinguish {
+                extinguish_burn_effects(ctx, player_id, &extinguish_reason);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Checks if a player is protected from rain (inside shelter or near trees)
+fn is_player_protected_from_rain(ctx: &ReducerContext, player: &crate::Player) -> bool {
+    // Check if player is inside any shelter
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed {
+            continue;
+        }
+        
+        // Use the same shelter collision detection logic as in shelter.rs
+        let shelter_aabb_center_x = shelter.pos_x;
+        let shelter_aabb_center_y = shelter.pos_y - crate::shelter::SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let aabb_left = shelter_aabb_center_x - crate::shelter::SHELTER_AABB_HALF_WIDTH;
+        let aabb_right = shelter_aabb_center_x + crate::shelter::SHELTER_AABB_HALF_WIDTH;
+        let aabb_top = shelter_aabb_center_y - crate::shelter::SHELTER_AABB_HALF_HEIGHT;
+        let aabb_bottom = shelter_aabb_center_y + crate::shelter::SHELTER_AABB_HALF_HEIGHT;
+        
+        // Check if player position is inside shelter AABB
+        if player.position_x >= aabb_left && player.position_x <= aabb_right &&
+           player.position_y >= aabb_top && player.position_y <= aabb_bottom {
+            return true;
+        }
+    }
+    
+    // Check if player is within 100px of any tree (protected by tree cover)
+    const TREE_PROTECTION_DISTANCE_SQ: f32 = 100.0 * 100.0; // 100px protection radius
+    
+    for tree in ctx.db.tree().iter() {
+        // Skip destroyed trees (respawn_at is set when tree is harvested)
+        if tree.respawn_at.is_some() {
+            continue;
+        }
+        
+        // Calculate distance squared between player and tree
+        let dx = player.position_x - tree.pos_x;
+        let dy = player.position_y - tree.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        // Check if player is within protection distance of this tree
+        if distance_sq <= TREE_PROTECTION_DISTANCE_SQ {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Applies or extends a burn effect on a player
+/// This creates a proper damage-over-time effect that continues burning even after leaving the source
+pub fn apply_burn_effect(
+    ctx: &ReducerContext, 
+    player_id: Identity, 
+    total_damage: f32, 
+    duration_seconds: f32, 
+    tick_interval_seconds: f32,
+    source_item_def_id: u64 // 0 for environmental sources like campfires
+) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    
+    // Check if player already has a burn effect from the same source type
+    let existing_burn_effects: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|e| e.player_id == player_id && 
+                   e.effect_type == EffectType::Burn && 
+                   e.item_def_id == source_item_def_id)
+        .collect();
+
+    if !existing_burn_effects.is_empty() {
+        // Stack burn effect by adding duration to existing end time
+        for existing_effect in existing_burn_effects {
+            let mut updated_effect = existing_effect.clone();
+            // Stack by adding the full duration to the existing end time (true stacking behavior)
+            let duration_to_add = TimeDuration::from_micros((duration_seconds * 1_000_000.0) as i64);
+            let new_end_time = updated_effect.ends_at + duration_to_add;
+            
+            // Always stack - add the full damage and duration
+            updated_effect.ends_at = new_end_time;
+            let new_total_damage = updated_effect.total_amount.unwrap_or(0.0) + total_damage;
+            updated_effect.total_amount = Some(new_total_damage);
+            
+            let total_duration_seconds = (new_end_time.to_micros_since_unix_epoch() - current_time.to_micros_since_unix_epoch()) as f32 / 1_000_000.0;
+            
+            ctx.db.active_consumable_effect().effect_id().update(updated_effect);
+            
+            log::info!("Stacked burn effect {} for player {:?}: added {:.1}s duration, total now {:.1}s (total damage: {:.1})", 
+                existing_effect.effect_id, player_id, duration_seconds, total_duration_seconds, new_total_damage);
+            return Ok(());
+        }
+        // This should never be reached since we checked !existing_burn_effects.is_empty()
+        Ok(())
+    } else {
+        // Create new burn effect
+        let duration_micros = (duration_seconds * 1_000_000.0) as i64;
+        let tick_interval_micros = (tick_interval_seconds * 1_000_000.0) as u64;
+        
+        let burn_effect = ActiveConsumableEffect {
+            effect_id: 0, // auto_inc
+            player_id,
+            target_player_id: None,
+            item_def_id: source_item_def_id,
+            consuming_item_instance_id: None,
+            started_at: current_time,
+            ends_at: current_time + TimeDuration::from_micros(duration_micros),
+            total_amount: Some(total_damage),
+            amount_applied_so_far: Some(0.0),
+            effect_type: EffectType::Burn,
+            tick_interval_micros,
+            next_tick_at: current_time + TimeDuration::from_micros(tick_interval_micros as i64),
+        };
+
+        match ctx.db.active_consumable_effect().try_insert(burn_effect) {
+            Ok(inserted_effect) => {
+                log::info!("Applied new burn effect {} to player {:?}: {:.1} damage over {:.1}s (every {:.1}s)", 
+                    inserted_effect.effect_id, player_id, total_damage, duration_seconds, tick_interval_seconds);
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Failed to apply burn effect to player {:?}: {:?}", player_id, e);
+                Err("Failed to apply burn effect".to_string())
+            }
+        }
+    }
 }

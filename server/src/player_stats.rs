@@ -101,7 +101,7 @@ use crate::armor; // <<< ADDED for warmth bonus
 use crate::death_marker; // <<< ADDED for DeathMarker
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
 use crate::shelter; // <<< ADDED for shelter warmth bonus
-use crate::active_effects::{active_consumable_effect as ActiveConsumableEffectTableTrait, EffectType}; // <<< ADDED for checking damaging effects
+use crate::active_effects::{active_consumable_effect as ActiveConsumableEffectTableTrait, EffectType, update_player_cozy_status, player_has_cozy_effect, COZY_HEALTH_REGEN_MULTIPLIER}; // <<< ADDED for checking damaging effects and cozy
 
 pub(crate) const PLAYER_STAT_UPDATE_INTERVAL_SECS: u64 = 1; // Update stats every second
 
@@ -252,16 +252,26 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         }
         // <<< END WARMTH BONUS FROM ARMOR >>>
 
-        // <<< ADD WARMTH BONUS FROM SHELTER >>>
-        let shelter_warmth_bonus = shelter::calculate_shelter_warmth_bonus(ctx, player_id, player.position_x, player.position_y);
-        if shelter_warmth_bonus > 0.0 {
-            total_warmth_change_per_sec += shelter_warmth_bonus;
-            log::trace!(
-                "Player {:?} gaining {:.2} warmth/sec from shelter bonus.", 
-                player_id, shelter_warmth_bonus
-            );
+        // <<< ADD COZY EFFECT MANAGEMENT >>>
+        // Update cozy status based on proximity to campfires and owned shelters
+        if let Err(e) = update_player_cozy_status(ctx, player_id, player.position_x, player.position_y) {
+            log::warn!("Failed to update cozy status for player {:?}: {}", player_id, e);
         }
-        // <<< END WARMTH BONUS FROM SHELTER >>>
+        // <<< END COZY EFFECT MANAGEMENT >>>
+
+        // <<< ADD RAIN WARMTH DRAIN >>>
+        let rain_warmth_drain = world_state::get_rain_warmth_drain_modifier(ctx, player.position_x, player.position_y);
+        log::info!("Rain warmth drain check: player at ({:.1}, {:.1}), drain = {:.2}", player.position_x, player.position_y, rain_warmth_drain);
+        if rain_warmth_drain > 0.0 {
+            total_warmth_change_per_sec -= rain_warmth_drain; // Subtract rain drain
+            log::info!(
+                "Player {:?} losing {:.2} warmth/sec from rain (total warmth change now: {:.2})", 
+                player_id, rain_warmth_drain, total_warmth_change_per_sec
+            );
+        } else {
+            log::info!("Player {:?} protected from rain or no rain active", player_id);
+        }
+        // <<< END RAIN WARMTH DRAIN >>>
 
         let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);
@@ -310,7 +320,19 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
            new_thirst >= THIRST_RECOVERY_THRESHOLD &&
            new_warmth >= low_need_threshold && // Ensure warmth is also at a decent level
            !player_has_damaging_effects(ctx, player_id) { // ADDED: No active damaging effects (bleed, burn, poisoning)
-            health_change_per_sec += HEALTH_RECOVERY_PER_SEC;
+            
+            let mut health_regen = HEALTH_RECOVERY_PER_SEC;
+            
+            // Apply cozy bonus to health regeneration
+            if player_has_cozy_effect(ctx, player_id) {
+                health_regen *= COZY_HEALTH_REGEN_MULTIPLIER;
+                log::trace!(
+                    "Player {:?} has cozy effect - health regen boosted from {:.3} to {:.3}/sec", 
+                    player_id, HEALTH_RECOVERY_PER_SEC, health_regen
+                );
+            }
+            
+            health_change_per_sec += health_regen;
         }
 
         let health_change = health_change_per_sec * elapsed_seconds;

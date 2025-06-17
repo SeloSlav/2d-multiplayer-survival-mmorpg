@@ -4,6 +4,7 @@ import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
 import StatusBar from './StatusBar';
+import StatusEffectsPanel from './StatusEffectsPanel';
 // Import drag/drop types from shared file
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 // NEW: Import placement types
@@ -609,6 +610,155 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         return effects;
     }, [localPlayer, activeConsumableEffects, identity, players]);
 
+    // Convert status effects to format expected by StatusEffectsPanel
+    const getStatusEffectsForPanel = () => {
+        const effects: Array<{
+            id: string;
+            name: string;
+            emoji: string;
+            type: 'positive' | 'negative' | 'neutral';
+            description: string;
+            duration?: number; // Make duration optional for non-timed effects like cold
+        }> = [];
+        
+        if (!localPlayer) return effects;
+        
+        // Add cold status if warmth is low (same threshold as status bar glow)
+        if (localPlayer.warmth < 20) {
+            effects.push({
+                id: 'cold',
+                name: 'Cold',
+                emoji: '🥶',
+                type: 'negative',
+                description: 'Low body temperature. Find warmth near a campfire or shelter!'
+                // No duration - this is a persistent state based on warmth level
+            });
+        }
+        
+        if (!activeConsumableEffects || !identity) return effects;
+        
+        const localPlayerIdHex = identity.toHexString();
+        const now = Date.now();
+        
+        // Extract effects with durations from activeConsumableEffects
+        activeConsumableEffects.forEach((effect) => {
+            const effectPlayerIdHex = effect.playerId.toHexString();
+            const effectTargetPlayerIdHex = effect.targetPlayerId ? effect.targetPlayerId.toHexString() : null;
+            const effectTypeTag = effect.effectType ? (effect.effectType as any).tag : 'undefined';
+            
+            // Calculate remaining time with small buffer to prevent flicker during updates
+            const endsAtTime = effect.endsAt ? Number(effect.endsAt.microsSinceUnixEpoch / 1000n) : now;
+            const remainingTime = Math.max(0, (endsAtTime - now) / 1000);
+            // Add small buffer for effects that are being actively extended (like burn from campfire)
+            const bufferedRemainingTime = remainingTime > 0 ? Math.max(0.5, remainingTime) : 0;
+            
+            // Check if this effect applies to the local player
+            let effectApplies = false;
+            let effectData = null;
+            
+            if (effectPlayerIdHex === localPlayerIdHex) {
+                switch (effectTypeTag) {
+                    case 'Bleed':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'bleeding',
+                            name: 'Bleeding',
+                            emoji: '🩸',
+                            type: 'negative' as const,
+                            description: 'Losing health over time',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'Burn':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'burning',
+                            name: 'Burning',
+                            emoji: '🔥',
+                            type: 'negative' as const,
+                            description: 'Taking fire damage over time',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'HealthRegen':
+                    case 'BandageBurst':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'healing',
+                            name: 'Healing',
+                            emoji: '💚',
+                            type: 'positive' as const,
+                            description: 'Recovering health over time',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'SeawaterPoisoning':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'seawater_poisoning',
+                            name: 'Salt Sickness',
+                            emoji: '🧂',
+                            type: 'negative' as const,
+                            description: 'Dehydration from drinking seawater',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'FoodPoisoning':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'food_poisoning',
+                            name: 'Food Poisoning',
+                            emoji: '🤢',
+                            type: 'negative' as const,
+                            description: 'Nausea and sickness from bad food',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'Cozy':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'cozy',
+                            name: 'Cozy',
+                            emoji: '🏠',
+                            type: 'positive' as const,
+                            description: 'Comfortable near a campfire or in your shelter. Food heals 50% more and health regenerates twice as fast!',
+                            // No duration - permanent effect
+                        };
+                        break;
+                }
+            } else if (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst') {
+                // Check if remote bandage healer is in range
+                const healer = players.get(effectPlayerIdHex);
+                const target = players.get(localPlayerIdHex);
+                
+                if (healer && target) {
+                    const dx = healer.positionX - target.positionX;
+                    const dy = healer.positionY - target.positionY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const HEALING_RANGE = 4.0 * 32.0; // Must match server's range
+                    
+                    if (distance <= HEALING_RANGE) {
+                        effectApplies = true;
+                        effectData = {
+                            id: 'being_bandaged',
+                            name: 'Being Bandaged',
+                            emoji: '🩹',
+                            type: 'positive' as const,
+                            description: 'Being healed by another player',
+                            duration: bufferedRemainingTime
+                        };
+                    }
+                }
+            }
+            
+            if (effectApplies && effectData && (bufferedRemainingTime > 0 || effectData.id === 'cozy')) {
+                effects.push(effectData);
+            }
+        });
+        
+        return effects;
+    };
+
     if (!localPlayer) {
         return null;
     }
@@ -639,35 +789,8 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             {/* --- END NEW: Cyberpunk Knocked Out Screen --- */}
 
             {/* Status Effects Text - appears above status bars */}
-            {activeStatusEffects.length > 0 && (
-                <div style={{
-                    position: 'fixed',
-                    bottom: '140px', // Position above status bars
-                    right: '15px',
-                    fontFamily: 'Courier New, Consolas, Monaco, monospace',
-                    fontSize: '11px',
-                    color: '#ffffff', // White text for better contrast
-                    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
-                    backgroundColor: 'rgba(139, 69, 69, 0.9)', // Matte red background
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '2px solid rgba(180, 50, 50, 0.8)',
-                    backdropFilter: 'blur(3px)',
-                    minWidth: '220px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                    zIndex: 55, // Above status bars (50) but below other UI
-                }}>
-                    <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}>
-                        <span style={{ fontWeight: 'bold' }}>
-                            {activeStatusEffects.join(' | ')}
-                        </span>
-                    </div>
-                </div>
-            )}
+            {/* Status Effects Panel */}
+            <StatusEffectsPanel effects={getStatusEffectsForPanel()} />
 
             {/* Status Bars UI */}
             <div style={{

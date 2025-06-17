@@ -838,7 +838,6 @@ export const useSpacetimeTables = ({
                 setActiveConsumableEffects(prev => new Map(prev).set(effect.effectId.toString(), effect));
             };
             const handleActiveConsumableEffectUpdate = (ctx: any, oldEffect: SpacetimeDB.ActiveConsumableEffect, newEffect: SpacetimeDB.ActiveConsumableEffect) => {
-                // console.log("[useSpacetimeTables] handleActiveConsumableEffectUpdate CALLED, newEffect:", newEffect);
                 setActiveConsumableEffects(prev => new Map(prev).set(newEffect.effectId.toString(), newEffect));
             };
             const handleActiveConsumableEffectDelete = (ctx: any, effect: SpacetimeDB.ActiveConsumableEffect) => {

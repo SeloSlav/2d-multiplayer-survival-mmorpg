@@ -1,6 +1,6 @@
 import { WoodenStorageBox } from '../../generated'; // Import generated type
 import boxImage from '../../assets/doodads/wooden_storage_box.png'; // Direct import
-import { applyStandardDropShadow } from './shadowUtils'; // Added import
+import { applyStandardDropShadow, drawDynamicGroundShadow } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -37,11 +37,28 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
 
     getShadowParams: undefined,
 
-    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        // Apply shadow if not destroyed
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Draw DYNAMIC ground shadow if not destroyed
         if (!entity.isDestroyed) {
-            applyStandardDropShadow(ctx, { cycleProgress, blur: 4, offsetY: 3 }); 
+            drawDynamicGroundShadow({
+                ctx,
+                entityImage,
+                entityCenterX: entityPosX,
+                entityBaseY: entityPosY,
+                imageDrawWidth,
+                imageDrawHeight,
+                cycleProgress,
+                maxStretchFactor: 1.2, 
+                minStretchFactor: 0.1,  
+                shadowBlur: 2,         
+                pivotYOffset: 35       
+            });
         }
+    },
+
+    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
+        // Dynamic shadow is now handled in drawCustomGroundShadow
+        // No additional shadow effects needed here
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;

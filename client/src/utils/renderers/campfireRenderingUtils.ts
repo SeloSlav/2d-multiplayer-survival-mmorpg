@@ -60,8 +60,8 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
     getShadowParams: undefined,
 
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
-        // Only draw DYNAMIC ground shadow if burning and not destroyed
-        if (entity.isBurning && !entity.isDestroyed) {
+        // Draw DYNAMIC ground shadow for both burning and unlit campfires (if not destroyed)
+        if (!entity.isDestroyed) {
             drawDynamicGroundShadow({
                 ctx,
                 entityImage,
@@ -73,22 +73,14 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
                 maxStretchFactor: 1.2, 
                 minStretchFactor: 0.1,  
                 shadowBlur: 2,         
-                pivotYOffset: 35       
+                pivotYOffset: 25       
             });
-        } 
-        // The simple ellipse for the "off" state was removed from here.
-        // It will now be handled by applyStandardDropShadow in applyEffects.
+        }
     },
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        if (!entity.isDestroyed) {
-            if (entity.isBurning) {
-                // Potentially other effects for burning state later
-            } else {
-                // Apply standard drop shadow if OFF and not destroyed
-                applyStandardDropShadow(ctx, { cycleProgress, blur: 2, offsetY: 1, color: '0,0,0' });
-            }
-        }
+        // Dynamic shadow is now handled in drawCustomGroundShadow for all states
+        // No additional shadow effects needed here
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;

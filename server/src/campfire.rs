@@ -38,6 +38,7 @@
  use crate::world_state::world_state as WorldStateTableTrait;
  use crate::world_state::WeatherType; // Import the WeatherType enum
  use crate::shelter::shelter as ShelterTableTrait;
+ use crate::tree::tree as TreeTableTrait; // Added for tree protection functionality
  
  // --- Constants ---
  // Collision constants
@@ -78,8 +79,9 @@ pub(crate) const CAMPFIRE_CAMPFIRE_COLLISION_DISTANCE_SQUARED: f32 =
 const CAMPFIRE_DAMAGE_CENTER_Y_OFFSET: f32 = 0.0; // Changed from 30.0 to center with visual sprite
 const CAMPFIRE_DAMAGE_RADIUS: f32 = 50.0; // Increased damage radius
 const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
- const CAMPFIRE_DAMAGE_PER_TICK: f32 = 5.0; // How much damage is applied per tick
- const CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS: u64 = 1; // Duration of the damage effect (short, effectively one tick)
+ const CAMPFIRE_DAMAGE_PER_TICK: f32 = 5.0; // Total damage over the burn duration
+ const CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS: u64 = 3; // Duration of the burn effect (3 seconds)
+ const CAMPFIRE_BURN_TICK_INTERVAL_SECONDS: f32 = 1.0; // Apply burn damage every 1 second
  const CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS: u64 = 0; // MODIFIED: Apply damage every process tick if player is present
  
  /// --- Campfire Data Structure ---
@@ -449,9 +451,9 @@ pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result
             return Err("Cannot light campfire, requires fuel.".to_string());
         }
         
-        // Check if it's raining heavily and campfire is not protected by shelter
+        // Check if it's raining heavily and campfire is not protected by shelter or tree cover
         if is_heavy_raining(ctx) && !is_campfire_protected_from_rain(ctx, &campfire) {
-            return Err("Cannot light campfire in the rain unless it's inside a shelter.".to_string());
+            return Err("Cannot light campfire in heavy rain unless it's inside a shelter or near a tree.".to_string());
         }
         
         campfire.is_burning = true;
@@ -728,29 +730,23 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                  if dist_sq < CAMPFIRE_DAMAGE_RADIUS_SQUARED {
                      a_player_is_in_hot_zone_this_tick = true; // A player is in the zone
 
-                     // Proceed with damage effect application as before
-                     log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Attempting to apply damage effect.", campfire_id, player_entity.identity);
-                     let damage_effect = ActiveConsumableEffect {
-                         effect_id: 0, // Auto-incremented by the table
-                         player_id: player_entity.identity,
-                         target_player_id: None, // Add this line
-                         item_def_id: 0, // 0 for environmental/non-item effects
-                         consuming_item_instance_id: None, // Added: Campfire damage doesn't consume an item instance
-                         started_at: current_time,
-                         ends_at: current_time + TimeDuration::from_micros(CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS as i64 * 1_000_000),
-                         total_amount: Some(CAMPFIRE_DAMAGE_PER_TICK),
-                         amount_applied_so_far: Some(0.0),
-                         effect_type: EffectType::Burn, // CHANGED from Damage to Burn
-                         tick_interval_micros: CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS * 1_000_000,
-                         next_tick_at: current_time, // Apply immediately
-                     };
-                     match active_effects_table.try_insert(damage_effect) {
+                     // Apply burn effect using the centralized function from active_effects.rs
+                     log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Applying burn effect.", campfire_id, player_entity.identity);
+                     
+                     match crate::active_effects::apply_burn_effect(
+                         ctx, 
+                         player_entity.identity, 
+                         CAMPFIRE_DAMAGE_PER_TICK, 
+                         CAMPFIRE_DAMAGE_EFFECT_DURATION_SECONDS as f32, 
+                         CAMPFIRE_BURN_TICK_INTERVAL_SECONDS,
+                         0 // 0 for environmental/campfire source
+                     ) {
                          Ok(_) => {
-                             log::info!("[CampfireProcess {}] Successfully INSERTED burn effect for player {:?}", campfire_id, player_entity.identity);
-                             applied_damage_this_tick = true; // Mark that we attempted to apply damage
+                             log::info!("[CampfireProcess {}] Successfully applied/extended burn effect for player {:?}", campfire_id, player_entity.identity);
+                             applied_damage_this_tick = true;
                          }
                          Err(e) => {
-                             log::error!("[CampfireProcess {}] FAILED to insert burn effect for player {:?}: {:?}", campfire_id, player_entity.identity, e);
+                             log::error!("[CampfireProcess {}] FAILED to apply burn effect for player {:?}: {}", campfire_id, player_entity.identity, e);
                          }
                      }
                  }
@@ -1433,7 +1429,7 @@ fn is_heavy_raining(ctx: &ReducerContext) -> bool {
     }
 }
 
-/// Checks if a campfire is protected from rain by being inside a shelter
+/// Checks if a campfire is protected from rain by being inside a shelter or near a tree
 fn is_campfire_protected_from_rain(ctx: &ReducerContext, campfire: &Campfire) -> bool {
     // Check if campfire is inside any shelter
     for shelter in ctx.db.shelter().iter() {
@@ -1453,6 +1449,28 @@ fn is_campfire_protected_from_rain(ctx: &ReducerContext, campfire: &Campfire) ->
         if campfire.pos_x >= aabb_left && campfire.pos_x <= aabb_right &&
            campfire.pos_y >= aabb_top && campfire.pos_y <= aabb_bottom {
             log::debug!("Campfire {} is protected from rain by shelter {}", campfire.id, shelter.id);
+            return true;
+        }
+    }
+    
+    // Check if campfire is within 100px of any tree (protected by tree cover)
+    const TREE_PROTECTION_DISTANCE_SQ: f32 = 100.0 * 100.0; // 100px protection radius
+    
+    for tree in ctx.db.tree().iter() {
+        // Skip destroyed trees (respawn_at is set when tree is harvested)
+        if tree.respawn_at.is_some() {
+            continue;
+        }
+        
+        // Calculate distance squared between campfire and tree
+        let dx = campfire.pos_x - tree.pos_x;
+        let dy = campfire.pos_y - tree.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        // Check if campfire is within protection distance of this tree
+        if distance_sq <= TREE_PROTECTION_DISTANCE_SQ {
+            log::debug!("Campfire {} is protected from rain by tree at ({:.1}, {:.1}) - distance: {:.1}px", 
+                       campfire.id, tree.pos_x, tree.pos_y, distance_sq.sqrt());
             return true;
         }
     }

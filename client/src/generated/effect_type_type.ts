@@ -42,6 +42,7 @@ export namespace EffectType {
   export type RemoteBandageBurst = { tag: "RemoteBandageBurst" };
   export type SeawaterPoisoning = { tag: "SeawaterPoisoning" };
   export type FoodPoisoning = { tag: "FoodPoisoning" };
+  export type Cozy = { tag: "Cozy" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -56,6 +57,7 @@ export namespace EffectType {
   export const RemoteBandageBurst = { tag: "RemoteBandageBurst" };
   export const SeawaterPoisoning = { tag: "SeawaterPoisoning" };
   export const FoodPoisoning = { tag: "FoodPoisoning" };
+  export const Cozy = { tag: "Cozy" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -66,6 +68,7 @@ export namespace EffectType {
       new SumTypeVariant("RemoteBandageBurst", AlgebraicType.createProductType([])),
       new SumTypeVariant("SeawaterPoisoning", AlgebraicType.createProductType([])),
       new SumTypeVariant("FoodPoisoning", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Cozy", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -80,7 +83,7 @@ export namespace EffectType {
 }
 
 // The tagged union or sum type for the algebraic type `EffectType`.
-export type EffectType = EffectType.HealthRegen | EffectType.Burn | EffectType.Bleed | EffectType.BandageBurst | EffectType.RemoteBandageBurst | EffectType.SeawaterPoisoning | EffectType.FoodPoisoning;
+export type EffectType = EffectType.HealthRegen | EffectType.Burn | EffectType.Bleed | EffectType.BandageBurst | EffectType.RemoteBandageBurst | EffectType.SeawaterPoisoning | EffectType.FoodPoisoning | EffectType.Cozy;
 
 export default EffectType;
 

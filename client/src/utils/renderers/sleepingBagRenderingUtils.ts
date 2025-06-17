@@ -1,7 +1,7 @@
 import { SleepingBag } from '../../generated'; // Import generated SleepingBag type
 import sleepingBagImageSrc from '../../assets/doodads/sleeping_bag.png'; // Assuming this is the correct path
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
-import { applyStandardDropShadow } from './shadowUtils';
+import { applyStandardDropShadow, drawDynamicGroundShadow } from './shadowUtils';
 import { imageManager } from './imageManager';
 
 // --- Constants ---
@@ -36,25 +36,7 @@ const sleepingBagConfig: GroundEntityConfig<SleepingBag> = {
 
     getShadowParams: undefined,
 
-    applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        applyStandardDropShadow(ctx, { cycleProgress, blur: 3, offsetY: 2 });
-
-        let shakeOffsetX = 0;
-        let shakeOffsetY = 0;
-
-        if (entity.lastHitTime && !entity.isDestroyed) {
-            const lastHitTimeMs = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
-            const elapsedSinceHit = nowMs - lastHitTimeMs;
-
-            if (elapsedSinceHit >= 0 && elapsedSinceHit < SHAKE_DURATION_MS) {
-                const shakeFactor = 1.0 - (elapsedSinceHit / SHAKE_DURATION_MS);
-                const currentShakeIntensity = SHAKE_INTENSITY_PX * shakeFactor;
-                shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
-                shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
-            }
-        }
-        return { offsetX: shakeOffsetX, offsetY: shakeOffsetY };
-    },
+    
 
     drawOverlay: (ctx, entity, finalDrawX, finalDrawY, finalDrawWidth, finalDrawHeight, nowMs) => {
         if (entity.isDestroyed) {

@@ -54,6 +54,8 @@ import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
 import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
 export { CrushBoneItem };
+import { DebugSetWeather } from "./debug_set_weather_reducer.ts";
+export { DebugSetWeather };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
 import { DodgeRoll } from "./dodge_roll_reducer.ts";
@@ -894,6 +896,10 @@ const REMOTE_MODULE = {
       reducerName: "crush_bone_item",
       argsType: CrushBoneItem.getTypeScriptAlgebraicType(),
     },
+    debug_set_weather: {
+      reducerName: "debug_set_weather",
+      argsType: DebugSetWeather.getTypeScriptAlgebraicType(),
+    },
     despawn_expired_items: {
       reducerName: "despawn_expired_items",
       argsType: DespawnExpiredItems.getTypeScriptAlgebraicType(),
@@ -1392,6 +1398,7 @@ export type Reducer = never
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
+| { name: "DebugSetWeather", args: DebugSetWeather }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DodgeRoll", args: DodgeRoll }
 | { name: "DrinkWater", args: DrinkWater }
@@ -1674,6 +1681,22 @@ export class RemoteReducers {
 
   removeOnCrushBoneItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("crush_bone_item", callback);
+  }
+
+  debugSetWeather(weatherTypeStr: string) {
+    const __args = { weatherTypeStr };
+    let __writer = new BinaryWriter(1024);
+    DebugSetWeather.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("debug_set_weather", __argsBuffer, this.setCallReducerFlags.debugSetWeatherFlags);
+  }
+
+  onDebugSetWeather(callback: (ctx: ReducerEventContext, weatherTypeStr: string) => void) {
+    this.connection.onReducer("debug_set_weather", callback);
+  }
+
+  removeOnDebugSetWeather(callback: (ctx: ReducerEventContext, weatherTypeStr: string) => void) {
+    this.connection.offReducer("debug_set_weather", callback);
   }
 
   despawnExpiredItems(schedule: DroppedItemDespawnSchedule) {
@@ -3484,6 +3507,11 @@ export class SetReducerFlags {
   crushBoneItemFlags: CallReducerFlags = 'FullUpdate';
   crushBoneItem(flags: CallReducerFlags) {
     this.crushBoneItemFlags = flags;
+  }
+
+  debugSetWeatherFlags: CallReducerFlags = 'FullUpdate';
+  debugSetWeather(flags: CallReducerFlags) {
+    this.debugSetWeatherFlags = flags;
   }
 
   despawnExpiredItemsFlags: CallReducerFlags = 'FullUpdate';

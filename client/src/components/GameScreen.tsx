@@ -388,7 +388,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                     color: 'white',
                     padding: '8px',
                     borderRadius: '4px',
-                    fontSize: '12px'
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
                 }}>
                     <button 
                         onClick={(e) => {
@@ -409,6 +412,38 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                         }}
                     >
                         Debug Overlay: {showAutotileDebug ? 'ON' : 'OFF'}
+                    </button>
+                    
+                    <button 
+                        onClick={(e) => {
+                            // Toggle heavy rain for testing campfire protection
+                            const currentWeather = worldState?.currentWeather?.tag;
+                            const isHeavyRain = currentWeather === 'HeavyRain';
+                            
+                            if (connection) {
+                                // Call reducer to toggle weather
+                                if (isHeavyRain) {
+                                    connection.reducers.debugSetWeather('Clear');
+                                } else {
+                                    connection.reducers.debugSetWeather('HeavyRain');
+                                }
+                            }
+                            e.currentTarget.blur(); // Remove focus immediately after clicking
+                        }}
+                        onFocus={(e) => {
+                            e.currentTarget.blur(); // Prevent the button from staying focused
+                        }}
+                        style={{
+                            backgroundColor: worldState?.currentWeather?.tag === 'HeavyRain' ? '#2196F3' : '#FF9800',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '2px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Weather: {worldState?.currentWeather?.tag === 'HeavyRain' ? 'HEAVY RAIN' : 'CLEAR'}
                     </button>
                 </div>
             )}

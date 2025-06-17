@@ -5,7 +5,7 @@ import { Stash } from '../../generated';
 // import { itemImagesStore } from '../../hooks/useAssetLoader'; 
 import stashImageSrc from '../../assets/doodads/stash.png'; // Assuming this is the correct path
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
-import { applyStandardDropShadow } from './shadowUtils';
+import { applyStandardDropShadow, drawDynamicGroundShadow } from './shadowUtils';
 import { imageManager } from './imageManager';
 
 // --- Constants ---
@@ -39,13 +39,30 @@ const stashConfig: GroundEntityConfig<Stash> = {
         drawY: entity.posY - drawHeight, // Anchor to bottom center (like campfire)
     }),
 
-    getShadowParams: undefined, // No special shadow for stash, can use default from applyEffects
+    getShadowParams: undefined,
+
+    drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Draw DYNAMIC ground shadow if not hidden and not destroyed
+        if (!entity.isHidden && !entity.isDestroyed) {
+            drawDynamicGroundShadow({
+                ctx,
+                entityImage,
+                entityCenterX: entityPosX,
+                entityBaseY: entityPosY,
+                imageDrawWidth,
+                imageDrawHeight,
+                cycleProgress,
+                maxStretchFactor: 1.2, 
+                minStretchFactor: 0.1,  
+                shadowBlur: 2,         
+                pivotYOffset: 20       
+            });
+        }
+    },
 
     applyEffects: (ctx, entity, nowMs, baseDrawX, baseDrawY, cycleProgress) => {
-        // Only apply shadow if not hidden and not destroyed
-        if (!entity.isHidden && !entity.isDestroyed) {
-            applyStandardDropShadow(ctx, { cycleProgress, blur: 2, offsetY: 1 }); 
-        }
+        // Dynamic shadow is now handled in drawCustomGroundShadow
+        // No additional shadow effects needed here
 
         let shakeOffsetX = 0;
         let shakeOffsetY = 0;

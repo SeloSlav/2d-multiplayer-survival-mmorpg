@@ -20,6 +20,8 @@ import {
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
     PlayerCorpse, 
     Stash as SpacetimeDBStash, // Added Stash type
+    Shelter as SpacetimeDBShelter, // Added Shelter type
+    Tree as SpacetimeDBTree, // Added Tree type
     WorldState
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
@@ -43,6 +45,8 @@ interface ExternalContainerUIProps {
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>; // Added stashes
+    shelters?: Map<string, SpacetimeDBShelter>; // Added shelters (optional)
+    trees?: Map<string, SpacetimeDBTree>; // Added trees (optional)
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null;
     // currentStash will be derived like currentCampfire/currentCorpse
     connection: DbConnection | null;
@@ -63,6 +67,8 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes, // Added stashes
+    shelters, // Added shelters
+    trees, // Added trees
     currentStorageBox,
     connection,
     onItemDragStart,
@@ -311,34 +317,110 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         return worldState.rainIntensity >= 0.8;
     }, [worldState]);
 
+    // Helper function to check if campfire is protected from rain
+    const campfireProtection = useMemo(() => {
+        if (!isCampfireInteraction || !currentCampfire) return { isProtected: false, protectionType: null, hasData: false };
+        
+        // Check if we have shelter/tree data
+        const hasShelterData = shelters && shelters.size >= 0; // Changed to >= 0 to include empty maps as "has data"
+        const hasTreeData = trees && trees.size >= 0; // Changed to >= 0 to include empty maps as "has data"
+        
+        console.log(`[Campfire Protection Debug] Has shelter data: ${hasShelterData}, Has tree data: ${hasTreeData}`);
+        console.log(`[Campfire Protection Debug] Shelter count: ${shelters?.size || 0}, Tree count: ${trees?.size || 0}`);
+        console.log(`[Campfire Protection Debug] Campfire at: (${currentCampfire.posX}, ${currentCampfire.posY})`);
+        
+        // If we don't have any data at all, be strict and block lighting
+        if (!hasShelterData && !hasTreeData) {
+            console.log(`[Campfire Protection Debug] No shelter/tree data available - blocking lighting`);
+            return { isProtected: false, protectionType: null, hasData: false };
+        }
+        
+        // Check shelter protection (same logic as server)
+        if (shelters) {
+            for (const shelter of Array.from(shelters.values())) {
+                if (shelter.isDestroyed) continue;
+                
+                // Shelter AABB collision detection (from server constants)
+                const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 25.0; // From server shelter.rs
+                const SHELTER_AABB_HALF_WIDTH = 96.0; // From server shelter.rs  
+                const SHELTER_AABB_HALF_HEIGHT = 64.0; // From server shelter.rs
+                
+                const shelterAabbCenterX = shelter.posX;
+                const shelterAabbCenterY = shelter.posY - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+                const aabbLeft = shelterAabbCenterX - SHELTER_AABB_HALF_WIDTH;
+                const aabbRight = shelterAabbCenterX + SHELTER_AABB_HALF_WIDTH;
+                const aabbTop = shelterAabbCenterY - SHELTER_AABB_HALF_HEIGHT;
+                const aabbBottom = shelterAabbCenterY + SHELTER_AABB_HALF_HEIGHT;
+                
+                // Check if campfire position is inside shelter AABB
+                if (currentCampfire.posX >= aabbLeft && currentCampfire.posX <= aabbRight &&
+                    currentCampfire.posY >= aabbTop && currentCampfire.posY <= aabbBottom) {
+                    console.log(`[Campfire Protection Debug] Protected by shelter at (${shelter.posX}, ${shelter.posY})`);
+                    return { isProtected: true, protectionType: 'shelter', hasData: true };
+                }
+            }
+        }
+        
+        // Check tree protection (within 100px of any tree)
+        const TREE_PROTECTION_DISTANCE_SQ = 100.0 * 100.0; // 100px protection radius
+        
+        if (trees) {
+            for (const tree of Array.from(trees.values())) {
+                // Skip destroyed trees (respawnAt is set when tree is harvested)
+                if (tree.respawnAt !== null && tree.respawnAt !== undefined) continue;
+                
+                // Calculate distance squared between campfire and tree
+                const dx = currentCampfire.posX - tree.posX;
+                const dy = currentCampfire.posY - tree.posY;
+                const distanceSq = dx * dx + dy * dy;
+                const distance = Math.sqrt(distanceSq);
+                
+                console.log(`[Campfire Protection Debug] Tree at (${tree.posX}, ${tree.posY}) - distance: ${distance.toFixed(1)}px`);
+                
+                // Check if campfire is within protection distance of this tree
+                if (distanceSq <= TREE_PROTECTION_DISTANCE_SQ) {
+                    console.log(`[Campfire Protection Debug] Protected by tree at (${tree.posX}, ${tree.posY}) - distance: ${distance.toFixed(1)}px`);
+                    return { isProtected: true, protectionType: 'tree', hasData: true };
+                }
+            }
+        }
+        
+        console.log(`[Campfire Protection Debug] No protection found`);
+        return { isProtected: false, protectionType: null, hasData: true };
+    }, [isCampfireInteraction, currentCampfire, shelters, trees]);
+
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
         if (!isCampfireInteraction || !currentCampfire) return true;
         if (currentCampfire.isBurning) return false; // If already burning, can extinguish
         
-        // If it's raining, disable lighting (but allow extinguishing)
-        if (!!isHeavyRaining) return true;
-        
-        // If not burning, check for any valid fuel (has fuelBurnDurationSecs > 0)
-        return !fuelItems.some(item => 
+        // Check if there's valid fuel first
+        const hasValidFuel = fuelItems.some(item => 
             item && 
             item.definition.fuelBurnDurationSecs !== undefined && 
             item.definition.fuelBurnDurationSecs > 0 && 
             item.instance.quantity > 0
         );
-    }, [isCampfireInteraction, currentCampfire, fuelItems, isHeavyRaining]);
+        
+        if (!hasValidFuel) return true; // No fuel = disabled
+        
+        // Let server handle rain protection validation - don't block client-side
+        // if (isHeavyRaining && !campfireProtection.isProtected) return true;
+        
+        return false; // Has fuel and either no rain or protected = enabled
+    }, [isCampfireInteraction, currentCampfire, fuelItems, isHeavyRaining, campfireProtection]);
 
-    // Helper function to get specific weather warning message
+    // Helper function to get weather warning message (informational only)
     const getWeatherWarningMessage = useMemo(() => {
         if (!worldState?.currentWeather || !isHeavyRaining) return null;
         
         switch (worldState.currentWeather.tag) {
             case 'HeavyRain':
-                return "Cannot light during heavy rain";
+                return "Heavy rain - May require shelter 🏠 or tree cover 🌳";
             case 'HeavyStorm':
-                return "Cannot light during heavy storm";
+                return "Heavy storm - May require shelter 🏠 or tree cover 🌳";
             default:
-                return "Cannot light during severe weather";
+                return "Severe weather - May require shelter 🏠 or tree cover 🌳";
         }
     }, [worldState, isHeavyRaining]);
 
@@ -420,13 +502,26 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             }`}
                             title={
                                 isToggleButtonDisabled && !currentCampfire.isBurning 
-                                    ? (!!isHeavyRaining ? getWeatherWarningMessage || "Cannot light during severe weather" : "Requires Fuel > 0")
+                                    ? (() => {
+                                        // Check fuel first
+                                        const hasValidFuel = fuelItems.some(item => 
+                                            item && 
+                                            item.definition.fuelBurnDurationSecs !== undefined && 
+                                            item.definition.fuelBurnDurationSecs > 0 && 
+                                            item.instance.quantity > 0
+                                        );
+                                        if (!hasValidFuel) return "Requires Fuel > 0";
+                                        
+                                        // Note: Rain protection is now handled server-side only
+                                        
+                                        return ""; // Shouldn't reach here if button is disabled
+                                    })()
                                     : ""
                             }
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
-                        {/* Rain warning message */}
+                        {/* Rain warning message - informational only */}
                         {!!isHeavyRaining && !currentCampfire.isBurning && (
                             <div style={{ 
                                 marginTop: '8px', 
