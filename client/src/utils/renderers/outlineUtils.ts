@@ -13,23 +13,23 @@ export function drawInteractionOutline(
     height: number,
     cycleProgress: number,
     outlineColor: string = '#00FF00', // Bright green by default
-    baseAlpha: number = 0.6
+    baseAlpha: number = 0.9 // Increased from 0.6 to 0.9
 ): void {
-    // Create pulsing effect based on cycle progress
-    const pulseIntensity = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(cycleProgress * Math.PI * 4));
+    // Create pulsing effect based on cycle progress - more intense pulse
+    const pulseIntensity = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(cycleProgress * Math.PI * 4)); // Increased from 0.3+0.7 to 0.5+0.5
     const alpha = baseAlpha * pulseIntensity;
     
     // Draw multiple outline layers for glow effect
     ctx.save();
     
-    // Outer glow (wider, more transparent)
-    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.3})`;
+    // Outer glow (wider, more transparent) - brighter
+    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.5})`; // Increased from 0.3 to 0.5
     ctx.lineWidth = 6;
     ctx.setLineDash([]);
     ctx.strokeRect(x - width/2 - 3, y - height/2 - 3, width + 6, height + 6);
     
-    // Middle glow
-    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.6})`;
+    // Middle glow - brighter
+    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.8})`; // Increased from 0.6 to 0.8
     ctx.lineWidth = 4;
     ctx.strokeRect(x - width/2 - 1, y - height/2 - 1, width + 2, height + 2);
     
@@ -51,23 +51,23 @@ export function drawCircularInteractionOutline(
     radius: number,
     cycleProgress: number,
     outlineColor: string = '#00FF00',
-    baseAlpha: number = 0.6
+    baseAlpha: number = 0.9 // Increased from 0.6 to 0.9
 ): void {
-    // Create pulsing effect
-    const pulseIntensity = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(cycleProgress * Math.PI * 4));
+    // Create pulsing effect - more intense pulse
+    const pulseIntensity = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(cycleProgress * Math.PI * 4)); // Increased from 0.3+0.7 to 0.5+0.5
     const alpha = baseAlpha * pulseIntensity;
     
     ctx.save();
     
-    // Outer glow
-    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.3})`;
+    // Outer glow - brighter
+    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.5})`; // Increased from 0.3 to 0.5
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius + 3, 0, 2 * Math.PI);
     ctx.stroke();
     
-    // Middle glow
-    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.6})`;
+    // Middle glow - brighter
+    ctx.strokeStyle = `rgba(${hexToRgb(outlineColor)}, ${alpha * 0.8})`; // Increased from 0.6 to 0.8
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius + 1, 0, 2 * Math.PI);

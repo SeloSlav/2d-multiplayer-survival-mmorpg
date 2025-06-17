@@ -34,6 +34,15 @@ import { getResourceInteractionLabel } from './resourceConfigurations';
 // Define Sleeping Bag dimensions locally for label positioning
 const SLEEPING_BAG_HEIGHT = 64;
 
+// Define the single target type for labels
+interface InteractableTarget {
+    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
+    id: bigint | number | string;
+    position: { x: number; y: number };
+    distance: number;
+    isEmpty?: boolean;
+}
+
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     mushrooms: Map<string, SpacetimeDBMushroom>;
@@ -50,20 +59,23 @@ interface RenderLabelsParams {
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     players: Map<string, SpacetimeDBPlayer>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
-    closestInteractableMushroomId: bigint | null;
-    closestInteractableCornId: bigint | null;
-    closestInteractablePotatoId: bigint | null;
-    closestInteractablePumpkinId: bigint | null;
-    closestInteractableHempId: bigint | null;
-    closestInteractableReedId: bigint | null;
-    closestInteractableCampfireId: number | null;
-    closestInteractableDroppedItemId: bigint | null;
-    closestInteractableBoxId: number | null;
-    isClosestInteractableBoxEmpty: boolean;
-    closestInteractableCorpseId: bigint | null;
-    closestInteractableStashId: number | null;
-    closestInteractableSleepingBagId: number | null;
-    closestInteractableKnockedOutPlayerId: string | null;
+    // NEW: Single unified target
+    closestInteractableTarget: InteractableTarget | null;
+    // Legacy params kept for backward compatibility but not used
+    closestInteractableMushroomId?: bigint | null;
+    closestInteractableCornId?: bigint | null;
+    closestInteractablePotatoId?: bigint | null;
+    closestInteractablePumpkinId?: bigint | null;
+    closestInteractableHempId?: bigint | null;
+    closestInteractableReedId?: bigint | null;
+    closestInteractableCampfireId?: number | null;
+    closestInteractableDroppedItemId?: bigint | null;
+    closestInteractableBoxId?: number | null;
+    isClosestInteractableBoxEmpty?: boolean;
+    closestInteractableCorpseId?: bigint | null;
+    closestInteractableStashId?: number | null;
+    closestInteractableSleepingBagId?: number | null;
+    closestInteractableKnockedOutPlayerId?: string | null;
 }
 
 const LABEL_FONT = '14px "Courier New", Consolas, Monaco, monospace'; // 🎯 CYBERPUNK: Match game's main font
@@ -211,21 +223,11 @@ export function renderInteractionLabels({
     sleepingBags,
     players,
     itemDefinitions,
-    closestInteractableMushroomId,
-    closestInteractableCornId,
-    closestInteractablePotatoId,
-    closestInteractablePumpkinId,
-    closestInteractableHempId,
-    closestInteractableReedId,
-    closestInteractableCampfireId,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId,
-    isClosestInteractableBoxEmpty,
-    closestInteractableCorpseId,
-    closestInteractableStashId,
-    closestInteractableSleepingBagId,
-    closestInteractableKnockedOutPlayerId,
+    closestInteractableTarget,
 }: RenderLabelsParams): void {
+    // Only render label if there's a single closest target
+    if (!closestInteractableTarget) return;
+
     ctx.save(); // Save context state before changing styles
 
     ctx.font = LABEL_FONT;
@@ -234,150 +236,142 @@ export function renderInteractionLabels({
     ctx.lineWidth = LABEL_LINE_WIDTH;
     ctx.textAlign = LABEL_TEXT_ALIGN;
 
-    // Mushroom Label
-    if (closestInteractableMushroomId !== null) {
-        const mushroom = mushrooms.get(closestInteractableMushroomId.toString());
-        if (mushroom) {
-            const text = "E";
-            const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = mushroom.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+    const text = "E";
+    let textX: number;
+    let textY: number;
+
+    // Render label based on the single closest target type
+    switch (closestInteractableTarget.type) {
+        case 'mushroom': {
+            const mushroom = mushrooms.get(closestInteractableTarget.id.toString());
+            if (mushroom) {
+                const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = mushroom.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Corn Label
-    if (closestInteractableCornId !== null) {
-        const corn = corns.get(closestInteractableCornId.toString());
-        if (corn) {
-            const text = "E";
-            const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = corn.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'corn': {
+            const corn = corns.get(closestInteractableTarget.id.toString());
+            if (corn) {
+                const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = corn.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Potato Label
-    if (closestInteractablePotatoId !== null) {
-        const potato = potatoes.get(closestInteractablePotatoId.toString());
-        if (potato) {
-            const text = "E";
-            const visualCenterY = potato.posY - (POTATO_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = potato.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'potato': {
+            const potato = potatoes.get(closestInteractableTarget.id.toString());
+            if (potato) {
+                const visualCenterY = potato.posY - (POTATO_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = potato.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Pumpkin Label
-    if (closestInteractablePumpkinId !== null) {
-        const pumpkin = pumpkins.get(closestInteractablePumpkinId.toString());
-        if (pumpkin) {
-            const text = "E";
-            const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = pumpkin.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'pumpkin': {
+            const pumpkin = pumpkins.get(closestInteractableTarget.id.toString());
+            if (pumpkin) {
+                const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = pumpkin.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Hemp Label
-    if (closestInteractableHempId !== null) {
-        const hemp = hemps.get(closestInteractableHempId.toString());
-        if (hemp) {
-            const text = "E";
-            const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = hemp.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'hemp': {
+            const hemp = hemps.get(closestInteractableTarget.id.toString());
+            if (hemp) {
+                const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = hemp.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Reed Label
-    if (closestInteractableReedId !== null) {
-        const reed = reeds.get(closestInteractableReedId.toString());
-        if (reed) {
-            const text = "E";
-            const visualCenterY = reed.posY - (REED_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-            const textX = reed.posX;
-            const textY = visualCenterY - 30; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'reed': {
+            const reed = reeds.get(closestInteractableTarget.id.toString());
+            if (reed) {
+                const visualCenterY = reed.posY - (REED_VISUAL_HEIGHT_FOR_INTERACTION / 2);
+                textX = reed.posX;
+                textY = visualCenterY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Dropped Item Label
-    if (closestInteractableDroppedItemId !== null) {
-        const item = droppedItems.get(closestInteractableDroppedItemId.toString());
-        if (item) {
-            const text = "E";
-            const textX = item.posX;
-            const textY = item.posY - 25; // Offset above item
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'dropped_item': {
+            const item = droppedItems.get(closestInteractableTarget.id.toString());
+            if (item) {
+                textX = item.posX;
+                textY = item.posY - 25;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Campfire Label
-    if (closestInteractableCampfireId !== null) {
-        const fire = campfires.get(closestInteractableCampfireId.toString());
-        if (fire) {
-            const text = "E";
-            const visualCenterX = fire.posX;
-            const visualCenterY = fire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
-            
-            const textX = visualCenterX;
-            const textY = visualCenterY - 50; // Offset above the visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'campfire': {
+            const fire = campfires.get(closestInteractableTarget.id.toString());
+            if (fire) {
+                const visualCenterX = fire.posX;
+                const visualCenterY = fire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+                textX = visualCenterX;
+                textY = visualCenterY - 50;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Wooden Storage Box Label
-    if (closestInteractableBoxId !== null) {
-        const box = woodenStorageBoxes.get(closestInteractableBoxId.toString());
-        if (box) {
-            const text = "E";
-            const textX = box.posX;
-            // Account for the visual center offset that was applied during placement
-            // The stored posY has BOX_COLLISION_Y_OFFSET (52.0) added to it
-            const BOX_COLLISION_Y_OFFSET = 52.0;
-            const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
-            const textY = visualCenterY - (BOX_HEIGHT / 2) - 10; // Offset above visual center
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'box': {
+            const box = woodenStorageBoxes.get(closestInteractableTarget.id.toString());
+            if (box) {
+                const BOX_COLLISION_Y_OFFSET = 52.0;
+                const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
+                textX = box.posX;
+                textY = visualCenterY - (BOX_HEIGHT / 2) - 10;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Player Corpse Label
-    if (closestInteractableCorpseId !== null) {
-        const corpse = playerCorpses.get(closestInteractableCorpseId.toString());
-        if (corpse) {
-            const text = "E";
-            const textX = corpse.posX;
-            // Offset based on corpse height (using placeholder size for now)
-            const textY = corpse.posY - (48 / 2) - 10; 
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'corpse': {
+            const corpse = playerCorpses.get(closestInteractableTarget.id.toString());
+            if (corpse) {
+                textX = corpse.posX;
+                textY = corpse.posY - (48 / 2) - 10;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-    // Stash Label
-    if (closestInteractableStashId !== null) {
-        const stash = stashes.get(closestInteractableStashId.toString());
-        if (stash) {
-            const text = "E";
-            const textX = stash.posX;
-            const textY = stash.posY - 30; // Offset above stash (adjust as needed)
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'stash': {
+            const stash = stashes.get(closestInteractableTarget.id.toString());
+            if (stash) {
+                textX = stash.posX;
+                textY = stash.posY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
         }
-    }
-
-
-    // Knocked Out Player Label
-    if (closestInteractableKnockedOutPlayerId !== null) {
-        const knockedOutPlayer = players.get(closestInteractableKnockedOutPlayerId);
-        if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
-            const text = "E";
-            const textX = knockedOutPlayer.positionX;
-            const textY = knockedOutPlayer.positionY - 30; // Offset above player
-            renderStyledInteractionLabel(ctx, text, textX, textY);
+        case 'sleeping_bag': {
+            const sleepingBag = sleepingBags.get(closestInteractableTarget.id.toString());
+            if (sleepingBag) {
+                textX = sleepingBag.posX;
+                textY = sleepingBag.posY - (SLEEPING_BAG_HEIGHT / 2) - 50;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
+        }
+        case 'knocked_out_player': {
+            const knockedOutPlayer = players.get(closestInteractableTarget.id.toString());
+            if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
+                textX = knockedOutPlayer.positionX;
+                textY = knockedOutPlayer.positionY - 30;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
+        }
+        case 'water': {
+            // Water interaction label handled elsewhere if needed
+            break;
         }
     }
 

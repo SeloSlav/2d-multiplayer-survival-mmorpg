@@ -321,6 +321,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   });
 
   const {
+    closestInteractableTarget,
     closestInteractableMushroomId,
     closestInteractableCornId,
     closestInteractablePotatoId,
@@ -772,6 +773,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableHempId,
       closestInteractableReedId,
       closestInteractableDroppedItemId,
+      closestInteractableTarget,
     });
     // --- End Y-Sorted Entities ---
 
@@ -813,20 +815,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       sleepingBags: visibleSleepingBagsMap,
       players: players,
       itemDefinitions,
-      closestInteractableMushroomId,
-      closestInteractableCornId,
-      closestInteractablePotatoId,
-      closestInteractablePumpkinId,
-      closestInteractableHempId,
-      closestInteractableReedId,
-      closestInteractableCampfireId,
-      closestInteractableDroppedItemId,
-      closestInteractableBoxId,
-      isClosestInteractableBoxEmpty,
-      closestInteractableCorpseId,
-      closestInteractableStashId,
-      closestInteractableSleepingBagId,
-      closestInteractableKnockedOutPlayerId,
+      closestInteractableTarget,
     });
     renderPlacementPreview({
       ctx, placementInfo, itemImagesRef, shelterImageRef, worldMouseX: currentWorldMouseX,

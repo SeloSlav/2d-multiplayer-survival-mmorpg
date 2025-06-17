@@ -60,7 +60,21 @@ interface UseInteractionFinderProps {
 }
 
 // Define the hook's return type
+// Single unified interactable target
+interface InteractableTarget {
+    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
+    id: bigint | number | string;
+    position: { x: number; y: number };
+    distance: number;
+    // Box-specific data
+    isEmpty?: boolean;
+}
+
 interface UseInteractionFinderResult {
+    // Single closest target across all types
+    closestInteractableTarget: InteractableTarget | null;
+    
+    // Legacy individual IDs for backward compatibility (will be phased out)
     closestInteractableMushroomId: bigint | null;
     closestInteractableCornId: bigint | null;
     closestInteractablePotatoId: bigint | null;
@@ -74,8 +88,8 @@ interface UseInteractionFinderResult {
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null;
     closestInteractableSleepingBagId: number | null;
-    closestInteractableKnockedOutPlayerId: string | null; // Player identity hex string
-    closestInteractableWaterPosition: { x: number; y: number } | null; // NEW: Closest water position
+    closestInteractableKnockedOutPlayerId: string | null;
+    closestInteractableWaterPosition: { x: number; y: number } | null;
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -195,6 +209,11 @@ export function useInteractionFinder({
 
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
+        // Single closest target across all types
+        let closestTarget: InteractableTarget | null = null;
+        let closestTargetDistSq = Infinity;
+
+        // Legacy individual variables for backward compatibility
         let closestMushroomId: bigint | null = null;
         let closestMushroomDistSq = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
 
@@ -236,6 +255,15 @@ export function useInteractionFinder({
 
         let closestWaterPosition: { x: number; y: number } | null = null;
         let closestWaterDistSq = PLAYER_WATER_DRINKING_INTERACTION_DISTANCE_SQUARED;
+
+        // Helper function to update closest target if this one is closer
+        const updateClosestTarget = (candidate: InteractableTarget) => {
+            const candidateDistSq = candidate.distance * candidate.distance;
+            if (candidateDistSq < closestTargetDistSq) {
+                closestTargetDistSq = candidateDistSq;
+                closestTarget = candidate;
+            }
+        };
 
         if (localPlayer) {
             const playerX = localPlayer.positionX;
@@ -450,24 +478,7 @@ export function useInteractionFinder({
                 // within its specific interaction range AND is the closest among such stashes.
             }
 
-            // Find closest sleeping bag
-            if (sleepingBags) {
-                sleepingBags.forEach((bag) => {
-                    const dx = playerX - bag.posX;
-                    const dy = playerY - bag.posY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestSleepingBagDistSq) {
-                        // Check shelter access control
-                        if (canPlayerInteractWithObjectInShelter(
-                            playerX, playerY, localPlayer.identity.toHexString(),
-                            bag.posX, bag.posY, shelters
-                        )) {
-                            closestSleepingBagDistSq = distSq;
-                            closestSleepingBagId = bag.id;
-                        }
-                    }
-                });
-            }
+          
 
             // Find closest knocked out player (excluding local player)
             if (players) {
@@ -533,9 +544,141 @@ export function useInteractionFinder({
                     }
                 }
             }
+
+            // After all searches, determine the single closest target across all types
+            const candidates: InteractableTarget[] = [];
+
+            if (closestMushroomId) {
+                candidates.push({
+                    type: 'mushroom',
+                    id: closestMushroomId,
+                    position: { x: 0, y: 0 }, // Will be filled from entity data
+                    distance: Math.sqrt(closestMushroomDistSq)
+                });
+            }
+            if (closestCornId) {
+                candidates.push({
+                    type: 'corn',
+                    id: closestCornId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestCornDistSq)
+                });
+            }
+            if (closestPotatoId) {
+                candidates.push({
+                    type: 'potato',
+                    id: closestPotatoId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestPotatoDistSq)
+                });
+            }
+            if (closestPumpkinId) {
+                candidates.push({
+                    type: 'pumpkin',
+                    id: closestPumpkinId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestPumpkinDistSq)
+                });
+            }
+            if (closestHempId) {
+                candidates.push({
+                    type: 'hemp',
+                    id: closestHempId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestHempDistSq)
+                });
+            }
+            if (closestReedId) {
+                candidates.push({
+                    type: 'reed',
+                    id: closestReedId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestReedDistSq)
+                });
+            }
+            if (closestCampfireId) {
+                candidates.push({
+                    type: 'campfire',
+                    id: closestCampfireId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestCampfireDistSq)
+                });
+            }
+            if (closestDroppedItemId) {
+                candidates.push({
+                    type: 'dropped_item',
+                    id: closestDroppedItemId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestDroppedItemDistSq)
+                });
+            }
+            if (closestBoxId) {
+                candidates.push({
+                    type: 'box',
+                    id: closestBoxId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestBoxDistSq),
+                    isEmpty: isClosestBoxEmpty
+                });
+            }
+            if (closestCorpse) {
+                candidates.push({
+                    type: 'corpse',
+                    id: closestCorpse,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestCorpseDistSq)
+                });
+            }
+            if (closestStashId !== null && typeof closestStashId === 'number') {
+                const stash = stashes?.get(String(closestStashId));
+                if (stash && localPlayer) {
+                    // Calculate distance for the closest stash
+                    const dx = localPlayer.positionX - stash.posX;
+                    const dy = localPlayer.positionY - stash.posY;
+                    const stashDistSq = dx * dx + dy * dy;
+                    candidates.push({
+                        type: 'stash',
+                        id: closestStashId,
+                        position: { x: stash.posX, y: stash.posY },
+                        distance: Math.sqrt(stashDistSq)
+                    });
+                }
+            }
+            if (closestSleepingBagId) {
+                candidates.push({
+                    type: 'sleeping_bag',
+                    id: closestSleepingBagId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestSleepingBagDistSq)
+                });
+            }
+            if (closestKnockedOutPlayerId) {
+                candidates.push({
+                    type: 'knocked_out_player',
+                    id: closestKnockedOutPlayerId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestKnockedOutPlayerDistSq)
+                });
+            }
+            if (closestWaterPosition) {
+                candidates.push({
+                    type: 'water',
+                    id: 'water', // Water doesn't have a real ID
+                    position: closestWaterPosition,
+                    distance: Math.sqrt(closestWaterDistSq)
+                });
+            }
+
+            // Find the single closest target
+            if (candidates.length > 0) {
+                closestTarget = candidates.reduce((closest, candidate) => 
+                    candidate.distance < closest.distance ? candidate : closest
+                );
+            }
         }
 
         return {
+            closestInteractableTarget: closestTarget,
             closestInteractableMushroomId: closestMushroomId,
             closestInteractableCornId: closestCornId,
             closestInteractablePotatoId: closestPotatoId,
@@ -608,6 +751,7 @@ export function useInteractionFinder({
     }, [interactionResult]);
 
     return {
+        closestInteractableTarget: interactionResult.closestInteractableTarget,
         closestInteractableMushroomId,
         closestInteractableCornId,
         closestInteractablePotatoId,

@@ -137,6 +137,8 @@ interface RenderYSortedEntitiesProps {
     closestInteractableHempId?: bigint | null;
     closestInteractableReedId?: bigint | null;
     closestInteractableDroppedItemId?: bigint | null;
+    // New unified single target system
+    closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null;
 }
 
 /**
@@ -181,6 +183,7 @@ export const renderYSortedEntities = ({
     closestInteractableHempId,
     closestInteractableReedId,
     closestInteractableDroppedItemId,
+    closestInteractableTarget,
 }: RenderYSortedEntitiesProps) => {
     // Clean up old projectile tracking data periodically (every 5 seconds)
     if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance
@@ -440,11 +443,11 @@ export const renderYSortedEntities = ({
             renderReed(ctx, reed, nowMs, cycleProgress);
         } else if (type === 'campfire') {
             const campfire = entity as SpacetimeDBCampfire;
-            const isClosestInteractable = closestInteractableCampfireId === campfire.id;
+            const isTheClosestTarget = closestInteractableTarget?.type === 'campfire' && closestInteractableTarget?.id === campfire.id;
             renderCampfire(ctx, campfire, nowMs, cycleProgress);
             
-            // Draw outline if this is the closest interactable campfire
-            if (isClosestInteractable) {
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, campfire.posX, campfire.posY - 48, 64, 96, cycleProgress, outlineColor);
             }
@@ -463,11 +466,11 @@ export const renderYSortedEntities = ({
             renderPumpkin(ctx, pumpkin, nowMs, cycleProgress);
         } else if (type === 'stash') {
             const stash = entity as SpacetimeDBStash;
-            const isClosestInteractable = closestInteractableStashId === stash.id;
+            const isTheClosestTarget = closestInteractableTarget?.type === 'stash' && closestInteractableTarget?.id === stash.id;
             renderStash(ctx, stash, nowMs, cycleProgress);
             
-            // Draw outline if this is the closest interactable stash
-            if (isClosestInteractable) {
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
                 // Use circular outline for stashes since they're small and round
                 drawCircularInteractionOutline(ctx, stash.posX, stash.posY, 24, cycleProgress, outlineColor);
@@ -475,11 +478,11 @@ export const renderYSortedEntities = ({
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
             const box = entity as SpacetimeDBWoodenStorageBox;
-            const isClosestInteractable = closestInteractableBoxId === box.id;
+            const isTheClosestTarget = closestInteractableTarget?.type === 'box' && closestInteractableTarget?.id === box.id;
             renderWoodenStorageBox(ctx, box, nowMs, cycleProgress);
             
-            // Draw outline if this is the closest interactable box
-            if (isClosestInteractable) {
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, box.posX, box.posY - 52, 64, 64, cycleProgress, outlineColor);
             }
