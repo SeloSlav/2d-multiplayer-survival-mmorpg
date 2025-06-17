@@ -9,7 +9,7 @@ pub const WET_COLD_DAMAGE_MULTIPLIER: f32 = 4.0; // Quadruple cold damage when w
 pub const WET_LINGER_DURATION_SECONDS: u32 = 60; // How long wet effect lasts after leaving water/rain
 pub const WET_EFFECT_CHECK_INTERVAL_SECONDS: u32 = 2; // Check wet conditions every 2 seconds
 pub const WET_NORMAL_DECAY_RATE_SECONDS: u32 = 1; // How many seconds to remove from wet timer normally (1 second per 1-second interval)
-pub const WET_FAST_DECAY_RATE_SECONDS: u32 = 5; // How many seconds to remove from wet timer when near warmth (5 seconds per 1-second interval - much faster!)
+pub const WET_FAST_DECAY_RATE_SECONDS: u32 = 6; // How many seconds to remove from wet timer when near warmth (6 seconds per 1-second interval - very fast!)
 
 /// Applies a wet effect to a player
 /// This creates a long-duration effect that will be removed by environmental conditions

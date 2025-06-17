@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface StatusEffect {
   id: string;
@@ -15,6 +15,68 @@ interface StatusEffectsPanelProps {
 
 const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
   const [hoveredEffect, setHoveredEffect] = useState<string | null>(null);
+  const [interpolatedWetness, setInterpolatedWetness] = useState<number>(0);
+  const wetTargetRef = useRef<number>(0);
+  const wetCurrentRef = useRef<number>(0);
+  const lastUpdateTimeRef = useRef<number>(Date.now());
+
+  // Find wet effect and update target
+  const wetEffect = effects.find(effect => effect.id === 'wet');
+  const newWetTarget = wetEffect && wetEffect.duration !== undefined ? (wetEffect.duration / 60) * 100 : 0;
+  
+  // Update target when server value changes
+  useEffect(() => {
+    if (newWetTarget !== wetTargetRef.current) {
+      wetTargetRef.current = newWetTarget;
+      lastUpdateTimeRef.current = Date.now();
+    }
+  }, [newWetTarget]);
+
+  // Smooth interpolation animation
+  useEffect(() => {
+    let animationId: number;
+    
+    const animate = () => {
+      const now = Date.now();
+      const deltaTime = (now - lastUpdateTimeRef.current) / 1000; // Convert to seconds
+      const target = wetTargetRef.current;
+      const current = wetCurrentRef.current;
+      
+      if (Math.abs(target - current) > 0.1) {
+        // Calculate interpolation speed (1% per second, but faster for larger gaps)
+        const difference = target - current;
+        const maxSpeed = Math.max(1, Math.abs(difference) / 2); // Faster for larger gaps
+        const speed = Math.sign(difference) * Math.min(maxSpeed, Math.abs(difference));
+        
+        // Update current value
+        const newCurrent = current + (speed * deltaTime);
+        
+        // Clamp to not overshoot
+        if (Math.sign(difference) > 0) {
+          wetCurrentRef.current = Math.min(target, newCurrent);
+        } else {
+          wetCurrentRef.current = Math.max(target, newCurrent);
+        }
+        
+        setInterpolatedWetness(wetCurrentRef.current);
+      } else {
+        // Close enough, snap to target
+        wetCurrentRef.current = target;
+        setInterpolatedWetness(target);
+      }
+      
+      lastUpdateTimeRef.current = now;
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    animationId = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, []);
 
   if (effects.length === 0) return null;
 
@@ -141,9 +203,10 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                     <span>
                       {effect.id === 'wet' 
                         ? (() => {
-                            const percentage = (effect.duration / 60) * 100;
-                            // If very close to 100% (within 1%), just show 100%
-                            const displayPercentage = percentage >= 99 ? 100 : Math.round(percentage);
+                            // Use interpolated value for smooth animation
+                            const percentage = interpolatedWetness;
+                            // If very close to 100% (within 3%), just show 100% to avoid flickering
+                            const displayPercentage = percentage >= 97 ? 100 : Math.round(percentage);
                             return `${displayPercentage}% wetness remaining`;
                           })()
                         : `${Math.ceil(effect.duration)}s remaining`
@@ -196,9 +259,10 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
               }}>
                 {effect.id === 'wet' 
                   ? (() => {
-                      const percentage = (effect.duration / 60) * 100;
-                      // If very close to 100% (within 1%), just show 100%
-                      return percentage >= 99 ? '100%' : `${Math.round(percentage)}%`;
+                      // Use interpolated value for smooth animation
+                      const percentage = interpolatedWetness;
+                      // If very close to 100% (within 3%), just show 100% to avoid flickering
+                      return percentage >= 97 ? '100%' : `${Math.round(percentage)}%`;
                     })()
                   : `${Math.ceil(effect.duration)}s`
                 }
