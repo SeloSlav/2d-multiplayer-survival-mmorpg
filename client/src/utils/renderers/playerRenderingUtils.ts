@@ -440,19 +440,26 @@ export const renderPlayer = (
       const shadowStretchMax = 3.0; // More dramatic shadows
       const shadowStretchMin = 0.25; // Better minimum visibility
       
+      // Calculate realistic shadow scaling based on jump height
+      const jumpProgress = Math.min(1, finalJumpOffsetY / playerRadius);
+      const shadowScale = 1.0 - jumpProgress * 0.5; // Shadow gets smaller as player jumps higher
+      const shadowBlurAmount = 2 + jumpProgress * 4; // Shadow gets blurrier when higher
+      const shadowAlphaReduction = shadowAlpha * (1.0 - jumpProgress * 0.3); // Shadow gets fainter when higher
+      const shadowOffsetFromPlayer = jumpProgress * 8; // Shadow moves slightly away from player when higher
+      
       drawDynamicGroundShadow({
         ctx,
         entityImage: spriteCanvas, // Use the extracted sprite frame instead of full spritesheet
         entityCenterX: currentDisplayX,
-        entityBaseY: currentDisplayY + shadowBaseYOffset, // Align with where normal shadow starts
-        imageDrawWidth: drawWidth,
-        imageDrawHeight: drawHeight, // Use normal height for all players
+        entityBaseY: currentDisplayY + shadowBaseYOffset + shadowOffsetFromPlayer, // Shadow stays on ground, moves slightly away when jumping
+        imageDrawWidth: drawWidth * shadowScale, // Shadow shrinks as player jumps higher
+        imageDrawHeight: drawHeight * shadowScale, // Shadow shrinks as player jumps higher
         cycleProgress,
         baseShadowColor: '0,0,0',
-        maxShadowAlpha: shadowAlpha,
+        maxShadowAlpha: shadowAlphaReduction, // Shadow gets fainter when higher
         maxStretchFactor: shadowStretchMax,
         minStretchFactor: shadowStretchMin,
-        shadowBlur: 2,
+        shadowBlur: shadowBlurAmount, // Shadow gets blurrier when higher
         pivotYOffset: 0,
       });
     }
@@ -482,7 +489,18 @@ export const renderPlayer = (
       const shadowYOffsetFromJump = finalJumpOffsetY * (shadowMaxJumpOffset / playerRadius); 
       const jumpProgress = Math.min(1, finalJumpOffsetY / playerRadius); 
       const shadowScale = 1.0 - jumpProgress * 0.4; 
-
+      
+      // Apply realistic shadow effects based on jump height
+      const shadowAlpha = 0.5 * (1.0 - jumpProgress * 0.3); // Shadow gets fainter when higher (darker base)
+      const shadowBlur = 3 + jumpProgress * 4; // Shadow gets blurrier when higher (starts with base blur)
+      
+      ctx.save();
+      // Apply blur and alpha effects
+      if (shadowBlur > 0) {
+          ctx.filter = `blur(${shadowBlur}px)`;
+      }
+      ctx.globalAlpha = shadowAlpha;
+      
       drawShadow(
         ctx, 
         currentDisplayX, 
@@ -490,6 +508,8 @@ export const renderPlayer = (
         shadowBaseRadiusX * shadowScale, 
         shadowBaseRadiusY * shadowScale  
       );
+      
+      ctx.restore(); // Reset filter and alpha
   }
   // --- End Draw Shadow ---
 
