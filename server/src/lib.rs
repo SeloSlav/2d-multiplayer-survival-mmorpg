@@ -67,6 +67,7 @@ mod shelter; // <<< ADDED shelter module
 mod world_generation; // <<< ADDED world generation module
 mod fishing; // <<< ADDED fishing module
 mod drinking; // <<< ADDED drinking module
+mod wet; // <<< ADDED wet status effect module
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;

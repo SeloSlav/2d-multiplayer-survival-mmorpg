@@ -138,7 +138,17 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                     textShadow: '0 0 4px rgba(0, 221, 255, 0.6)'
                   }}>
                     <span>⏱</span>
-                    <span>{Math.ceil(effect.duration)}s remaining</span>
+                    <span>
+                      {effect.id === 'wet' 
+                        ? (() => {
+                            const percentage = (effect.duration / 60) * 100;
+                            // If very close to 100% (within 1%), just show 100%
+                            const displayPercentage = percentage >= 99 ? 100 : Math.round(percentage);
+                            return `${displayPercentage}% wetness remaining`;
+                          })()
+                        : `${Math.ceil(effect.duration)}s remaining`
+                      }
+                    </span>
                   </div>
                 )}
                 
@@ -179,12 +189,19 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
             {effect.duration !== undefined && effect.duration > 0 && (
               <span style={{ 
                 fontSize: '10px',
-                color: getEffectColor(effect.type),
+                color: '#ffffff',
                 fontWeight: 'bold',
-                textShadow: `0 0 4px ${getEffectColor(effect.type)}80`,
+                textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
                 minWidth: '25px'
               }}>
-                {Math.ceil(effect.duration)}s
+                {effect.id === 'wet' 
+                  ? (() => {
+                      const percentage = (effect.duration / 60) * 100;
+                      // If very close to 100% (within 1%), just show 100%
+                      return percentage >= 99 ? '100%' : `${Math.round(percentage)}%`;
+                    })()
+                  : `${Math.ceil(effect.duration)}s`
+                }
               </span>
             )}
           </div>

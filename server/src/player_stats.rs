@@ -259,6 +259,11 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         }
         // <<< END COZY EFFECT MANAGEMENT >>>
 
+        // <<< WET EFFECT MANAGEMENT MOVED TO EFFECT PROCESSING SYSTEM >>>
+        // Wet effects are now handled in active_effects.rs every 2 seconds
+        // This prevents conflicts between the 1-second player stats and 2-second effect processing
+        // <<< END WET EFFECT MANAGEMENT >>>
+
         // <<< ADD RAIN WARMTH DRAIN >>>
         let rain_warmth_drain = world_state::get_rain_warmth_drain_modifier(ctx, player.position_x, player.position_y);
         log::info!("Rain warmth drain check: player at ({:.1}, {:.1}), drain = {:.2}", player.position_x, player.position_y, rain_warmth_drain);
@@ -308,9 +313,24 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_HUNGER;
         }
         if new_warmth <= 0.0 {
-            health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_WARMTH * HEALTH_LOSS_MULTIPLIER_AT_ZERO;
+            let mut cold_damage = HEALTH_LOSS_PER_SEC_LOW_WARMTH * HEALTH_LOSS_MULTIPLIER_AT_ZERO;
+            // Apply wet effect multiplier to cold damage
+            if crate::active_effects::player_has_wet_effect(ctx, player_id) {
+                cold_damage *= crate::wet::WET_COLD_DAMAGE_MULTIPLIER;
+                log::trace!("Player {:?} has wet effect - cold damage multiplied by {:.1}x (from {:.3} to {:.3}/sec)", 
+                    player_id, crate::wet::WET_COLD_DAMAGE_MULTIPLIER, 
+                    HEALTH_LOSS_PER_SEC_LOW_WARMTH * HEALTH_LOSS_MULTIPLIER_AT_ZERO, cold_damage);
+            }
+            health_change_per_sec -= cold_damage;
         } else if new_warmth < low_need_threshold {
-            health_change_per_sec -= HEALTH_LOSS_PER_SEC_LOW_WARMTH;
+            let mut cold_damage = HEALTH_LOSS_PER_SEC_LOW_WARMTH;
+            // Apply wet effect multiplier to cold damage
+            if crate::active_effects::player_has_wet_effect(ctx, player_id) {
+                cold_damage *= crate::wet::WET_COLD_DAMAGE_MULTIPLIER;
+                log::trace!("Player {:?} has wet effect - cold damage multiplied by {:.1}x (from {:.3} to {:.3}/sec)", 
+                    player_id, crate::wet::WET_COLD_DAMAGE_MULTIPLIER, HEALTH_LOSS_PER_SEC_LOW_WARMTH, cold_damage);
+            }
+            health_change_per_sec -= cold_damage;
         }
 
         // Health recovery only if needs are met and not taking damage from any source

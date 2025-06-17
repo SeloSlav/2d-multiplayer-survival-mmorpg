@@ -44,6 +44,7 @@ pub enum EffectType {
     SeawaterPoisoning, // Dehydration from drinking seawater
     FoodPoisoning, // From eating contaminated/raw foods
     Cozy, // Health regen bonus and food healing bonus when near campfires or in owned shelters
+    Wet, // Cold damage multiplier when exposed to water/rain
 }
 
 // Table defining food poisoning risks for different food items
@@ -100,6 +101,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
         }
 
         // Skip cozy effects - they are managed by the player stats system, not the effect tick system
+        // Wet effects are now processed normally like other effects
         if effect.effect_type == EffectType::Cozy {
             continue;
         }
@@ -143,7 +145,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -245,7 +247,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             }
         }
         // --- Handle Other Progressive Effects (HealthRegen, Bleed, item-based Damage) ---
-        if let Some(total_amount_val) = effect.total_amount {
+        // Wet effects don't have total_amount, so handle them separately
+        if effect.effect_type == EffectType::Wet {
+            // Wet effects are purely time-based, no per-tick processing needed
+            // They just exist until they expire or are removed by environmental conditions
+        } else if let Some(total_amount_val) = effect.total_amount {
             let total_duration_micros = effect.ends_at.to_micros_since_unix_epoch().saturating_sub(effect.started_at.to_micros_since_unix_epoch());
 
             if total_duration_micros == 0 {
@@ -343,6 +349,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             // This effect doesn't consume amount_applied_so_far
                             amount_this_tick = 0.0;
                         }
+                        EffectType::Wet => {
+                            // Wet provides cold damage multiplier
+                            // The cold damage multiplier is handled in player_stats.rs
+                            // This effect doesn't consume amount_applied_so_far
+                            amount_this_tick = 0.0;
+                        }
                     }
 
                     if (player_to_update.health - old_health).abs() > f32::EPSILON {
@@ -367,17 +379,17 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.effect_id, effect.player_id, current_effect_applied_so_far, total_amount_val);
                 }
 
-                // Check if effect should end based on amount or time
-                // For SeawaterPoisoning, only end based on time, not accumulated damage
-                if effect.effect_type == EffectType::SeawaterPoisoning {
-                    if current_time >= effect.ends_at {
-                        effect_ended = true;
-                    }
-                } else {
-                    if current_effect_applied_so_far >= total_amount_val || current_time >= effect.ends_at {
-                        effect_ended = true;
-                    }
-                }
+        // Check if effect should end based on amount or time
+        // For SeawaterPoisoning and Wet effects, only end based on time, not accumulated damage
+        if effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::Wet {
+            if current_time >= effect.ends_at {
+                effect_ended = true;
+            }
+        } else {
+            if current_effect_applied_so_far >= total_amount_val || current_time >= effect.ends_at {
+                effect_ended = true;
+            }
+        }
             }
         } else {
             log::warn!("[EffectTick] Progressive effect_id {} for player {:?} is missing total_amount. Removing effect.", effect.effect_id, effect.player_id);
@@ -475,6 +487,9 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
 
     // Check for environmental conditions that should extinguish burn effects
     check_and_extinguish_burns_from_environment(ctx)?;
+
+    // Check for environmental conditions that should apply wet effects and handle accelerated decay
+    crate::wet::check_and_remove_wet_from_environment(ctx)?;
 
     Ok(())
 }
@@ -742,8 +757,6 @@ fn apply_cozy_effect(ctx: &ReducerContext, player_id: Identity) -> Result<(), St
     }
 }
 
-
-
 /// Removes cozy effect from a player
 fn remove_cozy_effect(ctx: &ReducerContext, player_id: Identity) {
     let mut effects_to_remove = Vec::new();
@@ -763,6 +776,12 @@ fn remove_cozy_effect(ctx: &ReducerContext, player_id: Identity) {
 pub fn player_has_cozy_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
     ctx.db.active_consumable_effect().iter()
         .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Cozy)
+}
+
+/// Checks if a player currently has the wet effect active
+pub fn player_has_wet_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
+    ctx.db.active_consumable_effect().iter()
+        .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Wet)
 }
 
 /// Extinguishes burn effects for a player due to water or rain

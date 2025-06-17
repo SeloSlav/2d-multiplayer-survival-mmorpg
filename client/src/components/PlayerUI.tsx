@@ -630,7 +630,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 name: 'Cold',
                 emoji: '🥶',
                 type: 'negative',
-                description: 'Low body temperature. Find warmth near a campfire or shelter!'
+                description: 'Low body temperature.'
                 // No duration - this is a persistent state based on warmth level
             });
         }
@@ -676,7 +676,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             name: 'Burning',
                             emoji: '🔥',
                             type: 'negative' as const,
-                            description: 'Taking fire damage over time',
+                            description: 'Taking fire damage over time.',
                             duration: bufferedRemainingTime
                         };
                         break;
@@ -721,8 +721,19 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             name: 'Cozy',
                             emoji: '🏠',
                             type: 'positive' as const,
-                            description: 'Comfortable near a campfire or in your shelter. Food heals 50% more and health regenerates twice as fast!',
+                            description: 'Comfortable near a campfire or in your shelter.',
                             // No duration - permanent effect
+                        };
+                        break;
+                    case 'Wet':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'wet',
+                            name: 'Wet',
+                            emoji: '💧',
+                            type: 'negative' as const,
+                            description: 'Soaked from rain or water.',
+                            duration: bufferedRemainingTime
                         };
                         break;
                 }
