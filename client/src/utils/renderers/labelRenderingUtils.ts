@@ -238,7 +238,7 @@ export function renderInteractionLabels({
     if (closestInteractableMushroomId !== null) {
         const mushroom = mushrooms.get(closestInteractableMushroomId.toString());
         if (mushroom) {
-            const text = getResourceInteractionLabel('mushroom');
+            const text = "E";
             const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = mushroom.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -250,7 +250,7 @@ export function renderInteractionLabels({
     if (closestInteractableCornId !== null) {
         const corn = corns.get(closestInteractableCornId.toString());
         if (corn) {
-            const text = getResourceInteractionLabel('corn');
+            const text = "E";
             const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = corn.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -262,7 +262,7 @@ export function renderInteractionLabels({
     if (closestInteractablePotatoId !== null) {
         const potato = potatoes.get(closestInteractablePotatoId.toString());
         if (potato) {
-            const text = getResourceInteractionLabel('potato');
+            const text = "E";
             const visualCenterY = potato.posY - (POTATO_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = potato.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -274,7 +274,7 @@ export function renderInteractionLabels({
     if (closestInteractablePumpkinId !== null) {
         const pumpkin = pumpkins.get(closestInteractablePumpkinId.toString());
         if (pumpkin) {
-            const text = getResourceInteractionLabel('pumpkin');
+            const text = "E";
             const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = pumpkin.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -286,7 +286,7 @@ export function renderInteractionLabels({
     if (closestInteractableHempId !== null) {
         const hemp = hemps.get(closestInteractableHempId.toString());
         if (hemp) {
-            const text = getResourceInteractionLabel('hemp');
+            const text = "E";
             const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = hemp.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -298,7 +298,7 @@ export function renderInteractionLabels({
     if (closestInteractableReedId !== null) {
         const reed = reeds.get(closestInteractableReedId.toString());
         if (reed) {
-            const text = getResourceInteractionLabel('reed');
+            const text = "E";
             const visualCenterY = reed.posY - (REED_VISUAL_HEIGHT_FOR_INTERACTION / 2);
             const textX = reed.posX;
             const textY = visualCenterY - 30; // Offset above visual center
@@ -310,9 +310,7 @@ export function renderInteractionLabels({
     if (closestInteractableDroppedItemId !== null) {
         const item = droppedItems.get(closestInteractableDroppedItemId.toString());
         if (item) {
-            const itemDef = itemDefinitions.get(item.itemDefId.toString());
-            const itemName = itemDef ? itemDef.name : 'Item';
-            const text = `Press E to pick up ${itemName} (x${item.quantity})`;
+            const text = "E";
             const textX = item.posX;
             const textY = item.posY - 25; // Offset above item
             renderStyledInteractionLabel(ctx, text, textX, textY);
@@ -323,7 +321,7 @@ export function renderInteractionLabels({
     if (closestInteractableCampfireId !== null) {
         const fire = campfires.get(closestInteractableCampfireId.toString());
         if (fire) {
-            const text = "Press E to Open";
+            const text = "E";
             const visualCenterX = fire.posX;
             const visualCenterY = fire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
             
@@ -337,7 +335,7 @@ export function renderInteractionLabels({
     if (closestInteractableBoxId !== null) {
         const box = woodenStorageBoxes.get(closestInteractableBoxId.toString());
         if (box) {
-            const text = isClosestInteractableBoxEmpty ? "Hold E to Pick Up" : "Press E to Open";
+            const text = "E";
             const textX = box.posX;
             // Account for the visual center offset that was applied during placement
             // The stored posY has BOX_COLLISION_Y_OFFSET (52.0) added to it
@@ -352,7 +350,7 @@ export function renderInteractionLabels({
     if (closestInteractableCorpseId !== null) {
         const corpse = playerCorpses.get(closestInteractableCorpseId.toString());
         if (corpse) {
-            const text = `Press E to loot ${corpse.username}'s body`;
+            const text = "E";
             const textX = corpse.posX;
             // Offset based on corpse height (using placeholder size for now)
             const textY = corpse.posY - (48 / 2) - 10; 
@@ -364,32 +362,19 @@ export function renderInteractionLabels({
     if (closestInteractableStashId !== null) {
         const stash = stashes.get(closestInteractableStashId.toString());
         if (stash) {
-            const text = stash.isHidden ? "Hold E to Surface" : "Press E to Open / Hold to Hide";
+            const text = "E";
             const textX = stash.posX;
             const textY = stash.posY - 30; // Offset above stash (adjust as needed)
             renderStyledInteractionLabel(ctx, text, textX, textY);
         }
     }
 
-    // Sleeping Bag Label
-    if (closestInteractableSleepingBagId !== null) {
-        const sleepingBag = sleepingBags.get(closestInteractableSleepingBagId.toString());
-        if (sleepingBag) {
-            const ownerPlayer = players.get(sleepingBag.placedBy.toHexString());
-            const ownerName = ownerPlayer ? ownerPlayer.username : "Someone";
-            const text = `${ownerName}'s Sleeping Bag`;
-            const textX = sleepingBag.posX;
-            // Adjust Y offset as needed, similar to campfire or box
-            const textY = sleepingBag.posY - (SLEEPING_BAG_HEIGHT / 2) - 50;
-            renderStyledInteractionLabel(ctx, text, textX, textY);
-        }
-    }
 
     // Knocked Out Player Label
     if (closestInteractableKnockedOutPlayerId !== null) {
         const knockedOutPlayer = players.get(closestInteractableKnockedOutPlayerId);
         if (knockedOutPlayer && knockedOutPlayer.isKnockedOut && !knockedOutPlayer.isDead) {
-            const text = `Hold E to revive ${knockedOutPlayer.username}`;
+            const text = "E";
             const textX = knockedOutPlayer.positionX;
             const textY = knockedOutPlayer.positionY - 30; // Offset above player
             renderStyledInteractionLabel(ctx, text, textX, textY);

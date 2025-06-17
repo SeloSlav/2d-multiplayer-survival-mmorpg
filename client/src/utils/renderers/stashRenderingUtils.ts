@@ -96,7 +96,7 @@ const stashConfig: GroundEntityConfig<Stash> = {
             if (elapsedSinceHit < HEALTH_BAR_VISIBLE_DURATION_MS) {
                 const healthPercentage = Math.max(0, health / maxHealth);
                 const barOuterX = finalDrawX + (finalDrawWidth - HEALTH_BAR_WIDTH) / 2;
-                const barOuterY = finalDrawY - HEALTH_BAR_Y_OFFSET - HEALTH_BAR_HEIGHT;
+                const barOuterY = finalDrawY + finalDrawHeight + HEALTH_BAR_Y_OFFSET; // Position below stash
 
                 // Fade effect for the health bar
                 const timeSinceLastHitRatio = elapsedSinceHit / HEALTH_BAR_VISIBLE_DURATION_MS;

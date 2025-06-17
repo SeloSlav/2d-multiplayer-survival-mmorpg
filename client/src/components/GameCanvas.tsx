@@ -759,7 +759,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
       playerDodgeRollStates,
       remotePlayerInterpolation,
-      localPlayerIsCrouching
+      localPlayerIsCrouching,
+      // Pass closest interactable IDs for outline rendering
+      closestInteractableCampfireId,
+      closestInteractableBoxId,
+      closestInteractableStashId,
+      closestInteractableSleepingBagId,
+      closestInteractableMushroomId,
+      closestInteractableCornId,
+      closestInteractablePotatoId,
+      closestInteractablePumpkinId,
+      closestInteractableHempId,
+      closestInteractableReedId,
+      closestInteractableDroppedItemId,
     });
     // --- End Y-Sorted Entities ---
 

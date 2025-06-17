@@ -43,6 +43,7 @@ import { renderShelter } from './shelterRenderingUtils';
 import { imageManager } from './imageManager';
 import { getItemIcon } from '../itemIconUtils';
 import { renderPlayerTorchLight, renderCampfireLight } from './lightRenderingUtils';
+import { drawInteractionOutline, drawCircularInteractionOutline, getInteractionOutlineColor } from './outlineUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -124,6 +125,18 @@ interface RenderYSortedEntitiesProps {
         updateAndGetSmoothedPosition: (player: any, localPlayerId?: string) => { x: number; y: number };
     };
     localPlayerIsCrouching?: boolean; // Local crouch state for immediate visual feedback
+    // Closest interactable IDs for outline rendering
+    closestInteractableCampfireId?: number | null;
+    closestInteractableBoxId?: number | null;
+    closestInteractableStashId?: number | null;
+    closestInteractableSleepingBagId?: number | null;
+    closestInteractableMushroomId?: bigint | null;
+    closestInteractableCornId?: bigint | null;
+    closestInteractablePotatoId?: bigint | null;
+    closestInteractablePumpkinId?: bigint | null;
+    closestInteractableHempId?: bigint | null;
+    closestInteractableReedId?: bigint | null;
+    closestInteractableDroppedItemId?: bigint | null;
 }
 
 /**
@@ -156,6 +169,18 @@ export const renderYSortedEntities = ({
     localPlayerPosition,
     remotePlayerInterpolation,
     localPlayerIsCrouching,
+    // Closest interactable IDs for outline rendering
+    closestInteractableCampfireId,
+    closestInteractableBoxId,
+    closestInteractableStashId,
+    closestInteractableSleepingBagId,
+    closestInteractableMushroomId,
+    closestInteractableCornId,
+    closestInteractablePotatoId,
+    closestInteractablePumpkinId,
+    closestInteractableHempId,
+    closestInteractableReedId,
+    closestInteractableDroppedItemId,
 }: RenderYSortedEntitiesProps) => {
     // Clean up old projectile tracking data periodically (every 5 seconds)
     if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance
@@ -405,28 +430,59 @@ export const renderYSortedEntities = ({
                 // console.warn('[renderYSortedEntities] Shelter image not available for shelter:', shelter.id); // DEBUG LOG
             }
         } else if (type === 'corn') {
-            renderCorn(ctx, entity as SpacetimeDBCorn, nowMs, cycleProgress);
+            const corn = entity as SpacetimeDBCorn;
+            renderCorn(ctx, corn, nowMs, cycleProgress);
         } else if (type === 'hemp') {
-            renderHemp(ctx, entity as SpacetimeDBHemp, nowMs, cycleProgress);
+            const hemp = entity as SpacetimeDBHemp;
+            renderHemp(ctx, hemp, nowMs, cycleProgress);
         } else if (type === 'reed') {
-            renderReed(ctx, entity as any, nowMs, cycleProgress);
+            const reed = entity as any;
+            renderReed(ctx, reed, nowMs, cycleProgress);
         } else if (type === 'campfire') {
-            renderCampfire(ctx, entity as SpacetimeDBCampfire, nowMs, cycleProgress);
+            const campfire = entity as SpacetimeDBCampfire;
+            const isClosestInteractable = closestInteractableCampfireId === campfire.id;
+            renderCampfire(ctx, campfire, nowMs, cycleProgress);
+            
+            // Draw outline if this is the closest interactable campfire
+            if (isClosestInteractable) {
+                const outlineColor = getInteractionOutlineColor('open');
+                drawInteractionOutline(ctx, campfire.posX, campfire.posY - 48, 64, 96, cycleProgress, outlineColor);
+            }
         } else if (type === 'dropped_item') {
             const droppedItem = entity as SpacetimeDBDroppedItem;
             const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
             renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
         } else if (type === 'mushroom') {
-            renderMushroom(ctx, entity as SpacetimeDBMushroom, nowMs, cycleProgress);
+            const mushroom = entity as SpacetimeDBMushroom;
+            renderMushroom(ctx, mushroom, nowMs, cycleProgress);
         } else if (type === 'potato') {
-            renderPotato(ctx, entity as SpacetimeDBPotato, nowMs, cycleProgress);
+            const potato = entity as SpacetimeDBPotato;
+            renderPotato(ctx, potato, nowMs, cycleProgress);
         } else if (type === 'pumpkin') {
-            renderPumpkin(ctx, entity as SpacetimeDBPumpkin, nowMs, cycleProgress);
+            const pumpkin = entity as SpacetimeDBPumpkin;
+            renderPumpkin(ctx, pumpkin, nowMs, cycleProgress);
         } else if (type === 'stash') {
-            renderStash(ctx, entity as SpacetimeDBStash, nowMs, cycleProgress);
+            const stash = entity as SpacetimeDBStash;
+            const isClosestInteractable = closestInteractableStashId === stash.id;
+            renderStash(ctx, stash, nowMs, cycleProgress);
+            
+            // Draw outline if this is the closest interactable stash
+            if (isClosestInteractable) {
+                const outlineColor = getInteractionOutlineColor('open');
+                // Use circular outline for stashes since they're small and round
+                drawCircularInteractionOutline(ctx, stash.posX, stash.posY, 24, cycleProgress, outlineColor);
+            }
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
-            renderWoodenStorageBox(ctx, entity as SpacetimeDBWoodenStorageBox, nowMs, cycleProgress);
+            const box = entity as SpacetimeDBWoodenStorageBox;
+            const isClosestInteractable = closestInteractableBoxId === box.id;
+            renderWoodenStorageBox(ctx, box, nowMs, cycleProgress);
+            
+            // Draw outline if this is the closest interactable box
+            if (isClosestInteractable) {
+                const outlineColor = getInteractionOutlineColor('open');
+                drawInteractionOutline(ctx, box.posX, box.posY - 52, 64, 64, cycleProgress, outlineColor);
+            }
         } else if (type === 'player_corpse') {
             renderCorpse({ 
                 ctx, 

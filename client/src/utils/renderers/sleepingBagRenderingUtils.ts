@@ -53,7 +53,7 @@ const sleepingBagConfig: GroundEntityConfig<SleepingBag> = {
             if (elapsedSinceHit < HEALTH_BAR_VISIBLE_DURATION_MS) {
                 const healthPercentage = Math.max(0, health / maxHealth);
                 const barOuterX = finalDrawX + (finalDrawWidth - HEALTH_BAR_WIDTH) / 2;
-                const barOuterY = finalDrawY - HEALTH_BAR_Y_OFFSET - HEALTH_BAR_HEIGHT;
+                const barOuterY = finalDrawY + finalDrawHeight + HEALTH_BAR_Y_OFFSET; // Position below sleeping bag
 
                 const timeSinceLastHitRatio = elapsedSinceHit / HEALTH_BAR_VISIBLE_DURATION_MS;
                 const opacity = Math.max(0, 1 - Math.pow(timeSinceLastHitRatio, 2));
