@@ -1699,9 +1699,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             consumable_thirst_quenched: None,
             consumable_stamina_gain: None,
             consumable_duration_secs: None,
-            bleed_damage_per_tick: Some(5.0), // 5 damage per second burn
-            bleed_duration_seconds: Some(5.0), // 5 seconds of burn
-            bleed_tick_interval_seconds: Some(1.0), // Every 1 second
+            bleed_damage_per_tick: None, // Fire arrows cause BURN effects, not bleed
+            bleed_duration_seconds: None, // Fire arrows cause BURN effects, not bleed
+            bleed_tick_interval_seconds: None, // Fire arrows cause BURN effects, not bleed
             cook_time_secs: None,
             cooked_item_def_name: None,
             damage_resistance: None,

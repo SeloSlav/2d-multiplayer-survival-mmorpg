@@ -398,6 +398,12 @@ fn apply_projectile_bleed_effect(
     ammo_item_def: &crate::items::ItemDefinition, // Pass the ammo definition
     current_time: Timestamp,
 ) -> Result<(), String> {
+    // Fire arrows should NOT cause bleed effects - they only cause burn effects
+    if ammo_item_def.name == "Fire Arrow" {
+        log::debug!("Fire Arrow does not cause bleed effects - skipping bleed application");
+        return Ok(());
+    }
+
     if let (Some(bleed_damage_per_tick), Some(bleed_duration_seconds), Some(bleed_tick_interval_seconds)) = (
         ammo_item_def.bleed_damage_per_tick,
         ammo_item_def.bleed_duration_seconds,
@@ -442,6 +448,60 @@ fn apply_projectile_bleed_effect(
             ammo_item_def.name
         );
         Ok(())
+    }
+}
+
+// --- NEW HELPER FUNCTION FOR FIRE ARROW BURN EFFECTS ---
+fn apply_projectile_burn_effect(
+    ctx: &ReducerContext,
+    target_player_id: Identity,
+    ammo_item_def: &crate::items::ItemDefinition,
+    current_time: Timestamp,
+) -> Result<(), String> {
+    // Only apply burn effects to fire arrows
+    if ammo_item_def.name != "Fire Arrow" {
+        return Ok(());
+    }
+
+    // Check if the target player is wet - wet players are immune to fire arrow burns
+    if crate::active_effects::player_has_wet_effect(ctx, target_player_id) {
+        log::info!(
+            "Fire Arrow hit wet player {:?} - burn effect blocked by wet status",
+            target_player_id
+        );
+        return Ok(());
+    }
+
+    // Apply burn effect similar to stepping on a campfire (3 seconds, 5 damage total)
+    const FIRE_ARROW_BURN_DAMAGE: f32 = 5.0; // Same as campfire
+    const FIRE_ARROW_BURN_DURATION: f32 = 3.0; // 3 seconds like campfire
+    const FIRE_ARROW_BURN_TICK_INTERVAL: f32 = 1.0; // Every 1 second
+
+    match active_effects::apply_burn_effect(
+        ctx,
+        target_player_id,
+        FIRE_ARROW_BURN_DAMAGE,
+        FIRE_ARROW_BURN_DURATION,
+        FIRE_ARROW_BURN_TICK_INTERVAL,
+        ammo_item_def.id, // Use the fire arrow def ID as the source
+    ) {
+        Ok(()) => {
+            log::info!(
+                "Applied Fire Arrow burn effect to player {:?}: {:.1} damage over {:.1}s",
+                target_player_id,
+                FIRE_ARROW_BURN_DAMAGE,
+                FIRE_ARROW_BURN_DURATION
+            );
+            Ok(())
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to apply Fire Arrow burn effect to player {:?}: {}",
+                target_player_id,
+                e
+            );
+            Err(e)
+        }
     }
 }
 // --- END NEW HELPER FUNCTION ---
@@ -1200,6 +1260,12 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                             // Apply ammunition-based bleed/burn effects
                             if let Err(e) = apply_projectile_bleed_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {
                                 log::error!("Error applying projectile bleed effect for ammo '{}' on player {:?}: {}", 
+                                    ammo_item_def.name, player_to_check.identity, e);
+                            }
+
+                            // Apply fire arrow burn effects (checks for wet immunity internally)
+                            if let Err(e) = apply_projectile_burn_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {
+                                log::error!("Error applying projectile burn effect for ammo '{}' on player {:?}: {}", 
                                     ammo_item_def.name, player_to_check.identity, e);
                             }
                         } else {
