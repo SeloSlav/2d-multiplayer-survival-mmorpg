@@ -24,6 +24,7 @@ import {
     DbConnection,
     ActiveEquipment,
     Campfire as SpacetimeDBCampfire,
+    Lantern as SpacetimeDBLantern,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Recipe,
     CraftingQueueItem,
@@ -34,7 +35,10 @@ import {
     ItemLocation,
     InventoryLocationData, // Assuming this is the type for ItemLocation.Inventory.value
     EquippedLocationData,  // Assuming this is the type for ItemLocation.Equipped.value
-    EquipmentSlotType    // Make sure this matches the actual exported name for the slot type enum/union
+    EquipmentSlotType,    // Make sure this matches the actual exported name for the slot type enum/union
+    StatThresholdsConfig,
+    ActiveConsumableEffect,
+    KnockedOutStatus
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 // NEW: Import placement types
@@ -65,6 +69,7 @@ interface InventoryUIProps {
     // Add new props for interaction context
     interactionTarget: { type: string; id: number | bigint } | null;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, SpacetimeDBLantern>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>; // <<< ADDED Prop Definition
     playerCorpses: Map<string, PlayerCorpse>; // <<< ADD prop definition for corpses
     stashes: Map<string, SpacetimeDBStash>; // <<< ADDED stashes prop
@@ -117,6 +122,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     draggedItemInfo,
     interactionTarget,
     campfires,
+    lanterns,
     woodenStorageBoxes,
     playerCorpses,
     stashes,
@@ -737,6 +743,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             campfires={campfires}
+                            lanterns={lanterns}
                             woodenStorageBoxes={woodenStorageBoxes}
                             playerCorpses={playerCorpses}
                             stashes={stashes}

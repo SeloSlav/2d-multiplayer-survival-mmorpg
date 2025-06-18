@@ -1,6 +1,7 @@
 import { PlacementItemInfo } from '../../hooks/usePlacementManager';
 // Import dimensions directly from their respective rendering utility files
 import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from './campfireRenderingUtils';
+import { LANTERN_WIDTH_PREVIEW, LANTERN_HEIGHT_PREVIEW } from './lanternRenderingUtils';
 import { SLEEPING_BAG_WIDTH, SLEEPING_BAG_HEIGHT } from './sleepingBagRenderingUtils';
 import { STASH_WIDTH, STASH_HEIGHT } from './stashRenderingUtils';
 import { SHELTER_RENDER_WIDTH, SHELTER_RENDER_HEIGHT } from './shelterRenderingUtils';
@@ -57,7 +58,7 @@ function isPositionOnWater(connection: DbConnection | null, worldX: number, worl
 
 /**
  * Checks if placement should be blocked due to water tiles.
- * This applies to shelters, camp fires, stashes, wooden storage boxes, and sleeping bags.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, and sleeping bags.
  */
 function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
     if (!connection || !placementInfo) {
@@ -65,7 +66,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
     }
 
     // List of items that cannot be placed on water
-    const waterBlockedItems = ['Camp Fire', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
+    const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
     
     if (waterBlockedItems.includes(placementInfo.itemName)) {
         return isPositionOnWater(connection, worldX, worldY);
@@ -97,7 +98,7 @@ export function isPlacementTooFar(
         // Shelter has a much larger placement range (256px vs 64px for other items)
         clientPlacementRangeSq = SHELTER_PLACEMENT_MAX_DISTANCE * SHELTER_PLACEMENT_MAX_DISTANCE;
     } else {
-        // Use standard interaction distance for other items (campfires, boxes, etc.)
+        // Use standard interaction distance for other items (campfires, lanterns, boxes, etc.)
         clientPlacementRangeSq = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED * 1.1;
     }
 
@@ -140,7 +141,10 @@ export function renderPlacementPreview({
     let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire
     let drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
 
-    if (placementInfo.iconAssetName === 'wooden_storage_box.png') {
+    if (placementInfo.iconAssetName === 'lantern.png') {
+        drawWidth = LANTERN_WIDTH_PREVIEW; 
+        drawHeight = LANTERN_HEIGHT_PREVIEW;
+    } else if (placementInfo.iconAssetName === 'wooden_storage_box.png') {
         // Assuming box preview uses same dimensions as campfire for now
         // TODO: If wooden_storage_box has its own preview dimensions, import them
         drawWidth = CAMPFIRE_WIDTH_PREVIEW; 

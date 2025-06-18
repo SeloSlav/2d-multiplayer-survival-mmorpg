@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import {
     Campfire as SpacetimeDBCampfire,
+    Lantern as SpacetimeDBLantern,
     WorldState as SpacetimeDBWorldState,
     Player as SpacetimeDBPlayer,
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
-import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT } from '../utils/renderers/lightRenderingUtils';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT, LANTERN_LIGHT_RADIUS_BASE, LANTERN_FLICKER_AMOUNT } from '../utils/renderers/lightRenderingUtils';
 import { CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils';
+import { LANTERN_HEIGHT } from '../utils/renderers/lanternRenderingUtils';
 
 export interface ColorPoint {
   r: number; g: number; b: number; a: number;
@@ -219,6 +221,7 @@ function calculateOverlayRgbaString(
 interface UseDayNightCycleProps {
     worldState: SpacetimeDBWorldState | null;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, SpacetimeDBLantern>;
     players: Map<string, SpacetimeDBPlayer>;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -235,6 +238,7 @@ interface UseDayNightCycleResult {
 export function useDayNightCycle({
     worldState,
     campfires,
+    lanterns,
     players,
     activeEquipments,
     itemDefinitions,
@@ -262,6 +266,16 @@ export function useDayNightCycle({
         return key;
     }, [players, activeEquipments, itemDefinitions]);
     // --- End derived state ---
+
+    // --- Create a derived state string that changes when any lantern's burning status changes ---
+    const lanternBurningStatesKey = useMemo(() => {
+        let key = "lantern_burning_states:";
+        lanterns.forEach((lantern, lanternId) => {
+            key += `${lanternId}:${lantern.isBurning};`;
+        });
+        return key;
+    }, [lanterns]);
+    // --- End lantern derived state ---
 
     useEffect(() => {
         if (!maskCanvasRef.current) {
@@ -301,6 +315,7 @@ export function useDayNightCycle({
 
         maskCtx.globalCompositeOperation = 'destination-out';
 
+        // Render campfire light cutouts
         campfires.forEach(campfire => {
             if (campfire.isBurning) {
                 // Adjust Y position for the light source to be centered on the flame
@@ -324,6 +339,33 @@ export function useDayNightCycle({
             }
         });
 
+        // Render lantern light cutouts
+        lanterns.forEach(lantern => {
+            if (lantern.isBurning && !lantern.isDestroyed) {
+                // Adjust Y position for the light source to be centered on the lantern flame
+                const visualCenterWorldY = lantern.posY - (LANTERN_HEIGHT / 2);
+                const adjustedGradientCenterWorldY = visualCenterWorldY; // Lanterns don't need extra offset like campfires
+                
+                const screenX = lantern.posX + cameraOffsetX;
+                const screenY = adjustedGradientCenterWorldY + cameraOffsetY;
+                
+                // LANTERN CUTOUT - Larger and more stable than torch, but more contained than campfire
+                const flicker = (Math.random() - 0.5) * 2 * LANTERN_FLICKER_AMOUNT;
+                const lightRadius = Math.max(0, (LANTERN_LIGHT_RADIUS_BASE * 1.8) + flicker); // 1.8x radius for good coverage
+                const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.05, screenX, screenY, lightRadius);
+                maskGradient.addColorStop(0, 'rgba(0,0,0,1)'); // Full cutout at center
+                maskGradient.addColorStop(0.3, 'rgba(0,0,0,0.85)'); // Strong cutout zone
+                maskGradient.addColorStop(0.6, 'rgba(0,0,0,0.5)'); // Gradual transition
+                maskGradient.addColorStop(0.85, 'rgba(0,0,0,0.2)'); // Gentle fade
+                maskGradient.addColorStop(1, 'rgba(0,0,0,0)'); // Complete fade to darkness
+                maskCtx.fillStyle = maskGradient;
+                maskCtx.beginPath();
+                maskCtx.arc(screenX, screenY, lightRadius, 0, Math.PI * 2);
+                maskCtx.fill();
+            }
+        });
+
+        // Render torch light cutouts
         players.forEach((player, playerId) => {
             if (!player || player.isDead) return;
 
@@ -339,7 +381,6 @@ export function useDayNightCycle({
             if (itemDef && itemDef.name === "Torch" && player.isTorchLit) {
                 const lightScreenX = player.positionX + cameraOffsetX;
                 const lightScreenY = player.positionY + cameraOffsetY;
-                // const lightRadius = TORCH_LIGHT_RADIUS_BASE; // Old line
 
                 // TORCH CUTOUT - 1.25x larger inner bright area with natural rustic gradient
                 const flicker = (Math.random() - 0.5) * 2 * TORCH_FLICKER_AMOUNT;
@@ -359,7 +400,7 @@ export function useDayNightCycle({
         
         maskCtx.globalCompositeOperation = 'source-over';
 
-    }, [worldState, campfires, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey]);
+    }, [worldState, campfires, lanterns, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey, lanternBurningStatesKey]);
 
     return { overlayRgba, maskCanvasRef };
 } 

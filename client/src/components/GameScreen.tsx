@@ -34,6 +34,7 @@ import {
     Tree as SpacetimeDBTree,
     Stone as SpacetimeDBStone,
     Campfire as SpacetimeDBCampfire,
+    Lantern as SpacetimeDBLantern,
     Mushroom as SpacetimeDBMushroom,
     Hemp as SpacetimeDBHemp,
     Reed as SpacetimeDBReed,
@@ -93,6 +94,7 @@ interface GameScreenProps {
     clouds: Map<string, SpacetimeDBCloud>;
     stones: Map<string, SpacetimeDBStone>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, SpacetimeDBLantern>;
     mushrooms: Map<string, SpacetimeDBMushroom>;
     hemps: Map<string, SpacetimeDBHemp>;
     reeds: Map<string, SpacetimeDBReed>;
@@ -204,7 +206,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, reeds, droppedItems, woodenStorageBoxes, sleepingBags,
+        players, trees, stones, campfires, lanterns, mushrooms, corns, potatoes, pumpkins, hemps, reeds, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         shelters,
         worldTiles,
@@ -688,6 +690,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isGameMenuOpen={currentMenu !== null}
                 onAutoActionStatesChange={handleAutoActionStatesChange}
                 isFishing={isFishing}
+                lanterns={lanterns}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -712,6 +715,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 interactingWith={interactingWith}
                 onSetInteractingWith={handleSetInteractingWith}
                 campfires={campfires}
+                lanterns={lanterns}
                 woodenStorageBoxes={woodenStorageBoxes}
                 playerCorpses={playerCorpses}
                 stashes={stashes}

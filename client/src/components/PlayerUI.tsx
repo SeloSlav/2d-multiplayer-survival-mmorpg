@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, Lantern as SpacetimeDBLantern, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -30,6 +30,7 @@ interface PlayerUIProps {
   activeEquipments: Map<string, ActiveEquipment>;
   activeConsumableEffects: Map<string, ActiveConsumableEffect>;
   campfires: Map<string, SpacetimeDBCampfire>;
+  lanterns: Map<string, SpacetimeDBLantern>;
   onSetInteractingWith: (target: InteractionTarget) => void;
   interactingWith: InteractionTarget;
   startPlacement: (itemInfo: PlacementItemInfo) => void;
@@ -61,6 +62,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     activeEquipments,
     activeConsumableEffects,
     campfires,
+    lanterns,
     onSetInteractingWith,
     interactingWith,
     startPlacement,
@@ -858,6 +860,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     draggedItemInfo={draggedItemInfo}
                     interactionTarget={interactingWith}
                     campfires={campfires}
+                    lanterns={lanterns}
                     woodenStorageBoxes={woodenStorageBoxes}
                     playerCorpses={playerCorpses}
                     stashes={stashes}

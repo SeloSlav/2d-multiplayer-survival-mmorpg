@@ -4,6 +4,7 @@ import {
   Tree as SpacetimeDBTree,
   Stone as SpacetimeDBStone,
   Campfire as SpacetimeDBCampfire,
+  Lantern as SpacetimeDBLantern,
   Mushroom as SpacetimeDBMushroom,
   WorldState as SpacetimeDBWorldState,
   ActiveEquipment as SpacetimeDBActiveEquipment,
@@ -67,7 +68,7 @@ import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
 import { renderStash } from '../utils/renderers/stashRenderingUtils';
-import { renderPlayerTorchLight, renderCampfireLight } from '../utils/renderers/lightRenderingUtils';
+import { renderPlayerTorchLight, renderCampfireLight, renderLanternLight } from '../utils/renderers/lightRenderingUtils';
 import { renderTree } from '../utils/renderers/treeRenderingUtils';
 import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
@@ -104,6 +105,7 @@ interface GameCanvasProps {
   clouds: Map<string, SpacetimeDBCloud>;
   stones: Map<string, SpacetimeDBStone>;
   campfires: Map<string, SpacetimeDBCampfire>;
+  lanterns: Map<string, SpacetimeDBLantern>;
   mushrooms: Map<string, SpacetimeDBMushroom>;
   corns: Map<string, SpacetimeDBCorn>;
   potatoes: Map<string, SpacetimeDBPotato>;
@@ -161,6 +163,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   clouds,
   stones,
   campfires,
+  lanterns,
   mushrooms,
   corns,
   potatoes,
@@ -313,6 +316,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { overlayRgba, maskCanvasRef } = useDayNightCycle({
     worldState,
     campfires,
+    lanterns,
     players, // Pass all players
     activeEquipments, // Pass all active equipments
     itemDefinitions, // Pass all item definitions
@@ -355,6 +359,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     shelters,
     reeds,
     connection,
+    lanterns,
   });
 
 
@@ -416,6 +421,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleCampfires,
     visibleMushroomsMap,
     visibleCampfiresMap,
+    visibleLanternsMap,
     visibleDroppedItemsMap,
     visibleBoxesMap,
     visibleCornsMap,
@@ -434,12 +440,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleGrass,
     visibleGrassMap,
     visibleShelters,
-    visibleSheltersMap
+    visibleSheltersMap,
+    visibleLanterns,
   } = useEntityFiltering(
     players,
     trees,
     stones,
     campfires,
+    lanterns,
     mushrooms,
     corns,
     potatoes,
@@ -457,7 +465,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     canvasSize.height,
     interpolatedGrass,
     projectiles,
-    shelters
+    shelters,
+    clouds
   );
 
   // --- UI State ---
@@ -820,6 +829,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       players: players,
       itemDefinitions,
       closestInteractableTarget,
+      lanterns: visibleLanternsMap,
     });
     renderPlacementPreview({
       ctx, placementInfo, itemImagesRef, shelterImageRef, worldMouseX: currentWorldMouseX,
@@ -866,7 +876,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'box' | 'stash' | 'corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'lantern' | 'box' | 'stash' | 'corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
       // If holdInteractionProgress is null (meaning no interaction is even being tracked by the state object),
       // or if the entity is not in view, do nothing.
       if (!isInView || !holdInteractionProgress) {
@@ -906,6 +916,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Iterate through visible entities MAPS for indicators
     visibleCampfiresMap.forEach((fire: SpacetimeDBCampfire) => {
       drawIndicatorIfNeeded('campfire', fire.id, fire.posX, fire.posY, CAMPFIRE_HEIGHT, true);
+    });
+
+    // Lantern interaction indicators
+    visibleLanternsMap.forEach((lantern: SpacetimeDBLantern) => {
+      drawIndicatorIfNeeded('lantern', lantern.id, lantern.posX, lantern.posY, 56, true); // 56px height for lanterns
     });
 
     visibleBoxesMap.forEach((box: SpacetimeDBWoodenStorageBox) => {
@@ -956,6 +971,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       renderCampfireLight({
         ctx,
         campfire: fire,
+        cameraOffsetX,
+        cameraOffsetY,
+      });
+    });
+
+    // Lantern Lights - Only draw for visible lanterns
+    visibleLanternsMap.forEach((lantern: SpacetimeDBLantern) => {
+      renderLanternLight({
+        ctx,
+        lantern: lantern,
         cameraOffsetX,
         cameraOffsetY,
       });

@@ -1,4 +1,4 @@
-import { Player as SpacetimeDBPlayer, ItemDefinition as SpacetimeDBItemDefinition, ActiveEquipment as SpacetimeDBActiveEquipment } from '../../generated';
+import { Player as SpacetimeDBPlayer, ItemDefinition as SpacetimeDBItemDefinition, ActiveEquipment as SpacetimeDBActiveEquipment, Lantern as SpacetimeDBLantern } from '../../generated';
 
 // --- Campfire Light Constants (defined locally now) ---
 export const CAMPFIRE_LIGHT_RADIUS_BASE = 150;
@@ -11,6 +11,12 @@ export const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8;
 export const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7;
 export const TORCH_LIGHT_INNER_COLOR = CAMPFIRE_LIGHT_INNER_COLOR;
 export const TORCH_LIGHT_OUTER_COLOR = CAMPFIRE_LIGHT_OUTER_COLOR;
+
+// --- Lantern Light Constants ---
+export const LANTERN_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 1.2; // 20% larger radius than campfire
+export const LANTERN_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.3; // Much more stable than campfire/torch
+export const LANTERN_LIGHT_INNER_COLOR = 'rgba(255, 220, 150, 0.4)'; // Warmer, more yellow-white light
+export const LANTERN_LIGHT_OUTER_COLOR = 'rgba(255, 160, 80, 0.0)'; // Golden outer fade
 
 interface RenderPlayerTorchLightProps {
     ctx: CanvasRenderingContext2D;
@@ -189,6 +195,102 @@ export const renderCampfireLight = ({
     coreGradient.addColorStop(0.3, 'rgba(255, 120, 40, 0.22)'); // Rich orange
     coreGradient.addColorStop(0.7, 'rgba(220, 80, 25, 0.12)'); // Deep orange-red glow
     coreGradient.addColorStop(1, 'rgba(180, 60, 20, 0)'); // Rustic red fade
+    
+    ctx.fillStyle = coreGradient;
+    ctx.beginPath();
+    ctx.arc(lightScreenX, lightScreenY, coreRadius, 0, Math.PI * 2);
+    ctx.fill();
+};
+
+// Import the LANTERN_RENDER_Y_OFFSET and LANTERN_HEIGHT for proper alignment
+import { LANTERN_RENDER_Y_OFFSET, LANTERN_HEIGHT } from '../renderers/lanternRenderingUtils';
+
+// --- Lantern Light Rendering ---
+interface RenderLanternLightProps {
+    ctx: CanvasRenderingContext2D;
+    lantern: SpacetimeDBLantern;
+    cameraOffsetX: number;
+    cameraOffsetY: number;
+}
+
+export const renderLanternLight = ({
+    ctx,
+    lantern,
+    cameraOffsetX,
+    cameraOffsetY,
+}: RenderLanternLightProps) => {
+    if (!lantern.isBurning) {
+        return; // Not burning, no light
+    }
+
+    const visualCenterX = lantern.posX;
+    const visualCenterY = lantern.posY - (LANTERN_HEIGHT / 2) - LANTERN_RENDER_Y_OFFSET;
+    
+    const lightScreenX = visualCenterX + cameraOffsetX;
+    const lightScreenY = visualCenterY + cameraOffsetY;
+    const baseFlicker = (Math.random() - 0.5) * 2 * LANTERN_FLICKER_AMOUNT;
+
+    // Add subtle asymmetry for lantern flame effect (much less than campfire)
+    const lanternAsymmetryX = (Math.random() - 0.5) * baseFlicker * 0.2;
+    const lanternAsymmetryY = (Math.random() - 0.5) * baseFlicker * 0.1;
+    const steadyLanternX = lightScreenX + lanternAsymmetryX;
+    const steadyLanternY = lightScreenY + lanternAsymmetryY;
+
+    // ENHANCED LANTERN LIGHTING SYSTEM - smooth gradients, reduced glare
+    const LANTERN_SCALE = 1.5; // 50% larger coverage than campfire for practical lighting
+
+    // Layer 1: Large ambient glow (stable lantern light - warm yellows, extended reach)
+    const ambientRadius = Math.max(0, LANTERN_LIGHT_RADIUS_BASE * 3.5 * LANTERN_SCALE + baseFlicker * 0.1);
+    const ambientGradient = ctx.createRadialGradient(
+        steadyLanternX, steadyLanternY, 0,
+        steadyLanternX, steadyLanternY, ambientRadius
+    );
+    ambientGradient.addColorStop(0, 'rgba(255, 240, 200, 0.06)'); // Soft warm center
+    ambientGradient.addColorStop(0.15, 'rgba(255, 230, 180, 0.05)'); // Warm lantern yellow
+    ambientGradient.addColorStop(0.35, 'rgba(255, 210, 150, 0.04)'); // Golden transition
+    ambientGradient.addColorStop(0.55, 'rgba(255, 190, 120, 0.03)'); // Amber glow
+    ambientGradient.addColorStop(0.75, 'rgba(240, 170, 100, 0.02)'); // Warm orange
+    ambientGradient.addColorStop(0.9, 'rgba(220, 150, 90, 0.01)'); // Soft orange
+    ambientGradient.addColorStop(1, 'rgba(200, 130, 80, 0)'); // Gentle fade
+    
+    ctx.fillStyle = ambientGradient;
+    ctx.beginPath();
+    ctx.arc(steadyLanternX, steadyLanternY, ambientRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 2: Main illumination (steady lantern glow with smooth transitions)
+    const mainRadius = Math.max(0, LANTERN_LIGHT_RADIUS_BASE * 2.2 * LANTERN_SCALE + baseFlicker * 0.3);
+    const mainGradient = ctx.createRadialGradient(
+        steadyLanternX, steadyLanternY, 0,
+        steadyLanternX, steadyLanternY, mainRadius
+    );
+    mainGradient.addColorStop(0, 'rgba(255, 248, 220, 0.18)'); // Reduced glare center
+    mainGradient.addColorStop(0.12, 'rgba(255, 240, 200, 0.16)'); // Soft bright center
+    mainGradient.addColorStop(0.25, 'rgba(255, 230, 180, 0.14)'); // Warm yellow
+    mainGradient.addColorStop(0.4, 'rgba(255, 215, 160, 0.12)'); // Golden transition
+    mainGradient.addColorStop(0.6, 'rgba(255, 200, 140, 0.09)'); // Golden amber
+    mainGradient.addColorStop(0.8, 'rgba(245, 180, 115, 0.06)'); // Warm orange
+    mainGradient.addColorStop(0.95, 'rgba(230, 160, 100, 0.03)'); // Soft orange
+    mainGradient.addColorStop(1, 'rgba(220, 140, 85, 0)'); // Smooth fade
+    
+    ctx.fillStyle = mainGradient;
+    ctx.beginPath();
+    ctx.arc(steadyLanternX, steadyLanternY, mainRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 3: Core bright light (stable lantern flame center with reduced glare) 
+    const coreRadius = Math.max(0, LANTERN_LIGHT_RADIUS_BASE * 0.9 * LANTERN_SCALE + baseFlicker * 0.8);
+    const coreGradient = ctx.createRadialGradient(
+        steadyLanternX, steadyLanternY, 0,
+        steadyLanternX, steadyLanternY, coreRadius
+    );
+    coreGradient.addColorStop(0, 'rgba(255, 252, 235, 0.22)'); // Much softer center - reduced from 0.35
+    coreGradient.addColorStop(0.15, 'rgba(255, 248, 220, 0.20)'); // Gentle bright core
+    coreGradient.addColorStop(0.3, 'rgba(255, 240, 200, 0.18)'); // Warm white
+    coreGradient.addColorStop(0.5, 'rgba(255, 230, 180, 0.15)'); // Warm yellow
+    coreGradient.addColorStop(0.7, 'rgba(255, 215, 160, 0.11)'); // Golden transition
+    coreGradient.addColorStop(0.85, 'rgba(255, 200, 140, 0.07)'); // Golden amber
+    coreGradient.addColorStop(1, 'rgba(245, 185, 125, 0)'); // Smooth golden fade
     
     ctx.fillStyle = coreGradient;
     ctx.beginPath();

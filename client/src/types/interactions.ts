@@ -38,6 +38,7 @@ export type InteractionTargetType =
     | 'hemp' 
     | 'reed'
     | 'campfire' 
+    | 'lantern'
     | 'dropped_item' 
     | 'box'  // wooden_storage_box
     | 'corpse'  // player_corpse
@@ -105,6 +106,11 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
         behavior: InteractionBehavior.INTERFACE,
         priority: 80,
         actionType: 'open_campfire'
+    },
+    lantern: {
+        behavior: InteractionBehavior.INTERFACE,
+        priority: 80,
+        actionType: 'open_lantern'
     },
     box: {
         behavior: InteractionBehavior.INTERFACE,
@@ -226,6 +232,8 @@ export function hasSecondaryHoldAction(target: InteractableTarget): boolean {
             return target.data?.isEmpty === true; // Can pickup empty boxes
         case 'campfire':
             return true; // Can toggle burning
+        case 'lantern':
+            return true; // Can toggle burning
         case 'stash':
             return true; // Can toggle visibility
         default:
@@ -239,6 +247,8 @@ export function getSecondaryHoldDuration(target: InteractableTarget): number {
         case 'box':
             return 250; // 250ms to pickup empty box
         case 'campfire':
+            return 250; // 250ms to toggle burning
+        case 'lantern':
             return 250; // 250ms to toggle burning
         case 'stash':
             return 250; // 250ms to toggle visibility

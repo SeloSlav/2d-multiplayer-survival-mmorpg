@@ -16,6 +16,8 @@ mod items;
 mod world_state;
 // Declare the campfire module
 mod campfire;
+// Declare the lantern module
+mod lantern;
 // Declare the active_equipment module
 mod active_equipment;
 // Declare the player_inventory module
@@ -124,6 +126,9 @@ pub use player_movement::update_player_position_simple;
 // Re-export campfire reducer for client bindings
 pub use campfire::place_campfire;
 
+// Re-export lantern reducers for client bindings
+pub use lantern::{place_lantern, add_fuel_to_lantern, light_lantern, extinguish_lantern, pickup_lantern};
+
 // Re-export knocked out functions and types for other modules
 pub use knocked_out::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule, KnockedOutStatus};
 pub use knocked_out::process_knocked_out_recovery; // For scheduler
@@ -140,6 +145,7 @@ pub use torch::toggle_torch;
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
+use crate::lantern::lantern as LanternTableTrait;
 use crate::corn::corn as CornTableTrait;
 use crate::potato::potato as PotatoTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;

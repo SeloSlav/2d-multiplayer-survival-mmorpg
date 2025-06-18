@@ -1823,7 +1823,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Tallow".to_string(),
-            description: "Rendered animal fat. High in calories and can be used as a slow-burning fuel source for oil lamps. Can be eaten in a pinch to stave off hunger, but it's not very appetizing and will make you thirsty.".to_string(),
+            description: "Rendered animal fat. High in calories and can be used as a slow-burning fuel source for lanterns. Can be eaten in a pinch to stave off hunger, but it's not very appetizing and will make you thirsty.".to_string(),
             category: ItemCategory::Consumable,
             icon_asset_name: "tallow.png".to_string(),
             is_stackable: true,
@@ -1940,9 +1940,9 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition {
             id: 0,
             name: "Lantern".to_string(),
-            description: "A deployable lamp that burns tallow or olive oil to provide light. Lasts longer than campfires.".to_string(),
+            description: "A deployable lamp that burns tallow to provide light. Lasts longer than campfires.".to_string(),
             category: ItemCategory::Placeable,
-            icon_asset_name: "tallow_lamp.png".to_string(),
+            icon_asset_name: "lantern_on.png".to_string(),
             is_stackable: false,
             stack_size: 1,
             is_equippable: false,

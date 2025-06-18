@@ -39,6 +39,7 @@ export namespace ContainerType {
   export type WoodenStorageBox = { tag: "WoodenStorageBox" };
   export type PlayerCorpse = { tag: "PlayerCorpse" };
   export type Stash = { tag: "Stash" };
+  export type Lantern = { tag: "Lantern" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -50,6 +51,7 @@ export namespace ContainerType {
   export const WoodenStorageBox = { tag: "WoodenStorageBox" };
   export const PlayerCorpse = { tag: "PlayerCorpse" };
   export const Stash = { tag: "Stash" };
+  export const Lantern = { tag: "Lantern" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -57,6 +59,7 @@ export namespace ContainerType {
       new SumTypeVariant("WoodenStorageBox", AlgebraicType.createProductType([])),
       new SumTypeVariant("PlayerCorpse", AlgebraicType.createProductType([])),
       new SumTypeVariant("Stash", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Lantern", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -71,7 +74,7 @@ export namespace ContainerType {
 }
 
 // The tagged union or sum type for the algebraic type `ContainerType`.
-export type ContainerType = ContainerType.Campfire | ContainerType.WoodenStorageBox | ContainerType.PlayerCorpse | ContainerType.Stash;
+export type ContainerType = ContainerType.Campfire | ContainerType.WoodenStorageBox | ContainerType.PlayerCorpse | ContainerType.Stash | ContainerType.Lantern;
 
 export default ContainerType;
 

@@ -16,7 +16,8 @@ import DroppableSlot from './DroppableSlot';
 // Import Types
 import { 
     ItemDefinition, InventoryItem, DbConnection, 
-    Campfire as SpacetimeDBCampfire, 
+    Campfire as SpacetimeDBCampfire,
+    Lantern as SpacetimeDBLantern, 
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
     PlayerCorpse, 
     Stash as SpacetimeDBStash, // Added Stash type
@@ -30,6 +31,7 @@ import { PopulatedItem } from './InventoryUI';
 
 // Constants
 const NUM_FUEL_SLOTS = 5;
+const NUM_LANTERN_FUEL_SLOTS = 2; // Lanterns have 2 fuel slots
 const NUM_BOX_SLOTS = 18;
 const NUM_CORPSE_SLOTS = 30;
 const NUM_STASH_SLOTS = 6; // Added for Stash
@@ -42,6 +44,7 @@ interface ExternalContainerUIProps {
     inventoryItems: Map<string, InventoryItem>;
     itemDefinitions: Map<string, ItemDefinition>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, SpacetimeDBLantern>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>; // Added stashes
@@ -64,6 +67,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     inventoryItems,
     itemDefinitions,
     campfires,
+    lanterns,
     woodenStorageBoxes,
     playerCorpses,
     stashes, // Added stashes
@@ -114,6 +118,32 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         });
         return items;
     }, [isCampfireInteraction, currentCampfire, inventoryItems, itemDefinitions]);
+
+    // --- Derived Data for Lantern ---
+    const isLanternInteraction = interactionTarget?.type === 'lantern';
+    const lanternIdNum = isLanternInteraction ? Number(interactionTarget!.id) : null;
+    const currentLantern = lanternIdNum !== null ? lanterns.get(lanternIdNum.toString()) : undefined;
+    const lanternFuelItems = useMemo(() => {
+        const items: (PopulatedItem | null)[] = Array(NUM_LANTERN_FUEL_SLOTS).fill(null);
+        if (!isLanternInteraction || !currentLantern) return items;
+        const instanceIds = [
+            currentLantern.fuelInstanceId0,
+            currentLantern.fuelInstanceId1,
+        ];
+        instanceIds.forEach((instanceIdOpt, index) => {
+            if (instanceIdOpt) {
+                const instanceIdStr = instanceIdOpt.toString();
+                const foundInvItem = inventoryItems.get(instanceIdStr);
+                if (foundInvItem) {
+                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
+                    if (definition) {
+                        items[index] = { instance: foundInvItem, definition };
+                    }
+                }
+            }
+        });
+        return items;
+    }, [isLanternInteraction, currentLantern, inventoryItems, itemDefinitions]);
 
     // --- Derived Data for Box ---
     const isBoxInteraction = interactionTarget?.type === 'wooden_storage_box';
@@ -230,6 +260,32 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (!connection?.reducers || campfireIdNum === null) return;
         try { connection.reducers.toggleCampfireBurning(campfireIdNum); } catch (e) { console.error("Error toggle burn:", e); }
     }, [connection, campfireIdNum]);
+
+    // Lantern-specific callbacks
+    const handleRemoveLanternFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
+        event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            return;
+        }
+        
+        if (!connection?.reducers || lanternIdNum === null) return;
+        // TODO: No auto remove for lanterns yet, just prevent context menu for now
+        console.log('Lantern fuel removal not yet implemented');
+    }, [connection, lanternIdNum]);
+
+    const handleToggleLanternBurn = useCallback(() => {
+        if (!connection?.reducers || lanternIdNum === null || !currentLantern) return;
+        try { 
+            if (currentLantern.isBurning) {
+                connection.reducers.extinguishLantern(lanternIdNum);
+            } else {
+                connection.reducers.lightLantern(lanternIdNum);
+            }
+        } catch (e) { console.error("Error toggle lantern burn:", e); }
+    }, [connection, lanternIdNum, currentLantern]);
 
     const handleBoxItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
         event.preventDefault();
@@ -432,6 +488,8 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     let containerTitle = "External Container"; // Default title
     if (isCampfireInteraction) {
         containerTitle = "CAMPFIRE";
+    } else if (isLanternInteraction) {
+        containerTitle = "LANTERN";
     } else if (isBoxInteraction) {
         containerTitle = "WOODEN STORAGE BOX";
     } else if (isCorpseInteraction) {
@@ -538,6 +596,57 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             )}
             {isCampfireInteraction && !currentCampfire && (
                  <div>Error: Campfire data missing.</div>
+            )}
+
+            {/* Lantern UI */} 
+            {isLanternInteraction && currentLantern && (
+                <>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
+                            {Array.from({ length: NUM_LANTERN_FUEL_SLOTS }).map((_, index) => {
+                                const itemInSlot = lanternFuelItems[index];
+                                const currentLanternSlotInfo: DragSourceSlotInfo = { type: 'lantern_fuel', index: index, parentId: lanternIdNum ?? undefined };
+                                const slotKey = `lantern-fuel-${lanternIdNum ?? 'unknown'}-${index}`;
+                                return (
+                                    <DroppableSlot
+                                        key={slotKey}
+                                        slotInfo={currentLanternSlotInfo}
+                                        onItemDrop={handleItemDropWithTracking}
+                                        className={styles.slot}
+                                        isDraggingOver={false}
+                                    >
+                                        {itemInSlot && (
+                                            <DraggableItem
+                                                item={itemInSlot}
+                                                sourceSlot={currentLanternSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={handleItemDropWithTracking}
+                                                onContextMenu={(event) => handleRemoveLanternFuel(event, index)}
+                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
+                                            />
+                                        )}
+                                    </DroppableSlot>
+                                );
+                            })}
+                        </div>
+                        <button
+                            onClick={handleToggleLanternBurn}
+                            disabled={!currentLantern || (!currentLantern.isBurning && !lanternFuelItems.some(item => item && item.instance.quantity > 0))}
+                            className={`${styles.interactionButton} ${
+                                currentLantern.isBurning
+                                    ? styles.extinguishButton
+                                    : styles.lightFireButton
+                            }`}
+                        >
+                            {currentLantern.isBurning ? "Extinguish" : "Light Lantern"}
+                        </button>
+                    </div>
+                </>
+            )}
+            {isLanternInteraction && !currentLantern && (
+                 <div>Error: Lantern data missing.</div>
             )}
 
             {/* Box UI */} 

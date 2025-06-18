@@ -255,6 +255,11 @@ export const useInputHandler = ({
                             connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
                             actionTaken = true;
                             break;
+                                case 'lantern':
+          console.log('[E-Hold ACTION] Attempting to toggle lantern burning:', holdTarget.targetId);
+          connection.reducers.toggleLantern(Number(holdTarget.targetId));
+                            actionTaken = true;
+                            break;
                         case 'box':
                             if (currentTarget.data?.isEmpty) {
                                 console.log('[E-Hold ACTION] Attempting to pickup storage box:', holdTarget.targetId);
@@ -626,6 +631,11 @@ export const useInputHandler = ({
                                     case 'campfire':
                                         console.log('[E-Tap ACTION] Opening campfire interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'campfire', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'lantern':
+                                        console.log('[E-Tap ACTION] Opening lantern interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'lantern', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'box':

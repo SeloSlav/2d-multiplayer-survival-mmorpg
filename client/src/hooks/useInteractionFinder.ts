@@ -5,6 +5,7 @@ import {
     Pumpkin as SpacetimeDBPumpkin,
     Potato as SpacetimeDBPotato,
     Campfire as SpacetimeDBCampfire,
+    Lantern as SpacetimeDBLantern,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Corn as SpacetimeDBCorn,
@@ -22,6 +23,11 @@ import {
     CAMPFIRE_HEIGHT,
     CAMPFIRE_RENDER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
+import {
+    PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED,
+    LANTERN_HEIGHT,
+    LANTERN_RENDER_Y_OFFSET
+} from '../utils/renderers/lanternRenderingUtils';
 import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../utils/renderers/playerCorpseRenderingUtils';
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
 
@@ -50,6 +56,7 @@ interface UseInteractionFinderProps {
     hemps: Map<string, SpacetimeDBHemp>;
     reeds: Map<string, SpacetimeDBReed>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, SpacetimeDBLantern>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
@@ -74,6 +81,7 @@ interface UseInteractionFinderResult {
     closestInteractableHempId: bigint | null;
     closestInteractableReedId: bigint | null;
     closestInteractableCampfireId: number | null;
+    closestInteractableLanternId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
     isClosestInteractableBoxEmpty: boolean;
@@ -171,6 +179,7 @@ export function useInteractionFinder({
     pumpkins,
     hemps,
     campfires,
+    lanterns,
     droppedItems,
     woodenStorageBoxes,
     playerCorpses,
@@ -190,6 +199,7 @@ export function useInteractionFinder({
     const [closestInteractableHempId, setClosestInteractableHempId] = useState<bigint | null>(null);
     const [closestInteractableReedId, setClosestInteractableReedId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
+    const [closestInteractableLanternId, setClosestInteractableLanternId] = useState<number | null>(null);
     const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
     const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
     const [isClosestInteractableBoxEmpty, setIsClosestInteractableBoxEmpty] = useState<boolean>(false);
@@ -226,6 +236,9 @@ export function useInteractionFinder({
 
         let closestCampfireId: number | null = null;
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
+
+        let closestLanternId: number | null = null;
+        let closestLanternDistSq = PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED;
 
         let closestDroppedItemId: bigint | null = null;
         let closestDroppedItemDistSq = PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED;
@@ -367,6 +380,27 @@ export function useInteractionFinder({
                         )) {
                             closestCampfireDistSq = distSq;
                             closestCampfireId = campfire.id;
+                        }
+                    }
+                });
+            }
+
+            // Find closest lantern
+            if (lanterns) {
+                lanterns.forEach((lantern) => {
+                    const visualCenterY = lantern.posY - (LANTERN_HEIGHT / 2) - LANTERN_RENDER_Y_OFFSET;
+                    
+                    const dx = playerX - lantern.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestLanternDistSq) {
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            lantern.posX, lantern.posY, shelters
+                        )) {
+                            closestLanternDistSq = distSq;
+                            closestLanternId = lantern.id;
                         }
                     }
                 });
@@ -596,6 +630,14 @@ export function useInteractionFinder({
                     distance: Math.sqrt(closestCampfireDistSq)
                 });
             }
+            if (closestLanternId) {
+                candidates.push({
+                    type: 'lantern',
+                    id: closestLanternId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestLanternDistSq)
+                });
+            }
             if (closestDroppedItemId) {
                 candidates.push({
                     type: 'dropped_item',
@@ -678,7 +720,9 @@ export function useInteractionFinder({
             closestInteractablePotatoId: closestPotatoId,
             closestInteractablePumpkinId: closestPumpkinId,
             closestInteractableHempId: closestHempId,
+            closestInteractableReedId: closestReedId,
             closestInteractableCampfireId: closestCampfireId,
+            closestInteractableLanternId: closestLanternId,
             closestInteractableDroppedItemId: closestDroppedItemId,
             closestInteractableBoxId: closestBoxId,
             isClosestInteractableBoxEmpty: isClosestBoxEmpty,
@@ -686,11 +730,10 @@ export function useInteractionFinder({
             closestInteractableStashId: closestStashId,
             closestInteractableSleepingBagId: closestSleepingBagId,
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
-            closestInteractableReedId: closestReedId,
             closestInteractableWaterPosition: closestWaterPosition,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters, connection]);
+    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters, connection]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -715,6 +758,9 @@ export function useInteractionFinder({
         }
         if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
             setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
+        }
+        if (interactionResult.closestInteractableLanternId !== closestInteractableLanternId) {
+            setClosestInteractableLanternId(interactionResult.closestInteractableLanternId);
         }
         if (interactionResult.closestInteractableDroppedItemId !== closestInteractableDroppedItemId) {
             setClosestInteractableDroppedItemId(interactionResult.closestInteractableDroppedItemId);
@@ -753,6 +799,7 @@ export function useInteractionFinder({
         closestInteractableHempId,
         closestInteractableReedId,
         closestInteractableCampfireId,
+        closestInteractableLanternId,
         closestInteractableDroppedItemId,
         closestInteractableBoxId,
         isClosestInteractableBoxEmpty,

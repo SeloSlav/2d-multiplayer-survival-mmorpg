@@ -113,7 +113,7 @@ function AppContent() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, clouds, stones, campfires, mushrooms, corns, potatoes, pumpkins, hemps, reeds,
+      players, trees, clouds, stones, campfires, lanterns, mushrooms, corns, potatoes, pumpkins, hemps, reeds,
       itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
@@ -612,6 +612,7 @@ function AppContent() {
                             clouds={clouds}
                             stones={stones}
                             campfires={campfires}
+                            lanterns={lanterns}
                             mushrooms={mushrooms}
                             hemps={hemps}
                             reeds={reeds}

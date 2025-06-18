@@ -39,6 +39,7 @@ export namespace TargetType {
   export type Stone = { tag: "Stone" };
   export type Player = { tag: "Player" };
   export type Campfire = { tag: "Campfire" };
+  export type Lantern = { tag: "Lantern" };
   export type WoodenStorageBox = { tag: "WoodenStorageBox" };
   export type Stash = { tag: "Stash" };
   export type SleepingBag = { tag: "SleepingBag" };
@@ -57,6 +58,7 @@ export namespace TargetType {
   export const Stone = { tag: "Stone" };
   export const Player = { tag: "Player" };
   export const Campfire = { tag: "Campfire" };
+  export const Lantern = { tag: "Lantern" };
   export const WoodenStorageBox = { tag: "WoodenStorageBox" };
   export const Stash = { tag: "Stash" };
   export const SleepingBag = { tag: "SleepingBag" };
@@ -71,6 +73,7 @@ export namespace TargetType {
       new SumTypeVariant("Stone", AlgebraicType.createProductType([])),
       new SumTypeVariant("Player", AlgebraicType.createProductType([])),
       new SumTypeVariant("Campfire", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Lantern", AlgebraicType.createProductType([])),
       new SumTypeVariant("WoodenStorageBox", AlgebraicType.createProductType([])),
       new SumTypeVariant("Stash", AlgebraicType.createProductType([])),
       new SumTypeVariant("SleepingBag", AlgebraicType.createProductType([])),
@@ -92,7 +95,7 @@ export namespace TargetType {
 }
 
 // The tagged union or sum type for the algebraic type `TargetType`.
-export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.Grass | TargetType.Shelter;
+export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.Lantern | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.Grass | TargetType.Shelter;
 
 export default TargetType;
 

@@ -36,7 +36,7 @@ const SLEEPING_BAG_HEIGHT = 64;
 
 // Define the single target type for labels
 interface InteractableTarget {
-    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
+    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
     id: bigint | number | string;
     position: { x: number; y: number };
     distance: number;
@@ -52,6 +52,7 @@ interface RenderLabelsParams {
     hemps: Map<string, SpacetimeDBHemp>;
     reeds: Map<string, SpacetimeDBReed>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    lanterns: Map<string, any>; // Add lanterns parameter
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
@@ -216,6 +217,7 @@ export function renderInteractionLabels({
     hemps,
     reeds,
     campfires,
+    lanterns,
     droppedItems,
     woodenStorageBoxes,
     playerCorpses,
@@ -322,13 +324,22 @@ export function renderInteractionLabels({
             }
             break;
         }
+        case 'lantern': {
+            const lantern = lanterns.get(closestInteractableTarget.id.toString());
+            if (lantern) {
+                textX = lantern.posX;
+                textY = lantern.posY - 75; // Moved E text higher (up) by 10px for better alignment
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
+        }
         case 'box': {
             const box = woodenStorageBoxes.get(closestInteractableTarget.id.toString());
             if (box) {
                 const BOX_COLLISION_Y_OFFSET = 52.0;
                 const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
                 textX = box.posX;
-                textY = visualCenterY - (BOX_HEIGHT / 2) - 10;
+                textY = visualCenterY - (BOX_HEIGHT / 2) - 0;
                 renderStyledInteractionLabel(ctx, text, textX, textY);
             }
             break;

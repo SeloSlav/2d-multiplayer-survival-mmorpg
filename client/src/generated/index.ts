@@ -34,6 +34,8 @@ import {
 // Import and reexport all reducer arg types
 import { AddFuelToCampfire } from "./add_fuel_to_campfire_reducer.ts";
 export { AddFuelToCampfire };
+import { AddFuelToLantern } from "./add_fuel_to_lantern_reducer.ts";
+export { AddFuelToLantern };
 import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
 export { AutoRemoveFuelFromCampfire };
 import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
@@ -80,6 +82,8 @@ import { EquipArmorFromDrag } from "./equip_armor_from_drag_reducer.ts";
 export { EquipArmorFromDrag };
 import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts";
 export { EquipArmorFromInventory };
+import { ExtinguishLantern } from "./extinguish_lantern_reducer.ts";
+export { ExtinguishLantern };
 import { FinishFishing } from "./finish_fishing_reducer.ts";
 export { FinishFishing };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
@@ -120,6 +124,8 @@ import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
 export { InteractWithStorageBox };
 import { Jump } from "./jump_reducer.ts";
 export { Jump };
+import { LightLantern } from "./light_lantern_reducer.ts";
+export { LightLantern };
 import { LoadRangedWeapon } from "./load_ranged_weapon_reducer.ts";
 export { LoadRangedWeapon };
 import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reducer.ts";
@@ -152,10 +158,14 @@ import { MoveToFirstAvailableHotbarSlot } from "./move_to_first_available_hotbar
 export { MoveToFirstAvailableHotbarSlot };
 import { PickupDroppedItem } from "./pickup_dropped_item_reducer.ts";
 export { PickupDroppedItem };
+import { PickupLantern } from "./pickup_lantern_reducer.ts";
+export { PickupLantern };
 import { PickupStorageBox } from "./pickup_storage_box_reducer.ts";
 export { PickupStorageBox };
 import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
+import { PlaceLantern } from "./place_lantern_reducer.ts";
+export { PlaceLantern };
 import { PlaceShelter } from "./place_shelter_reducer.ts";
 export { PlaceShelter };
 import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
@@ -176,6 +186,8 @@ import { ProcessGrassRespawn } from "./process_grass_respawn_reducer.ts";
 export { ProcessGrassRespawn };
 import { ProcessKnockedOutRecovery } from "./process_knocked_out_recovery_reducer.ts";
 export { ProcessKnockedOutRecovery };
+import { ProcessLanternLogicScheduled } from "./process_lantern_logic_scheduled_reducer.ts";
+export { ProcessLanternLogicScheduled };
 import { ProcessPlayerStats } from "./process_player_stats_reducer.ts";
 export { ProcessPlayerStats };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
@@ -272,6 +284,8 @@ import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
 import { ToggleCrouch } from "./toggle_crouch_reducer.ts";
 export { ToggleCrouch };
+import { ToggleLantern } from "./toggle_lantern_reducer.ts";
+export { ToggleLantern };
 import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
 export { ToggleStashVisibility };
 import { ToggleTorch } from "./toggle_torch_reducer.ts";
@@ -340,6 +354,10 @@ import { KnockedOutRecoveryScheduleTableHandle } from "./knocked_out_recovery_sc
 export { KnockedOutRecoveryScheduleTableHandle };
 import { KnockedOutStatusTableHandle } from "./knocked_out_status_table.ts";
 export { KnockedOutStatusTableHandle };
+import { LanternTableHandle } from "./lantern_table.ts";
+export { LanternTableHandle };
+import { LanternProcessingScheduleTableHandle } from "./lantern_processing_schedule_table.ts";
+export { LanternProcessingScheduleTableHandle };
 import { MessageTableHandle } from "./message_table.ts";
 export { MessageTableHandle };
 import { MinimapCacheTableHandle } from "./minimap_cache_table.ts";
@@ -486,6 +504,10 @@ import { KnockedOutRecoverySchedule } from "./knocked_out_recovery_schedule_type
 export { KnockedOutRecoverySchedule };
 import { KnockedOutStatus } from "./knocked_out_status_type.ts";
 export { KnockedOutStatus };
+import { Lantern } from "./lantern_type.ts";
+export { Lantern };
+import { LanternProcessingSchedule } from "./lantern_processing_schedule_type.ts";
+export { LanternProcessingSchedule };
 import { Message } from "./message_type.ts";
 export { Message };
 import { MinimapCache } from "./minimap_cache_type.ts";
@@ -692,6 +714,16 @@ const REMOTE_MODULE = {
       rowType: KnockedOutStatus.getTypeScriptAlgebraicType(),
       primaryKey: "playerId",
     },
+    lantern: {
+      tableName: "lantern",
+      rowType: Lantern.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    lantern_processing_schedule: {
+      tableName: "lantern_processing_schedule",
+      rowType: LanternProcessingSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "lanternId",
+    },
     message: {
       tableName: "message",
       rowType: Message.getTypeScriptAlgebraicType(),
@@ -858,6 +890,10 @@ const REMOTE_MODULE = {
       reducerName: "add_fuel_to_campfire",
       argsType: AddFuelToCampfire.getTypeScriptAlgebraicType(),
     },
+    add_fuel_to_lantern: {
+      reducerName: "add_fuel_to_lantern",
+      argsType: AddFuelToLantern.getTypeScriptAlgebraicType(),
+    },
     auto_remove_fuel_from_campfire: {
       reducerName: "auto_remove_fuel_from_campfire",
       argsType: AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType(),
@@ -950,6 +986,10 @@ const REMOTE_MODULE = {
       reducerName: "equip_armor_from_inventory",
       argsType: EquipArmorFromInventory.getTypeScriptAlgebraicType(),
     },
+    extinguish_lantern: {
+      reducerName: "extinguish_lantern",
+      argsType: ExtinguishLantern.getTypeScriptAlgebraicType(),
+    },
     finish_fishing: {
       reducerName: "finish_fishing",
       argsType: FinishFishing.getTypeScriptAlgebraicType(),
@@ -1030,6 +1070,10 @@ const REMOTE_MODULE = {
       reducerName: "jump",
       argsType: Jump.getTypeScriptAlgebraicType(),
     },
+    light_lantern: {
+      reducerName: "light_lantern",
+      argsType: LightLantern.getTypeScriptAlgebraicType(),
+    },
     load_ranged_weapon: {
       reducerName: "load_ranged_weapon",
       argsType: LoadRangedWeapon.getTypeScriptAlgebraicType(),
@@ -1094,6 +1138,10 @@ const REMOTE_MODULE = {
       reducerName: "pickup_dropped_item",
       argsType: PickupDroppedItem.getTypeScriptAlgebraicType(),
     },
+    pickup_lantern: {
+      reducerName: "pickup_lantern",
+      argsType: PickupLantern.getTypeScriptAlgebraicType(),
+    },
     pickup_storage_box: {
       reducerName: "pickup_storage_box",
       argsType: PickupStorageBox.getTypeScriptAlgebraicType(),
@@ -1101,6 +1149,10 @@ const REMOTE_MODULE = {
     place_campfire: {
       reducerName: "place_campfire",
       argsType: PlaceCampfire.getTypeScriptAlgebraicType(),
+    },
+    place_lantern: {
+      reducerName: "place_lantern",
+      argsType: PlaceLantern.getTypeScriptAlgebraicType(),
     },
     place_shelter: {
       reducerName: "place_shelter",
@@ -1141,6 +1193,10 @@ const REMOTE_MODULE = {
     process_knocked_out_recovery: {
       reducerName: "process_knocked_out_recovery",
       argsType: ProcessKnockedOutRecovery.getTypeScriptAlgebraicType(),
+    },
+    process_lantern_logic_scheduled: {
+      reducerName: "process_lantern_logic_scheduled",
+      argsType: ProcessLanternLogicScheduled.getTypeScriptAlgebraicType(),
     },
     process_player_stats: {
       reducerName: "process_player_stats",
@@ -1334,6 +1390,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_crouch",
       argsType: ToggleCrouch.getTypeScriptAlgebraicType(),
     },
+    toggle_lantern: {
+      reducerName: "toggle_lantern",
+      argsType: ToggleLantern.getTypeScriptAlgebraicType(),
+    },
     toggle_stash_visibility: {
       reducerName: "toggle_stash_visibility",
       argsType: ToggleStashVisibility.getTypeScriptAlgebraicType(),
@@ -1394,6 +1454,7 @@ const REMOTE_MODULE = {
 // A type representing all the possible variants of a reducer.
 export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
+| { name: "AddFuelToLantern", args: AddFuelToLantern }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
@@ -1417,6 +1478,7 @@ export type Reducer = never
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
+| { name: "ExtinguishLantern", args: ExtinguishLantern }
 | { name: "FinishFishing", args: FinishFishing }
 | { name: "FireProjectile", args: FireProjectile }
 | { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
@@ -1437,6 +1499,7 @@ export type Reducer = never
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
+| { name: "LightLantern", args: LightLantern }
 | { name: "LoadRangedWeapon", args: LoadRangedWeapon }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
@@ -1453,8 +1516,10 @@ export type Reducer = never
 | { name: "MoveItemWithinStash", args: MoveItemWithinStash }
 | { name: "MoveToFirstAvailableHotbarSlot", args: MoveToFirstAvailableHotbarSlot }
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
+| { name: "PickupLantern", args: PickupLantern }
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
+| { name: "PlaceLantern", args: PlaceLantern }
 | { name: "PlaceShelter", args: PlaceShelter }
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceStash", args: PlaceStash }
@@ -1465,6 +1530,7 @@ export type Reducer = never
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
 | { name: "ProcessGrassRespawn", args: ProcessGrassRespawn }
 | { name: "ProcessKnockedOutRecovery", args: ProcessKnockedOutRecovery }
+| { name: "ProcessLanternLogicScheduled", args: ProcessLanternLogicScheduled }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
@@ -1513,6 +1579,7 @@ export type Reducer = never
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
 | { name: "ToggleCrouch", args: ToggleCrouch }
+| { name: "ToggleLantern", args: ToggleLantern }
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
@@ -1540,6 +1607,22 @@ export class RemoteReducers {
 
   removeOnAddFuelToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("add_fuel_to_campfire", callback);
+  }
+
+  addFuelToLantern(lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { lanternId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    AddFuelToLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("add_fuel_to_lantern", __argsBuffer, this.setCallReducerFlags.addFuelToLanternFlags);
+  }
+
+  onAddFuelToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("add_fuel_to_lantern", callback);
+  }
+
+  removeOnAddFuelToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("add_fuel_to_lantern", callback);
   }
 
   autoRemoveFuelFromCampfire(campfireId: number, sourceSlotIndex: number) {
@@ -1894,6 +1977,22 @@ export class RemoteReducers {
     this.connection.offReducer("equip_armor_from_inventory", callback);
   }
 
+  extinguishLantern(lanternId: number) {
+    const __args = { lanternId };
+    let __writer = new BinaryWriter(1024);
+    ExtinguishLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("extinguish_lantern", __argsBuffer, this.setCallReducerFlags.extinguishLanternFlags);
+  }
+
+  onExtinguishLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.onReducer("extinguish_lantern", callback);
+  }
+
+  removeOnExtinguishLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.offReducer("extinguish_lantern", callback);
+  }
+
   finishFishing(success: boolean, caughtItems: string[]) {
     const __args = { success, caughtItems };
     let __writer = new BinaryWriter(1024);
@@ -2178,6 +2277,22 @@ export class RemoteReducers {
     this.connection.offReducer("jump", callback);
   }
 
+  lightLantern(lanternId: number) {
+    const __args = { lanternId };
+    let __writer = new BinaryWriter(1024);
+    LightLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("light_lantern", __argsBuffer, this.setCallReducerFlags.lightLanternFlags);
+  }
+
+  onLightLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.onReducer("light_lantern", callback);
+  }
+
+  removeOnLightLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.offReducer("light_lantern", callback);
+  }
+
   loadRangedWeapon() {
     this.connection.callReducer("load_ranged_weapon", new Uint8Array(0), this.setCallReducerFlags.loadRangedWeaponFlags);
   }
@@ -2430,6 +2545,22 @@ export class RemoteReducers {
     this.connection.offReducer("pickup_dropped_item", callback);
   }
 
+  pickupLantern(lanternId: number) {
+    const __args = { lanternId };
+    let __writer = new BinaryWriter(1024);
+    PickupLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("pickup_lantern", __argsBuffer, this.setCallReducerFlags.pickupLanternFlags);
+  }
+
+  onPickupLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.onReducer("pickup_lantern", callback);
+  }
+
+  removeOnPickupLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.offReducer("pickup_lantern", callback);
+  }
+
   pickupStorageBox(boxId: number) {
     const __args = { boxId };
     let __writer = new BinaryWriter(1024);
@@ -2460,6 +2591,22 @@ export class RemoteReducers {
 
   removeOnPlaceCampfire(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_campfire", callback);
+  }
+
+  placeLantern(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_lantern", __argsBuffer, this.setCallReducerFlags.placeLanternFlags);
+  }
+
+  onPlaceLantern(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_lantern", callback);
+  }
+
+  removeOnPlaceLantern(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_lantern", callback);
   }
 
   placeShelter(itemInstanceId: bigint, worldX: number, worldY: number) {
@@ -2620,6 +2767,22 @@ export class RemoteReducers {
 
   removeOnProcessKnockedOutRecovery(callback: (ctx: ReducerEventContext, args: KnockedOutRecoverySchedule) => void) {
     this.connection.offReducer("process_knocked_out_recovery", callback);
+  }
+
+  processLanternLogicScheduled(scheduleArgs: LanternProcessingSchedule) {
+    const __args = { scheduleArgs };
+    let __writer = new BinaryWriter(1024);
+    ProcessLanternLogicScheduled.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_lantern_logic_scheduled", __argsBuffer, this.setCallReducerFlags.processLanternLogicScheduledFlags);
+  }
+
+  onProcessLanternLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: LanternProcessingSchedule) => void) {
+    this.connection.onReducer("process_lantern_logic_scheduled", callback);
+  }
+
+  removeOnProcessLanternLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: LanternProcessingSchedule) => void) {
+    this.connection.offReducer("process_lantern_logic_scheduled", callback);
   }
 
   processPlayerStats(schedule: PlayerStatSchedule) {
@@ -3354,6 +3517,22 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_crouch", callback);
   }
 
+  toggleLantern(lanternId: number) {
+    const __args = { lanternId };
+    let __writer = new BinaryWriter(1024);
+    ToggleLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("toggle_lantern", __argsBuffer, this.setCallReducerFlags.toggleLanternFlags);
+  }
+
+  onToggleLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.onReducer("toggle_lantern", callback);
+  }
+
+  removeOnToggleLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.offReducer("toggle_lantern", callback);
+  }
+
   toggleStashVisibility(stashId: number) {
     const __args = { stashId };
     let __writer = new BinaryWriter(1024);
@@ -3482,6 +3661,11 @@ export class SetReducerFlags {
     this.addFuelToCampfireFlags = flags;
   }
 
+  addFuelToLanternFlags: CallReducerFlags = 'FullUpdate';
+  addFuelToLantern(flags: CallReducerFlags) {
+    this.addFuelToLanternFlags = flags;
+  }
+
   autoRemoveFuelFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   autoRemoveFuelFromCampfire(flags: CallReducerFlags) {
     this.autoRemoveFuelFromCampfireFlags = flags;
@@ -3597,6 +3781,11 @@ export class SetReducerFlags {
     this.equipArmorFromInventoryFlags = flags;
   }
 
+  extinguishLanternFlags: CallReducerFlags = 'FullUpdate';
+  extinguishLantern(flags: CallReducerFlags) {
+    this.extinguishLanternFlags = flags;
+  }
+
   finishFishingFlags: CallReducerFlags = 'FullUpdate';
   finishFishing(flags: CallReducerFlags) {
     this.finishFishingFlags = flags;
@@ -3687,6 +3876,11 @@ export class SetReducerFlags {
     this.jumpFlags = flags;
   }
 
+  lightLanternFlags: CallReducerFlags = 'FullUpdate';
+  lightLantern(flags: CallReducerFlags) {
+    this.lightLanternFlags = flags;
+  }
+
   loadRangedWeaponFlags: CallReducerFlags = 'FullUpdate';
   loadRangedWeapon(flags: CallReducerFlags) {
     this.loadRangedWeaponFlags = flags;
@@ -3767,6 +3961,11 @@ export class SetReducerFlags {
     this.pickupDroppedItemFlags = flags;
   }
 
+  pickupLanternFlags: CallReducerFlags = 'FullUpdate';
+  pickupLantern(flags: CallReducerFlags) {
+    this.pickupLanternFlags = flags;
+  }
+
   pickupStorageBoxFlags: CallReducerFlags = 'FullUpdate';
   pickupStorageBox(flags: CallReducerFlags) {
     this.pickupStorageBoxFlags = flags;
@@ -3775,6 +3974,11 @@ export class SetReducerFlags {
   placeCampfireFlags: CallReducerFlags = 'FullUpdate';
   placeCampfire(flags: CallReducerFlags) {
     this.placeCampfireFlags = flags;
+  }
+
+  placeLanternFlags: CallReducerFlags = 'FullUpdate';
+  placeLantern(flags: CallReducerFlags) {
+    this.placeLanternFlags = flags;
   }
 
   placeShelterFlags: CallReducerFlags = 'FullUpdate';
@@ -3825,6 +4029,11 @@ export class SetReducerFlags {
   processKnockedOutRecoveryFlags: CallReducerFlags = 'FullUpdate';
   processKnockedOutRecovery(flags: CallReducerFlags) {
     this.processKnockedOutRecoveryFlags = flags;
+  }
+
+  processLanternLogicScheduledFlags: CallReducerFlags = 'FullUpdate';
+  processLanternLogicScheduled(flags: CallReducerFlags) {
+    this.processLanternLogicScheduledFlags = flags;
   }
 
   processPlayerStatsFlags: CallReducerFlags = 'FullUpdate';
@@ -4067,6 +4276,11 @@ export class SetReducerFlags {
     this.toggleCrouchFlags = flags;
   }
 
+  toggleLanternFlags: CallReducerFlags = 'FullUpdate';
+  toggleLantern(flags: CallReducerFlags) {
+    this.toggleLanternFlags = flags;
+  }
+
   toggleStashVisibilityFlags: CallReducerFlags = 'FullUpdate';
   toggleStashVisibility(flags: CallReducerFlags) {
     this.toggleStashVisibilityFlags = flags;
@@ -4210,6 +4424,14 @@ export class RemoteTables {
 
   get knockedOutStatus(): KnockedOutStatusTableHandle {
     return new KnockedOutStatusTableHandle(this.connection.clientCache.getOrCreateTable<KnockedOutStatus>(REMOTE_MODULE.tables.knocked_out_status));
+  }
+
+  get lantern(): LanternTableHandle {
+    return new LanternTableHandle(this.connection.clientCache.getOrCreateTable<Lantern>(REMOTE_MODULE.tables.lantern));
+  }
+
+  get lanternProcessingSchedule(): LanternProcessingScheduleTableHandle {
+    return new LanternProcessingScheduleTableHandle(this.connection.clientCache.getOrCreateTable<LanternProcessingSchedule>(REMOTE_MODULE.tables.lantern_processing_schedule));
   }
 
   get message(): MessageTableHandle {

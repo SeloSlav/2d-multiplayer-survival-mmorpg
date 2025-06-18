@@ -8,6 +8,7 @@ pub enum ContainerType {
     WoodenStorageBox,
     PlayerCorpse,
     Stash,
+    Lantern,
     // Other container types can be added here
 }
 
@@ -93,6 +94,7 @@ pub enum TargetType {
     Stone,
     Player,
     Campfire,
+    Lantern,
     WoodenStorageBox,
     Stash,
     SleepingBag,

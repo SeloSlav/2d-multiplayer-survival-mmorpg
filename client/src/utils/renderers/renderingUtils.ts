@@ -35,6 +35,7 @@ import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
 // Import unified resource renderer instead of individual ones
 import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin, renderReed } from './unifiedResourceRenderer';
 import { renderCampfire } from './campfireRenderingUtils';
+import { renderLantern } from './lanternRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderGrass } from './grassRenderingUtils';
@@ -451,6 +452,17 @@ export const renderYSortedEntities = ({
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, campfire.posX, campfire.posY - 48, 64, 96, cycleProgress, outlineColor);
             }
+        } else if (type === 'lantern') {
+            const lantern = entity as any; // Type will be Lantern from generated types
+            const isTheClosestTarget = closestInteractableTarget?.type === 'lantern' && closestInteractableTarget?.id === lantern.id;
+            renderLantern(ctx, lantern, nowMs, cycleProgress);
+            
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
+                const outlineColor = getInteractionOutlineColor('open');
+                // Make outline taller (height: 56 -> 72) and extend more downward (Y offset: -48 -> -40)
+                drawInteractionOutline(ctx, lantern.posX, lantern.posY - 40, 48, 72, cycleProgress, outlineColor);
+            }
         } else if (type === 'dropped_item') {
             const droppedItem = entity as SpacetimeDBDroppedItem;
             const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
@@ -472,9 +484,8 @@ export const renderYSortedEntities = ({
             // Draw outline only if this is THE closest interactable target
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
-                // Use square outline like other entities, positioned at visual center (higher up)
-                const STASH_HEIGHT = 40;
-                drawInteractionOutline(ctx, stash.posX, stash.posY - (STASH_HEIGHT / 2), 48, 48, cycleProgress, outlineColor);
+                // Use circular outline for stashes since they're small and round
+                drawCircularInteractionOutline(ctx, stash.posX, stash.posY, 24, cycleProgress, outlineColor);
             }
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
@@ -488,15 +499,29 @@ export const renderYSortedEntities = ({
                 drawInteractionOutline(ctx, box.posX, box.posY - 52, 64, 64, cycleProgress, outlineColor);
             }
         } else if (type === 'player_corpse') {
+            const corpse = entity as SpacetimeDBPlayerCorpse;
+            
             renderCorpse({ 
                 ctx, 
-                corpse: entity as SpacetimeDBPlayerCorpse, 
+                corpse, 
                 nowMs, 
                 itemImagesRef,
                 heroImageRef,
                 heroWaterImageRef,
                 heroCrouchImageRef
             });
+            
+            // Check if this corpse is the closest interactable target
+            const isTheClosestTarget = closestInteractableTarget && 
+                                     closestInteractableTarget.type === 'corpse' && 
+                                     closestInteractableTarget.id.toString() === corpse.id.toString();
+            
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
+                const outlineColor = getInteractionOutlineColor('open');
+                // Make outline wider and positioned lower for lying down corpse (rectangular shape)
+                drawInteractionOutline(ctx, corpse.posX, corpse.posY + 0, 80, 48, cycleProgress, outlineColor);
+            }
         } else if (type === 'grass') {
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);
         } else if (type === 'projectile') {
@@ -567,6 +592,8 @@ export const renderYSortedEntities = ({
             // Reed is fully rendered in the first pass - no second pass needed
         } else if (type === 'campfire') {
             // Campfires handle their own shadows, no separate pass needed here generally
+        } else if (type === 'lantern') {
+            // Lanterns are fully rendered in the first pass - no second pass needed
         } else if (type === 'dropped_item') {
             // Dropped items handle their own shadows
         } else if (type === 'mushroom') {

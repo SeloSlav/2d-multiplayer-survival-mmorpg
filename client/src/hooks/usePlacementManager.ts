@@ -59,7 +59,7 @@ function isPositionOnWater(connection: DbConnection | null, worldX: number, worl
 
 /**
  * Checks if placement should be blocked due to water tiles.
- * This applies to shelters, camp fires, stashes, wooden storage boxes, and sleeping bags.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, and sleeping bags.
  */
 function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
   if (!connection || !placementInfo) {
@@ -67,7 +67,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
   }
 
   // List of items that cannot be placed on water
-  const waterBlockedItems = ['Camp Fire', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
+  const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
   
   if (waterBlockedItems.includes(placementInfo.itemName)) {
     return isPositionOnWater(connection, worldX, worldY);
@@ -129,6 +129,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeCampfire(placementInfo.instanceId, worldX, worldY);
           // Note: We don't call cancelPlacement here. 
           // App.tsx's handleCampfireInsert callback will call it upon success.
+          break;
+        case 'Lantern':
+          // console.log(`[PlacementManager] Calling placeLantern reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeLantern(placementInfo.instanceId, worldX, worldY);
+          // Note: We don't call cancelPlacement here. 
+          // App.tsx's handleLanternInsert callback will call it upon success.
           break;
         case 'Wooden Storage Box':
           // console.log(`[PlacementManager] Calling placeWoodenStorageBox reducer with instance ID: ${placementInfo.instanceId}`);
