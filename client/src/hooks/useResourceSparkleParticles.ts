@@ -1,0 +1,195 @@
+import { useEffect, useRef } from 'react';
+import {
+    Mushroom as SpacetimeDBMushroom,
+    Corn as SpacetimeDBCorn,
+    Potato as SpacetimeDBPotato,
+    Pumpkin as SpacetimeDBPumpkin,
+    Hemp as SpacetimeDBHemp,
+    Reed as SpacetimeDBReed,
+} from '../generated';
+import { Particle } from './useCampfireParticles'; // Reuse Particle type
+
+// --- Sparkle Particle Constants ---
+const SPARKLE_PARTICLE_LIFETIME_MIN = 800;  // Longer lifetime for graceful rise
+const SPARKLE_PARTICLE_LIFETIME_MAX = 1200; // Longer lifetime for graceful rise
+const SPARKLE_PARTICLE_SPEED_Y_MIN = -0.3;  // Gentle upward movement
+const SPARKLE_PARTICLE_SPEED_Y_MAX = -0.6;  // Gentle upward movement
+const SPARKLE_PARTICLE_SPEED_X_SPREAD = 0.2; // Minimal horizontal drift
+const SPARKLE_PARTICLE_SIZE_MIN = 1; 
+const SPARKLE_PARTICLE_SIZE_MAX = 3; 
+const SPARKLE_PARTICLE_COLORS = ["#FFD700", "#FFEB3B", "#FFF59D", "#FFFFFF", "#E1F5FE"]; // Gold, yellow, light yellow, white, light cyan
+const SPARKLES_PER_RESOURCE_FRAME = 0.15; // Lower emission rate for subtle effect
+
+// Resource heights for bottom positioning (where sparkles should start)
+const RESOURCE_HEIGHTS = {
+    mushroom: 32,
+    corn: 96,
+    potato: 32, 
+    pumpkin: 48,
+    hemp: 64,
+    reed: 76,
+};
+
+// Resource visual height adjustments (for interaction centers)
+const RESOURCE_VISUAL_ADJUSTMENTS = {
+    mushroom: 16, // MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2
+    corn: 48,     // corn visual height / 2
+    potato: 16,   // potato visual height / 2  
+    pumpkin: 24,  // pumpkin visual height / 2
+    hemp: 32,     // hemp visual height / 2
+    reed: 38,     // reed visual height / 2
+};
+
+interface UseResourceSparkleParticlesProps {
+    mushrooms: Map<string, SpacetimeDBMushroom>;
+    corns: Map<string, SpacetimeDBCorn>;
+    potatoes: Map<string, SpacetimeDBPotato>;
+    pumpkins: Map<string, SpacetimeDBPumpkin>;
+    hemps: Map<string, SpacetimeDBHemp>;
+    reeds: Map<string, SpacetimeDBReed>;
+}
+
+export function useResourceSparkleParticles({
+    mushrooms,
+    corns,
+    potatoes,
+    pumpkins,
+    hemps,
+    reeds,
+}: UseResourceSparkleParticlesProps): Particle[] {
+    const particlesRef = useRef<Particle[]>([]);
+    const emissionAccumulatorRef = useRef<Map<string, number>>(new Map());
+    const lastUpdateTimeRef = useRef<number>(performance.now());
+    const animationFrameRef = useRef<number>(0);
+
+    useEffect(() => {
+        const updateParticles = () => {
+            const now = performance.now();
+            const deltaTime = now - lastUpdateTimeRef.current;
+            lastUpdateTimeRef.current = now;
+            
+            if (deltaTime <= 0) {
+                animationFrameRef.current = requestAnimationFrame(updateParticles);
+                return;
+            }
+
+            const currentParticles = particlesRef.current;
+            let liveParticleCount = 0;
+
+            // Use actual deltaTime for frame-rate independent movement
+            const deltaTimeFactor = deltaTime / 16.667; // Normalize to 60fps
+
+            // Update existing particles
+            for (let i = 0; i < currentParticles.length; i++) {
+                const p = currentParticles[i];
+                const age = now - p.spawnTime;
+                const lifetimeRemaining = p.initialLifetime - age;
+
+                if (lifetimeRemaining <= 0) {
+                    continue;
+                }
+
+                // Sparkle particles fade out as they rise and add slight shimmer
+                const lifeRatio = Math.max(0, lifetimeRemaining / p.initialLifetime);
+                const shimmer = 0.8 + 0.2 * Math.sin((now - p.spawnTime) * 0.01); // Gentle shimmer effect
+                const currentAlpha = lifeRatio * shimmer;
+
+                // Gentle upward movement with slight deceleration
+                const ageRatio = (p.initialLifetime - lifetimeRemaining) / p.initialLifetime;
+                const decelerationFactor = 1.0 - (ageRatio * 0.3); // Slow down over time
+
+                p.x += p.vx * deltaTimeFactor * decelerationFactor;
+                p.y += p.vy * deltaTimeFactor * decelerationFactor;
+                p.lifetime = lifetimeRemaining;
+                p.alpha = Math.max(0, Math.min(1, currentAlpha));
+
+                if (p.alpha > 0.01) {
+                    currentParticles[liveParticleCount++] = p;
+                }
+            }
+            currentParticles.length = liveParticleCount;
+
+            const newGeneratedParticles: Particle[] = [];
+
+            // Helper function to generate sparkles for a resource type
+            const generateSparklesForResource = (
+                resources: Map<string, any>,
+                resourceType: keyof typeof RESOURCE_HEIGHTS,
+                prefix: string
+            ) => {
+                if (!resources) return;
+
+                resources.forEach((resource, resourceId) => {
+                    // Only generate sparkles for harvestable resources (not respawning)
+                    if (resource.respawnAt !== null && resource.respawnAt !== undefined) {
+                        // Reset accumulator for respawning resources
+                        emissionAccumulatorRef.current.set(`${prefix}_${resourceId}`, 0);
+                        return;
+                    }
+
+                    let acc = emissionAccumulatorRef.current.get(`${prefix}_${resourceId}`) || 0;
+                    acc += SPARKLES_PER_RESOURCE_FRAME * deltaTimeFactor;
+
+                    while (acc >= 1) {
+                        acc -= 1;
+                        const lifetime = SPARKLE_PARTICLE_LIFETIME_MIN + Math.random() * (SPARKLE_PARTICLE_LIFETIME_MAX - SPARKLE_PARTICLE_LIFETIME_MIN);
+                        
+                        // Calculate sparkle emission position at the bottom of the resource
+                        const resourceHeight = RESOURCE_HEIGHTS[resourceType];
+                        const visualAdjustment = RESOURCE_VISUAL_ADJUSTMENTS[resourceType];
+                        
+                        // Start sparkles from the base/bottom area of the resource
+                        const sparkleStartX = resource.posX + (Math.random() - 0.5) * (resourceHeight * 0.6); // Width spread
+                        const sparkleStartY = resource.posY - (visualAdjustment * 0.3) + (Math.random() - 0.5) * 8; // Near bottom with slight variation
+
+                        newGeneratedParticles.push({
+                            id: `sparkle_${prefix}_${resourceId}_${now}_${Math.random()}`,
+                            type: 'fire', // Reuse fire type for rendering
+                            x: sparkleStartX,
+                            y: sparkleStartY,
+                            vx: (Math.random() - 0.5) * SPARKLE_PARTICLE_SPEED_X_SPREAD,
+                            vy: SPARKLE_PARTICLE_SPEED_Y_MIN + Math.random() * (SPARKLE_PARTICLE_SPEED_Y_MAX - SPARKLE_PARTICLE_SPEED_Y_MIN),
+                            spawnTime: now,
+                            initialLifetime: lifetime,
+                            lifetime,
+                            size: Math.floor(SPARKLE_PARTICLE_SIZE_MIN + Math.random() * (SPARKLE_PARTICLE_SIZE_MAX - SPARKLE_PARTICLE_SIZE_MIN)) + 1,
+                            color: SPARKLE_PARTICLE_COLORS[Math.floor(Math.random() * SPARKLE_PARTICLE_COLORS.length)],
+                            alpha: 1.0,
+                        });
+                    }
+                    emissionAccumulatorRef.current.set(`${prefix}_${resourceId}`, acc);
+                });
+            };
+
+            // Generate sparkles for each resource type
+            generateSparklesForResource(mushrooms, 'mushroom', 'mushroom');
+            generateSparklesForResource(corns, 'corn', 'corn');
+            generateSparklesForResource(potatoes, 'potato', 'potato');
+            generateSparklesForResource(pumpkins, 'pumpkin', 'pumpkin');
+            generateSparklesForResource(hemps, 'hemp', 'hemp');
+            generateSparklesForResource(reeds, 'reed', 'reed');
+
+            // Add newly generated particles
+            if (newGeneratedParticles.length > 0) {
+                particlesRef.current = currentParticles.concat(newGeneratedParticles);
+            } else {
+                particlesRef.current = currentParticles;
+            }
+
+            // Continue the animation loop
+            animationFrameRef.current = requestAnimationFrame(updateParticles);
+        };
+
+        // Start the independent particle update loop
+        lastUpdateTimeRef.current = performance.now();
+        animationFrameRef.current = requestAnimationFrame(updateParticles);
+
+        return () => {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [mushrooms, corns, potatoes, pumpkins, hemps, reeds]);
+
+    return particlesRef.current;
+} 

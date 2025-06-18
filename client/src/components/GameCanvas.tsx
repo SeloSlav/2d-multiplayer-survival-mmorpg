@@ -46,6 +46,7 @@ import { useEntityFiltering } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
 import { useTorchParticles } from '../hooks/useTorchParticles';
+import { useResourceSparkleParticles } from '../hooks/useResourceSparkleParticles';
 import { useCloudInterpolation, InterpolatedCloudData } from '../hooks/useCloudInterpolation';
 import { useGrassInterpolation, InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 import { useArrowBreakEffects } from '../hooks/useArrowBreakEffects';
@@ -376,23 +377,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     placementInfo,
     placementActions,
     worldMousePos,
-    closestInteractableMushroomId,
-    closestInteractableCornId,
-    closestInteractablePotatoId,
-    closestInteractablePumpkinId,
-    closestInteractableHempId,
-    closestInteractableReedId,
-    closestInteractableCampfireId: closestInteractableCampfireId as any,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId: closestInteractableBoxId as any,
-    isClosestInteractableBoxEmpty,
+    
+    // UNIFIED INTERACTION TARGET - single source of truth
+    closestInteractableTarget,
+    
+    // Essential entity maps for validation and data lookup
     woodenStorageBoxes,
-    closestInteractableCorpseId,
-    closestInteractableStashId: closestInteractableStashId as any,
     stashes,
-    closestInteractableKnockedOutPlayerId,
     players,
-    closestInteractableWaterPosition,
+    
     onSetInteractingWith: onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -573,6 +566,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     itemDefinitions,
     projectiles,
     deltaTime: 0 // Not used anymore, but kept for compatibility
+  });
+
+  // Resource sparkle particle effects - shows sparkles on harvestable resources (viewport-culled)
+  const resourceSparkleParticles = useResourceSparkleParticles({
+    mushrooms: visibleMushroomsMap,
+    corns: visibleCornsMap,
+    potatoes: visiblePotatoesMap,
+    pumpkins: visiblePumpkinsMap,
+    hemps: visibleHempsMap,
+    reeds: visibleReedsMap,
   });
 
   // Simple particle renderer function
@@ -783,6 +786,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       renderParticlesToCanvas(ctx, campfireParticles);
       renderParticlesToCanvas(ctx, torchParticles);
       renderParticlesToCanvas(ctx, fireArrowParticles);
+      renderParticlesToCanvas(ctx, resourceSparkleParticles);
 
       // Render cut grass effects
       renderCutGrassEffects(ctx, now_ms);
@@ -862,7 +866,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'wooden_storage_box' | 'stash' | 'player_corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'box' | 'stash' | 'corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
       // If holdInteractionProgress is null (meaning no interaction is even being tracked by the state object),
       // or if the entity is not in view, do nothing.
       if (!isInView || !holdInteractionProgress) {
@@ -906,8 +910,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     visibleBoxesMap.forEach((box: SpacetimeDBWoodenStorageBox) => {
       // For boxes, the indicator is only relevant if a hold action is in progress (e.g., picking up an empty box)
-      if (holdInteractionProgress && holdInteractionProgress.targetId === box.id && holdInteractionProgress.targetType === 'wooden_storage_box') {
-        drawIndicatorIfNeeded('wooden_storage_box', box.id, box.posX, box.posY, BOX_HEIGHT, true);
+      if (holdInteractionProgress && holdInteractionProgress.targetId === box.id && holdInteractionProgress.targetType === 'box') {
+        drawIndicatorIfNeeded('box', box.id, box.posX, box.posY, BOX_HEIGHT, true);
       }
     });
 
@@ -1034,6 +1038,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     shelterImageRef.current,
     minimapCache,
     worldTiles,
+    visibleMushroomsMap, visibleCornsMap, visiblePotatoesMap, visiblePumpkinsMap, visibleHempsMap, visibleReedsMap, // Viewport-culled resource maps for sparkles
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {

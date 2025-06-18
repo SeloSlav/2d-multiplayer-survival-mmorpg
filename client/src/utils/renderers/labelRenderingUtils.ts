@@ -345,8 +345,10 @@ export function renderInteractionLabels({
         case 'stash': {
             const stash = stashes.get(closestInteractableTarget.id.toString());
             if (stash) {
+                const STASH_HEIGHT = 40;
                 textX = stash.posX;
-                textY = stash.posY - 30;
+                // Position label at the top of the visual center area (same as outline positioning)
+                textY = stash.posY - (STASH_HEIGHT / 2) - 30; // Visual center minus half outline height minus label offset
                 renderStyledInteractionLabel(ctx, text, textX, textY);
             }
             break;

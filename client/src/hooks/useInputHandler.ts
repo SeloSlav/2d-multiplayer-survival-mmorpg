@@ -7,6 +7,19 @@ import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { JUMP_DURATION_MS, JUMP_HEIGHT_PX, HOLD_INTERACTION_DURATION_MS } from '../config/gameConfig'; // <<< ADDED IMPORT
 import { isPlacementTooFar } from '../utils/renderers/placementRenderingUtils';
+import { 
+    InteractableTarget, 
+    InteractionTargetType,
+    isTapInteraction, 
+    isHoldInteraction, 
+    isInterfaceInteraction,
+    getHoldDuration,
+    hasSecondaryHoldAction,
+    getSecondaryHoldDuration,
+    getActionType,
+    formatTargetForLogging,
+    isTargetValid
+} from '../types/interactions';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -27,23 +40,15 @@ interface InputHandlerProps {
     placementInfo: PlacementItemInfo | null;
     placementActions: PlacementActions;
     worldMousePos: { x: number | null; y: number | null };
-    closestInteractableMushroomId: bigint | null;
-    closestInteractableCornId: bigint | null;
-    closestInteractablePotatoId: bigint | null;
-    closestInteractablePumpkinId: bigint | null;
-    closestInteractableHempId: bigint | null;
-    closestInteractableReedId: bigint | null;
-    closestInteractableCampfireId: number | null;
-    closestInteractableDroppedItemId: bigint | null;
-    closestInteractableBoxId: number | null;
-    isClosestInteractableBoxEmpty: boolean;
+    
+    // UNIFIED INTERACTION TARGET - replaces all individual closestInteractable* props
+    closestInteractableTarget: InteractableTarget | null;
+    
+    // Keep only essential maps that contain entity details needed for validation
     woodenStorageBoxes: Map<string, WoodenStorageBox>;
-    closestInteractableCorpseId: bigint | null;
-    closestInteractableStashId: number | null;
     stashes: Map<string, Stash>;
-    closestInteractableKnockedOutPlayerId: string | null;
     players: Map<string, Player>;
-    closestInteractableWaterPosition: { x: number; y: number } | null;
+    
     onSetInteractingWith: (target: any | null) => void;
     isMinimapOpen: boolean;
     setIsMinimapOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -69,7 +74,7 @@ export interface InputHandlerState {
 
 interface InteractionProgressState {
     targetId: number | bigint | string | null;
-    targetType: 'campfire' | 'wooden_storage_box' | 'stash' | 'knocked_out_player' | 'water'; // Added 'water'
+    targetType: InteractionTargetType;
     startTime: number;
 }
 
@@ -101,30 +106,22 @@ export const useInputHandler = ({
     placementInfo,
     placementActions,
     worldMousePos,
-    closestInteractableMushroomId,
-    closestInteractableCornId,
-    closestInteractablePotatoId,
-    closestInteractablePumpkinId,
-    closestInteractableHempId,
-    closestInteractableReedId,
-    closestInteractableCampfireId,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId,
-    isClosestInteractableBoxEmpty,
-    woodenStorageBoxes, // <<< ADDED
-    closestInteractableCorpseId,
-    closestInteractableStashId, // Changed from bigint to number for Stash ID
-    stashes, // Added stashes map
-    closestInteractableKnockedOutPlayerId, // Added for knocked out player
-    players, // Added players map for knocked out revive
-    closestInteractableWaterPosition,
+    
+    // UNIFIED INTERACTION TARGET - single source of truth
+    closestInteractableTarget,
+    
+    // Essential entity maps for validation
+    woodenStorageBoxes,
+    stashes,
+    players,
+    
     onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
     isChatting,
     isSearchingCraftRecipes,
-    isInventoryOpen, // Destructure new prop
-    isGameMenuOpen, // Destructure new prop
+    isInventoryOpen,
+    isGameMenuOpen,
     isFishing,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
@@ -158,22 +155,9 @@ export const useInputHandler = ({
     const connectionRef = useRef(connection);
     const localPlayerRef = useRef(localPlayer);
     const activeEquipmentsRef = useRef(activeEquipments);
-    const closestIdsRef = useRef({
-        mushroom: null as bigint | null,
-        corn: null as bigint | null,
-        potato: null as bigint | null,
-        pumpkin: null as bigint | null,
-        hemp: null as bigint | null,
-        reed: null as bigint | null,
-        campfire: null as number | null,
-        droppedItem: null as bigint | null,
-        box: null as number | null,
-        boxEmpty: false,
-        corpse: null as bigint | null,
-        stash: null as number | null,
-        knockedOutPlayer: null as string | null, // Added for knocked out player
-        water: null as { x: number; y: number } | null, // NEW: Water position for drinking
-    });
+    // UNIFIED TARGET REF - single source of truth for current interaction target
+    // NOTE: This will be null until parent components are updated to pass closestInteractableTarget prop
+    const closestTargetRef = useRef<InteractableTarget | null>(null);
     const onSetInteractingWithRef = useRef(onSetInteractingWith);
     const worldMousePosRefInternal = useRef(worldMousePos); // Shadow prop name
     const woodenStorageBoxesRef = useRef(woodenStorageBoxes); // <<< ADDED Ref
@@ -213,39 +197,10 @@ export const useInputHandler = ({
     useEffect(() => { connectionRef.current = connection; }, [connection]);
     useEffect(() => { localPlayerRef.current = localPlayer; }, [localPlayer]);
     useEffect(() => { activeEquipmentsRef.current = activeEquipments; }, [activeEquipments]);
+    // Update closest target ref when target changes
     useEffect(() => {
-        closestIdsRef.current = {
-            mushroom: closestInteractableMushroomId,
-            corn: closestInteractableCornId,
-            potato: closestInteractablePotatoId,
-            pumpkin: closestInteractablePumpkinId,
-            hemp: closestInteractableHempId,
-            reed: closestInteractableReedId,
-            campfire: closestInteractableCampfireId,
-            droppedItem: closestInteractableDroppedItemId,
-            box: closestInteractableBoxId,
-            boxEmpty: isClosestInteractableBoxEmpty,
-            corpse: closestInteractableCorpseId,
-            stash: closestInteractableStashId, // Changed from bigint to number for Stash ID
-            knockedOutPlayer: closestInteractableKnockedOutPlayerId, // Added for knocked out player
-            water: closestInteractableWaterPosition, // NEW: Water position for drinking
-        };
-    }, [
-        closestInteractableMushroomId,
-        closestInteractableCornId,
-        closestInteractablePotatoId,
-        closestInteractablePumpkinId,
-        closestInteractableHempId,
-        closestInteractableReedId,
-        closestInteractableCampfireId,
-        closestInteractableDroppedItemId,
-        closestInteractableBoxId,
-        isClosestInteractableBoxEmpty,
-        closestInteractableCorpseId,
-        closestInteractableStashId, // Changed from bigint to number for Stash ID
-        closestInteractableKnockedOutPlayerId, // Added for knocked out player
-        closestInteractableWaterPosition, // NEW: Water position for drinking
-    ]);
+        closestTargetRef.current = closestInteractableTarget;
+    }, [closestInteractableTarget]);
     useEffect(() => { onSetInteractingWithRef.current = onSetInteractingWith; }, [onSetInteractingWith]);
     useEffect(() => { worldMousePosRefInternal.current = worldMousePos; }, [worldMousePos]);
     useEffect(() => { woodenStorageBoxesRef.current = woodenStorageBoxes; }, [woodenStorageBoxes]); // <<< ADDED Effect
@@ -258,68 +213,67 @@ export const useInputHandler = ({
 
     // --- Timer Management Functions (Outside of useEffect to avoid cleanup issues) ---
     const startHoldTimer = useCallback((holdTarget: InteractionProgressState, connection: DbConnection) => {
-        const duration = holdTarget.targetType === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
+        // Calculate duration based on target type using helper functions
+        const currentTarget = closestTargetRef.current;
+        const duration = currentTarget && holdTarget.targetType === 'knocked_out_player' ? 
+            getHoldDuration(currentTarget) : 
+            currentTarget && hasSecondaryHoldAction(currentTarget) ? 
+                getSecondaryHoldDuration(currentTarget) : 
+                HOLD_INTERACTION_DURATION_MS;
 
         console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
         const timerId = setTimeout(() => {
             try {
                 // console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
                 // Timer fired, so this is a successful HOLD action.
-                // Re-check if we are still close to the original target.
-                const stillClosest = closestIdsRef.current;
-                // console.log(`[E-Timer] stillClosest check:`, stillClosest);
+                // Re-check if we are still close to the original target using unified system
+                const currentTarget = closestTargetRef.current;
+                console.log(`[E-Timer] Current target check:`, currentTarget ? formatTargetForLogging(currentTarget) : 'null');
 
                 let actionTaken = false;
 
-                switch (holdTarget.targetType) {
-                    case 'knocked_out_player':
-                        if (stillClosest.knockedOutPlayer === holdTarget.targetId) {
+                // Validate that we still have the same target
+                const targetStillValid = currentTarget && 
+                    currentTarget.type === holdTarget.targetType && 
+                    currentTarget.id === holdTarget.targetId &&
+                    isTargetValid(currentTarget);
+
+                if (targetStillValid) {
+                    switch (holdTarget.targetType) {
+                        case 'knocked_out_player':
                             console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
                             connection.reducers.reviveKnockedOutPlayer(Identity.fromString(holdTarget.targetId as string));
                             actionTaken = true;
-                        } else {
-                            console.log('[E-Hold FAILED] No longer closest to knocked out player. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.knockedOutPlayer);
-                        }
-                        break;
-                    case 'water':
-                        if (stillClosest.water !== null) {
-                            console.log('[E-Hold ACTION] Attempting to drink water at position:', stillClosest.water);
+                            break;
+                        case 'water':
+                            console.log('[E-Hold ACTION] Attempting to drink water');
                             connection.reducers.drinkWater();
                             actionTaken = true;
-                        } else {
-                            console.log('[E-Hold FAILED] No longer near water. Water position is null.');
-                        }
-                        break;
-                    case 'campfire':
-                        if (stillClosest.campfire === holdTarget.targetId) {
-                            // console.log(`[E-Timer] *** EXECUTING CAMPFIRE ACTION *** ID:`, holdTarget.targetId);
+                            break;
+                        case 'campfire':
+                            console.log('[E-Hold ACTION] Attempting to toggle campfire burning:', holdTarget.targetId);
                             connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
                             actionTaken = true;
-                            // console.log(`[E-Timer] Campfire action completed successfully`);
-                        } else {
-                            // console.log(`[E-Timer] FAILED - No longer closest to campfire. Expected:`, holdTarget.targetId, 'Actual closest:', stillClosest.campfire);
-                        }
-                        break;
-                    case 'wooden_storage_box':
-                        if (stillClosest.box === holdTarget.targetId && stillClosest.boxEmpty) {
-                            console.log('[E-Hold ACTION] Attempting to pickup storage box:', holdTarget.targetId);
-                            connection.reducers.pickupStorageBox(Number(holdTarget.targetId));
-                            actionTaken = true;
-                        } else {
-                            console.log('[E-Hold FAILED] Storage box conditions not met. Expected ID:', holdTarget.targetId, 'Actual closest:', stillClosest.box, 'Is empty:', stillClosest.boxEmpty);
-                        }
-                        break;
-                    case 'stash':
-                        if (stillClosest.stash === holdTarget.targetId) {
+                            break;
+                        case 'box':
+                            if (currentTarget.data?.isEmpty) {
+                                console.log('[E-Hold ACTION] Attempting to pickup storage box:', holdTarget.targetId);
+                                connection.reducers.pickupStorageBox(Number(holdTarget.targetId));
+                                actionTaken = true;
+                            } else {
+                                console.log('[E-Hold FAILED] Storage box is no longer empty');
+                            }
+                            break;
+                        case 'stash':
                             console.log('[E-Hold ACTION] Attempting to toggle stash visibility:', holdTarget.targetId);
                             connection.reducers.toggleStashVisibility(Number(holdTarget.targetId));
                             actionTaken = true;
-                        } else {
-                            console.log('[E-Hold FAILED] No longer closest to stash. Expected:', holdTarget.targetId, 'Actual closest:', stillClosest.stash);
-                        }
-                        break;
-                    default:
-                        console.log('[E-Hold FAILED] Unknown target type:', holdTarget.targetType);
+                            break;
+                        default:
+                            console.log('[E-Hold FAILED] Unknown target type:', holdTarget.targetType);
+                    }
+                } else {
+                    console.log('[E-Hold FAILED] Target no longer valid. Expected:', holdTarget.targetType, holdTarget.targetId, 'Current:', currentTarget ? formatTargetForLogging(currentTarget) : 'null');
                 }
 
                 // Clean up UI and state
@@ -510,30 +464,57 @@ export const useInputHandler = ({
                 const currentConnection = connectionRef.current;
                 if (!currentConnection?.reducers) return;
 
-                const closest = closestIdsRef.current;
-                console.log('[E-KeyDown] Current closest targets:', closest);
+                const currentTarget = closestTargetRef.current;
+                console.log('[E-KeyDown] Current target:', currentTarget ? formatTargetForLogging(currentTarget) : 'null');
 
                 // Set up a timer for ANY potential hold action.
                 // The keyUp handler will decide if it was a tap or a hold.
 
-                // Determine the highest priority holdable target
+                // Determine if current target supports hold actions
                 let holdTarget: InteractionProgressState | null = null;
-                if (closest.knockedOutPlayer) {
-                    holdTarget = { targetId: closest.knockedOutPlayer, targetType: 'knocked_out_player', startTime: eKeyDownTimestampRef.current };
-                    console.log('[E-KeyDown] Setting up knocked out player hold target:', holdTarget);
-                } else if (closest.water) {
-                    holdTarget = { targetId: 'water', targetType: 'water', startTime: eKeyDownTimestampRef.current };
-                    console.log('[E-KeyDown] Setting up water drinking hold target:', holdTarget);
-                } else if (closest.campfire) {
-                    holdTarget = { targetId: closest.campfire, targetType: 'campfire', startTime: eKeyDownTimestampRef.current };
-                } else if (closest.box && closest.boxEmpty) {
-                    holdTarget = { targetId: closest.box, targetType: 'wooden_storage_box', startTime: eKeyDownTimestampRef.current };
-                } else if (closest.stash) {
-                    holdTarget = { targetId: closest.stash, targetType: 'stash', startTime: eKeyDownTimestampRef.current };
+                
+                if (currentTarget && isTargetValid(currentTarget)) {
+                    console.log('[E-KeyDown] Valid target found:', formatTargetForLogging(currentTarget));
+                    
+                    // Check for hold-first targets (highest priority)
+                    if (isHoldInteraction(currentTarget)) {
+                        holdTarget = { 
+                            targetId: currentTarget.id, 
+                            targetType: currentTarget.type,
+                            startTime: eKeyDownTimestampRef.current 
+                        };
+                        console.log('[E-KeyDown] Setting up primary hold target:', holdTarget);
+                    } 
+                    // Check for secondary hold actions (interface targets that also support hold)
+                    else if (hasSecondaryHoldAction(currentTarget)) {
+                        holdTarget = { 
+                            targetId: currentTarget.id, 
+                            targetType: currentTarget.type,
+                            startTime: eKeyDownTimestampRef.current 
+                        };
+                        console.log('[E-KeyDown] Setting up secondary hold target:', holdTarget, 'isEmpty:', currentTarget.data?.isEmpty);
+                    }
+                    // If no hold action is available, we'll handle tap action on keyUp
+                    else {
+                        console.log('[E-KeyDown] Target supports tap interaction only:', getActionType(currentTarget));
+                    }
+                } else {
+                    if (!currentTarget) {
+                        console.log('[E-KeyDown] No target available for interaction (waiting for parent components to pass closestInteractableTarget prop)');
+                    } else {
+                        console.log('[E-KeyDown] Target is invalid:', formatTargetForLogging(currentTarget));
+                    }
                 }
 
-                if (holdTarget) {
-                    console.log('[E-Hold START]', { holdTarget });
+                if (holdTarget && currentTarget) {
+                    const expectedDuration = currentTarget.type === 'knocked_out_player' ? 
+                        getHoldDuration(currentTarget) : 
+                        getSecondaryHoldDuration(currentTarget);
+                        
+                    console.log('[E-Hold START]', { 
+                        holdTarget,
+                        expectedDuration
+                    });
                     setInteractionProgress(holdTarget);
                     setIsActivelyHolding(true);
 
@@ -552,11 +533,8 @@ export const useInputHandler = ({
             if (key === 'e') {
                 if (isEHeldDownRef.current) { // Check if E was being held for an interaction
                     const holdDuration = Date.now() - eKeyDownTimestampRef.current;
-                    const RETAINED_CLOSEST_STASH_ID = closestIdsRef.current.stash;
-                    const RETAINED_CLOSEST_CORPSE_ID = closestIdsRef.current.corpse;
-                    const RETAINED_CLOSEST_BOX_ID = closestIdsRef.current.box;
-                    const RETAINED_CLOSEST_CAMPFIRE_ID = closestIdsRef.current.campfire;
-                    const RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID = closestIdsRef.current.knockedOutPlayer;
+                                            // Get the current target for tap action processing
+                        const currentTarget = closestTargetRef.current;
 
                     // Always clear the timer if it exists (in case keyUp happens before timer fires)
                     console.log(`[E-KeyUp] Timer ref state: ${eKeyHoldTimerRef.current} (holdDuration: ${holdDuration}ms)`);
@@ -578,20 +556,16 @@ export const useInputHandler = ({
                     // Also ensure isActivelyHolding is false if E key is up and was part of a hold
                     setIsActivelyHolding(false);
 
-                    // Check if it was a TAP or HOLD based on duration
-                    const expectedDuration = RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID ? REVIVE_HOLD_DURATION_MS : HOLD_INTERACTION_DURATION_MS;
+                    // Check if it was a TAP or HOLD based on duration and target type
+                    const expectedDuration = currentTarget?.type === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : 
+                                            currentTarget && hasSecondaryHoldAction(currentTarget) ? getSecondaryHoldDuration(currentTarget) :
+                                            HOLD_INTERACTION_DURATION_MS;
 
                     console.log('[E-KeyUp] Processing hold/tap decision:', {
                         holdDuration,
                         expectedDuration,
                         wasLongEnough: holdDuration >= expectedDuration,
-                        hasClosestIds: {
-                            campfire: RETAINED_CLOSEST_CAMPFIRE_ID,
-                            box: RETAINED_CLOSEST_BOX_ID,
-                            stash: RETAINED_CLOSEST_STASH_ID,
-                            corpse: RETAINED_CLOSEST_CORPSE_ID,
-                            knockedOut: RETAINED_CLOSEST_KNOCKED_OUT_PLAYER_ID
-                        }
+                        currentTarget: currentTarget ? formatTargetForLogging(currentTarget) : 'null'
                     });
 
                     if (holdDuration >= expectedDuration) {
@@ -602,66 +576,90 @@ export const useInputHandler = ({
                         console.log('[E-KeyUp] Processing as TAP interaction');
                         let tapActionTaken = false;
 
-                        // Get the retained closest IDs for harvesting/pickup
-                        const RETAINED_CLOSEST_MUSHROOM_ID = closestIdsRef.current.mushroom;
-                        const RETAINED_CLOSEST_CORN_ID = closestIdsRef.current.corn;
-                        const RETAINED_CLOSEST_POTATO_ID = closestIdsRef.current.potato;
-                        const RETAINED_CLOSEST_PUMPKIN_ID = closestIdsRef.current.pumpkin;
-                        const RETAINED_CLOSEST_HEMP_ID = closestIdsRef.current.hemp;
-                        const RETAINED_CLOSEST_REED_ID = closestIdsRef.current.reed;
-                        const RETAINED_CLOSEST_DROPPED_ITEM_ID = closestIdsRef.current.droppedItem;
-
-                        // Handle harvest/pickup actions FIRST (these are the main tap actions)
-                        if (connectionRef.current?.reducers) {
-                            if (RETAINED_CLOSEST_MUSHROOM_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting mushroom:', RETAINED_CLOSEST_MUSHROOM_ID);
-                                connectionRef.current.reducers.interactWithMushroom(RETAINED_CLOSEST_MUSHROOM_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_CORN_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting corn:', RETAINED_CLOSEST_CORN_ID);
-                                connectionRef.current.reducers.interactWithCorn(RETAINED_CLOSEST_CORN_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_POTATO_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting potato:', RETAINED_CLOSEST_POTATO_ID);
-                                connectionRef.current.reducers.interactWithPotato(RETAINED_CLOSEST_POTATO_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_PUMPKIN_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting pumpkin:', RETAINED_CLOSEST_PUMPKIN_ID);
-                                connectionRef.current.reducers.interactWithPumpkin(RETAINED_CLOSEST_PUMPKIN_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_HEMP_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting hemp:', RETAINED_CLOSEST_HEMP_ID);
-                                connectionRef.current.reducers.interactWithHemp(RETAINED_CLOSEST_HEMP_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_REED_ID !== null) {
-                                console.log('[E-Tap ACTION] Harvesting reed:', RETAINED_CLOSEST_REED_ID);
-                                connectionRef.current.reducers.interactWithReed(RETAINED_CLOSEST_REED_ID);
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_DROPPED_ITEM_ID !== null) {
-                                console.log('[E-Tap ACTION] Picking up dropped item:', RETAINED_CLOSEST_DROPPED_ITEM_ID);
-                                connectionRef.current.reducers.pickupDroppedItem(RETAINED_CLOSEST_DROPPED_ITEM_ID);
-                                tapActionTaken = true;
+                        // Handle tap actions using unified target system
+                        if (connectionRef.current?.reducers && currentTarget && isTargetValid(currentTarget)) {
+                            console.log('[E-Tap ACTION] Processing tap for:', formatTargetForLogging(currentTarget));
+                            
+                            // Handle immediate tap actions (harvest/pickup)
+                            if (isTapInteraction(currentTarget)) {
+                                switch (currentTarget.type) {
+                                    case 'mushroom':
+                                        console.log('[E-Tap ACTION] Harvesting mushroom:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithMushroom(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'corn':
+                                        console.log('[E-Tap ACTION] Harvesting corn:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithCorn(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'potato':
+                                        console.log('[E-Tap ACTION] Harvesting potato:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithPotato(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'pumpkin':
+                                        console.log('[E-Tap ACTION] Harvesting pumpkin:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithPumpkin(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'hemp':
+                                        console.log('[E-Tap ACTION] Harvesting hemp:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithHemp(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'reed':
+                                        console.log('[E-Tap ACTION] Harvesting reed:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithReed(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'dropped_item':
+                                        console.log('[E-Tap ACTION] Picking up dropped item:', currentTarget.id);
+                                        connectionRef.current.reducers.pickupDroppedItem(currentTarget.id as bigint);
+                                        tapActionTaken = true;
+                                        break;
+                                }
                             }
-                            // Handle interface opening actions SECOND (for containers/interactables)
-                            else if (RETAINED_CLOSEST_CAMPFIRE_ID) {
-                                console.log('[E-Tap ACTION] Opening campfire interface:', RETAINED_CLOSEST_CAMPFIRE_ID);
-                                onSetInteractingWith({ type: 'campfire', id: RETAINED_CLOSEST_CAMPFIRE_ID });
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_BOX_ID) {
-                                console.log('[E-Tap ACTION] Opening box interface:', RETAINED_CLOSEST_BOX_ID);
-                                onSetInteractingWith({ type: 'wooden_storage_box', id: RETAINED_CLOSEST_BOX_ID });
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_STASH_ID) {
-                                console.log('[E-Tap ACTION] Opening stash interface:', RETAINED_CLOSEST_STASH_ID);
-                                onSetInteractingWith({ type: 'stash', id: RETAINED_CLOSEST_STASH_ID });
-                                tapActionTaken = true;
-                            } else if (RETAINED_CLOSEST_CORPSE_ID) {
-                                console.log('[E-Tap ACTION] Opening corpse interface:', RETAINED_CLOSEST_CORPSE_ID);
-                                onSetInteractingWith({ type: 'player_corpse', id: RETAINED_CLOSEST_CORPSE_ID });
-                                tapActionTaken = true;
+                            // Handle interface opening actions for containers/interactables
+                            else if (isInterfaceInteraction(currentTarget)) {
+                                switch (currentTarget.type) {
+                                    case 'campfire':
+                                        console.log('[E-Tap ACTION] Opening campfire interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'campfire', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'box':
+                                        console.log('[E-Tap ACTION] Opening box interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'wooden_storage_box', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'stash':
+                                        console.log('[E-Tap ACTION] Opening stash interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'stash', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'corpse':
+                                        console.log('[E-Tap ACTION] Opening corpse interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'player_corpse', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'sleeping_bag':
+                                        console.log('[E-Tap ACTION] Opening sleeping bag interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'sleeping_bag', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                }
                             }
                         } else {
-                            console.warn('[E-Tap ACTION] No connection/reducers available for tap actions');
+                            if (!connectionRef.current?.reducers) {
+                                console.warn('[E-Tap ACTION] No connection/reducers available');
+                            } else if (!currentTarget) {
+                                console.log('[E-Tap ACTION] No target available for interaction');
+                            } else if (!isTargetValid(currentTarget)) {
+                                console.warn('[E-Tap ACTION] Target is invalid:', formatTargetForLogging(currentTarget));
+                            } else {
+                                console.warn('[E-Tap ACTION] Unknown reason for action failure');
+                            }
                         }
 
                         console.log('[E-KeyUp] TAP processing complete. Action taken:', tapActionTaken);
@@ -1162,9 +1160,7 @@ export const useInputHandler = ({
     }, [
         isPlayerDead, attemptSwing, placementInfo,
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
-        closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
-        closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId,
-        isClosestInteractableBoxEmpty, onSetInteractingWith,
+        closestInteractableTarget, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen,
         isAutoAttacking, isFishing
     ]);

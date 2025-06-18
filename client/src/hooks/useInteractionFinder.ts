@@ -16,6 +16,7 @@ import {
     Shelter as SpacetimeDBShelter,
     DbConnection,
 } from '../generated';
+import { InteractableTarget } from '../types/interactions';
 import {
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
     CAMPFIRE_HEIGHT,
@@ -60,15 +61,6 @@ interface UseInteractionFinderProps {
 }
 
 // Define the hook's return type
-// Single unified interactable target
-interface InteractableTarget {
-    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
-    id: bigint | number | string;
-    position: { x: number; y: number };
-    distance: number;
-    // Box-specific data
-    isEmpty?: boolean;
-}
 
 interface UseInteractionFinderResult {
     // Single closest target across all types
@@ -618,7 +610,9 @@ export function useInteractionFinder({
                     id: closestBoxId,
                     position: { x: 0, y: 0 },
                     distance: Math.sqrt(closestBoxDistSq),
-                    isEmpty: isClosestBoxEmpty
+                    data: {
+                        isEmpty: isClosestBoxEmpty
+                    }
                 });
             }
             if (closestCorpse) {

@@ -472,8 +472,9 @@ export const renderYSortedEntities = ({
             // Draw outline only if this is THE closest interactable target
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
-                // Use circular outline for stashes since they're small and round
-                drawCircularInteractionOutline(ctx, stash.posX, stash.posY, 24, cycleProgress, outlineColor);
+                // Use square outline like other entities, positioned at visual center (higher up)
+                const STASH_HEIGHT = 40;
+                drawInteractionOutline(ctx, stash.posX, stash.posY - (STASH_HEIGHT / 2), 48, 48, cycleProgress, outlineColor);
             }
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
