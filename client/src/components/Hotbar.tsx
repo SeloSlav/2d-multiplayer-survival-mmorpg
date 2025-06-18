@@ -55,6 +55,19 @@ interface HotbarProps {
   isGameMenuOpen?: boolean;
 }
 
+// Add tooltip interface
+interface TooltipState {
+  visible: boolean;
+  content: {
+    name: string;
+    quantity: number;
+  } | null;
+  position: {
+    x: number;
+    y: number;
+  };
+}
+
 // --- Hotbar Component ---
 const Hotbar: React.FC<HotbarProps> = ({
     playerIdentity,
@@ -87,6 +100,13 @@ const Hotbar: React.FC<HotbarProps> = ({
   const [weaponCooldownProgress, setWeaponCooldownProgress] = useState<number>(0);
   const [weaponCooldownDuration, setWeaponCooldownDuration] = useState<number>(1000);
   const [weaponCooldownSlot, setWeaponCooldownSlot] = useState<number | null>(null);
+  
+  // Tooltip state
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    content: null,
+    position: { x: 0, y: 0 }
+  });
   
   const visualCooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -860,6 +880,39 @@ const Hotbar: React.FC<HotbarProps> = ({
     });
   }, [numSlots, activateHotbarSlot, isGameMenuOpen]); // activateHotbarSlot is a dependency
 
+  // Tooltip handlers
+  const handleSlotMouseEnter = useCallback((slotIndex: number, event: React.MouseEvent) => {
+    const item = findItemForSlot(slotIndex);
+    if (!item) return;
+
+    const slotElement = event.currentTarget as HTMLElement;
+    const rect = slotElement.getBoundingClientRect();
+    
+    // Position tooltip to the left of the slot, similar to status bar panel
+    const tooltipX = rect.left - 10; // 10px gap from slot
+    const tooltipY = rect.top + (rect.height / 2); // Center vertically with slot
+
+    setTooltip({
+      visible: true,
+      content: {
+        name: item.definition.name,
+        quantity: item.instance.quantity
+      },
+      position: {
+        x: tooltipX,
+        y: tooltipY
+      }
+    });
+  }, [findItemForSlot]);
+
+  const handleSlotMouseLeave = useCallback(() => {
+    setTooltip({
+      visible: false,
+      content: null,
+      position: { x: 0, y: 0 }
+    });
+  }, []);
+
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('wheel', handleWheel, { passive: false }); // Add wheel listener, not passive
@@ -904,115 +957,121 @@ const Hotbar: React.FC<HotbarProps> = ({
         const isDisabledByWater = isSlotDisabledByWater(index);
 
         return (
-          <DroppableSlot
-            key={`hotbar-${index}`}
-            slotInfo={currentSlotInfo}
-            onItemDrop={onItemDrop}
-            className={undefined}
-            onClick={() => handleSlotClick(index)}
-            style={{
-                position: 'relative',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                width: `${SLOT_SIZE}px`,
-                height: `${SLOT_SIZE}px`,
-                border: `2px solid ${index === selectedSlot ? SELECTED_BORDER_COLOR : UI_BORDER_COLOR}`,
-                backgroundColor: isDisabledByWater ? 'rgba(100, 100, 150, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-                borderRadius: '3px',
-                marginLeft: index > 0 ? `${SLOT_MARGIN}px` : '0px',
-                transition: 'border-color 0.1s ease-in-out',
-                boxSizing: 'border-box',
-                cursor: isDisabledByWater ? 'not-allowed' : 'pointer',
-                overflow: 'hidden',
-                opacity: isDisabledByWater ? 0.6 : 1.0,
-            }}
-            isDraggingOver={false}
-            overlayProgress={
-              (isVisualCooldownActive && cooldownSlot === index) ? animationProgress :
-              undefined
-            }
-            overlayColor={
-              (isVisualCooldownActive && cooldownSlot === index) ? 'rgba(0, 0, 0, 0.4)' :
-              'rgba(0, 0, 0, 0.4)'
-            }
-            overlayType={
-              (isVisualCooldownActive && cooldownSlot === index) ? 'consumable' :
-              'consumable'
-            }
+          <div
+            key={`hotbar-wrapper-${index}`}
+            onMouseEnter={(event) => handleSlotMouseEnter(index, event)}
+            onMouseLeave={handleSlotMouseLeave}
           >
-            <span
-                style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)', userSelect: 'none', pointerEvents: 'none', zIndex: 3 }}
+            <DroppableSlot
+              key={`hotbar-${index}`}
+              slotInfo={currentSlotInfo}
+              onItemDrop={onItemDrop}
+              className={undefined}
+              onClick={() => handleSlotClick(index)}
+              style={{
+                  position: 'relative',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: `${SLOT_SIZE}px`,
+                  height: `${SLOT_SIZE}px`,
+                  border: `2px solid ${index === selectedSlot ? SELECTED_BORDER_COLOR : UI_BORDER_COLOR}`,
+                  backgroundColor: isDisabledByWater ? 'rgba(100, 100, 150, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+                  borderRadius: '3px',
+                  marginLeft: index > 0 ? `${SLOT_MARGIN}px` : '0px',
+                  transition: 'border-color 0.1s ease-in-out',
+                  boxSizing: 'border-box',
+                  cursor: isDisabledByWater ? 'not-allowed' : 'pointer',
+                  overflow: 'hidden',
+                  opacity: isDisabledByWater ? 0.6 : 1.0,
+              }}
+              isDraggingOver={false}
+              overlayProgress={
+                (isVisualCooldownActive && cooldownSlot === index) ? animationProgress :
+                undefined
+              }
+              overlayColor={
+                (isVisualCooldownActive && cooldownSlot === index) ? 'rgba(0, 0, 0, 0.4)' :
+                'rgba(0, 0, 0, 0.4)'
+              }
+              overlayType={
+                (isVisualCooldownActive && cooldownSlot === index) ? 'consumable' :
+                'consumable'
+              }
             >
-              {index + 1}
-            </span>
+              <span
+                  style={{ position: 'absolute', bottom: '2px', right: '4px', fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)', userSelect: 'none', pointerEvents: 'none', zIndex: 3 }}
+              >
+                {index + 1}
+              </span>
 
-            {populatedItem && (
-                <DraggableItem
-                    key={`draggable-${index}-${isVisualCooldownActive}-${cooldownSlot}`}
-                    item={populatedItem}
-                    sourceSlot={currentSlotInfo}
-                    onItemDragStart={onItemDragStart}
-                    onItemDrop={onItemDrop}
-                    onContextMenu={(event) => handleHotbarItemContextMenu(event, populatedItem)}
-                 />
-            )}
-            {/* Debug info for consumable cooldowns */}
-            {cooldownSlot === index && (
-              <div style={{
-                position: 'absolute',
-                top: '-20px',
-                left: '0px',
-                fontSize: '8px',
-                color: 'yellow',
-                pointerEvents: 'none',
-                zIndex: 10
-              }}>
-                {isVisualCooldownActive ? `${Math.round(animationProgress * 100)}%` : 'inactive'}
-              </div>
-            )}
-            {/* Debug info for weapon cooldowns */}
-            {weaponCooldownSlot === index && (
-              <div style={{
-                position: 'absolute',
-                top: '-35px',
-                left: '0px',
-                fontSize: '8px',
-                color: 'orange',
-                pointerEvents: 'none',
-                zIndex: 10
-              }}>
-                Weapon: {isWeaponCooldownActive ? `${Math.round(weaponCooldownProgress * 100)}%` : 'inactive'}
-              </div>
-            )}
-            
-            {/* Water disabled overlay */}
-            {isDisabledByWater && (
-              <div style={{
-                position: 'absolute',
-                top: '0px',
-                left: '0px',
-                width: '100%',
-                height: '100%',
-                backgroundColor: 'rgba(100, 150, 255, 0.4)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: '2px',
-                pointerEvents: 'none',
-                zIndex: 5
-              }}>
-                <span style={{
-                  fontSize: '24px',
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                  userSelect: 'none'
+              {populatedItem && (
+                  <DraggableItem
+                      key={`draggable-${index}-${isVisualCooldownActive}-${cooldownSlot}`}
+                      item={populatedItem}
+                      sourceSlot={currentSlotInfo}
+                      onItemDragStart={onItemDragStart}
+                      onItemDrop={onItemDrop}
+                      onContextMenu={(event) => handleHotbarItemContextMenu(event, populatedItem)}
+                   />
+              )}
+              {/* Debug info for consumable cooldowns */}
+              {cooldownSlot === index && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-20px',
+                  left: '0px',
+                  fontSize: '8px',
+                  color: 'yellow',
+                  pointerEvents: 'none',
+                  zIndex: 10
                 }}>
-                  💧
-                </span>
-              </div>
-            )}
-          </DroppableSlot>
+                  {isVisualCooldownActive ? `${Math.round(animationProgress * 100)}%` : 'inactive'}
+                </div>
+              )}
+              {/* Debug info for weapon cooldowns */}
+              {weaponCooldownSlot === index && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-35px',
+                  left: '0px',
+                  fontSize: '8px',
+                  color: 'orange',
+                  pointerEvents: 'none',
+                  zIndex: 10
+                }}>
+                  Weapon: {isWeaponCooldownActive ? `${Math.round(weaponCooldownProgress * 100)}%` : 'inactive'}
+                </div>
+              )}
+              
+              {/* Water disabled overlay */}
+              {isDisabledByWater && (
+                <div style={{
+                  position: 'absolute',
+                  top: '0px',
+                  left: '0px',
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'rgba(100, 150, 255, 0.4)',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderRadius: '2px',
+                  pointerEvents: 'none',
+                  zIndex: 5
+                }}>
+                  <span style={{
+                    fontSize: '24px',
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                    userSelect: 'none'
+                  }}>
+                    💧
+                  </span>
+                </div>
+              )}
+            </DroppableSlot>
+          </div>
         );
       })}
       </div>
@@ -1078,6 +1137,37 @@ const Hotbar: React.FC<HotbarProps> = ({
           </div>
         );
       })()}
+      
+      {/* Tooltip */}
+      {tooltip.visible && tooltip.content && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: `${tooltip.position.x}px`,
+            top: `${tooltip.position.y}px`,
+            transform: 'translate(-100%, -50%)', // Position to the left and center vertically
+            backgroundColor: UI_BG_COLOR,
+            border: `1px solid ${UI_BORDER_COLOR}`,
+            borderRadius: '4px',
+            padding: '8px 12px',
+            fontFamily: UI_FONT_FAMILY,
+            fontSize: '12px',
+            color: 'white',
+            boxShadow: UI_SHADOW,
+            zIndex: 10001, // Above all overlays
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+            {tooltip.content.name}
+          </div>
+          <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)' }}>
+            Quantity: {tooltip.content.quantity}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };
