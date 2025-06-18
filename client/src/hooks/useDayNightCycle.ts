@@ -310,10 +310,13 @@ export function useDayNightCycle({
                 const screenX = campfire.posX + cameraOffsetX;
                 const screenY = adjustedGradientCenterWorldY + cameraOffsetY; // Use adjusted Y
                 
-                const lightRadius = CAMPFIRE_LIGHT_RADIUS_BASE;
-                const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.1, screenX, screenY, lightRadius);
-                maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
-                maskGradient.addColorStop(1, 'rgba(0,0,0,0)');
+                // SUBSTANTIAL CAMPFIRE CUTOUT - 2x larger inner bright area with natural gradient
+                const lightRadius = CAMPFIRE_LIGHT_RADIUS_BASE * 2.0; // Double the cutout size
+                const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.08, screenX, screenY, lightRadius);
+                maskGradient.addColorStop(0, 'rgba(0,0,0,1)'); // Full cutout at center
+                maskGradient.addColorStop(0.4, 'rgba(0,0,0,0.7)'); // Natural transition zone
+                maskGradient.addColorStop(0.8, 'rgba(0,0,0,0.3)'); // Gentle fade
+                maskGradient.addColorStop(1, 'rgba(0,0,0,0)'); // Complete fade to darkness
                 maskCtx.fillStyle = maskGradient;
                 maskCtx.beginPath();
                 maskCtx.arc(screenX, screenY, lightRadius, 0, Math.PI * 2);
@@ -338,12 +341,15 @@ export function useDayNightCycle({
                 const lightScreenY = player.positionY + cameraOffsetY;
                 // const lightRadius = TORCH_LIGHT_RADIUS_BASE; // Old line
 
+                // TORCH CUTOUT - 1.25x larger inner bright area with natural rustic gradient
                 const flicker = (Math.random() - 0.5) * 2 * TORCH_FLICKER_AMOUNT;
-                const currentLightRadius = Math.max(0, TORCH_LIGHT_RADIUS_BASE + flicker);
+                const currentLightRadius = Math.max(0, (TORCH_LIGHT_RADIUS_BASE * 1.25) + flicker);
 
-                const maskGradient = maskCtx.createRadialGradient(lightScreenX, lightScreenY, currentLightRadius * 0.1, lightScreenX, lightScreenY, currentLightRadius);
-                maskGradient.addColorStop(0, 'rgba(0,0,0,1)');
-                maskGradient.addColorStop(1, 'rgba(0,0,0,0)');
+                const maskGradient = maskCtx.createRadialGradient(lightScreenX, lightScreenY, currentLightRadius * 0.12, lightScreenX, lightScreenY, currentLightRadius);
+                maskGradient.addColorStop(0, 'rgba(0,0,0,1)'); // Full cutout at center
+                maskGradient.addColorStop(0.35, 'rgba(0,0,0,0.8)'); // Natural transition zone
+                maskGradient.addColorStop(0.75, 'rgba(0,0,0,0.4)'); // Gentle fade
+                maskGradient.addColorStop(1, 'rgba(0,0,0,0)'); // Complete fade to darkness
                 maskCtx.fillStyle = maskGradient;
                 maskCtx.beginPath();
                 maskCtx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);

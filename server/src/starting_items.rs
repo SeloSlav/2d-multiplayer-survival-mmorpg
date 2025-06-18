@@ -42,6 +42,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Fire Arrow", 25, None, Some(5u16)),
         ("Crossbow", 1, None, Some(6u16)),
         ("Raw Human Flesh", 1, None, Some(7u16)),
+        ("Torch", 1, None, Some(8u16)),
 
     ];
 

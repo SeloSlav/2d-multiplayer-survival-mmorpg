@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Player, ItemDefinition, DbConnection, FishingSession } from '../generated';
+import { Player, ItemDefinition, DbConnection, FishingSession, WorldState } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import FishingReticle from './FishingReticle';
 import { FishingState, FISHING_CONSTANTS } from '../types/fishing';
@@ -18,6 +18,8 @@ interface FishingManagerProps {
   // Add new props for rendering other players' fishing
   fishingSessions: Map<string, FishingSession>;
   players: Map<string, Player>;
+  // Add worldState for weather information
+  worldState: WorldState | null;
 }
 
 const FishingManager: React.FC<FishingManagerProps> = ({
@@ -32,6 +34,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
   onFishingStateChange,
   fishingSessions,
   players,
+  worldState,
 }) => {
   const [fishingState, setFishingState] = useState<FishingState>({
     isActive: false,
@@ -183,6 +186,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
           onFailure={handleFishingFailure}
           onCancel={handleCancel}
           isWaterTile={isWaterTile}
+          worldState={worldState}
         />
       )}
 
@@ -213,6 +217,7 @@ const FishingManager: React.FC<FishingManagerProps> = ({
             onFailure={() => {}} // No-op for other players
             onCancel={() => {}} // No-op for other players
             isWaterTile={isWaterTile}
+            worldState={worldState}
           />
         );
       })}
@@ -236,6 +241,8 @@ interface FishingSystemProps {
   onFailure: () => void;
   onCancel: () => void;
   isWaterTile: (worldX: number, worldY: number) => boolean;
+  // Add worldState for weather information
+  worldState: WorldState | null;
 }
 
 interface BobberState {
@@ -267,6 +274,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
   onFailure,
   onCancel,
   isWaterTile,
+  worldState,
 }) => {
   const [phase, setPhase] = useState<'waiting' | 'caught' | 'reeling'>('waiting');
   const [timer, setTimer] = useState(100); // 100% -> 0%
@@ -402,6 +410,23 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
 
   const distanceBiteMultiplier = getDistanceBasedBiteMultiplier(calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile));
 
+  // Calculate rain-based fishing effectiveness multiplier (client-side for UI display)
+  const getRainFishingMultiplier = (worldState: WorldState | null): number => {
+    if (!worldState?.currentWeather) return 1.0;
+    
+    switch (worldState.currentWeather.tag) {
+      case 'Clear': return 1.0;           // Normal fishing in clear weather
+      case 'LightRain': return 1.3;       // 30% better - light rain stirs up insects
+      case 'ModerateRain': return 1.6;    // 60% better - fish are more active
+      case 'HeavyRain': return 2.0;       // 100% better - fish feeding frenzy
+      case 'HeavyStorm': return 2.5;      // 150% better - but dangerous conditions!
+      default: return 1.0;
+    }
+  };
+
+  const rainBiteMultiplier = getRainFishingMultiplier(worldState);
+  const totalBiteMultiplier = distanceBiteMultiplier * rainBiteMultiplier;
+
   // Check if player moved too far from bobber and break line
   React.useEffect(() => {
     const distance = Math.sqrt(
@@ -430,7 +455,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
       const progressMultiplier = 1 + timeProgress * 4; // 1x to 5x multiplier
       
       // Apply distance-based multiplier (deeper water = better fishing)
-      const finalBiteChance = baseBiteChance * progressMultiplier * distanceBiteMultiplier;
+      const finalBiteChance = baseBiteChance * progressMultiplier * totalBiteMultiplier;
       
       if (Math.random() < finalBiteChance) {
         //console.log('[FishingSystem] Fish took the bait! Distance multiplier:', distanceBiteMultiplier.toFixed(2) + 'x', 
@@ -905,14 +930,43 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
                   color: distanceBiteMultiplier > 1.5 ? '#44ff44' : distanceBiteMultiplier > 1.0 ? '#ffaa44' : '#ff6464',
                   fontWeight: 'bold'
                 }}>
-                  ({distanceBiteMultiplier.toFixed(1)}x bite chance)
+                  ({distanceBiteMultiplier.toFixed(1)}x)
                 </span>
               </div>
+              
+              {/* Weather multiplier display */}
+              <div style={{ color: '#64c8ff', marginBottom: '4px' }}>
+                {worldState?.currentWeather?.tag === 'Clear' && '☀️ Weather: Clear '}
+                {worldState?.currentWeather?.tag === 'LightRain' && '🌦️ Weather: Light Rain '}
+                {worldState?.currentWeather?.tag === 'ModerateRain' && '🌧️ Weather: Moderate Rain '}
+                {worldState?.currentWeather?.tag === 'HeavyRain' && '⛈️ Weather: Heavy Rain '}
+                {worldState?.currentWeather?.tag === 'HeavyStorm' && '🌩️ Weather: Heavy Storm '}
+                {!worldState?.currentWeather && '☀️ Weather: Clear '}
+                <span style={{ 
+                  marginLeft: '8px',
+                  color: rainBiteMultiplier > 2.0 ? '#44ff44' : rainBiteMultiplier > 1.5 ? '#88ff44' : rainBiteMultiplier > 1.0 ? '#ffaa44' : '#ffffff',
+                  fontWeight: 'bold'
+                }}>
+                  ({rainBiteMultiplier.toFixed(1)}x)
+                </span>
+              </div>
+              
+              {/* Total multiplier */}
+              <div style={{ color: '#64c8ff', marginBottom: '4px' }}>
+                🎣 Total bite chance: <span style={{ 
+                  color: totalBiteMultiplier > 3.0 ? '#44ff44' : totalBiteMultiplier > 2.0 ? '#88ff44' : totalBiteMultiplier > 1.5 ? '#ffaa44' : '#ffffff',
+                  fontWeight: 'bold'
+                }}>
+                  {totalBiteMultiplier.toFixed(1)}x
+                </span>
+              </div>
+              
               <div style={{ fontSize: '10px', opacity: 0.8, fontStyle: 'italic' }}>
-                {distanceBiteMultiplier < 0.5 ? '🏖️ Too shallow - fish are rare' :
-                 distanceBiteMultiplier < 1.0 ? '🌊 Shallow water - some fish' :
-                 distanceBiteMultiplier < 1.8 ? '🌊 Good depth - plenty of fish' :
-                 '🐟 Deep water - fish paradise!'}
+                {totalBiteMultiplier < 0.8 ? '🏖️ Poor conditions - fish are scarce' :
+                 totalBiteMultiplier < 1.5 ? '🌊 Fair conditions - some fish around' :
+                 totalBiteMultiplier < 2.5 ? '🌊 Good conditions - fish are active' :
+                 totalBiteMultiplier < 4.0 ? '🐟 Excellent conditions - feeding frenzy!' :
+                 '🐟🌧️ PERFECT storm - fish paradise!'}
               </div>
             </div>
             

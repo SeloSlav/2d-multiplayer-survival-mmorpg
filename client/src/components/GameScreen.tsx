@@ -421,11 +421,15 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             const isHeavyRain = currentWeather === 'HeavyRain';
                             
                             if (connection) {
-                                // Call reducer to toggle weather
-                                if (isHeavyRain) {
-                                    connection.reducers.debugSetWeather('Clear');
-                                } else {
-                                    connection.reducers.debugSetWeather('HeavyRain');
+                                try {
+                                    // Call reducer to toggle weather (only available in debug builds)
+                                    if (isHeavyRain) {
+                                        (connection.reducers as any).debugSetWeather('Clear');
+                                    } else {
+                                        (connection.reducers as any).debugSetWeather('HeavyRain');
+                                    }
+                                } catch (error) {
+                                    console.warn('Debug weather function not available (production build?):', error);
                                 }
                             }
                             e.currentTarget.blur(); // Remove focus immediately after clicking
@@ -444,6 +448,48 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                         }}
                     >
                         Weather: {worldState?.currentWeather?.tag === 'HeavyRain' ? 'HEAVY RAIN' : 'CLEAR'}
+                    </button>
+                    
+                    <button 
+                        onClick={(e) => {
+                            // Toggle between day and night for testing lighting
+                            const currentTimeOfDay = worldState?.timeOfDay?.tag;
+                            const isNight = currentTimeOfDay === 'Night' || currentTimeOfDay === 'Midnight';
+                            
+                            if (connection) {
+                                try {
+                                    // Call reducer to toggle time (only available in debug builds)
+                                    if (isNight) {
+                                        (connection.reducers as any).debugSetTime('Noon');
+                                    } else {
+                                        (connection.reducers as any).debugSetTime('Night');
+                                    }
+                                } catch (error) {
+                                    console.warn('Debug time function not available (production build?):', error);
+                                }
+                            }
+                            e.currentTarget.blur(); // Remove focus immediately after clicking
+                        }}
+                        onFocus={(e) => {
+                            e.currentTarget.blur(); // Prevent the button from staying focused
+                        }}
+                        style={{
+                            backgroundColor: (() => {
+                                const timeOfDay = worldState?.timeOfDay?.tag;
+                                return (timeOfDay === 'Night' || timeOfDay === 'Midnight') ? '#3F51B5' : '#FFC107';
+                            })(),
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '2px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Time: {(() => {
+                            const timeOfDay = worldState?.timeOfDay?.tag;
+                            return (timeOfDay === 'Night' || timeOfDay === 'Midnight') ? 'NIGHT' : 'DAY';
+                        })()}
                     </button>
                 </div>
             )}
@@ -713,8 +759,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 cameraOffsetY={cameraOffsetY}
             />
 
-
-
             <FishingManager
                 localPlayer={localPlayer || null}
                 playerIdentity={playerIdentity}
@@ -728,7 +772,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 // Add fishing sessions and players for rendering other players' fishing
                 fishingSessions={fishingSessions}
                 players={players}
-                                isWaterTile={(worldX: number, worldY: number) => {
+                // Add worldState for weather information
+                worldState={worldState}
+                isWaterTile={(worldX: number, worldY: number) => {
                     if (!connection) return false;
                     
                     // Debug database once

@@ -46,30 +46,61 @@ export const renderPlayerTorchLight = ({
             const lightCenterX = renderPositionX ?? player.positionX;
             const lightCenterY = renderPositionY ?? player.positionY;
             
-            const lightParams = {
-                centerX: lightCenterX,
-                centerY: lightCenterY,
-                radius: TORCH_LIGHT_RADIUS_BASE,
-                innerColor: TORCH_LIGHT_INNER_COLOR,
-                outerColor: TORCH_LIGHT_OUTER_COLOR,
-                flickerAmount: TORCH_FLICKER_AMOUNT,
-            };
+            const lightScreenX = lightCenterX + cameraOffsetX;
+            const lightScreenY = lightCenterY + cameraOffsetY;
+            const baseFlicker = (Math.random() - 0.5) * 2 * TORCH_FLICKER_AMOUNT;
 
-            const lightScreenX = lightParams.centerX + cameraOffsetX;
-            const lightScreenY = lightParams.centerY + cameraOffsetY;
-            const flicker = (Math.random() - 0.5) * 2 * lightParams.flickerAmount;
-            const currentLightRadius = Math.max(0, lightParams.radius + flicker);
+            // Add subtle asymmetry for more rustic feel
+            const asymmetryX = (Math.random() - 0.5) * baseFlicker * 0.3;
+            const asymmetryY = (Math.random() - 0.5) * baseFlicker * 0.2;
+            const rustixLightX = lightScreenX + asymmetryX;
+            const rustixLightY = lightScreenY + asymmetryY;
 
-            const lightGradient = ctx.createRadialGradient(
-                lightScreenX, lightScreenY, 0, 
-                lightScreenX, lightScreenY, currentLightRadius
+            // Layer 1: Large ambient glow (torch fuel - more yellow-orange than campfire)
+            const ambientRadius = Math.max(0, TORCH_LIGHT_RADIUS_BASE * 2.8 + baseFlicker * 0.4);
+            const ambientGradient = ctx.createRadialGradient(
+                rustixLightX, rustixLightY, 0,
+                rustixLightX, rustixLightY, ambientRadius
             );
-            lightGradient.addColorStop(0, lightParams.innerColor);
-            lightGradient.addColorStop(1, lightParams.outerColor);
+            ambientGradient.addColorStop(0, 'rgba(255, 140, 60, 0.04)'); // Torch fuel yellow-orange
+            ambientGradient.addColorStop(0.3, 'rgba(245, 100, 40, 0.02)'); // Warm orange
+            ambientGradient.addColorStop(1, 'rgba(220, 80, 30, 0)'); // Orange-red fade
             
-            ctx.fillStyle = lightGradient;
+            ctx.fillStyle = ambientGradient;
             ctx.beginPath();
-            ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
+            ctx.arc(rustixLightX, rustixLightY, ambientRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Layer 2: Main illumination (torch characteristic glow)
+            const mainRadius = Math.max(0, TORCH_LIGHT_RADIUS_BASE * 1.8 + baseFlicker * 0.8);
+            const mainGradient = ctx.createRadialGradient(
+                rustixLightX, rustixLightY, 0,
+                rustixLightX, rustixLightY, mainRadius
+            );
+            mainGradient.addColorStop(0, 'rgba(255, 200, 110, 0.18)'); // Bright torch yellow-orange
+            mainGradient.addColorStop(0.2, 'rgba(255, 160, 80, 0.14)'); // Golden amber
+            mainGradient.addColorStop(0.5, 'rgba(245, 120, 50, 0.08)'); // Warm orange
+            mainGradient.addColorStop(0.8, 'rgba(220, 90, 35, 0.04)'); // Orange-red
+            mainGradient.addColorStop(1, 'rgba(180, 70, 25, 0)'); // Deep orange fade
+            
+            ctx.fillStyle = mainGradient;
+            ctx.beginPath();
+            ctx.arc(rustixLightX, rustixLightY, mainRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Layer 3: Core bright light (torch flame center)
+            const coreRadius = Math.max(0, TORCH_LIGHT_RADIUS_BASE * 0.5 + baseFlicker * 1.2);
+            const coreGradient = ctx.createRadialGradient(
+                rustixLightX, rustixLightY, 0,
+                rustixLightX, rustixLightY, coreRadius
+            );
+            coreGradient.addColorStop(0, 'rgba(255, 240, 160, 0.28)'); // Bright torch flame center
+            coreGradient.addColorStop(0.4, 'rgba(255, 180, 90, 0.18)'); // Golden yellow
+            coreGradient.addColorStop(1, 'rgba(245, 140, 70, 0)'); // Warm orange fade
+            
+            ctx.fillStyle = coreGradient;
+            ctx.beginPath();
+            ctx.arc(lightScreenX, lightScreenY, coreRadius, 0, Math.PI * 2);
             ctx.fill();
         }
     }
@@ -103,21 +134,64 @@ export const renderCampfireLight = ({
     
     const lightScreenX = visualCenterX + cameraOffsetX;
     const lightScreenY = visualCenterY + cameraOffsetY;
+    const baseFlicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
 
-    // Use locally defined constants directly
-    const flicker = (Math.random() - 0.5) * 2 * CAMPFIRE_FLICKER_AMOUNT;
-    const currentLightRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE + flicker) * 2.0;
+    // Add more pronounced asymmetry for crackling campfire effect
+    const campfireAsymmetryX = (Math.random() - 0.5) * baseFlicker * 0.6;
+    const campfireAsymmetryY = (Math.random() - 0.5) * baseFlicker * 0.4;
+    const rusticCampfireX = lightScreenX + campfireAsymmetryX;
+    const rusticCampfireY = lightScreenY + campfireAsymmetryY;
 
-    const lightGradient = ctx.createRadialGradient(
-        lightScreenX, lightScreenY, 0,
-        lightScreenX, lightScreenY, currentLightRadius
+    // DOUBLE THE ENTIRE LIGHTING SYSTEM - Scale everything by 2x while keeping proportions
+    const CAMPFIRE_SCALE = 2.0; // Double the total coverage area for natural rustic feel
+
+    // Layer 1: Large ambient glow (wood-burning campfire - deep oranges and reds)
+    const ambientRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE * 3.9 * CAMPFIRE_SCALE + baseFlicker * 0.3);
+    const ambientGradient = ctx.createRadialGradient(
+        rusticCampfireX, rusticCampfireY, 0,
+        rusticCampfireX, rusticCampfireY, ambientRadius
     );
-    // Use locally defined constants directly
-    lightGradient.addColorStop(0.30, CAMPFIRE_LIGHT_INNER_COLOR);
-    lightGradient.addColorStop(1, CAMPFIRE_LIGHT_OUTER_COLOR);
-
-    ctx.fillStyle = lightGradient;
+    ambientGradient.addColorStop(0, 'rgba(255, 80, 20, 0.05)'); // Deep campfire orange-red
+    ambientGradient.addColorStop(0.25, 'rgba(200, 60, 15, 0.03)'); // Rich ember red
+    ambientGradient.addColorStop(0.7, 'rgba(160, 40, 12, 0.015)'); // Deep wood-burning red
+    ambientGradient.addColorStop(1, 'rgba(120, 25, 8, 0)'); // Dark ember fade
+    
+    ctx.fillStyle = ambientGradient;
     ctx.beginPath();
-    ctx.arc(lightScreenX, lightScreenY, currentLightRadius, 0, Math.PI * 2);
+    ctx.arc(rusticCampfireX, rusticCampfireY, ambientRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 2: Main illumination (authentic wood fire colors)
+    const mainRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE * 2.6 * CAMPFIRE_SCALE + baseFlicker * 1.0);
+    const mainGradient = ctx.createRadialGradient(
+        rusticCampfireX, rusticCampfireY, 0,
+        rusticCampfireX, rusticCampfireY, mainRadius
+    );
+    mainGradient.addColorStop(0, 'rgba(255, 140, 60, 0.22)'); // Warm campfire orange center
+    mainGradient.addColorStop(0.15, 'rgba(240, 100, 30, 0.18)'); // Rich orange
+    mainGradient.addColorStop(0.4, 'rgba(220, 70, 20, 0.12)'); // Deep orange-red
+    mainGradient.addColorStop(0.7, 'rgba(180, 50, 15, 0.06)'); // Ember red
+    mainGradient.addColorStop(0.9, 'rgba(140, 35, 10, 0.02)'); // Deep wood burning
+    mainGradient.addColorStop(1, 'rgba(100, 25, 8, 0)'); // Dark rustic fade
+    
+    ctx.fillStyle = mainGradient;
+    ctx.beginPath();
+    ctx.arc(rusticCampfireX, rusticCampfireY, mainRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 3: Core bright light (intense campfire flame center) 
+    const coreRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE * 0.65 * CAMPFIRE_SCALE + baseFlicker * 1.5);
+    const coreGradient = ctx.createRadialGradient(
+        rusticCampfireX, rusticCampfireY, 0,
+        rusticCampfireX, rusticCampfireY, coreRadius
+    );
+    coreGradient.addColorStop(0, 'rgba(255, 180, 100, 0.32)'); // Bright campfire center
+    coreGradient.addColorStop(0.3, 'rgba(255, 120, 40, 0.22)'); // Rich orange
+    coreGradient.addColorStop(0.7, 'rgba(220, 80, 25, 0.12)'); // Deep orange-red glow
+    coreGradient.addColorStop(1, 'rgba(180, 60, 20, 0)'); // Rustic red fade
+    
+    ctx.fillStyle = coreGradient;
+    ctx.beginPath();
+    ctx.arc(lightScreenX, lightScreenY, coreRadius, 0, Math.PI * 2);
     ctx.fill();
 };

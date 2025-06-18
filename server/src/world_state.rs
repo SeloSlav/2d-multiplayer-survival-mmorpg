@@ -130,6 +130,7 @@ pub fn seed_world_state(ctx: &ReducerContext) -> Result<(), String> {
 // Debug reducer to manually set weather (only for testing)
 #[spacetimedb::reducer]
 pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Result<(), String> {
+
     let weather_type = match weather_type_str.as_str() {
         "Clear" => WeatherType::Clear,
         "LightRain" => WeatherType::LightRain,
@@ -165,6 +166,42 @@ pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Resu
     }
     
     log::info!("Debug: Weather manually set to {:?}", weather_type);
+    Ok(())
+}
+
+// Debug reducer to manually set time of day (only for testing)
+#[spacetimedb::reducer]
+pub fn debug_set_time(ctx: &ReducerContext, time_type_str: String) -> Result<(), String> {
+    let (new_progress, new_time_of_day) = match time_type_str.as_str() {
+        "Dawn" => (0.02, TimeOfDay::Dawn),
+        "Morning" => (0.20, TimeOfDay::Morning),
+        "Noon" => (0.40, TimeOfDay::Noon),
+        "Afternoon" => (0.55, TimeOfDay::Afternoon),
+        "Dusk" => (0.69, TimeOfDay::Dusk),
+        "Night" => (0.80, TimeOfDay::Night),     // Regular night (0.75-0.90)
+        "Midnight" => (0.95, TimeOfDay::Midnight), // Deep night (0.90-1.0)
+        _ => return Err(format!("Invalid time type: {}", time_type_str)),
+    };
+
+    let mut world_state = ctx.db.world_state().iter().next().ok_or_else(|| {
+        log::error!("WorldState singleton not found during debug time set!");
+        "WorldState singleton not found".to_string()
+    })?;
+    
+    // Set the time immediately
+    world_state.cycle_progress = new_progress;
+    world_state.time_of_day = new_time_of_day.clone();
+    world_state.last_tick = ctx.timestamp;
+    
+    // Force regular night (not full moon) when setting debug time
+    // Set cycle count to a non-full-moon value (1 or 2, since full moons occur on multiples of 3)
+    world_state.cycle_count = 1; // This ensures it's not a full moon cycle
+    world_state.is_full_moon = false;
+    
+    // Update the database
+    ctx.db.world_state().id().update(world_state.clone());
+    
+    log::info!("Debug: Time manually set to {:?} (progress: {:.2})", new_time_of_day, new_progress);
     Ok(())
 }
 

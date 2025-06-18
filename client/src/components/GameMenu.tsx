@@ -105,7 +105,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                             letterSpacing: '2px',
                         }}
                     >
-                        NEUROVEIL OCULAR IMPLANT™
+                        NEUROVEIL OCULAR INTERFACE
                     </h2>
                     <div
                         style={{

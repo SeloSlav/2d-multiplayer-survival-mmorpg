@@ -1,0 +1,2 @@
+std::string::String
+&std::string::String

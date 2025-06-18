@@ -54,6 +54,8 @@ import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
 import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
 export { CrushBoneItem };
+import { DebugSetTime } from "./debug_set_time_reducer.ts";
+export { DebugSetTime };
 import { DebugSetWeather } from "./debug_set_weather_reducer.ts";
 export { DebugSetWeather };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
@@ -896,6 +898,10 @@ const REMOTE_MODULE = {
       reducerName: "crush_bone_item",
       argsType: CrushBoneItem.getTypeScriptAlgebraicType(),
     },
+    debug_set_time: {
+      reducerName: "debug_set_time",
+      argsType: DebugSetTime.getTypeScriptAlgebraicType(),
+    },
     debug_set_weather: {
       reducerName: "debug_set_weather",
       argsType: DebugSetWeather.getTypeScriptAlgebraicType(),
@@ -1398,6 +1404,7 @@ export type Reducer = never
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
+| { name: "DebugSetTime", args: DebugSetTime }
 | { name: "DebugSetWeather", args: DebugSetWeather }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DodgeRoll", args: DodgeRoll }
@@ -1681,6 +1688,22 @@ export class RemoteReducers {
 
   removeOnCrushBoneItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("crush_bone_item", callback);
+  }
+
+  debugSetTime(timeTypeStr: string) {
+    const __args = { timeTypeStr };
+    let __writer = new BinaryWriter(1024);
+    DebugSetTime.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("debug_set_time", __argsBuffer, this.setCallReducerFlags.debugSetTimeFlags);
+  }
+
+  onDebugSetTime(callback: (ctx: ReducerEventContext, timeTypeStr: string) => void) {
+    this.connection.onReducer("debug_set_time", callback);
+  }
+
+  removeOnDebugSetTime(callback: (ctx: ReducerEventContext, timeTypeStr: string) => void) {
+    this.connection.offReducer("debug_set_time", callback);
   }
 
   debugSetWeather(weatherTypeStr: string) {
@@ -3507,6 +3530,11 @@ export class SetReducerFlags {
   crushBoneItemFlags: CallReducerFlags = 'FullUpdate';
   crushBoneItem(flags: CallReducerFlags) {
     this.crushBoneItemFlags = flags;
+  }
+
+  debugSetTimeFlags: CallReducerFlags = 'FullUpdate';
+  debugSetTime(flags: CallReducerFlags) {
+    this.debugSetTimeFlags = flags;
   }
 
   debugSetWeatherFlags: CallReducerFlags = 'FullUpdate';

@@ -76,6 +76,10 @@ pub(crate) const PLAYER_MAX_THIRST: f32 = 250.0;
 pub(crate) const HUNGER_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
 pub(crate) const THIRST_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
 
+// Cold-induced hunger drain constants
+pub(crate) const HUNGER_DRAIN_MULTIPLIER_LOW_WARMTH: f32 = 1.5; // 50% faster hunger drain when cold
+pub(crate) const HUNGER_DRAIN_MULTIPLIER_ZERO_WARMTH: f32 = 2.0; // 100% faster hunger drain when freezing
+
 // Import necessary items from the main lib module or other modules
 use crate::{
     Player, // Player struct
@@ -199,7 +203,20 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let elapsed_seconds = (elapsed_micros as f64 / 1_000_000.0) as f32;
 
         // --- Calculate Stat Changes ---
-        let new_hunger = (player.hunger - (elapsed_seconds * HUNGER_DRAIN_PER_SECOND)).max(0.0).min(PLAYER_MAX_HUNGER);
+        
+        // Calculate hunger drain with cold multiplier
+        let mut hunger_drain_rate = HUNGER_DRAIN_PER_SECOND;
+        if player.warmth <= 0.0 {
+            hunger_drain_rate *= HUNGER_DRAIN_MULTIPLIER_ZERO_WARMTH;
+            log::trace!("Player {:?} is freezing - hunger drain increased by {:.1}x to {:.4}/sec", 
+                player_id, HUNGER_DRAIN_MULTIPLIER_ZERO_WARMTH, hunger_drain_rate);
+        } else if player.warmth < low_need_threshold {
+            hunger_drain_rate *= HUNGER_DRAIN_MULTIPLIER_LOW_WARMTH;
+            log::trace!("Player {:?} is cold - hunger drain increased by {:.1}x to {:.4}/sec", 
+                player_id, HUNGER_DRAIN_MULTIPLIER_LOW_WARMTH, hunger_drain_rate);
+        }
+        
+        let new_hunger = (player.hunger - (elapsed_seconds * hunger_drain_rate)).max(0.0).min(PLAYER_MAX_HUNGER);
         let new_thirst = (player.thirst - (elapsed_seconds * THIRST_DRAIN_PER_SECOND)).max(0.0).min(PLAYER_MAX_THIRST);
 
         // Calculate Warmth
@@ -277,6 +294,14 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             log::info!("Player {:?} protected from rain or no rain active", player_id);
         }
         // <<< END RAIN WARMTH DRAIN >>>
+
+        // <<< ADD WET EFFECT WARMTH DRAIN >>>
+        if crate::active_effects::player_has_wet_effect(ctx, player_id) {
+            total_warmth_change_per_sec -= crate::wet::WET_WARMTH_DRAIN_PER_SECOND;
+            log::trace!("Player {:?} losing {:.2} warmth/sec from being wet (total warmth change now: {:.2})", 
+                player_id, crate::wet::WET_WARMTH_DRAIN_PER_SECOND, total_warmth_change_per_sec);
+        }
+        // <<< END WET EFFECT WARMTH DRAIN >>>
 
         let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);

@@ -67,74 +67,151 @@ export const controlSections: ControlSection[] = [
     }
 ];
 
-// Tips data extracted from GameTipsMenu.tsx
-export const tipSections: TipSection[] = [
-    {
+// Define all tip sections with unique keys
+const tipSectionDefinitions = {
+    gettingStarted: {
         title: 'Getting Started',
         tips: [
-            'Start by collecting basic resources like wood from trees and stone from rocks.',
-            'Craft a wooden axe and pickaxe as your first tools for efficient gathering.',
-            'Build a campfire early for cooking food and providing light at night.',
-            'Place a sleeping bag to set your respawn point.',
+            'You spawn on beaches around the island - look for a good base location away from other players.',
+            'Gather basic resources immediately: wood from trees, stones from the ground, and plant fiber from bushes.',
+            'Craft a stone axe as your first tool - it\'s essential for efficient resource gathering.',
+            'Find fresh water sources inland (lakes, rivers) as soon as possible.',
+            'Build your first campfire before nightfall - darkness is dangerous and cold.',
+            'Craft a sleeping bag to set your respawn point once you find a safe location.',
+            'Start gathering food early - mushrooms in forests, corn near water, potatoes on roads.',
+            'Always carry plant fiber - it\'s needed for most early crafting recipes.',
+            'Keep moving during your first day to find the best base location.',
+            'Watch your hunger, thirst, and warmth bars - they drain constantly.',
         ]
     },
-    {
+    
+    survival: {
         title: 'Survival Tips',
         tips: [
-            'Keep an eye on your health, hunger, and thirst meters.',
-            'Cooked food provides better nutrition than raw food.',
-            'Stay near light sources at night - darkness can be dangerous.',
-            'Heavy rain will extinguish campfires, so build shelters for protection.',
-            'You can use plant fibers in campfire but they burn twice as fast as wood.',
+            // Core Health Stats
+            'Health naturally regenerates when hunger, thirst, and warmth are above 50% and no damage effects are active.',
+            'Knocked out players are immune to environmental damage (bleed, burn, poisoning) but vulnerable to direct attacks.',
+            'Death occurs when health reaches zero - creates a corpse with your items that others can loot.',
+            
+            // Hunger System
+            'Hunger drains from 250 to 0 over 3 hours of gameplay.',
+            'Being cold makes you hungrier - your body burns more calories trying to stay warm.',
+            'Low warmth increases hunger drain by 50%, freezing doubles it.',
+            'Low hunger causes health loss - zero hunger doubles the damage rate.',
+            
+            // Thirst System  
+            'Thirst drains from 250 to 0 over 2 hours - faster than hunger.',
+            'Low thirst slows movement speed by 20% and causes health loss.',
+            'Zero thirst doubles health damage - stay hydrated to survive.',
+            
+            // Warmth & Temperature
+            'Warmth changes based on time of day: +2 at noon, -2 at midnight.',
+            'Campfires provide +3 warmth per second within range.',
+            'Lit torches give +1.75 warmth per second while equipped.',
+            'Armor with warmth bonuses helps survive cold nights.',
+            'Low warmth slows movement by 20% and causes health damage.',
+            'Wet effects double cold damage - avoid water during storms.',
+            
+            // Status Effects
+            'Burn effects stack duration and damage - extinguished by water or heavy rain.',
+            'Bleed effects cause damage over time - stopped by bandages.',
+            'Wet effects last 60 seconds after leaving water/rain, amplify cold damage.',
+            'Cozy effects near campfires or in owned shelters double health regeneration.',
+            'Food poisoning from raw/contaminated food causes damage over time.',
+            'Seawater poisoning from drinking salt water causes 1 damage per second.',
+            
+            // Healing & Recovery
+            'Bandages provide delayed burst healing - interrupted by taking damage.',
+            'Health regeneration requires good hunger, thirst, warmth, and no damage effects.',
+            'Cozy effects boost food healing by 50% and health regen by 100%.',
+            'Taking damage cancels active health regeneration effects.',
+            
+            // Environmental Protection
+            'Shelters protect from rain, provide cozy effects for owners.',
+            'Trees provide limited rain protection within 100px radius.',
+            'Campfire warmth radius protects from rain and provides cozy status.',
+            'Heavy rain (intensity ≥0.8) extinguishes burn effects on unprotected players.',
+            
+            // Stamina System
+            'Stamina drains at 2.5/second while sprinting and moving.',
+            'Stamina recovers at 2.0/second when not sprinting.',
+            'Running out of stamina automatically stops sprinting.',
+            'Dodge rolling costs 10 stamina points instantly.',
         ]
     },
-    {
+
+    resourceGathering: {
+        title: 'Resource Gathering',
+        tips: [
+            'Trees provide wood and plant fiber - essential for most crafting recipes.',
+            'Stone nodes give stone and iron ore - look for gray rocky outcrops.',
+            'Bushes provide plant fiber and sometimes berries for food.',
+            'Different tools have different gathering efficiencies for each resource type.',
+            'Stone axes are best for wood, stone pickaxes are best for stone and ore.',
+            'Higher tier tools (stone > wood) gather resources faster and yield more materials.',
+            'Some resources like iron ore are rarer and found in specific stone node types.',
+            'Resource nodes respawn after being fully harvested, but it takes time.',
+            'Carry multiple tools to efficiently gather different resource types.',
+            'Plan your gathering routes to minimize travel time between resource nodes.',
+        ]
+    },
+
+    waterSources: {
         title: 'Water Sources',
         tips: [
             'Hold E over any water body to drink and restore thirst.',
             'Coastal waters (beaches, bays, ocean inlets) are salty and cause dehydration.',
             'Inland waters (mountain lakes, forest ponds, deep rivers) are fresh and restore thirst.',
             'There is a 2-second cooldown between drinking attempts.',
-            'Salty water decreases thirst by 25 points - avoid drinking from the ocean.',
-            'Fresh water increases thirst by 75 points - seek out inland lakes and rivers.',
-            'Water near map edges tends to be salty due to ocean influence.',
+            'Salty water makes you more thirsty - avoid drinking from the ocean.',
+            'Fresh water replenishes hydration - seek out inland lakes and rivers.',
             'Deep inland areas usually have fresh water sources for survival.',
+            'Craft water bottles or jugs to carry water with you - equip and left-click over water to fill.',
+            'Right-click with a filled water container to drink from it anywhere.',
+            'Water containers can be used to put out fires caused by fire arrows.',
+            'Desalinate ocean water by placing a water container over a campfire, filling it with salt water, and letting it burn.',
+            'The desalination process converts salty ocean water into fresh, drinkable water, and also can be used for pouring onto plants and planter boxes.',
         ]
     },
-    {
-        title: 'Combat & Safety',
+
+    campfires: {
+        title: 'Campfires',
         tips: [
-            'Craft weapons early - even a wooden spear is better than fighting with a wooden spoon.',
-            'Keep bandages in your hotbar for quick healing during combat.',
-            'Stay near light sources at night, but be aware that darkness can hide threats.',
-            'Build sleeping bags to set respawn points in safe locations.',
-            'Torches and campfires provide warmth and light at night, but make you visible to other players on the minimap at long distances.',
-            'Consider the tactical trade-off: warmth and visibility vs. stealth when using torches.',
-            'In nighttime PvP situations, extinguish torches when you need to move unseen.',
+            'Campfires are essential for cooking food, providing light, and warmth during cold nights.',
+            'Hold E to toggle campfires on/off - they can be relit after being extinguished.',
+            'Rain will extinguish campfires if they are not protected from the weather.',
+            'Build campfires under trees or inside shelters to protect them from rain.',
+            'Campfires provide a large radius of bright light that cuts through nighttime darkness.',
+            'Use wood or plant fiber as fuel - wood burns longer than plant fiber.',
+            'Plant fiber burns twice as fast as wood, so use wood for longer-lasting fires.',
+            'Campfires make you visible to other players on the minimap at long distances.',
+            'Consider the tactical trade-off between warmth/light and stealth when using campfires.',
+            'Campfires provide an ambient warmth bonus that helps prevent freezing.',
+            'Cooked food from campfires provides better nutrition than raw food.',
+            'Eating cooked food next to a campfire increases its healing properties.',
         ]
     },
-    {
-        title: 'Building & Crafting',
+
+    foodCooking: {
+        title: 'Food & Cooking',
         tips: [
-            'Use the crafting menu (Tab) to see available recipes.',
-            'Some recipes require specific tools or stations to craft.',
-            'Build shelters to protect your campfires from rain.',
-            'Stashes can be hidden underground - useful for secret storage.',
-            'Shelters provide an ambient warmth bonus so you wont freeze as quickly during the night.',
+            'Mushrooms spawn in forested areas near trees - look for clusters in wooded regions.',
+            'Corn grows in grassy areas close to water sources like rivers and beaches.',
+            'Potatoes can be found along dirt roads and in clearings away from trees.',
+            'Pumpkins grow near coastal areas, beaches, and riverside locations.',
+            'Hemp grows in open plains areas away from trees and stones.',
+            'Fish can be caught from inland water sources using a fishing rod.',
+            'Cooked food provides significantly better health, hunger, and stamina restoration than raw.',
+            'Cooking times vary: mushrooms (20s), corn (25s), potatoes (30s), pumpkins (60s), fish (45s).',
+            'Overcooking food creates burnt versions that are barely edible and make you thirsty.',
+            'Burnt food can be cooked further to create valuable charcoal for crafting ammunition.',
+            'Human flesh can be harvested from player corpses but is dangerous to eat raw.',
+            'Cooked human flesh provides excellent nutrition but comes with moral implications.',
+            'Each burnt food type yields different amounts of charcoal: fish (8), mushrooms (12), corn (15), potatoes (13), pumpkins (18), human flesh (14).',
         ]
     },
-    {
-        title: 'Food',
-        tips: [
-            'Mushrooms can be found scattered around the world.',
-            'Cooked food provides better health and hunger restoration.',
-            'Corn grows naturally in grassy areas - look for tall green stalks.',
-            'Pumpkins provide substantial nutrition and can be cooked for better effects.',
-            'Hemp plants grow in clusters and provide fiber for crafting.',
-            'Hemp is essential for making rope and other advanced crafting materials.',
-        ]
-    },
-    {
+
+    fishing: {
         title: 'Fishing',
         tips: [
             'Craft a fishing rod using common reed stalks, plant fiber, and a Bone Gaff Hook to start fishing.',
@@ -147,9 +224,52 @@ export const tipSections: TipSection[] = [
             'Fishing is a quiet, sustainable way to gather food without alerting other players.',
             'Fish provide excellent nutrition and are more reliable than foraging.',
             'Consider fishing at dawn or dusk when fish are more active.',
+            'Rain dramatically improves fishing - light rain (1.3x), moderate rain (1.6x), heavy rain (2.0x), storms (2.5x)!',
+            'Dawn and dusk are the best fishing times (1.8x catch rate) - fish are most active during twilight.',
+            'Morning and afternoon provide decent fishing (1.1x), while night and midnight are poor (0.8x and 0.6x).',
+            'Weather and time bonuses stack together - fishing during a storm at dawn can give 4.5x catch rates!',
+            'Better fishing conditions mean less junk (tin cans) and more bonus fish in your catch.',
+            'Risk vs reward: venture out in dangerous storms for the best fishing, but stay warm and dry!',
+            'Being wet drains warmth faster and doubles cold damage - wear protective clothing when fishing in storms!',
         ]
     },
-    {
+
+    buildingCrafting: {
+        title: 'Building & Crafting',
+        tips: [
+            'Use the crafting menu (Tab) to see available recipes.',
+            'Build shelters to protect your campfires from rain and other players.',
+            'Shelters cost 3,200 wood and 10 rope - a significant investment for base protection.',
+            'Shelters provide an ambient warmth bonus so you won\'t freeze as quickly during the night.',
+            'Only the shelter owner can attack objects inside their shelter, and only while inside it.',
+            'Shelter owners cannot attack outside targets while inside their shelter - no safe sniping.',
+            'Shelter walls block all projectiles and line-of-sight attacks from passing through.',
+            'Shelters have 25,000 health and can be destroyed by other players with enough persistence.',
+            'Placing a shelter automatically clears all natural resources in a large area around it.',
+            'Shelters can be repaired using repair hammers, but only after a 5-minute combat cooldown if damaged by other players.',
+            'Shelters are perfectly balanced for early game bases - ideal for new and solo players getting established.',
+            'Advanced crafting systems are coming soon... as soon as SOVA can hack these satellite feeds and give you poor babushkas the blueprints!',
+            'Stashes can be hidden underground - useful for secret storage.',
+        ]
+    },
+
+    combat: {
+        title: 'Combat',
+        tips: [
+            'Build sleeping bags to set respawn points - place one inside your shelter and a few backup locations in case you\'re under raid.',
+            'Use your bow to attack from a distance - it\'s more stealthy than melee combat.',
+            'Craft different arrow types for various situations - fire arrows can ignite enemies and structures.',
+            'Right-click with ranged weapons to set arrows or toggle between arrow types.',
+            'Throwing melee weapons (right-click) can catch enemies off guard and deals double damage.',
+            'Thrown weapons can be retrieved after combat - don\'t forget to pick them up.',
+            'Thrown weapons have a small chance to break on impact, so always carry backup weapons.',
+            'Spears have longer reach than other melee weapons, keeping you safer in close combat.',
+            'Consumables like food and water require double-clicking on the hotbar to use quickly.',
+            'Position yourself strategically - use trees and rocks as cover during ranged combat.',
+        ]
+    },
+
+    multiplayer: {
         title: 'Multiplayer Tips',
         tips: [
             'Cooperation with other players can help you survive longer.',
@@ -158,7 +278,30 @@ export const tipSections: TipSection[] = [
             'Consider building in groups for better defense and resource sharing.',
         ]
     }
+};
+
+// Define the order of sections using keys
+const tipSectionOrder = [
+    'gettingStarted',
+    'resourceGathering',
+    'survival', 
+    'combat',
+    'campfires',
+    'foodCooking',
+    'fishing',
+    'buildingCrafting',
+    'waterSources',
+    'multiplayer'
 ];
+
+// Generate the ordered tip sections array
+export const tipSections: TipSection[] = tipSectionOrder.map(key => {
+    const section = tipSectionDefinitions[key as keyof typeof tipSectionDefinitions];
+    if (!section) {
+        throw new Error(`Tip section with key "${key}" not found in tipSectionDefinitions`);
+    }
+    return section;
+});
 
 // SOVA's joke arsenal for personality
 const sovaJokes = [

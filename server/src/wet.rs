@@ -5,7 +5,8 @@ use crate::Player;
 use crate::player;
 
 // Constants for wet effect
-pub const WET_COLD_DAMAGE_MULTIPLIER: f32 = 4.0; // Quadruple cold damage when wet
+pub const WET_COLD_DAMAGE_MULTIPLIER: f32 = 2.0; // Double cold damage when wet
+pub const WET_WARMTH_DRAIN_PER_SECOND: f32 = 0.5; // Additional warmth loss per second when wet
 pub const WET_LINGER_DURATION_SECONDS: u32 = 60; // How long wet effect lasts after leaving water/rain
 pub const WET_EFFECT_CHECK_INTERVAL_SECONDS: u32 = 2; // Check wet conditions every 2 seconds
 pub const WET_NORMAL_DECAY_RATE_SECONDS: u32 = 1; // How many seconds to remove from wet timer normally (1 second per 1-second interval)
