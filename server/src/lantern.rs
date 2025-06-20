@@ -2,8 +2,8 @@ use spacetimedb::{table, reducer, ReducerContext, Table, Identity, Timestamp, Sc
 use log;
 use crate::items::{InventoryItem, ItemDefinition, add_item_to_player_inventory, split_stack_helper};
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
-use crate::models::{ItemLocation, ContainerType, ContainerLocationData, InventoryLocationData, HotbarLocationData, EquippedLocationData};
-use crate::inventory_management::{ItemContainer, ContainerItemClearer, handle_move_to_container_slot, handle_quick_move_from_container, handle_move_from_container_slot, handle_move_within_container, handle_split_within_container, handle_quick_move_to_container, handle_split_from_container, handle_drop_from_container_slot, handle_split_and_drop_from_container_slot, merge_or_place_into_container_slot};
+use crate::models::{ItemLocation, ContainerType, ContainerLocationData, InventoryLocationData, HotbarLocationData, EquippedLocationData, DroppedLocationData};
+use crate::inventory_management::{self, ItemContainer, ContainerItemClearer, handle_move_to_container_slot, handle_quick_move_from_container, handle_move_from_container_slot, handle_move_within_container, handle_split_within_container, handle_quick_move_to_container, handle_split_from_container, handle_drop_from_container_slot, handle_split_and_drop_from_container_slot, merge_or_place_into_container_slot};
 use crate::{Player, player as PlayerTableTrait};
 use crate::campfire::{campfire as CampfireTableTrait};
 use crate::wooden_storage_box::{wooden_storage_box as WoodenStorageBoxTableTrait};
@@ -20,7 +20,7 @@ pub const LANTERN_LANTERN_COLLISION_DISTANCE: f32 = 100.0;
 pub const LANTERN_LANTERN_COLLISION_DISTANCE_SQUARED: f32 = LANTERN_LANTERN_COLLISION_DISTANCE * LANTERN_LANTERN_COLLISION_DISTANCE;
 pub const LANTERN_INITIAL_HEALTH: f32 = 80.0;
 pub const LANTERN_MAX_HEALTH: f32 = 80.0;
-pub const NUM_FUEL_SLOTS: usize = 2;
+pub const NUM_FUEL_SLOTS: usize = 1;
 pub const LANTERN_PROCESS_INTERVAL_SECS: u64 = 1; // How often to run the main logic when burning
 pub const PLAYER_LANTERN_INTERACTION_DISTANCE: f32 = 200.0;
 pub const PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED: f32 = PLAYER_LANTERN_INTERACTION_DISTANCE * PLAYER_LANTERN_INTERACTION_DISTANCE;
@@ -39,11 +39,9 @@ pub struct Lantern {
     pub placed_by: Identity,
     pub placed_at: Timestamp,
     pub is_burning: bool,
-    // Fuel slots for tallow
+    // Fuel slot for tallow
     pub fuel_instance_id_0: Option<u64>,
     pub fuel_def_id_0: Option<u64>,
-    pub fuel_instance_id_1: Option<u64>,
-    pub fuel_def_id_1: Option<u64>,
     pub current_fuel_def_id: Option<u64>,
     pub remaining_fuel_burn_time_secs: Option<f32>,
     pub health: f32,
@@ -71,7 +69,6 @@ impl ItemContainer for Lantern {
     fn get_slot_instance_id(&self, slot_index: u8) -> Option<u64> {
         match slot_index {
             0 => self.fuel_instance_id_0,
-            1 => self.fuel_instance_id_1,
             _ => None,
         }
     }
@@ -79,7 +76,6 @@ impl ItemContainer for Lantern {
     fn get_slot_def_id(&self, slot_index: u8) -> Option<u64> {
         match slot_index {
             0 => self.fuel_def_id_0,
-            1 => self.fuel_def_id_1,
             _ => None,
         }
     }
@@ -89,10 +85,6 @@ impl ItemContainer for Lantern {
             0 => {
                 self.fuel_instance_id_0 = instance_id;
                 self.fuel_def_id_0 = def_id;
-            }
-            1 => {
-                self.fuel_instance_id_1 = instance_id;
-                self.fuel_def_id_1 = def_id;
             }
             _ => {}
         }
@@ -329,8 +321,6 @@ pub fn place_lantern(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
         is_burning: false,
         fuel_instance_id_0: None,
         fuel_def_id_0: None,
-        fuel_instance_id_1: None,
-        fuel_def_id_1: None,
         current_fuel_def_id: None,
         remaining_fuel_burn_time_secs: None,
         health: LANTERN_INITIAL_HEALTH,
@@ -632,4 +622,237 @@ impl ContainerItemClearer for LanternClearer {
         }
         false
     }
+}
+
+/******************************************************************************
+ *                           INVENTORY MANAGEMENT REDUCERS                     *
+ ******************************************************************************/
+
+/// --- Remove Fuel from Lantern ---
+/// Removes the fuel item from a specific lantern slot and returns it to the player inventory/hotbar.
+/// Uses the quick move logic (attempts merge, then finds first empty slot).
+#[spacetimedb::reducer]
+pub fn auto_remove_fuel_from_lantern(ctx: &ReducerContext, lantern_id: u32, source_slot_index: u8) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    inventory_management::handle_quick_move_from_container(ctx, &mut lantern, source_slot_index)?;
+    let still_has_fuel = check_if_lantern_has_fuel(ctx, &lantern);
+    if !still_has_fuel && lantern.is_burning {
+        lantern.is_burning = false;
+        lantern.current_fuel_def_id = None;
+        lantern.remaining_fuel_burn_time_secs = None;
+        log::info!("Lantern {} extinguished as last valid fuel was removed.", lantern_id);
+    }
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Split Stack Into Lantern ---
+/// Splits a stack from player inventory into a lantern slot.
+#[spacetimedb::reducer]
+pub fn split_stack_into_lantern(
+    ctx: &ReducerContext,
+    source_item_instance_id: u64,
+    quantity_to_split: u32,
+    target_lantern_id: u32,
+    target_slot_index: u8,
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, target_lantern_id)?;
+    let mut source_item = get_player_item(ctx, source_item_instance_id)?;
+    let new_item_target_location = ItemLocation::Container(crate::models::ContainerLocationData {
+        container_type: ContainerType::Lantern,
+        container_id: lantern.id as u64,
+        slot_index: target_slot_index,
+    });
+    let new_item_instance_id = split_stack_helper(ctx, &mut source_item, quantity_to_split, new_item_target_location)?;
+    
+    // Fetch the newly created item and its definition to pass to merge_or_place
+    let mut new_item = ctx.db.inventory_item().instance_id().find(new_item_instance_id)
+        .ok_or_else(|| format!("Failed to find newly split item instance {}", new_item_instance_id))?;
+    let new_item_def = ctx.db.item_definition().id().find(new_item.item_def_id)
+        .ok_or_else(|| format!("Failed to find definition for new item {}", new_item.item_def_id))?;
+
+    merge_or_place_into_container_slot(ctx, &mut lantern, target_slot_index, &mut new_item, &new_item_def)?;
+    
+    // Update the source item (quantity changed by split_stack_helper)
+    ctx.db.inventory_item().instance_id().update(source_item); 
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, target_lantern_id);
+    Ok(())
+}
+
+/// --- Lantern Internal Item Movement ---
+/// Moves/merges/swaps an item BETWEEN two slots within the same lantern.
+#[spacetimedb::reducer]
+pub fn move_fuel_within_lantern(
+    ctx: &ReducerContext,
+    lantern_id: u32,
+    source_slot_index: u8,
+    target_slot_index: u8,
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    inventory_management::handle_move_within_container(ctx, &mut lantern, source_slot_index, target_slot_index)?;
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Lantern Internal Stack Splitting ---
+/// Splits a stack FROM one lantern slot TO another within the same lantern.
+#[spacetimedb::reducer]
+pub fn split_stack_within_lantern(
+    ctx: &ReducerContext,
+    lantern_id: u32,
+    source_slot_index: u8,
+    quantity_to_split: u32,
+    target_slot_index: u8,
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    inventory_management::handle_split_within_container(ctx, &mut lantern, source_slot_index, target_slot_index, quantity_to_split)?;
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Quick Move to Lantern ---
+/// Quickly moves an item from player inventory/hotbar to the first available/mergeable slot in the lantern.
+#[spacetimedb::reducer]
+pub fn quick_move_to_lantern(
+    ctx: &ReducerContext,
+    lantern_id: u32,
+    item_instance_id: u64,
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    inventory_management::handle_quick_move_to_container(ctx, &mut lantern, item_instance_id)?;
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Move From Lantern to Player ---
+/// Moves a specific fuel item FROM a lantern slot TO a specific player inventory/hotbar slot.
+#[spacetimedb::reducer]
+pub fn move_lantern_fuel_to_player_slot(
+    ctx: &ReducerContext,
+    lantern_id: u32,
+    source_slot_index: u8,
+    target_slot_type: String,
+    target_slot_index: u32, // u32 to match client flexibility
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    inventory_management::handle_move_from_container_slot(ctx, &mut lantern, source_slot_index, target_slot_type, target_slot_index)?;
+    let still_has_fuel = check_if_lantern_has_fuel(ctx, &lantern);
+    if !still_has_fuel && lantern.is_burning {
+        lantern.is_burning = false;
+        lantern.current_fuel_def_id = None;
+        lantern.remaining_fuel_burn_time_secs = None;
+    }
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Split From Lantern to Player ---
+/// Splits a stack FROM a lantern slot TO a specific player inventory/hotbar slot.
+#[spacetimedb::reducer]
+pub fn split_stack_from_lantern(
+    ctx: &ReducerContext,
+    source_lantern_id: u32,
+    source_slot_index: u8,
+    quantity_to_split: u32,
+    target_slot_type: String,    // "inventory" or "hotbar"
+    target_slot_index: u32,     // Numeric index for inventory/hotbar
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, source_lantern_id)?;
+
+    log::info!(
+        "[SplitFromLantern] Player {:?} delegating split {} from lantern {} slot {} to {} slot {}",
+        ctx.sender, quantity_to_split, source_lantern_id, source_slot_index, target_slot_type, target_slot_index
+    );
+
+    // Call GENERIC Handler
+    inventory_management::handle_split_from_container(
+        ctx, 
+        &mut lantern, 
+        source_slot_index, 
+        quantity_to_split,
+        target_slot_type, 
+        target_slot_index
+    )?;
+
+    // Check if lantern should be extinguished after fuel removal
+    let still_has_fuel = check_if_lantern_has_fuel(ctx, &lantern);
+    if !still_has_fuel && lantern.is_burning {
+        lantern.is_burning = false;
+        lantern.current_fuel_def_id = None;
+        lantern.remaining_fuel_burn_time_secs = None;
+        log::info!("Lantern {} extinguished as last valid fuel was removed.", source_lantern_id);
+    }
+
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, source_lantern_id);
+    Ok(())
+}
+
+/// --- Split and Drop Item from Lantern Slot to World ---
+/// Splits a specified quantity from a lantern slot and drops it as a world item.
+#[spacetimedb::reducer]
+pub fn split_and_drop_item_from_lantern_slot_to_world(
+    ctx: &ReducerContext,
+    lantern_id: u32,
+    slot_index: u8,
+    quantity_to_split: u32,
+) -> Result<(), String> {
+    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    
+    // Get the item in the slot
+    let item_instance_id = lantern.get_slot_instance_id(slot_index)
+        .ok_or_else(|| format!("No item in lantern {} slot {}", lantern_id, slot_index))?;
+    
+    let mut source_item = ctx.db.inventory_item().instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("Item instance {} not found", item_instance_id))?;
+    
+    if source_item.quantity < quantity_to_split {
+        return Err(format!("Cannot split {} items, only {} available", quantity_to_split, source_item.quantity));
+    }
+    
+    // Create dropped item location
+    let drop_location = ItemLocation::Dropped(crate::models::DroppedLocationData {
+        pos_x: lantern.pos_x,
+        pos_y: lantern.pos_y,
+    });
+    
+    // Split the stack
+    let _new_item_instance_id = split_stack_helper(ctx, &mut source_item, quantity_to_split, drop_location)?;
+    
+    // Update source item
+    if source_item.quantity == 0 {
+        // Remove empty item and clear slot
+        ctx.db.inventory_item().instance_id().delete(item_instance_id);
+        lantern.set_slot(slot_index, None, None);
+    } else {
+        ctx.db.inventory_item().instance_id().update(source_item);
+    }
+    
+    // Check if lantern should be extinguished after fuel removal
+    let still_has_fuel = check_if_lantern_has_fuel(ctx, &lantern);
+    if !still_has_fuel && lantern.is_burning {
+        lantern.is_burning = false;
+        lantern.current_fuel_def_id = None;
+        lantern.remaining_fuel_burn_time_secs = None;
+        log::info!("Lantern {} extinguished as last valid fuel was removed.", lantern_id);
+    }
+    
+    ctx.db.lantern().id().update(lantern.clone());
+    schedule_next_lantern_processing(ctx, lantern_id);
+    Ok(())
+}
+
+/// --- Interact with Lantern ---
+/// Basic interaction reducer for opening the lantern interface.
+#[spacetimedb::reducer]
+pub fn interact_with_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), String> {
+    let (_player, _lantern) = validate_lantern_interaction(ctx, lantern_id)?;
+    log::info!("Player {:?} interacted with lantern {}", ctx.sender, lantern_id);
+    Ok(())
 } 

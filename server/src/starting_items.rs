@@ -31,7 +31,6 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stone Hatchet", 1, Some(2u8), None),
         ("Stone Pickaxe", 1, Some(3u8), None),
         ("Primitive Reed Fishing Rod", 1, Some(4u8), None),
-        ("Bone Gaff Hook", 1, Some(5u8), None),
 
         // Starting materials in Inventory (Slots 0-23 typically)
         ("Sleeping Bag", 1, None, Some(0u16)),
@@ -40,10 +39,10 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Wooden Arrow", 25, None, Some(3u16)),
         ("Shelter", 1, None, Some(4u16)),
         ("Fire Arrow", 25, None, Some(5u16)),
-        ("Crossbow", 1, None, Some(6u16)),
-        ("Raw Human Flesh", 1, None, Some(7u16)),
         ("Torch", 1, None, Some(8u16)),
         ("Lantern", 1, None, Some(9u16)),
+        ("Tallow", 1000, None, Some(10u16)),
+        ("Bone Fragments", 1000, None, Some(11u16)),
 
     ];
 

@@ -38,6 +38,8 @@ import { AddFuelToLantern } from "./add_fuel_to_lantern_reducer.ts";
 export { AddFuelToLantern };
 import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
 export { AutoRemoveFuelFromCampfire };
+import { AutoRemoveFuelFromLantern } from "./auto_remove_fuel_from_lantern_reducer.ts";
+export { AutoRemoveFuelFromLantern };
 import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
 export { CancelAllCrafting };
 import { CancelCraftingItem } from "./cancel_crafting_item_reducer.ts";
@@ -110,6 +112,8 @@ import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
 export { InteractWithCorn };
 import { InteractWithHemp } from "./interact_with_hemp_reducer.ts";
 export { InteractWithHemp };
+import { InteractWithLantern } from "./interact_with_lantern_reducer.ts";
+export { InteractWithLantern };
 import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
 export { InteractWithMushroom };
 import { InteractWithPotato } from "./interact_with_potato_reducer.ts";
@@ -132,6 +136,8 @@ import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reduce
 export { MoveFuelItemToPlayerSlot };
 import { MoveFuelWithinCampfire } from "./move_fuel_within_campfire_reducer.ts";
 export { MoveFuelWithinCampfire };
+import { MoveFuelWithinLantern } from "./move_fuel_within_lantern_reducer.ts";
+export { MoveFuelWithinLantern };
 import { MoveItemFromBox } from "./move_item_from_box_reducer.ts";
 export { MoveItemFromBox };
 import { MoveItemFromCorpse } from "./move_item_from_corpse_reducer.ts";
@@ -154,6 +160,8 @@ import { MoveItemWithinCorpse } from "./move_item_within_corpse_reducer.ts";
 export { MoveItemWithinCorpse };
 import { MoveItemWithinStash } from "./move_item_within_stash_reducer.ts";
 export { MoveItemWithinStash };
+import { MoveLanternFuelToPlayerSlot } from "./move_lantern_fuel_to_player_slot_reducer.ts";
+export { MoveLanternFuelToPlayerSlot };
 import { MoveToFirstAvailableHotbarSlot } from "./move_to_first_available_hotbar_slot_reducer.ts";
 export { MoveToFirstAvailableHotbarSlot };
 import { PickupDroppedItem } from "./pickup_dropped_item_reducer.ts";
@@ -202,6 +210,8 @@ import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
 export { QuickMoveToCampfire };
 import { QuickMoveToCorpse } from "./quick_move_to_corpse_reducer.ts";
 export { QuickMoveToCorpse };
+import { QuickMoveToLantern } from "./quick_move_to_lantern_reducer.ts";
+export { QuickMoveToLantern };
 import { QuickMoveToStash } from "./quick_move_to_stash_reducer.ts";
 export { QuickMoveToStash };
 import { RegenerateCompressedChunks } from "./regenerate_compressed_chunks_reducer.ts";
@@ -242,6 +252,8 @@ import { SplitAndDropItemFromCampfireSlotToWorld } from "./split_and_drop_item_f
 export { SplitAndDropItemFromCampfireSlotToWorld };
 import { SplitAndDropItemFromCorpseSlotToWorld } from "./split_and_drop_item_from_corpse_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromCorpseSlotToWorld };
+import { SplitAndDropItemFromLanternSlotToWorld } from "./split_and_drop_item_from_lantern_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromLanternSlotToWorld };
 import { SplitAndDropItemFromStashSlotToWorld } from "./split_and_drop_item_from_stash_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromStashSlotToWorld };
 import { SplitAndMoveFromCampfire } from "./split_and_move_from_campfire_reducer.ts";
@@ -254,6 +266,8 @@ import { SplitStackFromCampfire } from "./split_stack_from_campfire_reducer.ts";
 export { SplitStackFromCampfire };
 import { SplitStackFromCorpse } from "./split_stack_from_corpse_reducer.ts";
 export { SplitStackFromCorpse };
+import { SplitStackFromLantern } from "./split_stack_from_lantern_reducer.ts";
+export { SplitStackFromLantern };
 import { SplitStackFromStash } from "./split_stack_from_stash_reducer.ts";
 export { SplitStackFromStash };
 import { SplitStackIntoBox } from "./split_stack_into_box_reducer.ts";
@@ -262,6 +276,8 @@ import { SplitStackIntoCampfire } from "./split_stack_into_campfire_reducer.ts";
 export { SplitStackIntoCampfire };
 import { SplitStackIntoCorpse } from "./split_stack_into_corpse_reducer.ts";
 export { SplitStackIntoCorpse };
+import { SplitStackIntoLantern } from "./split_stack_into_lantern_reducer.ts";
+export { SplitStackIntoLantern };
 import { SplitStackIntoStash } from "./split_stack_into_stash_reducer.ts";
 export { SplitStackIntoStash };
 import { SplitStackWithinBox } from "./split_stack_within_box_reducer.ts";
@@ -270,6 +286,8 @@ import { SplitStackWithinCampfire } from "./split_stack_within_campfire_reducer.
 export { SplitStackWithinCampfire };
 import { SplitStackWithinCorpse } from "./split_stack_within_corpse_reducer.ts";
 export { SplitStackWithinCorpse };
+import { SplitStackWithinLantern } from "./split_stack_within_lantern_reducer.ts";
+export { SplitStackWithinLantern };
 import { SplitStackWithinStash } from "./split_stack_within_stash_reducer.ts";
 export { SplitStackWithinStash };
 import { StartCrafting } from "./start_crafting_reducer.ts";
@@ -898,6 +916,10 @@ const REMOTE_MODULE = {
       reducerName: "auto_remove_fuel_from_campfire",
       argsType: AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType(),
     },
+    auto_remove_fuel_from_lantern: {
+      reducerName: "auto_remove_fuel_from_lantern",
+      argsType: AutoRemoveFuelFromLantern.getTypeScriptAlgebraicType(),
+    },
     cancel_all_crafting: {
       reducerName: "cancel_all_crafting",
       argsType: CancelAllCrafting.getTypeScriptAlgebraicType(),
@@ -1042,6 +1064,10 @@ const REMOTE_MODULE = {
       reducerName: "interact_with_hemp",
       argsType: InteractWithHemp.getTypeScriptAlgebraicType(),
     },
+    interact_with_lantern: {
+      reducerName: "interact_with_lantern",
+      argsType: InteractWithLantern.getTypeScriptAlgebraicType(),
+    },
     interact_with_mushroom: {
       reducerName: "interact_with_mushroom",
       argsType: InteractWithMushroom.getTypeScriptAlgebraicType(),
@@ -1086,6 +1112,10 @@ const REMOTE_MODULE = {
       reducerName: "move_fuel_within_campfire",
       argsType: MoveFuelWithinCampfire.getTypeScriptAlgebraicType(),
     },
+    move_fuel_within_lantern: {
+      reducerName: "move_fuel_within_lantern",
+      argsType: MoveFuelWithinLantern.getTypeScriptAlgebraicType(),
+    },
     move_item_from_box: {
       reducerName: "move_item_from_box",
       argsType: MoveItemFromBox.getTypeScriptAlgebraicType(),
@@ -1129,6 +1159,10 @@ const REMOTE_MODULE = {
     move_item_within_stash: {
       reducerName: "move_item_within_stash",
       argsType: MoveItemWithinStash.getTypeScriptAlgebraicType(),
+    },
+    move_lantern_fuel_to_player_slot: {
+      reducerName: "move_lantern_fuel_to_player_slot",
+      argsType: MoveLanternFuelToPlayerSlot.getTypeScriptAlgebraicType(),
     },
     move_to_first_available_hotbar_slot: {
       reducerName: "move_to_first_available_hotbar_slot",
@@ -1226,6 +1260,10 @@ const REMOTE_MODULE = {
       reducerName: "quick_move_to_corpse",
       argsType: QuickMoveToCorpse.getTypeScriptAlgebraicType(),
     },
+    quick_move_to_lantern: {
+      reducerName: "quick_move_to_lantern",
+      argsType: QuickMoveToLantern.getTypeScriptAlgebraicType(),
+    },
     quick_move_to_stash: {
       reducerName: "quick_move_to_stash",
       argsType: QuickMoveToStash.getTypeScriptAlgebraicType(),
@@ -1306,6 +1344,10 @@ const REMOTE_MODULE = {
       reducerName: "split_and_drop_item_from_corpse_slot_to_world",
       argsType: SplitAndDropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    split_and_drop_item_from_lantern_slot_to_world: {
+      reducerName: "split_and_drop_item_from_lantern_slot_to_world",
+      argsType: SplitAndDropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     split_and_drop_item_from_stash_slot_to_world: {
       reducerName: "split_and_drop_item_from_stash_slot_to_world",
       argsType: SplitAndDropItemFromStashSlotToWorld.getTypeScriptAlgebraicType(),
@@ -1330,6 +1372,10 @@ const REMOTE_MODULE = {
       reducerName: "split_stack_from_corpse",
       argsType: SplitStackFromCorpse.getTypeScriptAlgebraicType(),
     },
+    split_stack_from_lantern: {
+      reducerName: "split_stack_from_lantern",
+      argsType: SplitStackFromLantern.getTypeScriptAlgebraicType(),
+    },
     split_stack_from_stash: {
       reducerName: "split_stack_from_stash",
       argsType: SplitStackFromStash.getTypeScriptAlgebraicType(),
@@ -1346,6 +1392,10 @@ const REMOTE_MODULE = {
       reducerName: "split_stack_into_corpse",
       argsType: SplitStackIntoCorpse.getTypeScriptAlgebraicType(),
     },
+    split_stack_into_lantern: {
+      reducerName: "split_stack_into_lantern",
+      argsType: SplitStackIntoLantern.getTypeScriptAlgebraicType(),
+    },
     split_stack_into_stash: {
       reducerName: "split_stack_into_stash",
       argsType: SplitStackIntoStash.getTypeScriptAlgebraicType(),
@@ -1361,6 +1411,10 @@ const REMOTE_MODULE = {
     split_stack_within_corpse: {
       reducerName: "split_stack_within_corpse",
       argsType: SplitStackWithinCorpse.getTypeScriptAlgebraicType(),
+    },
+    split_stack_within_lantern: {
+      reducerName: "split_stack_within_lantern",
+      argsType: SplitStackWithinLantern.getTypeScriptAlgebraicType(),
     },
     split_stack_within_stash: {
       reducerName: "split_stack_within_stash",
@@ -1456,6 +1510,7 @@ export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
 | { name: "AddFuelToLantern", args: AddFuelToLantern }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
+| { name: "AutoRemoveFuelFromLantern", args: AutoRemoveFuelFromLantern }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
 | { name: "CancelFishing", args: CancelFishing }
@@ -1492,6 +1547,7 @@ export type Reducer = never
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithHemp", args: InteractWithHemp }
+| { name: "InteractWithLantern", args: InteractWithLantern }
 | { name: "InteractWithMushroom", args: InteractWithMushroom }
 | { name: "InteractWithPotato", args: InteractWithPotato }
 | { name: "InteractWithPumpkin", args: InteractWithPumpkin }
@@ -1503,6 +1559,7 @@ export type Reducer = never
 | { name: "LoadRangedWeapon", args: LoadRangedWeapon }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
+| { name: "MoveFuelWithinLantern", args: MoveFuelWithinLantern }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
 | { name: "MoveItemFromStash", args: MoveItemFromStash }
@@ -1514,6 +1571,7 @@ export type Reducer = never
 | { name: "MoveItemWithinBox", args: MoveItemWithinBox }
 | { name: "MoveItemWithinCorpse", args: MoveItemWithinCorpse }
 | { name: "MoveItemWithinStash", args: MoveItemWithinStash }
+| { name: "MoveLanternFuelToPlayerSlot", args: MoveLanternFuelToPlayerSlot }
 | { name: "MoveToFirstAvailableHotbarSlot", args: MoveToFirstAvailableHotbarSlot }
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
 | { name: "PickupLantern", args: PickupLantern }
@@ -1538,6 +1596,7 @@ export type Reducer = never
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
+| { name: "QuickMoveToLantern", args: QuickMoveToLantern }
 | { name: "QuickMoveToStash", args: QuickMoveToStash }
 | { name: "RegenerateCompressedChunks", args: RegenerateCompressedChunks }
 | { name: "RegisterPlayer", args: RegisterPlayer }
@@ -1558,20 +1617,24 @@ export type Reducer = never
 | { name: "SplitAndDropItemFromBoxSlotToWorld", args: SplitAndDropItemFromBoxSlotToWorld }
 | { name: "SplitAndDropItemFromCampfireSlotToWorld", args: SplitAndDropItemFromCampfireSlotToWorld }
 | { name: "SplitAndDropItemFromCorpseSlotToWorld", args: SplitAndDropItemFromCorpseSlotToWorld }
+| { name: "SplitAndDropItemFromLanternSlotToWorld", args: SplitAndDropItemFromLanternSlotToWorld }
 | { name: "SplitAndDropItemFromStashSlotToWorld", args: SplitAndDropItemFromStashSlotToWorld }
 | { name: "SplitAndMoveFromCampfire", args: SplitAndMoveFromCampfire }
 | { name: "SplitStack", args: SplitStack }
 | { name: "SplitStackFromBox", args: SplitStackFromBox }
 | { name: "SplitStackFromCampfire", args: SplitStackFromCampfire }
 | { name: "SplitStackFromCorpse", args: SplitStackFromCorpse }
+| { name: "SplitStackFromLantern", args: SplitStackFromLantern }
 | { name: "SplitStackFromStash", args: SplitStackFromStash }
 | { name: "SplitStackIntoBox", args: SplitStackIntoBox }
 | { name: "SplitStackIntoCampfire", args: SplitStackIntoCampfire }
 | { name: "SplitStackIntoCorpse", args: SplitStackIntoCorpse }
+| { name: "SplitStackIntoLantern", args: SplitStackIntoLantern }
 | { name: "SplitStackIntoStash", args: SplitStackIntoStash }
 | { name: "SplitStackWithinBox", args: SplitStackWithinBox }
 | { name: "SplitStackWithinCampfire", args: SplitStackWithinCampfire }
 | { name: "SplitStackWithinCorpse", args: SplitStackWithinCorpse }
+| { name: "SplitStackWithinLantern", args: SplitStackWithinLantern }
 | { name: "SplitStackWithinStash", args: SplitStackWithinStash }
 | { name: "StartCrafting", args: StartCrafting }
 | { name: "StartCraftingMultiple", args: StartCraftingMultiple }
@@ -1639,6 +1702,22 @@ export class RemoteReducers {
 
   removeOnAutoRemoveFuelFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
     this.connection.offReducer("auto_remove_fuel_from_campfire", callback);
+  }
+
+  autoRemoveFuelFromLantern(lanternId: number, sourceSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    AutoRemoveFuelFromLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("auto_remove_fuel_from_lantern", __argsBuffer, this.setCallReducerFlags.autoRemoveFuelFromLanternFlags);
+  }
+
+  onAutoRemoveFuelFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("auto_remove_fuel_from_lantern", callback);
+  }
+
+  removeOnAutoRemoveFuelFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("auto_remove_fuel_from_lantern", callback);
   }
 
   cancelAllCrafting() {
@@ -2169,6 +2248,22 @@ export class RemoteReducers {
     this.connection.offReducer("interact_with_hemp", callback);
   }
 
+  interactWithLantern(lanternId: number) {
+    const __args = { lanternId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_lantern", __argsBuffer, this.setCallReducerFlags.interactWithLanternFlags);
+  }
+
+  onInteractWithLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.onReducer("interact_with_lantern", callback);
+  }
+
+  removeOnInteractWithLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
+    this.connection.offReducer("interact_with_lantern", callback);
+  }
+
   interactWithMushroom(mushroomId: bigint) {
     const __args = { mushroomId };
     let __writer = new BinaryWriter(1024);
@@ -2335,6 +2430,22 @@ export class RemoteReducers {
 
   removeOnMoveFuelWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_fuel_within_campfire", callback);
+  }
+
+  moveFuelWithinLantern(lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveFuelWithinLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_fuel_within_lantern", __argsBuffer, this.setCallReducerFlags.moveFuelWithinLanternFlags);
+  }
+
+  onMoveFuelWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_fuel_within_lantern", callback);
+  }
+
+  removeOnMoveFuelWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_fuel_within_lantern", callback);
   }
 
   moveItemFromBox(boxId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
@@ -2511,6 +2622,22 @@ export class RemoteReducers {
 
   removeOnMoveItemWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_item_within_stash", callback);
+  }
+
+  moveLanternFuelToPlayerSlot(lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveLanternFuelToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_lantern_fuel_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveLanternFuelToPlayerSlotFlags);
+  }
+
+  onMoveLanternFuelToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_lantern_fuel_to_player_slot", callback);
+  }
+
+  removeOnMoveLanternFuelToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_lantern_fuel_to_player_slot", callback);
   }
 
   moveToFirstAvailableHotbarSlot(itemInstanceId: bigint) {
@@ -2897,6 +3024,22 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_to_corpse", callback);
   }
 
+  quickMoveToLantern(lanternId: number, itemInstanceId: bigint) {
+    const __args = { lanternId, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveToLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_to_lantern", __argsBuffer, this.setCallReducerFlags.quickMoveToLanternFlags);
+  }
+
+  onQuickMoveToLantern(callback: (ctx: ReducerEventContext, lanternId: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("quick_move_to_lantern", callback);
+  }
+
+  removeOnQuickMoveToLantern(callback: (ctx: ReducerEventContext, lanternId: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("quick_move_to_lantern", callback);
+  }
+
   quickMoveToStash(stashId: number, itemInstanceId: bigint) {
     const __args = { stashId, itemInstanceId };
     let __writer = new BinaryWriter(1024);
@@ -3185,6 +3328,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_and_drop_item_from_corpse_slot_to_world", callback);
   }
 
+  splitAndDropItemFromLanternSlotToWorld(lanternId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { lanternId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_lantern_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromLanternSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromLanternSlotToWorld(callback: (ctx: ReducerEventContext, lanternId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_lantern_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromLanternSlotToWorld(callback: (ctx: ReducerEventContext, lanternId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_lantern_slot_to_world", callback);
+  }
+
   splitAndDropItemFromStashSlotToWorld(stashId: number, slotIndex: number, quantityToSplit: number) {
     const __args = { stashId, slotIndex, quantityToSplit };
     let __writer = new BinaryWriter(1024);
@@ -3281,6 +3440,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_stack_from_corpse", callback);
   }
 
+  splitStackFromLantern(sourceLanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { sourceLanternId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackFromLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_from_lantern", __argsBuffer, this.setCallReducerFlags.splitStackFromLanternFlags);
+  }
+
+  onSplitStackFromLantern(callback: (ctx: ReducerEventContext, sourceLanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_from_lantern", callback);
+  }
+
+  removeOnSplitStackFromLantern(callback: (ctx: ReducerEventContext, sourceLanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_from_lantern", callback);
+  }
+
   splitStackFromStash(stashId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { stashId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3345,6 +3520,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_stack_into_corpse", callback);
   }
 
+  splitStackIntoLantern(sourceItemInstanceId: bigint, quantityToSplit: number, targetLanternId: number, targetSlotIndex: number) {
+    const __args = { sourceItemInstanceId, quantityToSplit, targetLanternId, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackIntoLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_into_lantern", __argsBuffer, this.setCallReducerFlags.splitStackIntoLanternFlags);
+  }
+
+  onSplitStackIntoLantern(callback: (ctx: ReducerEventContext, sourceItemInstanceId: bigint, quantityToSplit: number, targetLanternId: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_into_lantern", callback);
+  }
+
+  removeOnSplitStackIntoLantern(callback: (ctx: ReducerEventContext, sourceItemInstanceId: bigint, quantityToSplit: number, targetLanternId: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_into_lantern", callback);
+  }
+
   splitStackIntoStash(stashId: number, targetSlotIndex: number, sourceItemInstanceId: bigint, quantityToSplit: number) {
     const __args = { stashId, targetSlotIndex, sourceItemInstanceId, quantityToSplit };
     let __writer = new BinaryWriter(1024);
@@ -3407,6 +3598,22 @@ export class RemoteReducers {
 
   removeOnSplitStackWithinCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) => void) {
     this.connection.offReducer("split_stack_within_corpse", callback);
+  }
+
+  splitStackWithinLantern(lanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex, quantityToSplit, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackWithinLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_within_lantern", __argsBuffer, this.setCallReducerFlags.splitStackWithinLanternFlags);
+  }
+
+  onSplitStackWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_within_lantern", callback);
+  }
+
+  removeOnSplitStackWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_within_lantern", callback);
   }
 
   splitStackWithinStash(stashId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) {
@@ -3671,6 +3878,11 @@ export class SetReducerFlags {
     this.autoRemoveFuelFromCampfireFlags = flags;
   }
 
+  autoRemoveFuelFromLanternFlags: CallReducerFlags = 'FullUpdate';
+  autoRemoveFuelFromLantern(flags: CallReducerFlags) {
+    this.autoRemoveFuelFromLanternFlags = flags;
+  }
+
   cancelAllCraftingFlags: CallReducerFlags = 'FullUpdate';
   cancelAllCrafting(flags: CallReducerFlags) {
     this.cancelAllCraftingFlags = flags;
@@ -3841,6 +4053,11 @@ export class SetReducerFlags {
     this.interactWithHempFlags = flags;
   }
 
+  interactWithLanternFlags: CallReducerFlags = 'FullUpdate';
+  interactWithLantern(flags: CallReducerFlags) {
+    this.interactWithLanternFlags = flags;
+  }
+
   interactWithMushroomFlags: CallReducerFlags = 'FullUpdate';
   interactWithMushroom(flags: CallReducerFlags) {
     this.interactWithMushroomFlags = flags;
@@ -3896,6 +4113,11 @@ export class SetReducerFlags {
     this.moveFuelWithinCampfireFlags = flags;
   }
 
+  moveFuelWithinLanternFlags: CallReducerFlags = 'FullUpdate';
+  moveFuelWithinLantern(flags: CallReducerFlags) {
+    this.moveFuelWithinLanternFlags = flags;
+  }
+
   moveItemFromBoxFlags: CallReducerFlags = 'FullUpdate';
   moveItemFromBox(flags: CallReducerFlags) {
     this.moveItemFromBoxFlags = flags;
@@ -3949,6 +4171,11 @@ export class SetReducerFlags {
   moveItemWithinStashFlags: CallReducerFlags = 'FullUpdate';
   moveItemWithinStash(flags: CallReducerFlags) {
     this.moveItemWithinStashFlags = flags;
+  }
+
+  moveLanternFuelToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
+  moveLanternFuelToPlayerSlot(flags: CallReducerFlags) {
+    this.moveLanternFuelToPlayerSlotFlags = flags;
   }
 
   moveToFirstAvailableHotbarSlotFlags: CallReducerFlags = 'FullUpdate';
@@ -4071,6 +4298,11 @@ export class SetReducerFlags {
     this.quickMoveToCorpseFlags = flags;
   }
 
+  quickMoveToLanternFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveToLantern(flags: CallReducerFlags) {
+    this.quickMoveToLanternFlags = flags;
+  }
+
   quickMoveToStashFlags: CallReducerFlags = 'FullUpdate';
   quickMoveToStash(flags: CallReducerFlags) {
     this.quickMoveToStashFlags = flags;
@@ -4171,6 +4403,11 @@ export class SetReducerFlags {
     this.splitAndDropItemFromCorpseSlotToWorldFlags = flags;
   }
 
+  splitAndDropItemFromLanternSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromLanternSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromLanternSlotToWorldFlags = flags;
+  }
+
   splitAndDropItemFromStashSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
   splitAndDropItemFromStashSlotToWorld(flags: CallReducerFlags) {
     this.splitAndDropItemFromStashSlotToWorldFlags = flags;
@@ -4201,6 +4438,11 @@ export class SetReducerFlags {
     this.splitStackFromCorpseFlags = flags;
   }
 
+  splitStackFromLanternFlags: CallReducerFlags = 'FullUpdate';
+  splitStackFromLantern(flags: CallReducerFlags) {
+    this.splitStackFromLanternFlags = flags;
+  }
+
   splitStackFromStashFlags: CallReducerFlags = 'FullUpdate';
   splitStackFromStash(flags: CallReducerFlags) {
     this.splitStackFromStashFlags = flags;
@@ -4221,6 +4463,11 @@ export class SetReducerFlags {
     this.splitStackIntoCorpseFlags = flags;
   }
 
+  splitStackIntoLanternFlags: CallReducerFlags = 'FullUpdate';
+  splitStackIntoLantern(flags: CallReducerFlags) {
+    this.splitStackIntoLanternFlags = flags;
+  }
+
   splitStackIntoStashFlags: CallReducerFlags = 'FullUpdate';
   splitStackIntoStash(flags: CallReducerFlags) {
     this.splitStackIntoStashFlags = flags;
@@ -4239,6 +4486,11 @@ export class SetReducerFlags {
   splitStackWithinCorpseFlags: CallReducerFlags = 'FullUpdate';
   splitStackWithinCorpse(flags: CallReducerFlags) {
     this.splitStackWithinCorpseFlags = flags;
+  }
+
+  splitStackWithinLanternFlags: CallReducerFlags = 'FullUpdate';
+  splitStackWithinLantern(flags: CallReducerFlags) {
+    this.splitStackWithinLanternFlags = flags;
   }
 
   splitStackWithinStashFlags: CallReducerFlags = 'FullUpdate';
