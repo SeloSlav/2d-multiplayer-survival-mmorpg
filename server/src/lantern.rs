@@ -578,16 +578,22 @@ pub fn schedule_next_lantern_processing(ctx: &ReducerContext, lantern_id: u32) -
     Ok(())
 }
 
+/// --- Drop Item from Lantern Slot to World ---
+#[spacetimedb::reducer]
 pub fn drop_item_from_lantern_slot_to_world(
     ctx: &ReducerContext,
     lantern_id: u32,
     slot_index: u8,
 ) -> Result<(), String> {
-    let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
-    let player = ctx.db.player().identity().find(ctx.sender)
-        .ok_or_else(|| "Player not found for drop location".to_string())?;
+    let (player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
     
-    handle_drop_from_container_slot(ctx, &mut lantern, slot_index, &player)?;
+    handle_drop_from_container_slot(
+        ctx,
+        &mut lantern,
+        slot_index,
+        &player,
+    )?;
+    
     ctx.db.lantern().id().update(lantern);
     Ok(())
 }

@@ -76,6 +76,8 @@ import { DropItemFromCampfireSlotToWorld } from "./drop_item_from_campfire_slot_
 export { DropItemFromCampfireSlotToWorld };
 import { DropItemFromCorpseSlotToWorld } from "./drop_item_from_corpse_slot_to_world_reducer.ts";
 export { DropItemFromCorpseSlotToWorld };
+import { DropItemFromLanternSlotToWorld } from "./drop_item_from_lantern_slot_to_world_reducer.ts";
+export { DropItemFromLanternSlotToWorld };
 import { DropItemFromStashSlotToWorld } from "./drop_item_from_stash_slot_to_world_reducer.ts";
 export { DropItemFromStashSlotToWorld };
 import { EquipArmor } from "./equip_armor_reducer.ts";
@@ -992,6 +994,10 @@ const REMOTE_MODULE = {
       reducerName: "drop_item_from_corpse_slot_to_world",
       argsType: DropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    drop_item_from_lantern_slot_to_world: {
+      reducerName: "drop_item_from_lantern_slot_to_world",
+      argsType: DropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     drop_item_from_stash_slot_to_world: {
       reducerName: "drop_item_from_stash_slot_to_world",
       argsType: DropItemFromStashSlotToWorld.getTypeScriptAlgebraicType(),
@@ -1529,6 +1535,7 @@ export type Reducer = never
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
 | { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
 | { name: "DropItemFromCorpseSlotToWorld", args: DropItemFromCorpseSlotToWorld }
+| { name: "DropItemFromLanternSlotToWorld", args: DropItemFromLanternSlotToWorld }
 | { name: "DropItemFromStashSlotToWorld", args: DropItemFromStashSlotToWorld }
 | { name: "EquipArmor", args: EquipArmor }
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
@@ -1990,6 +1997,22 @@ export class RemoteReducers {
 
   removeOnDropItemFromCorpseSlotToWorld(callback: (ctx: ReducerEventContext, corpseId: number, slotIndex: number) => void) {
     this.connection.offReducer("drop_item_from_corpse_slot_to_world", callback);
+  }
+
+  dropItemFromLanternSlotToWorld(lanternId: number, slotIndex: number) {
+    const __args = { lanternId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_lantern_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromLanternSlotToWorldFlags);
+  }
+
+  onDropItemFromLanternSlotToWorld(callback: (ctx: ReducerEventContext, lanternId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_lantern_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromLanternSlotToWorld(callback: (ctx: ReducerEventContext, lanternId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_lantern_slot_to_world", callback);
   }
 
   dropItemFromStashSlotToWorld(stashId: number, slotIndex: number) {
@@ -3971,6 +3994,11 @@ export class SetReducerFlags {
   dropItemFromCorpseSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
   dropItemFromCorpseSlotToWorld(flags: CallReducerFlags) {
     this.dropItemFromCorpseSlotToWorldFlags = flags;
+  }
+
+  dropItemFromLanternSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromLanternSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromLanternSlotToWorldFlags = flags;
   }
 
   dropItemFromStashSlotToWorldFlags: CallReducerFlags = 'FullUpdate';

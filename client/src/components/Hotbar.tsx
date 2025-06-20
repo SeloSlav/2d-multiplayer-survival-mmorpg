@@ -805,6 +805,15 @@ const Hotbar: React.FC<HotbarProps> = ({
                console.error("[Hotbar ContextMenu Hotbar->Campfire] Failed to call quickMoveToCampfire reducer:", error);
            }
            return;
+      }
+      else if (interactingWith?.type === 'lantern') {
+          const lanternIdNum = Number(interactingWith.id);
+           try {
+               connection.reducers.quickMoveToLantern(lanternIdNum, itemInstanceId);
+           } catch (error: any) {
+               console.error("[Hotbar ContextMenu Hotbar->Lantern] Failed to call quickMoveToLantern reducer:", error);
+           }
+           return;
       } 
       else if (interactingWith?.type === 'player_corpse') {
            const corpseId = Number(interactingWith.id);

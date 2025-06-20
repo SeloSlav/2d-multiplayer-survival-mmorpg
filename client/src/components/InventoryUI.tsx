@@ -396,6 +396,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const currentInteraction = interactionTarget;
         const currentBoxId = currentInteraction?.type === 'wooden_storage_box' ? Number(currentInteraction.id) : null;
         const currentCampfireId = currentInteraction?.type === 'campfire' ? Number(currentInteraction.id) : null;
+        const currentLanternId = currentInteraction?.type === 'lantern' ? Number(currentInteraction.id) : null;
         const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
         const currentStashId = currentInteraction?.type === 'stash' ? Number(currentInteraction.id) : null;
 
@@ -446,6 +447,17 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 connection.reducers.quickMoveToCampfire(currentCampfireId, itemInstanceId); 
             } catch (e: any) { 
                 console.error("[Inv CtxMenu Inv->Campfire]", e); 
+                // TODO: setUiError 
+            }
+            return; // Action handled
+        } 
+        // --- PRIORITY 5: Open Lantern --- 
+        else if (currentLanternId !== null) {
+            try { 
+                // console.log(`[Inv CtxMenu Inv->Lantern] Lantern ${currentLanternId} open. Calling quickMoveToLantern for item ${itemInstanceId}`);
+                connection.reducers.quickMoveToLantern(currentLanternId, itemInstanceId); 
+            } catch (e: any) { 
+                console.error("[Inv CtxMenu Inv->Lantern]", e); 
                 // TODO: setUiError 
             }
             return; // Action handled

@@ -98,6 +98,12 @@ export const useDragDropManager = ({
                     dropReducer: connection.reducers.dropItemFromStashSlotToWorld.bind(connection.reducers),
                     splitDropReducer: connection.reducers.splitAndDropItemFromStashSlotToWorld.bind(connection.reducers),
                     containerName: "Stash"
+                },
+                'lantern_fuel': { // New entry for lantern world drop
+                    validateAndGetEntityId: (rawId) => (typeof rawId === 'number' ? rawId : null),
+                    dropReducer: connection.reducers.dropItemFromLanternSlotToWorld.bind(connection.reducers),
+                    splitDropReducer: connection.reducers.splitAndDropItemFromLanternSlotToWorld.bind(connection.reducers),
+                    containerName: "Lantern"
                 }
             };
 
@@ -216,6 +222,16 @@ export const useDragDropManager = ({
                         }
                         // console.log(`[useDragDropManager Drop Split] Calling split_stack_into_campfire`);
                         connection.reducers.splitStackIntoCampfire(sourceInstanceId, quantityToSplit, targetContainerIdNum, targetSlotIndexNum);
+                    } else if (targetSlotType === 'lantern_fuel') {
+                        targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                        targetContainerIdNum = targetSlot.parentId ? Number(targetSlot.parentId) : null;
+                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetContainerIdNum === null || isNaN(targetContainerIdNum)) {
+                            console.error("[useDragDropManager Drop] Split failed: Invalid target index or missing LanternID.");
+                            setDropError("Invalid target slot or context for lantern split.");
+                            return;
+                        }
+                        // console.log(`[useDragDropManager Drop Split] Calling split_stack_into_lantern`);
+                        connection.reducers.splitStackIntoLantern(sourceInstanceId, quantityToSplit, targetContainerIdNum, targetSlotIndexNum);
                     } else if (targetSlotType === 'wooden_storage_box') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         targetContainerIdNum = targetSlot.parentId ? Number(targetSlot.parentId) : null;
@@ -322,6 +338,78 @@ export const useDragDropManager = ({
                         // console.log(`[useDragDropManager Drop] Calling split_stack_within_campfire: Campfire ${sourceCampfireId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
                         connection.reducers.splitStackWithinCampfire(
                             sourceCampfireId,
+                            sourceIndexNum,
+                            quantityToSplit,
+                            targetSlotIndexNum
+                        );
+                    } else {
+                        console.warn(`[useDragDropManager Drop] Split ignored: Cannot split from ${sourceSlotType} to ${targetSlotType}`);
+                        setDropError("Cannot split item to that location.");
+                        return;
+                    }
+                } else if (sourceSlotType === 'lantern_fuel') {
+                    const sourceLanternId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceLanternId === null || isNaN(sourceIndexNum)) {
+                        console.error("[useDragDropManager Drop] Missing LanternID or SourceIndex for split FROM lantern");
+                        setDropError("Could not determine source lantern slot for split.");
+                        return;
+                    }
+                    let targetSlotIndexNum: number | null = null;
+                    if (targetSlotType as string === 'inventory' || targetSlotType as string === 'hotbar') {
+                        targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum)) {
+                            console.error("[useDragDropManager Drop] Invalid target index number for split from lantern.");
+                            setDropError("Invalid target slot for split.");
+                            return;
+                        }
+
+                        // Check target slot state BEFORE calling reducer
+                        let targetItemInstance: InventoryItem | undefined = undefined;
+                        if (connection && playerIdentity) {
+                            const allPlayerItems = Array.from(connection.db.inventoryItem.iter()); 
+                            if (targetSlotType === 'inventory') {
+                                targetItemInstance = allPlayerItems.find(i => 
+                                    i.location.tag === 'Inventory' &&
+                                    (i.location.value as InventoryLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as InventoryLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            } else { // hotbar
+                                targetItemInstance = allPlayerItems.find(i => 
+                                    i.location.tag === 'Hotbar' &&
+                                    (i.location.value as HotbarLocationData).ownerId.isEqual(playerIdentity) &&
+                                    (i.location.value as HotbarLocationData).slotIndex === targetSlotIndexNum
+                                );
+                            }
+                        }
+                        
+                        connection.reducers.splitStackFromLantern(
+                            sourceLanternId,
+                            sourceIndexNum,
+                            quantityToSplit,
+                            targetSlotType,
+                            targetSlotIndexNum
+                        );
+                    } else if (targetSlotType === 'lantern_fuel') {
+                        // Handle splitting within the same lantern
+                        targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                        const targetLanternId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
+                        
+                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetLanternId === null || isNaN(targetLanternId)) {
+                            console.error("[useDragDropManager Drop] Invalid target index or missing LanternID for intra-lantern split.");
+                            setDropError("Invalid target slot for lantern split.");
+                            return;
+                        }
+                        
+                        if (sourceLanternId !== targetLanternId) {
+                            console.warn("[useDragDropManager Drop] Cannot split between different lanterns yet.");
+                            setDropError("Cannot split between different lanterns.");
+                            return;
+                        }
+                        
+                        // console.log(`[useDragDropManager Drop] Calling split_stack_within_lantern: Lantern ${sourceLanternId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
+                        connection.reducers.splitStackWithinLantern(
+                            sourceLanternId,
                             sourceIndexNum,
                             quantityToSplit,
                             targetSlotIndexNum
@@ -477,6 +565,12 @@ export const useDragDropManager = ({
                     if (sourceCampfireId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CampfireID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling moveFuelItemToPlayerSlot (to inventory)`);
                     connection.reducers.moveFuelItemToPlayerSlot(sourceCampfireId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'lantern_fuel') {
+                    const sourceLanternId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceLanternId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing LanternID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling moveLanternFuelToPlayerSlot (to inventory)`);
+                    connection.reducers.moveLanternFuelToPlayerSlot(sourceLanternId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else if (sourceInfo.sourceSlot.type === 'wooden_storage_box') {
                     const sourceBoxId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
@@ -507,6 +601,12 @@ export const useDragDropManager = ({
                     if (sourceCampfireId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CampfireID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling moveFuelItemToPlayerSlot (to hotbar)`);
                     connection.reducers.moveFuelItemToPlayerSlot(sourceCampfireId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'lantern_fuel') {
+                    const sourceLanternId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceLanternId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing LanternID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling moveLanternFuelToPlayerSlot (to hotbar)`);
+                    connection.reducers.moveLanternFuelToPlayerSlot(sourceLanternId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else if (sourceInfo.sourceSlot.type === 'wooden_storage_box') {
                     const sourceBoxId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
@@ -551,6 +651,28 @@ export const useDragDropManager = ({
                 } else {
                     // console.log(`[useDragDropManager Drop] Calling addFuelToCampfire`);
                     connection.reducers.addFuelToCampfire(campfireIdNum, targetIndexNum, itemInstanceId);
+                }
+            } else if (targetSlot.type === 'lantern_fuel') {
+                const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                if (isNaN(targetIndexNum)) { console.error("Invalid lantern fuel index", targetSlot.index); setDropError("Invalid slot."); return; }
+                let lanternIdNum: number | null = targetSlot.parentId ? Number(targetSlot.parentId) : (interactingWith?.type === 'lantern' ? Number(interactingWith.id) : null);
+                if (lanternIdNum === null || isNaN(lanternIdNum)) {
+                    console.error("[useDragDropManager Drop] Lantern ID could not be determined.");
+                    setDropError("Cannot move item: Lantern context lost.");
+                    return;
+                }
+                if (sourceInfo.sourceSlot.type === 'lantern_fuel') {
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source lantern fuel index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== lanternIdNum) {
+                        setDropError("Cannot move fuel between different lanterns.");
+                        return;
+                    }
+                    // console.log(`[useDragDropManager Drop] Calling moveFuelWithinLantern`);
+                    connection.reducers.moveFuelWithinLantern(lanternIdNum, sourceIndexNum, targetIndexNum);
+                } else {
+                    // console.log(`[useDragDropManager Drop] Calling addFuelToLantern`);
+                    connection.reducers.addFuelToLantern(lanternIdNum, targetIndexNum, itemInstanceId);
                 }
             } else if (targetSlot.type === 'wooden_storage_box') {
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);

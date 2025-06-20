@@ -31,7 +31,7 @@ import { PopulatedItem } from './InventoryUI';
 
 // Constants
 const NUM_FUEL_SLOTS = 5;
-const NUM_LANTERN_FUEL_SLOTS = 2; // Lanterns have 2 fuel slots
+const NUM_LANTERN_FUEL_SLOTS = 1; // Lanterns have 1 fuel slot
 const NUM_BOX_SLOTS = 18;
 const NUM_CORPSE_SLOTS = 30;
 const NUM_STASH_SLOTS = 6; // Added for Stash
@@ -128,7 +128,6 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (!isLanternInteraction || !currentLantern) return items;
         const instanceIds = [
             currentLantern.fuelInstanceId0,
-            currentLantern.fuelInstanceId1,
         ];
         instanceIds.forEach((instanceIdOpt, index) => {
             if (instanceIdOpt) {
@@ -272,8 +271,12 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
         
         if (!connection?.reducers || lanternIdNum === null) return;
-        // TODO: No auto remove for lanterns yet, just prevent context menu for now
-        console.log('Lantern fuel removal not yet implemented');
+        console.log('[ExternalContainerUI] Processing lantern fuel context menu for slot:', slotIndex);
+        try { 
+            connection.reducers.autoRemoveFuelFromLantern(lanternIdNum, slotIndex); 
+        } catch (e) { 
+            console.error("Error removing lantern fuel:", e); 
+        }
     }, [connection, lanternIdNum]);
 
     const handleToggleLanternBurn = useCallback(() => {
