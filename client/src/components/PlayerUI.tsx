@@ -727,6 +727,17 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             // No duration - permanent effect
                         };
                         break;
+                    case 'TreeCover':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'tree_cover',
+                            name: 'Tree Cover',
+                            emoji: '🌳',
+                            type: 'positive' as const,
+                            description: 'Protected by natural tree cover.',
+                            // No duration - permanent effect based on proximity
+                        };
+                        break;
                     case 'Wet':
                         effectApplies = true;
                         effectData = {
@@ -764,7 +775,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 }
             }
             
-            if (effectApplies && effectData && (bufferedRemainingTime > 0 || effectData.id === 'cozy')) {
+            if (effectApplies && effectData && (bufferedRemainingTime > 0 || effectData.id === 'cozy' || effectData.id === 'tree_cover')) {
                 effects.push(effectData);
             }
         });

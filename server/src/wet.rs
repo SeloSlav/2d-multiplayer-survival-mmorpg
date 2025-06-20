@@ -11,6 +11,7 @@ pub const WET_LINGER_DURATION_SECONDS: u32 = 60; // How long wet effect lasts af
 pub const WET_EFFECT_CHECK_INTERVAL_SECONDS: u32 = 2; // Check wet conditions every 2 seconds
 pub const WET_NORMAL_DECAY_RATE_SECONDS: u32 = 1; // How many seconds to remove from wet timer normally (1 second per 1-second interval)
 pub const WET_FAST_DECAY_RATE_SECONDS: u32 = 6; // How many seconds to remove from wet timer when near warmth (6 seconds per 1-second interval - very fast!)
+pub const WET_TREE_DECAY_RATE_SECONDS: u32 = 3; // How many seconds to remove from wet timer when near trees (3 seconds per 1-second interval - moderate drying)
 
 /// Applies a wet effect to a player
 /// This creates a long-duration effect that will be removed by environmental conditions
@@ -117,7 +118,8 @@ pub fn should_player_be_wet(ctx: &ReducerContext, player_id: Identity, player: &
     (false, String::new())
 }
 
-/// Checks if a player is protected from rain (inside shelter or near campfire)
+
+/// Checks if a player is protected from rain (inside shelter, near campfire, or has tree cover)
 fn is_player_protected_from_rain(ctx: &ReducerContext, player: &Player) -> bool {
     use crate::shelter::shelter as ShelterTableTrait;
     use crate::campfire::campfire as CampfireTableTrait;
@@ -146,6 +148,11 @@ fn is_player_protected_from_rain(ctx: &ReducerContext, player: &Player) -> bool 
         if distance_squared <= crate::campfire::WARMTH_RADIUS_SQUARED {
             return true;
         }
+    }
+    
+    // Check if player has tree cover effect (natural shelter)
+    if crate::active_effects::player_has_tree_cover_effect(ctx, player.identity) {
+        return true;
     }
     
     false
@@ -223,27 +230,51 @@ pub fn check_and_remove_wet_from_environment(ctx: &ReducerContext) -> Result<(),
                 continue;
             }
             
-            // Only apply accelerated decay if player has cozy effect
+            let has_tree_cover_effect = crate::active_effects::player_has_tree_cover_effect(ctx, player_id);
+            
+            // Apply accelerated decay based on environment - effects can stack!
+            let mut accelerated_decay_amount = 0;
+            let mut decay_reasons = Vec::new();
+            
             if has_cozy_effect {
+                // Cozy effect (campfire/shelter) provides fastest drying
+                accelerated_decay_amount += WET_FAST_DECAY_RATE_SECONDS - WET_NORMAL_DECAY_RATE_SECONDS;
+                decay_reasons.push("cozy effect (warmth)");
+            }
+            
+            if has_tree_cover_effect {
+                // Tree cover provides moderate drying (can stack with cozy!)
+                accelerated_decay_amount += WET_TREE_DECAY_RATE_SECONDS - WET_NORMAL_DECAY_RATE_SECONDS;
+                decay_reasons.push("tree cover");
+            }
+            
+            let decay_reason = if decay_reasons.len() > 1 {
+                format!("{} (stacked effects)", decay_reasons.join(" + "))
+            } else if decay_reasons.len() == 1 {
+                decay_reasons[0].to_string()
+            } else {
+                String::new()
+            };
+            
+            if accelerated_decay_amount > 0 {
                 let current_time = ctx.timestamp;
-                let accelerated_decay_amount = WET_FAST_DECAY_RATE_SECONDS - WET_NORMAL_DECAY_RATE_SECONDS; // Extra decay beyond normal
                 let decay_duration = TimeDuration::from_micros((accelerated_decay_amount as i64) * 1_000_000);
                 let new_end_time = effect.ends_at - decay_duration;
                 
-                log::info!("WET ACCELERATED DECAY: player={:?}, extra_decay={}s due to cozy effect", 
-                    player_id, accelerated_decay_amount);
+                log::info!("WET ACCELERATED DECAY: player={:?}, extra_decay={}s due to {}", 
+                    player_id, accelerated_decay_amount, decay_reason);
                 
                 // If the new end time is in the past, remove the effect entirely
                 if new_end_time <= current_time {
-                    remove_wet_effect(ctx, player_id, "accelerated drying near warmth");
-                    log::info!("WET EFFECT REMOVED: player={:?}, reason=accelerated decay", player_id);
+                    remove_wet_effect(ctx, player_id, &format!("accelerated drying from {}", decay_reason));
+                    log::info!("WET EFFECT REMOVED: player={:?}, reason={}", player_id, decay_reason);
                 } else {
                     // Update the effect with reduced duration
                     let mut updated_effect = effect.clone();
                     updated_effect.ends_at = new_end_time;
                     ctx.db.active_consumable_effect().effect_id().update(updated_effect);
-                    log::info!("WET EFFECT ACCELERATED: player={:?}, new_end_time={:?}", 
-                        player_id, new_end_time);
+                    log::info!("WET EFFECT ACCELERATED: player={:?}, new_end_time={:?}, reason={}", 
+                        player_id, new_end_time, decay_reason);
                 }
             }
         }

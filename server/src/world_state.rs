@@ -34,10 +34,10 @@ pub(crate) const WARMTH_DRAIN_MULTIPLIER_MIDNIGHT: f32 = 3.0;
 pub(crate) const WARMTH_DRAIN_MULTIPLIER_DAWN_DUSK: f32 = 1.5;
 
 // Rain warmth drain modifiers (additive with time-of-day multipliers)
-pub(crate) const WARMTH_DRAIN_RAIN_LIGHT: f32 = 0.5;      // Light rain adds 0.5 per second
-pub(crate) const WARMTH_DRAIN_RAIN_MODERATE: f32 = 1.0;   // Moderate rain adds 1.0 per second
-pub(crate) const WARMTH_DRAIN_RAIN_HEAVY: f32 = 1.5;      // Heavy rain adds 1.5 per second
-pub(crate) const WARMTH_DRAIN_RAIN_STORM: f32 = 2.0;      // Heavy storm adds 2.0 per second
+pub(crate) const WARMTH_DRAIN_RAIN_LIGHT: f32 = 1.0;      // Light rain adds 1.0 per second
+pub(crate) const WARMTH_DRAIN_RAIN_MODERATE: f32 = 2.0;   // Moderate rain adds 2.0 per second
+pub(crate) const WARMTH_DRAIN_RAIN_HEAVY: f32 = 3.0;      // Heavy rain adds 3.0 per second
+pub(crate) const WARMTH_DRAIN_RAIN_STORM: f32 = 4.0;      // Heavy storm adds 4.0 per second
 
 // --- Weather Constants ---
 const MIN_RAIN_DURATION_SECONDS: f32 = 300.0; // 5 minutes
@@ -428,6 +428,7 @@ pub fn get_light_intensity(progress: f32) -> f32 {
 /// This should be ADDED to the base warmth drain (stacks with time-of-day multipliers)
 /// Returns 0.0 if player is protected by tree cover (within 100px of any tree)
 pub fn get_rain_warmth_drain_modifier(ctx: &ReducerContext, player_x: f32, player_y: f32) -> f32 {
+    use crate::player;
     let world_state = match ctx.db.world_state().iter().next() {
         Some(state) => state,
         None => {
@@ -444,13 +445,26 @@ pub fn get_rain_warmth_drain_modifier(ctx: &ReducerContext, player_x: f32, playe
         return 0.0;
     }
     
-    // Check if player is protected by tree cover (same logic as campfire protection)
-    let is_protected = is_position_near_tree(ctx, player_x, player_y);
-    log::info!("Player at ({:.1}, {:.1}) protected by trees: {}", player_x, player_y, is_protected);
+    // Check if player is protected by tree cover using the status effect system
+    // We need to find the player to get their identity
+    let mut player_id_opt = None;
+    for player in ctx.db.player().iter() {
+        if (player.position_x - player_x).abs() < 1.0 && (player.position_y - player_y).abs() < 1.0 {
+            player_id_opt = Some(player.identity);
+            break;
+        }
+    }
     
-    if is_protected {
-        log::info!("Player protected by tree cover, no rain warmth drain");
-        return 0.0; // Protected by tree cover, no rain warmth drain
+    if let Some(player_id) = player_id_opt {
+        let has_tree_cover = crate::active_effects::player_has_tree_cover_effect(ctx, player_id);
+        log::info!("Player at ({:.1}, {:.1}) has tree cover effect: {}", player_x, player_y, has_tree_cover);
+        
+        if has_tree_cover {
+            log::info!("Player protected by tree cover, no rain warmth drain");
+            return 0.0; // Protected by tree cover, no rain warmth drain
+        }
+    } else {
+        log::warn!("Could not find player at position ({:.1}, {:.1}) for tree cover check", player_x, player_y);
     }
     
     // Apply rain warmth drain based on weather intensity
@@ -466,30 +480,7 @@ pub fn get_rain_warmth_drain_modifier(ctx: &ReducerContext, player_x: f32, playe
     drain_amount
 }
 
-/// Checks if a position is within 100px of any tree (protected from rain by tree cover)
-/// Same logic as campfire tree protection
-fn is_position_near_tree(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
-    const TREE_PROTECTION_DISTANCE_SQ: f32 = 100.0 * 100.0; // 100px protection radius
-    
-    for tree in ctx.db.tree().iter() {
-        // Skip destroyed trees (respawn_at is set when tree is harvested)
-        if tree.respawn_at.is_some() {
-            continue;
-        }
-        
-        // Calculate distance squared between position and tree
-        let dx = pos_x - tree.pos_x;
-        let dy = pos_y - tree.pos_y;
-        let distance_sq = dx * dx + dy * dy;
-        
-        // Check if position is within protection distance of this tree
-        if distance_sq <= TREE_PROTECTION_DISTANCE_SQ {
-            return true;
-        }
-    }
-    
-    false
-}
+
 
 /// Extinguishes all campfires that are not protected by shelters or trees during heavy rain/storms
 fn extinguish_unprotected_campfires(ctx: &ReducerContext, weather_type: &WeatherType) -> Result<(), String> {

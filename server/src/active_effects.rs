@@ -45,6 +45,7 @@ pub enum EffectType {
     FoodPoisoning, // From eating contaminated/raw foods
     Cozy, // Health regen bonus and food healing bonus when near campfires or in owned shelters
     Wet, // Cold damage multiplier when exposed to water/rain
+    TreeCover, // Natural shelter and protection from trees
 }
 
 // Table defining food poisoning risks for different food items
@@ -100,9 +101,9 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             continue;
         }
 
-        // Skip cozy effects - they are managed by the player stats system, not the effect tick system
+        // Skip cozy and tree cover effects - they are managed by the player stats system, not the effect tick system
         // Wet effects are now processed normally like other effects
-        if effect.effect_type == EffectType::Cozy {
+        if effect.effect_type == EffectType::Cozy || effect.effect_type == EffectType::TreeCover {
             continue;
         }
 
@@ -145,7 +146,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -352,6 +353,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         EffectType::Wet => {
                             // Wet provides cold damage multiplier
                             // The cold damage multiplier is handled in player_stats.rs
+                            // This effect doesn't consume amount_applied_so_far
+                            amount_this_tick = 0.0;
+                        }
+                        EffectType::TreeCover => {
+                            // TreeCover provides natural shelter from rain and accelerated drying
+                            // The rain protection and drying acceleration is handled in world_state.rs and wet.rs
                             // This effect doesn't consume amount_applied_so_far
                             amount_this_tick = 0.0;
                         }
@@ -778,10 +785,112 @@ pub fn player_has_cozy_effect(ctx: &ReducerContext, player_id: Identity) -> bool
         .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Cozy)
 }
 
+// Tree Cover Effect Management
+// ============================
+
+/// Checks if a player should have the tree cover effect based on their proximity to trees
+pub fn should_player_have_tree_cover(ctx: &ReducerContext, player_x: f32, player_y: f32) -> bool {
+    const TREE_COVER_DISTANCE_SQ: f32 = 150.0 * 150.0; // 150px protection radius
+    
+    for tree in ctx.db.tree().iter() {
+        // Skip destroyed trees (respawn_at is set when tree is harvested)
+        if tree.respawn_at.is_some() {
+            continue;
+        }
+        
+        // Calculate distance squared between player and tree
+        let dx = player_x - tree.pos_x;
+        let dy = player_y - tree.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        // Check if player is within tree cover distance
+        if distance_sq <= TREE_COVER_DISTANCE_SQ {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Applies or removes tree cover effect based on player's current position
+pub fn update_player_tree_cover_status(ctx: &ReducerContext, player_id: Identity, player_x: f32, player_y: f32) -> Result<(), String> {
+    let should_have_tree_cover = should_player_have_tree_cover(ctx, player_x, player_y);
+    let has_tree_cover_effect = player_has_tree_cover_effect(ctx, player_id);
+    
+    log::debug!("Tree cover status check for player {:?}: should_have={}, has_effect={}", 
+        player_id, should_have_tree_cover, has_tree_cover_effect);
+    
+    if should_have_tree_cover && !has_tree_cover_effect {
+        // Apply tree cover effect
+        log::info!("Applying tree cover effect to player {:?}", player_id);
+        apply_tree_cover_effect(ctx, player_id)?;
+    } else if !should_have_tree_cover && has_tree_cover_effect {
+        // Remove tree cover effect
+        log::info!("Removing tree cover effect from player {:?}", player_id);
+        remove_tree_cover_effect(ctx, player_id);
+    }
+    
+    Ok(())
+}
+
+/// Applies a tree cover effect to a player
+fn apply_tree_cover_effect(ctx: &ReducerContext, player_id: Identity) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    // Set a very far future time (1 year from now) - effectively permanent
+    let very_far_future = current_time + TimeDuration::from_micros(365 * 24 * 60 * 60 * 1_000_000i64);
+    
+    let tree_cover_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id: 0, // Not from an item
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: very_far_future, // Effectively permanent
+        total_amount: None, // No accumulation for tree cover effect
+        amount_applied_so_far: None,
+        effect_type: EffectType::TreeCover,
+        tick_interval_micros: 1_000_000, // 1 second ticks (not really used)
+        next_tick_at: current_time + TimeDuration::from_micros(1_000_000),
+    };
+    
+    match ctx.db.active_consumable_effect().try_insert(tree_cover_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied tree cover effect {} to player {:?}", inserted_effect.effect_id, player_id);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply tree cover effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply tree cover effect".to_string())
+        }
+    }
+}
+
+/// Removes tree cover effect from a player
+fn remove_tree_cover_effect(ctx: &ReducerContext, player_id: Identity) {
+    let mut effects_to_remove = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter() {
+        if effect.player_id == player_id && effect.effect_type == EffectType::TreeCover {
+            effects_to_remove.push(effect.effect_id);
+        }
+    }
+    
+    for effect_id in effects_to_remove {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+        log::info!("Removed tree cover effect {} from player {:?}", effect_id, player_id);
+    }
+}
+
 /// Checks if a player currently has the wet effect active
 pub fn player_has_wet_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
     ctx.db.active_consumable_effect().iter()
         .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Wet)
+}
+
+/// Checks if a player currently has the tree cover effect active
+pub fn player_has_tree_cover_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
+    ctx.db.active_consumable_effect().iter()
+        .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::TreeCover)
 }
 
 /// Extinguishes burn effects for a player due to water or rain

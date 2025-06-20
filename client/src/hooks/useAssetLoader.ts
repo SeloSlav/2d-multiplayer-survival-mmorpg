@@ -10,7 +10,7 @@ import grassTexture from '../assets/tiles/grass2.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
 import deathMarkerUrl from '../assets/items/death_marker.png';
-import shelterSpritePath from '../assets/doodads/shelter.png';
+import shelterSpritePath from '../assets/doodads/shelter_b.png';
 
 // Import cloud image paths
 import cloud1Texture from '../assets/environment/clouds/cloud1.png';

@@ -276,6 +276,13 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         }
         // <<< END COZY EFFECT MANAGEMENT >>>
 
+        // <<< ADD TREE COVER EFFECT MANAGEMENT >>>
+        // Update tree cover status based on proximity to trees
+        if let Err(e) = crate::active_effects::update_player_tree_cover_status(ctx, player_id, player.position_x, player.position_y) {
+            log::warn!("Failed to update tree cover status for player {:?}: {}", player_id, e);
+        }
+        // <<< END TREE COVER EFFECT MANAGEMENT >>>
+
         // <<< WET EFFECT MANAGEMENT MOVED TO EFFECT PROCESSING SYSTEM >>>
         // Wet effects are now handled in active_effects.rs every 2 seconds
         // This prevents conflicts between the 1-second player stats and 2-second effect processing

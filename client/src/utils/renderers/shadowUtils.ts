@@ -132,8 +132,8 @@ export interface DynamicGroundShadowParams {
   }>;
 }
 
-// Shelter collision constants (must match server-side values)
-const SHELTER_COLLISION_WIDTH = 300.0;
+// Shelter collision constants (adjusted for visual clipping)
+const SHELTER_COLLISION_WIDTH = 300.0; // Reduced from 300.0 to better match visual shelter
 const SHELTER_COLLISION_HEIGHT = 125.0;
 const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 200.0;
 

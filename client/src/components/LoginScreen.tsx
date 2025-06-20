@@ -1220,10 +1220,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                 {/* Completed Feature Groups */}
                                                                 {[
                                                                     { name: "🌐 Core Multiplayer & World", status: "100%" },
-                                                                    { name: "🎒 Inventory & Items", status: "100%" },
+                                                                    { name: "🎒 Inventory & Items (Primitive Tech Tree)", status: "100%" },
                                                                     { name: "⚔️ Combat & Weapons", status: "100%" },
                                                                     { name: "🍳 Survival & Cooking", status: "100%" },
                                                                     { name: "🏠 Simple Shelters & Storage", status: "100%" },
+                                                                    { name: "🎣 Simple Fishing", status: "10%" },
                                                                     { name: "🔐 Authentication", status: "100%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
@@ -1267,7 +1268,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                     { name: "🔧 Tool & Weapon Durability", status: "60%" },
                                                                     { name: "👥 Social & Team Features", status: "40%" },
                                                                     { name: "🌱 Farming Systems", status: "35%" },
-                                                                    { name: "🤖 AI & NPCs", status: "30%" },
+                                                                    { name: "🦌 Hunting & Wildlife", status: "30%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(255, 165, 0, 0.15)',
@@ -1309,9 +1310,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                 {[
                                                                     { name: "🌍 Advanced World Generation", status: "20%" },
                                                                     { name: "🏗️ Advanced Construction", status: "10%" },
-                                                                    { name: "🦌 Hunting & Wildlife", status: "10%" },
-                                                                    { name: "🎣 Fishing & Aquaculture", status: "10%" },
+                                                                    { name: "🐟 Advanced Fishing & Aquaculture", status: "10%" },
                                                                     { name: "🔫 Firearms & Advanced Combat", status: "10%" },
+                                                                    { name: "🤖 AI & NPCs", status: "10%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(150, 0, 0, 0.2)',

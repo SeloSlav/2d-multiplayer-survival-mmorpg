@@ -106,6 +106,8 @@ const tipSectionDefinitions = {
             
             // Warmth & Temperature
             'Warmth changes based on time of day: +2 at noon, -2 at midnight.',
+            'Heavy rain and storms drain warmth even during daytime - seek shelter!',
+            'Tree cover (100px radius) and shelters protect from rain warmth drain.',
             'Campfires provide +3 warmth per second within range.',
             'Lit torches give +1.75 warmth per second while equipped.',
             'Armor with warmth bonuses helps survive cold nights.',
@@ -116,6 +118,9 @@ const tipSectionDefinitions = {
             'Burn effects stack duration and damage - extinguished by water or heavy rain.',
             'Bleed effects cause damage over time - stopped by bandages.',
             'Wet effects last 60 seconds after leaving water/rain, amplify cold damage.',
+            'Tree Cover status effect: standing close to any tree provides natural shelter.',
+            'Tree Cover accelerates drying (+2 extra seconds per tick) when wet.',
+            'Effects stack! Cozy + Tree Cover = ultra-fast drying (+7 seconds per tick).',
             'Cozy effects near campfires or in owned shelters double health regeneration.',
             'Food poisoning from raw/contaminated food causes damage over time.',
             'Seawater poisoning from drinking salt water causes 1 damage per second.',
@@ -128,9 +133,10 @@ const tipSectionDefinitions = {
             
             // Environmental Protection
             'Shelters protect from rain, provide cozy effects for owners.',
-            'Trees provide limited rain protection within 100px radius.',
+            'Tree Cover effect: natural shelter from rain warmth drain + accelerated drying.',
             'Campfire warmth radius protects from rain and provides cozy status.',
-            'Heavy rain (intensity ≥0.8) extinguishes burn effects on unprotected players.',
+            'Tree Cover + Cozy effects stack for maximum protection and drying speed.',
+            'Heavy rain extinguishes burn effects on unprotected players.',
             
             // Stamina System
             'Stamina drains at 2.5/second while sprinting and moving.',
