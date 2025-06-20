@@ -228,6 +228,10 @@ interface UseDayNightCycleProps {
     cameraOffsetX: number;
     cameraOffsetY: number;
     canvasSize: { width: number; height: number };
+    // Add interpolated positions for smooth torch light cutouts
+    localPlayerId?: string;
+    predictedPosition: { x: number; y: number } | null;
+    remotePlayerInterpolation?: any; // Type matches GameCanvas
 }
 
 interface UseDayNightCycleResult {
@@ -245,6 +249,9 @@ export function useDayNightCycle({
     cameraOffsetX,
     cameraOffsetY,
     canvasSize,
+    localPlayerId,
+    predictedPosition,
+    remotePlayerInterpolation,
 }: UseDayNightCycleProps): UseDayNightCycleResult {
     const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [overlayRgba, setOverlayRgba] = useState<string>('transparent');
@@ -379,8 +386,25 @@ export function useDayNightCycle({
             }
 
             if (itemDef && itemDef.name === "Torch" && player.isTorchLit) {
-                const lightScreenX = player.positionX + cameraOffsetX;
-                const lightScreenY = player.positionY + cameraOffsetY;
+                // Use the same interpolated position logic as torch light rendering for smooth cutouts
+                let renderPositionX = player.positionX;
+                let renderPositionY = player.positionY;
+                
+                if (playerId === localPlayerId && predictedPosition) {
+                    // For local player, use predicted position
+                    renderPositionX = predictedPosition.x;
+                    renderPositionY = predictedPosition.y;
+                } else if (playerId !== localPlayerId && remotePlayerInterpolation) {
+                    // For remote players, use interpolated position
+                    const interpolatedPos = remotePlayerInterpolation.updateAndGetSmoothedPosition(player, localPlayerId);
+                    if (interpolatedPos) {
+                        renderPositionX = interpolatedPos.x;
+                        renderPositionY = interpolatedPos.y;
+                    }
+                }
+                
+                const lightScreenX = renderPositionX + cameraOffsetX;
+                const lightScreenY = renderPositionY + cameraOffsetY;
 
                 // TORCH CUTOUT - 1.25x larger inner bright area with natural rustic gradient
                 const flicker = (Math.random() - 0.5) * 2 * TORCH_FLICKER_AMOUNT;
@@ -400,7 +424,7 @@ export function useDayNightCycle({
         
         maskCtx.globalCompositeOperation = 'source-over';
 
-    }, [worldState, campfires, lanterns, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey, lanternBurningStatesKey]);
+    }, [worldState, campfires, lanterns, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey, lanternBurningStatesKey, localPlayerId, predictedPosition, remotePlayerInterpolation]);
 
     return { overlayRgba, maskCanvasRef };
 } 

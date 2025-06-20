@@ -1958,6 +1958,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             pvp_damage_max: None,
             crafting_cost: Some(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 75 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 15 }, // Added metal for frame and mechanism
                 CostIngredient { item_name: "Tallow".to_string(), quantity: 10 },
                 CostIngredient { item_name: "Cloth".to_string(), quantity: 5 },
             ]),

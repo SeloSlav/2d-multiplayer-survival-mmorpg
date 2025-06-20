@@ -140,6 +140,8 @@ interface RenderYSortedEntitiesProps {
     closestInteractableDroppedItemId?: bigint | null;
     // New unified single target system
     closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null;
+    // NEW: Shelter clipping data for shadow rendering
+    shelterClippingData?: Array<{posX: number, posY: number, isDestroyed: boolean}>;
 }
 
 /**
@@ -185,6 +187,7 @@ export const renderYSortedEntities = ({
     closestInteractableReedId,
     closestInteractableDroppedItemId,
     closestInteractableTarget,
+    shelterClippingData,
 }: RenderYSortedEntitiesProps) => {
     // Clean up old projectile tracking data periodically (every 5 seconds)
     if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance

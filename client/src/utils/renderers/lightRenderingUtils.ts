@@ -9,13 +9,13 @@ export const CAMPFIRE_LIGHT_OUTER_COLOR = 'rgba(255, 100, 0, 0.0)';  // Fade to 
 // --- Torch Light Constants (more yellow-orange for pitch/tar burning) ---
 export const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8;
 export const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7;
-export const TORCH_LIGHT_INNER_COLOR = 'rgba(255, 200, 100, 0.32)'; // More yellow-orange for pitch/tar
+export const TORCH_LIGHT_INNER_COLOR = 'rgba(255, 200, 100, 0.28)'; // Reduced intensity for pitch/tar
 export const TORCH_LIGHT_OUTER_COLOR = 'rgba(255, 140, 60, 0.0)';  // Golden orange fade
 
-// --- Lantern Light Constants (warm amber/golden for tallow through glass) ---
-export const LANTERN_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 1.2; // 20% larger radius than campfire
+// --- Lantern Light Constants (focused spot lighting, half the range) ---
+export const LANTERN_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.6; // Reduced from 1.2 to 0.6 (half range)
 export const LANTERN_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.3; // Much more stable than campfire/torch
-export const LANTERN_LIGHT_INNER_COLOR = 'rgba(255, 220, 160, 0.38)'; // Warm amber/golden for tallow
+export const LANTERN_LIGHT_INNER_COLOR = 'rgba(255, 220, 160, 0.32)'; // Reduced intensity for focused lighting
 export const LANTERN_LIGHT_OUTER_COLOR = 'rgba(240, 180, 120, 0.0)'; // Golden amber fade
 
 interface RenderPlayerTorchLightProps {
@@ -68,9 +68,9 @@ export const renderPlayerTorchLight = ({
                 rustixLightX, rustixLightY, 0,
                 rustixLightX, rustixLightY, ambientRadius
             );
-            ambientGradient.addColorStop(0, 'rgba(255, 180, 90, 0.05)'); // Pitch/tar golden yellow
-            ambientGradient.addColorStop(0.3, 'rgba(250, 150, 70, 0.03)'); // Warm golden orange
-            ambientGradient.addColorStop(1, 'rgba(240, 120, 50, 0)'); // Golden orange fade
+            ambientGradient.addColorStop(0, 'rgba(240, 160, 80, 0.04)'); // More natural pitch/tar golden
+            ambientGradient.addColorStop(0.3, 'rgba(220, 130, 60, 0.025)'); // Warmer natural orange
+            ambientGradient.addColorStop(1, 'rgba(200, 100, 40, 0)'); // Natural golden fade
             
             ctx.fillStyle = ambientGradient;
             ctx.beginPath();
@@ -83,11 +83,11 @@ export const renderPlayerTorchLight = ({
                 rustixLightX, rustixLightY, 0,
                 rustixLightX, rustixLightY, mainRadius
             );
-            mainGradient.addColorStop(0, 'rgba(255, 220, 130, 0.20)'); // Bright pitch/tar golden yellow
-            mainGradient.addColorStop(0.2, 'rgba(255, 190, 100, 0.16)'); // Rich golden amber
-            mainGradient.addColorStop(0.5, 'rgba(250, 160, 80, 0.10)'); // Warm golden orange
-            mainGradient.addColorStop(0.8, 'rgba(240, 130, 60, 0.05)'); // Golden orange
-            mainGradient.addColorStop(1, 'rgba(220, 110, 45, 0)'); // Deep golden fade
+            mainGradient.addColorStop(0, 'rgba(240, 200, 120, 0.16)'); // Natural pitch/tar golden
+            mainGradient.addColorStop(0.2, 'rgba(230, 170, 90, 0.13)'); // Rich natural amber
+            mainGradient.addColorStop(0.5, 'rgba(220, 140, 70, 0.08)'); // Warm natural orange
+            mainGradient.addColorStop(0.8, 'rgba(210, 120, 50, 0.04)'); // Natural golden orange
+            mainGradient.addColorStop(1, 'rgba(190, 100, 40, 0)'); // Natural golden fade
             
             ctx.fillStyle = mainGradient;
             ctx.beginPath();
@@ -100,9 +100,9 @@ export const renderPlayerTorchLight = ({
                 rustixLightX, rustixLightY, 0,
                 rustixLightX, rustixLightY, coreRadius
             );
-            coreGradient.addColorStop(0, 'rgba(255, 245, 180, 0.30)'); // Bright pitch/tar flame center
-            coreGradient.addColorStop(0.4, 'rgba(255, 210, 120, 0.20)'); // Rich golden yellow
-            coreGradient.addColorStop(1, 'rgba(250, 170, 90, 0)'); // Warm golden fade
+            coreGradient.addColorStop(0, 'rgba(245, 220, 160, 0.24)'); // Natural pitch/tar flame center
+            coreGradient.addColorStop(0.4, 'rgba(235, 190, 110, 0.16)'); // Natural golden yellow
+            coreGradient.addColorStop(1, 'rgba(220, 150, 80, 0)'); // Natural golden fade
             
             ctx.fillStyle = coreGradient;
             ctx.beginPath();
@@ -148,8 +148,8 @@ export const renderCampfireLight = ({
     const rusticCampfireX = lightScreenX + campfireAsymmetryX;
     const rusticCampfireY = lightScreenY + campfireAsymmetryY;
 
-    // DOUBLE THE ENTIRE LIGHTING SYSTEM - Scale everything by 2x while keeping proportions
-    const CAMPFIRE_SCALE = 2.0; // Double the total coverage area for natural rustic feel
+    // CAMPFIRE LIGHTING SYSTEM - Balanced scale for natural rustic feel
+    const CAMPFIRE_SCALE = 1.5; // Reduced from 2.0 to 1.5 for more natural lighting
 
     // Layer 1: Large ambient glow (wood-burning campfire - deep oranges and reds)
     const ambientRadius = Math.max(0, CAMPFIRE_LIGHT_RADIUS_BASE * 3.9 * CAMPFIRE_SCALE + baseFlicker * 0.3);
@@ -157,10 +157,10 @@ export const renderCampfireLight = ({
         rusticCampfireX, rusticCampfireY, 0,
         rusticCampfireX, rusticCampfireY, ambientRadius
     );
-    ambientGradient.addColorStop(0, 'rgba(255, 80, 20, 0.05)'); // Deep campfire orange-red
-    ambientGradient.addColorStop(0.25, 'rgba(200, 60, 15, 0.03)'); // Rich ember red
-    ambientGradient.addColorStop(0.7, 'rgba(160, 40, 12, 0.015)'); // Deep wood-burning red
-    ambientGradient.addColorStop(1, 'rgba(120, 25, 8, 0)'); // Dark ember fade
+    ambientGradient.addColorStop(0, 'rgba(220, 70, 20, 0.04)'); // Natural campfire orange-red
+    ambientGradient.addColorStop(0.25, 'rgba(180, 55, 15, 0.025)'); // Natural ember red
+    ambientGradient.addColorStop(0.7, 'rgba(140, 35, 12, 0.012)'); // Natural wood-burning red
+    ambientGradient.addColorStop(1, 'rgba(100, 20, 8, 0)'); // Natural ember fade
     
     ctx.fillStyle = ambientGradient;
     ctx.beginPath();
@@ -173,12 +173,12 @@ export const renderCampfireLight = ({
         rusticCampfireX, rusticCampfireY, 0,
         rusticCampfireX, rusticCampfireY, mainRadius
     );
-    mainGradient.addColorStop(0, 'rgba(255, 140, 60, 0.22)'); // Warm campfire orange center
-    mainGradient.addColorStop(0.15, 'rgba(240, 100, 30, 0.18)'); // Rich orange
-    mainGradient.addColorStop(0.4, 'rgba(220, 70, 20, 0.12)'); // Deep orange-red
-    mainGradient.addColorStop(0.7, 'rgba(180, 50, 15, 0.06)'); // Ember red
-    mainGradient.addColorStop(0.9, 'rgba(140, 35, 10, 0.02)'); // Deep wood burning
-    mainGradient.addColorStop(1, 'rgba(100, 25, 8, 0)'); // Dark rustic fade
+    mainGradient.addColorStop(0, 'rgba(230, 120, 50, 0.18)'); // Natural campfire orange center
+    mainGradient.addColorStop(0.15, 'rgba(210, 90, 25, 0.15)'); // Natural rich orange
+    mainGradient.addColorStop(0.4, 'rgba(190, 60, 18, 0.10)'); // Natural orange-red
+    mainGradient.addColorStop(0.7, 'rgba(160, 45, 12, 0.05)'); // Natural ember red
+    mainGradient.addColorStop(0.9, 'rgba(120, 30, 8, 0.015)'); // Natural wood burning
+    mainGradient.addColorStop(1, 'rgba(90, 20, 6, 0)'); // Natural rustic fade
     
     ctx.fillStyle = mainGradient;
     ctx.beginPath();
@@ -191,10 +191,10 @@ export const renderCampfireLight = ({
         rusticCampfireX, rusticCampfireY, 0,
         rusticCampfireX, rusticCampfireY, coreRadius
     );
-    coreGradient.addColorStop(0, 'rgba(255, 180, 100, 0.32)'); // Bright campfire center
-    coreGradient.addColorStop(0.3, 'rgba(255, 120, 40, 0.22)'); // Rich orange
-    coreGradient.addColorStop(0.7, 'rgba(220, 80, 25, 0.12)'); // Deep orange-red glow
-    coreGradient.addColorStop(1, 'rgba(180, 60, 20, 0)'); // Rustic red fade
+    coreGradient.addColorStop(0, 'rgba(240, 160, 90, 0.26)'); // Natural campfire center
+    coreGradient.addColorStop(0.3, 'rgba(220, 110, 35, 0.18)'); // Natural rich orange
+    coreGradient.addColorStop(0.7, 'rgba(190, 70, 22, 0.10)'); // Natural orange-red glow
+    coreGradient.addColorStop(1, 'rgba(160, 50, 18, 0)'); // Natural rustic fade
     
     ctx.fillStyle = coreGradient;
     ctx.beginPath();
@@ -236,8 +236,8 @@ export const renderLanternLight = ({
     const steadyLanternX = lightScreenX + lanternAsymmetryX;
     const steadyLanternY = lightScreenY + lanternAsymmetryY;
 
-    // ENHANCED LANTERN LIGHTING SYSTEM - smooth gradients, reduced glare
-    const LANTERN_SCALE = 1.5; // 50% larger coverage than campfire for practical lighting
+    // FOCUSED LANTERN LIGHTING SYSTEM - spot lighting, natural intensity
+    const LANTERN_SCALE = 1.0; // Focused spot lighting, smaller coverage than campfire
 
     // Layer 1: Large ambient glow (tallow through glass - warm amber, extended reach)
     const ambientRadius = Math.max(0, LANTERN_LIGHT_RADIUS_BASE * 3.5 * LANTERN_SCALE + baseFlicker * 0.1);
@@ -245,13 +245,13 @@ export const renderLanternLight = ({
         steadyLanternX, steadyLanternY, 0,
         steadyLanternX, steadyLanternY, ambientRadius
     );
-    ambientGradient.addColorStop(0, 'rgba(255, 220, 160, 0.07)'); // Warm tallow amber center
-    ambientGradient.addColorStop(0.15, 'rgba(250, 200, 140, 0.06)'); // Rich amber glow
-    ambientGradient.addColorStop(0.35, 'rgba(245, 180, 120, 0.05)'); // Golden amber transition
-    ambientGradient.addColorStop(0.55, 'rgba(240, 160, 100, 0.04)'); // Deep amber
-    ambientGradient.addColorStop(0.75, 'rgba(230, 140, 85, 0.03)'); // Warm amber orange
-    ambientGradient.addColorStop(0.9, 'rgba(220, 125, 75, 0.02)'); // Soft amber
-    ambientGradient.addColorStop(1, 'rgba(210, 110, 65, 0)'); // Gentle amber fade
+    ambientGradient.addColorStop(0, 'rgba(230, 200, 150, 0.05)'); // Natural tallow amber center
+    ambientGradient.addColorStop(0.15, 'rgba(220, 180, 130, 0.04)'); // Natural amber glow
+    ambientGradient.addColorStop(0.35, 'rgba(210, 160, 110, 0.035)'); // Natural amber transition
+    ambientGradient.addColorStop(0.55, 'rgba(200, 140, 90, 0.03)'); // Natural deep amber
+    ambientGradient.addColorStop(0.75, 'rgba(190, 125, 75, 0.02)'); // Natural amber orange
+    ambientGradient.addColorStop(0.9, 'rgba(180, 110, 65, 0.015)'); // Natural soft amber
+    ambientGradient.addColorStop(1, 'rgba(170, 95, 55, 0)'); // Natural amber fade
     
     ctx.fillStyle = ambientGradient;
     ctx.beginPath();
@@ -264,14 +264,14 @@ export const renderLanternLight = ({
         steadyLanternX, steadyLanternY, 0,
         steadyLanternX, steadyLanternY, mainRadius
     );
-    mainGradient.addColorStop(0, 'rgba(255, 235, 180, 0.20)'); // Warm tallow center (glass filtered)
-    mainGradient.addColorStop(0.12, 'rgba(255, 225, 160, 0.18)'); // Soft amber bright center
-    mainGradient.addColorStop(0.25, 'rgba(250, 210, 145, 0.16)'); // Rich amber
-    mainGradient.addColorStop(0.4, 'rgba(245, 195, 130, 0.14)'); // Golden amber transition
-    mainGradient.addColorStop(0.6, 'rgba(240, 180, 115, 0.11)'); // Deep golden amber
-    mainGradient.addColorStop(0.8, 'rgba(235, 165, 100, 0.08)'); // Warm amber orange
-    mainGradient.addColorStop(0.95, 'rgba(225, 150, 90, 0.04)'); // Soft amber
-    mainGradient.addColorStop(1, 'rgba(215, 135, 80, 0)'); // Smooth amber fade
+    mainGradient.addColorStop(0, 'rgba(235, 215, 170, 0.16)'); // Natural tallow center (glass filtered)
+    mainGradient.addColorStop(0.12, 'rgba(225, 205, 150, 0.14)'); // Natural amber bright center
+    mainGradient.addColorStop(0.25, 'rgba(220, 190, 135, 0.12)'); // Natural rich amber
+    mainGradient.addColorStop(0.4, 'rgba(210, 175, 120, 0.11)'); // Natural amber transition
+    mainGradient.addColorStop(0.6, 'rgba(200, 160, 105, 0.09)'); // Natural deep amber
+    mainGradient.addColorStop(0.8, 'rgba(190, 145, 90, 0.06)'); // Natural amber orange
+    mainGradient.addColorStop(0.95, 'rgba(180, 130, 80, 0.03)'); // Natural soft amber
+    mainGradient.addColorStop(1, 'rgba(170, 115, 70, 0)'); // Natural amber fade
     
     ctx.fillStyle = mainGradient;
     ctx.beginPath();
@@ -284,13 +284,13 @@ export const renderLanternLight = ({
         steadyLanternX, steadyLanternY, 0,
         steadyLanternX, steadyLanternY, coreRadius
     );
-    coreGradient.addColorStop(0, 'rgba(255, 240, 190, 0.24)'); // Warm tallow core (glass diffused)
-    coreGradient.addColorStop(0.15, 'rgba(255, 230, 170, 0.22)'); // Gentle amber bright core
-    coreGradient.addColorStop(0.3, 'rgba(250, 220, 155, 0.20)'); // Rich amber
-    coreGradient.addColorStop(0.5, 'rgba(245, 205, 140, 0.17)'); // Deep amber
-    coreGradient.addColorStop(0.7, 'rgba(240, 190, 125, 0.13)'); // Golden amber transition
-    coreGradient.addColorStop(0.85, 'rgba(235, 175, 110, 0.09)'); // Warm amber
-    coreGradient.addColorStop(1, 'rgba(230, 160, 95, 0)'); // Smooth amber fade
+    coreGradient.addColorStop(0, 'rgba(240, 220, 180, 0.20)'); // Natural tallow core (glass diffused)
+    coreGradient.addColorStop(0.15, 'rgba(230, 210, 160, 0.18)'); // Natural amber bright core
+    coreGradient.addColorStop(0.3, 'rgba(225, 200, 145, 0.16)'); // Natural rich amber
+    coreGradient.addColorStop(0.5, 'rgba(215, 185, 130, 0.14)'); // Natural deep amber
+    coreGradient.addColorStop(0.7, 'rgba(205, 170, 115, 0.11)'); // Natural amber transition
+    coreGradient.addColorStop(0.85, 'rgba(195, 155, 100, 0.07)'); // Natural warm amber
+    coreGradient.addColorStop(1, 'rgba(185, 140, 85, 0)'); // Natural amber fade
     
     ctx.fillStyle = coreGradient;
     ctx.beginPath();

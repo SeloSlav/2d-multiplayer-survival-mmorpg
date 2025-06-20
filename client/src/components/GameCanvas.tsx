@@ -73,6 +73,7 @@ import { renderTree } from '../utils/renderers/treeRenderingUtils';
 import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
 import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
+import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 // --- Other Components & Utils ---
@@ -322,7 +323,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     itemDefinitions, // Pass all item definitions
     cameraOffsetX,
     cameraOffsetY,
-    canvasSize
+    canvasSize,
+    // Add interpolation parameters for smooth torch light cutouts
+    localPlayerId,
+    predictedPosition,
+    remotePlayerInterpolation,
   });
 
   const {
@@ -592,13 +597,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     particles.forEach(particle => {
       ctx.save();
       ctx.globalAlpha = particle.alpha || 1;
-      ctx.fillStyle = particle.color || '#ff4500';
-      ctx.fillRect(
-        particle.x - particle.size / 2,
-        particle.y - particle.size / 2,
-        particle.size,
-        particle.size
-      );
+      
+      if (particle.type === 'fire') {
+        // Render fire particles as circles with slight glow for more realistic flames
+        ctx.fillStyle = particle.color || '#ff4500';
+        ctx.shadowColor = particle.color || '#ff4500';
+        ctx.shadowBlur = particle.size * 0.5; // Slight glow effect
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0; // Reset shadow
+      } else {
+        // Render other particles (smoke, etc.) as squares
+        ctx.fillStyle = particle.color || '#ff4500';
+        ctx.fillRect(
+          particle.x - particle.size / 2,
+          particle.y - particle.size / 2,
+          particle.size,
+          particle.size
+        );
+      }
+      
       ctx.restore();
     });
   };
@@ -624,6 +643,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Hook for thunder effects
   useThunderEffects({ connection });
+
+  // Helper function to convert shelter data for shadow clipping
+  const shelterClippingData = useMemo(() => {
+    if (!shelters) return [];
+    return Array.from(shelters.values()).map(shelter => ({
+      posX: shelter.posX,
+      posY: shelter.posY,
+      isDestroyed: shelter.isDestroyed,
+    }));
+  }, [shelters]);
 
   const renderGame = useCallback(() => {
     const canvas = gameCanvasRef.current;
@@ -665,6 +694,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     ctx.save();
     ctx.translate(cameraOffsetX, cameraOffsetY);
+    
+    // Set shelter clipping data for shadow rendering
+    setShelterClippingData(shelterClippingData);
+    
     // Pass the necessary viewport parameters to the optimized background renderer
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
@@ -786,6 +819,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableReedId,
       closestInteractableDroppedItemId,
       closestInteractableTarget,
+      // Pass shelter clipping data for shadow rendering
+      shelterClippingData,
     });
     // --- End Y-Sorted Entities ---
 

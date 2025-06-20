@@ -13,15 +13,15 @@ const SWING_DURATION_MS = 150;
 const SWING_ANGLE_MAX_RAD = Math.PI / 2.5;
 
 // --- Particle Constants for Torch (can be adjusted) ---
-const TORCH_PARTICLE_LIFETIME_MIN = 80;  // Shorter for faster turnover
-const TORCH_PARTICLE_LIFETIME_MAX = 200; // Shorter for faster turnover
-const TORCH_PARTICLE_SPEED_Y_MIN = -0.5; // Much faster upward movement
-const TORCH_PARTICLE_SPEED_Y_MAX = -1.2; // Much faster upward movement
-const TORCH_PARTICLE_SPEED_X_SPREAD = 0.6; // More spread for liveliness
-const TORCH_PARTICLE_SIZE_MIN = 2; 
-const TORCH_PARTICLE_SIZE_MAX = 4; 
-const TORCH_PARTICLE_COLORS = ["#FFD878", "#FFB04A", "#FF783C", "#FC9842"]; // Same colors as campfire
-const TORCH_FIRE_PARTICLES_PER_FRAME = 1.2; // Reverted back to original value
+const TORCH_PARTICLE_LIFETIME_MIN = 100;  // Slightly longer for better visibility
+const TORCH_PARTICLE_LIFETIME_MAX = 250; // Slightly longer for better visibility
+const TORCH_PARTICLE_SPEED_Y_MIN = -0.8; // Faster upward movement for more dynamic flames
+const TORCH_PARTICLE_SPEED_Y_MAX = -1.5; // Faster upward movement for more dynamic flames
+const TORCH_PARTICLE_SPEED_X_SPREAD = 0.8; // More spread for liveliness
+const TORCH_PARTICLE_SIZE_MIN = 3; // Slightly larger for better visibility
+const TORCH_PARTICLE_SIZE_MAX = 6; // Slightly larger for better visibility
+const TORCH_PARTICLE_COLORS = ["#FFE55C", "#FFD878", "#FFB04A", "#FF783C", "#FC9842", "#FF4500"]; // More vibrant fire colors
+const TORCH_FIRE_PARTICLES_PER_FRAME = 2.0; // Increased for more prominent fire effect
 
 // --- Smoke Particle Constants for Torch ---
 const TORCH_SMOKE_PARTICLES_PER_FIRE_PARTICLE = 0.4; // More smoke
@@ -226,11 +226,15 @@ export function useTorchParticles({
                     while (acc >= 1) {
                         acc -= 1;
                         const lifetime = TORCH_PARTICLE_LIFETIME_MIN + Math.random() * (TORCH_PARTICLE_LIFETIME_MAX - TORCH_PARTICLE_LIFETIME_MIN);
+                        
+                        // Position fire particles at the visual center of the torch flame (lower than smoke)
+                        const fireEmissionY = emissionPointY + 8; // Push fire particles down to overlay torch flame graphic
+                        
                         newGeneratedParticlesThisFrame.push({
                             id: `torch_fire_${playerId}_${now}_${Math.random()}`,
                             type: 'fire',
                             x: emissionPointX + (Math.random() - 0.5) * 3, 
-                            y: emissionPointY + (Math.random() - 0.5) * 3,
+                            y: fireEmissionY + (Math.random() - 0.5) * 3,
                             vx: (Math.random() - 0.5) * TORCH_PARTICLE_SPEED_X_SPREAD,
                             vy: TORCH_PARTICLE_SPEED_Y_MIN + Math.random() * (TORCH_PARTICLE_SPEED_Y_MAX - TORCH_PARTICLE_SPEED_Y_MIN),
                             spawnTime: now,
@@ -241,7 +245,7 @@ export function useTorchParticles({
                             alpha: 1.0,
                         });
 
-                        // Add smoke particles based on fire particle emission
+                        // Add smoke particles based on fire particle emission (keep smoke at original position)
                         if (Math.random() < TORCH_SMOKE_PARTICLES_PER_FIRE_PARTICLE) {
                             const smokeLifetime = TORCH_SMOKE_LIFETIME_MIN + Math.random() * (TORCH_SMOKE_LIFETIME_MAX - TORCH_SMOKE_LIFETIME_MIN);
                             newGeneratedParticlesThisFrame.push({
@@ -294,8 +298,22 @@ export function useTorchParticles({
                     const lifeRatio = Math.max(0, lifetimeRemaining / p.initialLifetime);
                     currentAlpha = TORCH_SMOKE_TARGET_ALPHA + (TORCH_SMOKE_INITIAL_ALPHA - TORCH_SMOKE_TARGET_ALPHA) * lifeRatio;
                 } else if (p.type === 'fire') {
-                    // Standard linear fade for fire for now
-                    currentAlpha = Math.max(0, Math.min(1, lifetimeRemaining / p.initialLifetime));
+                    // Fire particles flicker and dance with more dynamic behavior
+                    const lifeRatio = Math.max(0, lifetimeRemaining / p.initialLifetime);
+                    
+                    // Add horizontal flickering movement
+                    const flicker = (Math.random() - 0.5) * 0.3 * normalizedDeltaTimeFactor;
+                    newVx += flicker;
+                    
+                    // Size varies with life and adds flicker
+                    const baseSize = p.size * (0.7 + 0.3 * lifeRatio); // Shrink as it dies
+                    const sizeFlicker = (Math.random() - 0.5) * 0.4;
+                    newSize = Math.max(1, baseSize + sizeFlicker);
+                    
+                    // Alpha fades out with slight flickering
+                    const baseAlpha = lifeRatio;
+                    const alphaFlicker = (Math.random() - 0.5) * 0.1;
+                    currentAlpha = Math.max(0, Math.min(1, baseAlpha + alphaFlicker));
                 }
 
                 p.x += newVx * normalizedDeltaTimeFactor;

@@ -124,10 +124,66 @@ export interface DynamicGroundShadowParams {
   minStretchFactor?: number;  // Shortest shadow length factor (e.g., 0.1 for 10% of height at noon)
   shadowBlur?: number;        // Blur radius for the shadow
   pivotYOffset?: number;      // Vertical offset for the shadow pivot point
+  // NEW: Shelter clipping support
+  shelters?: Array<{
+    posX: number;
+    posY: number;
+    isDestroyed: boolean;
+  }>;
+}
+
+// Shelter collision constants (must match server-side values)
+const SHELTER_COLLISION_WIDTH = 300.0;
+const SHELTER_COLLISION_HEIGHT = 125.0;
+const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 200.0;
+
+/**
+ * Creates a clipping path that excludes shelter interiors from shadow rendering.
+ * This prevents shadows from being cast inside enclosed structures.
+ */
+function applyShelterClipping(ctx: CanvasRenderingContext2D, shelters?: Array<{posX: number, posY: number, isDestroyed: boolean}>) {
+  if (!shelters || shelters.length === 0) {
+    return; // No clipping needed
+  }
+
+  // Create a clipping path that excludes all shelter interiors
+  ctx.beginPath();
+  
+  // Start with the entire canvas area
+  ctx.rect(-50000, -50000, 100000, 100000);
+  
+  // Subtract each shelter's interior AABB
+  for (const shelter of shelters) {
+    if (shelter.isDestroyed) continue;
+    
+    // Calculate shelter AABB bounds (same logic as shelter.rs)
+    const shelterAabbCenterX = shelter.posX;
+    const shelterAabbCenterY = shelter.posY - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+    const aabbLeft = shelterAabbCenterX - SHELTER_COLLISION_WIDTH / 2;
+    const aabbTop = shelterAabbCenterY - SHELTER_COLLISION_HEIGHT / 2;
+    
+    // Create a hole in the clipping path for this shelter's interior
+    // We use counterclockwise winding to create a hole
+    ctx.rect(aabbLeft + SHELTER_COLLISION_WIDTH, aabbTop, -SHELTER_COLLISION_WIDTH, SHELTER_COLLISION_HEIGHT);
+  }
+  
+  // Apply the clipping path
+  ctx.clip();
 }
 
 // Cache for pre-rendered silhouettes
 const silhouetteCache = new Map<string, HTMLCanvasElement>();
+
+// Global shelter clipping data - set by GameCanvas and used by all shadow rendering
+let globalShelterClippingData: Array<{posX: number, posY: number, isDestroyed: boolean}> = [];
+
+/**
+ * Sets the global shelter clipping data for shadow rendering.
+ * This should be called from GameCanvas before rendering entities.
+ */
+export function setShelterClippingData(shelters: Array<{posX: number, posY: number, isDestroyed: boolean}>) {
+  globalShelterClippingData = shelters;
+}
 
 /**
  * Draws a dynamic shadow on the ground, simulating a cast shadow from an entity.
@@ -148,6 +204,7 @@ export function drawDynamicGroundShadow({
   minStretchFactor = 0.15, // Increased minimum (was 0.1)
   shadowBlur = 0,
   pivotYOffset = 0,
+  shelters,
 }: DynamicGroundShadowParams): void {
   let overallAlpha: number;
   let shadowLength: number; // How far the shadow extends
@@ -254,6 +311,11 @@ export function drawDynamicGroundShadow({
 
   // --- Render onto the main canvas --- 
   ctx.save();
+
+  // Apply shelter clipping to prevent shadows inside shelter interiors
+  // Use global shelter data if not provided directly
+  const sheltersToUse = shelters || globalShelterClippingData;
+  applyShelterClipping(ctx, sheltersToUse);
 
   // Move origin to the entity's base center (this is the anchor point)
   ctx.translate(entityCenterX, entityBaseY - pivotYOffset);
