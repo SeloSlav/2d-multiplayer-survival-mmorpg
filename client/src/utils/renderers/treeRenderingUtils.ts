@@ -1,8 +1,8 @@
 import { Tree } from '../../generated'; // Import generated types
-import aleppoPineImage from '../../assets/doodads/aleppo_pine.png';
+import aleppoPineImage from '../../assets/doodads/aleppo_pine_b.png';
 import mannaAshImage from '../../assets/doodads/manna_ash.png';
 import downyOakImage from '../../assets/doodads/downy_oak.png';
-import stonePineImage from '../../assets/doodads/stone_pine.png'; // New import for stone pine
+import stonePineImage from '../../assets/doodads/stone_pine_b.png'; // New import for stone pine
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
 import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
