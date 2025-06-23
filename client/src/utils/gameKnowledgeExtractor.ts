@@ -88,31 +88,35 @@ const tipSectionDefinitions = {
     survival: {
         title: 'Survival Tips',
         tips: [
-            // Core Health Stats
-            'Health naturally regenerates when hunger, thirst, and warmth are above 50% and no damage effects are active.',
+            // Core Health Stats & Value System
+            'IMPORTANT: Hunger, thirst, and warmth are raw values (0-100+), NOT percentages. A hunger of 249 means 249 hunger points, not 249%.',
+            'Health naturally regenerates when hunger, thirst, and warmth values are above 50 and no damage effects are active.',
             'Knocked out players are immune to environmental damage (bleed, burn, poisoning) but vulnerable to direct attacks.',
             'Death occurs when health reaches zero - creates a corpse with your items that others can loot.',
             
-            // Hunger System
+            // Hunger System (Raw Values)
             'Hunger drains slowly over time - plan your food gathering accordingly.',
             'Being cold makes you hungrier - your body burns more calories trying to stay warm.',
-            'Low warmth increases hunger drain significantly.',
-            'Low hunger causes health loss - starvation is extremely dangerous.',
+            'Low warmth values increase hunger drain significantly.',
+            'Low hunger values cause health loss - starvation is extremely dangerous.',
+            'Hunger values above 50 are needed for health regeneration.',
             
-            // Thirst System  
+            // Thirst System (Raw Values)
             'Thirst drains faster than hunger - water is your priority.',
             'Tree cover reduces thirst drain - seek shade to conserve water.',
-            'Low thirst slows movement speed and causes health loss.',
+            'Low thirst values slow movement speed and cause health loss.',
             'Severe dehydration is deadly - stay hydrated to survive.',
+            'Thirst values above 50 are needed for health regeneration.',
             
-            // Warmth & Temperature
+            // Warmth & Temperature (Raw Values)
             'Warmth changes based on time of day - noon is warmest, midnight is coldest.',
             'Heavy rain and storms drain warmth even during daytime - seek shelter!',
             'Tree cover protects from rain warmth drain and reduces thirst.',
             'Campfires provide significant warmth when you stand close to them.',
             'Lit torches provide warmth while equipped - useful for cold nights.',
             'Armor with warmth bonuses helps survive cold nights.',
-            'Low warmth slows movement and causes health damage.',
+            'Low warmth values slow movement and cause health damage.',
+            'Warmth values above 50 are needed for health regeneration.',
             'Wet effects amplify cold damage - avoid water during storms.',
             
             // Status Effects
@@ -128,7 +132,8 @@ const tipSectionDefinitions = {
             
             // Healing & Recovery
             'Bandages provide delayed burst healing - interrupted by taking damage.',
-            'Health regeneration requires good hunger, thirst, warmth, and no damage effects.',
+            'Health regeneration requires hunger/thirst/warmth values above 50 and no damage effects.',
+            'Values like 249 hunger indicate excellent nutrition levels for fast regeneration.',
             'Cozy effects boost food healing and health regeneration significantly.',
             'Taking damage cancels active health regeneration effects.',
             
@@ -378,6 +383,13 @@ ${formatControlsForSOVA()}
 
 🛠️ SURVIVAL TIPS & STRATEGIES:
 ${formatTipsForSOVA()}
+
+📊 IMPORTANT: STAT VALUE INTERPRETATION
+- Hunger, thirst, and warmth are RAW VALUES (not percentages)
+- Values typically range from 0-100+, with higher being better
+- A hunger of 249 means "249 hunger points" (excellent nutrition)
+- Values above 50 enable health regeneration
+- NEVER say "249 percent hunger" - say "249 hunger points" or "hunger level 249"
 
 😄 SOVA'S JOKE COLLECTION (use occasionally for humor):
 ${getSOVAJokesForPrompt()}
