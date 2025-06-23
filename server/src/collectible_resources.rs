@@ -188,34 +188,49 @@ pub trait RespawnableResource {
 struct SeedDropConfig {
     seed_item_name: &'static str,
     drop_chance: f32, // 0.0 to 1.0
+    min_seeds: u32,   // Minimum seeds to drop
+    max_seeds: u32,   // Maximum seeds to drop
 }
 
 /// Mapping of harvestable resources to their corresponding seed drops
+/// Updated for sustainable farming - each harvest should give back more seeds than planted
 fn get_seed_drop_config(resource_name: &str) -> Option<SeedDropConfig> {
     match resource_name {
         "Potato" => Some(SeedDropConfig {
             seed_item_name: "Potato Seeds",
-            drop_chance: 0.25, // 25% chance
+            drop_chance: 0.85, // 85% chance (potatoes naturally multiply well)
+            min_seeds: 2,      // 2-4 seeds per harvest
+            max_seeds: 4,
         }),
         "Corn" => Some(SeedDropConfig {
             seed_item_name: "Corn Seeds", 
-            drop_chance: 0.20, // 20% chance
+            drop_chance: 0.80, // 80% chance (reliable food crop)
+            min_seeds: 2,      // 2-3 seeds per harvest
+            max_seeds: 3,
         }),
         "Pumpkin" => Some(SeedDropConfig {
             seed_item_name: "Pumpkin Seeds",
-            drop_chance: 0.30, // 30% chance (larger crop, slightly higher chance)
+            drop_chance: 0.90, // 90% chance (large crop with long growth time - most reliable)
+            min_seeds: 3,      // 3-5 seeds per harvest (highest yield)
+            max_seeds: 5,
         }),
         "Plant Fiber" => Some(SeedDropConfig { // Note: hemp primary yield is "Plant Fiber"
             seed_item_name: "Hemp Seeds",
-            drop_chance: 0.35, // 35% chance (fiber crop, more common)
+            drop_chance: 0.88, // 88% chance (fiber crop essential for crafting)
+            min_seeds: 2,      // 2-4 seeds per harvest
+            max_seeds: 4,
         }),
         "Common Reed Stalk" => Some(SeedDropConfig {
             seed_item_name: "Reed Rhizome",
-            drop_chance: 0.25, // 25% chance
+            drop_chance: 0.82, // 82% chance (building material)
+            min_seeds: 2,      // 2-3 rhizomes per harvest
+            max_seeds: 3,
         }),
         "Mushroom" => Some(SeedDropConfig {
             seed_item_name: "Mushroom Spores",
-            drop_chance: 0.40, // 40% chance (basic food, most common)
+            drop_chance: 0.95, // 95% chance (basic food, fastest growing - most reliable)
+            min_seeds: 2,      // 2-3 spores per harvest
+            max_seeds: 3,
         }),
         _ => None, // No seed drops for other resources
     }
@@ -249,19 +264,26 @@ pub fn try_grant_seed_drops(
             .find(|def| def.name == seed_config.seed_item_name)
             .ok_or_else(|| format!("Seed item definition '{}' not found", seed_config.seed_item_name))?;
 
-        // Give 1 seed to the player (or drop near player if inventory full)
-        match crate::dropped_item::try_give_item_to_player(ctx, player_id, seed_item_def.id, 1) {
+        // Calculate how many seeds to give (between min and max)
+        let seed_amount = if seed_config.min_seeds >= seed_config.max_seeds {
+            seed_config.min_seeds // If min >= max, give min amount
+        } else {
+            rng.gen_range(seed_config.min_seeds..=seed_config.max_seeds)
+        };
+
+        // Give seeds to the player (or drop near player if inventory full)
+        match crate::dropped_item::try_give_item_to_player(ctx, player_id, seed_item_def.id, seed_amount) {
             Ok(added_to_inventory) => {
                 if added_to_inventory {
-                    log::info!("Player {:?} received seed drop: {} (added to inventory) from harvesting {}.", 
-                              player_id, seed_config.seed_item_name, harvested_resource_name);
+                    log::info!("Player {:?} received {} seed drop(s): {} (added to inventory) from harvesting {}.", 
+                              player_id, seed_amount, seed_config.seed_item_name, harvested_resource_name);
                 } else {
-                    log::info!("Player {:?} received seed drop: {} (dropped near player - inventory full) from harvesting {}.", 
-                              player_id, seed_config.seed_item_name, harvested_resource_name);
+                    log::info!("Player {:?} received {} seed drop(s): {} (dropped near player - inventory full) from harvesting {}.", 
+                              player_id, seed_amount, seed_config.seed_item_name, harvested_resource_name);
                 }
             }
             Err(e) => {
-                log::error!("Failed to give seed drop {} to player {:?}: {}", seed_config.seed_item_name, player_id, e);
+                log::error!("Failed to give {} seed drop(s) {} to player {:?}: {}", seed_amount, seed_config.seed_item_name, player_id, e);
                 // Don't return error - seed drop failure shouldn't stop main harvest
             }
         }
