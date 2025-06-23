@@ -27,6 +27,10 @@ use crate::{
     player as PlayerTableTrait,
     campfire::campfire as CampfireTableTrait,
     wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait,
+    stash::stash as StashTableTrait,
+    sleeping_bag::sleeping_bag as SleepingBagTableTrait,
+    shelter::shelter as ShelterTableTrait,
+    lantern::lantern as LanternTableTrait,
 };
 
 /// Calculates the valid min/max tile coordinates based on world dimensions and a margin.
@@ -98,6 +102,46 @@ pub fn is_respawn_position_clear(ctx: &ReducerContext, target_x: f32, target_y: 
         let dist_sq = get_distance_squared(target_x, target_y, storage_box.pos_x, storage_box.pos_y);
         if dist_sq < check_radius_sq { // Use the passed-in check_radius_sq
             log::trace!("Respawn blocked by storage box {} at ({}, {})", storage_box.id, storage_box.pos_x, storage_box.pos_y);
+            return false;
+        }
+    }
+
+    // Check stashes (player-built structures)
+    let stashes = ctx.db.stash();
+    for stash in stashes.iter() {
+        let dist_sq = get_distance_squared(target_x, target_y, stash.pos_x, stash.pos_y);
+        if dist_sq < check_radius_sq {
+            log::trace!("Respawn blocked by stash {} at ({}, {})", stash.id, stash.pos_x, stash.pos_y);
+            return false;
+        }
+    }
+
+    // Check sleeping bags (player spawn points)
+    let sleeping_bags = ctx.db.sleeping_bag();
+    for sleeping_bag in sleeping_bags.iter() {
+        let dist_sq = get_distance_squared(target_x, target_y, sleeping_bag.pos_x, sleeping_bag.pos_y);
+        if dist_sq < check_radius_sq {
+            log::trace!("Respawn blocked by sleeping bag {} at ({}, {})", sleeping_bag.id, sleeping_bag.pos_x, sleeping_bag.pos_y);
+            return false;
+        }
+    }
+
+    // Check shelters (large player structures)
+    let shelters = ctx.db.shelter();
+    for shelter in shelters.iter() {
+        let dist_sq = get_distance_squared(target_x, target_y, shelter.pos_x, shelter.pos_y);
+        if dist_sq < check_radius_sq {
+            log::trace!("Respawn blocked by shelter {} at ({}, {})", shelter.id, shelter.pos_x, shelter.pos_y);
+            return false;
+        }
+    }
+
+    // Check lanterns (player light sources)
+    let lanterns = ctx.db.lantern();
+    for lantern in lanterns.iter() {
+        let dist_sq = get_distance_squared(target_x, target_y, lantern.pos_x, lantern.pos_y);
+        if dist_sq < check_radius_sq {
+            log::trace!("Respawn blocked by lantern {} at ({}, {})", lantern.id, lantern.pos_x, lantern.pos_y);
             return false;
         }
     }

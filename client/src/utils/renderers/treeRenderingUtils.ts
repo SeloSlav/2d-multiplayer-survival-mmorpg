@@ -148,17 +148,98 @@ export function renderTree(
     now_ms: number, 
     cycleProgress: number,
     onlyDrawShadow?: boolean, // New flag
-    skipDrawingShadow?: boolean // New flag
+    skipDrawingShadow?: boolean, // New flag
+    localPlayerPosition?: { x: number; y: number } | null // Player position for transparency
 ) {
-    renderConfiguredGroundEntity({
-        ctx,
-        entity: tree,
-        config: treeConfig,
-        nowMs: now_ms,
-        entityPosX: tree.posX,
-        entityPosY: tree.posY,
-        cycleProgress,
-        onlyDrawShadow,    // Pass flag
-        skipDrawingShadow  // Pass flag
-    });
+    // Check if player is behind this tree's foliage area
+    // Tree base is at tree.posY, but the visual tree extends upward significantly
+    // We need to check if player is behind the upper portion of the tree (foliage area)
+    const treeVisualHeight = TARGET_TREE_WIDTH_PX * 0.8; // Approximate tree height based on width
+    const treeFoliageTop = tree.posY - treeVisualHeight; // Top of the tree foliage
+    const treeFoliageBottom = tree.posY - (treeVisualHeight * 0.4); // Bottom 40% is trunk area
+    
+    const shouldApplyTransparency = localPlayerPosition && 
+                                   localPlayerPosition.y > treeFoliageTop && // Player is below the top of foliage
+                                   localPlayerPosition.y < treeFoliageBottom && // Player is above the trunk area
+                                   Math.abs(localPlayerPosition.x - tree.posX) < 120; // Within tree width
+
+    // Apply transparency by modifying canvas global alpha if needed
+    if (shouldApplyTransparency && !onlyDrawShadow) {
+        ctx.save();
+        // Render the tree in two parts: bottom opaque, top transparent
+        renderTreeWithPartialTransparency(ctx, tree, now_ms, cycleProgress, skipDrawingShadow);
+        ctx.restore();
+    } else {
+        // Normal rendering
+        renderConfiguredGroundEntity({
+            ctx,
+            entity: tree,
+            config: treeConfig,
+            nowMs: now_ms,
+            entityPosX: tree.posX,
+            entityPosY: tree.posY,
+            cycleProgress,
+            onlyDrawShadow,    // Pass flag
+            skipDrawingShadow  // Pass flag
+        });
+    }
+}
+
+// Helper function to render tree with partial transparency
+function renderTreeWithPartialTransparency(
+    ctx: CanvasRenderingContext2D,
+    tree: Tree,
+    now_ms: number,
+    cycleProgress: number,
+    skipDrawingShadow?: boolean
+) {
+    // First render the shadow normally (if not skipped)
+    if (!skipDrawingShadow) {
+        renderConfiguredGroundEntity({
+            ctx,
+            entity: tree,
+            config: treeConfig,
+            nowMs: now_ms,
+            entityPosX: tree.posX,
+            entityPosY: tree.posY,
+            cycleProgress,
+            onlyDrawShadow: true,
+            skipDrawingShadow: false
+        });
+    }
+
+    // Get the image and calculate dimensions
+    const imageSource = treeConfig.getImageSource(tree);
+    if (!imageSource) return;
+    
+    const image = imageManager.getImage(imageSource);
+    if (!image) return;
+
+    const dimensions = treeConfig.getTargetDimensions(image, tree);
+    const position = treeConfig.calculateDrawPosition(tree, dimensions.width, dimensions.height);
+    const effects = treeConfig.applyEffects?.(ctx, tree, now_ms, position.drawX, position.drawY, cycleProgress, dimensions.width, dimensions.height) || { offsetX: 0, offsetY: 0 };
+
+    const finalX = position.drawX + effects.offsetX;
+    const finalY = position.drawY + effects.offsetY;
+
+    // Define split point (where transparency begins - top 35% of tree becomes transparent)
+    const splitRatio = 0.65; // Bottom 65% stays opaque, top 35% becomes transparent
+    const splitY = finalY + (dimensions.height * splitRatio);
+
+    // Render bottom part (trunk and lower foliage) - fully opaque
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(finalX, splitY, dimensions.width, dimensions.height * (1 - splitRatio));
+    ctx.clip();
+    ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
+    ctx.restore();
+
+    // Render top part (upper foliage) - less aggressive transparency
+    ctx.save();
+    ctx.globalAlpha = 0.6; // 60% opacity for top part (less aggressive than 30%)
+    ctx.beginPath();
+    ctx.rect(finalX, finalY, dimensions.width, dimensions.height * splitRatio);
+    ctx.clip();
+    ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
+    ctx.restore();
 }

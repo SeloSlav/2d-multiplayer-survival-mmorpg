@@ -417,7 +417,7 @@ export const renderYSortedEntities = ({
            }
         } else if (type === 'tree') {
             // Render tree with its shadow in the normal order (shadow first, then tree)
-            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false);
+            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false, localPlayerPosition);
         } else if (type === 'stone') {
             // Render stone with its shadow in the normal order (shadow first, then stone)
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, false);

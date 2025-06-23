@@ -139,7 +139,7 @@ export function useEntityFiltering(
 
   // Calculate viewport bounds
   const getViewportBounds = useCallback((): ViewportBounds => {
-    const buffer = gameConfig.tileSize * 2;
+    const buffer = gameConfig.tileSize * 3; // Increased from 2 to 3 for better coverage
     const viewMinX = -cameraOffsetX - buffer;
     const viewMaxX = -cameraOffsetX + canvasWidth + buffer;
     const viewMinY = -cameraOffsetY - buffer;
@@ -162,8 +162,8 @@ export function useEntityFiltering(
     } else if (isTree(entity)) {
       x = entity.posX;
       y = entity.posY;
-      width = 96; // Approx tree size
-      height = 128;
+      width = 240; // Increased from 96 to 240 to account for larger tree visuals and shadows
+      height = 320; // Increased from 128 to 320 to account for taller tree visuals
     } else if (isStone(entity)) {
       x = entity.posX;
       y = entity.posY;

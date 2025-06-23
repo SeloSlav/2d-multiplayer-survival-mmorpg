@@ -21,7 +21,7 @@ use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::world_tile as WorldTileTableTrait;
 
 // Respawn Collision Check Constants
-pub const RESPAWN_CHECK_RADIUS: f32 = TILE_SIZE_PX as f32 * 0.8; // Check slightly less than a tile radius
+pub const RESPAWN_CHECK_RADIUS: f32 = TILE_SIZE_PX as f32 * 3.0; // 3 tiles radius (144 pixels) for realistic proximity blocking
 pub const RESPAWN_CHECK_RADIUS_SQ: f32 = RESPAWN_CHECK_RADIUS * RESPAWN_CHECK_RADIUS;
 pub const MAX_RESPAWN_OFFSET_ATTEMPTS: u32 = 8; // Max times to try offsetting
 pub const RESPAWN_OFFSET_DISTANCE: f32 = TILE_SIZE_PX as f32 * 0.5; // How far to offset each attempt

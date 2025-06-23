@@ -20,9 +20,9 @@ pub(crate) const MIN_TREE_DISTANCE_PX: f32 = 200.0;
 pub(crate) const MIN_TREE_DISTANCE_SQ: f32 = MIN_TREE_DISTANCE_PX * MIN_TREE_DISTANCE_PX;
 pub(crate) const TREE_INITIAL_HEALTH: u32 = 2000;
 
-// NEW Respawn Time Constants for Trees
-pub(crate) const MIN_TREE_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
-pub(crate) const MAX_TREE_RESPAWN_TIME_SECS: u64 = 3600; // 60 minutes
+// NEW Respawn Time Constants for Trees (adjusted to match Rust survival game)
+pub(crate) const MIN_TREE_RESPAWN_TIME_SECS: u64 = 600;  // 10 minutes
+pub(crate) const MAX_TREE_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
 
 // --- Tree Enums and Structs ---
 

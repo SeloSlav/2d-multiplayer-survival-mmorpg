@@ -17,9 +17,9 @@ pub(crate) const MIN_STONE_TREE_DISTANCE_PX: f32 = 100.0;
 pub(crate) const MIN_STONE_TREE_DISTANCE_SQ: f32 = MIN_STONE_TREE_DISTANCE_PX * MIN_STONE_TREE_DISTANCE_PX;
 pub(crate) const STONE_INITIAL_HEALTH: u32 = 1000;
 
-// NEW Respawn Time Constants for Stones
-pub(crate) const MIN_STONE_RESPAWN_TIME_SECS: u64 = 300; // 5 minutes
-pub(crate) const MAX_STONE_RESPAWN_TIME_SECS: u64 = 600; // 10 minutes
+// NEW Respawn Time Constants for Stones (adjusted for balanced survival gameplay)
+pub(crate) const MIN_STONE_RESPAWN_TIME_SECS: u64 = 240; // 4 minutes
+pub(crate) const MAX_STONE_RESPAWN_TIME_SECS: u64 = 480; // 8 minutes
 
 // --- Stone Struct and Table ---
 #[spacetimedb::table(name = stone, public)]
