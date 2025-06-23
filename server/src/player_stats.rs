@@ -67,6 +67,9 @@ pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
 // Neutralizes night cold (-1.5) but midnight (-2.0) still causes slow warmth loss
 pub(crate) const TORCH_WARMTH_PER_SECOND: f32 = 1.75;
 
+// Tree cover hydration conservation constant
+pub(crate) const TREE_COVER_HYDRATION_REDUCTION_MULTIPLIER: f32 = 0.75; // 25% reduction in thirst drain (75% of normal rate)
+
 // Add dodge roll stamina cost constant
 pub(crate) const DODGE_ROLL_STAMINA_COST: f32 = 10.0;
 
@@ -217,7 +220,15 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         }
         
         let new_hunger = (player.hunger - (elapsed_seconds * hunger_drain_rate)).max(0.0).min(PLAYER_MAX_HUNGER);
-        let new_thirst = (player.thirst - (elapsed_seconds * THIRST_DRAIN_PER_SECOND)).max(0.0).min(PLAYER_MAX_THIRST);
+        
+        // Calculate thirst drain with tree cover reduction
+        let mut thirst_drain_rate = THIRST_DRAIN_PER_SECOND;
+        if crate::active_effects::player_has_tree_cover_effect(ctx, player_id) {
+            thirst_drain_rate *= TREE_COVER_HYDRATION_REDUCTION_MULTIPLIER;
+            log::trace!("Player {:?} has tree cover - thirst drain reduced by {:.0}% to {:.4}/sec", 
+                player_id, (1.0 - TREE_COVER_HYDRATION_REDUCTION_MULTIPLIER) * 100.0, thirst_drain_rate);
+        }
+        let new_thirst = (player.thirst - (elapsed_seconds * thirst_drain_rate)).max(0.0).min(PLAYER_MAX_THIRST);
 
         // Calculate Warmth
         // NEW WARMTH LOGIC: Base warmth change per second based on TimeOfDay

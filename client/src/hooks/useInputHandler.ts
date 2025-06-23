@@ -255,10 +255,16 @@ export const useInputHandler = ({
                             connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
                             actionTaken = true;
                             break;
-                                case 'lantern':
-          console.log('[E-Hold ACTION] Attempting to toggle lantern burning:', holdTarget.targetId);
-          connection.reducers.toggleLantern(Number(holdTarget.targetId));
-                            actionTaken = true;
+                        case 'lantern':
+                            if (currentTarget.data?.isEmpty) {
+                                console.log('[E-Hold ACTION] Attempting to pickup empty lantern:', holdTarget.targetId);
+                                connection.reducers.pickupLantern(Number(holdTarget.targetId));
+                                actionTaken = true;
+                            } else {
+                                console.log('[E-Hold ACTION] Attempting to toggle lantern burning:', holdTarget.targetId);
+                                connection.reducers.toggleLantern(Number(holdTarget.targetId));
+                                actionTaken = true;
+                            }
                             break;
                         case 'box':
                             if (currentTarget.data?.isEmpty) {

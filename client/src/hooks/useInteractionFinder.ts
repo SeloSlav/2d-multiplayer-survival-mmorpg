@@ -16,6 +16,8 @@ import {
     SleepingBag as SpacetimeDBSleepingBag,
     Shelter as SpacetimeDBShelter,
     DbConnection,
+    InventoryItem as SpacetimeDBInventoryItem,
+    ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
 import { InteractableTarget } from '../types/interactions';
 import {
@@ -64,6 +66,8 @@ interface UseInteractionFinderProps {
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     players: Map<string, SpacetimeDBPlayer>;
     shelters: Map<string, SpacetimeDBShelter>;
+    inventoryItems: Map<string, SpacetimeDBInventoryItem>;
+    itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     connection: DbConnection | null; // NEW: Connection for water tile access
 }
 
@@ -188,6 +192,8 @@ export function useInteractionFinder({
     players,
     shelters,
     reeds,
+    inventoryItems,
+    itemDefinitions,
     connection,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
@@ -631,11 +637,29 @@ export function useInteractionFinder({
                 });
             }
             if (closestLanternId) {
+                const lantern = lanterns?.get(String(closestLanternId));
+                let isEmpty = true;
+                if (lantern) {
+                    // Check if lantern has valid fuel items (match server-side logic)
+                    if (lantern.fuelInstanceId0 !== undefined && lantern.fuelInstanceId0 > 0n) {
+                        // Check if the actual item exists and is valid tallow
+                        const fuelItem = inventoryItems?.get(String(lantern.fuelInstanceId0));
+                        if (fuelItem) {
+                            const itemDef = itemDefinitions?.get(String(fuelItem.itemDefId));
+                            if (itemDef && itemDef.name === "Tallow" && fuelItem.quantity > 0) {
+                                isEmpty = false;
+                            }
+                        }
+                    }
+                }
                 candidates.push({
                     type: 'lantern',
                     id: closestLanternId,
                     position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestLanternDistSq)
+                    distance: Math.sqrt(closestLanternDistSq),
+                    data: {
+                        isEmpty: isEmpty
+                    }
                 });
             }
             if (closestDroppedItemId) {
@@ -733,7 +757,7 @@ export function useInteractionFinder({
             closestInteractableWaterPosition: closestWaterPosition,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters, connection]);
+    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
 
     // Effect to update state based on memoized results
     useEffect(() => {

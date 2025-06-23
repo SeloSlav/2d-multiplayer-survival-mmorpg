@@ -94,41 +94,42 @@ const tipSectionDefinitions = {
             'Death occurs when health reaches zero - creates a corpse with your items that others can loot.',
             
             // Hunger System
-            'Hunger drains from 250 to 0 over 3 hours of gameplay.',
+            'Hunger drains slowly over time - plan your food gathering accordingly.',
             'Being cold makes you hungrier - your body burns more calories trying to stay warm.',
-            'Low warmth increases hunger drain by 50%, freezing doubles it.',
-            'Low hunger causes health loss - zero hunger doubles the damage rate.',
+            'Low warmth increases hunger drain significantly.',
+            'Low hunger causes health loss - starvation is extremely dangerous.',
             
             // Thirst System  
-            'Thirst drains from 250 to 0 over 2 hours - faster than hunger.',
-            'Low thirst slows movement speed by 20% and causes health loss.',
-            'Zero thirst doubles health damage - stay hydrated to survive.',
+            'Thirst drains faster than hunger - water is your priority.',
+            'Tree cover reduces thirst drain - seek shade to conserve water.',
+            'Low thirst slows movement speed and causes health loss.',
+            'Severe dehydration is deadly - stay hydrated to survive.',
             
             // Warmth & Temperature
-            'Warmth changes based on time of day: +2 at noon, -2 at midnight.',
+            'Warmth changes based on time of day - noon is warmest, midnight is coldest.',
             'Heavy rain and storms drain warmth even during daytime - seek shelter!',
-            'Tree cover (100px radius) and shelters protect from rain warmth drain.',
-            'Campfires provide +3 warmth per second within range.',
-            'Lit torches give +1.75 warmth per second while equipped.',
+            'Tree cover protects from rain warmth drain and reduces thirst.',
+            'Campfires provide significant warmth when you stand close to them.',
+            'Lit torches provide warmth while equipped - useful for cold nights.',
             'Armor with warmth bonuses helps survive cold nights.',
-            'Low warmth slows movement by 20% and causes health damage.',
-            'Wet effects double cold damage - avoid water during storms.',
+            'Low warmth slows movement and causes health damage.',
+            'Wet effects amplify cold damage - avoid water during storms.',
             
             // Status Effects
             'Burn effects stack duration and damage - extinguished by water or heavy rain.',
             'Bleed effects cause damage over time - stopped by bandages.',
-            'Wet effects last 60 seconds after leaving water/rain, amplify cold damage.',
+            'Wet effects linger after leaving water/rain and amplify cold damage.',
             'Tree Cover status effect: standing close to any tree provides natural shelter.',
-            'Tree Cover accelerates drying (+2 extra seconds per tick) when wet.',
-            'Effects stack! Cozy + Tree Cover = ultra-fast drying (+7 seconds per tick).',
-            'Cozy effects near campfires or in owned shelters double health regeneration.',
+            'Tree Cover accelerates drying when wet.',
+            'Effects stack! Cozy + Tree Cover = very fast drying when wet.',
+            'Cozy effects near campfires or in owned shelters boost health regeneration.',
             'Food poisoning from raw/contaminated food causes damage over time.',
-            'Seawater poisoning from drinking salt water causes 1 damage per second.',
+            'Seawater poisoning from drinking salt water causes steady damage.',
             
             // Healing & Recovery
             'Bandages provide delayed burst healing - interrupted by taking damage.',
             'Health regeneration requires good hunger, thirst, warmth, and no damage effects.',
-            'Cozy effects boost food healing by 50% and health regen by 100%.',
+            'Cozy effects boost food healing and health regeneration significantly.',
             'Taking damage cancels active health regeneration effects.',
             
             // Environmental Protection
@@ -139,10 +140,10 @@ const tipSectionDefinitions = {
             'Heavy rain extinguishes burn effects on unprotected players.',
             
             // Stamina System
-            'Stamina drains at 2.5/second while sprinting and moving.',
-            'Stamina recovers at 2.0/second when not sprinting.',
+            'Stamina drains while sprinting and moving.',
+            'Stamina recovers when not sprinting.',
             'Running out of stamina automatically stops sprinting.',
-            'Dodge rolling costs 10 stamina points instantly.',
+            'Dodge rolling costs stamina instantly.',
         ]
     },
 
@@ -168,7 +169,7 @@ const tipSectionDefinitions = {
             'Hold E over any water body to drink and restore thirst.',
             'Coastal waters (beaches, bays, ocean inlets) are salty and cause dehydration.',
             'Inland waters (mountain lakes, forest ponds, deep rivers) are fresh and restore thirst.',
-            'There is a 2-second cooldown between drinking attempts.',
+            'There is a brief cooldown between drinking attempts.',
             'Salty water makes you more thirsty - avoid drinking from the ocean.',
             'Fresh water replenishes hydration - seek out inland lakes and rivers.',
             'Deep inland areas usually have fresh water sources for survival.',
@@ -208,12 +209,12 @@ const tipSectionDefinitions = {
             'Hemp grows in open plains areas away from trees and stones.',
             'Fish can be caught from inland water sources using a fishing rod.',
             'Cooked food provides significantly better health, hunger, and stamina restoration than raw.',
-            'Cooking times vary: mushrooms (20s), corn (25s), potatoes (30s), pumpkins (60s), fish (45s).',
+            'Different foods have different cooking times - experiment to learn the timing.',
             'Overcooking food creates burnt versions that are barely edible and make you thirsty.',
             'Burnt food can be cooked further to create valuable charcoal for crafting ammunition.',
             'Human flesh can be harvested from player corpses but is dangerous to eat raw.',
             'Cooked human flesh provides excellent nutrition but comes with moral implications.',
-            'Each burnt food type yields different amounts of charcoal: fish (8), mushrooms (12), corn (15), potatoes (13), pumpkins (18), human flesh (14).',
+            'Different burnt food types yield varying amounts of charcoal when cooked further.',
         ]
     },
 
@@ -230,10 +231,10 @@ const tipSectionDefinitions = {
             'Fishing is a quiet, sustainable way to gather food without alerting other players.',
             'Fish provide excellent nutrition and are more reliable than foraging.',
             'Consider fishing at dawn or dusk when fish are more active.',
-            'Rain dramatically improves fishing - light rain (1.3x), moderate rain (1.6x), heavy rain (2.0x), storms (2.5x)!',
-            'Dawn and dusk are the best fishing times (1.8x catch rate) - fish are most active during twilight.',
-            'Morning and afternoon provide decent fishing (1.1x), while night and midnight are poor (0.8x and 0.6x).',
-            'Weather and time bonuses stack together - fishing during a storm at dawn can give 4.5x catch rates!',
+            'Rain dramatically improves fishing - the heavier the rain, the better the catch!',
+            'Dawn and dusk are the best fishing times - fish are most active during twilight.',
+            'Morning and afternoon provide decent fishing, while night fishing is more challenging.',
+            'Weather and time bonuses stack together - fishing during storms at dawn is incredibly productive!',
             'Better fishing conditions mean less junk (tin cans) and more bonus fish in your catch.',
             'Risk vs reward: venture out in dangerous storms for the best fishing, but stay warm and dry!',
             'Being wet drains warmth faster and doubles cold damage - wear protective clothing when fishing in storms!',

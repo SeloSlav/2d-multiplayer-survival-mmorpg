@@ -365,6 +365,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     reeds,
     connection,
     lanterns,
+    inventoryItems,
+    itemDefinitions,
   });
 
 
@@ -949,7 +951,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Lantern interaction indicators
     visibleLanternsMap.forEach((lantern: SpacetimeDBLantern) => {
-      drawIndicatorIfNeeded('lantern', lantern.id, lantern.posX, lantern.posY, 56, true); // 56px height for lanterns
+      // For lanterns, the indicator is only relevant if a hold action is in progress (e.g., picking up an empty lantern)
+      if (holdInteractionProgress && holdInteractionProgress.targetId === lantern.id && holdInteractionProgress.targetType === 'lantern') {
+        drawIndicatorIfNeeded('lantern', lantern.id, lantern.posX, lantern.posY, 56, true); // 56px height for lanterns
+      }
     });
 
     visibleBoxesMap.forEach((box: SpacetimeDBWoodenStorageBox) => {

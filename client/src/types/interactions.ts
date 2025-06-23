@@ -195,6 +195,9 @@ export function hasSpecialConditions(target: InteractableTarget): boolean {
         case 'box':
             // Special hold action only if box is empty (for pickup)
             return target.data?.isEmpty === true;
+        case 'lantern':
+            // Lanterns always have special conditions (pickup if empty, toggle if has fuel)
+            return true;
         case 'stash':
             // Special stash conditions based on visibility
             return true; // Stashes always have special visibility toggle via hold
@@ -213,29 +216,33 @@ export function getEffectiveInteractionBehavior(target: InteractableTarget): Int
         case 'box':
             // Empty boxes can be picked up via hold, non-empty boxes open interface via tap
             return target.data?.isEmpty ? InteractionBehavior.HOLD : InteractionBehavior.INTERFACE;
+        case 'lantern':
+            // Lanterns always open interface via tap (secondary hold action handles pickup/toggle)
+            return InteractionBehavior.INTERFACE;
         case 'campfire':
-            // Campfires can both open interface (tap) and toggle burning (hold)
-            return InteractionBehavior.INTERFACE; // Primary behavior is interface
+            // Campfires always open interface via tap (secondary hold action handles toggle)
+            return InteractionBehavior.INTERFACE;
         case 'stash':
-            // Stashes can both open interface (tap) and toggle visibility (hold)  
-            return InteractionBehavior.INTERFACE; // Primary behavior is interface
+            // Stashes always open interface via tap (secondary hold action handles visibility toggle)  
+            return InteractionBehavior.INTERFACE;
         default:
-            // Use default behavior from config
-            return getInteractionConfig(target.type).behavior;
+            // Use default behavior from INTERACTION_CONFIGS
+            const config = INTERACTION_CONFIGS[target.type];
+            return config?.behavior || InteractionBehavior.TAP;
     }
 }
 
-// Helper function to determine secondary hold action availability
+// Helper function to determine if a target has a secondary hold action
 export function hasSecondaryHoldAction(target: InteractableTarget): boolean {
     switch (target.type) {
         case 'box':
-            return target.data?.isEmpty === true; // Can pickup empty boxes
-        case 'campfire':
-            return true; // Can toggle burning
+            return target.data?.isEmpty === true;
         case 'lantern':
-            return true; // Can toggle burning
+            return true; // Always has secondary hold action (pickup if empty, toggle if has fuel)
+        case 'campfire':
+            return true; // Always has toggle burning action
         case 'stash':
-            return true; // Can toggle visibility
+            return true; // Always has toggle visibility action
         default:
             return false;
     }
@@ -245,15 +252,15 @@ export function hasSecondaryHoldAction(target: InteractableTarget): boolean {
 export function getSecondaryHoldDuration(target: InteractableTarget): number {
     switch (target.type) {
         case 'box':
-            return 250; // 250ms to pickup empty box
-        case 'campfire':
-            return 250; // 250ms to toggle burning
+            return 1000; // 1 second to pick up empty box (significant action)
         case 'lantern':
-            return 250; // 250ms to toggle burning
+            return 500; // 0.5 seconds to toggle/pickup lantern (quick action)
+        case 'campfire':
+            return 500; // 0.5 seconds to toggle campfire (quick action)
         case 'stash':
-            return 250; // 250ms to toggle visibility
+            return 250; // 0.25 seconds to toggle stash visibility (very quick)
         default:
-            return 250;
+            return 1000; // Default 1 second
     }
 }
 

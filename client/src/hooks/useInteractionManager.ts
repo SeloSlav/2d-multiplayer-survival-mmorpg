@@ -107,9 +107,8 @@ export function useTargetInteractionManager({
                 // In a real implementation, this might dispatch an action to open UI
                 break;
             case 'lantern':
-                // Open lantern interface - could trigger UI modal opening
-                console.log(`[InteractionManager] Opening lantern interface for ID: ${target.id}`);
-                // In a real implementation, this might dispatch an action to open UI
+                // Interact with lantern to open interface
+                connection.reducers.interactWithLantern(Number(target.id));
                 break;
             case 'box':
                 console.log(`[InteractionManager] Opening storage box interface for ID: ${target.id}`);
@@ -163,22 +162,20 @@ export function useTargetInteractionManager({
                     connection.reducers.pickupStorageBox(Number(target.id));
                 }
                 break;
+            case 'lantern':
+                // Pickup empty lantern or toggle burning state
+                if (target.data?.isEmpty) {
+                    connection.reducers.pickupLantern(Number(target.id));
+                } else {
+                    // Toggle burning state for non-empty lanterns
+                    connection.reducers.toggleLantern(Number(target.id));
+                }
+                break;
             case 'campfire':
                 // Toggle burning state
                 const campfire = campfires?.get(String(target.id));
                 if (campfire) {
                     connection.reducers.toggleCampfireBurning(Number(target.id));
-                }
-                break;
-            case 'lantern':
-                // Toggle burning state
-                const lantern = lanterns?.get(String(target.id));
-                if (lantern) {
-                    if (lantern.isBurning) {
-                        connection.reducers.extinguishLantern(Number(target.id));
-                    } else {
-                        connection.reducers.lightLantern(Number(target.id));
-                    }
                 }
                 break;
             case 'stash':

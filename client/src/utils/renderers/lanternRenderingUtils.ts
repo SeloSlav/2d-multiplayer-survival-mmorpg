@@ -17,6 +17,10 @@ export const LANTERN_RENDER_Y_OFFSET = 8; // Visual offset from entity's base Y
 // Lantern interaction distance (player <-> lantern)
 export const PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Same as campfire
 
+// Lantern pickup mechanic: Empty lanterns can be picked up by holding E (similar to boxes)
+// Non-empty lanterns can have their burning state toggled by holding E
+// Tap E opens the lantern interface for fuel management
+
 // Constants for server-side damage logic (lanterns don't damage, but kept for consistency)
 export const SERVER_LANTERN_DAMAGE_RADIUS = 0.0; // Lanterns don't damage
 export const SERVER_LANTERN_DAMAGE_CENTER_Y_OFFSET = 0.0;
