@@ -416,8 +416,8 @@ export const renderYSortedEntities = ({
               // }
            }
         } else if (type === 'tree') {
-            // Render tree, skip its dynamic shadow in this pass
-            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, true);
+            // Render tree with its shadow in the normal order (shadow first, then tree)
+            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false);
         } else if (type === 'stone') {
             // Render stone with its shadow in the normal order (shadow first, then stone)
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, false);
@@ -575,15 +575,14 @@ export const renderYSortedEntities = ({
         } 
     });
 
-    // Second Pass: Render ONLY the dynamic ground shadows for trees and stones.
-    // These will be drawn on top of the entities rendered in the first pass.
-    // MODIFIED: Tree shadows are now drawn in GameCanvas.tsx *before* this function runs.
-    // So, this pass will now only handle stone shadows (and other entities if they get a similar treatment).
+    // Second Pass: Render ONLY the dynamic ground shadows for entities that need special shadow handling.
+    // UPDATED: Trees now render their shadows inline with their entities for proper Y-sorting.
+    // This pass is kept for any future entities that might need special shadow treatment.
     ySortedEntities.forEach(({ type, entity }) => {
         if (type === 'tree') {
-            // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
+            // Trees now render their shadows inline with the entity for proper Y-sorting
         } else if (type === 'stone') {
-            // Tree shadows are already rendered in GameCanvas.tsx, so skip here.
+            // Stones render their shadows inline with the entity
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.

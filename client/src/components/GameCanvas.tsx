@@ -728,13 +728,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
     // Note: Pumpkin and Mushroom shadows are now handled by the unified resource renderer
     // through the Y-sorted entities system
-    // --- BEGIN ADDED: Render Tree Shadows ---
-    if (visibleTrees) {
-      visibleTrees.forEach(tree => {
-        renderTree(ctx, tree, now_ms, currentCycleProgress, true /* onlyDrawShadow */);
-      });
-    }
-    // --- END ADDED: Render Tree Shadows ---
+    // Tree shadows are now handled by the Y-sorted entity system for proper shadow layering
     // TODO: Add other ground items like mushrooms, crops here if they get custom dynamic shadows
 
     // --- Render Clouds on Canvas --- (MOVED HERE)

@@ -11,7 +11,7 @@ import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroun
 import { imageManager } from './imageManager'; // Import image manager
 
 // Define constants for tree rendering
-const TARGET_TREE_WIDTH_PX = 240; // Target width on screen (doubled from 160)
+const TARGET_TREE_WIDTH_PX = 480; // Target width on screen (doubled from 240, originally 160)
 const TREE_HEIGHT = 120;
 const SHAKE_DURATION_MS = 500;
 const SHAKE_INTENSITY_PX = 8;

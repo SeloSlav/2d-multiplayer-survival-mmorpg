@@ -7,7 +7,7 @@ use crate::{PLAYER_RADIUS}; // Removed unused TILE_SIZE_PX
 
 // Tree Collision settings
 pub(crate) const TREE_TRUNK_RADIUS: f32 = 30.0;
-pub(crate) const TREE_COLLISION_Y_OFFSET: f32 = 40.0;
+pub(crate) const TREE_COLLISION_Y_OFFSET: f32 = 60.0; // Increased from 40.0 to move collision hitbox up
 pub(crate) const PLAYER_TREE_COLLISION_DISTANCE_SQUARED: f32 = (PLAYER_RADIUS + TREE_TRUNK_RADIUS) * (PLAYER_RADIUS + TREE_TRUNK_RADIUS);
 
 // Tree Spawning Parameters

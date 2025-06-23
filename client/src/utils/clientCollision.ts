@@ -8,7 +8,7 @@ const PLAYER_RADIUS = 32;
 
 // Unified collision radii for consistency - match visual sprite sizes
 const COLLISION_RADII = {
-  TREE: 38,        // Perfect radius for trees
+  TREE: 38,
   STONE: 28,       // Smaller radius for flattened stones
   STORAGE_BOX: 25, // Much tighter radius for boxes
   PLAYER: PLAYER_RADIUS,
@@ -16,7 +16,7 @@ const COLLISION_RADII = {
 
 // Collision offsets for sprite positioning - align with visual sprite base
 const COLLISION_OFFSETS = {
-  TREE: { x: 0, y: -60 },      // Perfect Y position for tree base
+  TREE: { x: 0, y: -68 },      // Adjusted to keep top boundary similar while squishing from bottom
   STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
