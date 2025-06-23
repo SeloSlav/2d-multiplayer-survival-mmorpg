@@ -67,7 +67,7 @@ pub(crate) const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y: f32 = 200.0; // Keep t
 
 /// Buffer zone around shelter for resource clearing (in pixels)
 /// This extends the clearing area beyond the shelter's collision boundaries
-pub(crate) const SHELTER_RESOURCE_CLEARING_BUFFER: f32 = 100.0; // 100px buffer around shelter
+pub(crate) const SHELTER_RESOURCE_CLEARING_BUFFER: f32 = 300.0; // 300px buffer around shelter (3x increase)
 
 /// --- Shelter Data Structure ---
 /// Represents a player-built shelter in the game world.

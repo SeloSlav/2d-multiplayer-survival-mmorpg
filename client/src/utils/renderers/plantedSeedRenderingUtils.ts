@@ -80,9 +80,9 @@ export function renderPlantedSeed(
     ctx.shadowOffsetY = 2;
     ctx.shadowBlur = 4;
     
-    // Size grows slightly as the seed develops (20px to 28px)
-    const baseSize = 20;
-    const growthSizeBonus = 8 * growthProgress;
+    // Size grows slightly as the seed develops (32px to 48px)
+    const baseSize = 32;
+    const growthSizeBonus = 16 * growthProgress;
     const currentSize = baseSize + growthSizeBonus;
     
     // Slight subtle pulsing for recently planted seeds
