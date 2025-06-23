@@ -76,6 +76,12 @@ import rawTwigfishIcon from '../assets/items/raw_twigfish.png';
 import tinCanIcon from '../assets/items/tin_can.png';
 import cookedTwigfishIcon from '../assets/items/cooked_twigfish.png';
 import burntTwigfishIcon from '../assets/items/burnt_twigfish.png';
+import seedPotatoIcon from '../assets/items/seed_potato.png';
+import cornSeedsIcon from '../assets/items/corn_seeds.png';
+import hempSeedsIcon from '../assets/items/hemp_seeds.png';
+import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
+import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
+import pumpkinSeedsIcon from '../assets/items/pumpkin_seeds.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -152,6 +158,12 @@ const iconMap: { [key: string]: string | undefined } = {
   'tin_can.png': tinCanIcon,
   'cooked_twigfish.png': cookedTwigfishIcon,
   'burnt_twigfish.png': burntTwigfishIcon,
+  'seed_potato.png': seedPotatoIcon,
+  'corn_seeds.png': cornSeedsIcon,
+  'hemp_seeds.png': hempSeedsIcon,
+  'reed_rhizome.png': reedRhizomeIcon,
+  'mushroom_spore.png': mushroomSporeIcon,
+  'pumpkin_seeds.png': pumpkinSeedsIcon,
 };
 
 // Export a function that provides the fallback logic

@@ -50,6 +50,8 @@ import { CastFishingLine } from "./cast_fishing_line_reducer.ts";
 export { CastFishingLine };
 import { CheckFinishedCrafting } from "./check_finished_crafting_reducer.ts";
 export { CheckFinishedCrafting };
+import { CheckPlantGrowth } from "./check_plant_growth_reducer.ts";
+export { CheckPlantGrowth };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
 import { ClearActiveItemReducer } from "./clear_active_item_reducer_reducer.ts";
@@ -184,6 +186,8 @@ import { PlaceStash } from "./place_stash_reducer.ts";
 export { PlaceStash };
 import { PlaceWoodenStorageBox } from "./place_wooden_storage_box_reducer.ts";
 export { PlaceWoodenStorageBox };
+import { PlantSeed } from "./plant_seed_reducer.ts";
+export { PlantSeed };
 import { ProcessActiveConsumableEffectsTick } from "./process_active_consumable_effects_tick_reducer.ts";
 export { ProcessActiveConsumableEffectsTick };
 import { ProcessCampfireLogicScheduled } from "./process_campfire_logic_scheduled_reducer.ts";
@@ -384,6 +388,10 @@ import { MinimapCacheTableHandle } from "./minimap_cache_table.ts";
 export { MinimapCacheTableHandle };
 import { MushroomTableHandle } from "./mushroom_table.ts";
 export { MushroomTableHandle };
+import { PlantedSeedTableHandle } from "./planted_seed_table.ts";
+export { PlantedSeedTableHandle };
+import { PlantedSeedGrowthScheduleTableHandle } from "./planted_seed_growth_schedule_table.ts";
+export { PlantedSeedGrowthScheduleTableHandle };
 import { PlayerTableHandle } from "./player_table.ts";
 export { PlayerTableHandle };
 import { PlayerCorpseTableHandle } from "./player_corpse_table.ts";
@@ -534,6 +542,10 @@ import { MinimapCache } from "./minimap_cache_type.ts";
 export { MinimapCache };
 import { Mushroom } from "./mushroom_type.ts";
 export { Mushroom };
+import { PlantedSeed } from "./planted_seed_type.ts";
+export { PlantedSeed };
+import { PlantedSeedGrowthSchedule } from "./planted_seed_growth_schedule_type.ts";
+export { PlantedSeedGrowthSchedule };
 import { Player } from "./player_type.ts";
 export { Player };
 import { PlayerCorpse } from "./player_corpse_type.ts";
@@ -759,6 +771,16 @@ const REMOTE_MODULE = {
       rowType: Mushroom.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    planted_seed: {
+      tableName: "planted_seed",
+      rowType: PlantedSeed.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    planted_seed_growth_schedule: {
+      tableName: "planted_seed_growth_schedule",
+      rowType: PlantedSeedGrowthSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     player: {
       tableName: "player",
       rowType: Player.getTypeScriptAlgebraicType(),
@@ -941,6 +963,10 @@ const REMOTE_MODULE = {
     check_finished_crafting: {
       reducerName: "check_finished_crafting",
       argsType: CheckFinishedCrafting.getTypeScriptAlgebraicType(),
+    },
+    check_plant_growth: {
+      reducerName: "check_plant_growth",
+      argsType: CheckPlantGrowth.getTypeScriptAlgebraicType(),
     },
     check_resource_respawns: {
       reducerName: "check_resource_respawns",
@@ -1209,6 +1235,10 @@ const REMOTE_MODULE = {
     place_wooden_storage_box: {
       reducerName: "place_wooden_storage_box",
       argsType: PlaceWoodenStorageBox.getTypeScriptAlgebraicType(),
+    },
+    plant_seed: {
+      reducerName: "plant_seed",
+      argsType: PlantSeed.getTypeScriptAlgebraicType(),
     },
     process_active_consumable_effects_tick: {
       reducerName: "process_active_consumable_effects_tick",
@@ -1522,6 +1552,7 @@ export type Reducer = never
 | { name: "CancelFishing", args: CancelFishing }
 | { name: "CastFishingLine", args: CastFishingLine }
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
+| { name: "CheckPlantGrowth", args: CheckPlantGrowth }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
@@ -1589,6 +1620,7 @@ export type Reducer = never
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceStash", args: PlaceStash }
 | { name: "PlaceWoodenStorageBox", args: PlaceWoodenStorageBox }
+| { name: "PlantSeed", args: PlantSeed }
 | { name: "ProcessActiveConsumableEffectsTick", args: ProcessActiveConsumableEffectsTick }
 | { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
@@ -1797,6 +1829,22 @@ export class RemoteReducers {
 
   removeOnCheckFinishedCrafting(callback: (ctx: ReducerEventContext, schedule: CraftingFinishSchedule) => void) {
     this.connection.offReducer("check_finished_crafting", callback);
+  }
+
+  checkPlantGrowth(args: PlantedSeedGrowthSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    CheckPlantGrowth.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("check_plant_growth", __argsBuffer, this.setCallReducerFlags.checkPlantGrowthFlags);
+  }
+
+  onCheckPlantGrowth(callback: (ctx: ReducerEventContext, args: PlantedSeedGrowthSchedule) => void) {
+    this.connection.onReducer("check_plant_growth", callback);
+  }
+
+  removeOnCheckPlantGrowth(callback: (ctx: ReducerEventContext, args: PlantedSeedGrowthSchedule) => void) {
+    this.connection.offReducer("check_plant_growth", callback);
   }
 
   checkResourceRespawns() {
@@ -2821,6 +2869,22 @@ export class RemoteReducers {
 
   removeOnPlaceWoodenStorageBox(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_wooden_storage_box", callback);
+  }
+
+  plantSeed(itemInstanceId: bigint, plantPosX: number, plantPosY: number) {
+    const __args = { itemInstanceId, plantPosX, plantPosY };
+    let __writer = new BinaryWriter(1024);
+    PlantSeed.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("plant_seed", __argsBuffer, this.setCallReducerFlags.plantSeedFlags);
+  }
+
+  onPlantSeed(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, plantPosX: number, plantPosY: number) => void) {
+    this.connection.onReducer("plant_seed", callback);
+  }
+
+  removeOnPlantSeed(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, plantPosX: number, plantPosY: number) => void) {
+    this.connection.offReducer("plant_seed", callback);
   }
 
   processActiveConsumableEffectsTick(args: ProcessEffectsSchedule) {
@@ -3931,6 +3995,11 @@ export class SetReducerFlags {
     this.checkFinishedCraftingFlags = flags;
   }
 
+  checkPlantGrowthFlags: CallReducerFlags = 'FullUpdate';
+  checkPlantGrowth(flags: CallReducerFlags) {
+    this.checkPlantGrowthFlags = flags;
+  }
+
   checkResourceRespawnsFlags: CallReducerFlags = 'FullUpdate';
   checkResourceRespawns(flags: CallReducerFlags) {
     this.checkResourceRespawnsFlags = flags;
@@ -4254,6 +4323,11 @@ export class SetReducerFlags {
   placeWoodenStorageBoxFlags: CallReducerFlags = 'FullUpdate';
   placeWoodenStorageBox(flags: CallReducerFlags) {
     this.placeWoodenStorageBoxFlags = flags;
+  }
+
+  plantSeedFlags: CallReducerFlags = 'FullUpdate';
+  plantSeed(flags: CallReducerFlags) {
+    this.plantSeedFlags = flags;
   }
 
   processActiveConsumableEffectsTickFlags: CallReducerFlags = 'FullUpdate';
@@ -4724,6 +4798,14 @@ export class RemoteTables {
 
   get mushroom(): MushroomTableHandle {
     return new MushroomTableHandle(this.connection.clientCache.getOrCreateTable<Mushroom>(REMOTE_MODULE.tables.mushroom));
+  }
+
+  get plantedSeed(): PlantedSeedTableHandle {
+    return new PlantedSeedTableHandle(this.connection.clientCache.getOrCreateTable<PlantedSeed>(REMOTE_MODULE.tables.planted_seed));
+  }
+
+  get plantedSeedGrowthSchedule(): PlantedSeedGrowthScheduleTableHandle {
+    return new PlantedSeedGrowthScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlantedSeedGrowthSchedule>(REMOTE_MODULE.tables.planted_seed_growth_schedule));
   }
 
   get player(): PlayerTableHandle {

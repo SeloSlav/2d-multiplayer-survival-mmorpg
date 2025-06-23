@@ -58,7 +58,7 @@ function isPositionOnWater(connection: DbConnection | null, worldX: number, worl
 
 /**
  * Checks if placement should be blocked due to water tiles.
- * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, and sleeping bags.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, sleeping bags, and seeds.
  */
 function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
     if (!connection || !placementInfo) {
@@ -68,7 +68,10 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
     // List of items that cannot be placed on water
     const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
     
-    if (waterBlockedItems.includes(placementInfo.itemName)) {
+    // Seeds also cannot be planted on water
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    
+    if (waterBlockedItems.includes(placementInfo.itemName) || seedItems.includes(placementInfo.itemName)) {
         return isPositionOnWater(connection, worldX, worldY);
     }
     
@@ -158,6 +161,15 @@ export function renderPlacementPreview({
     } else if (placementInfo.iconAssetName === 'shelter.png') {
         drawWidth = SHELTER_RENDER_WIDTH; 
         drawHeight = SHELTER_RENDER_HEIGHT;
+    } else if (placementInfo.itemName === 'Mushroom Spores' || 
+               placementInfo.itemName === 'Hemp Seeds' || 
+               placementInfo.itemName === 'Corn Seeds' || 
+               placementInfo.itemName === 'Potato Seeds' || 
+               placementInfo.itemName === 'Reed Rhizome' || 
+               placementInfo.itemName === 'Pumpkin Seeds') {
+        // Seeds should have a smaller preview size (similar to stash)
+        drawWidth = 24;  
+        drawHeight = 24;
     }
 
     ctx.save();

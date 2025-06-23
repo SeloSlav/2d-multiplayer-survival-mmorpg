@@ -130,6 +130,7 @@ function AppContent() {
       projectiles, // Ensure this is destructured
       deathMarkers, // Ensure this is destructured
       shelters, // <<< ADD shelters HERE
+      plantedSeeds, // <<< ADD plantedSeeds HERE
       worldTiles, // <<< ADD worldTiles HERE
       minimapCache, // <<< ADD minimapCache HERE
       fishingSessions // <<< ADD fishingSessions HERE
@@ -625,6 +626,7 @@ function AppContent() {
                             playerCorpses={playerCorpses}
                             stashes={stashes}
                             shelters={shelters}
+                            plantedSeeds={plantedSeeds}
                             worldTiles={worldTiles}
                             minimapCache={minimapCache}
                             inventoryItems={inventoryItems}

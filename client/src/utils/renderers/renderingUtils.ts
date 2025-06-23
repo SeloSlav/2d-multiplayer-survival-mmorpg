@@ -20,7 +20,8 @@ import {
     Grass as SpacetimeDBGrass,
     Projectile as SpacetimeDBProjectile,
     Shelter as SpacetimeDBShelter,
-    PlayerDodgeRollState as SpacetimeDBPlayerDodgeRollState
+    PlayerDodgeRollState as SpacetimeDBPlayerDodgeRollState,
+    PlantedSeed as SpacetimeDBPlantedSeed
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { gameConfig } from '../../config/gameConfig';
@@ -34,6 +35,8 @@ import { renderEquippedItem } from './equippedItemRenderingUtils';
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
 // Import unified resource renderer instead of individual ones
 import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin, renderReed } from './unifiedResourceRenderer';
+// Import planted seed renderer (will be activated once client bindings are generated)
+import { renderPlantedSeed } from './plantedSeedRenderingUtils';
 import { renderCampfire } from './campfireRenderingUtils';
 import { renderLantern } from './lanternRenderingUtils';
 import { renderDroppedItem } from './droppedItemRenderingUtils';
@@ -567,6 +570,9 @@ export const renderYSortedEntities = ({
             } else {
                 console.warn(`🏹 [RENDER] Image not loaded: ${projectileImageName} for projectile ${projectile.id}`);
             }
+        } else if (type === 'planted_seed') {
+            const plantedSeed = entity as SpacetimeDBPlantedSeed;
+            renderPlantedSeed(ctx, plantedSeed, nowMs, cycleProgress);
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.

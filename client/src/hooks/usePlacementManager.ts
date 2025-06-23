@@ -59,7 +59,7 @@ function isPositionOnWater(connection: DbConnection | null, worldX: number, worl
 
 /**
  * Checks if placement should be blocked due to water tiles.
- * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, and sleeping bags.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, sleeping bags, and seeds.
  */
 function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
   if (!connection || !placementInfo) {
@@ -69,7 +69,10 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
   // List of items that cannot be placed on water
   const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
   
-  if (waterBlockedItems.includes(placementInfo.itemName)) {
+  // Seeds also cannot be planted on water
+  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+  
+  if (waterBlockedItems.includes(placementInfo.itemName) || seedItems.includes(placementInfo.itemName)) {
     return isPositionOnWater(connection, worldX, worldY);
   }
   
@@ -156,6 +159,20 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeShelter(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx will need a handleShelterInsert callback (added in useSpacetimeTables)
           // which should call cancelPlacement on success.
+          break;
+                // Seed planting cases
+        case 'Mushroom Spores':
+        case 'Hemp Seeds':
+        case 'Corn Seeds':
+        case 'Potato Seeds':
+        case 'Reed Rhizome':
+        case 'Pumpkin Seeds':
+          console.log(`[PlacementManager] Calling plant_seed reducer with instance ID: ${placementInfo.instanceId}`);
+          // TODO: Use the actual generated reducer name (might be plantSeed or plant_seed)
+          (connection.reducers as any).plant_seed?.(placementInfo.instanceId, worldX, worldY) || 
+          (connection.reducers as any).plantSeed?.(placementInfo.instanceId, worldX, worldY);
+          // Note: Seeds are consumed immediately, so we cancel placement right away
+          cancelPlacement();
           break;
         // case 'Storage Box':
         //   console.log(`[PlacementManager] Calling placeStorageBox reducer.`);

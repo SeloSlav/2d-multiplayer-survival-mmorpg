@@ -121,6 +121,14 @@ pub fn interact_with_hemp(ctx: &ReducerContext, hemp_id: u64) -> Result<(), Stri
         MAX_HEMP_RESPAWN_TIME_SECS
     )?;
 
+    // Try to grant seed drops after successful harvest
+    crate::collectible_resources::try_grant_seed_drops(
+        ctx,
+        sender_id,
+        HEMP_PRIMARY_YIELD_ITEM_NAME,
+        &mut ctx.rng().clone(),
+    )?;
+
     // Log statement is now handled within collect_resource_and_schedule_respawn
     // log::info!("Player {:?} interacted with hemp plant {}", sender_id, hemp_id);
     Ok(())

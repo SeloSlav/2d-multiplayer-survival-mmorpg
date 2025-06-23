@@ -29,7 +29,8 @@ import {
   Shelter as SpacetimeDBShelter,
   Potato as SpacetimeDBPotato,
   MinimapCache as SpacetimeDBMinimapCache,
-  FishingSession
+  FishingSession,
+  PlantedSeed as SpacetimeDBPlantedSeed
 } from '../generated';
 
 // --- Core Hooks ---
@@ -149,6 +150,7 @@ interface GameCanvasProps {
   isGameMenuOpen: boolean; // Add this prop
   onAutoActionStatesChange?: (isAutoAttacking: boolean) => void;
   isFishing: boolean;
+  plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
 }
 
 /**
@@ -207,6 +209,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isGameMenuOpen,
   onAutoActionStatesChange,
   isFishing,
+  plantedSeeds,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -473,7 +476,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     interpolatedGrass,
     projectiles,
     shelters,
-    clouds
+    clouds,
+    plantedSeeds
   );
 
   // --- UI State ---

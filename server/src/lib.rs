@@ -52,6 +52,7 @@ mod hemp; // Added for Hemp resource
 mod reed; // Added for Reed resource
 mod stash; // Added Stash module
 pub mod pumpkin;
+mod planted_seeds; // Added for farming system with planted seeds
 pub mod active_effects; // Added for timed consumable effects
 mod cloud; // Add the new cloud module
 mod armor; // <<< ADDED armor module
@@ -91,6 +92,9 @@ pub use fishing::{cast_fishing_line, finish_fishing, cancel_fishing};
 
 // ADD: Re-export drinking reducer
 pub use drinking::drink_water;
+
+// ADD: Re-export planted seeds reducer
+pub use planted_seeds::plant_seed;
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -167,6 +171,7 @@ use crate::player_movement::player_dodge_roll_state as PlayerDodgeRollStateTable
 use crate::world_chunk_data as WorldChunkDataTableTrait; // <<< ADDED: Import WorldChunkData table trait
 use crate::fishing::fishing_session as FishingSessionTableTrait; // <<< ADDED: Import FishingSession table trait
 use crate::drinking::player_drinking_cooldown as PlayerDrinkingCooldownTableTrait; // <<< ADDED: Import PlayerDrinkingCooldown table trait
+use crate::planted_seeds::planted_seed as PlantedSeedTableTrait; // <<< ADDED: Import PlantedSeed table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -407,6 +412,8 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     // ADD: Initialize active effects processing schedule
     crate::active_effects::schedule_effect_processing(ctx)?;
     crate::projectile::init_projectile_system(ctx)?;
+    // ADD: Initialize plant growth system
+    crate::planted_seeds::init_plant_growth_system(ctx)?;
 
     // ADD: Generate world automatically on first startup
     let existing_tiles_count = ctx.db.world_tile().iter().count();

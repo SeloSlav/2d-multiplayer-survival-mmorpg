@@ -20,6 +20,7 @@ import {
   Projectile as SpacetimeDBProjectile,
   Shelter as SpacetimeDBShelter,
   Cloud as SpacetimeDBCloud,
+  PlantedSeed as SpacetimeDBPlantedSeed,
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -82,7 +83,9 @@ interface EntityFilteringResult {
   visibleGrassMap: Map<string, InterpolatedGrassData>; // Use InterpolatedGrassData
   visibleShelters: SpacetimeDBShelter[]; // ADDED
   visibleSheltersMap: Map<string, SpacetimeDBShelter>; // ADDED
-  visibleLanterns: SpacetimeDBLantern[]; // ADDED
+  visibleLanterns: SpacetimeDBLantern[];
+  visiblePlantedSeeds: SpacetimeDBPlantedSeed[];
+  visiblePlantedSeedsMap: Map<string, SpacetimeDBPlantedSeed>; // ADDED
   visibleClouds: SpacetimeDBCloud[]; // ADDED
 }
 
@@ -105,7 +108,8 @@ export type YSortedEntityType =
   | { type: 'pumpkin'; entity: SpacetimeDBPumpkin }
   | { type: 'projectile'; entity: SpacetimeDBProjectile }
   | { type: 'shelter'; entity: SpacetimeDBShelter }
-  | { type: 'grass'; entity: InterpolatedGrassData }; // Use InterpolatedGrassData
+  | { type: 'grass'; entity: InterpolatedGrassData }
+  | { type: 'planted_seed'; entity: SpacetimeDBPlantedSeed };
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -131,7 +135,8 @@ export function useEntityFiltering(
   grass: Map<string, InterpolatedGrassData>, // Use InterpolatedGrassData
   projectiles: Map<string, SpacetimeDBProjectile>,
   shelters: Map<string, SpacetimeDBShelter>, // ADDED shelters argument
-  clouds: Map<string, SpacetimeDBCloud> // ADDED clouds argument
+  clouds: Map<string, SpacetimeDBCloud>, // ADDED clouds argument
+  plantedSeeds: Map<string, SpacetimeDBPlantedSeed>
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
@@ -256,6 +261,12 @@ export function useEntityFiltering(
       }
       width = 48;
       height = 48;
+    } else if ((entity as any).posX !== undefined && (entity as any).seedType !== undefined) {
+      // Handle planted seeds - check for seed-specific properties
+      x = (entity as any).posX;
+      y = (entity as any).posY;
+      width = 24; // Small seed size
+      height = 24;
     } else {
       return false; // Unknown entity type
     }
@@ -444,6 +455,12 @@ export function useEntityFiltering(
     [clouds, isEntityInView, viewBounds, currentTime]
   );
 
+  const visiblePlantedSeeds = useMemo(() => 
+    plantedSeeds ? Array.from(plantedSeeds.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [plantedSeeds, isEntityInView, viewBounds, currentTime]
+  );
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -490,9 +507,14 @@ export function useEntityFiltering(
     [visibleHemps]
   );
 
-  const visibleReedsMap = useMemo(() => 
-    new Map(visibleReeds.map(r => [r.id.toString(), r])), 
+    const visibleReedsMap = useMemo(() => 
+    new Map(visibleReeds.map(r => [r.id.toString(), r])),
     [visibleReeds]
+  );
+
+  const visiblePlantedSeedsMap = useMemo(() => 
+    new Map(visiblePlantedSeeds.map(p => [p.id.toString(), p])),
+    [visiblePlantedSeeds]
   );
 
   const visibleProjectilesMap = useMemo(() => 
@@ -557,6 +579,7 @@ export function useEntityFiltering(
       ...visibleProjectiles.map(p => ({ type: 'projectile' as const, entity: p })),
       ...visibleShelters.map(s => ({ type: 'shelter' as const, entity: s })),
       ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
+      ...visiblePlantedSeeds.map(p => ({ type: 'planted_seed' as const, entity: p })),
     ];
     
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
@@ -660,6 +683,12 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      // Handle planted seeds - they should sort by their base position like other ground items
+      if ((entity as any).posX !== undefined && (entity as any).seedType !== undefined) {
+        sortY = (entity as any).posY;
+        return sortY;
+      }
+
       // For other entities, use their standard posY if it exists, otherwise default or handle error.
       // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
       if ((entity as any).posY !== undefined) {
@@ -686,7 +715,8 @@ export function useEntityFiltering(
     visiblePlayerCorpses, visibleStashes, visibleCorns, visiblePotatoes, visibleHemps, visibleReeds,
     visibleCampfires, visibleLanterns, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
     visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
-    visibleShelters // ADDED visibleShelters to dependencies
+    visibleShelters, // ADDED visibleShelters to dependencies
+    visiblePlantedSeeds // ADDED visiblePlantedSeeds to dependencies
   ]);
 
   return {
@@ -728,6 +758,8 @@ export function useEntityFiltering(
     visibleShelters,
     visibleSheltersMap,
     visibleReedsMap,
-    visibleClouds
+    visibleClouds,
+    visiblePlantedSeeds,
+    visiblePlantedSeedsMap
   };
 } 

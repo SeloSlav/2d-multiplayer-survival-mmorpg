@@ -140,6 +140,14 @@ pub fn interact_with_pumpkin(ctx: &ReducerContext, pumpkin_id: u64) -> Result<()
         MAX_PUMPKIN_RESPAWN_TIME_SECS   // max_respawn_secs
     )?;
 
+    // Try to grant seed drops after successful harvest
+    crate::collectible_resources::try_grant_seed_drops(
+        ctx,
+        player_id,
+        PUMPKIN_PRIMARY_YIELD_ITEM_NAME,
+        &mut ctx.rng().clone(),
+    )?;
+
     // Log statement is now handled within collect_resource_and_schedule_respawn
     // log::info!("Player {} collected pumpkin {}", player_id, pumpkin_id);
     Ok(())

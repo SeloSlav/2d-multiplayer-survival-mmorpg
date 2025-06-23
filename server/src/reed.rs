@@ -140,6 +140,14 @@ pub fn interact_with_reed(ctx: &ReducerContext, reed_id: u64) -> Result<(), Stri
         MAX_REED_RESPAWN_TIME_SECS      // max_respawn_secs
     )?;
 
+    // Try to grant seed drops after successful harvest
+    crate::collectible_resources::try_grant_seed_drops(
+        ctx,
+        player_id,
+        REED_PRIMARY_YIELD_ITEM_NAME,
+        &mut ctx.rng().clone(),
+    )?;
+
     // Log statement is now handled within collect_resource_and_schedule_respawn
     // log::info!("Player {} collected reed {}", player_id, reed_id);
     Ok(())

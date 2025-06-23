@@ -65,7 +65,8 @@ import {
     DeathMarker as SpacetimeDBDeathMarker,
     Shelter as SpacetimeDBShelter,
     MinimapCache as SpacetimeDBMinimapCache,
-    FishingSession
+    FishingSession,
+    PlantedSeed as SpacetimeDBPlantedSeed
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -108,6 +109,7 @@ interface GameScreenProps {
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
     shelters: Map<string, SpacetimeDBShelter>;
+    plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
     worldTiles: Map<string, any>;
     minimapCache: SpacetimeDBMinimapCache | null;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
@@ -209,6 +211,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         players, trees, stones, campfires, lanterns, mushrooms, corns, potatoes, pumpkins, hemps, reeds, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         shelters,
+        plantedSeeds,
         worldTiles,
         minimapCache,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
@@ -660,6 +663,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 playerPins={playerPins}
                 playerCorpses={playerCorpses}
                 stashes={stashes}
+                plantedSeeds={plantedSeeds}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}

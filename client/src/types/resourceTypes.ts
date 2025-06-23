@@ -1,17 +1,16 @@
 // Unified Resource Type System for Harvestable Resources
-import { Corn, Hemp, Mushroom, Potato, Pumpkin /*Reed*/ } from '../generated';
+import { Corn, Hemp, Mushroom, Potato, Pumpkin, Reed} from '../generated';
 
-// Temporary Reed type definition until generated
-export interface Reed {
-  id: number;
-  posX: number;
-  posY: number;
-  chunkIndex: number;
-  respawnAt: Date | null;
-}
 
 // Union type for all harvestable resources
 export type HarvestableResource = Corn | Hemp | Mushroom | Potato | Pumpkin | Reed;
+
+// Planted seeds are separate from harvestable resources since they grow over time
+// TODO: Replace 'any' with actual PlantedSeed type when bindings are available
+export type PlantedSeedResource = any; // Will be defined by generated types
+
+// Combined union for all resource-related entities
+export type AllResourceEntities = HarvestableResource | PlantedSeedResource;
 
 // Resource type discriminator
 export type ResourceType = 'corn' | 'hemp' | 'mushroom' | 'potato' | 'pumpkin' | 'reed';

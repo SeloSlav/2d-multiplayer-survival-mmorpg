@@ -145,5 +145,15 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
         },
         MIN_MUSHROOM_RESPAWN_TIME_SECS, // min_respawn_secs
         MAX_MUSHROOM_RESPAWN_TIME_SECS  // max_respawn_secs
-    )
+    )?;
+
+    // Try to grant seed drops after successful harvest
+    crate::collectible_resources::try_grant_seed_drops(
+        ctx,
+        sender_id,
+        MUSHROOM_PRIMARY_YIELD_ITEM_NAME,
+        &mut ctx.rng().clone(),
+    )?;
+
+    Ok(())
 } 
