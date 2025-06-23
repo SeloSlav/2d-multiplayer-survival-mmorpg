@@ -924,7 +924,7 @@ const FishingSystem: React.FC<FishingSystemProps> = ({
             {/* Fishing depth and bite chance indicator */}
             <div style={{ marginBottom: '8px', fontSize: '12px' }}>
               <div style={{ color: '#64c8ff', marginBottom: '4px' }}>
-                📏 Depth: <span style={{ fontWeight: 'bold' }}>{calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile).toFixed(0)}px from shore</span>
+                📏 Depth: <span style={{ fontWeight: 'bold' }}>{Math.round(calculateBobberToShoreDistance(bobber.x, bobber.y, isWaterTile) / 10)}m from shore</span>
                 <span style={{ 
                   marginLeft: '8px',
                   color: distanceBiteMultiplier > 1.5 ? '#44ff44' : distanceBiteMultiplier > 1.0 ? '#ffaa44' : '#ff6464',
