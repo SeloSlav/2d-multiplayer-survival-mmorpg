@@ -626,6 +626,8 @@ export const renderYSortedEntities = ({
         } else if (type === 'projectile') {
             // Projectiles are fully rendered in the first pass and don't have separate shadows
             // No action needed in the shadow-only pass
+        } else if (type === 'planted_seed') {
+            // Planted seeds are fully rendered in the first pass - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }
