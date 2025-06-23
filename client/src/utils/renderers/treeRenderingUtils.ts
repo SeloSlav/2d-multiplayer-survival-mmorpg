@@ -1,7 +1,7 @@
 import { Tree } from '../../generated'; // Import generated types
 import aleppoPineImage from '../../assets/doodads/aleppo_pine_b.png';
-import mannaAshImage from '../../assets/doodads/manna_ash.png';
-import downyOakImage from '../../assets/doodads/downy_oak.png';
+import mannaAshImage from '../../assets/doodads/manna_ash_b.png';
+import downyOakImage from '../../assets/doodads/downy_oak_b.png';
 import stonePineImage from '../../assets/doodads/stone_pine_b.png'; // New import for stone pine
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED

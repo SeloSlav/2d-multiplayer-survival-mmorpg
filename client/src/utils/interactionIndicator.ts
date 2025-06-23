@@ -108,7 +108,6 @@ export function getInteractionText(state: InteractionIndicatorState): string {
                 // Calculate total fuel quantity from individual slots
                 let totalFuel = 0;
                 if (lantern.fuelInstanceId0) totalFuel++;
-                if (lantern.fuelInstanceId1) totalFuel++;
                 const fuelStatus = totalFuel > 0 ? ` (${totalFuel} fuel)` : ' (no fuel)';
                 return `[E] Lantern ${status}${fuelStatus} [Hold E] Toggle`;
             }
