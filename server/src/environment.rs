@@ -1208,6 +1208,19 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         let base_opacity = rng.gen_range(0.08..0.25); 
         let blur_strength = rng.gen_range(10.0..30.0); 
 
+        // Choose a random cloud type with weighted distribution
+        let cloud_type = match rng.gen_range(0..100) {
+            0..=30 => crate::cloud::CloudType::Cumulus,    // 30% - Most common
+            31..=50 => crate::cloud::CloudType::Wispy,     // 20% - Light clouds
+            51..=70 => crate::cloud::CloudType::Stratus,   // 20% - Layer clouds
+            71..=85 => crate::cloud::CloudType::Cirrus,    // 15% - High thin clouds
+            _ => crate::cloud::CloudType::Nimbus,          // 15% - Storm clouds
+        };
+
+        // Set evolution parameters based on cloud type
+        let evolution_speed = rng.gen_range(0.1..0.3); // Base evolution speed (cycles per hour)
+        let evolution_phase = rng.gen_range(0.0..1.0); // Random starting phase
+
         let new_cloud = crate::cloud::Cloud {
             id: 0, // auto_inc
             pos_x,
@@ -1218,10 +1231,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             height,
             rotation_degrees,
             base_opacity,
+            current_opacity: base_opacity, // Initialize current_opacity to base_opacity
             blur_strength,
             // --- Initialize new drift fields ---
             drift_speed_x: CLOUD_BASE_DRIFT_X + rng.gen_range(-CLOUD_DRIFT_VARIATION..CLOUD_DRIFT_VARIATION),
             drift_speed_y: CLOUD_BASE_DRIFT_Y + rng.gen_range(-CLOUD_DRIFT_VARIATION..CLOUD_DRIFT_VARIATION),
+            // --- Initialize new dynamic intensity fields ---
+            cloud_type,
+            evolution_phase,
+            evolution_speed,
+            last_intensity_update: ctx.timestamp,
         };
 
         match ctx.db.cloud().try_insert(new_cloud) {
@@ -1253,6 +1272,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             Ok(_) => log::info!("Cloud update successfully scheduled every {} seconds.", update_interval_seconds),
             Err(e) => log::error!("Failed to schedule cloud update: {}", e),
         }
+
+        // --- Initialize Cloud Intensity System --- (NEW)
+        log::info!("Initializing cloud intensity system.");
+        if let Err(e) = crate::cloud::init_cloud_intensity_system(ctx) {
+            log::error!("Failed to initialize cloud intensity system: {}", e);
+        }
+        // --- End Initialize Cloud Intensity System ---
     }
     // --- End Schedule initial cloud update ---
 

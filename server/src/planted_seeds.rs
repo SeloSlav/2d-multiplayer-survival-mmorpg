@@ -24,6 +24,8 @@ use crate::corn::corn as CornTableTrait;
 use crate::potato::potato as PotatoTableTrait;
 use crate::reed::reed as ReedTableTrait;
 use crate::pumpkin::pumpkin as PumpkinTableTrait;
+use crate::world_state::{world_state as WorldStateTableTrait, WeatherType, TimeOfDay};
+use crate::cloud::cloud as CloudTableTrait;
 
 // --- Planted Seed Tracking Table ---
 
@@ -38,8 +40,11 @@ pub struct PlantedSeed {
     pub chunk_index: u32,
     pub seed_type: String,        // "Potato Seeds", "Corn Seeds", etc.
     pub planted_at: Timestamp,    // When it was planted
-    pub will_mature_at: Timestamp, // When it becomes harvestable
+    pub will_mature_at: Timestamp, // When it becomes harvestable (dynamically updated)
     pub planted_by: Identity,     // Who planted it
+    pub growth_progress: f32,     // 0.0 to 1.0 - actual growth accumulated
+    pub base_growth_time_secs: u64, // Base time needed to reach maturity
+    pub last_growth_update: Timestamp, // Last time growth was calculated
 }
 
 // --- Growth Schedule Table ---
@@ -103,6 +108,101 @@ fn get_growth_config(seed_type: &str) -> Option<GrowthConfig> {
 
 const PLANT_GROWTH_CHECK_INTERVAL_SECS: u64 = 30; // Check every 30 seconds
 const MIN_PLANTING_DISTANCE_SQ: f32 = 50.0 * 50.0; // Minimum distance between plants
+
+// --- Growth Rate Modifiers ---
+
+/// Growth rate multipliers based on time of day
+fn get_time_of_day_growth_multiplier(time_of_day: &TimeOfDay) -> f32 {
+    match time_of_day {
+        TimeOfDay::Dawn => 0.3,           // Slow growth at dawn
+        TimeOfDay::TwilightMorning => 0.5, // Building up
+        TimeOfDay::Morning => 1.0,        // Normal growth
+        TimeOfDay::Noon => 1.5,           // Peak growth (most sunlight)
+        TimeOfDay::Afternoon => 1.2,     // Good growth
+        TimeOfDay::Dusk => 0.4,           // Slowing down
+        TimeOfDay::TwilightEvening => 0.2, // Very slow
+        TimeOfDay::Night => 0.0,          // No growth at night
+        TimeOfDay::Midnight => 0.0,       // No growth at midnight
+    }
+}
+
+/// Growth rate multipliers based on weather conditions
+fn get_weather_growth_multiplier(weather: &WeatherType, rain_intensity: f32) -> f32 {
+    match weather {
+        WeatherType::Clear => 1.0,        // Normal growth
+        WeatherType::LightRain => 1.3,    // Light rain helps growth
+        WeatherType::ModerateRain => 1.6, // Moderate rain is very beneficial
+        WeatherType::HeavyRain => 1.4,    // Heavy rain is good but not as much
+        WeatherType::HeavyStorm => 0.8,   // Storm conditions slow growth
+    }
+}
+
+/// Calculate cloud cover growth modifier for a specific planted seed
+/// Returns a multiplier between 0.4 (heavy cloud cover) and 1.0 (no clouds)
+fn get_cloud_cover_growth_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: f32) -> f32 {
+    // Check if any clouds are covering this plant
+    let mut cloud_coverage = 0.0f32;
+    
+    for cloud in ctx.db.cloud().iter() {
+        // Calculate distance from plant to cloud center
+        let dx = plant_x - cloud.pos_x;
+        let dy = plant_y - cloud.pos_y;
+        
+        // Use elliptical coverage area based on cloud dimensions
+        let half_width = cloud.width / 2.0;
+        let half_height = cloud.height / 2.0;
+        
+        // Check if plant is within cloud's shadow area
+        // Using simple ellipse formula: (x/a)² + (y/b)² <= 1
+        if half_width > 0.0 && half_height > 0.0 {
+            let normalized_x = dx / half_width;
+            let normalized_y = dy / half_height;
+            let distance_squared = normalized_x * normalized_x + normalized_y * normalized_y;
+            
+            if distance_squared <= 1.0 {
+                // Plant is under this cloud - calculate coverage intensity
+                // Closer to center = more coverage, fade out towards edges
+                let coverage_intensity = (1.0 - distance_squared.sqrt()).max(0.0);
+                
+                // Factor in cloud opacity for coverage strength
+                let effective_coverage = coverage_intensity * cloud.current_opacity;
+                
+                // Accumulate coverage (multiple clouds can overlap)
+                cloud_coverage = (cloud_coverage + effective_coverage).min(1.0);
+            }
+        }
+    }   
+    
+    // Convert coverage to growth multiplier
+    // 0% coverage = 1.0x growth (full sunlight)
+    // 100% coverage = 0.4x growth (significantly reduced but not stopped)
+    let multiplier = 1.0 - (cloud_coverage * 0.6); // Reduces by up to 60%
+    
+    multiplier.max(0.4) // Ensure minimum 40% growth rate
+}
+
+/// Calculate the effective growth rate for current conditions
+fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> f32 {
+    // Get current world state
+    let world_state = match ctx.db.world_state().iter().next() {
+        Some(state) => state,
+        None => {
+            log::warn!("No WorldState found for growth calculation, using default multiplier");
+            return 0.5; // Default moderate growth if no world state
+        }
+    };
+    
+    let time_multiplier = get_time_of_day_growth_multiplier(&world_state.time_of_day);
+    let weather_multiplier = get_weather_growth_multiplier(&world_state.current_weather, world_state.rain_intensity);
+    
+    let total_multiplier = time_multiplier * weather_multiplier;
+    
+    log::debug!("Growth multiplier: time={:.2} * weather={:.2} = {:.2} (time={:?}, weather={:?})", 
+               time_multiplier, weather_multiplier, total_multiplier, 
+               world_state.time_of_day, world_state.current_weather);
+    
+    total_multiplier
+}
 
 // --- Initialization ---
 
@@ -196,7 +296,8 @@ pub fn plant_seed(
     let maturity_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(growth_time_secs));
     let chunk_index = calculate_chunk_index(plant_pos_x, plant_pos_y);
     
-    // Create the planted seed
+    // Create the planted seed with initial maturity estimate
+    // Note: will_mature_at will be dynamically updated based on environmental conditions
     let planted_seed = PlantedSeed {
         id: 0, // Auto-inc
         pos_x: plant_pos_x,
@@ -204,8 +305,11 @@ pub fn plant_seed(
         chunk_index,
         seed_type: item_def.name.clone(),
         planted_at: ctx.timestamp,
-        will_mature_at: maturity_time,
+        will_mature_at: maturity_time, // Initial estimate, will be updated dynamically
         planted_by: player_id,
+        growth_progress: 0.0,
+        base_growth_time_secs: growth_time_secs,
+        last_growth_update: ctx.timestamp,
     };
     
     ctx.db.planted_seed().insert(planted_seed);
@@ -236,29 +340,84 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
     }
     
     let current_time = ctx.timestamp;
+    let base_growth_multiplier = calculate_growth_rate_multiplier(ctx);
+    let mut plants_updated = 0;
     let mut plants_matured = 0;
     
-    // Find all plants ready to mature
-    let mature_plants: Vec<PlantedSeed> = ctx.db.planted_seed().iter()
-        .filter(|plant| plant.will_mature_at <= current_time)
-        .collect();
+    // Process all planted seeds to update their growth
+    let all_plants: Vec<PlantedSeed> = ctx.db.planted_seed().iter().collect();
     
-    for plant in mature_plants {
-        match grow_plant_to_resource(ctx, &plant) {
-            Ok(()) => {
-                plants_matured += 1;
-                // Remove the planted seed entry
-                ctx.db.planted_seed().id().delete(plant.id);
+    for mut plant in all_plants {
+        // Calculate time elapsed since last update
+        let elapsed_micros = current_time.to_micros_since_unix_epoch()
+            .saturating_sub(plant.last_growth_update.to_micros_since_unix_epoch());
+        let elapsed_seconds = (elapsed_micros as f64 / 1_000_000.0) as f32;
+        
+        if elapsed_seconds <= 0.0 {
+            continue; // No time has passed
+        }
+        
+        // Calculate cloud cover effect for this specific plant
+        let cloud_multiplier = get_cloud_cover_growth_multiplier(ctx, plant.pos_x, plant.pos_y);
+        
+        // Combine all growth modifiers for this plant
+        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier;
+        
+        // Calculate growth progress increment
+        let base_growth_rate = 1.0 / plant.base_growth_time_secs as f32; // Progress per second at 1x multiplier
+        let actual_growth_rate = base_growth_rate * total_growth_multiplier;
+        let growth_increment = actual_growth_rate * elapsed_seconds;
+        
+        // Update growth progress
+        let old_progress = plant.growth_progress;
+        plant.growth_progress = (plant.growth_progress + growth_increment).min(1.0);
+        plant.last_growth_update = current_time;
+        
+        // Update estimated maturity time based on current growth rate
+        if total_growth_multiplier > 0.0 && plant.growth_progress < 1.0 {
+            let remaining_progress = 1.0 - plant.growth_progress;
+            let estimated_remaining_seconds = remaining_progress / actual_growth_rate;
+            plant.will_mature_at = current_time + TimeDuration::from_micros((estimated_remaining_seconds * 1_000_000.0) as i64);
+        }
+        
+        // Check if plant has matured
+        if plant.growth_progress >= 1.0 {
+            // Plant is ready to mature!
+            let plant_clone = plant.clone(); // Clone for logging and resource creation
+            match grow_plant_to_resource(ctx, &plant_clone) {
+                Ok(()) => {
+                    plants_matured += 1;
+                    // Remove the planted seed entry
+                    ctx.db.planted_seed().id().delete(plant.id);
+                    log::info!("Plant {} ({}) matured at ({:.1}, {:.1}) after {:.1}% growth", 
+                              plant_clone.id, plant_clone.seed_type, plant_clone.pos_x, plant_clone.pos_y, plant_clone.growth_progress * 100.0);
+                }
+                Err(e) => {
+                    log::error!("Failed to grow plant {} ({}): {}", plant.id, plant.seed_type, e);
+                    // Update the plant anyway to track progress
+                    ctx.db.planted_seed().id().update(plant);
+                    plants_updated += 1;
+                }
             }
-            Err(e) => {
-                log::error!("Failed to grow plant {} ({}): {}", plant.id, plant.seed_type, e);
-                // Keep the plant for retry next check
+        } else {
+            // Update the plant with new progress
+            let plant_id = plant.id;
+            let plant_type = plant.seed_type.clone();
+            let progress_pct = plant.growth_progress * 100.0;
+            ctx.db.planted_seed().id().update(plant);
+            plants_updated += 1;
+            
+            if growth_increment > 0.0 {
+                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, total: {:.2}x)", 
+                           plant_id, plant_type, old_progress * 100.0, progress_pct, 
+                           base_growth_multiplier, cloud_multiplier, total_growth_multiplier);
             }
         }
     }
     
-    if plants_matured > 0 {
-        log::info!("Matured {} plants during growth check", plants_matured);
+    if plants_matured > 0 || plants_updated > 0 {
+        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud effects vary per plant)", 
+                  plants_matured, plants_updated, base_growth_multiplier);
     }
     
     Ok(())

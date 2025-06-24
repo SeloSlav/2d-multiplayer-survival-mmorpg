@@ -20,6 +20,7 @@ interface CloudInterpolationState {
   height: number;
   rotationDegrees: number;
   baseOpacity: number;
+  currentOpacity: number;
   blurStrength: number;
   shape: CloudShapeType;
 }
@@ -85,6 +86,7 @@ export const useCloudInterpolation = ({
           height: serverCloud.height,
           rotationDegrees: serverCloud.rotationDegrees,
           baseOpacity: serverCloud.baseOpacity,
+          currentOpacity: serverCloud.currentOpacity,
           blurStrength: serverCloud.blurStrength,
           shape: serverCloud.shape,
         });
@@ -95,6 +97,7 @@ export const useCloudInterpolation = ({
             prevState.height !== serverCloud.height ||
             prevState.rotationDegrees !== serverCloud.rotationDegrees ||
             prevState.baseOpacity !== serverCloud.baseOpacity ||
+            prevState.currentOpacity !== serverCloud.currentOpacity ||
             prevState.blurStrength !== serverCloud.blurStrength ||
             !Object.is(prevState.shape, serverCloud.shape) // For object comparison
         ) {
@@ -105,6 +108,7 @@ export const useCloudInterpolation = ({
                 height: serverCloud.height,
                 rotationDegrees: serverCloud.rotationDegrees,
                 baseOpacity: serverCloud.baseOpacity,
+                currentOpacity: serverCloud.currentOpacity,
                 blurStrength: serverCloud.blurStrength,
                 shape: serverCloud.shape,
             });

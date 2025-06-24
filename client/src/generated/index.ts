@@ -64,6 +64,8 @@ import { DebugSetTime } from "./debug_set_time_reducer.ts";
 export { DebugSetTime };
 import { DebugSetWeather } from "./debug_set_weather_reducer.ts";
 export { DebugSetWeather };
+import { DebugUpdateCloudIntensity } from "./debug_update_cloud_intensity_reducer.ts";
+export { DebugUpdateCloudIntensity };
 import { DespawnExpiredItems } from "./despawn_expired_items_reducer.ts";
 export { DespawnExpiredItems };
 import { DodgeRoll } from "./dodge_roll_reducer.ts";
@@ -314,6 +316,8 @@ import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
 export { ToggleStashVisibility };
 import { ToggleTorch } from "./toggle_torch_reducer.ts";
 export { ToggleTorch };
+import { UpdateCloudIntensities } from "./update_cloud_intensities_reducer.ts";
+export { UpdateCloudIntensities };
 import { UpdateCloudPositions } from "./update_cloud_positions_reducer.ts";
 export { UpdateCloudPositions };
 import { UpdatePlayerFacingDirection } from "./update_player_facing_direction_reducer.ts";
@@ -344,6 +348,8 @@ import { ClientViewportTableHandle } from "./client_viewport_table.ts";
 export { ClientViewportTableHandle };
 import { CloudTableHandle } from "./cloud_table.ts";
 export { CloudTableHandle };
+import { CloudIntensityScheduleTableHandle } from "./cloud_intensity_schedule_table.ts";
+export { CloudIntensityScheduleTableHandle };
 import { CloudUpdateScheduleTableHandle } from "./cloud_update_schedule_table.ts";
 export { CloudUpdateScheduleTableHandle };
 import { CornTableHandle } from "./corn_table.ts";
@@ -468,8 +474,12 @@ import { ClientViewport } from "./client_viewport_type.ts";
 export { ClientViewport };
 import { Cloud } from "./cloud_type.ts";
 export { Cloud };
+import { CloudIntensitySchedule } from "./cloud_intensity_schedule_type.ts";
+export { CloudIntensitySchedule };
 import { CloudShapeType } from "./cloud_shape_type_type.ts";
 export { CloudShapeType };
+import { CloudType } from "./cloud_type_type.ts";
+export { CloudType };
 import { CloudUpdateSchedule } from "./cloud_update_schedule_type.ts";
 export { CloudUpdateSchedule };
 import { ContainerLocationData } from "./container_location_data_type.ts";
@@ -660,6 +670,11 @@ const REMOTE_MODULE = {
       tableName: "cloud",
       rowType: Cloud.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    cloud_intensity_schedule: {
+      tableName: "cloud_intensity_schedule",
+      rowType: CloudIntensitySchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
     },
     cloud_update_schedule: {
       tableName: "cloud_update_schedule",
@@ -991,6 +1006,10 @@ const REMOTE_MODULE = {
     debug_set_weather: {
       reducerName: "debug_set_weather",
       argsType: DebugSetWeather.getTypeScriptAlgebraicType(),
+    },
+    debug_update_cloud_intensity: {
+      reducerName: "debug_update_cloud_intensity",
+      argsType: DebugUpdateCloudIntensity.getTypeScriptAlgebraicType(),
     },
     despawn_expired_items: {
       reducerName: "despawn_expired_items",
@@ -1492,6 +1511,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_torch",
       argsType: ToggleTorch.getTypeScriptAlgebraicType(),
     },
+    update_cloud_intensities: {
+      reducerName: "update_cloud_intensities",
+      argsType: UpdateCloudIntensities.getTypeScriptAlgebraicType(),
+    },
     update_cloud_positions: {
       reducerName: "update_cloud_positions",
       argsType: UpdateCloudPositions.getTypeScriptAlgebraicType(),
@@ -1559,6 +1582,7 @@ export type Reducer = never
 | { name: "CrushBoneItem", args: CrushBoneItem }
 | { name: "DebugSetTime", args: DebugSetTime }
 | { name: "DebugSetWeather", args: DebugSetWeather }
+| { name: "DebugUpdateCloudIntensity", args: DebugUpdateCloudIntensity }
 | { name: "DespawnExpiredItems", args: DespawnExpiredItems }
 | { name: "DodgeRoll", args: DodgeRoll }
 | { name: "DrinkWater", args: DrinkWater }
@@ -1684,6 +1708,7 @@ export type Reducer = never
 | { name: "ToggleLantern", args: ToggleLantern }
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
+| { name: "UpdateCloudIntensities", args: UpdateCloudIntensities }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
 | { name: "UpdatePlayerFacingDirection", args: UpdatePlayerFacingDirection }
 | { name: "UpdatePlayerPositionSimple", args: UpdatePlayerPositionSimple }
@@ -1937,6 +1962,18 @@ export class RemoteReducers {
 
   removeOnDebugSetWeather(callback: (ctx: ReducerEventContext, weatherTypeStr: string) => void) {
     this.connection.offReducer("debug_set_weather", callback);
+  }
+
+  debugUpdateCloudIntensity() {
+    this.connection.callReducer("debug_update_cloud_intensity", new Uint8Array(0), this.setCallReducerFlags.debugUpdateCloudIntensityFlags);
+  }
+
+  onDebugUpdateCloudIntensity(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("debug_update_cloud_intensity", callback);
+  }
+
+  removeOnDebugUpdateCloudIntensity(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("debug_update_cloud_intensity", callback);
   }
 
   despawnExpiredItems(schedule: DroppedItemDespawnSchedule) {
@@ -3855,6 +3892,22 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_torch", callback);
   }
 
+  updateCloudIntensities(scheduleArgs: CloudIntensitySchedule) {
+    const __args = { scheduleArgs };
+    let __writer = new BinaryWriter(1024);
+    UpdateCloudIntensities.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_cloud_intensities", __argsBuffer, this.setCallReducerFlags.updateCloudIntensitiesFlags);
+  }
+
+  onUpdateCloudIntensities(callback: (ctx: ReducerEventContext, scheduleArgs: CloudIntensitySchedule) => void) {
+    this.connection.onReducer("update_cloud_intensities", callback);
+  }
+
+  removeOnUpdateCloudIntensities(callback: (ctx: ReducerEventContext, scheduleArgs: CloudIntensitySchedule) => void) {
+    this.connection.offReducer("update_cloud_intensities", callback);
+  }
+
   updateCloudPositions(scheduleArgs: CloudUpdateSchedule) {
     const __args = { scheduleArgs };
     let __writer = new BinaryWriter(1024);
@@ -4028,6 +4081,11 @@ export class SetReducerFlags {
   debugSetWeatherFlags: CallReducerFlags = 'FullUpdate';
   debugSetWeather(flags: CallReducerFlags) {
     this.debugSetWeatherFlags = flags;
+  }
+
+  debugUpdateCloudIntensityFlags: CallReducerFlags = 'FullUpdate';
+  debugUpdateCloudIntensity(flags: CallReducerFlags) {
+    this.debugUpdateCloudIntensityFlags = flags;
   }
 
   despawnExpiredItemsFlags: CallReducerFlags = 'FullUpdate';
@@ -4645,6 +4703,11 @@ export class SetReducerFlags {
     this.toggleTorchFlags = flags;
   }
 
+  updateCloudIntensitiesFlags: CallReducerFlags = 'FullUpdate';
+  updateCloudIntensities(flags: CallReducerFlags) {
+    this.updateCloudIntensitiesFlags = flags;
+  }
+
   updateCloudPositionsFlags: CallReducerFlags = 'FullUpdate';
   updateCloudPositions(flags: CallReducerFlags) {
     this.updateCloudPositionsFlags = flags;
@@ -4710,6 +4773,10 @@ export class RemoteTables {
 
   get cloud(): CloudTableHandle {
     return new CloudTableHandle(this.connection.clientCache.getOrCreateTable<Cloud>(REMOTE_MODULE.tables.cloud));
+  }
+
+  get cloudIntensitySchedule(): CloudIntensityScheduleTableHandle {
+    return new CloudIntensityScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CloudIntensitySchedule>(REMOTE_MODULE.tables.cloud_intensity_schedule));
   }
 
   get cloudUpdateSchedule(): CloudUpdateScheduleTableHandle {

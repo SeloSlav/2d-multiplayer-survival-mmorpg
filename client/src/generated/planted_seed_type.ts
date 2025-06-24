@@ -39,6 +39,9 @@ export type PlantedSeed = {
   plantedAt: Timestamp,
   willMatureAt: Timestamp,
   plantedBy: Identity,
+  growthProgress: number,
+  baseGrowthTimeSecs: bigint,
+  lastGrowthUpdate: Timestamp,
 };
 
 /**
@@ -59,6 +62,9 @@ export namespace PlantedSeed {
       new ProductTypeElement("plantedAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("willMatureAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("plantedBy", AlgebraicType.createIdentityType()),
+      new ProductTypeElement("growthProgress", AlgebraicType.createF32Type()),
+      new ProductTypeElement("baseGrowthTimeSecs", AlgebraicType.createU64Type()),
+      new ProductTypeElement("lastGrowthUpdate", AlgebraicType.createTimestampType()),
     ]);
   }
 

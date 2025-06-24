@@ -414,6 +414,9 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::projectile::init_projectile_system(ctx)?;
     // ADD: Initialize plant growth system
     crate::planted_seeds::init_plant_growth_system(ctx)?;
+    
+    // ADD: Initialize WorldState for scheduled systems
+    crate::world_state::seed_world_state(ctx)?;
 
     // ADD: Generate world automatically on first startup
     let existing_tiles_count = ctx.db.world_tile().iter().count();

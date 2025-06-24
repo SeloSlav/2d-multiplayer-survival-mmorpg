@@ -105,6 +105,7 @@ interface RenderYSortedEntitiesProps {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>; // Add inventory items for validation
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+    doodadImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
     shelterImage: HTMLImageElement | null;
     worldMouseX: number | null;
     worldMouseY: number | null;
@@ -163,6 +164,7 @@ export const renderYSortedEntities = ({
     itemDefinitions,
     inventoryItems,
     itemImagesRef,
+    doodadImagesRef,
     shelterImage,
     worldMouseX,
     worldMouseY,
@@ -572,7 +574,8 @@ export const renderYSortedEntities = ({
             }
         } else if (type === 'planted_seed') {
             const plantedSeed = entity as SpacetimeDBPlantedSeed;
-            renderPlantedSeed(ctx, plantedSeed, nowMs, cycleProgress);
+            const plantedSeedImg = doodadImagesRef.current?.get('planted_seed.png');
+            renderPlantedSeed(ctx, plantedSeed, nowMs, cycleProgress, plantedSeedImg);
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.

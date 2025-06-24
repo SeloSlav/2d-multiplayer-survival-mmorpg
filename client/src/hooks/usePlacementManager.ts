@@ -3,6 +3,9 @@ import { DbConnection } from '../generated'; // Import connection type
 import { ItemDefinition } from '../generated'; // Import ItemDefinition for type info
 import { TILE_SIZE } from '../config/gameConfig';
 
+// Minimum distance between planted seeds (in pixels)
+const MIN_SEED_DISTANCE = 80;
+
 // Type for the information needed to start placement
 export interface PlacementItemInfo {
   itemDefId: bigint;
@@ -79,6 +82,35 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
   return false;
 }
 
+/**
+ * Checks if a seed placement is too close to existing planted seeds.
+ * Returns true if the placement should be blocked.
+ */
+function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
+  if (!connection || !placementInfo) {
+    return false;
+  }
+
+  // Check if this is a seed placement
+  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+  if (!seedItems.includes(placementInfo.itemName)) {
+    return false; // Not a seed, no restriction
+  }
+
+  // Check distance to all existing planted seeds
+  for (const plantedSeed of connection.db.plantedSeed.iter()) {
+    const dx = worldX - plantedSeed.posX;
+    const dy = worldY - plantedSeed.posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance < MIN_SEED_DISTANCE) {
+      return true; // Too close to an existing seed
+    }
+  }
+
+  return false; // Safe to plant
+}
+
 export const usePlacementManager = (connection: DbConnection | null): [PlacementState, PlacementActions] => {
   const [placementInfo, setPlacementInfo] = useState<PlacementItemInfo | null>(null);
   const [placementError, setPlacementError] = useState<string | null>(null);
@@ -120,6 +152,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
     // Check for water placement restriction
     if (isWaterPlacementBlocked(connection, placementInfo, worldX, worldY)) {
       // setPlacementError("Cannot place on water");
+      return; // Don't proceed with placement
+    }
+
+    // Check for seed proximity restriction
+    if (isSeedPlacementTooClose(connection, placementInfo, worldX, worldY)) {
+      // setPlacementError("Too close to other seeds");
       return; // Don't proceed with placement
     }
 

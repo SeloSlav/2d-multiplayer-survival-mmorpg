@@ -32,7 +32,7 @@ export function renderCloudsDirectly({ ctx, clouds, cloudImages, worldScale }: R
 
   clouds.forEach(cloud => {
     // Destructure from InterpolatedCloudData - uses currentRenderPosX/Y
-    const { id, currentRenderPosX, currentRenderPosY, width, height, rotationDegrees, baseOpacity, blurStrength, shape } = cloud;
+    const { id, currentRenderPosX, currentRenderPosY, width, height, rotationDegrees, currentOpacity, blurStrength, shape } = cloud;
 
     if (DEBUG_CLOUDS) {
       console.log(`[renderCloudsDirectly] Processing Cloud ID: ${id}, Shape Tag from data: '${shape.tag}'`);
@@ -70,7 +70,7 @@ export function renderCloudsDirectly({ ctx, clouds, cloudImages, worldScale }: R
       console.log(
           `[renderCloudsDirectly] Cloud ID: ${id}, `, 
           `WorldPos=(${worldCloudCenterX.toFixed(1)}, ${worldCloudCenterY.toFixed(1)}), `, 
-          `RenderSize=(${renderWidth.toFixed(1)}x${renderHeight.toFixed(1)}), Opacity: ${baseOpacity}, Blur: ${blurStrength}`
+          `RenderSize=(${renderWidth.toFixed(1)}x${renderHeight.toFixed(1)}), Opacity: ${currentOpacity}, Blur: ${blurStrength}`
       );
     }
 
@@ -80,7 +80,7 @@ export function renderCloudsDirectly({ ctx, clouds, cloudImages, worldScale }: R
     ctx.translate(worldCloudCenterX * worldScale, worldCloudCenterY * worldScale); 
     ctx.rotate(rotationDegrees * Math.PI / 180);
 
-    const darkerOpacity = Math.min(baseOpacity * 1.5, 0.15);
+    const darkerOpacity = Math.min(currentOpacity * 1.5, 0.15);
     ctx.globalAlpha = darkerOpacity;
 
     let currentFilter = 'brightness(0%)';

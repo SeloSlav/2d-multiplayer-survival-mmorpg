@@ -30,26 +30,23 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-import { Cloud } from "./cloud_type";
-import { CloudShapeType as __CloudShapeType } from "./cloud_shape_type_type";
-import { CloudType as __CloudType } from "./cloud_type_type";
-
+import { CloudIntensitySchedule } from "./cloud_intensity_schedule_type";
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**
- * Table handle for the table `cloud`.
+ * Table handle for the table `cloud_intensity_schedule`.
  *
- * Obtain a handle from the [`cloud`] property on [`RemoteTables`],
- * like `ctx.db.cloud`.
+ * Obtain a handle from the [`cloudIntensitySchedule`] property on [`RemoteTables`],
+ * like `ctx.db.cloudIntensitySchedule`.
  *
  * Users are encouraged not to explicitly reference this type,
  * but to directly chain method calls,
- * like `ctx.db.cloud.on_insert(...)`.
+ * like `ctx.db.cloudIntensitySchedule.on_insert(...)`.
  */
-export class CloudTableHandle {
-  tableCache: TableCache<Cloud>;
+export class CloudIntensityScheduleTableHandle {
+  tableCache: TableCache<CloudIntensitySchedule>;
 
-  constructor(tableCache: TableCache<Cloud>) {
+  constructor(tableCache: TableCache<CloudIntensitySchedule>) {
     this.tableCache = tableCache;
   }
 
@@ -57,53 +54,53 @@ export class CloudTableHandle {
     return this.tableCache.count();
   }
 
-  iter(): Iterable<Cloud> {
+  iter(): Iterable<CloudIntensitySchedule> {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `id` unique index on the table `cloud`,
+   * Access to the `schedule_id` unique index on the table `cloud_intensity_schedule`,
    * which allows point queries on the field of the same name
-   * via the [`CloudIdUnique.find`] method.
+   * via the [`CloudIntensityScheduleScheduleIdUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.cloud.id().find(...)`.
+   * like `ctx.db.cloudIntensitySchedule.schedule_id().find(...)`.
    *
-   * Get a handle on the `id` unique index on the table `cloud`.
+   * Get a handle on the `schedule_id` unique index on the table `cloud_intensity_schedule`.
    */
-  id = {
-    // Find the subscribed row whose `id` column value is equal to `col_val`,
+  schedule_id = {
+    // Find the subscribed row whose `schedule_id` column value is equal to `col_val`,
     // if such a row is present in the client cache.
-    find: (col_val: bigint): Cloud | undefined => {
+    find: (col_val: bigint): CloudIntensitySchedule | undefined => {
       for (let row of this.tableCache.iter()) {
-        if (deepEqual(row.id, col_val)) {
+        if (deepEqual(row.schedule_id, col_val)) {
           return row;
         }
       }
     },
   };
 
-  onInsert = (cb: (ctx: EventContext, row: Cloud) => void) => {
+  onInsert = (cb: (ctx: EventContext, row: CloudIntensitySchedule) => void) => {
     return this.tableCache.onInsert(cb);
   }
 
-  removeOnInsert = (cb: (ctx: EventContext, row: Cloud) => void) => {
+  removeOnInsert = (cb: (ctx: EventContext, row: CloudIntensitySchedule) => void) => {
     return this.tableCache.removeOnInsert(cb);
   }
 
-  onDelete = (cb: (ctx: EventContext, row: Cloud) => void) => {
+  onDelete = (cb: (ctx: EventContext, row: CloudIntensitySchedule) => void) => {
     return this.tableCache.onDelete(cb);
   }
 
-  removeOnDelete = (cb: (ctx: EventContext, row: Cloud) => void) => {
+  removeOnDelete = (cb: (ctx: EventContext, row: CloudIntensitySchedule) => void) => {
     return this.tableCache.removeOnDelete(cb);
   }
 
   // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: Cloud, newRow: Cloud) => void) => {
+  onUpdate = (cb: (ctx: EventContext, oldRow: CloudIntensitySchedule, newRow: CloudIntensitySchedule) => void) => {
     return this.tableCache.onUpdate(cb);
   }
 
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: Cloud, newRow: Cloud) => void) => {
+  removeOnUpdate = (cb: (ctx: EventContext, onRow: CloudIntensitySchedule, newRow: CloudIntensitySchedule) => void) => {
     return this.tableCache.removeOnUpdate(cb);
   }}

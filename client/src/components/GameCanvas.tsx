@@ -243,6 +243,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer, predictedPosition);
   const { heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
+  const doodadImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
   // Add a state to track when images are loaded to trigger re-renders
@@ -556,6 +557,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
   }, [itemImagesRef]); // itemIcons is effectively constant from import, so run once on mount based on itemImagesRef
 
+  // Load doodad images
+  useEffect(() => {
+    import('../assets/doodads/planted_seed.png').then((module) => {
+      const img = new Image();
+      img.onload = () => {
+        doodadImagesRef.current.set('planted_seed.png', img);
+      };
+      img.onerror = () => console.error('Failed to load planted_seed.png');
+      img.src = module.default;
+    });
+  }, []);
+
   // Use arrow break effects hook
   useArrowBreakEffects({ connection });
 
@@ -792,6 +805,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       itemDefinitions,
       inventoryItems,
       itemImagesRef,
+      doodadImagesRef,
       shelterImage: shelterImageRef.current,
       worldMouseX: currentWorldMouseX,
       worldMouseY: currentWorldMouseY,
@@ -869,6 +883,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     renderPlacementPreview({
       ctx, placementInfo, itemImagesRef, shelterImageRef, worldMouseX: currentWorldMouseX,
       worldMouseY: currentWorldMouseY, isPlacementTooFar: isPlacementTooFarValue, placementError, connection,
+      doodadImagesRef,
     });
 
     // --- Render Clouds on Canvas --- (NEW POSITION)

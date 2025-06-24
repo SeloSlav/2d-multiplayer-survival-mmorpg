@@ -1,5 +1,3 @@
-import { imageManager } from './imageManager';
-import { getItemIcon } from '../itemIconUtils';
 import { PlantedSeed } from '../../generated';
 
 /**
@@ -8,38 +6,12 @@ import { PlantedSeed } from '../../generated';
 export type PlantedSeedData = PlantedSeed;
 
 /**
- * Get the appropriate seed icon based on seed type
+ * Get the growth progress from the server-calculated value
+ * The server now handles sophisticated growth calculations based on weather and time of day
  */
-function getSeedIconForType(seedType: string): string {
-    switch (seedType) {
-        case 'Mushroom Spores':
-            return 'mushroom_spore.png';
-        case 'Hemp Seeds':
-            return 'hemp_seeds.png';
-        case 'Corn Seeds':
-            return 'corn_seeds.png';
-        case 'Potato Seeds':
-        case 'Seed Potato':
-            return 'seed_potato.png';
-        case 'Reed Rhizome':
-            return 'reed_rhizome.png';
-        case 'Pumpkin Seeds':
-            return 'pumpkin_seeds.png';
-        default:
-            console.warn(`Unknown seed type: ${seedType}, using default seed icon`);
-            return 'mushroom_spore.png'; // Fallback
-    }
-}
-
-/**
- * Calculate the growth progress (0.0 to 1.0) of a planted seed
- */
-function getGrowthProgress(plantedAt: any, willMatureAt: any, currentTime: number): number {
-    // Convert SpacetimeDB Timestamps to JavaScript timestamps
-    const plantedTime = Number(plantedAt.microsSinceUnixEpoch) / 1000; // Convert microseconds to milliseconds
-    const maturityTime = Number(willMatureAt.microsSinceUnixEpoch) / 1000; // Convert microseconds to milliseconds
-    const progress = (currentTime - plantedTime) / (maturityTime - plantedTime);
-    return Math.max(0, Math.min(1, progress)); // Clamp between 0 and 1
+function getGrowthProgress(plantedSeed: PlantedSeedData): number {
+    // Use the server-calculated growth progress directly
+    return Math.max(0, Math.min(1, plantedSeed.growthProgress || 0));
 }
 
 /**
@@ -49,16 +21,12 @@ export function renderPlantedSeed(
     ctx: CanvasRenderingContext2D,
     plantedSeed: PlantedSeedData,
     nowMs: number,
-    cycleProgress: number
+    cycleProgress: number,
+    plantedSeedImage?: HTMLImageElement | null
 ): void {
-    const { posX, posY, seedType, plantedAt, willMatureAt } = plantedSeed;
+    const { posX, posY, seedType } = plantedSeed;
     
-    // Get the appropriate seed icon
-    const seedIconName = getSeedIconForType(seedType);
-    const seedImageSrc = getItemIcon(seedIconName);
-    const seedImage = imageManager.getImage(seedImageSrc);
-    
-    if (!seedImage || !seedImage.complete) {
+    if (!plantedSeedImage || !plantedSeedImage.complete) {
         // Draw a simple placeholder if image not loaded
         ctx.save();
         ctx.fillStyle = '#8B4513'; // Brown color for seed
@@ -69,8 +37,8 @@ export function renderPlantedSeed(
         return;
     }
     
-    // Calculate growth progress for visual effects
-    const growthProgress = getGrowthProgress(plantedAt, willMatureAt, nowMs);
+    // Get growth progress from server-calculated value
+    const growthProgress = getGrowthProgress(plantedSeed);
     
     ctx.save();
     
@@ -80,34 +48,12 @@ export function renderPlantedSeed(
     ctx.shadowOffsetY = 2;
     ctx.shadowBlur = 4;
     
-    // Size grows slightly as the seed develops (32px to 48px)
-    const baseSize = 32;
-    const growthSizeBonus = 16 * growthProgress;
-    const currentSize = baseSize + growthSizeBonus;
+    // Constant size for planted seed (dirt patch)
+    const finalSize = 48;
     
-    // Slight subtle pulsing for recently planted seeds
-    const plantedTime = Number(plantedAt.microsSinceUnixEpoch) / 1000; // Convert to milliseconds
-    const timeSincePlanted = nowMs - plantedTime;
-    const isPulsingPhase = timeSincePlanted < 10000; // Pulse for first 10 seconds
-    let pulseScale = 1.0;
-    
-    if (isPulsingPhase) {
-        const pulseSpeed = 2000; // 2 second pulse cycle
-        const pulsePhase = (nowMs % pulseSpeed) / pulseSpeed;
-        pulseScale = 1.0 + 0.1 * Math.sin(pulsePhase * Math.PI * 2);
-    }
-    
-    // Add subtle green tint as it approaches maturity
-    if (growthProgress > 0.5) {
-        const greenTint = (growthProgress - 0.5) * 2; // 0 to 1 for second half of growth
-        ctx.filter = `hue-rotate(${greenTint * 30}deg) brightness(${1 + greenTint * 0.2})`;
-    }
-    
-    const finalSize = currentSize * pulseScale;
-    
-    // Draw the seed icon
+    // Draw the planted seed image
     ctx.drawImage(
-        seedImage,
+        plantedSeedImage,
         posX - finalSize / 2,
         posY - finalSize / 2,
         finalSize,
@@ -135,8 +81,8 @@ export function renderPlantedSeed(
 /**
  * Check if a planted seed should show interaction highlight
  */
-export function isPlantedSeedInteractable(plantedSeed: PlantedSeedData, currentTime: number): boolean {
+export function isPlantedSeedInteractable(plantedSeed: PlantedSeedData): boolean {
     // Seeds become "interactable" when they're fully grown (for debugging/info purposes)
-    const growthProgress = getGrowthProgress(plantedSeed.plantedAt, plantedSeed.willMatureAt, currentTime);
+    const growthProgress = getGrowthProgress(plantedSeed);
     return growthProgress >= 1.0;
 } 

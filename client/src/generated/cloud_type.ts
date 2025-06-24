@@ -31,6 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { CloudShapeType as __CloudShapeType } from "./cloud_shape_type_type";
+import { CloudType as __CloudType } from "./cloud_type_type";
 
 export type Cloud = {
   id: bigint,
@@ -42,9 +43,14 @@ export type Cloud = {
   height: number,
   rotationDegrees: number,
   baseOpacity: number,
+  currentOpacity: number,
   blurStrength: number,
   driftSpeedX: number,
   driftSpeedY: number,
+  cloudType: __CloudType,
+  evolutionPhase: number,
+  evolutionSpeed: number,
+  lastIntensityUpdate: Timestamp,
 };
 
 /**
@@ -66,9 +72,14 @@ export namespace Cloud {
       new ProductTypeElement("height", AlgebraicType.createF32Type()),
       new ProductTypeElement("rotationDegrees", AlgebraicType.createF32Type()),
       new ProductTypeElement("baseOpacity", AlgebraicType.createF32Type()),
+      new ProductTypeElement("currentOpacity", AlgebraicType.createF32Type()),
       new ProductTypeElement("blurStrength", AlgebraicType.createF32Type()),
       new ProductTypeElement("driftSpeedX", AlgebraicType.createF32Type()),
       new ProductTypeElement("driftSpeedY", AlgebraicType.createF32Type()),
+      new ProductTypeElement("cloudType", __CloudType.getTypeScriptAlgebraicType()),
+      new ProductTypeElement("evolutionPhase", AlgebraicType.createF32Type()),
+      new ProductTypeElement("evolutionSpeed", AlgebraicType.createF32Type()),
+      new ProductTypeElement("lastIntensityUpdate", AlgebraicType.createTimestampType()),
     ]);
   }
 

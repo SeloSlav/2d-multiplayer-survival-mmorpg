@@ -12,10 +12,14 @@ import { DbConnection } from '../../generated';
 const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // From useInteractionFinder.ts
 const SHELTER_PLACEMENT_MAX_DISTANCE = 256.0;
 
+// Minimum distance between planted seeds (in pixels) - should match usePlacementManager.ts
+const MIN_SEED_DISTANCE = 80;
+
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
     placementInfo: PlacementItemInfo | null;
     itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
+    doodadImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
     shelterImageRef?: React.RefObject<HTMLImageElement | null>;
     worldMouseX: number | null;
     worldMouseY: number | null;
@@ -79,6 +83,35 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
 }
 
 /**
+ * Checks if a seed placement is too close to existing planted seeds.
+ * Returns true if the placement should be blocked.
+ */
+function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
+    if (!connection || !placementInfo) {
+        return false;
+    }
+
+    // Check if this is a seed placement
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    if (!seedItems.includes(placementInfo.itemName)) {
+        return false; // Not a seed, no restriction
+    }
+
+    // Check distance to all existing planted seeds
+    for (const plantedSeed of connection.db.plantedSeed.iter()) {
+        const dx = worldX - plantedSeed.posX;
+        const dy = worldY - plantedSeed.posY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < MIN_SEED_DISTANCE) {
+            return true; // Too close to an existing seed
+        }
+    }
+
+    return false; // Safe to plant
+}
+
+/**
  * Checks if placement is too far from the player.
  * Returns true if the placement position is beyond the allowed range.
  */
@@ -121,6 +154,7 @@ export function renderPlacementPreview({
     ctx,
     placementInfo,
     itemImagesRef,
+    doodadImagesRef,
     shelterImageRef,
     worldMouseX,
     worldMouseY,
@@ -132,11 +166,21 @@ export function renderPlacementPreview({
         return; // Nothing to render
     }
 
-    // For shelters, use the shelter image from doodads folder, otherwise use items folder
+    // Determine which image to use for the preview
     let previewImg: HTMLImageElement | undefined;
-    if (placementInfo.iconAssetName === 'shelter.png' && shelterImageRef?.current) {
+    
+    // Check if this is a seed placement
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    const isSeedPlacement = seedItems.includes(placementInfo.itemName);
+    
+    if (isSeedPlacement) {
+        // For seeds, use the planted_seed.png from doodads folder
+        previewImg = doodadImagesRef.current?.get('planted_seed.png');
+    } else if (placementInfo.iconAssetName === 'shelter.png' && shelterImageRef?.current) {
+        // For shelters, use the shelter image from doodads folder
         previewImg = shelterImageRef.current;
     } else {
+        // For other items, use the item images
         previewImg = itemImagesRef.current?.get(placementInfo.iconAssetName);
     }
 
@@ -161,15 +205,10 @@ export function renderPlacementPreview({
     } else if (placementInfo.iconAssetName === 'shelter.png') {
         drawWidth = SHELTER_RENDER_WIDTH; 
         drawHeight = SHELTER_RENDER_HEIGHT;
-    } else if (placementInfo.itemName === 'Mushroom Spores' || 
-               placementInfo.itemName === 'Hemp Seeds' || 
-               placementInfo.itemName === 'Corn Seeds' || 
-               placementInfo.itemName === 'Potato Seeds' || 
-               placementInfo.itemName === 'Reed Rhizome' || 
-               placementInfo.itemName === 'Pumpkin Seeds') {
-        // Seeds should have a smaller preview size (similar to stash)
-        drawWidth = 24;  
-        drawHeight = 24;
+    } else if (isSeedPlacement) {
+        // Seeds should have a smaller preview size
+        drawWidth = 32;  
+        drawHeight = 32;
     }
 
     ctx.save();
@@ -179,13 +218,19 @@ export function renderPlacementPreview({
     // Check for water placement restriction
     const isOnWater = isWaterPlacementBlocked(connection, placementInfo, worldMouseX, worldMouseY);
     
-    // Apply visual effect if too far, on water, or invalid placement
+    // Check for seed proximity restriction
+    const isTooCloseToSeeds = isSeedPlacementTooClose(connection, placementInfo, worldMouseX, worldMouseY);
+    
+    // Apply visual effect if too far, on water, too close to seeds, or invalid placement
     if (isPlacementTooFar) {
         ctx.filter = 'grayscale(80%) brightness(1.2) contrast(0.8) opacity(50%)';
         finalPlacementMessage = "Too far away"; // Override specific message
     } else if (isOnWater) {
         ctx.filter = 'sepia(60%) hue-rotate(200deg) brightness(0.7) opacity(60%)'; // Blue-tinted filter for water
         finalPlacementMessage = "Cannot place on water"; // Override with water message
+    } else if (isTooCloseToSeeds) {
+        ctx.filter = 'sepia(60%) hue-rotate(300deg) brightness(0.8) opacity(60%)'; // Purple-tinted filter for seed proximity
+        finalPlacementMessage = "Too close to other seeds"; // Override with proximity message
     } else if (placementError) { // If not too far and not on water, but hook reported another error
         ctx.filter = 'sepia(60%) brightness(0.9) opacity(60%)'; // Different filter for invalid
     } else {
@@ -211,9 +256,11 @@ export function renderPlacementPreview({
     if (finalPlacementMessage) {
         let messageColor = 'red'; // Default to red for errors
         if (isPlacementTooFar) {
-            messageColor = 'orange'; // Orange for distance
+            messageColor = 'yellow'; // Orange for distance
         } else if (isOnWater) {
             messageColor = '#4A90E2'; // Blue for water restriction
+        } else if (isTooCloseToSeeds) {
+            messageColor = 'yellow'; // Yellow for seed proximity restriction
         }
         
         // Reset temporary effects before drawing text
