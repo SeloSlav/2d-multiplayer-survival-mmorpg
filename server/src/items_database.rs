@@ -940,7 +940,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
         // --- SEEDS (PLACEABLES) ---
         ItemDefinition {
             id: 0,
-            name: "Potato Seeds".to_string(),
+            name: "Seed Potato".to_string(),
             description: "Seeds for planting potatoes. Can be deployed to grow potato plants.".to_string(),
             category: ItemCategory::Placeable,
             icon_asset_name: "seed_potato.png".to_string(),
@@ -2166,7 +2166,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             name: "Lantern".to_string(),
             description: "A deployable lamp that burns tallow to provide light. Lasts longer than campfires.".to_string(),
             category: ItemCategory::Placeable,
-            icon_asset_name: "lantern_on.png".to_string(),
+            icon_asset_name: "lantern_off.png".to_string(),
             is_stackable: false,
             stack_size: 1,
             is_equippable: false,

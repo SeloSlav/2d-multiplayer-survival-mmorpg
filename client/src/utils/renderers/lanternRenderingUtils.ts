@@ -9,10 +9,10 @@ import { Lantern as SpacetimeDBLantern, Player as SpacetimeDBPlayer } from '../.
 // --- Constants directly used by this module or exported ---
 export const LANTERN_WIDTH = 48;
 export const LANTERN_HEIGHT = 56;
-export const LANTERN_WIDTH_PREVIEW = 48; // Added for preview components
-export const LANTERN_HEIGHT_PREVIEW = 56; // Added for preview components
+export const LANTERN_WIDTH_PREVIEW = 48; // Preview width matches actual width
+export const LANTERN_HEIGHT_PREVIEW = 56; // Preview height matches actual height
 // Offset for rendering to align with server-side collision/interaction zones
-export const LANTERN_RENDER_Y_OFFSET = 8; // Visual offset from entity's base Y
+export const LANTERN_RENDER_Y_OFFSET = 6; // Visual offset from entity's base Y
 
 // Lantern interaction distance (player <-> lantern)
 export const PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Same as campfire

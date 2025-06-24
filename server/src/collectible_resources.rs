@@ -197,7 +197,7 @@ struct SeedDropConfig {
 fn get_seed_drop_config(resource_name: &str) -> Option<SeedDropConfig> {
     match resource_name {
         "Potato" => Some(SeedDropConfig {
-            seed_item_name: "Potato Seeds",
+            seed_item_name: "Seed Potato",
             drop_chance: 0.85, // 85% chance (potatoes naturally multiply well)
             min_seeds: 2,      // 2-4 seeds per harvest
             max_seeds: 4,

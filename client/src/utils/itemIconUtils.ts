@@ -60,7 +60,7 @@ import cookedHumanFleshIcon from '../assets/items/cooked_human_meat.png';
 import burntHumanFleshIcon from '../assets/items/burnt_human_meat.png';
 import shelterIcon from '../assets/items/shelter.png';
 import fireArrowIcon from '../assets/items/fire_arrow.png';
-import tallowLampIcon from '../assets/items/lantern_on.png';
+import tallowLampIcon from '../assets/items/lantern_off.png';
 import tallowHeadLampIcon from '../assets/items/tallow_head_lamp.png';
 import crossbowIcon from '../assets/items/crossbow.png';
 import flashlightIcon from '../assets/items/flashlight.png';
@@ -142,7 +142,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'burnt_human_meat.png': burntHumanFleshIcon,
   'shelter.png': shelterIcon,
   'fire_arrow.png': fireArrowIcon,
-  'lantern_on.png': tallowLampIcon,
+  'lantern_off.png': tallowLampIcon,
   'tallow_head_lamp.png': tallowHeadLampIcon,
   'crossbow.png': crossbowIcon,
   'flashlight.png': flashlightIcon,

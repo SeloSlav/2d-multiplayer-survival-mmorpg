@@ -73,7 +73,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
   const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
   
   // Seeds also cannot be planted on water
-  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
   
   if (waterBlockedItems.includes(placementInfo.itemName) || seedItems.includes(placementInfo.itemName)) {
     return isPositionOnWater(connection, worldX, worldY);
@@ -92,7 +92,7 @@ function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo:
   }
 
   // Check if this is a seed placement
-  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
   if (!seedItems.includes(placementInfo.itemName)) {
     return false; // Not a seed, no restriction
   }
@@ -202,7 +202,7 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
         case 'Mushroom Spores':
         case 'Hemp Seeds':
         case 'Corn Seeds':
-        case 'Potato Seeds':
+        case 'Seed Potato':
         case 'Reed Rhizome':
         case 'Pumpkin Seeds':
           console.log(`[PlacementManager] Calling plant_seed reducer with instance ID: ${placementInfo.instanceId}`);

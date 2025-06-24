@@ -40,11 +40,16 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Wooden Arrow", 25, None, Some(3u16)),
         ("Shelter", 1, None, Some(4u16)),
         ("Fire Arrow", 25, None, Some(5u16)),
-        ("Torch", 1, None, Some(8u16)),
-        ("Lantern", 1, None, Some(9u16)),
-        ("Tallow", 1000, None, Some(10u16)),
-        ("Bone Fragments", 1000, None, Some(11u16)),
-
+        ("Torch", 1, None, Some(6u16)),
+        ("Lantern", 1, None, Some(7u16)),
+        ("Lantern", 1, None, Some(8u16)),
+        ("Tallow", 1000, None, Some(9u16)),
+        ("Bone Fragments", 1000, None, Some(10u16)),
+        ("Seed Potato", 50, None, Some(11u16)),
+        ("Lantern", 1, None, Some(12u16)),
+        ("Lantern", 1, None, Some(13u16)),
+        ("Lantern", 1, None, Some(14u16)),
+        ("Lantern", 1, None, Some(15u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

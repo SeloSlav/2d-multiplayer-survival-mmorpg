@@ -24,7 +24,7 @@ pub const NUM_FUEL_SLOTS: usize = 1;
 pub const LANTERN_PROCESS_INTERVAL_SECS: u64 = 1; // How often to run the main logic when burning
 pub const PLAYER_LANTERN_INTERACTION_DISTANCE: f32 = 200.0;
 pub const PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED: f32 = PLAYER_LANTERN_INTERACTION_DISTANCE * PLAYER_LANTERN_INTERACTION_DISTANCE;
-pub const INITIAL_LANTERN_FUEL_AMOUNT: u32 = 25; // Starting tallow amount for new lanterns
+pub const INITIAL_LANTERN_FUEL_AMOUNT: u32 = 25; // UNUSED: Lanterns now start empty when placed
 
 // --- Lantern Table ---
 #[spacetimedb::table(name = lantern, public)]
@@ -307,7 +307,7 @@ pub fn place_lantern(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
     );
     inventory_items.instance_id().delete(item_instance_id);
 
-    // Create lantern entity
+    // Create lantern entity (without fuel)
     let current_time = ctx.timestamp;
     let chunk_idx = calculate_chunk_index(world_x, world_y);
 
@@ -335,32 +335,7 @@ pub fn place_lantern(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
         .map_err(|e| format!("Failed to insert lantern entity: {}", e))?;
     let new_lantern_id = inserted_lantern.id;
 
-    // Create initial fuel item
-    let initial_fuel_item = InventoryItem {
-        instance_id: 0, // Auto-inc
-        item_def_id: tallow_def_id,
-        quantity: INITIAL_LANTERN_FUEL_AMOUNT,
-        location: ItemLocation::Container(ContainerLocationData {
-            container_type: ContainerType::Lantern,
-            container_id: new_lantern_id as u64,
-            slot_index: 0,
-        }),
-    };
-
-    let inserted_fuel_item = inventory_items.try_insert(initial_fuel_item)
-        .map_err(|e| format!("Failed to insert initial fuel item: {}", e))?;
-    let fuel_instance_id = inserted_fuel_item.instance_id;
-
-    // Update the lantern entity with the fuel item
-    let mut lantern_to_update = lanterns.id().find(new_lantern_id)
-        .ok_or_else(|| format!("Failed to re-find lantern {} to update with fuel.", new_lantern_id))?;
-
-    lantern_to_update.fuel_instance_id_0 = Some(fuel_instance_id);
-    lantern_to_update.fuel_def_id_0 = Some(tallow_def_id);
-
-    lanterns.id().update(lantern_to_update);
-
-    log::info!("Player {} placed a lantern {} at ({:.1}, {:.1}) with initial fuel.",
+    log::info!("Player {} placed an empty lantern {} at ({:.1}, {:.1}). Add tallow to use.",
              player.username, new_lantern_id, world_x, world_y);
 
     // Schedule initial processing

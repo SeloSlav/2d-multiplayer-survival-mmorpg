@@ -73,7 +73,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
     const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
     
     // Seeds also cannot be planted on water
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
     
     if (waterBlockedItems.includes(placementInfo.itemName) || seedItems.includes(placementInfo.itemName)) {
         return isPositionOnWater(connection, worldX, worldY);
@@ -92,7 +92,7 @@ function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo:
     }
 
     // Check if this is a seed placement
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
     if (!seedItems.includes(placementInfo.itemName)) {
         return false; // Not a seed, no restriction
     }
@@ -170,7 +170,7 @@ export function renderPlacementPreview({
     let previewImg: HTMLImageElement | undefined;
     
     // Check if this is a seed placement
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Potato Seeds', 'Reed Rhizome', 'Pumpkin Seeds'];
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
     const isSeedPlacement = seedItems.includes(placementInfo.itemName);
     
     if (isSeedPlacement) {
@@ -188,7 +188,7 @@ export function renderPlacementPreview({
     let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire
     let drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
 
-    if (placementInfo.iconAssetName === 'lantern.png') {
+    if (placementInfo.iconAssetName === 'lantern_off.png') {
         drawWidth = LANTERN_WIDTH_PREVIEW; 
         drawHeight = LANTERN_HEIGHT_PREVIEW;
     } else if (placementInfo.iconAssetName === 'wooden_storage_box.png') {
@@ -206,14 +206,12 @@ export function renderPlacementPreview({
         drawWidth = SHELTER_RENDER_WIDTH; 
         drawHeight = SHELTER_RENDER_HEIGHT;
     } else if (isSeedPlacement) {
-        // Seeds should have a smaller preview size
-        drawWidth = 32;  
-        drawHeight = 32;
+        // Seeds should match the actual planted seed size (48x48)
+        drawWidth = 48;  
+        drawHeight = 48;
     }
 
     ctx.save();
-
-    let finalPlacementMessage = placementError; // Start with error from hook
 
     // Check for water placement restriction
     const isOnWater = isWaterPlacementBlocked(connection, placementInfo, worldMouseX, worldMouseY);
@@ -221,21 +219,17 @@ export function renderPlacementPreview({
     // Check for seed proximity restriction
     const isTooCloseToSeeds = isSeedPlacementTooClose(connection, placementInfo, worldMouseX, worldMouseY);
     
-    // Apply visual effect if too far, on water, too close to seeds, or invalid placement
-    if (isPlacementTooFar) {
-        ctx.filter = 'grayscale(80%) brightness(1.2) contrast(0.8) opacity(50%)';
-        finalPlacementMessage = "Too far away"; // Override specific message
-    } else if (isOnWater) {
-        ctx.filter = 'sepia(60%) hue-rotate(200deg) brightness(0.7) opacity(60%)'; // Blue-tinted filter for water
-        finalPlacementMessage = "Cannot place on water"; // Override with water message
-    } else if (isTooCloseToSeeds) {
-        ctx.filter = 'sepia(60%) hue-rotate(300deg) brightness(0.8) opacity(60%)'; // Purple-tinted filter for seed proximity
-        finalPlacementMessage = "Too close to other seeds"; // Override with proximity message
-    } else if (placementError) { // If not too far and not on water, but hook reported another error
-        ctx.filter = 'sepia(60%) brightness(0.9) opacity(60%)'; // Different filter for invalid
+    // Apply visual effect - red tint with opacity for any invalid placement
+    const isInvalidPlacement = isPlacementTooFar || isOnWater || isTooCloseToSeeds || placementError;
+    
+    if (isInvalidPlacement) {
+        // Strong red tint for all invalid placements
+        ctx.filter = 'sepia(100%) hue-rotate(320deg) saturate(400%) brightness(1.0) contrast(120%)';
+        ctx.globalAlpha = 0.8;
     } else {
-        // Valid placement position
-        ctx.globalAlpha = 0.7; // Standard transparency
+        // Blue tint for valid placement positions
+        ctx.filter = 'sepia(100%) hue-rotate(200deg) saturate(300%) brightness(1.1) contrast(110%)';
+        ctx.globalAlpha = 0.7;
     }
 
     // Calculate the centered position (perfectly centered on cursor)
@@ -247,31 +241,8 @@ export function renderPlacementPreview({
         ctx.drawImage(previewImg, adjustedX, adjustedY, drawWidth, drawHeight);
     } else {
         // Fallback rectangle if image not loaded yet
-        // Ensure alpha/filter is applied to fallback too
-        ctx.fillStyle = ctx.filter !== 'none' ? "rgba(255, 0, 0, 0.4)" : "rgba(255, 255, 255, 0.3)"; // Reddish tint if filtered
+        ctx.fillStyle = isInvalidPlacement ? "rgba(255, 0, 0, 0.4)" : "rgba(255, 255, 255, 0.3)";
         ctx.fillRect(adjustedX, adjustedY, drawWidth, drawHeight);
-    }
-
-    // Draw the placement message (if any)
-    if (finalPlacementMessage) {
-        let messageColor = 'red'; // Default to red for errors
-        if (isPlacementTooFar) {
-            messageColor = 'yellow'; // Orange for distance
-        } else if (isOnWater) {
-            messageColor = '#4A90E2'; // Blue for water restriction
-        } else if (isTooCloseToSeeds) {
-            messageColor = 'yellow'; // Yellow for seed proximity restriction
-        }
-        
-        // Reset temporary effects before drawing text
-        ctx.filter = 'none'; 
-        ctx.globalAlpha = 1.0;
-
-        ctx.fillStyle = messageColor;
-        ctx.font = '12px "Press Start 2P", cursive';
-        ctx.textAlign = 'center';
-        // Position text above the adjusted preview position
-        ctx.fillText(finalPlacementMessage, worldMouseX, adjustedY - 5);
     }
 
     ctx.restore(); // Restore original context state

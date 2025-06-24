@@ -26,6 +26,8 @@ use crate::reed::reed as ReedTableTrait;
 use crate::pumpkin::pumpkin as PumpkinTableTrait;
 use crate::world_state::{world_state as WorldStateTableTrait, WeatherType, TimeOfDay};
 use crate::cloud::cloud as CloudTableTrait;
+use crate::campfire::campfire as CampfireTableTrait;
+use crate::lantern::lantern as LanternTableTrait;
 
 // --- Planted Seed Tracking Table ---
 
@@ -38,7 +40,7 @@ pub struct PlantedSeed {
     pub pos_x: f32,
     pub pos_y: f32,
     pub chunk_index: u32,
-    pub seed_type: String,        // "Potato Seeds", "Corn Seeds", etc.
+    pub seed_type: String,        // "Seed Potato", "Corn Seeds", etc.
     pub planted_at: Timestamp,    // When it was planted
     pub will_mature_at: Timestamp, // When it becomes harvestable (dynamically updated)
     pub planted_by: Identity,     // Who planted it
@@ -85,7 +87,7 @@ fn get_growth_config(seed_type: &str) -> Option<GrowthConfig> {
             max_growth_time_secs: 1500, // 25 minutes
             target_resource_name: "Corn",
         }),
-        "Potato Seeds" => Some(GrowthConfig {
+        "Seed Potato" => Some(GrowthConfig {
             min_growth_time_secs: 720,  // 12 minutes
             max_growth_time_secs: 1200, // 20 minutes
             target_resource_name: "Potato",
@@ -179,6 +181,74 @@ fn get_cloud_cover_growth_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y
     let multiplier = 1.0 - (cloud_coverage * 0.6); // Reduces by up to 60%
     
     multiplier.max(0.4) // Ensure minimum 40% growth rate
+}
+
+/// Calculate light source growth modifier for a specific planted seed
+/// Returns a multiplier that can enhance or reduce growth based on nearby light sources
+fn get_light_source_growth_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: f32) -> f32 {
+    let mut total_light_effect = 0.0f32;
+    
+    // Check nearby campfires (negative effect - too much heat/smoke)
+    for campfire in ctx.db.campfire().iter() {
+        if campfire.is_burning && !campfire.is_destroyed {
+            let dx = plant_x - campfire.pos_x;
+            let dy = plant_y - campfire.pos_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            
+            // Campfire negative effect radius: 0-120 pixels
+            const CAMPFIRE_MAX_EFFECT_DISTANCE: f32 = 120.0;
+            const CAMPFIRE_OPTIMAL_DISTANCE: f32 = 80.0; // Distance where effect starts to diminish
+            
+            if distance < CAMPFIRE_MAX_EFFECT_DISTANCE {
+                let effect_strength = if distance < CAMPFIRE_OPTIMAL_DISTANCE {
+                    // Close to campfire: strong negative effect (too hot/smoky)
+                    1.0 - (distance / CAMPFIRE_OPTIMAL_DISTANCE)
+                } else {
+                    // Far from campfire: diminishing negative effect
+                    (CAMPFIRE_MAX_EFFECT_DISTANCE - distance) / (CAMPFIRE_MAX_EFFECT_DISTANCE - CAMPFIRE_OPTIMAL_DISTANCE)
+                };
+                
+                // Campfire reduces growth by up to 40% when very close
+                total_light_effect -= effect_strength * 0.4;
+            }
+        }
+    }
+    
+    // Check nearby lanterns (positive effect - gentle light for photosynthesis)
+    for lantern in ctx.db.lantern().iter() {
+        if lantern.is_burning && !lantern.is_destroyed {
+            let dx = plant_x - lantern.pos_x;
+            let dy = plant_y - lantern.pos_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            
+            // Lantern positive effect radius: 0-100 pixels
+            const LANTERN_MAX_EFFECT_DISTANCE: f32 = 100.0;
+            const LANTERN_OPTIMAL_DISTANCE: f32 = 60.0; // Distance for maximum benefit
+            
+            if distance < LANTERN_MAX_EFFECT_DISTANCE {
+                let effect_strength = if distance < LANTERN_OPTIMAL_DISTANCE {
+                    // Close to lantern: strong positive effect
+                    1.0 - (distance / LANTERN_OPTIMAL_DISTANCE)
+                } else {
+                    // Far from lantern: diminishing positive effect
+                    (LANTERN_MAX_EFFECT_DISTANCE - distance) / (LANTERN_MAX_EFFECT_DISTANCE - LANTERN_OPTIMAL_DISTANCE)
+                };
+                
+                // Lantern can boost growth by up to 80% when very close
+                // This is enough to provide normal growth even at night (0.0x base rate)
+                total_light_effect += effect_strength * 0.8;
+            }
+        }
+    }
+    
+    // Convert total light effect to growth multiplier
+    // Base multiplier is 1.0, then add/subtract light effects
+    let multiplier = 1.0 + total_light_effect;
+    
+    // Clamp between reasonable bounds
+    // Minimum 0.2x (campfires can significantly slow growth but not stop it)
+    // Maximum 2.0x (lanterns can provide substantial boost but not unlimited)
+    multiplier.max(0.2).min(2.0)
 }
 
 /// Calculate the effective growth rate for current conditions
@@ -360,8 +430,11 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
         // Calculate cloud cover effect for this specific plant
         let cloud_multiplier = get_cloud_cover_growth_multiplier(ctx, plant.pos_x, plant.pos_y);
         
+        // Calculate light source effect for this specific plant
+        let light_multiplier = get_light_source_growth_multiplier(ctx, plant.pos_x, plant.pos_y);
+        
         // Combine all growth modifiers for this plant
-        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier;
+        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier * light_multiplier;
         
         // Calculate growth progress increment
         let base_growth_rate = 1.0 / plant.base_growth_time_secs as f32; // Progress per second at 1x multiplier
@@ -408,15 +481,15 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
             plants_updated += 1;
             
             if growth_increment > 0.0 {
-                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, total: {:.2}x)", 
+                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, light: {:.2}x, total: {:.2}x)", 
                            plant_id, plant_type, old_progress * 100.0, progress_pct, 
-                           base_growth_multiplier, cloud_multiplier, total_growth_multiplier);
+                           base_growth_multiplier, cloud_multiplier, light_multiplier, total_growth_multiplier);
             }
         }
     }
     
     if plants_matured > 0 || plants_updated > 0 {
-        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud effects vary per plant)", 
+        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light effects vary per plant)", 
                   plants_matured, plants_updated, base_growth_multiplier);
     }
     
@@ -462,7 +535,7 @@ fn grow_plant_to_resource(ctx: &ReducerContext, plant: &PlantedSeed) -> Result<(
             };
             ctx.db.corn().insert(corn);
         }
-        "Potato Seeds" => {
+        "Seed Potato" => {
             let potato = crate::potato::Potato {
                 id: 0, // Auto-inc
                 pos_x: plant.pos_x,
