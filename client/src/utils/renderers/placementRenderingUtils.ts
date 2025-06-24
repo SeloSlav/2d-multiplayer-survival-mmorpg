@@ -13,7 +13,7 @@ const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // From useInteract
 const SHELTER_PLACEMENT_MAX_DISTANCE = 256.0;
 
 // Minimum distance between planted seeds (in pixels) - should match usePlacementManager.ts
-const MIN_SEED_DISTANCE = 80;
+const MIN_SEED_DISTANCE = 20;
 
 interface RenderPlacementPreviewParams {
     ctx: CanvasRenderingContext2D;
@@ -87,28 +87,9 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
  * Returns true if the placement should be blocked.
  */
 function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
-    if (!connection || !placementInfo) {
-        return false;
-    }
-
-    // Check if this is a seed placement
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
-    if (!seedItems.includes(placementInfo.itemName)) {
-        return false; // Not a seed, no restriction
-    }
-
-    // Check distance to all existing planted seeds
-    for (const plantedSeed of connection.db.plantedSeed.iter()) {
-        const dx = worldX - plantedSeed.posX;
-        const dy = worldY - plantedSeed.posY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < MIN_SEED_DISTANCE) {
-            return true; // Too close to an existing seed
-        }
-    }
-
-    return false; // Safe to plant
+    // Client-side validation removed - let players experiment freely!
+    // The server-side crowding penalty system will handle optimization naturally
+    return false;
 }
 
 /**

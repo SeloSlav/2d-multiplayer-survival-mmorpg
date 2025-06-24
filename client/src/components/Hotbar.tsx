@@ -53,6 +53,7 @@ interface HotbarProps {
   activeConsumableEffects: Map<string, ActiveConsumableEffect>;
   activeEquipment: ActiveEquipment | null;
   isGameMenuOpen?: boolean;
+  placementInfo: PlacementItemInfo | null; // Add placement state info
 }
 
 // Add tooltip interface
@@ -84,6 +85,7 @@ const Hotbar: React.FC<HotbarProps> = ({
     activeConsumableEffects,
     activeEquipment,
     isGameMenuOpen,
+    placementInfo,
 }) => {
   // console.log('[Hotbar] Rendering. CLIENT_ANIMATION_DURATION_MS:', CLIENT_ANIMATION_DURATION_MS); // Added log
   const [selectedSlot, setSelectedSlot] = useState<number>(-1);
@@ -618,6 +620,28 @@ const Hotbar: React.FC<HotbarProps> = ({
       }
     } else if (categoryTag === 'Placeable') {
       // console.log(`[Hotbar] Handling placeable: ${itemInSlot.definition.name}`);
+      
+      // Check if we're already placing the same item type from the same slot
+      const actualCurrentSlot = currentSelectedSlot !== undefined ? currentSelectedSlot : selectedSlot;
+      const isCurrentlySelected = actualCurrentSlot === slotIndex;
+      const isAlreadyPlacingThisItem = placementInfo && 
+        placementInfo.itemName === itemInSlot.definition.name && 
+        isCurrentlySelected;
+      
+      // Special handling for seeds - keep placement active if we have more in the stack
+      const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
+      const isSeed = seedItems.includes(itemInSlot.definition.name);
+      
+      if (isAlreadyPlacingThisItem && isSeed && !isMouseWheelScroll) {
+        // Already placing this seed type and clicking the same slot again - keep placement active
+        // console.log(`[Hotbar] Already placing ${itemInSlot.definition.name}, keeping placement mode active`);
+        return; // Don't call startPlacement again, just stay in placement mode
+      } else if (isCurrentlySelected && !isMouseWheelScroll && !isSeed) {
+        // Second click on non-seed placeable - cancel placement
+        cancelPlacement();
+        return;
+      }
+      
       const placementInfoData: PlacementItemInfo = {
         itemDefId: BigInt(itemInSlot.definition.id),
         itemName: itemInSlot.definition.name,

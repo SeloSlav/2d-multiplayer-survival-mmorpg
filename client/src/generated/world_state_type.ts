@@ -31,6 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { TimeOfDay as __TimeOfDay } from "./time_of_day_type";
+import { Season as __Season } from "./season_type";
 import { WeatherType as __WeatherType } from "./weather_type_type";
 
 export type WorldState = {
@@ -40,6 +41,9 @@ export type WorldState = {
   cycleCount: number,
   isFullMoon: boolean,
   lastTick: Timestamp,
+  currentSeason: __Season,
+  dayOfYear: number,
+  year: number,
   currentWeather: __WeatherType,
   rainIntensity: number,
   weatherStartTime: Timestamp | undefined,
@@ -65,6 +69,9 @@ export namespace WorldState {
       new ProductTypeElement("cycleCount", AlgebraicType.createU32Type()),
       new ProductTypeElement("isFullMoon", AlgebraicType.createBoolType()),
       new ProductTypeElement("lastTick", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("currentSeason", __Season.getTypeScriptAlgebraicType()),
+      new ProductTypeElement("dayOfYear", AlgebraicType.createU32Type()),
+      new ProductTypeElement("year", AlgebraicType.createU32Type()),
       new ProductTypeElement("currentWeather", __WeatherType.getTypeScriptAlgebraicType()),
       new ProductTypeElement("rainIntensity", AlgebraicType.createF32Type()),
       new ProductTypeElement("weatherStartTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),

@@ -109,7 +109,6 @@ fn get_growth_config(seed_type: &str) -> Option<GrowthConfig> {
 // --- Constants ---
 
 const PLANT_GROWTH_CHECK_INTERVAL_SECS: u64 = 30; // Check every 30 seconds
-const MIN_PLANTING_DISTANCE_SQ: f32 = 50.0 * 50.0; // Minimum distance between plants
 
 // --- Growth Rate Modifiers ---
 
@@ -251,6 +250,56 @@ fn get_light_source_growth_multiplier(ctx: &ReducerContext, plant_x: f32, plant_
     multiplier.max(0.2).min(2.0)
 }
 
+/// Calculate crowding penalty for a specific planted seed based on nearby plants
+/// Returns a multiplier between 0.1 (severely crowded) and 1.0 (no crowding)
+fn get_crowding_penalty_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: f32, plant_id: u64) -> f32 {
+    let mut crowding_penalty = 0.0f32;
+    
+    // Distance thresholds for different penalty levels
+    const SEVERE_CROWDING_DISTANCE_SQ: f32 = 30.0 * 30.0;  // 30px - severe penalty
+    const MODERATE_CROWDING_DISTANCE_SQ: f32 = 50.0 * 50.0; // 50px - moderate penalty  
+    const LIGHT_CROWDING_DISTANCE_SQ: f32 = 80.0 * 80.0;   // 80px - light penalty
+    
+    // Check all other planted seeds for crowding effects
+    for other_plant in ctx.db.planted_seed().iter() {
+        // Skip self
+        if other_plant.id == plant_id {
+            continue;
+        }
+        
+        // Calculate distance to other plant
+        let dx = plant_x - other_plant.pos_x;
+        let dy = plant_y - other_plant.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        // Apply penalties based on distance
+        if distance_sq <= SEVERE_CROWDING_DISTANCE_SQ {
+            // Severe crowding: 70% growth reduction
+            crowding_penalty += 0.7;
+        } else if distance_sq <= MODERATE_CROWDING_DISTANCE_SQ {
+            // Moderate crowding: 40% growth reduction
+            crowding_penalty += 0.4;
+        } else if distance_sq <= LIGHT_CROWDING_DISTANCE_SQ {
+            // Light crowding: 15% growth reduction
+            crowding_penalty += 0.15;
+        }
+        // Beyond 80px: no penalty
+    }
+    
+    // Convert penalty to multiplier
+    // Cap maximum penalty at 90% (minimum 10% growth rate)
+    let total_penalty = crowding_penalty.min(0.9);
+    let multiplier = 1.0 - total_penalty;
+    
+    // Log significant crowding effects
+    if total_penalty > 0.2 {
+        log::debug!("Plant at ({:.1}, {:.1}) has {:.1}% crowding penalty (growth rate: {:.1}%)", 
+                   plant_x, plant_y, total_penalty * 100.0, multiplier * 100.0);
+    }
+    
+    multiplier.max(0.1) // Ensure minimum 10% growth rate
+}
+
 /// Calculate the effective growth rate for current conditions
 fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> f32 {
     // Get current world state
@@ -305,9 +354,15 @@ pub fn plant_seed(
 ) -> Result<(), String> {
     let player_id = ctx.sender;
     
+    log::info!("PLANT_SEED: Player {:?} attempting to plant item {} at ({:.1}, {:.1})", 
+              player_id, item_instance_id, plant_pos_x, plant_pos_y);
+    
     // Find the player
     let player = ctx.db.player().identity().find(player_id)
-        .ok_or_else(|| "Player not found".to_string())?;
+        .ok_or_else(|| {
+            log::error!("PLANT_SEED: Player not found: {:?}", player_id);
+            "Player not found".to_string()
+        })?;
     
     // Check distance from player (can't plant too far away)
     let dx = player.position_x - plant_pos_x;
@@ -315,13 +370,23 @@ pub fn plant_seed(
     let distance_sq = dx * dx + dy * dy;
     const MAX_PLANTING_DISTANCE_SQ: f32 = 150.0 * 150.0;
     
+    log::info!("PLANT_SEED: Player at ({:.1}, {:.1}), planting at ({:.1}, {:.1}), distance: {:.1}px", 
+              player.position_x, player.position_y, plant_pos_x, plant_pos_y, distance_sq.sqrt());
+    
     if distance_sq > MAX_PLANTING_DISTANCE_SQ {
+        log::error!("PLANT_SEED: Too far away - distance {:.1}px > {:.1}px max", 
+                   distance_sq.sqrt(), MAX_PLANTING_DISTANCE_SQ.sqrt());
         return Err("Too far away to plant there".to_string());
     }
     
     // Find the seed item in player's inventory
     let seed_item = ctx.db.inventory_item().instance_id().find(item_instance_id)
-        .ok_or_else(|| "Seed item not found".to_string())?;
+        .ok_or_else(|| {
+            log::error!("PLANT_SEED: Seed item not found: {}", item_instance_id);
+            "Seed item not found".to_string()
+        })?;
+    
+    log::info!("PLANT_SEED: Found seed item: {} (quantity: {})", seed_item.item_def_id, seed_item.quantity);
     
     // Validate ownership
     let item_location = &seed_item.location;
@@ -332,29 +397,25 @@ pub fn plant_seed(
     };
     
     if !is_owned {
+        log::error!("PLANT_SEED: Player {:?} doesn't own item {}", player_id, item_instance_id);
         return Err("You don't own this item".to_string());
     }
     
     // Get the item definition
     let item_def = ctx.db.item_definition().id().find(seed_item.item_def_id)
-        .ok_or_else(|| "Item definition not found".to_string())?;
+        .ok_or_else(|| {
+            log::error!("PLANT_SEED: Item definition not found: {}", seed_item.item_def_id);
+            "Item definition not found".to_string()
+        })?;
+    
+    log::info!("PLANT_SEED: Item definition found: {}", item_def.name);
     
     // Verify it's a plantable seed
     let growth_config = get_growth_config(&item_def.name)
-        .ok_or_else(|| format!("'{}' is not a plantable seed", item_def.name))?;
-    
-    // Check for nearby plants (prevent overcrowding)
-    let nearby_plants = ctx.db.planted_seed().iter()
-        .any(|plant| {
-            let plant_dx = plant.pos_x - plant_pos_x;
-            let plant_dy = plant.pos_y - plant_pos_y;
-            let plant_distance_sq = plant_dx * plant_dx + plant_dy * plant_dy;
-            plant_distance_sq < MIN_PLANTING_DISTANCE_SQ
-        });
-    
-    if nearby_plants {
-        return Err("Too close to another plant. Plants need space to grow.".to_string());
-    }
+        .ok_or_else(|| {
+            log::error!("PLANT_SEED: '{}' is not a plantable seed", item_def.name);
+            format!("'{}' is not a plantable seed", item_def.name)
+        })?;
     
     // Calculate growth time
     let growth_time_secs = if growth_config.min_growth_time_secs >= growth_config.max_growth_time_secs {
@@ -365,6 +426,8 @@ pub fn plant_seed(
     
     let maturity_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(growth_time_secs));
     let chunk_index = calculate_chunk_index(plant_pos_x, plant_pos_y);
+    
+    log::info!("PLANT_SEED: Creating planted seed - growth time: {}s, chunk: {}", growth_time_secs, chunk_index);
     
     // Create the planted seed with initial maturity estimate
     // Note: will_mature_at will be dynamically updated based on environmental conditions
@@ -382,18 +445,29 @@ pub fn plant_seed(
         last_growth_update: ctx.timestamp,
     };
     
-    ctx.db.planted_seed().insert(planted_seed);
+    match ctx.db.planted_seed().try_insert(planted_seed) {
+        Ok(inserted) => {
+            log::info!("PLANT_SEED: Successfully inserted planted seed with ID: {}", inserted.id);
+        }
+        Err(e) => {
+            log::error!("PLANT_SEED: Failed to insert planted seed: {}", e);
+            return Err(format!("Failed to plant seed: {}", e));
+        }
+    }
     
     // Remove the seed item from inventory (consume 1)
     if seed_item.quantity > 1 {
         let mut updated_item = seed_item;
         updated_item.quantity -= 1;
+        let new_quantity = updated_item.quantity; // Store quantity before move
         ctx.db.inventory_item().instance_id().update(updated_item);
+        log::info!("PLANT_SEED: Reduced seed quantity to {}", new_quantity);
     } else {
         ctx.db.inventory_item().instance_id().delete(item_instance_id);
+        log::info!("PLANT_SEED: Deleted last seed item");
     }
     
-    log::info!("Player {:?} planted {} at ({:.1}, {:.1}) - will mature in {} seconds", 
+    log::info!("PLANT_SEED: SUCCESS - Player {:?} planted {} at ({:.1}, {:.1}) - will mature in {} seconds", 
               player_id, item_def.name, plant_pos_x, plant_pos_y, growth_time_secs);
     
     Ok(())
@@ -433,8 +507,11 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
         // Calculate light source effect for this specific plant
         let light_multiplier = get_light_source_growth_multiplier(ctx, plant.pos_x, plant.pos_y);
         
+        // Calculate crowding penalty for this specific plant
+        let crowding_multiplier = get_crowding_penalty_multiplier(ctx, plant.pos_x, plant.pos_y, plant.id);
+        
         // Combine all growth modifiers for this plant
-        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier * light_multiplier;
+        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier * light_multiplier * crowding_multiplier;
         
         // Calculate growth progress increment
         let base_growth_rate = 1.0 / plant.base_growth_time_secs as f32; // Progress per second at 1x multiplier
@@ -481,15 +558,15 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
             plants_updated += 1;
             
             if growth_increment > 0.0 {
-                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, light: {:.2}x, total: {:.2}x)", 
+                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, light: {:.2}x, crowding: {:.2}x, total: {:.2}x)", 
                            plant_id, plant_type, old_progress * 100.0, progress_pct, 
-                           base_growth_multiplier, cloud_multiplier, light_multiplier, total_growth_multiplier);
+                           base_growth_multiplier, cloud_multiplier, light_multiplier, crowding_multiplier, total_growth_multiplier);
             }
         }
     }
     
     if plants_matured > 0 || plants_updated > 0 {
-        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light effects vary per plant)", 
+        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light/crowding effects vary per plant)", 
                   plants_matured, plants_updated, base_growth_multiplier);
     }
     

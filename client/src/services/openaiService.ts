@@ -198,12 +198,13 @@ CRITICAL TACTICAL RULES:
 🔥 CAMPFIRE & TORCH LOGIC:
 - Campfires are EXTINGUISHED by heavy rain/storms (HeavyRain, HeavyStorm) - these prevent ignition
 - Campfires work fine in light rain, moderate rain, and clear weather
-- Campfires provide warmth and light but are stationary
-- Torches are portable light sources that work in all weather conditions
-- At NIGHT: Always recommend TORCHES over campfires for mobility and safety
-- During HEAVY RAIN/STORMS: Only torches work, campfires are extinguished
-- Light/Moderate rain: Campfires still work, but torches better for mobility
-- Clear weather: Campfires excellent for stationary base camps
+
+📊 STAT VALUE INTERPRETATION (CRITICAL):
+- Hunger, thirst, and warmth are RAW VALUES (0-100+), NOT percentages
+- A hunger of 249 means "249 hunger points" (excellent nutrition), NOT "249 percent"
+- Health regeneration requires ALL three values above 50 and no damage effects active
+- High values like 200+ indicate excellent condition for fast regeneration
+- NEVER say "percent" when describing these stats - always say "points" or "level"
 
 🌦️ WEATHER ASSESSMENT:
 - ALWAYS use the exact weather data provided - never contradict environmental readings

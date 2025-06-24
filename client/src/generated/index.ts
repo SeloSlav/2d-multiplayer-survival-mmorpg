@@ -594,6 +594,8 @@ import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
 import { Reed } from "./reed_type.ts";
 export { Reed };
+import { Season } from "./season_type.ts";
+export { Season };
 import { Shelter } from "./shelter_type.ts";
 export { Shelter };
 import { SleepingBag } from "./sleeping_bag_type.ts";

@@ -904,6 +904,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 activeConsumableEffects={activeConsumableEffects}
                 activeEquipment={localPlayerActiveEquipment}
                 isGameMenuOpen={isGameMenuOpen}
+                placementInfo={placementInfo}
             />
 
             {/* Drag Overlay is removed - ghost handled by DraggableItem */}

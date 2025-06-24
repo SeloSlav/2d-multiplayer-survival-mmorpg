@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WorldState, TimeOfDay } from '../generated';
+import { WorldState, TimeOfDay, Season } from '../generated';
 
 // Style constants
 const UI_BG_COLOR = 'linear-gradient(135deg, rgba(30, 15, 50, 0.9), rgba(20, 10, 40, 0.95))';
@@ -19,6 +19,14 @@ const COLORS = {
   fullMoon: '#e6e6fa',
   twilightMorning: '#c8a2c8', // Lilac/light purple for morning twilight
   twilightEvening: '#8a2be2'  // Blue-violet for evening twilight
+};
+
+// Colors for different seasons
+const SEASON_COLORS = {
+  spring: '#90EE90', // Light green
+  summer: '#FFD700', // Gold
+  autumn: '#FF8C00', // Dark orange
+  winter: '#87CEEB'  // Sky blue
 };
 
 interface DayNightCycleTrackerProps {
@@ -55,6 +63,39 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
       case 'HeavyRain': return 'Heavy Rain';
       case 'HeavyStorm': return 'Heavy Storm';
       default: return 'Unknown';
+    }
+  };
+
+  // Helper function to get season display name
+  const getSeasonDisplay = (season: Season) => {
+    switch (season.tag) {
+      case 'Spring': return 'Spring';
+      case 'Summer': return 'Summer';
+      case 'Autumn': return 'Autumn';
+      case 'Winter': return 'Winter';
+      default: return 'Spring'; // Fallback
+    }
+  };
+
+  // Helper function to get season emoji
+  const getSeasonEmoji = (season: Season) => {
+    switch (season.tag) {
+      case 'Spring': return '🌸';
+      case 'Summer': return '☀️';
+      case 'Autumn': return '🍂';
+      case 'Winter': return '❄️';
+      default: return '🌸'; // Fallback to spring
+    }
+  };
+
+  // Helper function to get season color
+  const getSeasonColor = (season: Season) => {
+    switch (season.tag) {
+      case 'Spring': return SEASON_COLORS.spring;
+      case 'Summer': return SEASON_COLORS.summer;
+      case 'Autumn': return SEASON_COLORS.autumn;
+      case 'Winter': return SEASON_COLORS.winter;
+      default: return SEASON_COLORS.spring; // Fallback
     }
   };
 
@@ -120,11 +161,18 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '20px',
+          fontSize: '14px',
           transition: 'all 0.3s ease',
         }}
       >
-        {getTimeOfDayEmoji(worldState.timeOfDay, worldState.isFullMoon)}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ marginRight: '2px' }}>
+            {getTimeOfDayEmoji(worldState.timeOfDay, worldState.isFullMoon)}
+          </span>
+          <span style={{ fontSize: '14px' }}>
+            {getSeasonEmoji(worldState.currentSeason)}
+          </span>
+        </div>
       </div>
     );
   }
@@ -163,8 +211,27 @@ const DayNightCycleTracker: React.FC<DayNightCycleTrackerProps> = ({ worldState 
             onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; }}
           >
             {getTimeOfDayEmoji(worldState.timeOfDay, worldState.isFullMoon)}
+            <span style={{ marginLeft: '4px' }}>
+              {getSeasonEmoji(worldState.currentSeason)}
+            </span>
           </span>
         </div>
+        
+        {/* Season and Year Information */}
+        <div style={{ 
+          fontSize: '10px', 
+          opacity: 0.9, 
+          marginBottom: '4px',
+          color: getSeasonColor(worldState.currentSeason),
+          textShadow: `0 0 4px ${getSeasonColor(worldState.currentSeason)}40`
+        }}>
+          <span>{getSeasonDisplay(worldState.currentSeason)}</span>
+          <span style={{ margin: '0 4px' }}>•</span>
+          <span>Day {worldState.dayOfYear}/360</span>
+          <span style={{ margin: '0 4px' }}>•</span>
+          <span>Year {worldState.year}</span>
+        </div>
+        
         <div style={{ fontSize: '11px', opacity: 0.8 }}>
           <div>
             <span>{getTimeOfDayDisplay(worldState.timeOfDay)}</span>

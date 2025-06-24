@@ -56,6 +56,14 @@ pub enum WeatherType {
 }
 
 #[derive(Clone, Debug, PartialEq, spacetimedb::SpacetimeType)]
+pub enum Season {
+    Spring,  // Days 1-90 (March 20 - June 20)
+    Summer,  // Days 91-180 (June 21 - September 20)
+    Autumn,  // Days 181-270 (September 21 - December 20)
+    Winter,  // Days 271-360 (December 21 - March 19)
+}
+
+#[derive(Clone, Debug, PartialEq, spacetimedb::SpacetimeType)]
 pub enum TimeOfDay {
     Dawn,    // Transition from night to day
     TwilightMorning, // Purple hue after dawn
@@ -89,6 +97,10 @@ pub struct WorldState {
     pub cycle_count: u32, // How many full cycles have passed
     pub is_full_moon: bool, // Flag for special night lighting
     pub last_tick: Timestamp,
+    // Season tracking
+    pub current_season: Season,
+    pub day_of_year: u32, // 1-360 in our perfect calendar
+    pub year: u32, // Which year we're in
     // Weather fields
     pub current_weather: WeatherType,
     pub rain_intensity: f32, // 0.0 to 1.0, for client-side rendering intensity
@@ -113,6 +125,9 @@ pub fn seed_world_state(ctx: &ReducerContext) -> Result<(), String> {
             cycle_count: 0,
             is_full_moon: false,
             last_tick: ctx.timestamp,
+            current_season: Season::Spring,
+            day_of_year: 1,
+            year: 1,
             current_weather: WeatherType::Clear,
             rain_intensity: 0.0,
             weather_start_time: None,
@@ -240,6 +255,25 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
             world_state.cycle_count 
         };
         
+        // Update season and calendar when a new day starts (cycle wraps)
+        let (new_day_of_year, new_year, new_season) = if did_wrap {
+            let next_day = world_state.day_of_year + 1;
+            if next_day > 360 { // New year starts
+                let next_year = world_state.year + 1;
+                log::info!("New year started! Year {} -> Year {}", world_state.year, next_year);
+                (1, next_year, calculate_season(1)) // Start new year with day 1
+            } else {
+                let season = calculate_season(next_day);
+                if season != world_state.current_season {
+                    log::info!("Season changed from {:?} to {:?} on day {} of year {}", 
+                              world_state.current_season, season, next_day, world_state.year);
+                }
+                (next_day, world_state.year, season)
+            }
+        } else {
+            (world_state.day_of_year, world_state.year, world_state.current_season)
+        };
+        
         // Determine full moon status based on the *correct* cycle count for this progress
         let new_is_full_moon = new_cycle_count % FULL_MOON_CYCLE_INTERVAL == 0;
         if did_wrap {
@@ -266,6 +300,9 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         world_state.cycle_count = new_cycle_count;
         world_state.is_full_moon = new_is_full_moon; // Use the correctly determined flag
         world_state.last_tick = now;
+        world_state.current_season = new_season;
+        world_state.day_of_year = new_day_of_year;
+        world_state.year = new_year;
 
         // Pass a clone to update
         ctx.db.world_state().id().update(world_state.clone());
@@ -273,11 +310,24 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         // Update weather after updating time
         update_weather(ctx, &mut world_state, elapsed_seconds)?;
         
-        log::debug!("World tick: Progress {:.2}, Time: {:?}, Cycle: {}, Full Moon: {}, Weather: {:?}", 
-                   new_progress, world_state.time_of_day, new_cycle_count, new_is_full_moon, world_state.current_weather);
+        log::debug!("World tick: Progress {:.2}, Time: {:?}, Cycle: {}, Full Moon: {}, Season: {:?} (Day {} of Year {}), Weather: {:?}", 
+                   new_progress, world_state.time_of_day, new_cycle_count, new_is_full_moon, 
+                   world_state.current_season, world_state.day_of_year, world_state.year, world_state.current_weather);
     }
 
     Ok(())
+}
+
+/// Calculates the current season based on day of year (1-360)
+/// Perfect calendar: Spring (1-90), Summer (91-180), Autumn (181-270), Winter (271-360)
+fn calculate_season(day_of_year: u32) -> Season {
+    match day_of_year {
+        1..=90 => Season::Spring,   // Days 1-90 (March 20 - June 20)
+        91..=180 => Season::Summer, // Days 91-180 (June 21 - September 20)
+        181..=270 => Season::Autumn, // Days 181-270 (September 21 - December 20)
+        271..=360 => Season::Winter, // Days 271-360 (December 21 - March 19)
+        _ => Season::Spring, // Fallback, though this shouldn't happen with our 360-day year
+    }
 }
 
 /// Updates weather patterns based on realistic probability and timing
@@ -479,8 +529,6 @@ pub fn get_rain_warmth_drain_modifier(ctx: &ReducerContext, player_x: f32, playe
     log::info!("Rain warmth drain calculated: {:.2} for weather {:?}", drain_amount, world_state.current_weather);
     drain_amount
 }
-
-
 
 /// Extinguishes all campfires that are not protected by shelters or trees during heavy rain/storms
 fn extinguish_unprotected_campfires(ctx: &ReducerContext, weather_type: &WeatherType) -> Result<(), String> {

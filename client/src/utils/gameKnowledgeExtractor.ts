@@ -70,7 +70,7 @@ export const controlSections: ControlSection[] = [
 // Define all tip sections with unique keys
 const tipSectionDefinitions = {
     gettingStarted: {
-        title: 'Getting Started',
+        title: '🚀 Getting Started',
         tips: [
             'You spawn on beaches around the island - look for a good base location away from other players.',
             'Gather basic resources immediately: wood from trees, stones from the ground, and plant fiber from bushes.',
@@ -86,10 +86,9 @@ const tipSectionDefinitions = {
     },
     
     survival: {
-        title: 'Survival Tips',
+        title: '💖 Survival Tips',
         tips: [
             // Core Health Stats & Value System
-            'IMPORTANT: Hunger, thirst, and warmth are raw values (0-100+), NOT percentages. A hunger of 249 means 249 hunger points, not 249%.',
             'Health naturally regenerates when hunger, thirst, and warmth values are above 50 and no damage effects are active.',
             'Knocked out players are immune to environmental damage (bleed, burn, poisoning) but vulnerable to direct attacks.',
             'Death occurs when health reaches zero - creates a corpse with your items that others can loot.',
@@ -133,7 +132,7 @@ const tipSectionDefinitions = {
             // Healing & Recovery
             'Bandages provide delayed burst healing - interrupted by taking damage.',
             'Health regeneration requires hunger/thirst/warmth values above 50 and no damage effects.',
-            'Values like 249 hunger indicate excellent nutrition levels for fast regeneration.',
+            'High nutrition levels provide excellent conditions for fast regeneration.',
             'Cozy effects boost food healing and health regeneration significantly.',
             'Taking damage cancels active health regeneration effects.',
             
@@ -153,7 +152,7 @@ const tipSectionDefinitions = {
     },
 
     resourceGathering: {
-        title: 'Resource Gathering',
+        title: '🪓 Resource Gathering',
         tips: [
             'Trees provide wood and plant fiber - essential for most crafting recipes.',
             'Stone nodes give stone and iron ore - look for gray rocky outcrops.',
@@ -168,16 +167,33 @@ const tipSectionDefinitions = {
         ]
     },
 
+    farming: {
+        title: '🌱 Farming & Agriculture',
+        tips: [
+            'Seeds can be planted to grow into food resources over time.',
+            'Different seeds have different growth times and yield different crops.',
+            'Plants grow faster during the day, especially at noon when sunlight is strongest.',
+            'Rain and moderate weather conditions boost plant growth rates.',
+            'Cloud cover reduces plant growth by blocking sunlight.',
+            'Campfires too close to plants can stunt growth due to heat and smoke.',
+            'Lanterns near plants can provide beneficial light for faster growth.',
+            'Plant spacing affects growth - crowded plants grow much slower than well-spaced ones.',
+            'Severely crowded plants (within 30px) suffer 70% growth penalty.',
+            'Moderately crowded plants (30-50px apart) suffer 40% growth penalty.',
+            'Lightly crowded plants (50-80px apart) suffer 15% growth penalty.',
+            'Plants more than 80px apart grow at full speed with no crowding penalty.',
+            'Plan your farming layout carefully - good spacing and lighting can maximize your food production.',
+        ]
+    },
+
     waterSources: {
-        title: 'Water Sources',
+        title: '💧 Water Sources',
         tips: [
             'Hold E over any water body to drink and restore thirst.',
             'Coastal waters (beaches, bays, ocean inlets) are salty and cause dehydration.',
             'Inland waters (mountain lakes, forest ponds, deep rivers) are fresh and restore thirst.',
             'There is a brief cooldown between drinking attempts.',
             'Salty water makes you more thirsty - avoid drinking from the ocean.',
-            'Fresh water replenishes hydration - seek out inland lakes and rivers.',
-            'Deep inland areas usually have fresh water sources for survival.',
             'Craft water bottles or jugs to carry water with you - equip and left-click over water to fill.',
             'Right-click with a filled water container to drink from it anywhere.',
             'Water containers can be used to put out fires caused by fire arrows.',
@@ -187,7 +203,7 @@ const tipSectionDefinitions = {
     },
 
     campfires: {
-        title: 'Campfires',
+        title: '🔥 Campfires',
         tips: [
             'Campfires are essential for cooking food, providing light, and warmth during cold nights.',
             'Hold E to toggle campfires on/off - they can be relit after being extinguished.',
@@ -205,7 +221,7 @@ const tipSectionDefinitions = {
     },
 
     foodCooking: {
-        title: 'Food & Cooking',
+        title: '🍖 Food & Cooking',
         tips: [
             'Mushrooms spawn in forested areas near trees - look for clusters in wooded regions.',
             'Corn grows in grassy areas close to water sources like rivers and beaches.',
@@ -219,12 +235,11 @@ const tipSectionDefinitions = {
             'Burnt food can be cooked further to create valuable charcoal for crafting ammunition.',
             'Human flesh can be harvested from player corpses but is dangerous to eat raw.',
             'Cooked human flesh provides excellent nutrition but comes with moral implications.',
-            'Different burnt food types yield varying amounts of charcoal when cooked further.',
         ]
     },
 
     fishing: {
-        title: 'Fishing',
+        title: '🎣 Fishing',
         tips: [
             'Craft a fishing rod using common reed stalks, plant fiber, and a Bone Gaff Hook to start fishing.',
             'Find bodies of water like lakes, rivers, or coastal areas to fish.',
@@ -247,7 +262,7 @@ const tipSectionDefinitions = {
     },
 
     buildingCrafting: {
-        title: 'Building & Crafting',
+        title: '🔨 Building & Crafting',
         tips: [
             'Use the crafting menu (Tab) to see available recipes.',
             'Build shelters to protect your campfires from rain and other players.',
@@ -266,7 +281,7 @@ const tipSectionDefinitions = {
     },
 
     combat: {
-        title: 'Combat',
+        title: '🏹 Combat',
         tips: [
             'Build sleeping bags to set respawn points - place one inside your shelter and a few backup locations in case you\'re under raid.',
             'Use your bow to attack from a distance - it\'s more stealthy than melee combat.',
@@ -282,27 +297,28 @@ const tipSectionDefinitions = {
     },
 
     multiplayer: {
-        title: 'Multiplayer Tips',
+        title: '👥 Multiplayer Tips',
         tips: [
             'Cooperation with other players can help you survive longer.',
             'Use the chat system to communicate.',
-            'Be careful who you trust - not all players are friendly.',
+            'Be careful who you trust - not all all players are friendly.',
             'Consider building in groups for better defense and resource sharing.',
         ]
     }
 };
 
-// Define the order of sections using keys
+// Order in which sections appear in the game tips menu
 const tipSectionOrder = [
     'gettingStarted',
+    'survival',
     'resourceGathering',
-    'survival', 
-    'combat',
+    'farming',
+    'waterSources',
     'campfires',
     'foodCooking',
     'fishing',
     'buildingCrafting',
-    'waterSources',
+    'combat',
     'multiplayer'
 ];
 
@@ -383,13 +399,6 @@ ${formatControlsForSOVA()}
 
 🛠️ SURVIVAL TIPS & STRATEGIES:
 ${formatTipsForSOVA()}
-
-📊 IMPORTANT: STAT VALUE INTERPRETATION
-- Hunger, thirst, and warmth are RAW VALUES (not percentages)
-- Values typically range from 0-100+, with higher being better
-- A hunger of 249 means "249 hunger points" (excellent nutrition)
-- Values above 50 enable health regeneration
-- NEVER say "249 percent hunger" - say "249 hunger points" or "hunger level 249"
 
 😄 SOVA'S JOKE COLLECTION (use occasionally for humor):
 ${getSOVAJokesForPrompt()}

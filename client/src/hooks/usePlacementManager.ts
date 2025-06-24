@@ -4,7 +4,7 @@ import { ItemDefinition } from '../generated'; // Import ItemDefinition for type
 import { TILE_SIZE } from '../config/gameConfig';
 
 // Minimum distance between planted seeds (in pixels)
-const MIN_SEED_DISTANCE = 80;
+const MIN_SEED_DISTANCE = 20;
 
 // Type for the information needed to start placement
 export interface PlacementItemInfo {
@@ -87,28 +87,9 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
  * Returns true if the placement should be blocked.
  */
 function isSeedPlacementTooClose(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
-  if (!connection || !placementInfo) {
-    return false;
-  }
-
-  // Check if this is a seed placement
-  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
-  if (!seedItems.includes(placementInfo.itemName)) {
-    return false; // Not a seed, no restriction
-  }
-
-  // Check distance to all existing planted seeds
-  for (const plantedSeed of connection.db.plantedSeed.iter()) {
-    const dx = worldX - plantedSeed.posX;
-    const dy = worldY - plantedSeed.posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance < MIN_SEED_DISTANCE) {
-      return true; // Too close to an existing seed
-    }
-  }
-
-  return false; // Safe to plant
+  // Client-side validation removed - let players experiment freely!
+  // The server-side crowding penalty system will handle optimization naturally
+  return false;
 }
 
 export const usePlacementManager = (connection: DbConnection | null): [PlacementState, PlacementActions] => {
@@ -116,6 +97,21 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
   const [placementError, setPlacementError] = useState<string | null>(null);
 
   const isPlacing = placementInfo !== null;
+
+  // Helper function to check if the currently placed item still exists and has quantity > 0
+  const checkPlacementItemStillExists = useCallback(() => {
+    if (!connection || !placementInfo) return true;
+    
+    // Find the item instance we're currently placing
+    for (const item of connection.db.inventoryItem.iter()) {
+      if (BigInt(item.instanceId) === placementInfo.instanceId) {
+        return item.quantity > 0;
+      }
+    }
+    
+    // Item not found, cancel placement
+    return false;
+  }, [connection, placementInfo]);
 
   // --- Start Placement --- 
   const startPlacement = useCallback((itemInfo: PlacementItemInfo) => {
@@ -133,10 +129,40 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
     }
   }, [placementInfo]); // Depend on placementInfo to check if cancelling is needed
 
+  // Effect to auto-cancel placement when seed stack runs out
+  useEffect(() => {
+    if (!isPlacing || !placementInfo || !connection) return;
+    
+    // Only apply this logic to seeds
+    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
+    if (!seedItems.includes(placementInfo.itemName)) return;
+    
+    // Check if the item still exists by directly examining the inventory
+    let itemFound = false;
+    for (const item of connection.db.inventoryItem.iter()) {
+      if (BigInt(item.instanceId) === placementInfo.instanceId && item.quantity > 0) {
+        itemFound = true;
+        break;
+      }
+    }
+    
+    if (!itemFound) {
+      console.log(`[PlacementManager] Seed stack empty, auto-cancelling placement for: ${placementInfo.itemName}`);
+      cancelPlacement();
+    }
+  }, [isPlacing, placementInfo, connection, cancelPlacement, connection?.db.inventoryItem]);
+
   // --- Attempt Placement --- 
   const attemptPlacement = useCallback((worldX: number, worldY: number, isPlacementTooFar?: boolean) => {
     if (!connection || !placementInfo) {
       console.warn("[PlacementManager] Attempted placement with no connection or no item selected.");
+      return;
+    }
+
+    // Check if the item still exists before attempting placement (especially important for seeds)
+    if (!checkPlacementItemStillExists()) {
+      console.log(`[PlacementManager] Item no longer exists, cancelling placement for: ${placementInfo.itemName}`);
+      cancelPlacement();
       return;
     }
 
@@ -205,21 +231,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
         case 'Seed Potato':
         case 'Reed Rhizome':
         case 'Pumpkin Seeds':
-          console.log(`[PlacementManager] Calling plant_seed reducer with instance ID: ${placementInfo.instanceId}`);
-          // TODO: Use the actual generated reducer name (might be plantSeed or plant_seed)
-          (connection.reducers as any).plant_seed?.(placementInfo.instanceId, worldX, worldY) || 
-          (connection.reducers as any).plantSeed?.(placementInfo.instanceId, worldX, worldY);
-          // Note: Seeds are consumed immediately, so we cancel placement right away
-          cancelPlacement();
+          console.log(`[PlacementManager] Calling plantSeed reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.plantSeed(placementInfo.instanceId, worldX, worldY);
+          // Note: Don't auto-cancel placement for seeds - let the system check if there are more seeds
+          // The placement will be cancelled externally when the stack is empty or user switches slots
           break;
-        // case 'Storage Box':
-        //   console.log(`[PlacementManager] Calling placeStorageBox reducer.`);
-        //   connection.reducers.placeStorageBox(worldX, worldY);
-        //   break;
-        // case 'Furnace':
-        //    console.log(`[PlacementManager] Calling placeFurnace reducer.`);
-        //    connection.reducers.placeFurnace(worldX, worldY);
-        //    break;
+        
         default:
           console.error(`[PlacementManager] Unknown item type for placement: ${placementInfo.itemName}`);
           setPlacementError(`Cannot place item: Unknown type '${placementInfo.itemName}'.`);
@@ -234,7 +251,7 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
       setPlacementError(`Placement failed: ${errorMessage}`); 
       // Do NOT cancel placement on error, let user retry or cancel manually
     }
-  }, [connection, placementInfo]); // Dependencies
+  }, [connection, placementInfo, checkPlacementItemStillExists, cancelPlacement]); // Dependencies
 
   // Consolidate state and actions for return
   const placementState: PlacementState = { isPlacing, placementInfo, placementError };
