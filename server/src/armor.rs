@@ -27,8 +27,8 @@ pub fn calculate_total_damage_resistance(ctx: &ReducerContext, player_id: Identi
                 if let Some(item_def) = item_defs.id().find(item_instance.item_def_id) {
                     if let Some(resistance) = item_def.damage_resistance {
                         total_resistance += resistance;
-                        log::trace!("[Armor] Player {:?} adding resistance {:.2}% from {} (Instance ID: {})", 
-                                   player_id, resistance * 100.0, item_def.name, *maybe_instance_id);
+                        // log::trace!("[Armor] Player {:?} adding resistance {:.2}% from {} (Instance ID: {})", 
+                        //            player_id, resistance * 100.0, item_def.name, *maybe_instance_id);
                     }
                 }
             }
@@ -61,8 +61,8 @@ pub fn calculate_total_warmth_bonus(ctx: &ReducerContext, player_id: Identity) -
                 if let Some(item_def) = item_defs.id().find(item_instance.item_def_id) {
                     if let Some(warmth) = item_def.warmth_bonus {
                         total_warmth_bonus += warmth;
-                         log::trace!("[Armor] Player {:?} adding warmth bonus {:.2} from {} (Instance ID: {})", 
-                                   player_id, warmth, item_def.name, *maybe_instance_id);
+                         // log::trace!("[Armor] Player {:?} adding warmth bonus {:.2} from {} (Instance ID: {})", 
+                         //           player_id, warmth, item_def.name, *maybe_instance_id);
                     }
                 }
             }

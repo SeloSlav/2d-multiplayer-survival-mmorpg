@@ -689,27 +689,27 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
      }
  
      let current_time = ctx.timestamp;
-     log::trace!("[CampfireProcess {}] Current time: {:?}", campfire_id, current_time);
+     // log::trace!("[CampfireProcess {}] Current time: {:?}", campfire_id, current_time);
  
      if campfire.is_burning {
-         log::debug!("[CampfireProcess {}] Is BURNING.", campfire_id);
+         // log::debug!("[CampfireProcess {}] Is BURNING.", campfire_id);
          let time_increment = CAMPFIRE_PROCESS_INTERVAL_SECS as f32;
  
          // --- ADDED: Campfire Damage Logic ---
          let damage_cooldown_duration = TimeDuration::from_micros(CAMPFIRE_DAMAGE_APPLICATION_COOLDOWN_SECONDS as i64 * 1_000_000);
-         log::trace!("[CampfireProcess {}] Damage cooldown duration: {:?}", campfire_id, damage_cooldown_duration);
-         log::trace!("[CampfireProcess {}] Last damage application time: {:?}", campfire_id, campfire.last_damage_application_time);
+         // log::trace!("[CampfireProcess {}] Damage cooldown duration: {:?}", campfire_id, damage_cooldown_duration);
+         // log::trace!("[CampfireProcess {}] Last damage application time: {:?}", campfire_id, campfire.last_damage_application_time);
  
          let can_apply_damage = campfire.last_damage_application_time.map_or(true, |last_time| {
              current_time >= last_time + damage_cooldown_duration
          });
-         log::debug!("[CampfireProcess {}] Can apply damage this tick: {}", campfire_id, can_apply_damage);
+         // log::debug!("[CampfireProcess {}] Can apply damage this tick: {}", campfire_id, can_apply_damage);
  
          if can_apply_damage {
              // --- MODIFIED: Update cooldown time immediately upon damage attempt ---
              campfire.last_damage_application_time = Some(current_time);
              // This change is now handled by the made_changes_to_campfire_struct flag later
-             log::debug!("[CampfireProcess {}] Damage application attempt at {:?}. Updated last_damage_application_time.", campfire_id, current_time);
+             // log::debug!("[CampfireProcess {}] Damage application attempt at {:?}. Updated last_damage_application_time.", campfire_id, current_time);
              // --- END MODIFICATION ---
 
              let mut applied_damage_this_tick = false;
@@ -731,7 +731,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                      a_player_is_in_hot_zone_this_tick = true; // A player is in the zone
 
                      // Apply burn effect using the centralized function from active_effects.rs
-                     log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Applying burn effect.", campfire_id, player_entity.identity);
+                     // log::info!("[CampfireProcess {}] Player {:?} IS IN DAMAGE RADIUS. Applying burn effect.", campfire_id, player_entity.identity);
                      
                      match crate::active_effects::apply_burn_effect(
                          ctx, 
@@ -742,11 +742,11 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                          0 // 0 for environmental/campfire source
                      ) {
                          Ok(_) => {
-                             log::info!("[CampfireProcess {}] Successfully applied/extended burn effect for player {:?}", campfire_id, player_entity.identity);
+                             // log::info!("[CampfireProcess {}] Successfully applied/extended burn effect for player {:?}", campfire_id, player_entity.identity);
                              applied_damage_this_tick = true;
                          }
                          Err(e) => {
-                             log::error!("[CampfireProcess {}] FAILED to apply burn effect for player {:?}: {}", campfire_id, player_entity.identity, e);
+                             // log::error!("[CampfireProcess {}] FAILED to apply burn effect for player {:?}: {}", campfire_id, player_entity.identity, e);
                          }
                      }
                  }
@@ -756,18 +756,18 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
              if a_player_is_in_hot_zone_this_tick && !campfire.is_player_in_hot_zone {
                  campfire.is_player_in_hot_zone = true;
                  made_changes_to_campfire_struct = true;
-                 log::debug!("[CampfireProcess {}] Player detected in hot zone. Set is_player_in_hot_zone to true.", campfire_id);
+                 // log::debug!("[CampfireProcess {}] Player detected in hot zone. Set is_player_in_hot_zone to true.", campfire_id);
              } else if !a_player_is_in_hot_zone_this_tick && campfire.is_player_in_hot_zone {
                  // This case is handled by the reset at the beginning of the tick.
                  // campfire.is_player_in_hot_zone = false;
                  // made_changes_to_campfire_struct = true;
-                 log::debug!("[CampfireProcess {}] No players in hot zone this tick. is_player_in_hot_zone is now false (was reset or already false).", campfire_id);
+                 // log::debug!("[CampfireProcess {}] No players in hot zone this tick. is_player_in_hot_zone is now false (was reset or already false).", campfire_id);
              }
 
              if applied_damage_this_tick { // If damage was applied, update the last_damage_application_time
                  campfire.last_damage_application_time = Some(current_time);
                  made_changes_to_campfire_struct = true;
-                 log::debug!("[CampfireProcess {}] Damage applied this tick. Updated last_damage_application_time.", campfire_id);
+                 // log::debug!("[CampfireProcess {}] Damage applied this tick. Updated last_damage_application_time.", campfire_id);
              }
          }
  
@@ -792,7 +792,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                  }
              }
              Err(e) => {
-                 log::error!("[ProcessCampfireScheduled] Error during generic cooking tick for campfire {}: {}. Further processing might be affected.", campfire.id, e);
+                 // log::error!("[ProcessCampfireScheduled] Error during generic cooking tick for campfire {}: {}. Further processing might be affected.", campfire.id, e);
              }
          }
          // --- END COOKING LOGIC (delegated) ---
@@ -803,7 +803,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                  remaining_time -= time_increment; // time_increment was defined above
  
                  if remaining_time <= 0.0 {
-                     log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit (Def: {:?}) burnt out. Consuming unit and checking stack/new fuel.", campfire.id, campfire.current_fuel_def_id);
+                     // log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit (Def: {:?}) burnt out. Consuming unit and checking stack/new fuel.", campfire.id, campfire.current_fuel_def_id);
                      
                      let mut consumed_and_reloaded_from_stack = false;
                      let mut active_fuel_slot_idx_found: Option<u8> = None;
@@ -878,8 +878,8 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
              }
          }
      } else { // campfire.is_burning is false
-         log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed for fuel/cooking.", campfire.id);
-         log::debug!("[CampfireProcess {}] Is NOT burning. Skipping damage and fuel/cooking.", campfire_id);
+         // log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed for fuel/cooking.", campfire.id);
+         // log::debug!("[CampfireProcess {}] Is NOT burning. Skipping damage and fuel/cooking.", campfire_id);
      }
  
      if made_changes_to_campfire_struct || produced_charcoal_and_modified_campfire_struct {

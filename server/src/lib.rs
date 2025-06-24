@@ -71,6 +71,7 @@ mod world_generation; // <<< ADDED world generation module
 mod fishing; // <<< ADDED fishing module
 mod drinking; // <<< ADDED drinking module
 mod wet; // <<< ADDED wet status effect module
+mod sound_events; // <<< ADDED sound events module
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -172,6 +173,8 @@ use crate::world_chunk_data as WorldChunkDataTableTrait; // <<< ADDED: Import Wo
 use crate::fishing::fishing_session as FishingSessionTableTrait; // <<< ADDED: Import FishingSession table trait
 use crate::drinking::player_drinking_cooldown as PlayerDrinkingCooldownTableTrait; // <<< ADDED: Import PlayerDrinkingCooldown table trait
 use crate::planted_seeds::planted_seed as PlantedSeedTableTrait; // <<< ADDED: Import PlantedSeed table trait
+use crate::sound_events::sound_event as SoundEventTableTrait; // <<< ADDED: Import SoundEvent table trait
+use crate::sound_events::sound_event_cleanup_schedule as SoundEventCleanupScheduleTableTrait; // <<< ADDED: Import SoundEventCleanupSchedule table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -414,6 +417,9 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::projectile::init_projectile_system(ctx)?;
     // ADD: Initialize plant growth system
     crate::planted_seeds::init_plant_growth_system(ctx)?;
+    
+    // ADD: Initialize sound event cleanup system
+    crate::sound_events::init_sound_cleanup_system(ctx)?;
     
     // ADD: Initialize WorldState for scheduled systems
     crate::world_state::seed_world_state(ctx)?;

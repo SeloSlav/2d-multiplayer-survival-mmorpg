@@ -20,6 +20,10 @@ pub(crate) const MIN_TREE_DISTANCE_PX: f32 = 200.0;
 pub(crate) const MIN_TREE_DISTANCE_SQ: f32 = MIN_TREE_DISTANCE_PX * MIN_TREE_DISTANCE_PX;
 pub(crate) const TREE_INITIAL_HEALTH: u32 = 2000;
 
+// NEW: Resource depletion system - each tree has a random amount of resources
+pub(crate) const TREE_MIN_RESOURCES: u32 = 300; // Minimum wood per tree
+pub(crate) const TREE_MAX_RESOURCES: u32 = 1000; // Maximum wood per tree
+
 // NEW Respawn Time Constants for Trees (adjusted to match Rust survival game)
 pub(crate) const MIN_TREE_RESPAWN_TIME_SECS: u64 = 600;  // 10 minutes
 pub(crate) const MAX_TREE_RESPAWN_TIME_SECS: u64 = 1200; // 20 minutes
@@ -44,6 +48,7 @@ pub struct Tree {
     pub pos_x: f32,
     pub pos_y: f32,
     pub health: u32,
+    pub resource_remaining: u32, // NEW: How much wood is left to collect
     pub tree_type: TreeType,
     #[index(btree)]
     pub chunk_index: u32,

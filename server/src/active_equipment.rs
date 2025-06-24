@@ -165,7 +165,7 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
     let mut equipment = get_or_create_active_equipment(ctx, sender_id)?;
 
     if equipment.equipped_item_instance_id == Some(item_instance_id) {
-        log::debug!("Item {} is already the active item for player {:?}. No change to ActiveEquipment needed.", item_instance_id, sender_id);
+        // log::debug!("Item {} is already the active item for player {:?}. No change to ActiveEquipment needed.", item_instance_id, sender_id);
         return Ok(());
     }
     

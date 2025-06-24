@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import * as SpacetimeDB from '../generated';
 import {
     DbConnection,
     RangedWeaponStats as SpacetimeDBRangedWeaponStats,
     Projectile as SpacetimeDBProjectile
 } from '../generated';
+import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { getChunkIndicesForViewport, getChunkIndicesForViewportWithBuffer } from '../utils/chunkUtils';
 import { gameConfig } from '../config/gameConfig';
+
 
 // ===================================================================================================
 // 🚀 PERFORMANCE OPTIMIZATION: CHUNK SUBSCRIPTION SYSTEM - FINAL OPTIMIZED VERSION
@@ -124,6 +126,8 @@ export interface SpacetimeTableStates {
     playerDodgeRollStates: Map<string, SpacetimeDB.PlayerDodgeRollState>;
     fishingSessions: Map<string, SpacetimeDB.FishingSession>;
     plantedSeeds: Map<string, SpacetimeDB.PlantedSeed>;
+    soundEvents: Map<string, SpacetimeDB.SoundEvent>;
+    localPlayerIdentity: Identity | null;
 }   
 
 // Define the props the hook accepts
@@ -141,6 +145,7 @@ export const useSpacetimeTables = ({
     cancelPlacement,
     viewport, // Get viewport from props
 }: UseSpacetimeTablesProps): SpacetimeTableStates => {
+
     // --- State Management for Tables ---
     const [players, setPlayers] = useState<Map<string, SpacetimeDB.Player>>(() => new Map());
     const [trees, setTrees] = useState<Map<string, SpacetimeDB.Tree>>(() => new Map());
@@ -181,6 +186,10 @@ export const useSpacetimeTables = ({
     const [minimapCache, setMinimapCache] = useState<SpacetimeDB.MinimapCache | null>(null);
     const [playerDodgeRollStates, setPlayerDodgeRollStates] = useState<Map<string, SpacetimeDB.PlayerDodgeRollState>>(() => new Map());
     const [fishingSessions, setFishingSessions] = useState<Map<string, SpacetimeDB.FishingSession>>(() => new Map());
+    const [soundEvents, setSoundEvents] = useState<Map<string, SpacetimeDB.SoundEvent>>(() => new Map());
+
+    // Get local player identity for sound system
+    const localPlayerIdentity = connection?.identity || null;
 
     // Ref to hold the cancelPlacement function
     const cancelPlacementRef = useRef(cancelPlacement);
@@ -1011,6 +1020,17 @@ export const useSpacetimeTables = ({
                 setFishingSessions(prev => { const newMap = new Map(prev); newMap.delete(session.playerId.toHexString()); return newMap; });
             };
 
+            // Sound Event Handlers
+            const handleSoundEventInsert = (ctx: any, soundEvent: SpacetimeDB.SoundEvent) => {
+                setSoundEvents(prev => new Map(prev).set(soundEvent.id.toString(), soundEvent));
+            };
+            const handleSoundEventUpdate = (ctx: any, oldSoundEvent: SpacetimeDB.SoundEvent, newSoundEvent: SpacetimeDB.SoundEvent) => {
+                setSoundEvents(prev => new Map(prev).set(newSoundEvent.id.toString(), newSoundEvent));
+            };
+            const handleSoundEventDelete = (ctx: any, soundEvent: SpacetimeDB.SoundEvent) => {
+                setSoundEvents(prev => { const newMap = new Map(prev); newMap.delete(soundEvent.id.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1105,6 +1125,11 @@ export const useSpacetimeTables = ({
             connection.db.fishingSession.onUpdate(handleFishingSessionUpdate);
             connection.db.fishingSession.onDelete(handleFishingSessionDelete);
 
+            // Register SoundEvent callbacks - ADDED
+            connection.db.soundEvent.onInsert(handleSoundEventInsert);
+            connection.db.soundEvent.onUpdate(handleSoundEventUpdate);
+            connection.db.soundEvent.onDelete(handleSoundEventDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1177,6 +1202,10 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[FISHING_SESSION Sub Error]:", err))
                     .subscribe('SELECT * FROM fishing_session'),
+                 // ADDED SoundEvent subscription for sound effects
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[SOUND_EVENT Sub Error]:", err))
+                    .subscribe('SELECT * FROM sound_event'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1358,6 +1387,7 @@ export const useSpacetimeTables = ({
                  // Clear the playerDodgeRollStates ref as well
                  playerDodgeRollStatesRef.current.clear();
                  setFishingSessions(new Map());
+                 setSoundEvents(new Map());
              }
         };
 
@@ -1404,5 +1434,7 @@ export const useSpacetimeTables = ({
         playerDodgeRollStates: playerDodgeRollStatesRef.current,
         fishingSessions,
         plantedSeeds,
+        soundEvents,
+        localPlayerIdentity, // Add this to the return
     };
 }; 

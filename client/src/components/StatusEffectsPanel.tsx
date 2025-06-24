@@ -105,10 +105,10 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
       fontSize: '11px',
       color: '#ffffff',
       textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
-      backgroundColor: 'rgba(139, 69, 69, 0.9)', // Matte red background
+      backgroundColor: 'rgba(69, 100, 139, 0.9)', // Matte blue background instead of red
       padding: '8px 12px',
       borderRadius: '6px',
-      border: '2px solid rgba(180, 50, 50, 0.8)',
+      border: '2px solid rgba(50, 120, 180, 0.8)', // Blue border instead of red
       backdropFilter: 'blur(3px)',
       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       zIndex: 55, // Above status bars (50) but below other UI

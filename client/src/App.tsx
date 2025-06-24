@@ -32,6 +32,7 @@ import { useInteractionManager } from './hooks/useInteractionManager';
 import { useAuthErrorHandler } from './hooks/useAuthErrorHandler';
 import { useMovementInput } from './hooks/useMovementInput';
 import { usePredictedMovement } from './hooks/usePredictedMovement';
+import { useSoundSystem } from './hooks/useSoundSystem';
 
 // Assets & Styles
 import './App.css';
@@ -133,7 +134,9 @@ function AppContent() {
       plantedSeeds, // <<< ADD plantedSeeds HERE
       worldTiles, // <<< ADD worldTiles HERE
       minimapCache, // <<< ADD minimapCache HERE
-      fishingSessions // <<< ADD fishingSessions HERE
+      fishingSessions, // <<< ADD fishingSessions HERE
+      soundEvents, // <<< ADD soundEvents HERE
+      localPlayerIdentity // <<< ADD localPlayerIdentity HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -166,6 +169,15 @@ function AppContent() {
             shelters,
             players
         }
+    });
+
+    // --- Sound System ---
+    const localPlayerPosition = predictedPosition ? { x: predictedPosition.x, y: predictedPosition.y } : null;
+    const soundSystemState = useSoundSystem({
+        soundEvents,
+        localPlayerPosition,
+        localPlayerIdentity,
+        masterVolume: 0.8, // Adjust as needed
     });
 
     // --- Game Performance Monitor ---

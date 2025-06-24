@@ -54,6 +54,8 @@ import { CheckPlantGrowth } from "./check_plant_growth_reducer.ts";
 export { CheckPlantGrowth };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
+import { CleanupOldSoundEvents } from "./cleanup_old_sound_events_reducer.ts";
+export { CleanupOldSoundEvents };
 import { ClearActiveItemReducer } from "./clear_active_item_reducer_reducer.ts";
 export { ClearActiveItemReducer };
 import { ConsumeItem } from "./consume_item_reducer.ts";
@@ -438,6 +440,10 @@ import { ShelterTableHandle } from "./shelter_table.ts";
 export { ShelterTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
 export { SleepingBagTableHandle };
+import { SoundEventTableHandle } from "./sound_event_table.ts";
+export { SoundEventTableHandle };
+import { SoundEventCleanupScheduleTableHandle } from "./sound_event_cleanup_schedule_table.ts";
+export { SoundEventCleanupScheduleTableHandle };
 import { StashTableHandle } from "./stash_table.ts";
 export { StashTableHandle };
 import { StatThresholdsConfigTableHandle } from "./stat_thresholds_config_table.ts";
@@ -600,6 +606,12 @@ import { Shelter } from "./shelter_type.ts";
 export { Shelter };
 import { SleepingBag } from "./sleeping_bag_type.ts";
 export { SleepingBag };
+import { SoundEvent } from "./sound_event_type.ts";
+export { SoundEvent };
+import { SoundEventCleanupSchedule } from "./sound_event_cleanup_schedule_type.ts";
+export { SoundEventCleanupSchedule };
+import { SoundType } from "./sound_type_type.ts";
+export { SoundType };
 import { Stash } from "./stash_type.ts";
 export { Stash };
 import { StatThresholdsConfig } from "./stat_thresholds_config_type.ts";
@@ -898,6 +910,16 @@ const REMOTE_MODULE = {
       rowType: SleepingBag.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    sound_event: {
+      tableName: "sound_event",
+      rowType: SoundEvent.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    sound_event_cleanup_schedule: {
+      tableName: "sound_event_cleanup_schedule",
+      rowType: SoundEventCleanupSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
+    },
     stash: {
       tableName: "stash",
       rowType: Stash.getTypeScriptAlgebraicType(),
@@ -988,6 +1010,10 @@ const REMOTE_MODULE = {
     check_resource_respawns: {
       reducerName: "check_resource_respawns",
       argsType: CheckResourceRespawns.getTypeScriptAlgebraicType(),
+    },
+    cleanup_old_sound_events: {
+      reducerName: "cleanup_old_sound_events",
+      argsType: CleanupOldSoundEvents.getTypeScriptAlgebraicType(),
     },
     clear_active_item_reducer: {
       reducerName: "clear_active_item_reducer",
@@ -1579,6 +1605,7 @@ export type Reducer = never
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckPlantGrowth", args: CheckPlantGrowth }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
+| { name: "CleanupOldSoundEvents", args: CleanupOldSoundEvents }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
@@ -1884,6 +1911,22 @@ export class RemoteReducers {
 
   removeOnCheckResourceRespawns(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("check_resource_respawns", callback);
+  }
+
+  cleanupOldSoundEvents(args: SoundEventCleanupSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    CleanupOldSoundEvents.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("cleanup_old_sound_events", __argsBuffer, this.setCallReducerFlags.cleanupOldSoundEventsFlags);
+  }
+
+  onCleanupOldSoundEvents(callback: (ctx: ReducerEventContext, args: SoundEventCleanupSchedule) => void) {
+    this.connection.onReducer("cleanup_old_sound_events", callback);
+  }
+
+  removeOnCleanupOldSoundEvents(callback: (ctx: ReducerEventContext, args: SoundEventCleanupSchedule) => void) {
+    this.connection.offReducer("cleanup_old_sound_events", callback);
   }
 
   clearActiveItemReducer(playerIdentity: Identity) {
@@ -4060,6 +4103,11 @@ export class SetReducerFlags {
     this.checkResourceRespawnsFlags = flags;
   }
 
+  cleanupOldSoundEventsFlags: CallReducerFlags = 'FullUpdate';
+  cleanupOldSoundEvents(flags: CallReducerFlags) {
+    this.cleanupOldSoundEventsFlags = flags;
+  }
+
   clearActiveItemReducerFlags: CallReducerFlags = 'FullUpdate';
   clearActiveItemReducer(flags: CallReducerFlags) {
     this.clearActiveItemReducerFlags = flags;
@@ -4955,6 +5003,14 @@ export class RemoteTables {
 
   get sleepingBag(): SleepingBagTableHandle {
     return new SleepingBagTableHandle(this.connection.clientCache.getOrCreateTable<SleepingBag>(REMOTE_MODULE.tables.sleeping_bag));
+  }
+
+  get soundEvent(): SoundEventTableHandle {
+    return new SoundEventTableHandle(this.connection.clientCache.getOrCreateTable<SoundEvent>(REMOTE_MODULE.tables.sound_event));
+  }
+
+  get soundEventCleanupSchedule(): SoundEventCleanupScheduleTableHandle {
+    return new SoundEventCleanupScheduleTableHandle(this.connection.clientCache.getOrCreateTable<SoundEventCleanupSchedule>(REMOTE_MODULE.tables.sound_event_cleanup_schedule));
   }
 
   get stash(): StashTableHandle {

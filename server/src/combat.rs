@@ -69,6 +69,7 @@ use crate::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule};
 use crate::knocked_out::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
 use crate::death_marker; // Ensure module is used
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // Ensure trait is used
+use crate::sound_events; // Import sound events module
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -745,22 +746,50 @@ pub fn damage_tree(
     tree.health = tree.health.saturating_sub(damage as u32);
     tree.last_hit_time = Some(timestamp);
     
-    log::info!("Player {:?} hit Tree {} for {:.1} damage. Health: {} -> {}", 
-           attacker_id, tree_id, damage, old_health, tree.health);
+    // NEW: Resource depletion system - limit yield to remaining resources
+    let actual_yield = std::cmp::min(yield_amount, tree.resource_remaining);
+    tree.resource_remaining = tree.resource_remaining.saturating_sub(actual_yield);
     
-    let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, yield_amount);
+    log::info!("Player {:?} hit Tree {} for {:.1} damage. Health: {} -> {}, Resources: {} remaining", 
+           attacker_id, tree_id, damage, old_health, tree.health, tree.resource_remaining);
     
-    if let Err(e) = resource_result {
-        log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
+    // Sound logic: Always play chop sound, plus special sounds for dramatic moments
+    const CREAKING_THRESHOLD: u32 = 100; // Greater than max stone hatchet damage (80)
+    
+    // Tree is destroyed when either health reaches 0 OR resources are depleted
+    let tree_destroyed = tree.health == 0 || tree.resource_remaining == 0;
+    
+    if tree_destroyed {
+        // Tree is destroyed - play both chop and falling sound
+        sound_events::emit_tree_chop_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
+        sound_events::emit_tree_falling_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
+        // Set health to 0 to ensure it's marked as destroyed
+        tree.health = 0;
+    } else if tree.health <= CREAKING_THRESHOLD && old_health > CREAKING_THRESHOLD {
+        // Tree just crossed the threshold - play both chop and creaking sound
+        sound_events::emit_tree_chop_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
+        sound_events::emit_tree_creaking_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
+    } else {
+        // Normal hit - play chop sound only
+        sound_events::emit_tree_chop_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
     }
     
-    if tree.health == 0 {
+    // Only grant resources if we actually got some
+    if actual_yield > 0 {
+        let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, actual_yield);
+        
+        if let Err(e) = resource_result {
+            log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
+        }
+    }
+    
+    if tree_destroyed {
         log::info!("Tree {} destroyed by Player {:?}. Scheduling respawn.", tree_id, attacker_id);
         // Calculate random respawn time for trees
-        let respawn_duration_secs = if MIN_TREE_RESPAWN_TIME_SECS >= MAX_TREE_RESPAWN_TIME_SECS {
-            MIN_TREE_RESPAWN_TIME_SECS
+        let respawn_duration_secs = if tree::MIN_TREE_RESPAWN_TIME_SECS >= tree::MAX_TREE_RESPAWN_TIME_SECS {
+            tree::MIN_TREE_RESPAWN_TIME_SECS
         } else {
-            rng.gen_range(MIN_TREE_RESPAWN_TIME_SECS..=MAX_TREE_RESPAWN_TIME_SECS)
+            rng.gen_range(tree::MIN_TREE_RESPAWN_TIME_SECS..=tree::MAX_TREE_RESPAWN_TIME_SECS)
         };
         let respawn_time = timestamp + TimeDuration::from_micros(respawn_duration_secs as i64 * 1_000_000);
         tree.respawn_at = Some(respawn_time);
@@ -771,7 +800,7 @@ pub fn damage_tree(
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Tree),
-        resource_granted: Some((resource_name_to_grant.to_string(), yield_amount)),
+        resource_granted: if actual_yield > 0 { Some((resource_name_to_grant.to_string(), actual_yield)) } else { None },
     })
 }
 
@@ -795,22 +824,44 @@ pub fn damage_stone(
     stone.health = stone.health.saturating_sub(damage as u32);
     stone.last_hit_time = Some(timestamp);
     
-    log::info!("Player {:?} hit Stone {} for {:.1} damage. Health: {} -> {}", 
-           attacker_id, stone_id, damage, old_health, stone.health);
+    // NEW: Resource depletion system - limit yield to remaining resources
+    let actual_yield = std::cmp::min(yield_amount, stone.resource_remaining);
+    stone.resource_remaining = stone.resource_remaining.saturating_sub(actual_yield);
     
-    let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, yield_amount);
+    log::info!("Player {:?} hit Stone {} for {:.1} damage. Health: {} -> {}, Resources: {} remaining", 
+           attacker_id, stone_id, damage, old_health, stone.health, stone.resource_remaining);
     
-    if let Err(e) = resource_result {
-        log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
+    // Stone is destroyed when either health reaches 0 OR resources are depleted
+    let stone_destroyed = stone.health == 0 || stone.resource_remaining == 0;
+    
+    // Sound logic: Always play hit sound, plus destroyed sound when stone dies
+    if stone_destroyed {
+        // Stone is destroyed - play both hit and destroyed sound
+        sound_events::emit_stone_hit_sound(ctx, stone.pos_x, stone.pos_y, attacker_id);
+        sound_events::emit_stone_destroyed_sound(ctx, stone.pos_x, stone.pos_y, attacker_id);
+        // Set health to 0 to ensure it's marked as destroyed
+        stone.health = 0;
+    } else {
+        // Normal hit - play hit sound only
+        sound_events::emit_stone_hit_sound(ctx, stone.pos_x, stone.pos_y, attacker_id);
     }
     
-    if stone.health == 0 {
+    // Only grant resources if we actually got some
+    if actual_yield > 0 {
+        let resource_result = grant_resource(ctx, attacker_id, resource_name_to_grant, actual_yield);
+        
+        if let Err(e) = resource_result {
+            log::error!("Failed to grant {} to player {:?}: {}", resource_name_to_grant, attacker_id, e);
+        }
+    }
+    
+    if stone_destroyed {
         log::info!("Stone {} depleted by Player {:?}. Scheduling respawn.", stone_id, attacker_id);
         // Calculate random respawn time for stones
-        let respawn_duration_secs = if MIN_STONE_RESPAWN_TIME_SECS >= MAX_STONE_RESPAWN_TIME_SECS {
-            MIN_STONE_RESPAWN_TIME_SECS
+        let respawn_duration_secs = if stone::MIN_STONE_RESPAWN_TIME_SECS >= stone::MAX_STONE_RESPAWN_TIME_SECS {
+            stone::MIN_STONE_RESPAWN_TIME_SECS
         } else {
-            rng.gen_range(MIN_STONE_RESPAWN_TIME_SECS..=MAX_STONE_RESPAWN_TIME_SECS)
+            rng.gen_range(stone::MIN_STONE_RESPAWN_TIME_SECS..=stone::MAX_STONE_RESPAWN_TIME_SECS)
         };
         let respawn_time = timestamp + TimeDuration::from_micros(respawn_duration_secs as i64 * 1_000_000);
         stone.respawn_at = Some(respawn_time);
@@ -821,7 +872,7 @@ pub fn damage_stone(
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Stone),
-        resource_granted: Some((resource_name_to_grant.to_string(), yield_amount)),
+        resource_granted: if actual_yield > 0 { Some((resource_name_to_grant.to_string(), actual_yield)) } else { None },
     })
 }
 

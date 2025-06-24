@@ -636,6 +636,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
 
         // Determine tree type roll *before* calling attempt_single_spawn
         let tree_type_roll_for_this_attempt: f64 = rng.gen_range(0.0..1.0);
+        
+        // Generate random resource amount *before* calling attempt_single_spawn
+        let tree_resource_amount = rng.gen_range(crate::tree::TREE_MIN_RESOURCES..=crate::tree::TREE_MAX_RESOURCES);
 
         match attempt_single_spawn(
             &mut rng,
@@ -650,7 +653,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::tree::MIN_TREE_DISTANCE_SQ,
             0.0,
             0.0,
-            |pos_x, pos_y, tree_type_roll: f64| { // Closure now accepts the pre-calculated roll
+            |pos_x, pos_y, (tree_type_roll, resource_amount): (f64, u32)| { // Closure now accepts both values
                 // Calculate chunk index for the tree
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -674,13 +677,14 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     pos_x,
                     pos_y,
                     health: crate::tree::TREE_INITIAL_HEALTH,
+                    resource_remaining: resource_amount, // Use the passed-in resource amount
                     tree_type, // Assign the chosen type
                     chunk_index: chunk_idx, // Set the chunk index
                     last_hit_time: None,
                     respawn_at: None,
                 }
             },
-            tree_type_roll_for_this_attempt, // Pass the roll as extra_args
+            (tree_type_roll_for_this_attempt, tree_resource_amount), // Pass both values as extra_args
             |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y), // Block water and central compound for trees
             trees,
         ) {
@@ -698,6 +702,10 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Seeding Stones...");
     while spawned_stone_count < target_stone_count && stone_attempts < max_stone_attempts {
         stone_attempts += 1;
+        
+        // Generate random resource amount *before* calling attempt_single_spawn
+        let stone_resource_amount = rng.gen_range(crate::stone::STONE_MIN_RESOURCES..=crate::stone::STONE_MAX_RESOURCES);
+        
          match attempt_single_spawn(
             &mut rng,
             &mut occupied_tiles,
@@ -711,7 +719,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             crate::stone::MIN_STONE_DISTANCE_SQ,
             crate::stone::MIN_STONE_TREE_DISTANCE_SQ,
             0.0,
-            |pos_x, pos_y, _extra: ()| {
+            |pos_x, pos_y, resource_amount: u32| {
                 // Calculate chunk index for the stone
                 let chunk_idx = calculate_chunk_index(pos_x, pos_y);
                 
@@ -720,12 +728,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     pos_x,
                     pos_y,
                     health: crate::stone::STONE_INITIAL_HEALTH,
+                    resource_remaining: resource_amount, // Use the passed-in resource amount
                     chunk_index: chunk_idx, // Set the chunk index
                     last_hit_time: None,
                     respawn_at: None,
                 }
             },
-            (),
+            stone_resource_amount, // Pass the resource amount as extra_args
             |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y), // Block water and central compound for stones
             stones,
         ) {
@@ -1301,6 +1310,8 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |s: &crate::stone::Stone| s.health == 0, // Filter: only check stones with 0 health
         |s: &mut crate::stone::Stone| { // Update logic
             s.health = crate::stone::STONE_INITIAL_HEALTH;
+            // Generate new random resource amount for respawned stone
+            s.resource_remaining = ctx.rng().gen_range(crate::stone::STONE_MIN_RESOURCES..=crate::stone::STONE_MAX_RESOURCES);
             s.respawn_at = None;
             s.last_hit_time = None;
         }
@@ -1315,6 +1326,8 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         |t: &crate::tree::Tree| t.health == 0,
         |t: &mut crate::tree::Tree| {
             t.health = crate::tree::TREE_INITIAL_HEALTH;
+            // Generate new random resource amount for respawned tree
+            t.resource_remaining = ctx.rng().gen_range(crate::tree::TREE_MIN_RESOURCES..=crate::tree::TREE_MAX_RESOURCES);
             t.respawn_at = None;
             t.last_hit_time = None;
             // Position doesn't change during respawn, so chunk_index stays the same

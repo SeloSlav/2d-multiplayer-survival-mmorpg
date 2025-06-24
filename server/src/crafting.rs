@@ -49,11 +49,11 @@ fn find_def_id_by_name(name_to_find: &str, item_definitions_table: &item_definit
 pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
     let recipe_table = ctx.db.recipe();
     if recipe_table.iter().count() > 0 {
-        log::info!("Recipes already seeded. Skipping.");
+        // log::info!("Recipes already seeded. Skipping.");
         return Ok(());
     }
 
-    log::info!("Seeding recipes from ItemDefinitions...");
+    // log::info!("Seeding recipes from ItemDefinitions...");
     let item_defs_table = ctx.db.item_definition();
     let mut recipes_created_count = 0;
 
@@ -65,7 +65,7 @@ pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
             item_def_for_output.crafting_time_secs,
         ) {
             if cost_ingredients.is_empty() {
-                log::debug!("Skipping item '{}' for recipe creation: crafting_cost is empty.", item_def_for_output.name);
+                // log::debug!("Skipping item '{}' for recipe creation: crafting_cost is empty.", item_def_for_output.name);
                 continue;
             }
 
@@ -81,7 +81,7 @@ pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
                         });
                     }
                     Err(e) => {
-                        log::error!("Error resolving ingredient '{}' for recipe '{}': {}. Skipping this recipe.", cost_ingredient.item_name, item_def_for_output.name, e);
+                        // log::error!("Error resolving ingredient '{}' for recipe '{}': {}. Skipping this recipe.", cost_ingredient.item_name, item_def_for_output.name, e);
                         ingredients_valid = false;
                         break;
                     }
@@ -97,7 +97,7 @@ pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
                     crafting_time_secs: time_secs,
                 };
 
-                log::debug!("Inserting recipe for: {}", item_def_for_output.name);
+                // log::debug!("Inserting recipe for: {}", item_def_for_output.name);
                 recipe_table.insert(recipe);
                 recipes_created_count += 1;
             }
@@ -106,6 +106,6 @@ pub fn seed_recipes(ctx: &ReducerContext) -> Result<(), String> {
         }
     }
 
-    log::info!("Finished seeding {} recipes from ItemDefinitions.", recipes_created_count);
+    // log::info!("Finished seeding {} recipes from ItemDefinitions.", recipes_created_count);
     Ok(())
 }

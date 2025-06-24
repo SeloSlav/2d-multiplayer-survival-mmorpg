@@ -310,9 +310,9 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         // Update weather after updating time
         update_weather(ctx, &mut world_state, elapsed_seconds)?;
         
-        log::debug!("World tick: Progress {:.2}, Time: {:?}, Cycle: {}, Full Moon: {}, Season: {:?} (Day {} of Year {}), Weather: {:?}", 
-                   new_progress, world_state.time_of_day, new_cycle_count, new_is_full_moon, 
-                   world_state.current_season, world_state.day_of_year, world_state.year, world_state.current_weather);
+        // log::debug!("World tick: Progress {:.2}, Time: {:?}, Cycle: {}, Full Moon: {}, Season: {:?} (Day {} of Year {}), Weather: {:?}", 
+        //            new_progress, world_state.time_of_day, new_cycle_count, new_is_full_moon, 
+        //            world_state.current_season, world_state.day_of_year, world_state.year, world_state.current_weather);
     }
 
     Ok(())
@@ -598,10 +598,23 @@ fn is_campfire_inside_shelter(ctx: &ReducerContext, campfire: &Campfire) -> bool
         // Check if campfire position is inside shelter AABB
         if campfire.pos_x >= aabb_left && campfire.pos_x <= aabb_right &&
            campfire.pos_y >= aabb_top && campfire.pos_y <= aabb_bottom {
+            log::info!(
+                "[ShelterRainProtection] Campfire {} at ({:.1}, {:.1}) IS PROTECTED by Shelter {} AABB",
+                campfire.id, campfire.pos_x, campfire.pos_y, shelter.id
+            );
             return true;
+        } else {
+            log::debug!(
+                "[ShelterRainProtection] Campfire {} at ({:.1}, {:.1}) is NOT inside Shelter {} AABB",
+                campfire.id, campfire.pos_x, campfire.pos_y, shelter.id
+            );
         }
     }
     
+    log::debug!(
+        "[ShelterRainProtection] Campfire {} at ({:.1}, {:.1}) is NOT protected by any shelter",
+        campfire.id, campfire.pos_x, campfire.pos_y
+    );
     false
 }
 

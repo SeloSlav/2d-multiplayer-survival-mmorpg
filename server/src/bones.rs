@@ -55,8 +55,8 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
         .find(|def| def.name == "Bone Fragments")
         .ok_or_else(|| "Bone Fragments item definition not found".to_string())?;
 
-    log::info!("[CrushBone] Player {} crushing {} into {} bone fragments", 
-             sender_id, item_def.name, fragments_to_create);
+    // log::info!("[CrushBone] Player {} crushing {} into {} bone fragments", 
+    //          sender_id, item_def.name, fragments_to_create);
 
     // 4. Update item quantity or delete if last one
     if item_to_crush.quantity > 1 {
@@ -72,9 +72,9 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
     match try_give_item_to_player(ctx, sender_id, bone_fragments_def.id, fragments_to_create) {
         Ok(added_to_inventory) => {
             if added_to_inventory {
-                log::info!("[CrushBone] Added {} bone fragments to inventory for player {}", fragments_to_create, sender_id);
+                // log::info!("[CrushBone] Added {} bone fragments to inventory for player {}", fragments_to_create, sender_id);
             } else {
-                log::info!("[CrushBone] Inventory full, dropped {} bone fragments near player {}", fragments_to_create, sender_id);
+                // log::info!("[CrushBone] Inventory full, dropped {} bone fragments near player {}", fragments_to_create, sender_id);
             }
             Ok(())
         },

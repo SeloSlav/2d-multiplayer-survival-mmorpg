@@ -153,6 +153,9 @@ where
     // Update the resource (delegate to resource-specific implementation)
     update_resource_fn(respawn_time)?;
     
+    // Emit harvest plant sound at resource position
+    crate::sound_events::emit_harvest_plant_sound(ctx, _resource_pos_x_for_log, _resource_pos_y_for_log, player_id);
+    
     // Original log was more specific to the resource type via _resource_id_for_log.
     // Kept specific logs above for primary/secondary grants.
     // General log about scheduling respawn can remain or be adapted.

@@ -470,6 +470,9 @@ pub fn plant_seed(
     log::info!("PLANT_SEED: SUCCESS - Player {:?} planted {} at ({:.1}, {:.1}) - will mature in {} seconds", 
               player_id, item_def.name, plant_pos_x, plant_pos_y, growth_time_secs);
     
+    // Emit plant seed sound
+    crate::sound_events::emit_plant_seed_sound(ctx, plant_pos_x, plant_pos_y, player_id);
+    
     Ok(())
 }
 

@@ -105,6 +105,9 @@ pub fn pickup_dropped_item(ctx: &ReducerContext, dropped_item_id: u64) -> Result
             // 5. Delete the original dropped item regardless of whether it went to inventory or was re-dropped
             dropped_items_table.id().delete(dropped_item_id);
             
+            // Emit pickup sound at the dropped item's position
+            crate::sound_events::emit_pickup_item_sound(ctx, dropped_item.pos_x, dropped_item.pos_y, sender_id);
+            
             if added_to_inventory {
                 log::info!("[PickupDropped] Successfully picked up item '{}' (ID {}) and added to inventory for player {:?}",
                          item_name, dropped_item_id, sender_id);

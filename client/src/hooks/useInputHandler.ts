@@ -345,6 +345,8 @@ export const useInputHandler = ({
             if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
             if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
             try {
+                // 🔊 IMMEDIATE SOUND: Play weapon swing sound for instant feedback
+                // playWeaponSwingSound(0.8);
                 connectionRef.current.reducers.useEquippedItem();
                 lastClientSwingAttemptRef.current = nowUnarmed;
                 lastServerSwingTimestampRef.current = nowUnarmed;
@@ -364,6 +366,22 @@ export const useInputHandler = ({
             if (now - lastClientSwingAttemptRef.current < attackIntervalMs) return;
             if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) return;
             try {
+                // 🔊 IMMEDIATE SOUND: Only play generic swing for non-resource tools
+                const activeItem = activeEquipmentsRef.current.get(localPlayerId || '');
+                const itemDef = itemDefinitionsRef.current.get(activeItem?.equippedItemDefId?.toString() || '');
+                
+                // Don't play immediate sounds for resource gathering tools - let server handle those
+                const isResourceTool = itemDef?.name && (
+                    itemDef.name.toLowerCase().includes('hatchet') || 
+                    itemDef.name.toLowerCase().includes('axe') ||
+                    itemDef.name.toLowerCase().includes('pickaxe') ||
+                    itemDef.name.toLowerCase().includes('pick')
+                );
+                
+                if (!isResourceTool) {
+                    // Play immediate sound for combat weapons and other tools
+                    // playWeaponSwingSound(0.8);
+                }
                 connectionRef.current.reducers.useEquippedItem();
                 lastClientSwingAttemptRef.current = now;
                 lastServerSwingTimestampRef.current = now;
@@ -752,6 +770,22 @@ export const useInputHandler = ({
                 if (localPlayerId && connectionRef.current?.reducers) {
                     // console.log("[InputHandler MOUSEDOWN] Calling useEquippedItem for melee/tool or unarmed.");
                     try {
+                        // 🔊 IMMEDIATE SOUND: Only play generic swing for non-resource tools
+                        const activeItem = activeEquipmentsRef.current.get(localPlayerId);
+                        const itemDef = itemDefinitionsRef.current.get(activeItem?.equippedItemDefId?.toString() || '');
+                        
+                        // Don't play immediate sounds for resource gathering tools - let server handle those
+                        const isResourceTool = itemDef?.name && (
+                            itemDef.name.toLowerCase().includes('hatchet') || 
+                            itemDef.name.toLowerCase().includes('axe') ||
+                            itemDef.name.toLowerCase().includes('pickaxe') ||
+                            itemDef.name.toLowerCase().includes('pick')
+                        );
+                        
+                        if (!isResourceTool) {
+                            // Play immediate sound for combat weapons and other tools
+                            // playWeaponSwingSound(0.8);
+                        }
                         connectionRef.current.reducers.useEquippedItem();
                     } catch (e) {
                         // ignore for now
@@ -834,6 +868,8 @@ export const useInputHandler = ({
                 if (nowUnarmed - lastClientSwingAttemptRef.current < SWING_COOLDOWN_MS) return;
                 if (nowUnarmed - Number(localEquipment?.swingStartTimeMs || 0) < SWING_COOLDOWN_MS) return;
                 try {
+                    // 🔊 IMMEDIATE SOUND: Play unarmed swing sound
+                    // playWeaponSwingSound(0.8);
                     connectionRef.current.reducers.useEquippedItem();
                     lastClientSwingAttemptRef.current = nowUnarmed;
                     lastServerSwingTimestampRef.current = nowUnarmed;
@@ -851,6 +887,18 @@ export const useInputHandler = ({
                 if (now - lastClientSwingAttemptRef.current < attackIntervalMs) return;
                 if (now - Number(localEquipment.swingStartTimeMs) < attackIntervalMs) return;
                 try {
+                    // 🔊 IMMEDIATE SOUND: Only play generic swing for non-resource tools
+                    const isResourceTool = itemDef?.name && (
+                        itemDef.name.toLowerCase().includes('hatchet') || 
+                        itemDef.name.toLowerCase().includes('axe') ||
+                        itemDef.name.toLowerCase().includes('pickaxe') ||
+                        itemDef.name.toLowerCase().includes('pick')
+                    );
+                    
+                    if (!isResourceTool) {
+                        // Play immediate sound for combat weapons and other tools
+                        // playWeaponSwingSound(0.8);
+                    }
                     connectionRef.current.reducers.useEquippedItem();
                     lastClientSwingAttemptRef.current = now;
                     lastServerSwingTimestampRef.current = now;
@@ -905,6 +953,8 @@ export const useInputHandler = ({
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
                             // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Bandage.");
+                            // 🔊 IMMEDIATE SOUND: Play button click for bandage use
+                            // playButtonClickSound(0.6);
                             connectionRef.current.reducers.useEquippedItem();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Bandage.");
@@ -915,6 +965,8 @@ export const useInputHandler = ({
                         event.preventDefault();
                         if (connectionRef.current?.reducers) {
                             // console.log("[InputHandler CTXMENU] Calling useEquippedItem for Selo Olive Oil.");
+                            // 🔊 IMMEDIATE SOUND: Play button click for Selo Olive Oil use
+                            // playButtonClickSound(0.6);
                             connectionRef.current.reducers.useEquippedItem();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Selo Olive Oil.");
