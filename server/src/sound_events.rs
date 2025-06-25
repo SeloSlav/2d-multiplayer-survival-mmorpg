@@ -18,6 +18,7 @@ pub enum SoundType {
     LanternLooping,  // lantern_looping.mp3 (1 variation - continuous looping sound)
     Repair,       // repair.mp3, repair1.mp3, repair2.mp3 (3 variations - for successful repairs)
     RepairFail,   // repair_fail.mp3 (1 variation - for failed repair attempts)
+    HeavyStormRain, // rain_heavy_storm.mp3 (1 variation - continuous heavy rain sound during storms)
     // Add more as needed - extensible system
 }
 
@@ -37,6 +38,7 @@ impl SoundType {
             SoundType::LanternLooping => "lantern_looping",
             SoundType::Repair => "repair",
             SoundType::RepairFail => "repair_fail",
+            SoundType::HeavyStormRain => "rain_heavy_storm",
         }
     }
 
@@ -55,6 +57,7 @@ impl SoundType {
             SoundType::LanternLooping => 1, // lantern_looping.ogg (single variation)
             SoundType::Repair => 3, // repair.ogg, repair1.ogg, repair2.ogg (3 variations)
             SoundType::RepairFail => 1, // repair_fail.ogg (single variation)
+            SoundType::HeavyStormRain => 1, // rain_heavy_storm.ogg (single variation)
         }
     }
 
@@ -482,9 +485,90 @@ pub fn emit_repair_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id
 
 /// Emit repair failure sound (when repair fails due to insufficient resources, etc.)
 pub fn emit_repair_fail_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
-    log::info!("🔧 EMITTING REPAIR FAIL SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
+    log::info!("🔊 EMITTING REPAIR FAIL SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
     if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::RepairFail, pos_x, pos_y, 1.0, 525.0, player_id) {
         log::error!("Failed to emit repair fail sound: {}", e);
+    }
+}
+
+/// Emit a global sound that plays to all clients at full volume regardless of position
+/// This is used for weather effects like lightning/thunder that should be heard everywhere
+pub fn emit_global_sound(
+    ctx: &ReducerContext,
+    sound_type: SoundType,
+    volume: f32,
+) -> Result<(), String> {
+    let mut rng = ctx.rng();
+    let filename = sound_type.get_random_filename(&mut rng);
+    
+    let sound_event = SoundEvent {
+        id: 0, // Auto-incremented
+        sound_type,
+        filename,
+        pos_x: 0.0, // Position doesn't matter for global sounds
+        pos_y: 0.0,
+        volume: volume.max(0.0),
+        max_distance: f32::MAX, // Infinite distance - heard everywhere
+        triggered_by: ctx.identity(), // Triggered by the server/module itself
+        timestamp: ctx.timestamp,
+    };
+
+    match ctx.db.sound_event().try_insert(sound_event) {
+        Ok(inserted) => {
+            log::info!("Global sound event {} emitted: {} at volume {:.1}", 
+                       inserted.id, inserted.filename, volume);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to emit global sound event: {:?}", e);
+            Err("Failed to emit global sound event".to_string())
+        }
+    }
+}
+
+/// Start heavy storm rain continuous sound globally
+pub fn start_heavy_storm_rain_sound(ctx: &ReducerContext) -> Result<(), String> {
+    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX; // Use max value as a unique ID for global storm rain
+    
+    // Check if heavy storm rain sound is already active
+    if ctx.db.continuous_sound().object_id().find(STORM_RAIN_OBJECT_ID).is_some() {
+        log::debug!("Heavy storm rain sound already active");
+        return Ok(());
+    }
+    
+    let continuous_sound = ContinuousSound {
+        object_id: STORM_RAIN_OBJECT_ID,
+        sound_type: SoundType::HeavyStormRain,
+        filename: "rain_heavy_storm.mp3".to_string(),
+        pos_x: 0.0, // Global sound, position doesn't matter
+        pos_y: 0.0,
+        volume: 1.2, // Loud enough to be atmospheric
+        max_distance: f32::MAX, // Infinite distance - heard everywhere
+        is_active: true,
+        created_at: ctx.timestamp,
+        updated_at: ctx.timestamp,
+    };
+    
+    match ctx.db.continuous_sound().try_insert(continuous_sound) {
+        Ok(_) => {
+            log::info!("🌧️ Started heavy storm rain sound globally");
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to start heavy storm rain sound: {:?}", e);
+            Err("Failed to start heavy storm rain sound".to_string())
+        }
+    }
+}
+
+/// Stop heavy storm rain continuous sound
+pub fn stop_heavy_storm_rain_sound(ctx: &ReducerContext) {
+    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX;
+    
+    if ctx.db.continuous_sound().object_id().delete(STORM_RAIN_OBJECT_ID) {
+        log::info!("🌧️ Stopped heavy storm rain sound");
+    } else {
+        log::debug!("Heavy storm rain sound was not active");
     }
 }
 

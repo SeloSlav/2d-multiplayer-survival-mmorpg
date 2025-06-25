@@ -175,8 +175,10 @@ interface GameScreenProps {
     // Volume settings for menu controls
     musicVolume: number;
     soundVolume: number;
+    environmentalVolume: number;
     onMusicVolumeChange: (volume: number) => void;
     onSoundVolumeChange: (volume: number) => void;
+    onEnvironmentalVolumeChange: (volume: number) => void;
     
     // Sound system for immediate sound effects
     soundSystem: ReturnType<typeof import('../hooks/useSoundSystem').useSoundSystem>;
@@ -254,8 +256,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         musicSystem,
         musicVolume,
         soundVolume,
+        environmentalVolume,
         onMusicVolumeChange,
         onSoundVolumeChange,
+        onEnvironmentalVolumeChange,
         soundSystem,
     } = props;
 
@@ -444,18 +448,17 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                     
                     <button 
                         onClick={(e) => {
-                            // Toggle heavy rain for testing campfire protection
+                            // Cycle through all weather types
                             const currentWeather = worldState?.currentWeather?.tag;
-                            const isHeavyRain = currentWeather === 'HeavyRain';
+                            const weatherTypes = ['Clear', 'LightRain', 'ModerateRain', 'HeavyRain', 'HeavyStorm'];
+                            const currentIndex = weatherTypes.indexOf(currentWeather || 'Clear');
+                            const nextIndex = (currentIndex + 1) % weatherTypes.length;
+                            const nextWeather = weatherTypes[nextIndex];
                             
                             if (connection) {
                                 try {
-                                    // Call reducer to toggle weather (only available in debug builds)
-                                    if (isHeavyRain) {
-                                        (connection.reducers as any).debugSetWeather('Clear');
-                                    } else {
-                                        (connection.reducers as any).debugSetWeather('HeavyRain');
-                                    }
+                                    // Call reducer to set next weather type (only available in debug builds)
+                                    (connection.reducers as any).debugSetWeather(nextWeather);
                                 } catch (error) {
                                     console.warn('Debug weather function not available (production build?):', error);
                                 }
@@ -466,7 +469,17 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             e.currentTarget.blur(); // Prevent the button from staying focused
                         }}
                         style={{
-                            backgroundColor: worldState?.currentWeather?.tag === 'HeavyRain' ? '#2196F3' : '#FF9800',
+                            backgroundColor: (() => {
+                                const weather = worldState?.currentWeather?.tag;
+                                switch (weather) {
+                                    case 'Clear': return '#4CAF50'; // Green
+                                    case 'LightRain': return '#03A9F4'; // Light Blue
+                                    case 'ModerateRain': return '#2196F3'; // Blue
+                                    case 'HeavyRain': return '#3F51B5'; // Indigo
+                                    case 'HeavyStorm': return '#9C27B0'; // Purple
+                                    default: return '#FF9800'; // Orange fallback
+                                }
+                            })(),
                             color: 'white',
                             border: 'none',
                             padding: '4px 8px',
@@ -475,7 +488,17 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             cursor: 'pointer'
                         }}
                     >
-                        Weather: {worldState?.currentWeather?.tag === 'HeavyRain' ? 'HEAVY RAIN' : 'CLEAR'}
+                        Weather: {(() => {
+                            const weather = worldState?.currentWeather?.tag;
+                            switch (weather) {
+                                case 'Clear': return 'CLEAR';
+                                case 'LightRain': return 'LIGHT RAIN';
+                                case 'ModerateRain': return 'MOD RAIN';
+                                case 'HeavyRain': return 'HEAVY RAIN';
+                                case 'HeavyStorm': return 'STORM';
+                                default: return 'UNKNOWN';
+                            }
+                        })()}
                     </button>
                     
                     <button 
@@ -548,10 +571,13 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             {currentMenu === 'settings' && (
                 <GameSettingsMenu
                     onBack={handleMenuBack}
+                    onClose={handleMenuClose}
                     musicVolume={musicVolume}
                     soundVolume={soundVolume}
+                    environmentalVolume={environmentalVolume}
                     onMusicVolumeChange={onMusicVolumeChange}
                     onSoundVolumeChange={onSoundVolumeChange}
+                    onEnvironmentalVolumeChange={onEnvironmentalVolumeChange}
                 />
             )}
             

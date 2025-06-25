@@ -47,6 +47,7 @@ export namespace SoundType {
   export type LanternLooping = { tag: "LanternLooping" };
   export type Repair = { tag: "Repair" };
   export type RepairFail = { tag: "RepairFail" };
+  export type HeavyStormRain = { tag: "HeavyStormRain" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -66,6 +67,7 @@ export namespace SoundType {
   export const LanternLooping = { tag: "LanternLooping" };
   export const Repair = { tag: "Repair" };
   export const RepairFail = { tag: "RepairFail" };
+  export const HeavyStormRain = { tag: "HeavyStormRain" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -81,6 +83,7 @@ export namespace SoundType {
       new SumTypeVariant("LanternLooping", AlgebraicType.createProductType([])),
       new SumTypeVariant("Repair", AlgebraicType.createProductType([])),
       new SumTypeVariant("RepairFail", AlgebraicType.createProductType([])),
+      new SumTypeVariant("HeavyStormRain", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -95,7 +98,7 @@ export namespace SoundType {
 }
 
 // The tagged union or sum type for the algebraic type `SoundType`.
-export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail;
+export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain;
 
 export default SoundType;
 

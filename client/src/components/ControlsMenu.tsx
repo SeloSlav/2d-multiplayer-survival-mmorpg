@@ -68,12 +68,26 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                         fontSize: '24px',
                         color: '#00ffff',
                         textAlign: 'center',
-                        marginBottom: '25px',
+                        marginBottom: '8px',
                         textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
                     }}
                 >
-                    NEURAL CONTROL INTERFACE
+                    MOTOR CORTEX INTERFACE
                 </h2>
+                
+                <div
+                    style={{
+                        fontFamily: '"Press Start 2P", cursive',
+                        fontSize: '12px',
+                        color: '#6699cc',
+                        textAlign: 'center',
+                        letterSpacing: '1px',
+                        opacity: 0.8,
+                        marginBottom: '25px',
+                    }}
+                >
+                    Neural Input Mapping Protocol v0.53
+                </div>
 
                 <div 
                     data-scrollable-region="controls-content"
@@ -110,7 +124,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '13px',
+                                                fontSize: '16px',
                                                 color: '#ffdd44',
                                                 fontWeight: 'bold',
                                                 minWidth: '120px',
@@ -123,7 +137,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '13px',
+                                                fontSize: '16px',
                                                 color: '#ffffff',
                                                 textAlign: 'left',
                                                 flex: 1,
@@ -149,16 +163,27 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                             color: '#ffffff',
                             border: '2px solid #ff8833',
                             borderRadius: '8px',
-                            padding: '12px 20px',
+                            padding: '15px 30px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '13px',
+                            fontSize: '16px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)',
                             textShadow: '0 0 5px rgba(255, 136, 51, 0.8)',
+                            letterSpacing: '1px',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(100, 50, 25, 0.9), rgba(80, 40, 20, 1))';
+                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 136, 51, 0.6), inset 0 0 15px rgba(255, 136, 51, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(80, 40, 20, 0.8), rgba(60, 30, 15, 0.9))';
+                            e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)';
                         }}
                     >
-                        Back to Menu
+                        NEURAL INTERFACE MENU
                     </button>
                     <button
                         onClick={onClose}
@@ -168,16 +193,27 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                             color: '#ffffff',
                             border: '2px solid #00aaff',
                             borderRadius: '8px',
-                            padding: '12px 20px',
+                            padding: '15px 30px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '13px',
+                            fontSize: '16px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',
                             textShadow: '0 0 5px rgba(0, 170, 255, 0.8)',
+                            letterSpacing: '1px',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 50, 100, 0.9), rgba(15, 40, 90, 1))';
+                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))';
+                            e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)';
                         }}
                     >
-                        Back to Game
+                        RESUME CONSCIOUSNESS
                     </button>
                 </div>
             </div>

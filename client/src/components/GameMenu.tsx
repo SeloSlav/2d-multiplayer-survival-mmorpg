@@ -21,6 +21,7 @@ const GameMenu: React.FC<GameMenuProps> = ({
     onSoundVolumeChange 
 }) => {
     const { logout } = useAuth();
+    const [showSignOutConfirm, setShowSignOutConfirm] = React.useState(false);
     
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
@@ -28,17 +29,26 @@ const GameMenu: React.FC<GameMenuProps> = ({
         }
     };
 
-    const handleSignOut = async () => {
+    const handleSignOutRequest = () => {
+        setShowSignOutConfirm(true);
+    };
+
+    const handleSignOutConfirm = async () => {
+        setShowSignOutConfirm(false);
         onClose(); // Close the menu first
         await logout(); // Then sign out
     };
 
+    const handleSignOutCancel = () => {
+        setShowSignOutConfirm(false);
+    };
+
     const menuOptions = [
-        { label: 'Back to Game', action: () => onClose() },
-        { label: 'Settings', action: () => onNavigate('settings') },
-        { label: 'Controls', action: () => onNavigate('controls') },
-        { label: 'Game Tips', action: () => onNavigate('tips') },
-        { label: 'Sign Out', action: handleSignOut, isSignOut: true },
+        { label: 'RESUME CONSCIOUSNESS', action: () => onClose() },
+        { label: 'AUDITORY CORTEX MODULE', action: () => onNavigate('settings') },
+        { label: 'MOTOR CORTEX INTERFACE', action: () => onNavigate('controls') },
+        { label: 'TACTICAL KNOWLEDGE MATRIX', action: () => onNavigate('tips') },
+        { label: 'FORCE NEURAL SLEEP', action: handleSignOutRequest, isSignOut: true },
     ];
 
     return (
@@ -182,6 +192,146 @@ const GameMenu: React.FC<GameMenuProps> = ({
                         </button>
                     ))}
                 </div>
+                
+                {/* Neural Sleep Confirmation Dialog */}
+                {showSignOutConfirm && (
+                    <div 
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 10000,
+                        }}
+                        onClick={handleSignOutCancel}
+                    >
+                        <div 
+                            style={{
+                                background: 'linear-gradient(145deg, rgba(40, 20, 60, 0.98), rgba(30, 15, 50, 0.99))',
+                                border: '2px solid #ff3366',
+                                borderRadius: '12px',
+                                padding: '30px',
+                                maxWidth: '450px',
+                                textAlign: 'center',
+                                boxShadow: '0 0 40px rgba(255, 51, 102, 0.4), inset 0 0 20px rgba(255, 51, 102, 0.1)',
+                                position: 'relative',
+                                overflow: 'hidden',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Warning scan line */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: '2px',
+                                background: 'linear-gradient(90deg, transparent, #ff3366, transparent)',
+                                animation: 'scanLine 2s linear infinite',
+                            }} />
+                            
+                            <div style={{
+                                color: '#ff6699',
+                                fontSize: '18px',
+                                marginBottom: '15px',
+                                textShadow: '0 0 10px rgba(255, 102, 153, 0.8)',
+                                fontFamily: '"Press Start 2P", cursive',
+                                letterSpacing: '1px',
+                            }}>
+                                ⚠️ NEURAL SLEEP PROTOCOL ⚠️
+                            </div>
+                            
+                            <div style={{
+                                color: '#ffffff',
+                                fontSize: '14px',
+                                lineHeight: '1.8',
+                                marginBottom: '25px',
+                                padding: '20px',
+                                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                                borderRadius: '8px',
+                                border: '1px solid rgba(255, 51, 102, 0.3)',
+                                fontFamily: '"Press Start 2P", cursive',
+                            }}>
+                                WARNING: Initiating neural sleep will disconnect your consciousness from the SOVA survival matrix.
+                                <br /><br />
+                                Your physical body will remain vulnerable in the world while your neural pathways are severed.
+                                <br /><br />
+                                Are you certain you wish to force neural sleep?
+                            </div>
+
+                            <div style={{
+                                display: 'flex',
+                                gap: '15px',
+                                justifyContent: 'center',
+                            }}>
+                                <button
+                                    onClick={handleSignOutConfirm}
+                                    style={{
+                                        background: 'linear-gradient(135deg, rgba(120, 20, 40, 0.8), rgba(80, 10, 30, 0.9))',
+                                        color: '#ffffff',
+                                        border: '2px solid #ff3366',
+                                        borderRadius: '8px',
+                                        padding: '15px 25px',
+                                        fontFamily: '"Press Start 2P", cursive',
+                                        fontSize: '12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s ease',
+                                        boxShadow: '0 0 15px rgba(255, 51, 102, 0.3), inset 0 0 10px rgba(255, 51, 102, 0.1)',
+                                        textShadow: '0 0 5px currentColor',
+                                        letterSpacing: '1px',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(150, 30, 50, 0.9), rgba(100, 15, 35, 1))';
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                                        e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 51, 102, 0.6), inset 0 0 15px rgba(255, 51, 102, 0.2)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(120, 20, 40, 0.8), rgba(80, 10, 30, 0.9))';
+                                        e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                                        e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 51, 102, 0.3), inset 0 0 10px rgba(255, 51, 102, 0.1)';
+                                    }}
+                                >
+                                    CONFIRM NEURAL SLEEP
+                                </button>
+                                
+                                <button
+                                    onClick={handleSignOutCancel}
+                                    style={{
+                                        background: 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))',
+                                        color: '#ffffff',
+                                        border: '2px solid #00aaff',
+                                        borderRadius: '8px',
+                                        padding: '15px 25px',
+                                        fontFamily: '"Press Start 2P", cursive',
+                                        fontSize: '12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s ease',
+                                        boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',
+                                        textShadow: '0 0 5px currentColor',
+                                        letterSpacing: '1px',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 50, 100, 0.9), rgba(15, 40, 90, 1))';
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                                        e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))';
+                                        e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                                        e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)';
+                                    }}
+                                >
+                                    MAINTAIN CONNECTION
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 
                 <style>{`
                     @keyframes scanLine {

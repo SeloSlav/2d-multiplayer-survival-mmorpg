@@ -146,6 +146,8 @@ pub fn seed_world_state(ctx: &ReducerContext) -> Result<(), String> {
 // Debug reducer to manually set weather (only for testing)
 #[spacetimedb::reducer]
 pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Result<(), String> {
+    let now = ctx.timestamp;
+    let mut rng = ctx.rng();
 
     let weather_type = match weather_type_str.as_str() {
         "Clear" => WeatherType::Clear,
@@ -161,9 +163,16 @@ pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Resu
         "WorldState singleton not found".to_string()
     })?;
     
+    // 🌧️ Stop heavy rain sound if we're changing away from heavy weather
+    if matches!(world_state.current_weather, WeatherType::HeavyRain | WeatherType::HeavyStorm) 
+        && !matches!(weather_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
+        sound_events::stop_heavy_storm_rain_sound(ctx);
+        log::info!("🌧️ Stopped heavy rain sound due to debug weather change: {:?} -> {:?}", world_state.current_weather, weather_type);
+    }
+    
     // Set the weather immediately
     world_state.current_weather = weather_type.clone();
-    world_state.weather_start_time = Some(ctx.timestamp);
+    world_state.weather_start_time = Some(now);
     world_state.rain_intensity = match weather_type {
         WeatherType::Clear => 0.0,
         WeatherType::LightRain => 0.3,
@@ -179,6 +188,25 @@ pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Resu
     // Handle campfire extinguishing if it's heavy weather
     if matches!(weather_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
         extinguish_unprotected_campfires(ctx, &weather_type)?;
+    }
+    
+    // Handle HeavyStorm-specific setup (thunder scheduling)
+    if weather_type == WeatherType::HeavyStorm {
+        // Schedule first thunder for Heavy Storm
+        let mut updated_world_state = world_state.clone();
+        let first_thunder_delay = rng.gen_range(5.0..=15.0); // 5-15 seconds
+        updated_world_state.next_thunder_time = Some(now + spacetimedb::TimeDuration::from_micros((first_thunder_delay * 1_000_000.0) as i64));
+        ctx.db.world_state().id().update(updated_world_state);
+        log::info!("Heavy Storm started with thunder scheduled in {:.1} seconds", first_thunder_delay);
+    }
+    
+    // 🌧️ Start continuous heavy rain sound for both HeavyRain and HeavyStorm
+    if matches!(weather_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
+        if let Err(e) = sound_events::start_heavy_storm_rain_sound(ctx) {
+            log::error!("Failed to start heavy rain sound: {}", e);
+        } else {
+            log::info!("🌧️ Started heavy rain sound for debug weather change: {:?}", weather_type);
+        }
     }
     
     log::info!("Debug: Weather manually set to {:?}", weather_type);
@@ -385,9 +413,18 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                     
                     // Schedule first thunder for Heavy Storm
                     if rain_type == WeatherType::HeavyStorm {
-                        let first_thunder_delay = rng.gen_range(10.0..=30.0); // 10-30 seconds
+                        let first_thunder_delay = rng.gen_range(5.0..=15.0); // 5-15 seconds (reduced from 10-30)
                         world_state.next_thunder_time = Some(now + spacetimedb::TimeDuration::from_micros((first_thunder_delay * 1_000_000.0) as i64));
                         log::info!("Heavy Storm started with thunder scheduled in {:.1} seconds", first_thunder_delay);
+                    }
+                    
+                    // 🌧️ Start continuous heavy rain sound for both HeavyRain and HeavyStorm
+                    if matches!(rain_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
+                        if let Err(e) = sound_events::start_heavy_storm_rain_sound(ctx) {
+                            log::error!("Failed to start heavy rain sound: {}", e);
+                        } else {
+                            log::info!("🌧️ Started heavy rain sound for {:?}", rain_type);
+                        }
                     }
                     
                     log::info!("Rain started: {:?} with intensity {:.2} for {:.1} seconds", 
@@ -406,6 +443,11 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                 let rain_elapsed = (now.to_micros_since_unix_epoch() - start_time.to_micros_since_unix_epoch()) as f32 / 1_000_000.0;
                 
                 if rain_elapsed >= duration {
+                    // 🌧️ Stop heavy rain sound if it was heavy rain or heavy storm (check before changing weather)
+                    if matches!(world_state.current_weather, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
+                        sound_events::stop_heavy_storm_rain_sound(ctx);
+                    }
+                    
                     // End rain
                     world_state.current_weather = WeatherType::Clear;
                     world_state.rain_intensity = 0.0;
@@ -424,19 +466,24 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                             if now.to_micros_since_unix_epoch() >= next_thunder.to_micros_since_unix_epoch() {
                                 // Thunder occurs! Schedule next one
                                 world_state.last_thunder_time = Some(now);
-                                let next_thunder_delay = rng.gen_range(15.0..=60.0); // 15-60 seconds between thunder
+                                let next_thunder_delay = rng.gen_range(8.0..=25.0); // 8-25 seconds between thunder (reduced from 15-60)
                                 world_state.next_thunder_time = Some(now + spacetimedb::TimeDuration::from_micros((next_thunder_delay * 1_000_000.0) as i64));
                                 
-                                // Create thunder event for client
+                                // Create thunder event for client (visual flash only)
                                 let thunder_intensity = rng.gen_range(0.5..=1.0);
                                 let thunder_event = ThunderEvent {
-                                    id: 0, // auto_inc
-                                    timestamp: now,
+                                    id: 0, // Auto-incremented
                                     intensity: thunder_intensity,
+                                    timestamp: now,
                                 };
-                                ctx.db.thunder_event().insert(thunder_event);
                                 
-                                log::info!("⚡ THUNDER! Intensity {:.2}, Next thunder in {:.1} seconds", thunder_intensity, next_thunder_delay);
+                                if let Err(e) = ctx.db.thunder_event().try_insert(thunder_event) {
+                                    log::error!("Failed to create thunder event: {}", e);
+                                } else {
+                                    log::info!("⚡ THUNDER! Intensity {:.2}, Next thunder in {:.1} seconds", thunder_intensity, next_thunder_delay);
+                                }
+                                
+                                // Lightning sound removed - too aggressive for gameplay
                             }
                         }
                     }

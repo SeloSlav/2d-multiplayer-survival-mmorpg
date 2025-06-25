@@ -7,7 +7,8 @@ interface SoundSystemProps {
     continuousSounds: Map<string, SpacetimeDB.ContinuousSound>;
     localPlayerPosition: { x: number; y: number } | null;
     localPlayerIdentity: Identity | null;
-    masterVolume?: number; // 0-1 scale (up to 100%)
+    masterVolume?: number; // 0-1 scale (up to 100%) for regular sounds
+    environmentalVolume?: number; // 0-1 scale for environmental sounds (rain, wind, etc.)
 }
 
 // Sound strategy enum for different types of sounds
@@ -34,6 +35,8 @@ const SOUND_DEFINITIONS = {
     // Repair sounds - server only (triggered by repair actions)
     repair: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 525 },
     repair_fail: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525 },
+    // Heavy storm rain - server only global continuous sound during storms
+    rain_heavy_storm: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: Infinity, isLooping: true, isEnvironmental: true },
 } as const;
 
 type SoundType = keyof typeof SOUND_DEFINITIONS;
@@ -344,6 +347,8 @@ const playLocalSound = async (
                 variationCount = 3; // repair.mp3, repair1.mp3, repair2.mp3
             } else if (soundType === 'repair_fail') {
                 variationCount = 1; // repair_fail.mp3
+            } else if (soundType === 'rain_heavy_storm') {
+                variationCount = 1; // rain_heavy_storm.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);
@@ -442,7 +447,8 @@ export const useSoundSystem = ({
     continuousSounds,
     localPlayerPosition, 
     localPlayerIdentity,
-    masterVolume = 0.8 
+    masterVolume = 0.8,
+    environmentalVolume = 0.7
 }: SoundSystemProps) => {
     const processedSoundEventsRef = useRef<Set<string>>(new Set());
     const isInitializedRef = useRef(false);
@@ -563,11 +569,26 @@ export const useSoundSystem = ({
             if (existingSound) {
                 console.log(`🔊 Updating existing sound for object ${objectId}`);
                 
-                // Validate sound position before updating
-                if (!isFinite(continuousSound.posX) || !isFinite(continuousSound.posY)) {
-                    console.warn(`🔊 Invalid sound position for object ${objectId}: (${continuousSound.posX}, ${continuousSound.posY}) - stopping sound`);
-                    cleanupLoopingSound(objectId, "invalid position");
-                    return;
+                // Special handling for global sounds (infinite distance)
+                if (continuousSound.maxDistance === Infinity || !isFinite(continuousSound.maxDistance) || continuousSound.maxDistance >= 1e30) {
+                    // Determine if this is an environmental sound by checking the filename
+                    const isEnvironmental = continuousSound.filename.includes('rain') || 
+                                           continuousSound.filename.includes('wind') || 
+                                           continuousSound.filename.includes('storm');
+                    
+                    // Use environmental volume for environmental sounds, master volume for others
+                    const volumeMultiplier = isEnvironmental ? environmentalVolume : masterVolume;
+                    const globalVolume = continuousSound.volume * volumeMultiplier;
+                    existingSound.volume = Math.min(1.0, globalVolume);
+                    
+                    // Ensure global sound is always playing (never paused)
+                    if (existingSound.paused) {
+                        existingSound.play().catch(err => {
+                            console.warn(`🔊 Failed to resume global sound for object ${objectId}:`, err);
+                        });
+                        console.log(`🔊 Resumed global ${isEnvironmental ? 'environmental' : 'regular'} sound for object ${objectId} (maxDistance: ${continuousSound.maxDistance})`);
+                    }
+                    return; // Done processing this global sound
                 }
                 
                 // Update volume based on distance for existing sound
@@ -625,33 +646,57 @@ export const useSoundSystem = ({
                         return;
                     }
                     
-                    // Validate sound position - prevent "sounds everywhere" bug
-                    if (!isFinite(continuousSound.posX) || !isFinite(continuousSound.posY)) {
-                        console.warn(`🔊 Invalid sound position for object ${objectId}: (${continuousSound.posX}, ${continuousSound.posY}) - skipping`);
-                        pendingSoundCreationRef.current.delete(objectId);
-                        return;
-                    }
+                    let volume: number;
                     
-                    const distance = calculateDistance(
-                        continuousSound.posX,
-                        continuousSound.posY,
-                        localPlayerPosition.x,
-                        localPlayerPosition.y
-                    );
-                    
-                    // Additional validation - prevent extremely large distances that could cause audio issues
-                    if (!isFinite(distance) || distance > 10000) {
-                        console.warn(`🔊 Invalid distance ${distance} for object ${objectId} - skipping sound`);
-                        pendingSoundCreationRef.current.delete(objectId);
-                        return;
-                    }
-                    
-                    const volume = calculateSpatialVolume(
-                        distance,
-                        continuousSound.volume,
-                        continuousSound.maxDistance
-                    ) * masterVolume;
+                    // Special handling for global sounds (infinite distance)
+                    if (continuousSound.maxDistance === Infinity || !isFinite(continuousSound.maxDistance) || continuousSound.maxDistance >= 1e30) {
+                        // Determine if this is an environmental sound by checking the filename
+                        const isEnvironmental = continuousSound.filename.includes('rain') || 
+                                               continuousSound.filename.includes('wind') || 
+                                               continuousSound.filename.includes('storm');
+                        
+                        // Use environmental volume for environmental sounds, master volume for others
+                        const volumeMultiplier = isEnvironmental ? environmentalVolume : masterVolume;
+                        volume = continuousSound.volume * volumeMultiplier;
+                        
+                        console.log(`🔊 Starting global ${isEnvironmental ? 'environmental' : 'regular'} sound for object ${objectId} with volume ${volume.toFixed(3)} (maxDistance: ${continuousSound.maxDistance})`);
+                    } else {
+                        // Validate sound position - prevent "sounds everywhere" bug
+                        if (!isFinite(continuousSound.posX) || !isFinite(continuousSound.posY)) {
+                            console.warn(`🔊 Invalid sound position for object ${objectId}: (${continuousSound.posX}, ${continuousSound.posY}) - skipping`);
+                            pendingSoundCreationRef.current.delete(objectId);
+                            return;
+                        }
+                        
+                        const distance = calculateDistance(
+                            continuousSound.posX,
+                            continuousSound.posY,
+                            localPlayerPosition.x,
+                            localPlayerPosition.y
+                        );
+                        
+                        // Additional validation - prevent extremely large distances that could cause audio issues
+                        if (!isFinite(distance) || distance > 10000) {
+                            console.warn(`🔊 Invalid distance ${distance} for object ${objectId} - skipping sound`);
+                            pendingSoundCreationRef.current.delete(objectId);
+                            return;
+                        }
+                        
+                        volume = calculateSpatialVolume(
+                            distance,
+                            continuousSound.volume,
+                            continuousSound.maxDistance
+                        ) * masterVolume;
 
+                        if (volume <= 0.01) {
+                            console.log(`🔊 Skipping looping sound for object ${objectId} (too far away on start, distance: ${distance.toFixed(1)}, volume: ${volume.toFixed(3)})`);
+                            pendingSoundCreationRef.current.delete(objectId);
+                            return; // Too far away
+                        }
+                        
+                        console.log(`🔊 Starting spatial sound for object ${objectId} at distance ${distance.toFixed(1)} with volume ${volume.toFixed(3)}`);
+                    }
+                    
                     // CRITICAL: Additional validation to prevent "sounds everywhere" bug
                     if (!isFinite(volume) || volume < 0) {
                         console.warn(`🔊 Invalid volume calculated for object ${objectId}: ${volume} - skipping sound`);
@@ -659,23 +704,12 @@ export const useSoundSystem = ({
                         return;
                     }
 
-                    if (volume <= 0.01) {
-                        console.log(`🔊 Skipping looping sound for object ${objectId} (too far away on start, distance: ${distance.toFixed(1)}, volume: ${volume.toFixed(3)})`);
-                        pendingSoundCreationRef.current.delete(objectId);
-                        return; // Too far away
-                    }
-                    
-                    console.log(`🔊 Starting sound for object ${objectId} at distance ${distance.toFixed(1)} with volume ${volume.toFixed(3)}`);
-
-                    // CRITICAL: Ensure volume is properly clamped for HTML Audio
-                    const clampedVolume = Math.min(1.0, Math.max(0.0, volume));
-
                     const audio = await getAudio(continuousSound.filename);
                     const audioClone = audio.cloneNode() as HTMLAudioElement;
                     
                     // Configure for looping
                     audioClone.loop = true;
-                    audioClone.volume = clampedVolume; // Use the properly clamped volume
+                    audioClone.volume = Math.min(1.0, Math.max(0.0, volume)); // Use the properly clamped volume
                     audioClone.currentTime = 0;
                     
                     // Add random pitch variation for variety
@@ -740,7 +774,7 @@ export const useSoundSystem = ({
 
         console.log(`🔊 Active looping sounds: ${activeLoopingSounds.size}, Current active objects: ${currentActiveSounds.size}`);
 
-    }, [continuousSounds, localPlayerPosition, localPlayerIdentity, masterVolume]);
+    }, [continuousSounds, localPlayerPosition, localPlayerIdentity, masterVolume, environmentalVolume]);
     
     // Periodic cleanup to prevent sound leaks
     useEffect(() => {

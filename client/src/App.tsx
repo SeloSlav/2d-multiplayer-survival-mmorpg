@@ -116,6 +116,10 @@ function AppContent() {
         const saved = localStorage.getItem('soundVolume');
         return saved ? Math.min(parseFloat(saved), 1.0) : 0.8; // 80% default (0.8 out of 1.0 max)
     });
+    const [environmentalVolume, setEnvironmentalVolume] = useState(() => {
+        const saved = localStorage.getItem('environmentalVolume');
+        return saved ? Math.min(parseFloat(saved), 1.0) : 0.7; // 70% default (0.7 out of 1.0 max)
+    });
     
     // --- Volume Change Handlers ---
     const handleMusicVolumeChange = useCallback((volume: number) => {
@@ -128,6 +132,12 @@ function AppContent() {
         console.log(`[App] handleSoundVolumeChange called with: ${volume.toFixed(3)}`);
         setSoundVolume(volume);
         localStorage.setItem('soundVolume', volume.toString());
+    }, []);
+    
+    const handleEnvironmentalVolumeChange = useCallback((volume: number) => {
+        console.log(`[App] handleEnvironmentalVolumeChange called with: ${volume.toFixed(3)}`);
+        setEnvironmentalVolume(volume);
+        localStorage.setItem('environmentalVolume', volume.toString());
     }, []);
 
     // --- Viewport State & Refs ---
@@ -204,6 +214,7 @@ function AppContent() {
         localPlayerPosition,
         localPlayerIdentity,
         masterVolume: soundVolume,
+        environmentalVolume: environmentalVolume,
     });
 
     // --- Music System ---
@@ -776,8 +787,10 @@ function AppContent() {
                             musicSystem={musicSystem}
                             musicVolume={musicVolume}
                             soundVolume={soundVolume}
+                            environmentalVolume={environmentalVolume}
                             onMusicVolumeChange={handleMusicVolumeChange}
                             onSoundVolumeChange={handleSoundVolumeChange}
+                            onEnvironmentalVolumeChange={handleEnvironmentalVolumeChange}
                             soundSystem={soundSystemState}
                         />
                     );

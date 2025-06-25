@@ -75,7 +75,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
             <div
                 className={styles.menuContainer}
                 style={{
-                    maxWidth: '500px',
+                    maxWidth: '600px',
                     maxHeight: '80vh',
                     background: 'linear-gradient(145deg, rgba(30, 15, 50, 0.95), rgba(20, 10, 40, 0.98))',
                     border: '2px solid #00ffff',
@@ -96,8 +96,22 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                         textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
                     }}
                 >
-                    SURVIVAL DATABANK
+                    TACTICAL KNOWLEDGE MATRIX
                 </h2>
+                
+                <div
+                    style={{
+                        fontFamily: '"Press Start 2P", cursive',
+                        fontSize: '12px',
+                        color: '#6699cc',
+                        textAlign: 'center',
+                        letterSpacing: '1px',
+                        opacity: 0.8,
+                        marginBottom: '20px',
+                    }}
+                >
+                    Neural Survival Protocol Database v0.53
+                </div>
 
                 {/* Table of Contents */}
                 <div style={{
@@ -268,16 +282,27 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                             color: '#ffffff',
                             border: '2px solid #ff8833',
                             borderRadius: '8px',
-                            padding: '12px 20px',
+                            padding: '15px 30px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '13px',
+                            fontSize: '16px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)',
                             textShadow: '0 0 5px rgba(255, 136, 51, 0.8)',
+                            letterSpacing: '1px',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(100, 50, 25, 0.9), rgba(80, 40, 20, 1))';
+                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 136, 51, 0.6), inset 0 0 15px rgba(255, 136, 51, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(80, 40, 20, 0.8), rgba(60, 30, 15, 0.9))';
+                            e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)';
                         }}
                     >
-                        Back to Menu
+                        NEURAL INTERFACE MENU
                     </button>
                     <button
                         onClick={onClose}
@@ -287,16 +312,27 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                             color: '#ffffff',
                             border: '2px solid #00aaff',
                             borderRadius: '8px',
-                            padding: '12px 20px',
+                            padding: '15px 30px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '13px',
+                            fontSize: '16px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',
                             textShadow: '0 0 5px rgba(0, 170, 255, 0.8)',
+                            letterSpacing: '1px',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 50, 100, 0.9), rgba(15, 40, 90, 1))';
+                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = '0 0 25px rgba(0, 170, 255, 0.6), inset 0 0 15px rgba(0, 170, 255, 0.2)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(20, 40, 80, 0.8), rgba(10, 30, 70, 0.9))';
+                            e.currentTarget.style.transform = 'translateY(0px) scale(1)';
+                            e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)';
                         }}
                     >
-                        Back to Game
+                        RESUME CONSCIOUSNESS
                     </button>
                 </div>
             </div>
