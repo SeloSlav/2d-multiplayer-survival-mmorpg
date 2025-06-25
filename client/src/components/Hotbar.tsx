@@ -636,12 +636,13 @@ const Hotbar: React.FC<HotbarProps> = ({
         // Already placing this seed type and clicking the same slot again - keep placement active
         // console.log(`[Hotbar] Already placing ${itemInSlot.definition.name}, keeping placement mode active`);
         return; // Don't call startPlacement again, just stay in placement mode
-      } else if (isCurrentlySelected && !isMouseWheelScroll && !isSeed) {
-        // Second click on non-seed placeable - cancel placement
+      } else if (isCurrentlySelected && !isMouseWheelScroll && !isSeed && isAlreadyPlacingThisItem) {
+        // Second click on non-seed placeable that's already in placement mode - cancel placement
         cancelPlacement();
         return;
       }
       
+      // Start placement for any placeable item (first click or not currently placing this item)
       const placementInfoData: PlacementItemInfo = {
         itemDefId: BigInt(itemInSlot.definition.id),
         itemName: itemInSlot.definition.name,

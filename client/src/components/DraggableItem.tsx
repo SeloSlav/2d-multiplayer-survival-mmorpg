@@ -207,9 +207,11 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
         // Call appropriate drop handler
         if (targetSlotInfo && !isSameSlot) {
             onItemDrop(targetSlotInfo);
-        } else if (!targetSlotInfo) {
+        } else if (!targetSlotInfo && !isSameSlot) {
+            // Only drop to world if it's not a same-slot drop
             onItemDrop(null);
         }
+        // If isSameSlot is true, don't call onItemDrop at all - just cancel the drag
     }
 
     // Reset drag tracking for next operation
@@ -298,7 +300,6 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
       className={`${styles.draggableItem} ${isDraggingState ? styles.isDraggingFeedback : ''}`}
       onMouseDown={handleMouseDown}
       onDragStart={handleDragStart}
-      onDragEnd={() => onItemDrop(null)}
       title={`${item.definition.name} (x${item.instance.quantity})`}
       onContextMenu={handleContextMenu}
       onMouseEnter={onMouseEnter ? (e) => onMouseEnter(e, item) : undefined}
