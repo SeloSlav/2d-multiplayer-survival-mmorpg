@@ -258,11 +258,11 @@ export function drawMinimapOntoCanvas({
   const minimapX = (canvasWidth - minimapWidth) / 2;
   const minimapY = (canvasHeight - minimapHeight) / 2;
   
-  // DEBUG: Log drawing coordinate calculation values
-  console.log(`[Minimap] Drawing coordinate calculation:
-    canvasSize: ${canvasWidth}x${canvasHeight}
-    minimapSize: ${minimapWidth}x${minimapHeight}
-    minimapPos: (${minimapX}, ${minimapY})`);
+  // DEBUG: Log drawing coordinate calculation values (commented out for performance)
+  // console.log(`[Minimap] Drawing coordinate calculation:
+  //   canvasSize: ${canvasWidth}x${canvasHeight}
+  //   minimapSize: ${minimapWidth}x${minimapHeight}
+  //   minimapPos: (${minimapX}, ${minimapY})`);
 
   // --- Calculate Base Scale (Zoom Level 1) ---
   const worldPixelWidth = gameConfig.worldWidth * gameConfig.tileSize;

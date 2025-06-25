@@ -40,6 +40,9 @@
  use crate::shelter::shelter as ShelterTableTrait;
  use crate::tree::tree as TreeTableTrait; // Added for tree protection functionality
  
+ // --- ADDED: Import for sound events ---
+ use crate::sound_events::{start_campfire_sound, stop_campfire_sound};
+ 
  // --- Constants ---
  // Collision constants
  pub(crate) const CAMPFIRE_COLLISION_RADIUS: f32 = 20.0; // Increased from 12.0 to better match visual size
@@ -446,6 +449,9 @@ pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result
         campfire.current_fuel_def_id = None;
         campfire.remaining_fuel_burn_time_secs = None;
         log::info!("Campfire {} extinguished by player {:?}.", campfire.id, ctx.sender);
+        
+        // Stop campfire sound
+        stop_campfire_sound(ctx, campfire.id as u64);
     } else {
         if !check_if_campfire_has_fuel(ctx, &campfire) {
             return Err("Cannot light campfire, requires fuel.".to_string());
@@ -459,6 +465,9 @@ pub fn toggle_campfire_burning(ctx: &ReducerContext, campfire_id: u32) -> Result
         campfire.is_burning = true;
         // remaining_fuel_burn_time_secs will be set by the first call to process_campfire_logic_scheduled
         log::info!("Campfire {} lit by player {:?}.", campfire.id, ctx.sender);
+        
+        // Start campfire sound
+        start_campfire_sound(ctx, campfire.id as u64, campfire.pos_x, campfire.pos_y);
     }
     ctx.db.campfire().id().update(campfire.clone());
     schedule_next_campfire_processing(ctx, campfire_id);
@@ -873,9 +882,12 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                      } else { campfire.set_slot(i, None, None); made_changes_to_campfire_struct = true; }
                  }
              }
-             if !new_fuel_loaded {
-                 campfire.is_burning = false; made_changes_to_campfire_struct = true;
-             }
+                         if !new_fuel_loaded {
+                campfire.is_burning = false; made_changes_to_campfire_struct = true;
+                
+                // Stop campfire sound when it runs out of fuel
+                stop_campfire_sound(ctx, campfire.id as u64);
+            }
          }
      } else { // campfire.is_burning is false
          // log::debug!("[ProcessCampfireScheduled] Campfire {} is not burning. No processing needed for fuel/cooking.", campfire.id);
@@ -950,12 +962,15 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                  }
              }
          } else {
-             // Burning but NO fuel: extinguish and remove schedule
-             log::info!("[ScheduleCampfire] Campfire {} is burning but found no valid fuel. Extinguishing.", campfire_id);
-             campfire.is_burning = false;
-             campfire.current_fuel_def_id = None;
-             campfire.remaining_fuel_burn_time_secs = None;
-             campfire_state_changed = true;
+                         // Burning but NO fuel: extinguish and remove schedule
+            log::info!("[ScheduleCampfire] Campfire {} is burning but found no valid fuel. Extinguishing.", campfire_id);
+            campfire.is_burning = false;
+            campfire.current_fuel_def_id = None;
+            campfire.remaining_fuel_burn_time_secs = None;
+            campfire_state_changed = true;
+            
+            // Stop campfire sound when it runs out of fuel
+            stop_campfire_sound(ctx, campfire_id as u64);
  
              schedules.campfire_id().delete(campfire_id as u64);
              log::debug!("[ScheduleCampfire] Campfire {} extinguished. Removed processing schedule.", campfire_id);

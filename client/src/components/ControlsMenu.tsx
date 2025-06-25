@@ -65,7 +65,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                 <h2 className={styles.menuTitle}
                     style={{
                         fontFamily: '"Press Start 2P", cursive',
-                        fontSize: '18px',
+                        fontSize: '24px',
                         color: '#00ffff',
                         textAlign: 'center',
                         marginBottom: '25px',
@@ -84,7 +84,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                             <h3
                                 style={{
                                     fontFamily: '"Press Start 2P", cursive',
-                                    fontSize: '14px',
+                                    fontSize: '16px',
                                     color: '#00aaff',
                                     marginBottom: '15px',
                                     textShadow: '0 0 8px rgba(0, 170, 255, 0.8)',
@@ -110,7 +110,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '11px',
+                                                fontSize: '13px',
                                                 color: '#ffdd44',
                                                 fontWeight: 'bold',
                                                 minWidth: '120px',
@@ -123,7 +123,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '11px',
+                                                fontSize: '13px',
                                                 color: '#ffffff',
                                                 textAlign: 'left',
                                                 flex: 1,
@@ -151,7 +151,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                             borderRadius: '8px',
                             padding: '12px 20px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)',
@@ -170,7 +170,7 @@ const ControlsMenu: React.FC<ControlsMenuProps> = ({ onBack, onClose }) => {
                             borderRadius: '8px',
                             padding: '12px 20px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',

@@ -745,4 +745,84 @@
 /* Keep full styling for new users */
 .audio-prompt.new-user {
   /* Inherits existing .audio-prompt styles */
+}
+
+/* Cyberpunk Tooltip Styles */
+.cyberpunk-tooltip {
+    position: absolute;
+    top: 0px;
+    left: calc(50% + 80px); /* Position to the right of SOVA (120px width + 20px margin) */
+    transform: translateY(-50%);
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.cyberpunk-tooltip-content {
+    position: relative;
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 255, 0.1));
+    border: 1px solid rgba(0, 255, 255, 0.5);
+    border-radius: 4px;
+    padding: 8px 16px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+.cyberpunk-tooltip-text {
+    color: #00ffff;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+    white-space: nowrap;
+}
+
+.cyberpunk-tooltip-glow {
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, transparent, rgba(0, 255, 255, 0.2), transparent);
+    border-radius: 6px;
+    z-index: -1;
+    animation: tooltip-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes tooltip-glow {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Red Glow Effect for SOVA when hovering while speaking */
+.sova-avatar.red-glow {
+    filter: drop-shadow(0 0 30px rgba(255, 0, 0, 0.8)) brightness(1.1) !important;
+    animation: sova-red-glow 1s ease-in-out infinite alternate !important;
+}
+
+@keyframes sova-red-glow {
+    0% { 
+        filter: drop-shadow(0 0 25px rgba(255, 0, 0, 0.7)) brightness(1.1);
+        transform: translateX(-50%) scale(1.02);
+    }
+    100% { 
+        filter: drop-shadow(0 0 35px rgba(255, 0, 0, 0.9)) brightness(1.2);
+        transform: translateX(-50%) scale(1.04);
+    }
+}
+
+/* Mobile responsive tooltip positioning */
+@media (max-width: 768px) {
+    .cyberpunk-tooltip {
+        top: 60px;
+        left: calc(50% + 50px); /* Adjust for smaller SOVA on mobile (80px width + 10px margin) */
+        transform: translateY(-50%);
+    }
+    
+    .cyberpunk-tooltip-content {
+        padding: 6px 12px;
+    }
+    
+    .cyberpunk-tooltip-text {
+        font-size: 10px;
+    }
 } 

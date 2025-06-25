@@ -46,6 +46,7 @@ use crate::player_corpse::{PlayerCorpse, PlayerCorpseDespawnSchedule, NUM_CORPSE
 use crate::inventory_management::ItemContainer;
 use crate::environment::calculate_chunk_index;
 use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait, campfire_processing_schedule as CampfireProcessingScheduleTableTrait};
+use crate::lantern::{Lantern, lantern as LanternTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
 use crate::shelter::Shelter; // Ensure Shelter struct is imported
@@ -85,6 +86,7 @@ pub enum TargetId {
     Stone(u64),
     Player(Identity),
     Campfire(u32),
+    Lantern(u32),
     WoodenStorageBox(u32),
     Stash(u32),
     SleepingBag(u32),
@@ -310,6 +312,51 @@ pub fn find_targets_in_cone(
                 targets.push(Target {
                     target_type: TargetType::Campfire,
                     id: TargetId::Campfire(campfire_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+
+    // Check lanterns
+    for lantern_entity in ctx.db.lantern().iter() {
+        if lantern_entity.is_destroyed {
+            continue;
+        }
+        // Lanterns are smaller objects, use their base position for targeting
+        let dx = lantern_entity.pos_x - player.position_x;
+        let dy = lantern_entity.pos_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                // Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for lanterns
+                    player.position_x,
+                    player.position_y,
+                    lantern_entity.pos_x,
+                    lantern_entity.pos_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack Lantern {}: line of sight blocked by shelter",
+                        player.identity, lantern_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
+                targets.push(Target {
+                    target_type: TargetType::Lantern,
+                    id: TargetId::Lantern(lantern_entity.id),
                     distance_sq: dist_sq,
                 });
             }
@@ -585,6 +632,7 @@ pub fn find_best_target(targets: &[Target], item_def: &ItemDefinition) -> Option
 fn is_destructible_deployable(target_type: TargetType) -> bool {
     matches!(target_type, 
         TargetType::Campfire | 
+        TargetType::Lantern |
         TargetType::WoodenStorageBox | 
         TargetType::SleepingBag | 
         TargetType::Stash |
@@ -1186,6 +1234,106 @@ pub fn damage_player(
     })
 }
 
+/// Applies damage to a lantern and handles destruction/item scattering
+pub fn damage_lantern(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    lantern_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng // Added RNG for item scattering
+) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_lantern(ctx, attacker_id, lantern_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
+    let mut lanterns_table = ctx.db.lantern();
+    let mut lantern = lanterns_table.id().find(lantern_id)
+        .ok_or_else(|| format!("Target lantern {} disappeared", lantern_id))?;
+
+    if lantern.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Lantern), resource_granted: None });
+    }
+
+    let old_health = lantern.health;
+    lantern.health = (lantern.health - damage).max(0.0);
+    lantern.last_hit_time = Some(timestamp);
+    lantern.last_damaged_by = Some(attacker_id);
+
+    log::info!(
+        "Player {:?} hit Lantern {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, lantern_id, damage, old_health, lantern.health
+    );
+
+    if lantern.health <= 0.0 {
+        lantern.is_destroyed = true;
+        lantern.destroyed_at = Some(timestamp);
+        
+        // 🔊 Stop lantern sound when destroyed
+        if lantern.is_burning {
+            crate::sound_events::stop_lantern_sound(ctx, lantern.id as u64);
+        }
+        
+        // Scatter items
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
+        for i in 0..crate::lantern::NUM_FUEL_SLOTS {
+            if let (Some(instance_id), Some(def_id)) = (lantern.get_slot_instance_id(i as u8), lantern.get_slot_def_id(i as u8)) {
+                if let Some(item) = ctx.db.inventory_item().instance_id().find(instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    // Delete the InventoryItem from the central table
+                    ctx.db.inventory_item().instance_id().delete(instance_id);
+                }
+                lantern.set_slot(i as u8, None, None); // Clear slot in lantern struct (though it's about to be deleted)
+            }
+        }
+
+        // Update the lantern one last time to ensure is_destroyed and destroyed_at are sent to client
+        lanterns_table.id().update(lantern.clone()); 
+        // Then immediately delete the lantern entity itself
+        lanterns_table.id().delete(lantern_id);
+
+        log::info!(
+            "Lantern {} destroyed by player {:?}. Dropping items.",
+            lantern_id, attacker_id
+        );
+
+        // Scatter collected items around the lantern's location
+        for (item_def_id, quantity) in items_to_drop {
+            // Spawn slightly offset from lantern center
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 15.0; // Spread within +/- 15px (smaller than campfire)
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 15.0;
+            let drop_pos_x = lantern.pos_x + offset_x;
+            let drop_pos_y = lantern.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed lantern {}", quantity, item_def_id, lantern_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+
+    } else {
+        // Lantern still has health, just update it
+        lanterns_table.id().update(lantern);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Lantern),
+        resource_granted: None,
+    })
+}
+
 /// Applies damage to a campfire and handles destruction/item scattering
 pub fn damage_campfire(
     ctx: &ReducerContext,
@@ -1231,6 +1379,12 @@ pub fn damage_campfire(
     if campfire.health <= 0.0 {
         campfire.is_destroyed = true;
         campfire.destroyed_at = Some(timestamp);
+        
+        // 🔊 Stop campfire sound when destroyed
+        if campfire.is_burning {
+            crate::sound_events::stop_campfire_sound(ctx, campfire.id as u64);
+        }
+        
         // Scatter items
         let mut items_to_drop: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
         for i in 0..crate::campfire::NUM_FUEL_SLOTS {
@@ -1751,6 +1905,13 @@ pub fn process_attack(
                 return Err("Target campfire not found".to_string());
             }
         },
+        TargetId::Lantern(lantern_id) => {
+            if let Some(lantern) = ctx.db.lantern().id().find(lantern_id) {
+                (lantern.pos_x, lantern.pos_y, None)
+            } else {
+                return Err("Target lantern not found".to_string());
+            }
+        },
         TargetId::WoodenStorageBox(box_id) => {
             if let Some(storage_box) = ctx.db.wooden_storage_box().id().find(box_id) {
                 (storage_box.pos_x, storage_box.pos_y - BOX_COLLISION_Y_OFFSET, None)
@@ -1854,6 +2015,9 @@ pub fn process_attack(
         },
         TargetId::Campfire(campfire_id) => {
             damage_campfire(ctx, attacker_id, *campfire_id, damage, timestamp, rng)
+        },
+        TargetId::Lantern(lantern_id) => {
+            damage_lantern(ctx, attacker_id, *lantern_id, damage, timestamp, rng)
         },
         TargetId::WoodenStorageBox(box_id) => {
             damage_wooden_storage_box(ctx, attacker_id, *box_id, damage, timestamp, rng)

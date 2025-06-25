@@ -518,8 +518,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Show death screen only based on isDead flag now
   const shouldShowDeathScreen = !!(localPlayer?.isDead && connection);
 
-  // Set cursor style based on placement
-  const cursorStyle = placementInfo ? 'cell' : 'crosshair';
+  // Set cursor style based on placement, but don't override if game menu is open
+  const cursorStyle = isGameMenuOpen ? 'default' : (placementInfo ? 'cell' : 'crosshair');
 
   // CORRECTLY DERIVE localPlayerDeathMarker from the deathMarkers prop
   const localPlayerDeathMarker = useMemo(() => {
@@ -1328,7 +1328,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         id="game-canvas"
         width={canvasSize.width}
         height={canvasSize.height}
-        style={{ position: 'absolute', left: 0, top: 0, cursor: cursorStyle }}
+        style={{ 
+          position: 'absolute', 
+          left: 0, 
+          top: 0, 
+          cursor: cursorStyle,
+          pointerEvents: isGameMenuOpen ? 'none' : 'auto' // Don't capture events when menu is open
+        }}
         onContextMenu={(e) => {
           if (placementInfo) {
             e.preventDefault();

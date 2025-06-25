@@ -89,7 +89,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                 <h2 className={styles.menuTitle}
                     style={{
                         fontFamily: '"Press Start 2P", cursive',
-                        fontSize: '18px',
+                        fontSize: '24px',
                         color: '#00ffff',
                         textAlign: 'center',
                         marginBottom: '15px',
@@ -164,7 +164,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                     color: '#00ffff',
                                     border: '1px solid #00ffff',
                                     borderRadius: '4px',
-                                    fontSize: '10px',
+                                    fontSize: '12px',
                                     fontFamily: '"Press Start 2P", cursive',
                                     whiteSpace: 'nowrap',
                                     opacity: 0,
@@ -202,7 +202,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                             <h3
                                 style={{
                                     fontFamily: '"Press Start 2P", cursive',
-                                    fontSize: '14px',
+                                    fontSize: '16px',
                                     color: '#00aaff',
                                     marginBottom: '15px',
                                     textShadow: '0 0 8px rgba(0, 170, 255, 0.8)',
@@ -239,7 +239,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                                         <span
                                             style={{
                                                 fontFamily: '"Press Start 2P", cursive',
-                                                fontSize: '12px',
+                                                fontSize: '14px',
                                                 color: '#ffffff',
                                                 lineHeight: '1.7',
                                                 flex: 1,
@@ -270,7 +270,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                             borderRadius: '8px',
                             padding: '12px 20px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(255, 136, 51, 0.3), inset 0 0 10px rgba(255, 136, 51, 0.1)',
@@ -289,7 +289,7 @@ const GameTipsMenu: React.FC<GameTipsMenuProps> = ({ onBack, onClose }) => {
                             borderRadius: '8px',
                             padding: '12px 20px',
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '11px',
+                            fontSize: '13px',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
                             boxShadow: '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)',

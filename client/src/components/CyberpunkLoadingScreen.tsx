@@ -52,6 +52,8 @@ export const CyberpunkErrorBar: React.FC<CyberpunkErrorBarProps> = ({ message })
 interface CyberpunkLoadingScreenProps {
     authLoading: boolean;
     onSequenceComplete?: () => void;
+    musicPreloadProgress?: number; // 0-1 for music preload progress
+    musicPreloadComplete?: boolean;
 }
 
 // Audio preloading and management
@@ -79,34 +81,32 @@ const saveAudioPreference = (enabled: boolean): void => {
     }
 };
 
-// Function to try different audio paths
+// Function to load audio from the correct path
 const tryLoadAudio = async (filename: string): Promise<HTMLAudioElement | null> => {
+    // SOVA sounds are in the public/sounds/ directory
+    // Vite serves public directory files directly from the root
     const possiblePaths = [
-        `/assets/sounds/${filename}`,
-        `/src/assets/sounds/${filename}`,
-        `./src/assets/sounds/${filename}`,
-        `/client/src/assets/sounds/${filename}`,
-        `./assets/sounds/${filename}`,
-        `/sounds/${filename}`,
-        `./${filename}`,
+        `/sounds/${filename}`,            // Primary path: public/sounds/
+        `/public/sounds/${filename}`,     // Alternative public path
+        `./sounds/${filename}`,           // Relative path fallback
     ];
 
     for (const path of possiblePaths) {
         try {
             const audio = new Audio(path);
             
-            // Test if the audio can load
+            // Test if the audio can load with a shorter timeout
             await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('Timeout')), 2000);
+                const timeout = setTimeout(() => reject(new Error('Timeout')), 3000);
                 
                 audio.addEventListener('canplaythrough', () => {
                     clearTimeout(timeout);
                     resolve(audio);
                 }, { once: true });
                 
-                audio.addEventListener('error', () => {
+                audio.addEventListener('error', (e) => {
                     clearTimeout(timeout);
-                    reject(new Error('Load failed'));
+                    reject(new Error(`Load failed: ${e}`));
                 }, { once: true });
                 
                 audio.preload = 'auto';
@@ -116,7 +116,7 @@ const tryLoadAudio = async (filename: string): Promise<HTMLAudioElement | null> 
             console.log(`Successfully loaded ${filename} from path: ${path}`);
             return audio;
         } catch (e) {
-            console.log(`Failed to load ${filename} from path: ${path}`);
+            console.log(`Failed to load ${filename} from path: ${path}:`, e);
         }
     }
     
@@ -136,10 +136,12 @@ const preloadAudio = async () => {
                 if (audio) {
                     audio.volume = 0.85;
                     preloadedAudioFiles[i.toString()] = audio;
-                    console.log(`Successfully preloaded ${i}.mp3`);
+                    console.log(`✅ Successfully preloaded sound ${i}.mp3 (readyState: ${audio.readyState})`);
+                } else {
+                    console.warn(`❌ Failed to preload sound ${i}.mp3 - no audio returned`);
                 }
             }).catch(e => {
-                console.error(`Failed to preload ${i}.mp3:`, e);
+                console.error(`❌ Failed to preload sound ${i}.mp3:`, e);
             })
         );
     }
@@ -147,43 +149,74 @@ const preloadAudio = async () => {
     // Wait for all audio files to load (or fail)
     await Promise.allSettled(loadPromises);
     
-    const loadedCount = Object.keys(preloadedAudioFiles).length - (preloadedAudioFiles['reconnect'] ? 1 : 0);
-    console.log(`Preloaded ${loadedCount}/${TOTAL_SOVA_SOUNDS} SOVA sounds + ${preloadedAudioFiles['reconnect'] ? 'reconnect' : 'no reconnect'}`);
+    // Count successfully loaded sounds
+    const loadedSounds = [];
+    for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
+        if (preloadedAudioFiles[i.toString()]) {
+            loadedSounds.push(i);
+        }
+    }
+    
+    console.log(`🔊 Audio preloading complete: ${loadedSounds.length}/${TOTAL_SOVA_SOUNDS} SOVA sounds loaded`);
+    console.log(`✅ Loaded sounds: [${loadedSounds.join(', ')}]`);
+    
+    if (loadedSounds.length === 0) {
+        console.error('⚠️ NO SOVA SOUNDS LOADED! Check audio file paths and network connectivity.');
+    }
 };
 
-const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoading, onSequenceComplete }) => {
+const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoading, onSequenceComplete, musicPreloadProgress = 0, musicPreloadComplete = false }) => {
+
     const [visibleLogs, setVisibleLogs] = useState<string[]>([]);
     const [currentLogIndex, setCurrentLogIndex] = useState(0);
     const [isSequenceComplete, setIsSequenceComplete] = useState(false);
     
     // Audio state
     const [audioContextUnlocked, setAudioContextUnlocked] = useState(false);
-    const [playedSounds, setPlayedSounds] = useState<Set<string>>(new Set());
     const [isSovaSpeaking, setIsSovaSpeaking] = useState(false);
+    const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null); // Track current playing audio
     const [audioPreloaded, setAudioPreloaded] = useState(false);
     const [showAudioPrompt, setShowAudioPrompt] = useState(false);
+    const [isHoveringOverSova, setIsHoveringOverSova] = useState(false); // Track hover state
+    const [tooltipText, setTooltipText] = useState<string>(''); // Custom tooltip
+    const [showTooltip, setShowTooltip] = useState(false);
     const hasPlayedReconnect = useRef(false);
     const audioPreloadStarted = useRef(false);
     const consoleLogsRef = useRef<HTMLDivElement>(null);
 
-    const logs = React.useMemo(() => authLoading ? [
-        "└─ Initializing quantum encryption protocols...",
-        "└─ Verifying neural identity matrix...",
-        "└─ Establishing secure link to authentication nexus...",
-        "└─ Authenticating biometric signature...",
-        "└─ [AUTH] Identity verified. Welcome, Survivor.",
-    ] : [
-        "└─ Scanning for Arkyv node broadcasts...",
-        "└─ [NETWORK] Detecting Zvezdanet backbone signals...",
-        "└─ Establishing quantum tunnel to Babachain...",
-        "└─ [CRYPTO] Synchronizing blockchain ledger...",
-        "└─ Handshaking with distributed survivor network...",
-        "└─ [MESH] P2P connection protocols active...",
-        "└─ Loading encrypted world state from distributed cache...",
-        "└─ [WORLD] Verifying territorial claims and resource deposits...",
-        "└─ Initializing real-time consensus mechanisms...",
-        "└─ [READY] Connection to Babachain established. Entering world...",
-    ], [authLoading]);
+    const logs = React.useMemo(() => {
+        const baseLogs = authLoading ? [
+            "└─ Initializing quantum encryption protocols...",
+            "└─ Verifying neural identity matrix...",
+            "└─ Establishing secure link to authentication nexus...",
+            "└─ Authenticating biometric signature...",
+            "└─ [AUTH] Identity verified. Welcome, Survivor.",
+        ] : [
+            "└─ Scanning for Arkyv node broadcasts...",
+            "└─ [NETWORK] Detecting Zvezdanet backbone signals...",
+            "└─ Establishing quantum tunnel to Babachain...",
+            "└─ [CRYPTO] Synchronizing blockchain ledger...",
+            "└─ Handshaking with distributed survivor network...",
+            "└─ [MESH] P2P connection protocols active...",
+            "└─ Loading encrypted world state from distributed cache...",
+            "└─ [WORLD] Verifying territorial claims and resource deposits...",
+            "└─ Initializing real-time consensus mechanisms...",
+        ];
+
+        // Add music preload status for non-auth loading
+        if (!authLoading) {
+            if (musicPreloadProgress > 0 && musicPreloadProgress < 1) {
+                const percentage = Math.round(musicPreloadProgress * 100);
+                baseLogs.push(`└─ [AUDIO] Preloading ambient soundtrack... ${percentage}%`);
+            } else if (musicPreloadComplete) {
+                baseLogs.push("└─ [AUDIO] Ambient soundtrack loaded. Environment ready.");
+            }
+            
+            baseLogs.push("└─ [READY] Connection to Babachain established. Entering world...");
+        }
+
+        return baseLogs;
+    }, [authLoading, musicPreloadProgress, musicPreloadComplete]);
 
     // Auto-scroll to bottom function
     const scrollToBottom = () => {
@@ -205,170 +238,154 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
 
     // Function to unlock audio context and play random SOVA sound
     const attemptToPlayRandomSovaSound = async () => {
-        if (hasPlayedReconnect.current) return;
-        
-        const userPreviouslyEnabledAudio = hasUserEnabledAudio();
-        console.log(`User previously enabled audio: ${userPreviouslyEnabledAudio}`);
-        
-        // Get all available sounds that are actually loaded
-        const loadedSounds: string[] = [];
+        // Don't auto-play if we've already played something or if audio isn't ready
+        if (hasPlayedReconnect.current || !audioPreloaded) {
+            console.log('Skipping auto-play: already played or audio not ready');
+            return;
+        }
+
+        // Find all available SOVA sounds that are actually loaded
+        const availableSounds: string[] = [];
         for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
-            if (preloadedAudioFiles[i.toString()]) {
-                loadedSounds.push(i.toString());
-            }
-        }
-        
-        if (loadedSounds.length === 0) {
-            console.warn('No SOVA sounds loaded, skipping auto-play');
-            hasPlayedReconnect.current = true; // Mark as attempted so we don't try again
-            return;
-        }
-        
-        // If user previously enabled audio, try harder to play automatically
-        const maxAttempts = userPreviouslyEnabledAudio ? 
-            Math.min(5, loadedSounds.length) : // Try more attempts for returning users
-            Math.min(3, loadedSounds.length);   // Regular attempts for new users
-        
-        // Try up to maxAttempts different random sounds if one fails
-        let attempts = 0;
-        
-        while (attempts < maxAttempts) {
-            attempts++;
-            
-            // Pick a random sound from loaded sounds
-            const randomIndex = Math.floor(Math.random() * loadedSounds.length);
-            const randomSoundNumber = loadedSounds[randomIndex];
-            const randomAudio = preloadedAudioFiles[randomSoundNumber];
-            
-            console.log(`Attempt ${attempts}: Trying to auto-play SOVA sound ${randomSoundNumber}.mp3`);
-            
-            try {
-                // Try to play the random SOVA sound
-                setIsSovaSpeaking(true);
-                await randomAudio.play();
-                console.log(`Successfully auto-played SOVA sound ${randomSoundNumber}.mp3`);
-                setAudioContextUnlocked(true);
-                hasPlayedReconnect.current = true;
-                
-                // Save that audio is working for this user
-                saveAudioPreference(true);
-                
-                // Mark this sound as played
-                setPlayedSounds(prev => new Set([...prev, randomSoundNumber]));
-                
-                // Set up event listener for when audio ends
-                const handleAutoAudioEnd = () => {
-                    setIsSovaSpeaking(false);
-                    randomAudio.removeEventListener('ended', handleAutoAudioEnd);
-                    randomAudio.removeEventListener('pause', handleAutoAudioEnd);
-                };
-                
-                randomAudio.addEventListener('ended', handleAutoAudioEnd);
-                randomAudio.addEventListener('pause', handleAutoAudioEnd);
-                
-                return; // Success! Exit the function
-                
-            } catch (error) {
-                console.warn(`Failed to auto-play SOVA sound ${randomSoundNumber}.mp3:`, error);
-                setIsSovaSpeaking(false);
-                
-                // Remove this sound from the loaded sounds array and try another
-                loadedSounds.splice(randomIndex, 1);
-                
-                if (loadedSounds.length === 0) {
-                    console.warn('No more sounds to try');
-                    break;
-                }
-            }
-        }
-        
-        // If we get here, autoplay failed but we should still set up the fallback
-        console.log('Auto-play failed for all attempts, setting up user interaction fallback');
-        hasPlayedReconnect.current = true; // Mark as attempted
-        setShowAudioPrompt(true); // Show the audio prompt to user
-        
-        // Set up a one-time click listener on the document to unlock audio
-        const unlockAudio = async () => {
-            if (loadedSounds.length === 0) return;
-            
-            try {
-                // Create a silent audio context unlock
-                const silentAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DwvGINBjiS2+/MdSUFLITP8dlHNwgZarvs4Z9OEQxPpeTuOGIQHwA');
-                await silentAudio.play();
-                silentAudio.pause();
-                
-                // Try to play any available sound
-                const firstAvailableSound = loadedSounds[0];
-                const audio = preloadedAudioFiles[firstAvailableSound];
-                
-                audio.currentTime = 0;
-                setIsSovaSpeaking(true);
-                await audio.play();
-                console.log(`Audio unlocked and SOVA sound ${firstAvailableSound}.mp3 played after user interaction`);
-                setAudioContextUnlocked(true);
-                setShowAudioPrompt(false); // Hide the prompt once audio works
-                
-                // Save that the user has enabled audio
-                saveAudioPreference(true);
-                
-                // Mark this sound as played
-                setPlayedSounds(prev => new Set([...prev, firstAvailableSound]));
-                
-                // Set up event listener for when audio ends
-                const handleAutoAudioEnd = () => {
-                    setIsSovaSpeaking(false);
-                    audio.removeEventListener('ended', handleAutoAudioEnd);
-                    audio.removeEventListener('pause', handleAutoAudioEnd);
-                };
-                
-                audio.addEventListener('ended', handleAutoAudioEnd);
-                audio.addEventListener('pause', handleAutoAudioEnd);
-                
-            } catch (e) {
-                console.error('Failed to unlock audio even after user interaction:', e);
-                setIsSovaSpeaking(false);
-                setShowAudioPrompt(false); // Hide prompt even if audio fails
-            }
-            
-            // Remove the listener
-            document.removeEventListener('click', unlockAudio);
-            document.removeEventListener('keydown', unlockAudio);
-            document.removeEventListener('touchstart', unlockAudio);
-        };
-
-        // Add listeners for user interaction
-        document.addEventListener('click', unlockAudio, { once: true });
-        document.addEventListener('keydown', unlockAudio, { once: true });
-        document.addEventListener('touchstart', unlockAudio, { once: true });
-    };
-
-    // Handle Sova avatar click to play random sounds
-    const handleSovaClick = async () => {
-        // If showing audio prompt, clicking SOVA should enable audio
-        if (showAudioPrompt) {
-            setShowAudioPrompt(false);
-            // Trigger audio unlock
-            document.dispatchEvent(new Event('click'));
-            return;
-        }
-
-        // Don't allow clicking if audio is currently playing
-        if (isSovaSpeaking) {
-            console.log('SOVA is currently speaking, please wait...');
-            return;
-        }
-        
-        // Get available sounds (not yet played)
-        const availableSounds = [];
-        for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
-            if (!playedSounds.has(i.toString()) && preloadedAudioFiles[i.toString()]) {
-                availableSounds.push(i.toString());
+            const soundKey = i.toString(); // Use numeric string keys like "1", "2", etc.
+            const audio = preloadedAudioFiles[soundKey];
+            if (audio && audio.readyState >= 2) { // HAVE_CURRENT_DATA or better
+                availableSounds.push(soundKey);
             }
         }
 
         if (availableSounds.length === 0) {
-            console.log('All SOVA sounds have been played');
+            console.log('No SOVA sounds loaded and ready, skipping auto-play');
             return;
+        }
+
+        // Pick a random sound from available ones
+        const randomIndex = Math.floor(Math.random() * availableSounds.length);
+        const randomSoundKey = availableSounds[randomIndex];
+        const randomAudio = preloadedAudioFiles[randomSoundKey];
+        const randomSoundNumber = randomSoundKey; // Already a number string
+
+        if (!randomAudio) {
+            console.log('Selected audio not found, skipping auto-play');
+            return;
+        }
+
+        try {
+            // Try to play the random SOVA sound
+            setIsSovaSpeaking(true);
+            setCurrentAudio(randomAudio); // Track the current audio
+            await randomAudio.play();
+            console.log(`Successfully auto-played SOVA sound ${randomSoundNumber}.mp3`);
+            setAudioContextUnlocked(true);
+            hasPlayedReconnect.current = true;
+            
+            // Save that audio is working for this user
+            saveAudioPreference(true);
+            
+            // Set up event listener for when audio ends
+            const handleAutoAudioEnd = () => {
+                setIsSovaSpeaking(false);
+                setCurrentAudio(null);
+                randomAudio.removeEventListener('ended', handleAutoAudioEnd);
+            };
+            randomAudio.addEventListener('ended', handleAutoAudioEnd, { once: true });
+            
+        } catch (error) {
+            console.log('Auto-play failed (likely due to browser autoplay policy):', error);
+            setIsSovaSpeaking(false);
+            setCurrentAudio(null);
+            
+            // Show the audio prompt to let user enable audio
+            setShowAudioPrompt(true);
+            saveAudioPreference(false);
+        }
+    };
+
+    // Handle Sova avatar click to play random sounds
+    const handleSovaClick = async () => {
+        // If showing audio prompt, clicking SOVA should enable audio AND play a sound
+        if (showAudioPrompt) {
+            setShowAudioPrompt(false);
+            // Don't return early - continue to play a sound after dismissing the prompt
+            console.log('SOVA: Audio prompt dismissed, now playing sound...');
+        }
+
+        // If audio is currently playing, stop it
+        if (isSovaSpeaking && currentAudio) {
+            console.log('Stopping current SOVA audio...');
+            
+            // Stop the currently tracked audio
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            
+            setIsSovaSpeaking(false);
+            setCurrentAudio(null);
+            console.log('SOVA audio stopped');
+            return;
+        }
+
+        // Don't allow starting new audio if something is still playing
+        if (isSovaSpeaking) {
+            console.log('SOVA is still speaking, please wait...');
+            return;
+        }
+        
+        // Get available sounds (any loaded sound)
+        const availableSounds = [];
+        console.log('SOVA: Checking available sounds...');
+        for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
+            const audio = preloadedAudioFiles[i.toString()];
+            if (audio) {
+                console.log(`SOVA: Sound ${i} exists, readyState: ${audio.readyState}`);
+                // Check if audio is ready to play (readyState >= 2 means HAVE_CURRENT_DATA or better)
+                if (audio.readyState >= 2) {
+                    availableSounds.push(i.toString());
+                } else {
+                    console.log(`SOVA: Sound ${i} not ready (readyState: ${audio.readyState})`);
+                }
+            } else {
+                console.log(`SOVA: Sound ${i} missing from preloadedAudioFiles`);
+            }
+        }
+
+        console.log(`SOVA: Found ${availableSounds.length} available sounds:`, availableSounds);
+
+        if (availableSounds.length === 0) {
+            console.log('SOVA: No sounds ready to play. Trying to load one on-demand...');
+            
+            // Try to find any audio that exists but isn't ready yet
+            const loadingSounds = [];
+            for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
+                const audio = preloadedAudioFiles[i.toString()];
+                if (audio && audio.readyState < 2) {
+                    loadingSounds.push(i.toString());
+                }
+            }
+            
+            if (loadingSounds.length > 0) {
+                console.log(`SOVA: ${loadingSounds.length} sounds are loading, will try first one:`, loadingSounds[0]);
+                // Use the first loading sound anyway
+                availableSounds.push(loadingSounds[0]);
+            } else {
+                // Try to load a sound on-demand
+                console.log('SOVA: No preloaded sounds found. Attempting on-demand load...');
+                try {
+                    const randomSoundNumber = Math.floor(Math.random() * TOTAL_SOVA_SOUNDS) + 1;
+                    const onDemandAudio = await tryLoadAudio(`${randomSoundNumber}.mp3`);
+                    if (onDemandAudio) {
+                        onDemandAudio.volume = 0.85;
+                        preloadedAudioFiles[randomSoundNumber.toString()] = onDemandAudio;
+                        availableSounds.push(randomSoundNumber.toString());
+                        console.log(`✅ Successfully loaded sound ${randomSoundNumber}.mp3 on-demand`);
+                    } else {
+                        console.log('❌ On-demand audio loading failed');
+                        return;
+                    }
+                } catch (error) {
+                    console.error('❌ On-demand audio loading error:', error);
+                    return;
+                }
+            }
         }
 
         // Pick a random available sound
@@ -378,10 +395,12 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
 
         console.log(`Playing SOVA sound ${soundToPlay}.mp3`);
         setIsSovaSpeaking(true);
+        setCurrentAudio(audioElement); // Track the current audio
 
         // Add event listeners for when audio ends
         const handleAudioEnd = () => {
             setIsSovaSpeaking(false);
+            setCurrentAudio(null); // Clear current audio reference
             audioElement.removeEventListener('ended', handleAudioEnd);
             audioElement.removeEventListener('pause', handleAudioEnd);
         };
@@ -393,9 +412,6 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
             audioElement.currentTime = 0; // Reset to beginning
             await audioElement.play();
             
-            // Mark this sound as played
-            setPlayedSounds(prev => new Set([...prev, soundToPlay]));
-            
             // Unlock audio context if it wasn't already
             if (!audioContextUnlocked) {
                 setAudioContextUnlocked(true);
@@ -403,15 +419,20 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
         } catch (error) {
             console.error(`Failed to play SOVA sound ${soundToPlay}:`, error);
             setIsSovaSpeaking(false);
+            setCurrentAudio(null); // Clear current audio reference on error
         }
     };
 
-    // Try to play random SOVA sound when component mounts
+    // Try to play random SOVA sound when component mounts and audio is preloaded
     useEffect(() => {
-        // Small delay to ensure audio files are loaded
-        const timer = setTimeout(attemptToPlayRandomSovaSound, 500);
-        return () => clearTimeout(timer);
-    }, []);
+        // Only attempt auto-play if audio is preloaded and we haven't tried yet
+        if (audioPreloaded && !hasPlayedReconnect.current) {
+            console.log('Audio preloaded, attempting auto-play...');
+            // Small delay to ensure everything is ready
+            const timer = setTimeout(attemptToPlayRandomSovaSound, 200);
+            return () => clearTimeout(timer);
+        }
+    }, [audioPreloaded]); // Depend on audioPreloaded instead of component mount
 
     useEffect(() => {
         if (currentLogIndex < logs.length) {
@@ -471,10 +492,52 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
     }, [authLoading, currentLogIndex, visibleLogs.length, isSequenceComplete]);
 
     // Handle manual audio enable button click
-    const handleEnableAudioClick = () => {
+    const handleEnableAudioClick = async () => {
         setShowAudioPrompt(false);
-        // Trigger a document click to unlock audio
-        document.dispatchEvent(new Event('click'));
+        
+        try {
+            // Find the first available sound to play
+            let firstAvailableSound = null;
+            for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
+                const soundKey = i.toString();
+                const audio = preloadedAudioFiles[soundKey];
+                if (audio && audio.readyState >= 2) {
+                    firstAvailableSound = soundKey;
+                    break;
+                }
+            }
+            
+            if (!firstAvailableSound) {
+                console.log('No SOVA sounds available after enabling audio');
+                return;
+            }
+            
+            const audio = preloadedAudioFiles[firstAvailableSound];
+            audio.currentTime = 0;
+            setIsSovaSpeaking(true);
+            setCurrentAudio(audio); // Track the current audio
+            await audio.play();
+            console.log(`Audio enabled and SOVA sound ${firstAvailableSound}.mp3 played after user interaction`);
+            setAudioContextUnlocked(true);
+            hasPlayedReconnect.current = true;
+            
+            // Save that the user has enabled audio
+            saveAudioPreference(true);
+            
+            // Set up event listener for when audio ends
+            const handleAudioEnd = () => {
+                setIsSovaSpeaking(false);
+                setCurrentAudio(null);
+                audio.removeEventListener('ended', handleAudioEnd);
+            };
+            audio.addEventListener('ended', handleAudioEnd, { once: true });
+            
+        } catch (error) {
+            console.error('Failed to enable audio and play SOVA sound:', error);
+            setIsSovaSpeaking(false);
+            setCurrentAudio(null);
+            // Still hide the prompt even if audio fails
+        }
     };
 
     return (
@@ -482,25 +545,48 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
             <div className="grid-background"></div>
             
             <div className="console-container">
+                {/* Custom Cyberpunk Tooltip */}
+                {showTooltip && tooltipText && (
+                    <div className="cyberpunk-tooltip">
+                        <div className="cyberpunk-tooltip-content">
+                            <span className="cyberpunk-tooltip-text">{tooltipText}</span>
+                            <div className="cyberpunk-tooltip-glow"></div>
+                        </div>
+                    </div>
+                )}
+                
                 <img 
                     src={sovaImage} 
                     alt="Sova Avatar" 
-                    className={`sova-avatar ${isSovaSpeaking ? 'speaking' : ''} ${showAudioPrompt ? 'needs-interaction' : ''}`}
+                    className={`sova-avatar ${
+                        isSovaSpeaking ? 'speaking' : ''
+                    } ${
+                        showAudioPrompt ? 'needs-interaction' : ''
+                    } ${
+                        isSovaSpeaking && isHoveringOverSova ? 'red-glow' : ''
+                    }`}
                     onClick={handleSovaClick}
                     style={{ 
-                        cursor: isSovaSpeaking ? 'not-allowed' : 'pointer',
-                        filter: isSovaSpeaking 
-                            ? 'drop-shadow(0 0 30px rgba(0, 255, 255, 1)) brightness(1.2)' 
-                            : undefined,
-                        transition: 'filter 0.3s ease',
+                        cursor: 'pointer',
+                        transition: 'filter 0.2s ease',
                         opacity: isSovaSpeaking ? 1 : 0.9
                     }}
-                    title={isSovaSpeaking 
-                        ? "SOVA is speaking... please wait" 
-                        : showAudioPrompt
-                        ? "Click to enable SOVA audio!"
-                        : `Click to hear SOVA speak (${TOTAL_SOVA_SOUNDS - playedSounds.size} sounds remaining)`
-                    }
+                    onMouseEnter={() => {
+                        console.log(`SOVA: Mouse entered - isSovaSpeaking=${isSovaSpeaking}, setting hover=true`);
+                        setIsHoveringOverSova(true);
+                        const tooltip = isSovaSpeaking 
+                            ? "TERMINATE SOVA AUDIO STREAM" 
+                            : showAudioPrompt
+                            ? "ENABLE SOVA AUDIO INTERFACE"
+                            : "ACTIVATE SOVA COMMUNICATION";
+                        setTooltipText(tooltip);
+                        setShowTooltip(true);
+                    }}
+                    onMouseLeave={() => {
+                        console.log(`SOVA: Mouse left - isSovaSpeaking=${isSovaSpeaking}, setting hover=false`);
+                        setIsHoveringOverSova(false);
+                        setShowTooltip(false);
+                    }}
                 />
                 
                 {showAudioPrompt && (

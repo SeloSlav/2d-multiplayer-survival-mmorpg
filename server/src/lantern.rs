@@ -10,6 +10,9 @@ use crate::wooden_storage_box::{wooden_storage_box as WoodenStorageBoxTableTrait
 use crate::environment::calculate_chunk_index;
 use crate::player_inventory::{get_player_item, find_first_empty_player_slot, move_item_to_inventory, move_item_to_hotbar};
 
+// --- ADDED: Import for sound events ---
+use crate::sound_events::{start_lantern_sound, stop_lantern_sound};
+
 // --- Constants ---
 pub const FUEL_BURN_DURATION_MICROSECONDS: i64 = 120_000_000; // 120 seconds (double campfire duration)
 pub const LANTERN_WARMTH_RADIUS_SQUARED: f32 = 3600.0; // 60 pixel radius (same as campfire)
@@ -129,6 +132,9 @@ pub fn light_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), String
     lantern.is_burning = true;
     log::info!("Lantern {} lit by player {:?}.", lantern.id, ctx.sender);
     
+    // Start lantern sound
+    start_lantern_sound(ctx, lantern.id as u64, lantern.pos_x, lantern.pos_y);
+    
     ctx.db.lantern().id().update(lantern.clone());
     schedule_next_lantern_processing(ctx, lantern_id);
     Ok(())
@@ -148,6 +154,9 @@ pub fn extinguish_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), S
     lantern.remaining_fuel_burn_time_secs = None;
     log::info!("Lantern {} extinguished by player {:?}.", lantern.id, ctx.sender);
     
+    // Stop lantern sound
+    stop_lantern_sound(ctx, lantern.id as u64);
+    
     ctx.db.lantern().id().update(lantern.clone());
     schedule_next_lantern_processing(ctx, lantern_id);
     Ok(())
@@ -166,6 +175,9 @@ pub fn toggle_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), Strin
         lantern.current_fuel_def_id = None;
         lantern.remaining_fuel_burn_time_secs = None;
         log::info!("Lantern {} extinguished by player {:?}.", lantern.id, ctx.sender);
+        
+        // Stop lantern sound
+        stop_lantern_sound(ctx, lantern.id as u64);
     } else {
         // Light the lantern
         if !check_if_lantern_has_fuel(ctx, &lantern) {
@@ -175,6 +187,9 @@ pub fn toggle_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), Strin
         lantern.is_burning = true;
         // remaining_fuel_burn_time_secs will be set by the first call to process_lantern_logic_scheduled
         log::info!("Lantern {} lit by player {:?}.", lantern.id, ctx.sender);
+        
+        // Start lantern sound
+        start_lantern_sound(ctx, lantern.id as u64, lantern.pos_x, lantern.pos_y);
     }
     
     ctx.db.lantern().id().update(lantern.clone());
@@ -213,6 +228,11 @@ pub fn pickup_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), Strin
     
     ctx.db.inventory_item().try_insert(new_lantern_item)
         .map_err(|e| format!("Failed to insert lantern item: {}", e))?;
+    
+    // 🔊 Stop lantern sound if it was burning when picked up
+    if lantern.is_burning {
+        stop_lantern_sound(ctx, lantern.id as u64);
+    }
     
     // Delete the lantern entity
     ctx.db.lantern().id().delete(lantern_id);
@@ -420,6 +440,9 @@ pub fn process_lantern_logic_scheduled(ctx: &ReducerContext, schedule_args: Lant
         lantern.remaining_fuel_burn_time_secs = None;
         needs_update = true;
         log::info!("[LanternScheduled] Lantern {} extinguished due to lack of fuel.", lantern_id);
+        
+        // 🔊 Stop lantern looping sound when extinguished due to fuel exhaustion
+        crate::sound_events::stop_lantern_sound(ctx, lantern_id as u64);
     }
 
     if needs_update {

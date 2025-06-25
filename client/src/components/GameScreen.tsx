@@ -20,12 +20,12 @@ import Chat from './Chat';
 import SpeechBubbleManager from './SpeechBubbleManager';
 import TargetingReticle from './TargetingReticle';
 import FishingManager from './FishingManager';
-
 // Import menu components
 import GameMenuButton from './GameMenuButton';
 import GameMenu from './GameMenu';
 import ControlsMenu from './ControlsMenu';
 import GameTipsMenu from './GameTipsMenu';
+import GameSettingsMenu from './GameSettingsMenu';
 import type { MenuType } from './GameMenu';
 
 // Import types used by props
@@ -83,6 +83,7 @@ import { useVoiceInterface } from '../hooks/useVoiceInterface';
 // Import other necessary imports
 import { useInteractionManager } from '../hooks/useInteractionManager';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useMusicSystem } from '../hooks/useMusicSystem';
 
 // Import debug context
 import { useDebug } from '../contexts/DebugContext';
@@ -167,6 +168,18 @@ interface GameScreenProps {
     
     // Add fishing sessions for rendering other players' fishing
     fishingSessions: Map<string, FishingSession>;
+    
+    // Music system for debug controls
+    musicSystem: ReturnType<typeof useMusicSystem>;
+    
+    // Volume settings for menu controls
+    musicVolume: number;
+    soundVolume: number;
+    onMusicVolumeChange: (volume: number) => void;
+    onSoundVolumeChange: (volume: number) => void;
+    
+    // Sound system for immediate sound effects
+    soundSystem: ReturnType<typeof import('../hooks/useSoundSystem').useSoundSystem>;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -204,7 +217,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     }, []);
     
     // Debug context
-    const { showAutotileDebug, toggleAutotileDebug } = useDebug();
+    const { showAutotileDebug, toggleAutotileDebug, showMusicDebug, toggleMusicDebug } = useDebug();
     
     // Destructure props for cleaner usage
     const {
@@ -238,6 +251,12 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         // Auto-walking removed
         onFishingStateChange,
         fishingSessions,
+        musicSystem,
+        musicVolume,
+        soundVolume,
+        onMusicVolumeChange,
+        onSoundVolumeChange,
+        soundSystem,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -316,6 +335,10 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 console.log('[GameScreen] Ctrl+R intercepted, showing refresh dialog');
                 event.preventDefault(); // Prevent default browser refresh
                 setShowRefreshDialog(true); // Show our custom dialog
+            }
+            // Handle M key for music debug panel toggle
+            else if (event.key === 'm' || event.key === 'M') {
+                toggleMusicDebug();
             }
         };
 
@@ -503,7 +526,11 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
             {currentMenu === 'main' && (
                 <GameMenu 
                     onClose={handleMenuClose} 
-                    onNavigate={handleMenuNavigate} 
+                    onNavigate={handleMenuNavigate}
+                    musicVolume={musicVolume}
+                    soundVolume={soundVolume}
+                    onMusicVolumeChange={onMusicVolumeChange}
+                    onSoundVolumeChange={onSoundVolumeChange}
                 />
             )}
             {currentMenu === 'controls' && (
@@ -516,6 +543,15 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 <GameTipsMenu 
                     onBack={handleMenuBack} 
                     onClose={handleMenuClose} 
+                />
+            )}
+            {currentMenu === 'settings' && (
+                <GameSettingsMenu
+                    onBack={handleMenuBack}
+                    musicVolume={musicVolume}
+                    soundVolume={soundVolume}
+                    onMusicVolumeChange={onMusicVolumeChange}
+                    onSoundVolumeChange={onSoundVolumeChange}
                 />
             )}
             
@@ -837,6 +873,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeEquipments={activeEquipments}
                 inventoryItems={inventoryItems}
             />
+
         </div>
     );
 };

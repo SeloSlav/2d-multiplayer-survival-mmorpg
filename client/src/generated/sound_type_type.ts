@@ -43,6 +43,10 @@ export namespace SoundType {
   export type HarvestPlant = { tag: "HarvestPlant" };
   export type PlantSeed = { tag: "PlantSeed" };
   export type PickupItem = { tag: "PickupItem" };
+  export type CampfireLooping = { tag: "CampfireLooping" };
+  export type LanternLooping = { tag: "LanternLooping" };
+  export type Repair = { tag: "Repair" };
+  export type RepairFail = { tag: "RepairFail" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -58,6 +62,10 @@ export namespace SoundType {
   export const HarvestPlant = { tag: "HarvestPlant" };
   export const PlantSeed = { tag: "PlantSeed" };
   export const PickupItem = { tag: "PickupItem" };
+  export const CampfireLooping = { tag: "CampfireLooping" };
+  export const LanternLooping = { tag: "LanternLooping" };
+  export const Repair = { tag: "Repair" };
+  export const RepairFail = { tag: "RepairFail" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -69,6 +77,10 @@ export namespace SoundType {
       new SumTypeVariant("HarvestPlant", AlgebraicType.createProductType([])),
       new SumTypeVariant("PlantSeed", AlgebraicType.createProductType([])),
       new SumTypeVariant("PickupItem", AlgebraicType.createProductType([])),
+      new SumTypeVariant("CampfireLooping", AlgebraicType.createProductType([])),
+      new SumTypeVariant("LanternLooping", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Repair", AlgebraicType.createProductType([])),
+      new SumTypeVariant("RepairFail", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -83,7 +95,7 @@ export namespace SoundType {
 }
 
 // The tagged union or sum type for the algebraic type `SoundType`.
-export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem;
+export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail;
 
 export default SoundType;
 

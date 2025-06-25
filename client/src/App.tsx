@@ -33,6 +33,7 @@ import { useAuthErrorHandler } from './hooks/useAuthErrorHandler';
 import { useMovementInput } from './hooks/useMovementInput';
 import { usePredictedMovement } from './hooks/usePredictedMovement';
 import { useSoundSystem } from './hooks/useSoundSystem';
+import { useMusicSystem } from './hooks/useMusicSystem';
 
 // Assets & Styles
 import './App.css';
@@ -105,6 +106,29 @@ function AppContent() {
     const [loadingSequenceComplete, setLoadingSequenceComplete] = useState<boolean>(false);
     // 🎣 FISHING INPUT FIX: Add fishing state to App level
     const [isFishing, setIsFishing] = useState(false);
+    
+    // --- Volume Settings State ---
+    const [musicVolume, setMusicVolume] = useState(() => {
+        const saved = localStorage.getItem('musicVolume');
+        return saved ? Math.min(parseFloat(saved), 1.0) : 0.5; // 50% default (0.5 out of 1.0 max)
+    });
+    const [soundVolume, setSoundVolume] = useState(() => {
+        const saved = localStorage.getItem('soundVolume');
+        return saved ? Math.min(parseFloat(saved), 1.0) : 0.8; // 80% default (0.8 out of 1.0 max)
+    });
+    
+    // --- Volume Change Handlers ---
+    const handleMusicVolumeChange = useCallback((volume: number) => {
+        console.log(`[App] handleMusicVolumeChange called with: ${volume.toFixed(3)}`);
+        setMusicVolume(volume);
+        localStorage.setItem('musicVolume', volume.toString());
+    }, []);
+    
+    const handleSoundVolumeChange = useCallback((volume: number) => {
+        console.log(`[App] handleSoundVolumeChange called with: ${volume.toFixed(3)}`);
+        setSoundVolume(volume);
+        localStorage.setItem('soundVolume', volume.toString());
+    }, []);
 
     // --- Viewport State & Refs ---
     const [currentViewport, setCurrentViewport] = useState<{ minX: number, minY: number, maxX: number, maxY: number } | null>(null);
@@ -136,6 +160,7 @@ function AppContent() {
       minimapCache, // <<< ADD minimapCache HERE
       fishingSessions, // <<< ADD fishingSessions HERE
       soundEvents, // <<< ADD soundEvents HERE
+      continuousSounds, // <<< ADD continuousSounds HERE
       localPlayerIdentity // <<< ADD localPlayerIdentity HERE
     } = useSpacetimeTables({ 
         connection, 
@@ -175,10 +200,27 @@ function AppContent() {
     const localPlayerPosition = predictedPosition ? { x: predictedPosition.x, y: predictedPosition.y } : null;
     const soundSystemState = useSoundSystem({
         soundEvents,
+        continuousSounds,
         localPlayerPosition,
         localPlayerIdentity,
-        masterVolume: 0.8, // Adjust as needed
+        masterVolume: soundVolume,
     });
+
+    // --- Music System ---
+    const musicSystem = useMusicSystem({
+        enabled: true,
+        volume: musicVolume,
+        crossfadeDuration: 3000, // 3 second crossfade
+        shuffleMode: true,
+        preloadAll: true,
+    });
+    
+    // Update music volume when state changes
+    useEffect(() => {
+        if (musicSystem.setVolume) {
+            musicSystem.setVolume(musicVolume);
+        }
+    }, [musicVolume, musicSystem.setVolume]);
 
     // --- Game Performance Monitor ---
     useEffect(() => {
@@ -320,6 +362,11 @@ function AppContent() {
     useEffect(() => {
         // Prevent global context menu unless placing item
         const handleGlobalContextMenu = (event: MouseEvent) => {
+            // Don't prevent context menu when dragging sliders or if game menu is open
+            if (document.body.style.cursor === 'grabbing') {
+                return;
+            }
+            
             if (!placementInfoRef.current) { // Use ref to check current placement status
                 event.preventDefault();
             }
@@ -336,6 +383,11 @@ function AppContent() {
             // If chat is active, let the Chat component handle Enter/Escape
             if (isChatting) return;
 
+            // Don't handle keys when dragging sliders
+            if (document.body.style.cursor === 'grabbing') {
+                return;
+            }
+
             // Auto-walk functionality removed
 
             // Prevent global context menu unless placing item (moved from other effect)
@@ -348,6 +400,11 @@ function AppContent() {
 
         // Prevent global context menu unless placing item (separate listener for clarity)
         const handleGlobalContextMenu = (event: MouseEvent) => {
+            // Don't prevent context menu when dragging sliders
+            if (document.body.style.cursor === 'grabbing') {
+                return;
+            }
+            
             if (!placementInfoRef.current) { // Use ref to check current placement status
                 event.preventDefault();
             }
@@ -465,8 +522,17 @@ function AppContent() {
 
     // --- Handle loading sequence completion ---
     const handleSequenceComplete = useCallback(() => {
+        console.log("[App] Loading sequence complete, setting loadingSequenceComplete to true");
         setLoadingSequenceComplete(true);
-    }, []);
+        
+        // Start music when entering the game
+        if (!musicSystem.isPlaying) {
+            console.log("[App] Starting background music...");
+            musicSystem.start().catch(error => {
+                console.warn("[App] Failed to start music:", error);
+            });
+        }
+    }, [musicSystem]);
 
     // Reset sequence completion when loading starts again - will be moved after shouldShowLoadingScreen is defined
 
@@ -595,8 +661,14 @@ function AppContent() {
     useEffect(() => {
         if (shouldShowLoadingScreen && loadingSequenceComplete) {
             setLoadingSequenceComplete(false);
+            
+            // Stop music when returning to loading screen
+            if (musicSystem.isPlaying) {
+                console.log("[App] Stopping music due to returning to loading screen");
+                musicSystem.stop();
+            }
         }
-    }, [shouldShowLoadingScreen, loadingSequenceComplete]);
+    }, [shouldShowLoadingScreen, loadingSequenceComplete, musicSystem]);
 
     // --- Render Logic --- 
     // console.log("[AppContent] Rendering. Hemps map:", hemps); // <<< TEMP DEBUG LOG
@@ -610,6 +682,8 @@ function AppContent() {
                 <CyberpunkLoadingScreen 
                     authLoading={authLoading} 
                     onSequenceComplete={handleSequenceComplete}
+                    musicPreloadProgress={musicSystem.preloadProgress}
+                    musicPreloadComplete={musicSystem.preloadProgress >= 1 && !musicSystem.isLoading}
                 />
             )}
 
@@ -694,11 +768,17 @@ function AppContent() {
                             knockedOutStatus={knockedOutStatus}
                             rangedWeaponStats={rangedWeaponStats}
                             projectiles={projectiles}
-                                                deathMarkers={deathMarkers}
-                    setIsCraftingSearchFocused={setIsCraftingSearchFocused}
-                    isCraftingSearchFocused={isCraftingSearchFocused}
-                    onFishingStateChange={setIsFishing}
-                    fishingSessions={fishingSessions}
+                            deathMarkers={deathMarkers}
+                            setIsCraftingSearchFocused={setIsCraftingSearchFocused}
+                            isCraftingSearchFocused={isCraftingSearchFocused}
+                            onFishingStateChange={setIsFishing}
+                            fishingSessions={fishingSessions}
+                            musicSystem={musicSystem}
+                            musicVolume={musicVolume}
+                            soundVolume={soundVolume}
+                            onMusicVolumeChange={handleMusicVolumeChange}
+                            onSoundVolumeChange={handleSoundVolumeChange}
+                            soundSystem={soundSystemState}
                         />
                     );
                 })()

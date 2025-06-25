@@ -6,14 +6,18 @@ use rand::Rng;
 /// Types of sound events that can be triggered
 #[derive(SpacetimeType, Clone, Debug, PartialEq)]
 pub enum SoundType {
-    TreeChop,     // tree_chop.ogg, tree_chop1.ogg, tree_chop2.ogg (3 variations)
-    TreeCreaking, // tree_creaking.ogg (1 variation - plays when tree is about to fall)
-    TreeFalling,  // tree_falling.ogg (1 variation - plays when tree reaches 0 health)
-    StoneHit,     // stone_hit.ogg, stone_hit1.ogg, stone_hit2.ogg (3 variations)
-    StoneDestroyed, // stone_destroyed.ogg (1 variation - plays when stone reaches 0 health)
-    HarvestPlant, // harvest_plant.ogg (1 variation - for picking up resource nodes)
-    PlantSeed,    // plant_seed.ogg (1 variation - for planting seeds)
-    PickupItem,   // item_pickup.ogg (1 variation - for item pickup)
+    TreeChop,     // tree_chop.mp3, tree_chop1.mp3, tree_chop2.mp3 (3 variations)
+    TreeCreaking, // tree_creaking.mp3 (1 variation - plays when tree is about to fall)
+    TreeFalling,  // tree_falling.mp3 (1 variation - plays when tree reaches 0 health)
+    StoneHit,     // stone_hit.mp3, stone_hit1.mp3, stone_hit2.mp3 (3 variations)
+    StoneDestroyed, // stone_destroyed.mp3 (1 variation - plays when stone reaches 0 health)
+    HarvestPlant, // harvest_plant.mp3 (1 variation - for picking up resource nodes)
+    PlantSeed,    // plant_seed.mp3 (1 variation - for planting seeds)
+    PickupItem,   // item_pickup.mp3 (1 variation - for item pickup)
+    CampfireLooping, // campfire_looping.mp3 (1 variation - continuous looping sound)
+    LanternLooping,  // lantern_looping.mp3 (1 variation - continuous looping sound)
+    Repair,       // repair.mp3, repair1.mp3, repair2.mp3 (3 variations - for successful repairs)
+    RepairFail,   // repair_fail.mp3 (1 variation - for failed repair attempts)
     // Add more as needed - extensible system
 }
 
@@ -26,9 +30,13 @@ impl SoundType {
             SoundType::TreeFalling => "tree_falling",
             SoundType::StoneHit => "stone_hit",
             SoundType::StoneDestroyed => "stone_destroyed",
-                        SoundType::HarvestPlant => "harvest_plant", 
+            SoundType::HarvestPlant => "harvest_plant", 
             SoundType::PlantSeed => "plant_seed",
             SoundType::PickupItem => "item_pickup",
+            SoundType::CampfireLooping => "campfire_looping",
+            SoundType::LanternLooping => "lantern_looping",
+            SoundType::Repair => "repair",
+            SoundType::RepairFail => "repair_fail",
         }
     }
 
@@ -43,6 +51,10 @@ impl SoundType {
             SoundType::HarvestPlant => 1, // harvest_plant.ogg (single variation)
             SoundType::PlantSeed => 1, // plant_seed.ogg (single variation)
             SoundType::PickupItem => 1, // item_pickup.ogg (single variation)
+            SoundType::CampfireLooping => 1, // campfire_looping.ogg (single variation)
+            SoundType::LanternLooping => 1, // lantern_looping.ogg (single variation)
+            SoundType::Repair => 3, // repair.ogg, repair1.ogg, repair2.ogg (3 variations)
+            SoundType::RepairFail => 1, // repair_fail.ogg (single variation)
         }
     }
 
@@ -52,13 +64,13 @@ impl SoundType {
         let variation_count = self.get_variation_count();
         
         if variation_count <= 1 {
-            format!("{}.ogg", base)
+            format!("{}.mp3", base)
         } else {
             let variation = rng.gen_range(0..variation_count);
             if variation == 0 {
-                format!("{}.ogg", base)
+                format!("{}.mp3", base)
             } else {
-                format!("{}{}.ogg", base, variation)
+                format!("{}{}.mp3", base, variation)
             }
         }
     }
@@ -72,13 +84,30 @@ pub struct SoundEvent {
     #[auto_inc]
     pub id: u64,
     pub sound_type: SoundType,
-    pub filename: String,        // e.g., "tree_chop2.ogg"
+    pub filename: String,        // e.g., "tree_chop2.mp3"
     pub pos_x: f32,             // Position where sound occurs
     pub pos_y: f32,
     pub volume: f32,            // 0.0 to 1.0
     pub max_distance: f32,      // Maximum distance to hear sound
     pub triggered_by: Identity, // Player who triggered the sound
     pub timestamp: Timestamp,
+}
+
+/// Continuous sound table - tracks active looping sounds (campfires, lanterns, etc.)
+#[table(name = continuous_sound, public)]
+#[derive(Clone, Debug)]
+pub struct ContinuousSound {
+    #[primary_key]
+    pub object_id: u64,         // ID of the object making the sound (campfire ID, lantern ID, etc.)
+    pub sound_type: SoundType,  // Type of looping sound
+    pub filename: String,       // e.g., "campfire_looping.mp3"
+    pub pos_x: f32,            // Position where sound occurs
+    pub pos_y: f32,
+    pub volume: f32,           // Volume level
+    pub max_distance: f32,     // Maximum distance to hear sound
+    pub is_active: bool,       // Whether the sound should be playing
+    pub created_at: Timestamp, // When this continuous sound was created
+    pub updated_at: Timestamp, // Last time this sound was updated
 }
 
 // --- Sound Event Cleanup System ---
@@ -215,7 +244,7 @@ pub fn init_sound_cleanup_system(ctx: &ReducerContext) -> Result<(), String> {
 /// Single line function to emit tree chopping sound
 pub fn emit_tree_chop_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING TREE CHOP SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position(ctx, SoundType::TreeChop, pos_x, pos_y, 0.8, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeChop, pos_x, pos_y, 0.8, 1050.0, player_id) {
         log::error!("Failed to emit tree chop sound: {}", e);
     }
 }
@@ -223,7 +252,7 @@ pub fn emit_tree_chop_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player
 /// Single line function to emit tree creaking sound (when about to fall)
 pub fn emit_tree_creaking_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING TREE CREAKING SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeCreaking, pos_x, pos_y, 3.0, 700.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeCreaking, pos_x, pos_y, 3.0, 1050.0, player_id) {
         log::error!("Failed to emit tree creaking sound: {}", e);
     }
 }
@@ -231,7 +260,7 @@ pub fn emit_tree_creaking_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, pl
 /// Single line function to emit tree falling sound (when tree dies)
 pub fn emit_tree_falling_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING TREE FALLING SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeFalling, pos_x, pos_y, 1.5, 900.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeFalling, pos_x, pos_y, 1.5, 1050.0, player_id) {
         log::error!("Failed to emit tree falling sound: {}", e);
     }
 }
@@ -239,7 +268,7 @@ pub fn emit_tree_falling_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, pla
 /// Single line function to emit stone hit sound  
 pub fn emit_stone_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING STONE HIT SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position(ctx, SoundType::StoneHit, pos_x, pos_y, 0.8, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::StoneHit, pos_x, pos_y, 0.8, 1050.0, player_id) {
         log::error!("Failed to emit stone hit sound: {}", e);
     }
 }
@@ -247,7 +276,7 @@ pub fn emit_stone_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player
 /// Single line function to emit stone destroyed sound (when stone dies)
 pub fn emit_stone_destroyed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING STONE DESTROYED SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::StoneDestroyed, pos_x, pos_y, 1.3, 800.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::StoneDestroyed, pos_x, pos_y, 1.3, 1050.0, player_id) {
         log::error!("Failed to emit stone destroyed sound: {}", e);
     }
 }
@@ -255,7 +284,7 @@ pub fn emit_stone_destroyed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, 
 /// Single line function to emit plant harvest sound (for picking up resource nodes)
 pub fn emit_harvest_plant_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING HARVEST PLANT SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position(ctx, SoundType::HarvestPlant, pos_x, pos_y, 1.5, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::HarvestPlant, pos_x, pos_y, 1.5, 525.0, player_id) {
         log::error!("Failed to emit harvest plant sound: {}", e);
     }
 }
@@ -263,7 +292,7 @@ pub fn emit_harvest_plant_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, pl
 /// Single line function to emit plant seed sound (for planting seeds)
 pub fn emit_plant_seed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING PLANT SEED SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::PlantSeed, pos_x, pos_y, 5.4, 300.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::PlantSeed, pos_x, pos_y, 5.4, 525.0, player_id) {
         log::error!("Failed to emit plant seed sound: {}", e);
     }
 }
@@ -271,8 +300,191 @@ pub fn emit_plant_seed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, playe
 /// Single line function to emit pickup item sound (for picking up dropped items)
 pub fn emit_pickup_item_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     log::info!("🔊 EMITTING PICKUP ITEM SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::PickupItem, pos_x, pos_y, 1.0, 400.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::PickupItem, pos_x, pos_y, 1.0, 525.0, player_id) {
         log::error!("Failed to emit pickup item sound: {}", e);
+    }
+}
+
+// --- Continuous/Looping Sound Management ---
+
+/// Start a continuous looping sound for an object
+pub fn start_continuous_sound(
+    ctx: &ReducerContext,
+    object_id: u64,
+    sound_type: SoundType,
+    pos_x: f32,
+    pos_y: f32,
+    volume: f32,
+    max_distance: f32,
+) -> Result<(), String> {
+    let mut rng = ctx.rng();
+    let filename = sound_type.get_random_filename(&mut rng);
+    let continuous_sounds_table = ctx.db.continuous_sound();
+    
+    // Check if a continuous sound already exists for this object
+    if let Some(mut existing_sound) = continuous_sounds_table.object_id().find(object_id) {
+        // Update the existing sound instead of inserting a new one
+        existing_sound.sound_type = sound_type;
+        existing_sound.filename = filename.clone();
+        existing_sound.pos_x = pos_x;
+        existing_sound.pos_y = pos_y;
+        existing_sound.volume = volume.max(0.0);
+        existing_sound.max_distance = max_distance;
+        existing_sound.is_active = true;
+        existing_sound.updated_at = ctx.timestamp;
+        
+        continuous_sounds_table.object_id().update(existing_sound);
+        log::info!("🔊 RESTARTED CONTINUOUS SOUND: {} for object {} at ({:.1}, {:.1})", 
+                  filename, object_id, pos_x, pos_y);
+        Ok(())
+    } else {
+        // Create a new continuous sound entry
+        let continuous_sound = ContinuousSound {
+            object_id,
+            sound_type,
+            filename: filename.clone(),
+            pos_x,
+            pos_y,
+            volume: volume.max(0.0),
+            max_distance,
+            is_active: true,
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        };
+
+        match continuous_sounds_table.try_insert(continuous_sound) {
+            Ok(_) => {
+                log::info!("🔊 STARTED NEW CONTINUOUS SOUND: {} for object {} at ({:.1}, {:.1})", 
+                          filename, object_id, pos_x, pos_y);
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Failed to start continuous sound for object {}: {:?}", object_id, e);
+                Err("Failed to start continuous sound".to_string())
+            }
+        }
+    }
+}
+
+/// Stop a continuous looping sound for an object
+pub fn stop_continuous_sound(ctx: &ReducerContext, object_id: u64) -> Result<(), String> {
+    let continuous_sounds_table = ctx.db.continuous_sound();
+    
+    if let Some(mut sound) = continuous_sounds_table.object_id().find(object_id) {
+        sound.is_active = false;
+        sound.updated_at = ctx.timestamp;
+        continuous_sounds_table.object_id().update(sound);
+        log::info!("🔊 STOPPED CONTINUOUS SOUND for object {}", object_id);
+        Ok(())
+    } else {
+        log::warn!("Attempted to stop continuous sound for object {} but it wasn't found", object_id);
+        Ok(()) // Don't error if sound doesn't exist
+    }
+}
+
+/// Update the position of a continuous sound (for moving objects)
+pub fn update_continuous_sound_position(
+    ctx: &ReducerContext,
+    object_id: u64,
+    pos_x: f32,
+    pos_y: f32,
+) -> Result<(), String> {
+    let continuous_sounds_table = ctx.db.continuous_sound();
+    
+    if let Some(mut sound) = continuous_sounds_table.object_id().find(object_id) {
+        if sound.pos_x != pos_x || sound.pos_y != pos_y {
+            sound.pos_x = pos_x;
+            sound.pos_y = pos_y;
+            sound.updated_at = ctx.timestamp;
+            continuous_sounds_table.object_id().update(sound);
+            log::debug!("Updated continuous sound position for object {} to ({:.1}, {:.1})", object_id, pos_x, pos_y);
+        }
+        Ok(())
+    } else {
+        log::warn!("Attempted to update position for continuous sound object {} but it wasn't found", object_id);
+        Ok(()) // Don't error if sound doesn't exist
+    }
+}
+
+/// Remove a continuous sound completely (when object is deleted)
+pub fn remove_continuous_sound(ctx: &ReducerContext, object_id: u64) -> Result<(), String> {
+    let continuous_sounds_table = ctx.db.continuous_sound();
+    
+    if continuous_sounds_table.object_id().delete(object_id) {
+        log::info!("🔊 REMOVED CONTINUOUS SOUND for object {}", object_id);
+    } else {
+        log::debug!("Attempted to remove continuous sound for object {} but it wasn't found", object_id);
+    }
+    Ok(())
+}
+
+// --- Convenience Functions for Campfire and Lantern Sounds ---
+
+// Helper function to create unique object IDs to prevent conflicts between different object types
+fn create_unique_object_id(object_type: &str, object_id: u64) -> u64 {
+    // Use a simple hash-based approach to create unique IDs
+    // This ensures campfire ID 1 and lantern ID 1 don't conflict
+    let type_hash = match object_type {
+        "campfire" => 1_000_000_000_u64, // Campfires start at 1 billion
+        "lantern" => 2_000_000_000_u64,  // Lanterns start at 2 billion
+        _ => 0_u64, // Default for unknown types
+    };
+    type_hash + object_id
+}
+
+/// Start campfire looping sound
+pub fn start_campfire_sound(ctx: &ReducerContext, campfire_id: u64, pos_x: f32, pos_y: f32) {
+    let unique_id = create_unique_object_id("campfire", campfire_id);
+    log::info!("🔥 STARTING CAMPFIRE SOUND for campfire {} (unique_id: {}) at ({:.1}, {:.1})", 
+              campfire_id, unique_id, pos_x, pos_y);
+    if let Err(e) = start_continuous_sound(ctx, unique_id, SoundType::CampfireLooping, pos_x, pos_y, 0.6, 525.0) {
+        log::error!("Failed to start campfire sound: {}", e);
+    }
+}
+
+/// Stop campfire looping sound
+pub fn stop_campfire_sound(ctx: &ReducerContext, campfire_id: u64) {
+    let unique_id = create_unique_object_id("campfire", campfire_id);
+    log::info!("🔥 STOPPING CAMPFIRE SOUND for campfire {} (unique_id: {})", campfire_id, unique_id);
+    if let Err(e) = stop_continuous_sound(ctx, unique_id) {
+        log::error!("Failed to stop campfire sound: {}", e);
+    }
+}
+
+/// Start lantern looping sound
+pub fn start_lantern_sound(ctx: &ReducerContext, lantern_id: u64, pos_x: f32, pos_y: f32) {
+    let unique_id = create_unique_object_id("lantern", lantern_id);
+    log::info!("🏮 STARTING LANTERN SOUND for lantern {} (unique_id: {}) at ({:.1}, {:.1})", 
+              lantern_id, unique_id, pos_x, pos_y);
+    if let Err(e) = start_continuous_sound(ctx, unique_id, SoundType::LanternLooping, pos_x, pos_y, 1.0, 525.0) {
+        log::error!("Failed to start lantern sound: {}", e);
+    }
+}
+
+/// Stop lantern looping sound
+pub fn stop_lantern_sound(ctx: &ReducerContext, lantern_id: u64) {
+    let unique_id = create_unique_object_id("lantern", lantern_id);
+    log::info!("🏮 STOPPING LANTERN SOUND for lantern {} (unique_id: {})", lantern_id, unique_id);
+    if let Err(e) = stop_continuous_sound(ctx, unique_id) {
+        log::error!("Failed to stop lantern sound: {}", e);
+    }
+}
+
+// --- Convenience Functions for Repair Sounds ---
+
+/// Emit successful repair sound
+pub fn emit_repair_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    log::info!("🔧 EMITTING REPAIR SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::Repair, pos_x, pos_y, 1.2, 525.0, player_id) {
+        log::error!("Failed to emit repair sound: {}", e);
+    }
+}
+
+/// Emit repair failure sound (when repair fails due to insufficient resources, etc.)
+pub fn emit_repair_fail_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    log::info!("🔧 EMITTING REPAIR FAIL SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::RepairFail, pos_x, pos_y, 1.0, 525.0, player_id) {
+        log::error!("Failed to emit repair fail sound: {}", e);
     }
 }
 

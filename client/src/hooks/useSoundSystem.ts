@@ -4,9 +4,10 @@ import { Identity } from '@clockworklabs/spacetimedb-sdk';
 
 interface SoundSystemProps {
     soundEvents: Map<string, SpacetimeDB.SoundEvent>;
+    continuousSounds: Map<string, SpacetimeDB.ContinuousSound>;
     localPlayerPosition: { x: number; y: number } | null;
     localPlayerIdentity: Identity | null;
-    masterVolume?: number; // 0-1 scale
+    masterVolume?: number; // 0-1 scale (up to 100%)
 }
 
 // Sound strategy enum for different types of sounds
@@ -19,14 +20,20 @@ enum SoundStrategy {
 // Sound type definitions with strategies
 const SOUND_DEFINITIONS = {
     // Resource gathering - server only (only play when actually hitting targets)
-    tree_chop: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 400 },
-    tree_creaking: { strategy: SoundStrategy.SERVER_ONLY, volume: 3.0, maxDistance: 700 }, // Much louder for dramatic effect
-    tree_falling: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 900 },  // Loudest, longest range
-    stone_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 400 },
-    stone_destroyed: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 800 }, // Loud stone destruction sound
-    harvest_plant: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 350 }, // Pleasant plant harvesting sound
-    plant_seed: { strategy: SoundStrategy.SERVER_ONLY, volume: 5.4, maxDistance: 300 }, // Much louder planting seed sound (3x increase)
-    item_pickup: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 400 }, // Item pickup sound
+    tree_chop: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 1050 },
+    tree_creaking: { strategy: SoundStrategy.SERVER_ONLY, volume: 3.0, maxDistance: 1050 }, // Much louder for dramatic effect
+    tree_falling: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 1050 },  // Loudest, longest range
+    stone_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 1050 },
+    stone_destroyed: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 1050 }, // Loud stone destruction sound
+    harvest_plant: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 525 }, // Pleasant plant harvesting sound
+    plant_seed: { strategy: SoundStrategy.SERVER_ONLY, volume: 5.4, maxDistance: 525 }, // Much louder planting seed sound (3x increase)
+    item_pickup: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525 }, // Item pickup sound
+    // Continuous/looping sounds - server managed
+    campfire_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.6, maxDistance: 525, isLooping: true },
+    lantern_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525, isLooping: true },
+    // Repair sounds - server only (triggered by repair actions)
+    repair: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 525 },
+    repair_fail: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525 },
 } as const;
 
 type SoundType = keyof typeof SOUND_DEFINITIONS;
@@ -134,8 +141,6 @@ const playLoudSound = async (
         // Play
         source.start(0);
         
-        console.log(`🔊 Loud sound via Web Audio: ${filename} (vol: ${volume.toFixed(2)}, pitch: ${pitchVariation.toFixed(2)})`);
-        
     } catch (error) {
         console.warn(`🔊 Web Audio error for ${filename}:`, error);
         // Fallback to regular audio with clamped volume
@@ -156,14 +161,18 @@ const activeSounds = new Set<HTMLAudioElement>();
 
 // Preload common sounds
 const PRELOAD_SOUNDS = [
-    'tree_chop.ogg', 'tree_chop1.ogg', 'tree_chop2.ogg',  // 3 tree chop variations
-    'tree_creaking.ogg',                                   // 1 tree creaking variation
-    'tree_falling.ogg',                                    // 1 tree falling variation
-    'stone_hit.ogg', 'stone_hit1.ogg', 'stone_hit2.ogg',   // 3 stone hit variations
-    'stone_destroyed.ogg',                                 // 1 stone destroyed variation
-    'harvest_plant.ogg',                                   // 1 plant harvest variation
-    'plant_seed.ogg',                                      // 1 plant seed variation
-    'item_pickup.ogg',                                              // 1 item pickup variation
+    'tree_chop.mp3', 'tree_chop1.mp3', 'tree_chop2.mp3',  // 3 tree chop variations
+    'tree_creaking.mp3',                                   // 1 tree creaking variation
+    'tree_falling.mp3',                                    // 1 tree falling variation
+    'stone_hit.mp3', 'stone_hit1.mp3', 'stone_hit2.mp3',   // 3 stone hit variations
+    'stone_destroyed.mp3',                                 // 1 stone destroyed variation
+    'harvest_plant.mp3',                                   // 1 plant harvest variation
+    'plant_seed.mp3',                                      // 1 plant seed variation
+    'item_pickup.mp3',                                     // 1 item pickup variation
+    'campfire_looping.mp3',                                // 1 campfire looping variation
+    'lantern_looping.mp3',                                 // 1 lantern looping variation
+    'repair.mp3', 'repair1.mp3', 'repair2.mp3',           // 3 repair variations
+    'repair_fail.mp3',                                     // 1 repair fail variation
 ];
 
 // Enhanced audio loading with error handling and performance monitoring
@@ -182,7 +191,6 @@ const loadAudio = async (filename: string): Promise<HTMLAudioElement> => {
         
         audio.addEventListener('canplaythrough', () => {
             clearTimeout(loadTimeout);
-            console.log(`🔊 Audio loaded: ${filename}`);
             resolve(audio);
         }, { once: true });
         
@@ -204,8 +212,6 @@ const getAudio = async (filename: string): Promise<HTMLAudioElement> => {
     if (audio) {
         return audio;
     }
-    
-    console.log(`🔊 Requesting audio file: ${filename}`);
     
     try {
         // Load and cache
@@ -279,12 +285,10 @@ const playSpatialAudio = async (
             
             // Track active sound
             activeSounds.add(audioClone);
-            console.log(`🔊 Added sound to active set. Count: ${activeSounds.size}`);
             
             // Cleanup when finished
             const cleanup = () => {
                 activeSounds.delete(audioClone);
-                console.log(`🔊 Removed sound from active set. Count: ${activeSounds.size}`);
                 audioClone.removeEventListener('ended', cleanup);
                 audioClone.removeEventListener('error', cleanup);
             };
@@ -293,7 +297,6 @@ const playSpatialAudio = async (
             audioClone.addEventListener('error', cleanup, { once: true });
             
             await audioClone.play();
-            console.log(`🔊 Playing: ${filename} (dist: ${distance.toFixed(1)}, vol: ${finalVolume.toFixed(2)}, pitch: ${pitchVariation.toFixed(2)})`);
         }
         
     } catch (error) {
@@ -315,31 +318,39 @@ const playLocalSound = async (
         }
         
         // Generate filename with variation
-        let filename = `${soundType}.ogg`;
+        let filename = `${soundType}.mp3`;
         if (variation !== undefined) {
-            filename = variation === 0 ? `${soundType}.ogg` : `${soundType}${variation}.ogg`;
+            filename = variation === 0 ? `${soundType}.mp3` : `${soundType}${variation}.mp3`;
         } else {
             // Random variation for variety - different counts per sound type
             let variationCount = 4; // Default for most sounds
             if (soundType === 'tree_chop') {
-                variationCount = 3; // tree_chop.ogg, tree_chop1.ogg, tree_chop2.ogg
+                variationCount = 3; // tree_chop.mp3, tree_chop1.mp3, tree_chop2.mp3
             } else if (soundType === 'tree_creaking' || soundType === 'tree_falling' || soundType === 'stone_destroyed') {
                 variationCount = 1; // Single variation sounds
             } else if (soundType === 'stone_hit') {
-                variationCount = 3; // stone_hit.ogg, stone_hit1.ogg, stone_hit2.ogg
+                variationCount = 3; // stone_hit.mp3, stone_hit1.mp3, stone_hit2.mp3
             } else if (soundType === 'harvest_plant') {
-                variationCount = 1; // harvest_plant.ogg
+                variationCount = 1; // harvest_plant.mp3
             } else if (soundType === 'plant_seed') {
-                variationCount = 1; // plant_seed.ogg
+                variationCount = 1; // plant_seed.mp3
             } else if (soundType === 'item_pickup') {
-                variationCount = 1; // item_pickup.ogg
+                variationCount = 1; // item_pickup.mp3
+            } else if (soundType === 'campfire_looping') {
+                variationCount = 1; // campfire_looping.mp3
+            } else if (soundType === 'lantern_looping') {
+                variationCount = 1; // lantern_looping.mp3
+            } else if (soundType === 'repair') {
+                variationCount = 3; // repair.mp3, repair1.mp3, repair2.mp3
+            } else if (soundType === 'repair_fail') {
+                variationCount = 1; // repair_fail.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);
             if (randomVariation === 0) {
-                filename = `${soundType}.ogg`;
+                filename = `${soundType}.mp3`;
             } else {
-                filename = `${soundType}${randomVariation}.ogg`;
+                filename = `${soundType}${randomVariation}.mp3`;
             }
         }
         
@@ -364,10 +375,8 @@ const playLocalSound = async (
             
             // Track and cleanup
             activeSounds.add(audioClone);
-            console.log(`🔊 Added local sound to active set. Count: ${activeSounds.size}`);
             const cleanup = () => {
                 activeSounds.delete(audioClone);
-                console.log(`🔊 Removed local sound from active set. Count: ${activeSounds.size}`);
                 audioClone.removeEventListener('ended', cleanup);
                 audioClone.removeEventListener('error', cleanup);
             };
@@ -376,7 +385,6 @@ const playLocalSound = async (
             audioClone.addEventListener('error', cleanup, { once: true });
             
             await audioClone.play();
-            console.log(`🔊 Local sound: ${filename} (vol: ${finalVolume.toFixed(2)}, pitch: ${pitchVariation.toFixed(2)})`);
         }
         
     } catch (error) {
@@ -389,15 +397,58 @@ export const playImmediateSound = (soundType: SoundType, volume: number = 1): vo
     playLocalSound(soundType, volume).catch(console.warn);
 };
 
+// Active looping sounds management with enhanced tracking
+const activeLoopingSounds = new Map<string, HTMLAudioElement>();
+const soundCleanupTimeouts = new Map<string, number>();
+
+// Enhanced cleanup function for looping sounds
+const cleanupLoopingSound = (objectId: string, reason: string = "cleanup") => {
+    const audio = activeLoopingSounds.get(objectId);
+    if (audio) {
+        try {
+            // Remove event listeners FIRST to prevent error events during cleanup
+            audio.removeEventListener('ended', () => {});
+            audio.removeEventListener('error', () => {});
+            
+            // Mark audio as being cleaned up to prevent error handling
+            (audio as any)._isBeingCleaned = true;
+            
+            audio.pause();
+            audio.currentTime = 0;
+            // Clear the src to fully release the audio resource
+            audio.src = '';
+            audio.load(); // Force cleanup
+        } catch (e) {
+            // Only log unexpected errors, not cleanup-related ones
+            if (e instanceof Error && !e.message.includes('load') && !e.message.includes('src')) {
+                console.warn(`🔊 Unexpected error during audio cleanup for ${objectId}:`, e);
+            }
+        }
+        activeLoopingSounds.delete(objectId);
+        console.log(`🔊 Cleaned up looping sound for object ${objectId} (${reason})`);
+    }
+    
+    // Clear any pending cleanup timeout
+    const timeout = soundCleanupTimeouts.get(objectId);
+    if (timeout) {
+        window.clearTimeout(timeout);
+        soundCleanupTimeouts.delete(objectId);
+    }
+};
+
 // Main sound system hook
 export const useSoundSystem = ({ 
-    soundEvents, 
+    soundEvents,
+    continuousSounds,
     localPlayerPosition, 
     localPlayerIdentity,
-    masterVolume = 1 
+    masterVolume = 0.8 
 }: SoundSystemProps) => {
     const processedSoundEventsRef = useRef<Set<string>>(new Set());
     const isInitializedRef = useRef(false);
+    const lastSoundProcessTimeRef = useRef<number>(0);
+    const SOUND_PROCESSING_DEBOUNCE_MS = 500; // Minimum 500ms between sound processing
+    const pendingSoundCreationRef = useRef<Set<string>>(new Set()); // Track sounds being created
     
     // Preload sounds on first mount
     useEffect(() => {
@@ -405,12 +456,10 @@ export const useSoundSystem = ({
         isInitializedRef.current = true;
         
         const preloadAll = async () => {
-            console.log('🔊 Preloading common sounds...');
             const promises = PRELOAD_SOUNDS.map(filename => 
                 loadAudio(filename).catch(err => console.warn(`Preload failed: ${filename}`, err))
             );
             await Promise.allSettled(promises);
-            console.log('🔊 Sound system initialized');
         };
         
         preloadAll();
@@ -418,7 +467,7 @@ export const useSoundSystem = ({
     
     // Process server sound events (for other players' actions)
     useEffect(() => {
-        if (!localPlayerPosition || !localPlayerIdentity) return;
+        if (!localPlayerPosition || !localPlayerIdentity || !soundEvents) return;
         
         soundEvents.forEach((soundEvent, eventId) => {
             // Skip if already processed
@@ -446,8 +495,6 @@ export const useSoundSystem = ({
             ).catch(err => {
                 console.warn(`🔊 Failed to play server sound: ${soundEvent.filename}`, err);
             });
-            
-            console.log(`🔊 Server sound: ${soundEvent.filename} from ${soundEvent.triggeredBy.toHexString().slice(0, 8)}`);
         });
         
         // Cleanup old processed events
@@ -457,6 +504,291 @@ export const useSoundSystem = ({
         }
         
     }, [soundEvents, localPlayerPosition, localPlayerIdentity, masterVolume]);
+
+    // Process continuous/looping sounds
+    useEffect(() => {
+        if (!localPlayerPosition || !localPlayerIdentity || !continuousSounds) return;
+
+        // CRITICAL FIX: Prevent processing during rapid loading sequence updates
+        // Only process if we have a valid, stable player position
+        if (!localPlayerPosition.x || !localPlayerPosition.y || 
+            !isFinite(localPlayerPosition.x) || !isFinite(localPlayerPosition.y)) {
+            console.log(`🔊 Skipping sound processing - invalid player position: (${localPlayerPosition.x}, ${localPlayerPosition.y})`);
+            return;
+        }
+
+        // DEBOUNCE: Prevent rapid-fire sound processing during loading
+        const now = Date.now();
+        if (now - lastSoundProcessTimeRef.current < SOUND_PROCESSING_DEBOUNCE_MS) {
+            // console.log(`🔊 Debouncing sound processing (${now - lastSoundProcessTimeRef.current}ms since last)`);
+            return;
+        }
+        lastSoundProcessTimeRef.current = now;
+
+        console.log(`🔊 Processing ${continuousSounds.size} continuous sounds... Player at (${localPlayerPosition.x.toFixed(1)}, ${localPlayerPosition.y.toFixed(1)})`);
+        const currentActiveSounds = new Set<string>();
+
+        // First pass: Handle inactive sounds and build active sounds set
+        continuousSounds.forEach((continuousSound, soundId) => {
+            const objectId = continuousSound.objectId.toString();
+            
+            console.log(`🔊 Processing sound for object ${objectId}: isActive=${continuousSound.isActive}, filename=${continuousSound.filename}, pos=(${continuousSound.posX}, ${continuousSound.posY}), volume=${continuousSound.volume}, maxDistance=${continuousSound.maxDistance}`);
+            
+            if (continuousSound.isActive) {
+                currentActiveSounds.add(objectId);
+            } else {
+                // Handle inactive sounds - stop them immediately with proper cleanup
+                cleanupLoopingSound(objectId, "marked inactive");
+            }
+        });
+
+        // Second pass: Process active sounds
+        continuousSounds.forEach((continuousSound, soundId) => {
+            const objectId = continuousSound.objectId.toString();
+            
+            // Skip inactive sounds - already handled above
+            if (!continuousSound.isActive) {
+                return;
+            }
+
+            // Check if we're already playing this sound OR if it's being created
+            const existingSound = activeLoopingSounds.get(objectId);
+            const isBeingCreated = pendingSoundCreationRef.current.has(objectId);
+            
+            if (isBeingCreated) {
+                console.log(`🔊 Sound ${objectId} is already being created, skipping`);
+                return;
+            }
+            
+            if (existingSound) {
+                console.log(`🔊 Updating existing sound for object ${objectId}`);
+                
+                // Validate sound position before updating
+                if (!isFinite(continuousSound.posX) || !isFinite(continuousSound.posY)) {
+                    console.warn(`🔊 Invalid sound position for object ${objectId}: (${continuousSound.posX}, ${continuousSound.posY}) - stopping sound`);
+                    cleanupLoopingSound(objectId, "invalid position");
+                    return;
+                }
+                
+                // Update volume based on distance for existing sound
+                const distance = calculateDistance(
+                    continuousSound.posX,
+                    continuousSound.posY,
+                    localPlayerPosition.x,
+                    localPlayerPosition.y
+                );
+                
+                // Validate distance
+                if (!isFinite(distance) || distance > 10000) {
+                    console.warn(`🔊 Invalid distance ${distance} for object ${objectId} - stopping sound`);
+                    cleanupLoopingSound(objectId, "invalid distance");
+                    return;
+                }
+                
+                const volume = calculateSpatialVolume(
+                    distance,
+                    continuousSound.volume,
+                    continuousSound.maxDistance
+                ) * masterVolume;
+
+                if (volume <= 0.01) {
+                    // Too far away, pause the sound but keep it in the map
+                    if (!existingSound.paused) {
+                        existingSound.pause();
+                        console.log(`🔊 Paused looping sound for object ${objectId} (too far away)`);
+                    }
+                } else {
+                    // Update volume and ensure it's playing
+                    existingSound.volume = Math.min(1.0, volume);
+                    if (existingSound.paused) {
+                        existingSound.play().catch(err => {
+                            console.warn(`🔊 Failed to resume looping sound for object ${objectId}:`, err);
+                        });
+                        console.log(`🔊 Resumed looping sound for object ${objectId} (back in range)`);
+                    }
+                }
+                return; // Done processing this active sound
+            }
+
+            // Start a new looping sound for this active object
+            console.log(`🔊 Starting new looping sound for object ${objectId}: ${continuousSound.filename}`);
+            
+            // Mark this sound as being created to prevent duplicates
+            pendingSoundCreationRef.current.add(objectId);
+            
+            const startLoopingSound = async () => {
+                try {
+                    // CRITICAL: Double-check we don't already have this sound (race condition protection)
+                    if (activeLoopingSounds.has(objectId)) {
+                        console.warn(`🔊 Race condition detected - sound ${objectId} already exists, skipping duplicate creation`);
+                        pendingSoundCreationRef.current.delete(objectId);
+                        return;
+                    }
+                    
+                    // Validate sound position - prevent "sounds everywhere" bug
+                    if (!isFinite(continuousSound.posX) || !isFinite(continuousSound.posY)) {
+                        console.warn(`🔊 Invalid sound position for object ${objectId}: (${continuousSound.posX}, ${continuousSound.posY}) - skipping`);
+                        pendingSoundCreationRef.current.delete(objectId);
+                        return;
+                    }
+                    
+                    const distance = calculateDistance(
+                        continuousSound.posX,
+                        continuousSound.posY,
+                        localPlayerPosition.x,
+                        localPlayerPosition.y
+                    );
+                    
+                    // Additional validation - prevent extremely large distances that could cause audio issues
+                    if (!isFinite(distance) || distance > 10000) {
+                        console.warn(`🔊 Invalid distance ${distance} for object ${objectId} - skipping sound`);
+                        pendingSoundCreationRef.current.delete(objectId);
+                        return;
+                    }
+                    
+                    const volume = calculateSpatialVolume(
+                        distance,
+                        continuousSound.volume,
+                        continuousSound.maxDistance
+                    ) * masterVolume;
+
+                    // CRITICAL: Additional validation to prevent "sounds everywhere" bug
+                    if (!isFinite(volume) || volume < 0) {
+                        console.warn(`🔊 Invalid volume calculated for object ${objectId}: ${volume} - skipping sound`);
+                        pendingSoundCreationRef.current.delete(objectId);
+                        return;
+                    }
+
+                    if (volume <= 0.01) {
+                        console.log(`🔊 Skipping looping sound for object ${objectId} (too far away on start, distance: ${distance.toFixed(1)}, volume: ${volume.toFixed(3)})`);
+                        pendingSoundCreationRef.current.delete(objectId);
+                        return; // Too far away
+                    }
+                    
+                    console.log(`🔊 Starting sound for object ${objectId} at distance ${distance.toFixed(1)} with volume ${volume.toFixed(3)}`);
+
+                    // CRITICAL: Ensure volume is properly clamped for HTML Audio
+                    const clampedVolume = Math.min(1.0, Math.max(0.0, volume));
+
+                    const audio = await getAudio(continuousSound.filename);
+                    const audioClone = audio.cloneNode() as HTMLAudioElement;
+                    
+                    // Configure for looping
+                    audioClone.loop = true;
+                    audioClone.volume = clampedVolume; // Use the properly clamped volume
+                    audioClone.currentTime = 0;
+                    
+                    // Add random pitch variation for variety
+                    const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
+                    audioClone.playbackRate = pitchVariation;
+                    
+                    // Store the active sound BEFORE playing to prevent race conditions
+                    activeLoopingSounds.set(objectId, audioClone);
+                    
+                    // Clear pending creation flag
+                    pendingSoundCreationRef.current.delete(objectId);
+                    
+                    // Start playing
+                    await audioClone.play();
+                    console.log(`🔊 Successfully started looping sound: ${continuousSound.filename} for object ${objectId}`);
+                    
+                    // Enhanced cleanup event handlers
+                    const handleAudioEnd = () => {
+                        console.log(`🔊 Looping sound ended unexpectedly for object ${objectId}`);
+                        cleanupLoopingSound(objectId, "audio ended unexpectedly");
+                    };
+                    
+                    const handleAudioError = (e: Event) => {
+                        // Check if this audio is being cleaned up - if so, ignore the error
+                        if ((audioClone as any)._isBeingCleaned) {
+                            return; // Ignore cleanup-related errors
+                        }
+                        
+                        // Only log genuine audio errors, not cleanup-related ones
+                        console.warn(`🔊 Audio error for object ${objectId} (genuine error):`, e);
+                        cleanupLoopingSound(objectId, "audio error");
+                    };
+                    
+                    audioClone.addEventListener('ended', handleAudioEnd, { once: true });
+                    audioClone.addEventListener('error', handleAudioError, { once: true });
+                    
+                    // Set up a safety timeout to prevent eternal sounds (cleanup after 30 seconds of no updates)
+                    const safetyTimeout = window.setTimeout(() => {
+                        if (activeLoopingSounds.has(objectId)) {
+                            console.warn(`🔊 Safety timeout triggered for sound ${objectId} - cleaning up potential leak`);
+                            cleanupLoopingSound(objectId, "safety timeout");
+                        }
+                    }, 30000); // 30 seconds
+                    
+                    soundCleanupTimeouts.set(objectId, safetyTimeout);
+                    
+                } catch (error) {
+                    console.warn(`🔊 Failed to start looping sound for object ${objectId}: ${continuousSound.filename}`, error);
+                    pendingSoundCreationRef.current.delete(objectId);
+                }
+            };
+
+            startLoopingSound();
+        });
+
+        // Third pass: Stop sounds for objects that are no longer active
+        for (const [objectId] of activeLoopingSounds.entries()) {
+            if (!currentActiveSounds.has(objectId)) {
+                cleanupLoopingSound(objectId, "removed/inactive object");
+            }
+        }
+
+        console.log(`🔊 Active looping sounds: ${activeLoopingSounds.size}, Current active objects: ${currentActiveSounds.size}`);
+
+    }, [continuousSounds, localPlayerPosition, localPlayerIdentity, masterVolume]);
+    
+    // Periodic cleanup to prevent sound leaks
+    useEffect(() => {
+        const periodicCleanup = window.setInterval(() => {
+            // Check for orphaned sounds (sounds playing but not in current continuous sounds)
+            if (continuousSounds && activeLoopingSounds.size > 0) {
+                const currentObjectIds = new Set<string>();
+                continuousSounds.forEach(sound => {
+                    if (sound.isActive) {
+                        currentObjectIds.add(sound.objectId.toString());
+                    }
+                });
+                
+                // Clean up any sounds that are no longer in the server state
+                for (const [objectId] of activeLoopingSounds.entries()) {
+                    if (!currentObjectIds.has(objectId)) {
+                        console.warn(`🔊 Periodic cleanup found orphaned sound for object ${objectId}`);
+                        cleanupLoopingSound(objectId, "periodic cleanup - orphaned");
+                    }
+                }
+            }
+        }, 10000); // Check every 10 seconds
+        
+        return () => {
+            window.clearInterval(periodicCleanup);
+        };
+    }, [continuousSounds]);
+    
+    // Aggressive cleanup when player identity changes (login/logout)
+    useEffect(() => {
+        // When player identity changes, clean up ALL sounds to prevent orphaned sounds
+        console.log(`🔊 Player identity changed, cleaning up all existing sounds`);
+        
+        // Stop all looping sounds
+        for (const [objectId] of activeLoopingSounds.entries()) {
+            cleanupLoopingSound(objectId, "player identity changed");
+        }
+        
+        // Clear all timeouts
+        soundCleanupTimeouts.forEach(timeout => {
+            window.clearTimeout(timeout);
+        });
+        soundCleanupTimeouts.clear();
+        
+        // Clear pending sound creation tracking
+        pendingSoundCreationRef.current.clear();
+        
+    }, [localPlayerIdentity]); // Trigger when player identity changes
     
     // Cleanup on unmount
     useEffect(() => {
@@ -467,6 +799,17 @@ export const useSoundSystem = ({
                 audio.currentTime = 0;
             });
             activeSounds.clear();
+            
+            // Stop all looping sounds with proper cleanup
+            for (const [objectId] of activeLoopingSounds.entries()) {
+                cleanupLoopingSound(objectId, "component unmount");
+            }
+            
+            // Clear any remaining timeouts
+            soundCleanupTimeouts.forEach(timeout => {
+                window.clearTimeout(timeout);
+            });
+            soundCleanupTimeouts.clear();
         };
     }, []);
     
@@ -475,11 +818,36 @@ export const useSoundSystem = ({
         playLocalSound(soundType, volume);
     }, []);
     
+    // Debug function to inspect continuous sounds
+    const debugContinuousSounds = useCallback(() => {
+        console.log(`🔊 DEBUG: Current continuous sounds in database:`);
+        if (continuousSounds) {
+            continuousSounds.forEach((sound, id) => {
+                console.log(`  - ID: ${id}, ObjectID: ${sound.objectId}, Active: ${sound.isActive}, Type: ${sound.soundType}, Filename: ${sound.filename}, Pos: (${sound.posX}, ${sound.posY}), Volume: ${sound.volume}, MaxDist: ${sound.maxDistance}`);
+            });
+        }
+        console.log(`🔊 DEBUG: Current active looping sounds on client:`);
+        activeLoopingSounds.forEach((audio, objectId) => {
+            console.log(`  - ObjectID: ${objectId}, Paused: ${audio.paused}, Volume: ${audio.volume}, CurrentTime: ${audio.currentTime}`);
+        });
+    }, [continuousSounds]);
+    
+    // Expose debug function to window for easy access
+    useEffect(() => {
+        (window as any).debugContinuousSounds = debugContinuousSounds;
+        return () => {
+            delete (window as any).debugContinuousSounds;
+        };
+    }, [debugContinuousSounds]);
+    
     return {
         playSound,
+        masterVolume,
         isAudioSupported: typeof Audio !== 'undefined',
         cachedSoundsCount: audioCache['cache'].size,
         activeSoundsCount: activeSounds.size,
+        activeLoopingSoundsCount: activeLoopingSounds.size,
         soundDefinitions: SOUND_DEFINITIONS,
+        debugContinuousSounds, // Expose for debugging
     };
 }; 

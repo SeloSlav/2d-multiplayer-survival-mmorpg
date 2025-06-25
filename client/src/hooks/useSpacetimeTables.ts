@@ -127,6 +127,7 @@ export interface SpacetimeTableStates {
     fishingSessions: Map<string, SpacetimeDB.FishingSession>;
     plantedSeeds: Map<string, SpacetimeDB.PlantedSeed>;
     soundEvents: Map<string, SpacetimeDB.SoundEvent>;
+    continuousSounds: Map<string, SpacetimeDB.ContinuousSound>;
     localPlayerIdentity: Identity | null;
 }   
 
@@ -187,6 +188,7 @@ export const useSpacetimeTables = ({
     const [playerDodgeRollStates, setPlayerDodgeRollStates] = useState<Map<string, SpacetimeDB.PlayerDodgeRollState>>(() => new Map());
     const [fishingSessions, setFishingSessions] = useState<Map<string, SpacetimeDB.FishingSession>>(() => new Map());
     const [soundEvents, setSoundEvents] = useState<Map<string, SpacetimeDB.SoundEvent>>(() => new Map());
+    const [continuousSounds, setContinuousSounds] = useState<Map<string, SpacetimeDB.ContinuousSound>>(() => new Map());
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -1031,6 +1033,17 @@ export const useSpacetimeTables = ({
                 setSoundEvents(prev => { const newMap = new Map(prev); newMap.delete(soundEvent.id.toString()); return newMap; });
             };
 
+            // Continuous Sound Handlers
+            const handleContinuousSoundInsert = (ctx: any, continuousSound: SpacetimeDB.ContinuousSound) => {
+                setContinuousSounds(prev => new Map(prev).set(continuousSound.objectId.toString(), continuousSound));
+            };
+            const handleContinuousSoundUpdate = (ctx: any, oldContinuousSound: SpacetimeDB.ContinuousSound, newContinuousSound: SpacetimeDB.ContinuousSound) => {
+                setContinuousSounds(prev => new Map(prev).set(newContinuousSound.objectId.toString(), newContinuousSound));
+            };
+            const handleContinuousSoundDelete = (ctx: any, continuousSound: SpacetimeDB.ContinuousSound) => {
+                setContinuousSounds(prev => { const newMap = new Map(prev); newMap.delete(continuousSound.objectId.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1130,6 +1143,11 @@ export const useSpacetimeTables = ({
             connection.db.soundEvent.onUpdate(handleSoundEventUpdate);
             connection.db.soundEvent.onDelete(handleSoundEventDelete);
 
+            // Register ContinuousSound callbacks - ADDED
+            connection.db.continuousSound.onInsert(handleContinuousSoundInsert);
+            connection.db.continuousSound.onUpdate(handleContinuousSoundUpdate);
+            connection.db.continuousSound.onDelete(handleContinuousSoundDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1206,6 +1224,10 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[SOUND_EVENT Sub Error]:", err))
                     .subscribe('SELECT * FROM sound_event'),
+                 // ADDED ContinuousSound subscription for looping sounds
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[CONTINUOUS_SOUND Sub Error]:", err))
+                    .subscribe('SELECT * FROM continuous_sound'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1435,6 +1457,7 @@ export const useSpacetimeTables = ({
         fishingSessions,
         plantedSeeds,
         soundEvents,
+        continuousSounds,
         localPlayerIdentity, // Add this to the return
     };
 }; 

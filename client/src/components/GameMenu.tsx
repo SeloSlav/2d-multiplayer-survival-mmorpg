@@ -1,14 +1,25 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-export type MenuType = 'main' | 'controls' | 'tips' | null;
+export type MenuType = 'main' | 'controls' | 'tips' | 'settings' | null;
 
 interface GameMenuProps {
     onClose: () => void;
     onNavigate: (menu: MenuType) => void;
+    musicVolume?: number;
+    soundVolume?: number;
+    onMusicVolumeChange?: (volume: number) => void;
+    onSoundVolumeChange?: (volume: number) => void;
 }
 
-const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
+const GameMenu: React.FC<GameMenuProps> = ({ 
+    onClose, 
+    onNavigate, 
+    musicVolume = 0.25, 
+    soundVolume = 0.8, 
+    onMusicVolumeChange, 
+    onSoundVolumeChange 
+}) => {
     const { logout } = useAuth();
     
     const handleBackdropClick = (e: React.MouseEvent) => {
@@ -24,6 +35,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
 
     const menuOptions = [
         { label: 'Back to Game', action: () => onClose() },
+        { label: 'Settings', action: () => onNavigate('settings') },
         { label: 'Controls', action: () => onNavigate('controls') },
         { label: 'Game Tips', action: () => onNavigate('tips') },
         { label: 'Sign Out', action: handleSignOut, isSignOut: true },
@@ -96,7 +108,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                     <h2
                         style={{
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '18px',
+                            fontSize: '24px',
                             color: '#00ffff',
                             textAlign: 'center',
                             marginBottom: '8px',
@@ -110,7 +122,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                     <div
                         style={{
                             fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '12px',
+                            fontSize: '14px',
                             color: '#6699cc',
                             textAlign: 'center',
                             letterSpacing: '1px',
@@ -137,7 +149,7 @@ const GameMenu: React.FC<GameMenuProps> = ({ onClose, onNavigate }) => {
                                 borderRadius: '8px',
                                 padding: '15px 25px',
                                 fontFamily: '"Press Start 2P", cursive',
-                                fontSize: '12px',
+                                fontSize: '14px',
                                 cursor: 'pointer',
                                 transition: 'all 0.3s ease',
                                 boxShadow: option.isSignOut 

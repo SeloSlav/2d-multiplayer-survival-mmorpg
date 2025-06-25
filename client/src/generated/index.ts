@@ -354,6 +354,8 @@ import { CloudIntensityScheduleTableHandle } from "./cloud_intensity_schedule_ta
 export { CloudIntensityScheduleTableHandle };
 import { CloudUpdateScheduleTableHandle } from "./cloud_update_schedule_table.ts";
 export { CloudUpdateScheduleTableHandle };
+import { ContinuousSoundTableHandle } from "./continuous_sound_table.ts";
+export { ContinuousSoundTableHandle };
 import { CornTableHandle } from "./corn_table.ts";
 export { CornTableHandle };
 import { CraftingFinishScheduleTableHandle } from "./crafting_finish_schedule_table.ts";
@@ -492,6 +494,8 @@ import { ContainerLocationData } from "./container_location_data_type.ts";
 export { ContainerLocationData };
 import { ContainerType } from "./container_type_type.ts";
 export { ContainerType };
+import { ContinuousSound } from "./continuous_sound_type.ts";
+export { ContinuousSound };
 import { CookingProgress } from "./cooking_progress_type.ts";
 export { CookingProgress };
 import { Corn } from "./corn_type.ts";
@@ -694,6 +698,11 @@ const REMOTE_MODULE = {
       tableName: "cloud_update_schedule",
       rowType: CloudUpdateSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "scheduleId",
+    },
+    continuous_sound: {
+      tableName: "continuous_sound",
+      rowType: ContinuousSound.getTypeScriptAlgebraicType(),
+      primaryKey: "objectId",
     },
     corn: {
       tableName: "corn",
@@ -4831,6 +4840,10 @@ export class RemoteTables {
 
   get cloudUpdateSchedule(): CloudUpdateScheduleTableHandle {
     return new CloudUpdateScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CloudUpdateSchedule>(REMOTE_MODULE.tables.cloud_update_schedule));
+  }
+
+  get continuousSound(): ContinuousSoundTableHandle {
+    return new ContinuousSoundTableHandle(this.connection.clientCache.getOrCreateTable<ContinuousSound>(REMOTE_MODULE.tables.continuous_sound));
   }
 
   get corn(): CornTableHandle {

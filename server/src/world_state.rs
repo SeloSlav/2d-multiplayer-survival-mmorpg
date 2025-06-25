@@ -11,6 +11,7 @@ use crate::shelter::shelter as ShelterTableTrait;
 use crate::tree::tree as TreeTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;
 use crate::world_state::thunder_event as ThunderEventTableTrait;
+use crate::sound_events;
 
 // Define fuel consumption rate (items per second)
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
@@ -549,6 +550,9 @@ fn extinguish_unprotected_campfires(ctx: &ReducerContext, weather_type: &Weather
             campfire.is_burning = false;
             campfire.current_fuel_def_id = None;
             campfire.remaining_fuel_burn_time_secs = None;
+            
+            // 🔊 Stop campfire looping sound when extinguished by rain
+            crate::sound_events::stop_campfire_sound(ctx, campfire.id as u64);
             
             // Update the campfire in the database
             ctx.db.campfire().id().update(campfire.clone());
