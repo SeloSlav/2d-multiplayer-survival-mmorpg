@@ -18,6 +18,7 @@ use crate::active_effects; // Import the active effects module for applying ammu
 use crate::active_effects::active_consumable_effect; // Import the trait for the table
 use crate::shelter; // Import shelter module for collision detection
 use crate::shelter::shelter as ShelterTableTrait; // Import shelter table trait
+use crate::sound_events; // Import sound events for arrow hit sounds
 
 // Import deployable entity modules for collision detection
 use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_OFFSET, campfire as CampfireTableTrait};
@@ -388,6 +389,13 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
     };
 
     ctx.db.projectile().insert(projectile);
+
+    // Play weapon-specific shooting sound
+    if item_def.name == "Crossbow" {
+        sound_events::emit_shoot_crossbow_sound(ctx, player.position_x, player.position_y, player_id);
+    } else if item_def.name == "Hunting Bow" {
+        sound_events::emit_shoot_bow_sound(ctx, player.position_x, player.position_y, player_id);
+    }
 
     // Update last attack timestamp
     let timestamp_record = PlayerLastAttackTimestamp {
@@ -1024,6 +1032,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                                             "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Player Corpse {}",
                                             projectile.id, final_damage, corpse.id
                                         );
+                                        
+                                        // Play arrow hit sound for corpse hits
+                                        sound_events::emit_arrow_hit_sound(ctx, corpse.pos_x, corpse.pos_y, projectile.owner_id);
                                     }
                                 }
                                 Err(e) => {
@@ -1124,6 +1135,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                         if attack_result.hit {
                             log::info!("Projectile from {:?} (weapon: {} + ammo: {}) dealt {:.1} damage to player {:?}.", 
                                      projectile.owner_id, weapon_item_def.name, ammo_item_def.name, final_damage, player_to_check.identity);
+                            
+                            // Play arrow hit sound for living player hits
+                            sound_events::emit_arrow_hit_sound(ctx, player_to_check.position_x, player_to_check.position_y, projectile.owner_id);
                             
                             // Apply ammunition-based bleed/burn effects
                             if let Err(e) = apply_projectile_bleed_effect(ctx, player_to_check.identity, &ammo_item_def, current_time) {

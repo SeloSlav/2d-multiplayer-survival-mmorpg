@@ -1,6 +1,6 @@
 import { Shelter as SpacetimeDBShelter, Player as SpacetimeDBPlayer } from '../../generated';
 // import { applyStandardDropShadow } from './shadowUtils'; // Not used
-import { drawDynamicGroundShadow } from './shadowUtils'; // Use this instead
+import { drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Use this instead
 import { Identity } from '@clockworklabs/spacetimedb-sdk'; // For Identity comparison
 
 interface RenderShelterProps {
@@ -29,6 +29,10 @@ const HEALTH_BAR_VISIBLE_DURATION_MS = 3000;
 // Shake effect constants for Shelter
 const SHELTER_SHAKE_DURATION_MS = 180; // Slightly longer or shorter than tree based on desired feel
 const SHELTER_SHAKE_INTENSITY_PX = 6; // Less intense for a large, sturdy object
+
+// --- Client-side animation tracking for shelter shakes ---
+const clientShelterShakeStartTimes = new Map<string, number>(); // shelterId -> client timestamp when shake started
+const lastKnownServerShelterShakeTimes = new Map<string, number>();
 
 const SHELTER_OUTLINE_THICKNESS = 2;
 // DEBUG: Server-side AABB collision constants (mirror what's in server/src/shelter.rs)
@@ -74,6 +78,19 @@ export const renderShelter = ({
   // The shadow is cast from the base of the shelter.
   // entityCenterX is shelter.posX
   // entityBaseY is shelter.posY
+  
+  // Calculate shake offsets for shadow synchronization using helper function
+  const { shakeOffsetX: shadowShakeOffsetX, shakeOffsetY: shadowShakeOffsetY } = calculateShakeOffsets(
+    shelter,
+    shelter.id.toString(),
+    {
+      clientStartTimes: clientShelterShakeStartTimes,
+      lastKnownServerTimes: lastKnownServerShelterShakeTimes
+    },
+    SHELTER_SHAKE_DURATION_MS,
+    SHELTER_SHAKE_INTENSITY_PX
+  );
+
   drawDynamicGroundShadow({
     ctx,
     entityImage: shelterImage, // The image used to derive shadow silhouette
@@ -89,6 +106,9 @@ export const renderShelter = ({
     minStretchFactor: 0.15,        // Wider shadow at noon
     shadowBlur: 2,                // Softer edges
     pivotYOffset: 100, // Significantly reduced pivotYOffset, similar to tree's concept
+    // NEW: Pass shake offsets so shadow moves with the shelter
+    shakeOffsetX: shadowShakeOffsetX,
+    shakeOffsetY: shadowShakeOffsetY
   });
 
   // --- Shelter Image Rendering ---

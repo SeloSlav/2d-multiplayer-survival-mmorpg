@@ -2,7 +2,7 @@ import { Lantern } from '../../generated'; // Import generated Lantern type
 import lanternOnImage from '../../assets/doodads/lantern_on.png'; // Direct import ON
 import lanternOffImage from '../../assets/doodads/lantern_off.png'; // Direct import OFF
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
-import { drawDynamicGroundShadow, applyStandardDropShadow } from './shadowUtils'; // Added applyStandardDropShadow back
+import { drawDynamicGroundShadow, applyStandardDropShadow, calculateShakeOffsets } from './shadowUtils'; // Added applyStandardDropShadow back
 import { imageManager } from './imageManager'; // Import image manager
 import { Lantern as SpacetimeDBLantern, Player as SpacetimeDBPlayer } from '../../generated';
 
@@ -36,6 +36,10 @@ const HEALTH_BAR_HEIGHT = 5;
 const HEALTH_BAR_Y_OFFSET = 8; // Offset above the lantern image
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Added for fade effect
 
+// --- Client-side animation tracking for lantern shakes ---
+const clientLanternShakeStartTimes = new Map<string, number>(); // lanternId -> client timestamp when shake started
+const lastKnownServerLanternShakeTimes = new Map<string, number>();
+
 // --- Define Configuration ---
 const lanternConfig: GroundEntityConfig<Lantern> = {
     // Return imported URL based on state
@@ -63,6 +67,18 @@ const lanternConfig: GroundEntityConfig<Lantern> = {
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
         // Draw DYNAMIC ground shadow for both lit and unlit lanterns (if not destroyed)
         if (!entity.isDestroyed) {
+            // Calculate shake offsets for shadow synchronization using helper function
+            const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+                entity,
+                entity.id.toString(),
+                {
+                    clientStartTimes: clientLanternShakeStartTimes,
+                    lastKnownServerTimes: lastKnownServerLanternShakeTimes
+                },
+                SHAKE_DURATION_MS,
+                SHAKE_INTENSITY_PX
+            );
+
             drawDynamicGroundShadow({
                 ctx,
                 entityImage,
@@ -74,7 +90,10 @@ const lanternConfig: GroundEntityConfig<Lantern> = {
                 maxStretchFactor: 1.1, 
                 minStretchFactor: 0.2,  
                 shadowBlur: 1,         
-                pivotYOffset: 15       
+                pivotYOffset: 15,
+                // NEW: Pass shake offsets so shadow moves with the lantern
+                shakeOffsetX,
+                shakeOffsetY      
             });
         }
     },

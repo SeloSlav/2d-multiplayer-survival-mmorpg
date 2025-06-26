@@ -2,7 +2,7 @@ import { Campfire } from '../../generated'; // Import generated Campfire type
 import campfireImage from '../../assets/doodads/campfire.png'; // Direct import ON
 import campfireOffImage from '../../assets/doodads/campfire_off.png'; // Direct import OFF
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
-import { drawDynamicGroundShadow, applyStandardDropShadow } from './shadowUtils'; // Added applyStandardDropShadow back
+import { drawDynamicGroundShadow, applyStandardDropShadow, calculateShakeOffsets } from './shadowUtils'; // Added applyStandardDropShadow back
 import { imageManager } from './imageManager'; // Import image manager
 import { Campfire as SpacetimeDBCampfire, Player as SpacetimeDBPlayer } from '../../generated';
 
@@ -35,6 +35,10 @@ const HEALTH_BAR_HEIGHT = 6;
 const HEALTH_BAR_Y_OFFSET = 10; // Offset above the campfire image
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Added for fade effect
 
+// --- Client-side animation tracking for campfire shakes ---
+const clientCampfireShakeStartTimes = new Map<string, number>(); // campfireId -> client timestamp when shake started
+const lastKnownServerCampfireShakeTimes = new Map<string, number>();
+
 // --- Define Configuration ---
 const campfireConfig: GroundEntityConfig<Campfire> = {
     // Return imported URL based on state
@@ -62,6 +66,18 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
         // Draw DYNAMIC ground shadow for both burning and unlit campfires (if not destroyed)
         if (!entity.isDestroyed) {
+            // Calculate shake offsets for shadow synchronization using helper function
+            const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+                entity,
+                entity.id.toString(),
+                {
+                    clientStartTimes: clientCampfireShakeStartTimes,
+                    lastKnownServerTimes: lastKnownServerCampfireShakeTimes
+                },
+                SHAKE_DURATION_MS,
+                SHAKE_INTENSITY_PX
+            );
+
             drawDynamicGroundShadow({
                 ctx,
                 entityImage,
@@ -73,7 +89,10 @@ const campfireConfig: GroundEntityConfig<Campfire> = {
                 maxStretchFactor: 1.2, 
                 minStretchFactor: 0.1,  
                 shadowBlur: 2,         
-                pivotYOffset: 25       
+                pivotYOffset: 25,
+                // NEW: Pass shake offsets so shadow moves with the campfire
+                shakeOffsetX,
+                shakeOffsetY      
             });
         }
     },

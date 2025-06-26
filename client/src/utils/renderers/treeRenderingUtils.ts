@@ -5,7 +5,7 @@ import downyOakImage from '../../assets/doodads/downy_oak_b.png';
 import stonePineImage from '../../assets/doodads/stone_pine_b.png'; // New import for stone pine
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
-import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
+import { drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Import shadow utils
 import { applyStandardDropShadow } from './shadowUtils'; // Import new shadow util
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
@@ -77,6 +77,18 @@ const treeConfig: GroundEntityConfig<Tree> = {
     getShadowParams: undefined, // No longer using this for trees
 
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Calculate shake offsets for shadow synchronization using helper function
+        const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+            entity,
+            entity.id.toString(),
+            {
+                clientStartTimes: clientTreeShakeStartTimes,
+                lastKnownServerTimes: lastKnownServerTreeShakeTimes
+            },
+            SHAKE_DURATION_MS,
+            SHAKE_INTENSITY_PX
+        );
+
         drawDynamicGroundShadow({
             ctx,
             entityImage,
@@ -88,7 +100,10 @@ const treeConfig: GroundEntityConfig<Tree> = {
             maxStretchFactor: 1.8,
             minStretchFactor: 0.15,
             shadowBlur: 2,
-            pivotYOffset: 15
+            pivotYOffset: 15,
+            // NEW: Pass shake offsets so shadow moves with the tree
+            shakeOffsetX,
+            shakeOffsetY
         });
     },
 

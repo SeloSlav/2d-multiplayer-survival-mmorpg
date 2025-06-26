@@ -1,6 +1,6 @@
-C:\Users\Asus\OneDrive\Documents\BrothBullets\vibe-coding-starter-pack-2d-multiplayer-survival\server\target\debug\deps\vibe_survival_game.dll: src\lib.rs src\environment.rs src\tree.rs src\stone.rs src\items.rs src\world_state.rs src\campfire.rs src\active_equipment.rs src\player_inventory.rs src\mushroom.rs src\consumables.rs src\utils.rs src\dropped_item.rs src\wooden_storage_box.rs src\items_database.rs src\starting_items.rs src\inventory_management.rs src\spatial_grid.rs src\crafting.rs src\crafting_queue.rs src\player_stats.rs src\global_tick.rs src\chat.rs src\player_pin.rs src\combat.rs src\repair.rs src\collectible_resources.rs src\corn.rs src\potato.rs src\sleeping_bag.rs src\player_corpse.rs src\models.rs src\cooking.rs src\hemp.rs src\stash.rs src\pumpkin.rs src\active_effects.rs src\cloud.rs src\armor.rs src\grass.rs src\player_movement.rs src\knocked_out.rs src\bones.rs src\ranged_weapon_stats.rs src\projectile.rs src\death_marker.rs src\torch.rs src\respawn.rs src\player_collision.rs src\shelter.rs src\world_generation.rs
+C:\Users\Asus\OneDrive\Documents\BrothBullets\vibe-coding-starter-pack-2d-multiplayer-survival\server\target\debug\deps\vibe_survival_game.dll: src\lib.rs src\environment.rs src\tree.rs src\stone.rs src\items.rs src\world_state.rs src\campfire.rs src\lantern.rs src\active_equipment.rs src\player_inventory.rs src\mushroom.rs src\consumables.rs src\utils.rs src\dropped_item.rs src\wooden_storage_box.rs src\items_database.rs src\starting_items.rs src\inventory_management.rs src\spatial_grid.rs src\crafting.rs src\crafting_queue.rs src\player_stats.rs src\global_tick.rs src\chat.rs src\player_pin.rs src\combat.rs src\repair.rs src\collectible_resources.rs src\corn.rs src\potato.rs src\sleeping_bag.rs src\player_corpse.rs src\models.rs src\cooking.rs src\hemp.rs src\reed.rs src\stash.rs src\pumpkin.rs src\planted_seeds.rs src\active_effects.rs src\cloud.rs src\armor.rs src\grass.rs src\player_movement.rs src\knocked_out.rs src\bones.rs src\ranged_weapon_stats.rs src\projectile.rs src\death_marker.rs src\torch.rs src\respawn.rs src\player_collision.rs src\shelter.rs src\world_generation.rs src\fishing.rs src\drinking.rs src\wet.rs src\sound_events.rs src\rain_collector.rs src\water_patch.rs
 
-C:\Users\Asus\OneDrive\Documents\BrothBullets\vibe-coding-starter-pack-2d-multiplayer-survival\server\target\debug\deps\vibe_survival_game.d: src\lib.rs src\environment.rs src\tree.rs src\stone.rs src\items.rs src\world_state.rs src\campfire.rs src\active_equipment.rs src\player_inventory.rs src\mushroom.rs src\consumables.rs src\utils.rs src\dropped_item.rs src\wooden_storage_box.rs src\items_database.rs src\starting_items.rs src\inventory_management.rs src\spatial_grid.rs src\crafting.rs src\crafting_queue.rs src\player_stats.rs src\global_tick.rs src\chat.rs src\player_pin.rs src\combat.rs src\repair.rs src\collectible_resources.rs src\corn.rs src\potato.rs src\sleeping_bag.rs src\player_corpse.rs src\models.rs src\cooking.rs src\hemp.rs src\stash.rs src\pumpkin.rs src\active_effects.rs src\cloud.rs src\armor.rs src\grass.rs src\player_movement.rs src\knocked_out.rs src\bones.rs src\ranged_weapon_stats.rs src\projectile.rs src\death_marker.rs src\torch.rs src\respawn.rs src\player_collision.rs src\shelter.rs src\world_generation.rs
+C:\Users\Asus\OneDrive\Documents\BrothBullets\vibe-coding-starter-pack-2d-multiplayer-survival\server\target\debug\deps\vibe_survival_game.d: src\lib.rs src\environment.rs src\tree.rs src\stone.rs src\items.rs src\world_state.rs src\campfire.rs src\lantern.rs src\active_equipment.rs src\player_inventory.rs src\mushroom.rs src\consumables.rs src\utils.rs src\dropped_item.rs src\wooden_storage_box.rs src\items_database.rs src\starting_items.rs src\inventory_management.rs src\spatial_grid.rs src\crafting.rs src\crafting_queue.rs src\player_stats.rs src\global_tick.rs src\chat.rs src\player_pin.rs src\combat.rs src\repair.rs src\collectible_resources.rs src\corn.rs src\potato.rs src\sleeping_bag.rs src\player_corpse.rs src\models.rs src\cooking.rs src\hemp.rs src\reed.rs src\stash.rs src\pumpkin.rs src\planted_seeds.rs src\active_effects.rs src\cloud.rs src\armor.rs src\grass.rs src\player_movement.rs src\knocked_out.rs src\bones.rs src\ranged_weapon_stats.rs src\projectile.rs src\death_marker.rs src\torch.rs src\respawn.rs src\player_collision.rs src\shelter.rs src\world_generation.rs src\fishing.rs src\drinking.rs src\wet.rs src\sound_events.rs src\rain_collector.rs src\water_patch.rs
 
 src\lib.rs:
 src\environment.rs:
@@ -9,6 +9,7 @@ src\stone.rs:
 src\items.rs:
 src\world_state.rs:
 src\campfire.rs:
+src\lantern.rs:
 src\active_equipment.rs:
 src\player_inventory.rs:
 src\mushroom.rs:
@@ -36,8 +37,10 @@ src\player_corpse.rs:
 src\models.rs:
 src\cooking.rs:
 src\hemp.rs:
+src\reed.rs:
 src\stash.rs:
 src\pumpkin.rs:
+src\planted_seeds.rs:
 src\active_effects.rs:
 src\cloud.rs:
 src\armor.rs:
@@ -53,3 +56,9 @@ src\respawn.rs:
 src\player_collision.rs:
 src\shelter.rs:
 src\world_generation.rs:
+src\fishing.rs:
+src\drinking.rs:
+src\wet.rs:
+src\sound_events.rs:
+src\rain_collector.rs:
+src\water_patch.rs:

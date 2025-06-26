@@ -103,6 +103,7 @@ pub enum TargetType {
     PlayerCorpse,
     Grass,
     Shelter, // ADDED Shelter TargetType
+    RainCollector, // ADDED RainCollector TargetType
 }
 
 // Enum to represent the type of an active consumable effect

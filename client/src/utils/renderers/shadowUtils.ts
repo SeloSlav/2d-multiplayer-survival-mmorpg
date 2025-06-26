@@ -130,6 +130,9 @@ export interface DynamicGroundShadowParams {
     posY: number;
     isDestroyed: boolean;
   }>;
+  // NEW: Shake effect support for impact animations
+  shakeOffsetX?: number;      // Horizontal shake offset when entity is hit
+  shakeOffsetY?: number;      // Vertical shake offset when entity is hit
 }
 
 // Shelter collision constants (adjusted for visual clipping)
@@ -205,6 +208,8 @@ export function drawDynamicGroundShadow({
   shadowBlur = 0,
   pivotYOffset = 0,
   shelters,
+  shakeOffsetX,
+  shakeOffsetY,
 }: DynamicGroundShadowParams): void {
   let overallAlpha: number;
   let shadowLength: number; // How far the shadow extends
@@ -318,7 +323,11 @@ export function drawDynamicGroundShadow({
   applyShelterClipping(ctx, sheltersToUse);
 
   // Move origin to the entity's base center (this is the anchor point)
-  ctx.translate(entityCenterX, entityBaseY - pivotYOffset);
+  // Apply shake offsets if the entity is being hit for responsive feedback
+  const effectiveEntityCenterX = entityCenterX + (shakeOffsetX || 0);
+  const effectiveEntityBaseY = entityBaseY + (shakeOffsetY || 0);
+  
+  ctx.translate(effectiveEntityCenterX, effectiveEntityBaseY - pivotYOffset);
 
   // Apply shadow transformation matrix to create realistic shadow casting
   // The shadow is anchored at the entity's base and stretches/leans based on sun position
@@ -403,3 +412,59 @@ export function drawDynamicGroundShadow({
 //   ctx.globalAlpha = 1.0; 
 //   ctx.restore();
 // } 
+
+/**
+ * Helper function to calculate shake offsets for shadow synchronization.
+ * This reduces code duplication across all object rendering utilities.
+ * @param entity The entity that might be shaking
+ * @param entityId The string ID of the entity
+ * @param shakeTrackingMaps Object containing the tracking maps for this entity type
+ * @param shakeDurationMs Duration of the shake effect in milliseconds
+ * @param shakeIntensityPx Maximum shake intensity in pixels
+ * @returns Object with shakeOffsetX and shakeOffsetY values
+ */
+export function calculateShakeOffsets(
+  entity: { lastHitTime?: { microsSinceUnixEpoch: bigint } | null },
+  entityId: string,
+  shakeTrackingMaps: {
+    clientStartTimes: Map<string, number>;
+    lastKnownServerTimes: Map<string, number>;
+  },
+  shakeDurationMs: number = 300,
+  shakeIntensityPx: number = 6
+): { shakeOffsetX: number; shakeOffsetY: number } {
+  let shakeOffsetX = 0;
+  let shakeOffsetY = 0;
+
+  if (entity.lastHitTime) {
+    const serverShakeTime = Number(entity.lastHitTime.microsSinceUnixEpoch / 1000n);
+    
+    // Check if this is a NEW shake by comparing server timestamps
+    const lastKnownServerTime = shakeTrackingMaps.lastKnownServerTimes.get(entityId) || 0;
+    
+    if (serverShakeTime !== lastKnownServerTime) {
+      // NEW shake detected! Record both server time and client time
+      shakeTrackingMaps.lastKnownServerTimes.set(entityId, serverShakeTime);
+      shakeTrackingMaps.clientStartTimes.set(entityId, Date.now());
+    }
+    
+    // Calculate animation based on client time
+    const clientStartTime = shakeTrackingMaps.clientStartTimes.get(entityId);
+    if (clientStartTime) {
+      const elapsedSinceShake = Date.now() - clientStartTime;
+      
+      if (elapsedSinceShake >= 0 && elapsedSinceShake < shakeDurationMs) {
+        const shakeFactor = 1.0 - (elapsedSinceShake / shakeDurationMs);
+        const currentShakeIntensity = shakeIntensityPx * shakeFactor;
+        shakeOffsetX = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+        shakeOffsetY = (Math.random() - 0.5) * 2 * currentShakeIntensity;
+      }
+    }
+  } else {
+    // Clean up tracking when entity is not being hit
+    shakeTrackingMaps.clientStartTimes.delete(entityId);
+    shakeTrackingMaps.lastKnownServerTimes.delete(entityId);
+  }
+
+  return { shakeOffsetX, shakeOffsetY };
+} 

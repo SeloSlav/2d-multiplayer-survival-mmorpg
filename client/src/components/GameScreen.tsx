@@ -20,6 +20,7 @@ import Chat from './Chat';
 import SpeechBubbleManager from './SpeechBubbleManager';
 import TargetingReticle from './TargetingReticle';
 import FishingManager from './FishingManager';
+import MusicControlPanel from './MusicControlPanel';
 // Import menu components
 import GameMenuButton from './GameMenuButton';
 import GameMenu from './GameMenu';
@@ -195,6 +196,10 @@ interface GameScreenProps {
     
     // Sound system for immediate sound effects
     soundSystem: ReturnType<typeof import('../hooks/useSoundSystem').useSoundSystem>;
+
+    // Music panel state
+    isMusicPanelVisible: boolean;
+    setIsMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -233,6 +238,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // Debug context
     const { showAutotileDebug, toggleAutotileDebug, showMusicDebug, toggleMusicDebug } = useDebug();
+    
+
     
     // Destructure props for cleaner usage
     const {
@@ -277,6 +284,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         playerDrinkingCooldowns,
         rainCollectors,
         waterPatches,
+        isMusicPanelVisible,
+        setIsMusicPanelVisible,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -792,6 +801,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 playerDrinkingCooldowns={playerDrinkingCooldowns}
                 rainCollectors={rainCollectors}
                 waterPatches={waterPatches}
+                setMusicPanelVisible={setIsMusicPanelVisible}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -840,6 +850,12 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 isGameMenuOpen={currentMenu !== null}
             />
             <DayNightCycleTracker worldState={worldState} />
+            <MusicControlPanel 
+                musicSystem={musicSystem}
+                musicVolume={musicVolume}
+                onMusicVolumeChange={onMusicVolumeChange}
+                isVisible={isMusicPanelVisible}
+            />
             <Chat 
                 connection={connection}
                 messages={messages} 

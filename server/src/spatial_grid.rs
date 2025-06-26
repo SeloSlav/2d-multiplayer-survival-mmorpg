@@ -30,6 +30,8 @@ use crate::mushroom::mushroom as MushroomTableTrait;
 use crate::dropped_item::dropped_item as DroppedItemTableTrait;
 use crate::shelter::shelter as ShelterTableTrait; // RE-ENABLE ShelterTableTrait import
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // ADDED PlayerCorpse table trait
+// Import rain collector table trait
+use crate::rain_collector::rain_collector as RainCollectorTableTrait;
 
 // Cell size should be larger than the largest collision radius to ensure
 // we only need to check adjacent cells. We use 4x the player radius as a safe default.
@@ -56,6 +58,7 @@ pub enum EntityType {
     DroppedItem(u64),
     Shelter(u32), // RE-ENABLE Shelter from EntityType
     PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
+    RainCollector(u32), // ADDED RainCollector entity type (assuming u32 ID)
 }
 
 // Grid cell that stores entities
@@ -158,7 +161,8 @@ impl SpatialGrid {
                                   + CampfireTableTrait + WoodenStorageBoxTableTrait 
                                   + MushroomTableTrait + DroppedItemTableTrait
                                   + ShelterTableTrait 
-                                  + PlayerCorpseTableTrait> // ADDED PlayerCorpseTableTrait to bounds
+                                  + PlayerCorpseTableTrait
+                                  + RainCollectorTableTrait> // ADDED RainCollectorTableTrait to bounds
                                  (&mut self, db: &DB) {
         self.clear();
         
@@ -242,6 +246,13 @@ impl SpatialGrid {
             // Assuming PlayerCorpse does not have an `is_destroyed` field, or we always add active ones.
             // If there's a similar flag, add check: if !corpse.is_looted_or_despawned { ... }
             self.add_entity(EntityType::PlayerCorpse(corpse.id), corpse.pos_x, corpse.pos_y);
+        }
+
+        // Add rain collectors (only non-destroyed)
+        for rain_collector in db.rain_collector().iter() {
+            if !rain_collector.is_destroyed {
+                self.add_entity(EntityType::RainCollector(rain_collector.id), rain_collector.pos_x, rain_collector.pos_y);
+            }
         }
     }
 }

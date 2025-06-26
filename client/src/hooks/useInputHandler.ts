@@ -59,6 +59,7 @@ interface InputHandlerProps {
     isGameMenuOpen: boolean;
     isSearchingCraftRecipes?: boolean;
     isFishing: boolean;
+    setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // --- Hook Return Value Interface ---
@@ -126,6 +127,7 @@ export const useInputHandler = ({
     isInventoryOpen,
     isGameMenuOpen,
     isFishing,
+    setMusicPanelVisible,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
@@ -432,6 +434,11 @@ export const useInputHandler = ({
                     case 'g': // Handle minimap toggle here
                         setIsMinimapOpen((prev: boolean) => !prev);
                         event.preventDefault(); // Prevent typing 'g' in chat etc.
+                        return;
+                    case 'm': // Handle music panel toggle here
+                        setMusicPanelVisible(prev => !prev);
+                        event.preventDefault(); // Prevent typing 'm' in chat etc.
+                        console.log('[M-Key] Toggled music control panel');
                         return;
                 }
             }

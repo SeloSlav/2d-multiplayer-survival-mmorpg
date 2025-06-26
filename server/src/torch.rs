@@ -3,6 +3,7 @@ use spacetimedb::{ReducerContext, Identity, Timestamp, Table, log};
 use crate::player;
 use crate::active_equipment::active_equipment;
 use crate::items::item_definition;
+use crate::sound_events;
 
 // Torch warmth constant (matches player_stats.rs)
 // Neutralizes night cold (-1.5) but midnight (-2.0) still causes slow warmth loss
@@ -43,12 +44,14 @@ pub fn toggle_torch(ctx: &ReducerContext) -> Result<(), String> {
             // ADD: Update player's last_update timestamp
             player.last_update = ctx.timestamp;
 
-            // Update icon based on new lit state
+            // Update icon based on new lit state and play sounds
             if player.is_torch_lit {
                 equipment.icon_asset_name = Some("torch_on.png".to_string());
+                sound_events::emit_light_torch_sound(ctx, player.position_x, player.position_y, sender_id);
                 log::info!("Player {:?} lit their torch.", sender_id);
             } else {
                 equipment.icon_asset_name = Some("torch.png".to_string());
+                sound_events::emit_extinguish_torch_sound(ctx, player.position_x, player.position_y, sender_id);
                 log::info!("Player {:?} extinguished their torch.", sender_id);
             }
 

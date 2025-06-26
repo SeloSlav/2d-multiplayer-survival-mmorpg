@@ -3000,6 +3000,7 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
                 CostIngredient { item_name: "Rope".to_string(), quantity: 5 },
                 CostIngredient { item_name: "Cloth".to_string(), quantity: 10 }, // For collection surface
                 CostIngredient { item_name: "Wood".to_string(), quantity: 200 }, // For frame structure
+                CostIngredient { item_name: "Stone".to_string(), quantity: 50 }, // For anchoring and stability
             ]),
             crafting_output_quantity: Some(1),
             crafting_time_secs: Some(60),

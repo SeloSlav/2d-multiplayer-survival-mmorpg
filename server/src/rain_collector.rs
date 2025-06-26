@@ -43,6 +43,7 @@ use crate::items::{
     item_definition as ItemDefinitionTableTrait,
     add_item_to_player_inventory
 };
+use crate::sound_events::emit_filling_container_sound;
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
 use crate::environment::calculate_chunk_index;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
@@ -407,7 +408,15 @@ pub fn fill_water_container(ctx: &ReducerContext, collector_id: u32) -> Result<(
     // --- Reduce collector water by amount transferred ---
     collector.total_water_collected -= water_to_transfer;
     let remaining_collector_water = collector.total_water_collected; // Capture before move
+    
+    // --- Capture position before move for sound effect ---
+    let collector_pos_x = collector.pos_x;
+    let collector_pos_y = collector.pos_y;
+    
     ctx.db.rain_collector().id().update(collector);
+
+    // --- Emit filling container sound effect ---
+    emit_filling_container_sound(ctx, collector_pos_x, collector_pos_y, ctx.sender);
 
     log::info!("Successfully transferred {:.1}L of water to {} (now has {:.1}L/{:.1}L). Collector now has {:.1}L remaining.", 
                water_to_transfer, container_def.name, new_water_content, capacity, remaining_collector_water);

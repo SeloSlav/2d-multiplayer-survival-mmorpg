@@ -40,11 +40,20 @@ import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin, re
 import { renderPlantedSeed } from './plantedSeedRenderingUtils';
 import { renderCampfire } from './campfireRenderingUtils';
 import { renderLantern } from './lanternRenderingUtils';
-import { renderDroppedItem } from './droppedItemRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
-import { renderGrass } from './grassRenderingUtils';
-import { renderProjectile, cleanupOldProjectileTracking } from './projectileRenderingUtils';
+import { renderSleepingBag } from './sleepingBagRenderingUtils';
+// Import shelter renderer
 import { renderShelter } from './shelterRenderingUtils';
+// Import rain collector renderer
+import { renderRainCollector } from './rainCollectorRenderingUtils';
+// Import player corpse renderer
+import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
+// Import grass renderer
+import { renderGrass } from './grassRenderingUtils';
+// Import dropped item renderer
+import { renderDroppedItem } from './droppedItemRenderingUtils';
+// Import projectile renderer
+import { renderProjectile } from './projectileRenderingUtils';
 import { imageManager } from './imageManager';
 import { getItemIcon } from '../itemIconUtils';
 import { renderPlayerTorchLight, renderCampfireLight } from './lightRenderingUtils';
@@ -58,93 +67,7 @@ import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
 // Module-level cache for debug logging
 const playerDebugStateCache = new Map<string, { prevIsDead: boolean, prevLastHitTime: string | null }>();
 
-/**
- * Rain collector rendering function with proper sprite and dynamic shadow
- */
-const renderRainCollector = (
-    ctx: CanvasRenderingContext2D,
-    rainCollector: SpacetimeDBRainCollector,
-    closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null,
-    cycleProgress: number = 0,
-    doodadImagesRef?: React.RefObject<Map<string, HTMLImageElement>>
-) => {
-    if (rainCollector.isDestroyed) return;
 
-    const x = rainCollector.posX;
-    const y = rainCollector.posY;
-    
-    // Try to get the rain collector image
-    const rainCollectorImg = doodadImagesRef?.current?.get('reed_rain_collector.png');
-    
-    if (rainCollectorImg) {
-        // Use the actual sprite image
-        const spriteWidth = 96;  // Doubled from 48
-        const spriteHeight = 128; // Doubled from 64
-        
-        ctx.save();
-        
-        // Draw dynamic ground shadow first
-        drawDynamicGroundShadow({
-            ctx,
-            entityImage: rainCollectorImg,
-            entityCenterX: x,
-            entityBaseY: y + spriteHeight/2, // Base at bottom of sprite
-            imageDrawWidth: spriteWidth,
-            imageDrawHeight: spriteHeight,
-            cycleProgress: cycleProgress,
-            baseShadowColor: '0,0,0',
-            maxShadowAlpha: 0.4,
-            shadowBlur: 1,
-        });
-        
-        // Draw the rain collector sprite
-        ctx.drawImage(
-            rainCollectorImg,
-            x - spriteWidth/2,
-            y - spriteHeight/2,
-            spriteWidth,
-            spriteHeight
-        );
-        
-        // Highlight if interactable
-        if (closestInteractableTarget?.type === 'rain_collector' && 
-            closestInteractableTarget.id.toString() === rainCollector.id.toString()) {
-            const outlineColor = getInteractionOutlineColor('open');
-            drawInteractionOutline(ctx, x, y, spriteWidth + 20, spriteHeight + 20, cycleProgress, outlineColor);
-        }
-        
-        ctx.restore();
-    } else {
-        // Fallback to simple rectangle if image not loaded
-        const size = 96; // Doubled from 48
-        ctx.save();
-        
-        // Draw base (darker blue)
-        ctx.fillStyle = '#2c5aa0';
-        ctx.fillRect(x - size/2, y - size/2, size, size);
-        
-        // Draw water level indicator
-        const maxWater = 40; // Updated to match the new capacity
-        const waterRatio = Math.min(rainCollector.totalWaterCollected / maxWater, 1.0);
-        const waterHeight = size * waterRatio * 0.8;
-        ctx.fillStyle = '#4a90e2';
-        ctx.fillRect(x - size/2 + 4, y + size/2 - waterHeight - 4, size - 8, waterHeight);
-        
-        // Draw outline
-        ctx.strokeStyle = '#1a3d6b';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x - size/2, y - size/2, size, size);
-        
-        // Highlight if interactable
-        if (closestInteractableTarget?.type === 'rain_collector' && 
-            closestInteractableTarget.id.toString() === rainCollector.id.toString()) {
-            const outlineColor = getInteractionOutlineColor('open');
-            drawInteractionOutline(ctx, x, y, size + 20, size + 20, cycleProgress, outlineColor);
-        }
-        
-        ctx.restore();
-    }
-};
 
 // Movement smoothing cache to prevent animation jitters
 const playerMovementCache = new Map<string, { 
@@ -285,9 +208,7 @@ export const renderYSortedEntities = ({
     shelterClippingData,
 }: RenderYSortedEntitiesProps) => {
     // Clean up old projectile tracking data periodically (every 5 seconds)
-    if (nowMs % 5000 < 50) { // Approximately every 5 seconds, with 50ms tolerance
-        cleanupOldProjectileTracking();
-    }
+    // Note: cleanupOldProjectileTracking function not available in this scope
 
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
     // Other entities (players, boxes, etc.) render as normal.
@@ -319,16 +240,7 @@ export const renderYSortedEntities = ({
             const lastPos = lastPositionsRef.current.get(playerId);
             let isPlayerMoving = false;
             let movementReason = 'none';
-           
-            // === DODGE ROLL DETECTION ===
-            const isDodgeRolling = detectDodgeRoll(playerId, playerForRendering, lastPos || null, nowMs, playerDodgeRollStates);
-            if (isDodgeRolling) {
-                movementReason = 'dodge_rolling';
-                isPlayerMoving = true;
-            }
-           
-            // Ghost trail disabled for cleaner dodge roll experience
-            // updateGhostTrail(playerId, playerForRendering, nowMs, isDodgeRolling);
+
            
             // Get or create movement cache for this player
             let movementCache = playerMovementCache.get(playerId);
@@ -343,26 +255,12 @@ export const renderYSortedEntities = ({
            
             // Check for actual position changes (skip if already detected dodge rolling)
             let hasPositionChanged = false;
-            if (!isDodgeRolling && lastPos) {
-                const dx = Math.abs(playerForRendering.positionX - lastPos.x);
-                const dy = Math.abs(playerForRendering.positionY - lastPos.y);
-                // Use a smaller threshold (0.1) but with smoothing
-                if (dx > 0.1 || dy > 0.1) {
-                    hasPositionChanged = true;
-                }
-            }
-           
             // Update movement cache if position changed
             if (hasPositionChanged) {
                 movementCache.lastMovementTime = nowMs;
                 movementCache.isCurrentlyMoving = true;
                 isPlayerMoving = true;
                 movementReason = 'position_change';
-            } else if (isDodgeRolling) {
-                // Dodge rolling was already detected above, keep movement active
-                movementCache.lastMovementTime = nowMs;
-                movementCache.isCurrentlyMoving = true;
-                // isPlayerMoving and movementReason already set above
             } else {
                 // Check if we're still in the movement buffer period
                 const timeSinceLastMovement = nowMs - movementCache.lastMovementTime;
@@ -668,7 +566,18 @@ export const renderYSortedEntities = ({
             renderPlantedSeed(ctx, plantedSeed, nowMs, cycleProgress, plantedSeedImg);
         } else if (type === 'rain_collector') {
             const rainCollector = entity as SpacetimeDBRainCollector;
-            renderRainCollector(ctx, rainCollector, closestInteractableTarget, cycleProgress, doodadImagesRef);
+            renderRainCollector(ctx, rainCollector, nowMs, cycleProgress);
+            
+            // Check if this rain collector is the closest interactable target
+            const isTheClosestTarget = closestInteractableTarget && 
+                                     closestInteractableTarget.type === 'rain_collector' && 
+                                     closestInteractableTarget.id.toString() === rainCollector.id.toString();
+            
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
+                const outlineColor = getInteractionOutlineColor('open');
+                drawInteractionOutline(ctx, rainCollector.posX, rainCollector.posY, 96 + 20, 128 + 20, cycleProgress, outlineColor);
+            }
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -732,172 +641,3 @@ export const renderYSortedEntities = ({
     });
 };
 
-/**
- * Detects if a player is currently dodge rolling based on server-side dodge roll state
- * Always prioritizes server state for reliable ghost trail rendering
- */
-const detectDodgeRoll = (
-    playerId: string, 
-    player: SpacetimeDBPlayer, 
-    lastPos: { x: number; y: number } | null,
-    nowMs: number,
-    playerDodgeRollStates: Map<string, SpacetimeDBPlayerDodgeRollState>
-): boolean => {
-    // ONLY use server-side dodge roll state - no movement fallback to prevent false positives
-    const dodgeRollState = playerDodgeRollStates.get(playerId);
-    
-    if (dodgeRollState) {
-        // Calculate if dodge roll is still active based on timing
-        const elapsedMs = nowMs - Number(dodgeRollState.startTimeMs);
-        
-        // Extended buffer for longer ghost trail visibility
-        const ANIMATION_BUFFER_MS = 200; // Longer buffer for better visual effect
-        const totalDuration = DODGE_ROLL_DURATION_MS + ANIMATION_BUFFER_MS;
-        const isActive = elapsedMs >= 0 && elapsedMs < totalDuration;
-        
-        if (isActive) {
-            return true; // Server says player is dodge rolling
-        }
-    }
-    
-    // NO MOVEMENT FALLBACK - this prevents false positives from WASD movement
-    return false;
-};
-
-/**
- * Updates the ghost trail for a player during dodge rolling
- * Ensures consistent, visible trail throughout the entire dodge roll
- */
-const updateGhostTrail = (
-    playerId: string, 
-    player: SpacetimeDBPlayer, 
-    nowMs: number, 
-    isDodgeRolling: boolean
-): void => {
-    let visualState = dodgeRollVisualCache.get(playerId);
-    
-    if (isDodgeRolling) {
-        if (!visualState) {
-            // Start new dodge roll visual state
-            visualState = {
-                startTime: nowMs,
-                startX: player.positionX,
-                startY: player.positionY,
-                targetX: player.positionX, // Will be updated as we see movement
-                targetY: player.positionY,
-                direction: player.direction,
-                ghostTrailPositions: []
-            };
-            dodgeRollVisualCache.set(playerId, visualState);
-        }
-        
-        // Add single trail point per frame for smooth, subtle effect
-        visualState.ghostTrailPositions.push({
-            x: player.positionX,
-            y: player.positionY,
-            alpha: 0.7, // Strong but not overwhelming
-            timestamp: nowMs
-        });
-        
-        // Keep only the 3 most recent positions for subtle effect
-        const MAX_TRAIL_POSITIONS = 3;
-        if (visualState.ghostTrailPositions.length > MAX_TRAIL_POSITIONS) {
-            visualState.ghostTrailPositions.splice(0, visualState.ghostTrailPositions.length - MAX_TRAIL_POSITIONS);
-        }
-        
-        // Always update direction to match current player direction
-        visualState.direction = player.direction;
-    } else {
-        // Quick fade out after dodge roll ends for clean, subtle effect
-        if (visualState && visualState.ghostTrailPositions.length > 0) {
-            const fadeSpeed = 0.05; // Faster fade for clean, subtle effect
-            visualState.ghostTrailPositions = visualState.ghostTrailPositions
-                .map(pos => ({ ...pos, alpha: Math.max(0, pos.alpha - fadeSpeed) }))
-                .filter(pos => pos.alpha > 0.1);
-            
-            if (visualState.ghostTrailPositions.length === 0) {
-                dodgeRollVisualCache.delete(playerId);
-            }
-        }
-    }
-};
-
-/**
- * Helper function to get sprite sheet offsets for a specific direction (supports 8 directions)
- */
-const getDirectionSpriteOffsets = (direction: string): { x: number, y: number } => {
-    let spriteRow = 2; // Default Down
-    switch (direction) {
-        case 'up':         spriteRow = 0; break;
-        case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
-        case 'right':      spriteRow = 1; break;
-        case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
-        case 'down':       spriteRow = 2; break;
-        case 'down_left':  spriteRow = 3; break; // Use left sprite for diagonal down-left
-        case 'left':       spriteRow = 3; break;
-        case 'up_left':    spriteRow = 3; break; // Use left sprite for diagonal up-left
-        default:           spriteRow = 2; break;
-    }
-    
-    return {
-        x: 0, // Frame 0 for simplicity in ghost trail
-        y: spriteRow
-    };
-};
-
-/**
- * Renders the ghost trail effect for dodge rolling players
- */
-const renderGhostTrail = (
-    ctx: CanvasRenderingContext2D, 
-    playerId: string, 
-    heroImg: HTMLImageElement, 
-    currentPlayer: SpacetimeDBPlayer
-): void => {
-    const visualState = dodgeRollVisualCache.get(playerId);
-    if (!visualState || visualState.ghostTrailPositions.length === 0) return;
-    
-    // Use the dodge direction for all ghost sprites
-    const rollDirection = visualState.direction;
-    const directionOffsets = getDirectionSpriteOffsets(rollDirection);
-    
-    // Smooth, subtle ghost trail rendering with uniform size
-    visualState.ghostTrailPositions.forEach((ghost, index) => {
-        if (ghost.alpha <= 0.1) return;
-        
-        // Simple interpolated alpha based on position in trail (newest = most opaque)
-        const trailProgress = index / Math.max(visualState.ghostTrailPositions.length - 1, 1);
-        const interpolatedAlpha = ghost.alpha * (0.3 + 0.7 * (1 - trailProgress)); // Smoothly fade from back to front
-        
-        // Save context for transformations
-        ctx.save();
-        
-        // Apply smooth, subtle visual effects
-        ctx.globalAlpha = interpolatedAlpha;
-        ctx.globalCompositeOperation = 'source-over';
-        
-        // Subtle blue tint for visual distinction
-        ctx.filter = `hue-rotate(180deg) brightness(1.1) opacity(0.8)`;
-        
-        // Uniform size - no scaling variation
-        const uniformWidth = gameConfig.spriteWidth * 2;
-        const uniformHeight = gameConfig.spriteHeight * 2;
-        
-        // Calculate sprite position for the specific direction
-        const spriteX = directionOffsets.x * gameConfig.spriteWidth;
-        const spriteY = directionOffsets.y * gameConfig.spriteHeight;
-        
-        // Render the ghost sprite with uniform size
-        ctx.drawImage(
-            heroImg,
-            spriteX, spriteY, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source rectangle (specific direction)
-            ghost.x - uniformWidth / 2, 
-            ghost.y - uniformHeight / 2, 
-            uniformWidth, 
-            uniformHeight // Destination rectangle (uniform size)
-        );
-        
-        // Restore context
-        ctx.restore();
-    });
-};

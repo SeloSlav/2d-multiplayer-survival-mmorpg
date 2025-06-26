@@ -71,6 +71,8 @@ use crate::knocked_out::knocked_out_recovery_schedule as KnockedOutRecoverySched
 use crate::death_marker; // Ensure module is used
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // Ensure trait is used
 use crate::sound_events; // Import sound events module
+// Import rain collector types
+use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN_COLLECTOR_COLLISION_Y_OFFSET, rain_collector as RainCollectorTableTrait};
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -93,6 +95,7 @@ pub enum TargetId {
     PlayerCorpse(u32),
     Grass(u64),
     Shelter(u32),
+    RainCollector(u32), // ADDED: Rain collector target
 }
 
 /// Represents a potential target within attack range
@@ -579,6 +582,51 @@ pub fn find_targets_in_cone(
         }
     }
     
+    // Check rain collectors
+    for rain_collector_entity in ctx.db.rain_collector().iter() {
+        if rain_collector_entity.is_destroyed {
+            continue;
+        }
+        let dx = rain_collector_entity.pos_x - player.position_x;
+        let target_y = rain_collector_entity.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                // Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for rain collectors
+                    player.position_x,
+                    player.position_y,
+                    rain_collector_entity.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack RainCollector {}: line of sight blocked by shelter",
+                        player.identity, rain_collector_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
+                targets.push(Target {
+                    target_type: TargetType::RainCollector,
+                    id: TargetId::RainCollector(rain_collector_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+    
     // Check Shelters - delegate to shelter module
     crate::shelter::add_shelter_targets_to_cone(ctx, player, attack_range, half_attack_angle_rad, forward_x, forward_y, &mut targets);
     
@@ -636,7 +684,8 @@ fn is_destructible_deployable(target_type: TargetType) -> bool {
         TargetType::WoodenStorageBox | 
         TargetType::SleepingBag | 
         TargetType::Stash |
-        TargetType::Shelter
+        TargetType::Shelter |
+        TargetType::RainCollector
     )
 }
 
@@ -1072,6 +1121,28 @@ pub fn damage_player(
         "Player {:?} damaged Player {:?} for {:.2} (raw: {:.2}) with {}. Health: {:.2} -> {:.2}",
         attacker_id, target_id, actual_damage_applied, damage, item_def.name, old_health, target_player.health
     );
+
+    // NEW: Play weapon-specific hit sounds based on weapon type
+    if item_def.name == "Stone Hatchet" || item_def.name == "Stone Pickaxe" {
+        sound_events::emit_melee_hit_sharp_sound(ctx, target_player.position_x, target_player.position_y, attacker_id);
+        log::debug!("Emitted melee_hit_sharp sound for {} hitting player", item_def.name);
+    } else if item_def.name == "Wooden Spear" || item_def.name == "Stone Spear" || item_def.name == "Bone Knife" || item_def.name == "Bone Gaff Hook" {
+        sound_events::emit_spear_hit_sound(ctx, target_player.position_x, target_player.position_y, attacker_id);
+        log::debug!("Emitted spear_hit sound for {} hitting player", item_def.name);
+    } else if item_def.name == "Combat Ladle" || item_def.name == "Repair Hammer" || item_def.name == "Rock" || 
+              item_def.name == "Flashlight" || item_def.name == "Primitive Reed Snorkel" || item_def.name == "Primitive Reed Fishing Rod" || item_def.name == "Bone Club" || item_def.name == "Human Skull" {
+        sound_events::emit_melee_hit_blunt_sound(ctx, target_player.position_x, target_player.position_y, attacker_id);
+        log::debug!("Emitted melee_hit_blunt sound for {} hitting player", item_def.name);
+    } else if item_def.name == "Torch" {
+        // Check if torch is lit using the player's is_torch_lit field
+        let torch_is_lit = if let Some(attacker_player) = attacker_player_opt {
+            attacker_player.is_torch_lit
+        } else {
+            false
+        };
+        
+        sound_events::emit_torch_hit_combined_sound(ctx, target_player.position_x, target_player.position_y, attacker_id, torch_is_lit);
+    }
 
     // DEBUG: Log the state before knocked out logic
     log::info!(
@@ -1721,6 +1792,26 @@ pub fn damage_player_corpse(
         attacker_id, corpse_id, damage, old_health, corpse.health
     );
 
+    // NEW: Play weapon-specific hit sounds based on weapon type
+    if item_def.name == "Stone Hatchet" || item_def.name == "Stone Pickaxe" {
+        sound_events::emit_melee_hit_sharp_sound(ctx, corpse.pos_x, corpse.pos_y, attacker_id);
+        log::debug!("Emitted melee_hit_sharp sound for {} hitting corpse", item_def.name);
+    } else if item_def.name == "Wooden Spear" || item_def.name == "Stone Spear" || item_def.name == "Bone Knife" || item_def.name == "Bone Gaff Hook" {
+        sound_events::emit_spear_hit_sound(ctx, corpse.pos_x, corpse.pos_y, attacker_id);
+        log::debug!("Emitted spear_hit sound for {} hitting corpse", item_def.name);
+    } else if item_def.name == "Combat Ladle" || item_def.name == "Repair Hammer" || item_def.name == "Rock" || 
+              item_def.name == "Flashlight" || item_def.name == "Primitive Reed Snorkel" || item_def.name == "Primitive Reed Fishing Rod" || item_def.name == "Bone Club" || item_def.name == "Human Skull" {
+        sound_events::emit_melee_hit_blunt_sound(ctx, corpse.pos_x, corpse.pos_y, attacker_id);
+        log::debug!("Emitted melee_hit_blunt sound for {} hitting corpse", item_def.name);
+    } else if item_def.name == "Torch" {
+        // Check if torch is lit using the player's is_torch_lit field
+        let torch_is_lit = ctx.db.player().identity().find(&attacker_id)
+            .map(|player| player.is_torch_lit)
+            .unwrap_or(false);
+        
+        sound_events::emit_torch_hit_combined_sound(ctx, corpse.pos_x, corpse.pos_y, attacker_id, torch_is_lit);
+    }
+
     let mut resources_granted: Vec<(String, u32)> = Vec::new();
 
     // Determine resources based on RNG and tool
@@ -1998,6 +2089,13 @@ pub fn process_attack(
                 return Err("Target shelter not found".to_string());
             }
         },
+        TargetId::RainCollector(rain_collector_id) => {
+            if let Some(rain_collector) = ctx.db.rain_collector().id().find(rain_collector_id) {
+                (rain_collector.pos_x, rain_collector.pos_y, None)
+            } else {
+                return Err("Target rain collector not found".to_string());
+            }
+        },
     };
 
     // Get attacker position
@@ -2079,6 +2177,9 @@ pub fn process_attack(
         },
         TargetId::Shelter(shelter_id) => {
             crate::shelter::damage_shelter(ctx, attacker_id, *shelter_id, damage, timestamp, rng)
+        },
+        TargetId::RainCollector(rain_collector_id) => {
+            damage_rain_collector(ctx, attacker_id, *rain_collector_id, damage, timestamp, rng)
         },
     }
 }
@@ -2230,5 +2331,81 @@ pub fn damage_grass(
     } else {
         Err(format!("Grass with ID {} not found.", grass_id))
     }
+}
+
+/// Applies damage to a rain collector and handles destruction/item scattering
+pub fn damage_rain_collector(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    rain_collector_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    let mut rain_collectors_table = ctx.db.rain_collector();
+    let mut rain_collector = rain_collectors_table.id().find(&rain_collector_id)
+        .ok_or_else(|| format!("Target rain collector {} disappeared", rain_collector_id))?;
+
+    if rain_collector.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::RainCollector), resource_granted: None });
+    }
+
+    let old_health = rain_collector.health;
+    rain_collector.health = (rain_collector.health - damage).max(0.0);
+    rain_collector.last_hit_time = Some(timestamp);
+    rain_collector.last_damaged_by = Some(attacker_id);
+
+    log::info!(
+        "Player {:?} hit RainCollector {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, rain_collector_id, damage, old_health, rain_collector.health
+    );
+
+    if rain_collector.health <= 0.0 {
+        rain_collector.is_destroyed = true;
+        rain_collector.destroyed_at = Some(timestamp);
+
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new();
+        // Check the single slot for water container
+        if let (Some(instance_id), Some(def_id)) = (rain_collector.slot_0_instance_id, rain_collector.slot_0_def_id) {
+            if let Some(item) = ctx.db.inventory_item().instance_id().find(&instance_id) {
+                items_to_drop.push((def_id, item.quantity));
+                ctx.db.inventory_item().instance_id().delete(&instance_id);
+            }
+            rain_collector.slot_0_instance_id = None;
+            rain_collector.slot_0_def_id = None;
+        }
+        
+        // Update the rain collector one last time to ensure is_destroyed and destroyed_at are sent to client
+        rain_collectors_table.id().update(rain_collector.clone());
+        // Then immediately delete the rain collector entity itself
+        rain_collectors_table.id().delete(&rain_collector_id);
+
+        log::info!(
+            "RainCollector {} destroyed by player {:?}. Dropping contents.",
+            rain_collector_id, attacker_id
+        );
+
+        for (item_def_id, quantity) in items_to_drop {
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0; // Spread within +/- 20px
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0;
+            let drop_pos_x = rain_collector.pos_x + offset_x;
+            let drop_pos_y = rain_collector.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed rain collector {}", quantity, item_def_id, rain_collector_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+
+    } else {
+        // Rain collector still has health, just update it
+        rain_collectors_table.id().update(rain_collector);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::RainCollector),
+        resource_granted: None,
+    })
 }
 

@@ -1,8 +1,13 @@
 // OpenAI Whisper Service for Speech-to-Text
-// Enhanced with audio processing and accuracy optimizations
+// Enhanced with audio processing, speed optimization, and accuracy optimizations
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key-here';
 const WHISPER_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
+
+// Audio optimization settings
+const DEFAULT_SPEED_MULTIPLIER = 2.5; // 2.5x speed = 60% cost reduction and faster processing
+const FALLBACK_SPEED_MULTIPLIER = 1.8; // Fallback if default fails
+const MIN_AUDIO_DURATION_MS = 500; // Minimum duration to apply speed optimization
 
 export interface WhisperResponse {
   success: boolean;
@@ -13,6 +18,9 @@ export interface WhisperResponse {
     responseReceivedTime: number;
     totalLatencyMs: number;
     audioSizeBytes: number;
+    originalAudioDurationMs?: number;
+    compressedAudioDurationMs?: number;
+    speedMultiplier?: number;
     textLength: number;
     timestamp: string;
   };
@@ -184,23 +192,28 @@ class WhisperService {
   }
 
   /**
-   * Process audio blob for optimal Whisper compatibility
+   * Process audio blob for optimal Whisper compatibility with speed compression
    */
   private async processAudioForWhisper(blob: Blob): Promise<Blob> {
     try {
-      // For now, return the blob as-is but with enhanced metadata
-      // In the future, we could add audio format conversion here
+      console.log('[Whisper] 🚀 Starting speed-optimized audio processing...');
       
-      // Check audio duration to ensure it's adequate
-      const arrayBuffer = await blob.arrayBuffer();
-      console.log('[Whisper] Audio processing - buffer size:', arrayBuffer.byteLength);
-      
-      // For very short recordings, warn about potential accuracy issues
+      // Check audio duration to determine if speed optimization is beneficial
       if (blob.size < 1000) { // Less than ~1KB
-        console.warn('[Whisper] Very short audio recording - may affect accuracy');
+        console.warn('[Whisper] Very short audio recording - skipping speed optimization');
+        return blob;
       }
-      
+
+      // Attempt to compress audio for cost and speed optimization
+      const compressedBlob = await this.compressAudioSpeed(blob, DEFAULT_SPEED_MULTIPLIER);
+      if (compressedBlob) {
+        console.log(`[Whisper] ✅ Audio compressed at ${DEFAULT_SPEED_MULTIPLIER}x speed - Cost reduction: ${Math.round((1 - 1/DEFAULT_SPEED_MULTIPLIER) * 100)}%`);
+        return compressedBlob;
+      }
+
+      console.log('[Whisper] Speed compression failed, returning original audio');
       return blob;
+      
     } catch (error) {
       console.error('[Whisper] Audio processing failed:', error);
       return blob; // Return original if processing fails
@@ -208,19 +221,140 @@ class WhisperService {
   }
 
   /**
-   * Transcribe audio blob using OpenAI Whisper with enhanced parameters
+   * Compress audio by speeding it up to reduce Whisper API costs and processing time
    */
-  async transcribeAudio(audioBlob: Blob): Promise<WhisperResponse> {
+  private async compressAudioSpeed(audioBlob: Blob, speedMultiplier: number): Promise<Blob | null> {
+    try {
+      console.log(`[Whisper] 🏃‍♂️ Compressing audio at ${speedMultiplier}x speed for cost optimization...`);
+      
+      // Create a new AudioContext for processing
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: 22050 // Lower sample rate for Whisper (still good quality)
+      });
+
+      try {
+        // Convert blob to ArrayBuffer
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        
+        // Decode audio data
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const originalDuration = audioBuffer.duration;
+        
+        console.log(`[Whisper] Original audio duration: ${originalDuration.toFixed(2)}s`);
+        
+        // Create new buffer with compressed duration
+        const compressedDuration = originalDuration / speedMultiplier;
+        const compressedSampleRate = audioContext.sampleRate;
+        const compressedFrameCount = Math.ceil(compressedDuration * compressedSampleRate);
+        
+        const compressedBuffer = audioContext.createBuffer(
+          1, // Mono
+          compressedFrameCount,
+          compressedSampleRate
+        );
+
+        // Get source channel data
+        const sourceData = audioBuffer.getChannelData(0);
+        const compressedData = compressedBuffer.getChannelData(0);
+
+        // Speed up audio by sampling at intervals
+        for (let i = 0; i < compressedFrameCount; i++) {
+          const sourceIndex = Math.floor(i * speedMultiplier);
+          if (sourceIndex < sourceData.length) {
+            compressedData[i] = sourceData[sourceIndex];
+          }
+        }
+
+        console.log(`[Whisper] Compressed audio duration: ${compressedDuration.toFixed(2)}s (${Math.round((1 - compressedDuration/originalDuration) * 100)}% reduction)`);
+
+        // Convert back to blob
+        const compressedBlob = await this.audioBufferToBlob(compressedBuffer, audioContext);
+        
+        await audioContext.close();
+        return compressedBlob;
+
+      } catch (error) {
+        await audioContext.close();
+        throw error;
+      }
+
+    } catch (error) {
+      console.error(`[Whisper] Failed to compress audio at ${speedMultiplier}x:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Convert AudioBuffer to WAV Blob
+   */
+  private async audioBufferToBlob(audioBuffer: AudioBuffer, audioContext: AudioContext): Promise<Blob> {
+    const channelData = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+    const length = channelData.length;
+
+    // Create WAV header
+    const buffer = new ArrayBuffer(44 + length * 2);
+    const view = new DataView(buffer);
+
+    // WAV header
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, length * 2, true);
+
+    // Convert float samples to 16-bit PCM
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      const sample = Math.max(-1, Math.min(1, channelData[i]));
+      view.setInt16(offset, sample * 0x7FFF, true);
+      offset += 2;
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  /**
+   * Transcribe audio blob using OpenAI Whisper with enhanced parameters and speed optimization tracking
+   */
+  async transcribeAudio(audioBlob: Blob, originalBlob?: Blob): Promise<WhisperResponse> {
     const timing = {
       requestStartTime: performance.now(),
       responseReceivedTime: 0,
       totalLatencyMs: 0,
       audioSizeBytes: audioBlob.size,
+      originalAudioDurationMs: undefined as number | undefined,
+      compressedAudioDurationMs: undefined as number | undefined,
+      speedMultiplier: undefined as number | undefined,
       textLength: 0,
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`[Whisper] 🎙️ Starting enhanced transcription - Audio: ${(audioBlob.size / 1024).toFixed(2)} KB`);
+    // Calculate speed compression metrics if applicable
+    if (originalBlob && originalBlob.size !== audioBlob.size) {
+      timing.speedMultiplier = DEFAULT_SPEED_MULTIPLIER;
+      // Estimate duration reduction (rough approximation)
+      timing.originalAudioDurationMs = Math.max(1000, originalBlob.size / 10); // Rough estimate
+      timing.compressedAudioDurationMs = timing.originalAudioDurationMs / DEFAULT_SPEED_MULTIPLIER;
+    }
+
+    const costReduction = timing.speedMultiplier ? Math.round((1 - 1/timing.speedMultiplier) * 100) : 0;
+    
+    console.log(`[Whisper] 🎙️ Starting enhanced transcription${timing.speedMultiplier ? ` with ${timing.speedMultiplier}x speed compression (${costReduction}% cost reduction)` : ''} - Audio: ${(audioBlob.size / 1024).toFixed(2)} KB`);
 
     try {
       // Create form data with enhanced parameters
@@ -233,7 +367,10 @@ class WhisperService {
       formData.append('response_format', 'verbose_json'); // Get more detailed response
       formData.append('temperature', '0'); // Lower temperature for more consistent results
       
-      // No prompt - let Whisper transcribe exactly what was said
+      // Add prompt for speed-compressed audio to help Whisper understand it's sped up
+      if (timing.speedMultiplier) {
+        formData.append('prompt', 'This is clear English speech that may be spoken quickly. Please transcribe accurately.');
+      }
 
       const response = await fetch(WHISPER_API_URL, {
         method: 'POST',
@@ -246,7 +383,7 @@ class WhisperService {
       timing.responseReceivedTime = performance.now();
       timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
 
-      console.log(`[Whisper] ⚡ Enhanced Whisper response received in ${timing.totalLatencyMs.toFixed(2)}ms`);
+      console.log(`[Whisper] ⚡ Enhanced Whisper response received in ${timing.totalLatencyMs.toFixed(2)}ms${timing.speedMultiplier ? ` (${costReduction}% cost savings)` : ''}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -262,7 +399,11 @@ class WhisperService {
       // Log additional metadata if available
       if (data.segments) {
         console.log('[Whisper] Transcription segments:', data.segments.length);
-        data.segments.forEach((segment: any, index: number) => {
+        const avgConfidence = data.segments.reduce((sum: number, seg: any) => sum + (seg.avg_logprob || 0), 0) / data.segments.length;
+        console.log(`[Whisper] Average confidence: ${avgConfidence.toFixed(3)}`);
+        
+        // Log first few segments for debugging
+        data.segments.slice(0, 3).forEach((segment: any, index: number) => {
           console.log(`[Whisper] Segment ${index + 1}: "${segment.text}" (confidence: ${segment.avg_logprob?.toFixed(3) || 'N/A'})`);
         });
       }
@@ -279,6 +420,8 @@ class WhisperService {
         audioSize: `${(timing.audioSizeBytes / 1024).toFixed(2)}KB`,
         textLength: `${timing.textLength} chars`,
         throughput: `${(timing.textLength / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`,
+        speedMultiplier: timing.speedMultiplier ? `${timing.speedMultiplier}x` : 'none',
+        costReduction: timing.speedMultiplier ? `${costReduction}%` : '0%',
         confidence: data.segments ? `${(data.segments.reduce((sum: number, seg: any) => sum + (seg.avg_logprob || 0), 0) / data.segments.length).toFixed(3)}` : 'N/A'
       });
 
@@ -293,6 +436,13 @@ class WhisperService {
       timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
 
       console.error('[Whisper] Enhanced transcription failed:', error);
+      
+      // If this was a speed-compressed attempt, try fallback speed or original
+      if (timing.speedMultiplier && timing.speedMultiplier > 1.5) {
+        console.log('[Whisper] 🔄 Speed compression failed, attempting fallback...');
+        // This will be handled by the calling code with fallback logic
+      }
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown transcription error',
@@ -302,7 +452,7 @@ class WhisperService {
   }
 
   /**
-   * Complete voice-to-text workflow: record and transcribe
+   * Complete voice-to-text workflow: record and transcribe with speed optimization and fallback
    */
   async recordAndTranscribe(): Promise<WhisperResponse> {
     try {
@@ -315,7 +465,40 @@ class WhisperService {
         };
       }
 
-      return await this.transcribeAudio(audioBlob);
+      // Store original blob for fallback
+      const originalBlob = audioBlob;
+
+      // First attempt: Try with speed compression
+      console.log('[Whisper] 🚀 Attempting speed-optimized transcription...');
+      let result = await this.transcribeAudio(audioBlob, originalBlob);
+
+      // If speed compression failed and we used compression, try fallback speed
+      if (!result.success && result.timing?.speedMultiplier === DEFAULT_SPEED_MULTIPLIER) {
+        console.log(`[Whisper] 🔄 Primary speed compression (${DEFAULT_SPEED_MULTIPLIER}x) failed, trying fallback speed (${FALLBACK_SPEED_MULTIPLIER}x)...`);
+        
+        try {
+          const fallbackBlob = await this.compressAudioSpeed(originalBlob, FALLBACK_SPEED_MULTIPLIER);
+          if (fallbackBlob) {
+            result = await this.transcribeAudio(fallbackBlob, originalBlob);
+            if (result.success && result.timing) {
+              result.timing.speedMultiplier = FALLBACK_SPEED_MULTIPLIER;
+            }
+          }
+        } catch (error) {
+          console.error('[Whisper] Fallback speed compression failed:', error);
+        }
+      }
+
+      // If both compressed attempts failed, try original audio
+      if (!result.success) {
+        console.log('[Whisper] 🔄 Speed compression attempts failed, trying original audio...');
+        result = await this.transcribeAudio(originalBlob);
+        if (result.timing) {
+          result.timing.speedMultiplier = 1.0; // No compression
+        }
+      }
+
+      return result;
 
     } catch (error) {
       console.error('[Whisper] Enhanced record and transcribe failed:', error);

@@ -445,6 +445,22 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                 if current_time >= effect.ends_at { "duration" } else if effect.effect_type == EffectType::Burn && effect.item_def_id == 0 { "environmental one-shot" } else { "amount applied" }
             );
 
+            // Stop bandaging sound when BandageBurst or RemoteBandageBurst effects end (both from completion and cancellation)
+            if effect.effect_type == EffectType::BandageBurst || effect.effect_type == EffectType::RemoteBandageBurst {
+                // For RemoteBandageBurst, get the target player's position; for BandageBurst, get the healer's position
+                let sound_player_id = match effect.effect_type {
+                    EffectType::RemoteBandageBurst => effect.target_player_id.unwrap_or(effect.player_id),
+                    EffectType::BandageBurst => effect.player_id,
+                    _ => effect.player_id, // This shouldn't happen but provides a fallback
+                };
+                
+                if let Some(player) = ctx.db.player().identity().find(&sound_player_id) {
+                    crate::sound_events::stop_bandaging_sound(ctx, player.position_x, player.position_y, sound_player_id);
+                    log::info!("[EffectTick] Stopped bandaging sound for player {:?} as {:?} effect {} completed", 
+                        sound_player_id, effect.effect_type, effect.effect_id);
+                }
+            }
+
             // If the effect had an associated item instance to consume, mark it for consumption
             if let Some(item_instance_id_to_consume) = effect.consuming_item_instance_id {
                 effects_requiring_consumption.push((item_instance_id_to_consume, effect.player_id, effect.effect_type.clone(), Some(current_effect_applied_so_far)));
@@ -541,6 +557,14 @@ pub fn cancel_bandage_burst_effects(ctx: &ReducerContext, player_id: Identity) {
     }) {
         effects_to_cancel.push(effect.effect_id);
     }
+    
+    // Stop bandaging sound if any effects are being cancelled
+    if !effects_to_cancel.is_empty() {
+        if let Some(player) = ctx.db.player().identity().find(&player_id) {
+            crate::sound_events::stop_bandaging_sound(ctx, player.position_x, player.position_y, player_id);
+        }
+    }
+    
     for effect_id in effects_to_cancel {
         ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
         log::info!("Cancelled BandageBurst/RemoteBandageBurst effect {} for player {:?} (e.g., due to damage or interruption).", effect_id, player_id);

@@ -45,6 +45,11 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Reed Rain Collector", 1, None, Some(8u16)),
         ("Reed Water Bottle", 1, None, Some(9u16)),
         ("Plastic Water Jug", 1, None, Some(10u16)),
+        ("Bone Club", 1, None, Some(11u16)),
+        ("Bone Knife", 1, None, Some(12u16)),
+        ("Wooden Spear", 1, None, Some(13u16)),
+        ("Rock", 1, None, Some(14u16)),
+        ("Combat Ladle", 1, None, Some(15u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

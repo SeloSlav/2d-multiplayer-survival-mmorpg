@@ -24,6 +24,20 @@ pub enum SoundType {
     ThrowingUp,     // throwing_up.mp3 (1 variation - for drinking salt water or eating poisonous food)
     EatingFood,     // eating_food.mp3 (1 variation - for eating food items)
     WateringCrops,  // watering_crops.mp3 (1 variation - for watering plants with water containers)
+    FillingContainer, // filling_container.mp3 (1 variation - for filling water containers)
+    MeleeHitSharp,  // melee_hit_sharp.mp3 (1 variation - for sharp melee weapon hits on players/corpses)
+    SpearHit,       // spear_hit.mp3 (1 variation - for wooden/stone spear hits on players/corpses)
+    TorchHit,       // torch_hit.mp3 (1 variation - for torch hits on players/corpses)
+    TorchHitLit,    // torch_hit_lit.mp3 (1 variation - for lit torch hits on players/corpses, plays with TorchHit)
+    LightTorch,     // light_torch.mp3 (1 variation - when lighting a torch)
+    ExtinguishTorch, // extinguish_torch.mp3 (1 variation - when extinguishing a torch)
+    MeleeHitBlunt,  // melee_hit_blunt.mp3 (1 variation - for blunt weapon hits on players/corpses)
+    WeaponSwing,    // weapon_swing.mp3 (1 variation - for all weapon swings)
+    ArrowHit,       // arrow_hit.mp3 (1 variation - when arrows hit players/corpses)
+    ShootBow,       // shoot_bow.mp3 (1 variation - when hunting bow is fired)
+    ShootCrossbow,  // shoot_crossbow.mp3 (1 variation - when crossbow is fired)
+    Bandaging,      // bandaging.mp3 (1 variation - when player starts bandaging, stops if interrupted)
+    StopBandaging,  // Special signal to stop bandaging sound
     // Add more as needed - extensible system
 }
 
@@ -49,6 +63,20 @@ impl SoundType {
             SoundType::ThrowingUp => "throwing_up",
             SoundType::EatingFood => "eating_food",
             SoundType::WateringCrops => "watering_crops",
+            SoundType::FillingContainer => "filling_container",
+            SoundType::MeleeHitSharp => "melee_hit_sharp",
+            SoundType::SpearHit => "spear_hit",
+            SoundType::TorchHit => "torch_hit",
+            SoundType::TorchHitLit => "torch_hit_lit",
+            SoundType::LightTorch => "light_torch",
+            SoundType::ExtinguishTorch => "extinguish_torch",
+            SoundType::MeleeHitBlunt => "melee_hit_blunt",
+            SoundType::WeaponSwing => "weapon_swing",
+            SoundType::ArrowHit => "arrow_hit",
+            SoundType::ShootBow => "shoot_bow",
+            SoundType::ShootCrossbow => "shoot_crossbow",
+            SoundType::Bandaging => "bandaging",
+            SoundType::StopBandaging => "stop_bandaging",
         }
     }
 
@@ -73,6 +101,20 @@ impl SoundType {
             SoundType::ThrowingUp => 1,
             SoundType::EatingFood => 1,
             SoundType::WateringCrops => 1,
+            SoundType::FillingContainer => 1,
+            SoundType::MeleeHitSharp => 1,
+            SoundType::SpearHit => 1,
+            SoundType::TorchHit => 1,
+            SoundType::TorchHitLit => 1,
+            SoundType::LightTorch => 1,
+            SoundType::ExtinguishTorch => 1,
+            SoundType::MeleeHitBlunt => 1,
+            SoundType::WeaponSwing => 1,
+            SoundType::ArrowHit => 1,
+            SoundType::ShootBow => 1,
+            SoundType::ShootCrossbow => 1,
+            SoundType::Bandaging => 1,
+            SoundType::StopBandaging => 1,
         }
     }
 
@@ -350,6 +392,229 @@ pub fn emit_watering_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_
     }
 }
 
+/// Helper function to emit filling container sound
+pub fn emit_filling_container_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    if let Err(e) = emit_sound_at_position(ctx, SoundType::FillingContainer, pos_x, pos_y, 1.3, player_id) {
+        log::warn!("Failed to emit filling container sound: {}", e);
+    }
+}
+
+/// Emit successful repair sound
+pub fn emit_repair_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    // log::info!("🔧 EMITTING REPAIR SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::Repair, pos_x, pos_y, 1.2, 525.0, player_id) {
+        log::error!("Failed to emit repair sound: {}", e);
+    }
+}
+
+/// Emit repair failure sound (when repair fails due to insufficient resources, etc.)
+pub fn emit_repair_fail_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::RepairFail, pos_x, pos_y, 1.0, 525.0, player_id);
+}
+
+/// Emit a melee hit sharp sound (for stone hatchet, stone pickaxe hitting players/corpses)
+pub fn emit_melee_hit_sharp_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::MeleeHitSharp, pos_x, pos_y, 1.4, 700.0, player_id);
+}
+
+/// Emit a spear hit sound (for wooden/stone spear hitting players/corpses)
+pub fn emit_spear_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::SpearHit, pos_x, pos_y, 1.3, 650.0, player_id);
+}
+
+/// Emit a torch hit sound (for torch hitting players/corpses)
+pub fn emit_torch_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::TorchHit, pos_x, pos_y, 1.1, 600.0, player_id);
+}
+
+/// Emit a lit torch hit sound (for lit torch hitting players/corpses)
+pub fn emit_torch_hit_lit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::TorchHitLit, pos_x, pos_y, 1.2, 650.0, player_id);
+}
+
+/// Emit a torch hit sound combination (torch_hit + torch_hit_lit if lit)
+pub fn emit_torch_hit_combined_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity, is_lit: bool) {
+    // Always play the base torch hit sound
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::TorchHit, pos_x, pos_y, 1.1, 600.0, player_id);
+    
+    // If torch is lit, also play the lit version
+    if is_lit {
+        let _ = emit_sound_at_position_with_distance(ctx, SoundType::TorchHitLit, pos_x, pos_y, 1.2, 650.0, player_id);
+    }
+}
+
+/// Emit a torch lighting sound
+pub fn emit_light_torch_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::LightTorch, pos_x, pos_y, 1.0, 500.0, player_id);
+}
+
+/// Emit a torch extinguishing sound
+pub fn emit_extinguish_torch_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::ExtinguishTorch, pos_x, pos_y, 0.9, 450.0, player_id);
+}
+
+/// Emit a blunt melee hit sound (for blunt weapons hitting players/corpses)
+pub fn emit_melee_hit_blunt_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::MeleeHitBlunt, pos_x, pos_y, 1.2, 600.0, player_id);
+}
+
+/// Emit a weapon swing sound (for all weapon swings)
+pub fn emit_weapon_swing_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::WeaponSwing, pos_x, pos_y, 0.8, 400.0, player_id);
+}
+
+/// Emit an arrow hit sound (when arrows hit players/corpses)
+pub fn emit_arrow_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::ArrowHit, pos_x, pos_y, 1.1, 550.0, player_id);
+}
+
+/// Emit a bow shooting sound (when hunting bow is fired)
+pub fn emit_shoot_bow_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::ShootBow, pos_x, pos_y, 1.0, 800.0, player_id);
+}
+
+/// Emit a crossbow shooting sound (when crossbow is fired)
+pub fn emit_shoot_crossbow_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::ShootCrossbow, pos_x, pos_y, 1.1, 850.0, player_id);
+}
+
+/// Emit a bandaging sound (when player starts bandaging)
+pub fn emit_bandaging_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::Bandaging, pos_x, pos_y, 0.8, 300.0, player_id);
+}
+
+/// Stop bandaging sound (when bandaging is interrupted)
+pub fn stop_bandaging_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::StopBandaging, pos_x, pos_y, 0.0, 300.0, player_id);
+}
+
+/// Emit a global sound that plays to all clients at full volume regardless of position
+/// This is used for weather effects like lightning/thunder that should be heard everywhere
+pub fn emit_global_sound(
+    ctx: &ReducerContext,
+    sound_type: SoundType,
+    volume: f32,
+) -> Result<(), String> {
+    let mut rng = ctx.rng();
+    let filename = sound_type.get_random_filename(&mut rng);
+    
+    let sound_event = SoundEvent {
+        id: 0, // Auto-incremented
+        sound_type,
+        filename,
+        pos_x: 0.0, // Position doesn't matter for global sounds
+        pos_y: 0.0,
+        volume: volume.max(0.0),
+        max_distance: f32::MAX, // Infinite distance - heard everywhere
+        triggered_by: ctx.identity(), // Triggered by the server/module itself
+        timestamp: ctx.timestamp,
+    };
+
+    match ctx.db.sound_event().try_insert(sound_event) {
+        Ok(inserted) => {
+            log::info!("Global sound event {} emitted: {} at volume {:.1}", 
+                       inserted.id, inserted.filename, volume);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to emit global sound event: {:?}", e);
+            Err("Failed to emit global sound event".to_string())
+        }
+    }
+}
+
+/// Start heavy storm rain continuous sound globally
+pub fn start_heavy_storm_rain_sound(ctx: &ReducerContext) -> Result<(), String> {
+    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX; // Use max value as a unique ID for global storm rain
+    
+    // Check if heavy storm rain sound is already active
+    if ctx.db.continuous_sound().object_id().find(STORM_RAIN_OBJECT_ID).is_some() {
+        log::debug!("Heavy storm rain sound already active");
+        return Ok(());
+    }
+    
+    let continuous_sound = ContinuousSound {
+        object_id: STORM_RAIN_OBJECT_ID,
+        sound_type: SoundType::HeavyStormRain,
+        filename: "rain_heavy_storm.mp3".to_string(),
+        pos_x: 0.0, // Global sound, position doesn't matter
+        pos_y: 0.0,
+        volume: 1.2, // Loud enough to be atmospheric
+        max_distance: f32::MAX, // Infinite distance - heard everywhere
+        is_active: true,
+        created_at: ctx.timestamp,
+        updated_at: ctx.timestamp,
+    };
+    
+    match ctx.db.continuous_sound().try_insert(continuous_sound) {
+        Ok(_) => {
+            log::info!("🌧️ Started heavy storm rain sound globally");
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to start heavy storm rain sound: {:?}", e);
+            Err("Failed to start heavy storm rain sound".to_string())
+        }
+    }
+}
+
+/// Stop heavy storm rain continuous sound
+pub fn stop_heavy_storm_rain_sound(ctx: &ReducerContext) {
+    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX;
+    
+    if ctx.db.continuous_sound().object_id().delete(STORM_RAIN_OBJECT_ID) {
+        log::info!("🌧️ Stopped heavy storm rain sound");
+    } else {
+        log::debug!("Heavy storm rain sound was not active");
+    }
+}
+
+/// Start normal rain continuous sound globally (for light and moderate rain)
+pub fn start_normal_rain_sound(ctx: &ReducerContext) -> Result<(), String> {
+    const NORMAL_RAIN_OBJECT_ID: u64 = u64::MAX - 1; // Use max-1 value as a unique ID for global normal rain
+    
+    // Check if normal rain sound is already active
+    if ctx.db.continuous_sound().object_id().find(NORMAL_RAIN_OBJECT_ID).is_some() {
+        log::debug!("Normal rain sound already active");
+        return Ok(());
+    }
+    
+    let continuous_sound = ContinuousSound {
+        object_id: NORMAL_RAIN_OBJECT_ID,
+        sound_type: SoundType::NormalRain,
+        filename: "rain_normal.mp3".to_string(),
+        pos_x: 0.0, // Global sound, position doesn't matter
+        pos_y: 0.0,
+        volume: 0.8, // Quieter than heavy storm rain
+        max_distance: f32::MAX, // Infinite distance - heard everywhere
+        is_active: true,
+        created_at: ctx.timestamp,
+        updated_at: ctx.timestamp,
+    };
+    
+    match ctx.db.continuous_sound().try_insert(continuous_sound) {
+        Ok(_) => {
+            log::info!("🌦️ Started normal rain sound globally");
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to start normal rain sound: {:?}", e);
+            Err("Failed to start normal rain sound".to_string())
+        }
+    }
+}
+
+/// Stop normal rain continuous sound
+pub fn stop_normal_rain_sound(ctx: &ReducerContext) {
+    const NORMAL_RAIN_OBJECT_ID: u64 = u64::MAX - 1;
+    
+    if ctx.db.continuous_sound().object_id().delete(NORMAL_RAIN_OBJECT_ID) {
+        log::info!("🌦️ Stopped normal rain sound");
+    } else {
+        log::debug!("Normal rain sound was not active");
+    }
+}
+
 // --- Continuous/Looping Sound Management ---
 
 /// Start a continuous looping sound for an object
@@ -515,149 +780,3 @@ pub fn stop_lantern_sound(ctx: &ReducerContext, lantern_id: u64) {
     }
 }
 
-// --- Convenience Functions for Repair Sounds ---
-
-/// Emit successful repair sound
-pub fn emit_repair_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
-    // log::info!("🔧 EMITTING REPAIR SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::Repair, pos_x, pos_y, 1.2, 525.0, player_id) {
-        log::error!("Failed to emit repair sound: {}", e);
-    }
-}
-
-/// Emit repair failure sound (when repair fails due to insufficient resources, etc.)
-pub fn emit_repair_fail_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
-    // log::info!("🔊 EMITTING REPAIR FAIL SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::RepairFail, pos_x, pos_y, 1.0, 525.0, player_id) {
-        log::error!("Failed to emit repair fail sound: {}", e);
-    }
-}
-
-/// Emit a global sound that plays to all clients at full volume regardless of position
-/// This is used for weather effects like lightning/thunder that should be heard everywhere
-pub fn emit_global_sound(
-    ctx: &ReducerContext,
-    sound_type: SoundType,
-    volume: f32,
-) -> Result<(), String> {
-    let mut rng = ctx.rng();
-    let filename = sound_type.get_random_filename(&mut rng);
-    
-    let sound_event = SoundEvent {
-        id: 0, // Auto-incremented
-        sound_type,
-        filename,
-        pos_x: 0.0, // Position doesn't matter for global sounds
-        pos_y: 0.0,
-        volume: volume.max(0.0),
-        max_distance: f32::MAX, // Infinite distance - heard everywhere
-        triggered_by: ctx.identity(), // Triggered by the server/module itself
-        timestamp: ctx.timestamp,
-    };
-
-    match ctx.db.sound_event().try_insert(sound_event) {
-        Ok(inserted) => {
-            log::info!("Global sound event {} emitted: {} at volume {:.1}", 
-                       inserted.id, inserted.filename, volume);
-            Ok(())
-        }
-        Err(e) => {
-            log::error!("Failed to emit global sound event: {:?}", e);
-            Err("Failed to emit global sound event".to_string())
-        }
-    }
-}
-
-/// Start heavy storm rain continuous sound globally
-pub fn start_heavy_storm_rain_sound(ctx: &ReducerContext) -> Result<(), String> {
-    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX; // Use max value as a unique ID for global storm rain
-    
-    // Check if heavy storm rain sound is already active
-    if ctx.db.continuous_sound().object_id().find(STORM_RAIN_OBJECT_ID).is_some() {
-        log::debug!("Heavy storm rain sound already active");
-        return Ok(());
-    }
-    
-    let continuous_sound = ContinuousSound {
-        object_id: STORM_RAIN_OBJECT_ID,
-        sound_type: SoundType::HeavyStormRain,
-        filename: "rain_heavy_storm.mp3".to_string(),
-        pos_x: 0.0, // Global sound, position doesn't matter
-        pos_y: 0.0,
-        volume: 1.2, // Loud enough to be atmospheric
-        max_distance: f32::MAX, // Infinite distance - heard everywhere
-        is_active: true,
-        created_at: ctx.timestamp,
-        updated_at: ctx.timestamp,
-    };
-    
-    match ctx.db.continuous_sound().try_insert(continuous_sound) {
-        Ok(_) => {
-            log::info!("🌧️ Started heavy storm rain sound globally");
-            Ok(())
-        }
-        Err(e) => {
-            log::error!("Failed to start heavy storm rain sound: {:?}", e);
-            Err("Failed to start heavy storm rain sound".to_string())
-        }
-    }
-}
-
-/// Stop heavy storm rain continuous sound
-pub fn stop_heavy_storm_rain_sound(ctx: &ReducerContext) {
-    const STORM_RAIN_OBJECT_ID: u64 = u64::MAX;
-    
-    if ctx.db.continuous_sound().object_id().delete(STORM_RAIN_OBJECT_ID) {
-        log::info!("🌧️ Stopped heavy storm rain sound");
-    } else {
-        log::debug!("Heavy storm rain sound was not active");
-    }
-}
-
-/// Start normal rain continuous sound globally (for light and moderate rain)
-pub fn start_normal_rain_sound(ctx: &ReducerContext) -> Result<(), String> {
-    const NORMAL_RAIN_OBJECT_ID: u64 = u64::MAX - 1; // Use max-1 value as a unique ID for global normal rain
-    
-    // Check if normal rain sound is already active
-    if ctx.db.continuous_sound().object_id().find(NORMAL_RAIN_OBJECT_ID).is_some() {
-        log::debug!("Normal rain sound already active");
-        return Ok(());
-    }
-    
-    let continuous_sound = ContinuousSound {
-        object_id: NORMAL_RAIN_OBJECT_ID,
-        sound_type: SoundType::NormalRain,
-        filename: "rain_normal.mp3".to_string(),
-        pos_x: 0.0, // Global sound, position doesn't matter
-        pos_y: 0.0,
-        volume: 0.8, // Quieter than heavy storm rain
-        max_distance: f32::MAX, // Infinite distance - heard everywhere
-        is_active: true,
-        created_at: ctx.timestamp,
-        updated_at: ctx.timestamp,
-    };
-    
-    match ctx.db.continuous_sound().try_insert(continuous_sound) {
-        Ok(_) => {
-            log::info!("🌦️ Started normal rain sound globally");
-            Ok(())
-        }
-        Err(e) => {
-            log::error!("Failed to start normal rain sound: {:?}", e);
-            Err("Failed to start normal rain sound".to_string())
-        }
-    }
-}
-
-/// Stop normal rain continuous sound
-pub fn stop_normal_rain_sound(ctx: &ReducerContext) {
-    const NORMAL_RAIN_OBJECT_ID: u64 = u64::MAX - 1;
-    
-    if ctx.db.continuous_sound().object_id().delete(NORMAL_RAIN_OBJECT_ID) {
-        log::info!("🌦️ Stopped normal rain sound");
-    } else {
-        log::debug!("Normal rain sound was not active");
-    }
-}
-
- 

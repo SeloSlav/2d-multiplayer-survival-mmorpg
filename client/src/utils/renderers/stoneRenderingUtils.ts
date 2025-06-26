@@ -1,6 +1,6 @@
 import { Stone } from '../../generated'; // Import generated Stone type
 import stoneImage from '../../assets/doodads/stone.png'; // Direct import
-import { drawDynamicGroundShadow } from './shadowUtils'; // Import new ground shadow util
+import { drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Import shadow utils
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager';
 
@@ -37,6 +37,18 @@ const stoneConfig: GroundEntityConfig<Stone> = {
     getShadowParams: undefined, // No longer using this for stones
 
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
+        // Calculate shake offsets for shadow synchronization using helper function
+        const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+            entity,
+            entity.id.toString(),
+            {
+                clientStartTimes: clientStoneShakeStartTimes,
+                lastKnownServerTimes: lastKnownServerStoneShakeTimes
+            },
+            SHAKE_DURATION_MS,
+            SHAKE_INTENSITY_PX
+        );
+
         drawDynamicGroundShadow({
             ctx,
             entityImage,
@@ -45,10 +57,13 @@ const stoneConfig: GroundEntityConfig<Stone> = {
             imageDrawWidth,
             imageDrawHeight,
             cycleProgress,
-            maxStretchFactor: 1.8, // Specific to stones
-            minStretchFactor: 0.15,  // Specific to stones
-            shadowBlur: 2,
-            pivotYOffset: 5 // Reduced from 20 to fix shadow appearing above stone
+            maxStretchFactor: 1.5,
+            minStretchFactor: 0.15,
+            shadowBlur: 1,
+            pivotYOffset: 10,
+            // NEW: Pass shake offsets so shadow moves with the stone
+            shakeOffsetX,
+            shakeOffsetY
         });
     },
 

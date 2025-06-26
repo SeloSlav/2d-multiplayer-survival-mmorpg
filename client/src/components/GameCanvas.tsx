@@ -158,6 +158,7 @@ interface GameCanvasProps {
   isFishing: boolean;
   plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
   playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // Add player drinking cooldowns
+  setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 /**
@@ -220,6 +221,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isFishing,
   plantedSeeds,
   playerDrinkingCooldowns,
+  setMusicPanelVisible,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -423,6 +425,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isGameMenuOpen,
     isSearchingCraftRecipes,
     isFishing,
+    setMusicPanelVisible,
   });
 
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation

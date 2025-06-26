@@ -56,6 +56,9 @@ use crate::models::{ItemLocation, EquipmentSlotType};
 // Player inventory imports
 use crate::player_inventory::find_first_empty_player_slot;
 
+// Sound events imports
+use crate::sound_events;
+
 // --- Interaction Constants ---
 /// Maximum distance for player-item interactions
 const PLAYER_INTERACT_DISTANCE: f32 = 80.0;
@@ -528,6 +531,9 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
             ctx.db.active_consumable_effect().insert(effect);
             log::info!("[UseEquippedItem] RemoteBandageBurst effect initiated from player {:?} to target {:?}", 
                 sender_id, target_id);
+            
+            // Play bandaging sound for remote bandaging
+            sound_events::emit_bandaging_sound(ctx, player_pos.position_x, player_pos.position_y, sender_id);
 
             // Update player's last_consumed_at
             let mut player_to_update = player_pos.clone();
@@ -556,6 +562,9 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
             ctx.db.active_consumable_effect().insert(effect);
             log::info!("[UseEquippedItem] BandageBurst effect initiated for self-healing player {:?} with bandage instance {}. Heal amount: {:?}", 
                 sender_id, equipped_item_instance_id, item_def.consumable_health_gain);
+            
+            // Play bandaging sound for self-bandaging
+            sound_events::emit_bandaging_sound(ctx, player_pos.position_x, player_pos.position_y, sender_id);
 
             // Update player's last_consumed_at
             let mut player_to_update = player_pos.clone();
@@ -596,6 +605,9 @@ pub fn use_equipped_item(ctx: &ReducerContext) -> Result<(), String> {
     let mut current_equipment_mut = current_equipment.clone(); // Clone to modify for swing time
     current_equipment_mut.swing_start_time_ms = now_ms;
     active_equipments.player_identity().update(current_equipment_mut); // Update with new swing time
+    
+    // Play weapon swing sound for all weapon swings
+    sound_events::emit_weapon_swing_sound(ctx, player.position_x, player.position_y, sender_id);
 
     // --- UPDATE LAST ATTACK TIMESTAMP ---
     if item_def.attack_interval_secs.is_some() && item_def.attack_interval_secs.unwrap_or(0.0) > 0.0 {

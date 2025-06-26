@@ -9,6 +9,7 @@ use crate::{
     wooden_storage_box::WOODEN_STORAGE_BOX_MAX_HEALTH,
     shelter::SHELTER_INITIAL_MAX_HEALTH,
     lantern::LANTERN_MAX_HEALTH,
+    rain_collector::RAIN_COLLECTOR_MAX_HEALTH,
     // Import sound events for repair sounds
     sound_events,
 };
@@ -19,6 +20,7 @@ use crate::campfire::campfire as CampfireTableTrait;
 use crate::lantern::lantern as LanternTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::shelter::shelter as ShelterTableTrait;
+use crate::rain_collector::rain_collector as RainCollectorTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 
 // Combat cooldown constants for PvP balance
@@ -67,6 +69,7 @@ pub fn get_repair_amount_for_structure(target_type: TargetType) -> f32 {
         TargetType::Lantern => 20.0,         // 4 hits to fully repair (80 / 20 = 4)
         TargetType::WoodenStorageBox => 75.0, // 10 hits to fully repair (750 / 75 = 10)
         TargetType::Shelter => 5000.0,       // 20 hits to fully repair (100,000 / 5000 = 20)
+        TargetType::RainCollector => 50.0,   // 10 hits to fully repair (500 / 50 = 10)
         _ => 5.0, // Default fallback for other structures
     }
 }
@@ -217,6 +220,12 @@ pub fn calculate_repair_resources(target_type: TargetType, repair_amount: f32, m
             // Shelter costs: 3200 Wood, 0 Stone, 0 Metal (simplified - ignoring rope requirement)
             let wood_needed = (3200.0 * repair_fraction).ceil() as u32;
             (wood_needed, 0, 0)
+        },
+        TargetType::RainCollector => {
+            // Rain Collector costs: 50 Wood, 10 Stone, 0 Metal (reed-based structure needs some wood and stone)
+            let wood_needed = (50.0 * repair_fraction).ceil() as u32;
+            let stone_needed = (10.0 * repair_fraction).ceil() as u32;
+            (wood_needed, stone_needed, 0)
         },
         _ => (0, 0, 0), // Other structures don't support repair
     }
@@ -480,6 +489,71 @@ pub fn repair_lantern(
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::Lantern),
+        resource_granted: None,
+    })
+}
+
+pub fn repair_rain_collector(
+    ctx: &ReducerContext,
+    repairer_id: Identity,
+    rain_collector_id: u32,
+    _weapon_damage: f32, // Ignore weapon damage, use proper repair amount
+    timestamp: Timestamp,
+) -> Result<AttackResult, String> {
+    let mut rain_collectors_table = ctx.db.rain_collector();
+    let mut rain_collector = rain_collectors_table.id().find(&rain_collector_id)
+        .ok_or_else(|| format!("Target rain collector {} not found", rain_collector_id))?;
+
+    if rain_collector.is_destroyed {
+        return Err("Cannot repair destroyed rain collector".to_string());
+    }
+
+    // Check combat cooldown for PvP balance
+    match can_structure_be_repaired(rain_collector.last_hit_time, rain_collector.last_damaged_by, repairer_id, rain_collector.placed_by, timestamp) {
+        Ok(()) => {},
+        Err(e) => {
+            // 🔧 Emit repair fail sound for cooldown/permission errors
+            sound_events::emit_repair_fail_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
+            return Err(e);
+        }
+    }
+
+    // Use proper repair amount for rain collectors
+    let repair_amount = get_repair_amount_for_structure(TargetType::RainCollector);
+    let rain_collector_max_health = rain_collector.max_health;
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::RainCollector, repair_amount, rain_collector_max_health);
+    
+    // Try to consume resources
+    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
+        Ok(()) => {
+            // 🔧 Emit successful repair sound
+            sound_events::emit_repair_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
+        }
+        Err(e) => {
+            // 🔧 Emit repair fail sound for resource shortage
+            sound_events::emit_repair_fail_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
+            return Err(e);
+        }
+    }
+    
+    let old_health = rain_collector.health;
+    rain_collector.health = (rain_collector.health + repair_amount).min(rain_collector_max_health);
+    rain_collector.last_hit_time = Some(timestamp);
+    rain_collector.last_damaged_by = Some(repairer_id);
+    
+    // Save new health before update
+    let new_health = rain_collector.health;
+
+    rain_collectors_table.id().update(rain_collector);
+
+    log::info!(
+        "Player {:?} repaired RainCollector {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, rain_collector_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, rain_collector_max_health
+    );
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::RainCollector),
         resource_granted: None,
     })
 }

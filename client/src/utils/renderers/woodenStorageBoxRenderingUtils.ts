@@ -1,6 +1,6 @@
 import { WoodenStorageBox } from '../../generated'; // Import generated type
 import boxImage from '../../assets/doodads/wooden_storage_box.png'; // Direct import
-import { applyStandardDropShadow, drawDynamicGroundShadow } from './shadowUtils'; // Added import
+import { applyStandardDropShadow, drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
 
@@ -15,6 +15,9 @@ const HEALTH_BAR_HEIGHT = 6;
 const HEALTH_BAR_Y_OFFSET = 8; // Adjust offset for box image centering
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Added for fade effect
 
+// --- Client-side animation tracking for wooden storage box shakes ---
+const clientBoxShakeStartTimes = new Map<string, number>(); // boxId -> client timestamp when shake started
+const lastKnownServerBoxShakeTimes = new Map<string, number>();
 
 // --- Define Configuration --- 
 const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
@@ -40,6 +43,18 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
         // Draw DYNAMIC ground shadow if not destroyed
         if (!entity.isDestroyed) {
+            // Calculate shake offsets for shadow synchronization using helper function
+            const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+                entity,
+                entity.id.toString(),
+                {
+                    clientStartTimes: clientBoxShakeStartTimes,
+                    lastKnownServerTimes: lastKnownServerBoxShakeTimes
+                },
+                SHAKE_DURATION_MS,
+                SHAKE_INTENSITY_PX
+            );
+
             drawDynamicGroundShadow({
                 ctx,
                 entityImage,
@@ -51,7 +66,10 @@ const boxConfig: GroundEntityConfig<WoodenStorageBox> = {
                 maxStretchFactor: 1.2, 
                 minStretchFactor: 0.1,  
                 shadowBlur: 2,         
-                pivotYOffset: 35       
+                pivotYOffset: 35,
+                // NEW: Pass shake offsets so shadow moves with the wooden storage box
+                shakeOffsetX,
+                shakeOffsetY       
             });
         }
     },

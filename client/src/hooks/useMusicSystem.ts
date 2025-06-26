@@ -17,25 +17,16 @@ interface MusicTrack {
 // All music tracks found in /public/music
 const MUSIC_TRACKS: MusicTrack[] = [
     { filename: 'Aleut_Ashfall.mp3', displayName: 'Aleut Ashfall' },
-    { filename: 'Aleut_Ashfall1.mp3', displayName: 'Aleut Ashfall (Variant)' },
     { filename: 'Babushka_Circuit.mp3', displayName: 'Babushka Circuit' },
-    { filename: 'Babushka_Circuit1.mp3', displayName: 'Babushka Circuit (Variant)' },
     { filename: 'Deadwomans_Harbor.mp3', displayName: 'Deadwoman\'s Harbor' },
-    { filename: 'Deadwomans_Harbor1.mp3', displayName: 'Deadwoman\'s Harbor (Variant)' },
     { filename: 'Inlet Fog.mp3', displayName: 'Inlet Fog' },
-    { filename: 'Inlet_Fog1.mp3', displayName: 'Inlet Fog (Variant)' },
+    { filename: 'Derge_Soupline.mp3', displayName: 'Derge Soupline' },
     { filename: 'Kindling_Ritual.mp3', displayName: 'Kindling Ritual' },
-    { filename: 'Kindling_Ritual1.mp3', displayName: 'Kindling Ritual (Variant)' },
     { filename: 'Latchkey_Depths.mp3', displayName: 'Latchkey Depths' },
-    { filename: 'Latchkey_Depths1.mp3', displayName: 'Latchkey Depths (Variant)' },
     { filename: 'Low_Tide_Cache.mp3', displayName: 'Low Tide Cache' },
     { filename: 'Saltwind.mp3', displayName: 'Saltwind' },
     { filename: 'Shiver_Doctrine.mp3', displayName: 'Shiver Doctrine' },
-    { filename: 'Shiver_Doctrine1.mp3', displayName: 'Shiver Doctrine (Variant)' },
     { filename: 'Snowblind_Signal.mp3', displayName: 'Snowblind Signal' },
-    { filename: 'Snowblind_Signal1.mp3', displayName: 'Snowblind Signal (Variant)' },
-    { filename: 'Soupline_Dirge.mp3', displayName: 'Soupline Dirge' },
-    { filename: 'Soupline_Dirge1.mp3', displayName: 'Soupline Dirge (Variant)' },
     { filename: 'Spoiled_Tallow.mp3', displayName: 'Spoiled Tallow' },
     { filename: 'Whalebone_Relay.mp3', displayName: 'Whalebone Relay' },
 ];
@@ -59,6 +50,7 @@ interface MusicSystemState {
     playlist: number[]; // Shuffled track indices
     playlistPosition: number;
     volume: number; // Current volume (0-1)
+    shuffleMode: boolean; // Track shuffle mode in state
 }
 
 // Audio cache for preloaded tracks
@@ -186,15 +178,28 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         isLoading: false,
         preloadProgress: 0,
         error: null,
-        playlist: createShuffledPlaylist(MUSIC_TRACKS.length),
+        playlist: [],
         playlistPosition: 0,
         volume: finalConfig.volume,
+        shuffleMode: finalConfig.shuffleMode,
     });
 
     const currentAudioRef = useRef<HTMLAudioElement | null>(null);
     const nextAudioRef = useRef<HTMLAudioElement | null>(null);
     const configRef = useRef(finalConfig);
     const stateRef = useRef(state);
+
+    // Track cleanup ref to store event listeners for proper cleanup
+    const currentEventListenersRef = useRef<Array<() => void>>([]);
+    
+    // Clean up previous event listeners
+    const cleanupEventListeners = useCallback(() => {
+        currentEventListenersRef.current.forEach(cleanup => cleanup());
+        currentEventListenersRef.current = [];
+    }, []);
+
+    // Forward reference for nextTrack function
+    const nextTrackRef = useRef<(() => Promise<void>) | null>(null);
 
     // Update refs when state changes
     useEffect(() => {
@@ -242,7 +247,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
     }, [finalConfig.preloadAll]);
 
     // Play a specific track
-    const playTrack = useCallback(async (trackIndex: number, crossfade = true) => {
+    const playTrack = useCallback(async (trackIndex: number, crossfade = true): Promise<void> => {
         try {
             const track = MUSIC_TRACKS[trackIndex];
             if (!track) {
@@ -250,6 +255,9 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             }
 
             console.log(`🎵 Playing: ${track.displayName}`);
+
+            // Clean up previous event listeners to prevent multiple tracks from auto-advancing
+            cleanupEventListeners();
 
             // Get the audio element
             const audio = await musicCache.get(track.filename);
@@ -292,12 +300,31 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             }
 
             // Set up track end listener for automatic next track
-            newAudio.addEventListener('ended', () => {
+            const handleTrackEnded = () => {
+                console.log('🎵 Track ended, checking if should auto-advance...');
+                // Use stateRef to check current playing state
                 if (stateRef.current.isPlaying) {
-                    // Use setTimeout to ensure nextTrack is defined when called
-                    setTimeout(() => nextTrack(), 0);
+                    console.log('🎵 Auto-advancing to next track');
+                    // Call nextTrack via ref to avoid circular dependency
+                    if (nextTrackRef.current) {
+                        nextTrackRef.current().catch((error: Error) => {
+                            console.error('🎵 Error auto-advancing to next track:', error);
+                            setState(prev => ({ 
+                                ...prev, 
+                                error: `Failed to advance to next track: ${error.message || 'Unknown error'}` 
+                            }));
+                        });
+                    }
+                } else {
+                    console.log('🎵 Track ended but music system is not playing, skipping auto-advance');
                 }
-            });
+            };
+            
+            newAudio.addEventListener('ended', handleTrackEnded, { once: true });
+            
+            // Store cleanup function for this event listener
+            const cleanup = () => newAudio.removeEventListener('ended', handleTrackEnded);
+            currentEventListenersRef.current.push(cleanup);
 
             // Update current audio reference
             currentAudioRef.current = newAudio;
@@ -316,20 +343,23 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             console.error('🎵 Error playing track:', error);
             setState(prev => ({ 
                 ...prev, 
-                error: `Failed to play track: ${error instanceof Error ? error.message : 'Unknown error'}` 
+                error: `Failed to play track: ${(error as Error).message || 'Unknown error'}` 
             }));
         }
-    }, []);
+    }, [cleanupEventListeners]);
 
     // Start music system
     const startMusic = useCallback(async () => {
         console.log('🎵 Starting music system...');
         
-        let currentPlaylist = state.playlist;
-        let startPosition = state.playlistPosition;
+        // Use stateRef to get the most current state
+        const currentState = stateRef.current;
+        let currentPlaylist = currentState.playlist;
+        let startPosition = currentState.playlistPosition;
         
         // If no playlist exists, create a new shuffled one
         if (currentPlaylist.length === 0) {
+            console.log('🎵 No existing playlist, creating new shuffled playlist');
             currentPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
             setState(prev => ({ ...prev, playlist: currentPlaylist }));
         }
@@ -343,8 +373,9 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         }
 
         const firstTrackIndex = currentPlaylist[startPosition];
+        console.log(`🎵 Starting with track: ${MUSIC_TRACKS[firstTrackIndex]?.displayName}`);
         await playTrack(firstTrackIndex, false); // No crossfade for first track
-    }, [state.playlist, state.playlistPosition, playTrack]);
+    }, [playTrack]); // Removed state dependencies to prevent stale closures
 
     // Stop music
     const stopMusic = useCallback(() => {
@@ -369,39 +400,68 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
     }, []);
 
     // Next track
-    const nextTrack = useCallback(async () => {
-        if (!state.isPlaying) return;
-
-        let nextPosition = state.playlistPosition + 1;
+    const nextTrack = useCallback(async (): Promise<void> => {
+        // Use stateRef.current to get the most up-to-date state
+        const currentState = stateRef.current;
         
-        // If we've reached the end of the playlist, shuffle a new one
-        if (nextPosition >= state.playlist.length) {
-            const newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
-            setState(prev => ({ ...prev, playlist: newPlaylist, playlistPosition: 0 }));
-            nextPosition = 0;
-        } else {
-            setState(prev => ({ ...prev, playlistPosition: nextPosition }));
+        if (!currentState.isPlaying) {
+            console.log('🎵 nextTrack called but music is not playing');
+            return;
         }
 
-        const nextTrackIndex = state.playlist[nextPosition];
+        console.log(`🎵 Moving to next track. Current position: ${currentState.playlistPosition}/${currentState.playlist.length}`);
+
+        let nextPosition = currentState.playlistPosition + 1;
+        let playlistToUse = currentState.playlist;
+        
+        // If we've reached the end of the playlist, shuffle a new one
+        if (nextPosition >= currentState.playlist.length) {
+            console.log('🎵 End of playlist reached, creating new shuffled playlist');
+            const newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
+            playlistToUse = newPlaylist;
+            nextPosition = 0;
+            
+            setState(prev => ({ 
+                ...prev, 
+                playlist: newPlaylist, 
+                playlistPosition: nextPosition 
+            }));
+        } else {
+            setState(prev => ({ 
+                ...prev, 
+                playlistPosition: nextPosition 
+            }));
+        }
+
+        const nextTrackIndex = playlistToUse[nextPosition];
+        console.log(`🎵 Playing track ${nextPosition + 1}/${playlistToUse.length}: ${MUSIC_TRACKS[nextTrackIndex]?.displayName}`);
+        
         await playTrack(nextTrackIndex);
-    }, [state.isPlaying, state.playlistPosition, state.playlist, playTrack]);
+    }, [playTrack]);
+
+    // Set the nextTrack ref after the function is defined
+    useEffect(() => {
+        nextTrackRef.current = nextTrack;
+    }, [nextTrack]);
 
     // Previous track
-    const previousTrack = useCallback(async () => {
-        if (!state.isPlaying) return;
+    const previousTrack = useCallback(async (): Promise<void> => {
+        // Use stateRef.current to get the most up-to-date state  
+        const currentState = stateRef.current;
+        
+        if (!currentState.isPlaying) return;
 
-        let prevPosition = state.playlistPosition - 1;
+        let prevPosition = currentState.playlistPosition - 1;
         
         // If we're at the beginning, go to end of playlist
         if (prevPosition < 0) {
-            prevPosition = state.playlist.length - 1;
+            prevPosition = currentState.playlist.length - 1;
         }
 
         setState(prev => ({ ...prev, playlistPosition: prevPosition }));
-        const prevTrackIndex = state.playlist[prevPosition];
+        const prevTrackIndex = currentState.playlist[prevPosition];
         await playTrack(prevTrackIndex);
-    }, [state.isPlaying, state.playlistPosition, state.playlist, playTrack]);
+    }, [playTrack]); // Removed state dependencies to prevent stale closures
 
     // Set volume
     const setVolume = useCallback((volume: number) => {
@@ -421,19 +481,54 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
 
     // Toggle shuffle mode
     const toggleShuffle = useCallback(() => {
-        const newShuffleMode = !configRef.current.shuffleMode;
-        configRef.current = { ...configRef.current, shuffleMode: newShuffleMode };
+        const currentState = stateRef.current;
+        const currentConfig = configRef.current;
+        const newShuffleMode = !currentState.shuffleMode; // Use state instead of config
+        
+        console.log(`🎵 Toggling shuffle mode: ${currentState.shuffleMode} → ${newShuffleMode}`);
+        
+        // Update config
+        configRef.current = { ...currentConfig, shuffleMode: newShuffleMode };
+        
+        // Get current track index to preserve position
+        const currentTrackIndex = currentState.currentTrackIndex;
         
         if (newShuffleMode) {
-            // Create new shuffled playlist
-            const newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
-            setState(prev => ({ ...prev, playlist: newPlaylist, playlistPosition: 0 }));
+            // Create new shuffled playlist, but keep current track at the front if playing
+            console.log('🎵 Creating shuffled playlist');
+            let newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
+            
+            // If we're currently playing a track, move it to the front of the new playlist
+            if (currentTrackIndex >= 0 && currentState.isPlaying) {
+                newPlaylist = newPlaylist.filter(idx => idx !== currentTrackIndex);
+                newPlaylist.unshift(currentTrackIndex);
+                console.log(`🎵 Moved current track ${currentTrackIndex} to front of shuffled playlist`);
+            }
+            
+            setState(prev => ({ 
+                ...prev, 
+                playlist: newPlaylist, 
+                playlistPosition: currentState.isPlaying ? 0 : Math.floor(Math.random() * newPlaylist.length),
+                shuffleMode: newShuffleMode 
+            }));
         } else {
-            // Create ordered playlist
+            // Create ordered playlist (0, 1, 2, 3...)
+            console.log('🎵 Creating sequential playlist');
             const orderedPlaylist = Array.from({ length: MUSIC_TRACKS.length }, (_, i) => i);
-            setState(prev => ({ ...prev, playlist: orderedPlaylist, playlistPosition: 0 }));
+            
+            // Set position to current track index if playing, otherwise start at 0
+            const newPosition = currentState.isPlaying && currentTrackIndex >= 0 ? currentTrackIndex : 0;
+            
+            setState(prev => ({ 
+                ...prev, 
+                playlist: orderedPlaylist, 
+                playlistPosition: newPosition,
+                shuffleMode: newShuffleMode 
+            }));
         }
-    }, []);
+        
+        console.log(`🎵 Shuffle mode is now: ${newShuffleMode ? 'ON' : 'OFF'}`);
+    }, []); // Keep empty dependency array since we're using refs
 
     // Initialize music system
     useEffect(() => {
@@ -443,6 +538,8 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
 
         // Cleanup on unmount
         return () => {
+            console.log('🎵 Music system cleanup');
+            cleanupEventListeners(); // Clean up any active event listeners
             if (currentAudioRef.current) {
                 currentAudioRef.current.pause();
             }
@@ -453,6 +550,40 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         };
     }, [finalConfig.enabled, preloadAllTracks]);
 
+    // Play specific track by index
+    const playSpecificTrack = useCallback(async (trackIndex: number): Promise<void> => {
+        if (trackIndex < 0 || trackIndex >= MUSIC_TRACKS.length) {
+            console.error('🎵 Invalid track index:', trackIndex);
+            return;
+        }
+
+        console.log(`🎵 Playing specific track: ${MUSIC_TRACKS[trackIndex]?.displayName}`);
+        
+        // Update playlist position to match the selected track
+        const currentState = stateRef.current;
+        let newPosition = currentState.playlist.indexOf(trackIndex);
+        
+        // If the track isn't in the current playlist, add it or create a new playlist
+        if (newPosition === -1) {
+            // Create a new playlist starting with the selected track
+            const newPlaylist = [trackIndex, ...currentState.playlist.filter(idx => idx !== trackIndex)];
+            newPosition = 0;
+            setState(prev => ({ 
+                ...prev, 
+                playlist: newPlaylist, 
+                playlistPosition: newPosition 
+            }));
+        } else {
+            setState(prev => ({ 
+                ...prev, 
+                playlistPosition: newPosition 
+            }));
+        }
+
+        // Play the track
+        await playTrack(trackIndex);
+    }, [playTrack]);
+
     // Public API
     return {
         // State
@@ -462,7 +593,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         preloadProgress: state.preloadProgress,
         error: state.error,
         volume: state.volume,
-        shuffleMode: finalConfig.shuffleMode,
+        shuffleMode: state.shuffleMode,
         
         // Controls
         start: startMusic,
@@ -476,5 +607,8 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         tracklist: MUSIC_TRACKS,
         currentPosition: state.playlistPosition + 1,
         totalTracks: MUSIC_TRACKS.length,
+        
+        // New function
+        playSpecificTrack,
     };
 }; 

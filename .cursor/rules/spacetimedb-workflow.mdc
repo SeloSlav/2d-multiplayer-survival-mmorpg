@@ -15,16 +15,16 @@ Essential commands and patterns for developing with SpacetimeDB in this 2D multi
 spacetime build --project-path ./server
 
 # Publish to local database  
-spacetime publish --project-path ./server my-database
+spacetime publish --project-path ./server broth-bullets-local
 
 # View server logs
-spacetime logs my-database
+spacetime logs broth-bullets-local
 
 # SQL query the database
-spacetime sql my-database "SELECT * FROM player LIMIT 5"
+spacetime sql broth-bullets-local "SELECT * FROM player LIMIT 5"
 
 # Clear database and republish (destructive!)
-spacetime publish -c --project-path ./server my-database
+spacetime publish -c --project-path ./server broth-bullets-local
 ```
 
 ### Client Development
@@ -41,7 +41,7 @@ npm run dev
 ### 1. Making Server Changes
 1. Edit server Rust files in `server/src/`
 2. Test build: `spacetime build --project-path ./server`
-3. Publish: `spacetime publish --project-path ./server my-database`
+3. Publish: `spacetime publish --project-path ./server broth-bullets-local`
 4. **Generate client bindings**: `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
 
 ### 2. Making Client Changes  
@@ -49,9 +49,9 @@ npm run dev
 2. Restart dev server if needed: `npm run dev`
 
 ### 3. Testing Full Stack
-1. Server logs: `spacetime logs my-database`
+1. Server logs: `spacetime logs broth-bullets-local`
 2. Browser console for client errors
-3. Database inspection: `spacetime sql my-database "SELECT * FROM {table}"`
+3. Database inspection: `spacetime sql broth-bullets-local "SELECT * FROM {table}"`
 
 ## Key Files & Patterns
 
@@ -82,7 +82,7 @@ npm run dev
 ### Client TypeScript Errors After Server Changes
 **Always run this sequence:**
 1. `spacetime build --project-path ./server`
-2. `spacetime publish --project-path ./server my-database` 
+2. `spacetime publish --project-path ./server broth-bullets-local` 
 3. `spacetime generate --lang typescript --out-dir ./client/src/generated --project-path ./server`
 4. Restart client dev server
 
@@ -91,13 +91,13 @@ npm run dev
 ### Viewing Data
 ```bash
 # List all tables
-spacetime sql my-database "SHOW TABLES"
+spacetime sql broth-bullets-local "SHOW TABLES"
 
 # View specific table structure  
-spacetime sql my-database "DESCRIBE player"
+spacetime sql broth-bullets-local "DESCRIBE player"
 
 # Query with conditions
-spacetime sql my-database "SELECT * FROM mushroom WHERE respawn_at IS NOT NULL"
+spacetime sql broth-bullets-local "SELECT * FROM mushroom WHERE respawn_at IS NOT NULL"
 ```
 
 ### Performance Monitoring
@@ -106,13 +106,13 @@ spacetime sql my-database "SELECT * FROM mushroom WHERE respawn_at IS NOT NULL"
 spacetime list
 
 # Monitor logs in real-time
-spacetime logs -f my-database
+spacetime logs -f broth-bullets-local
 ```
 
 ## Development Tips
 
 ### Reducer Testing
-- Check server logs for reducer errors: `spacetime logs my-database`
+- Check server logs for reducer errors: `spacetime logs broth-bullets-local`
 - Use `log::info!()` in Rust reducers for debugging
 - Test reducer calls in browser dev console
 

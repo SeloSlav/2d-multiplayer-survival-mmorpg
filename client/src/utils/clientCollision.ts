@@ -1,5 +1,5 @@
 // AAA-Quality Client-side Collision Detection System
-import { Player, Tree, Stone, WoodenStorageBox, Shelter } from '../generated';
+import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector } from '../generated';
 
 // ===== CONFIGURATION CONSTANTS =====
 const WORLD_WIDTH_PX = 24000;
@@ -11,6 +11,7 @@ const COLLISION_RADII = {
   TREE: 38,
   STONE: 28,       // Smaller radius for flattened stones
   STORAGE_BOX: 25, // Much tighter radius for boxes
+  RAIN_COLLECTOR: 20, // Match server-side rain collector radius
   PLAYER: PLAYER_RADIUS,
 } as const;
 
@@ -19,6 +20,7 @@ const COLLISION_OFFSETS = {
   TREE: { x: 0, y: -68 },      // Adjusted to keep top boundary similar while squishing from bottom
   STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
+  RAIN_COLLECTOR: { x: 0, y: -52 }, // Match server-side rain collector Y offset
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
 } as const;
 
@@ -43,6 +45,7 @@ export interface GameEntities {
   trees: Map<string, Tree>;
   stones: Map<string, Stone>;
   boxes: Map<string, WoodenStorageBox>;
+  rainCollectors: Map<string, RainCollector>;
   shelters: Map<string, Shelter>;
   players: Map<string, Player>;
 }
@@ -401,6 +404,19 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
       x: box.posX + COLLISION_OFFSETS.STORAGE_BOX.x,
       y: box.posY + COLLISION_OFFSETS.STORAGE_BOX.y,
       radius: COLLISION_RADII.STORAGE_BOX
+    });
+  }
+
+  // Add rain collectors
+  for (const [rainCollectorId, rainCollector] of entities.rainCollectors) {
+    if (rainCollector.isDestroyed) continue;
+    
+    shapes.push({
+      id: rainCollectorId,
+      type: `rain-collector-${rainCollectorId}`,
+      x: rainCollector.posX + COLLISION_OFFSETS.RAIN_COLLECTOR.x,
+      y: rainCollector.posY + COLLISION_OFFSETS.RAIN_COLLECTOR.y,
+      radius: COLLISION_RADII.RAIN_COLLECTOR
     });
   }
   

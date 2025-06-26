@@ -391,6 +391,7 @@ export const renderEquippedItem = (
   // --- BANDAGE ANIMATION & DRAWING --- 
   let bandageDrawnWithAnimation = false;
   let bandagingStartTimeMs: number | null = null;
+  let bandageEffectStillActive = false;
 
   // Only show bandage animation if we have both an active effect AND the bandage is actually equipped
   if (itemDef.name === "Bandage" && activeConsumableEffects && player.identity) {
@@ -400,12 +401,17 @@ export const renderEquippedItem = (
       if ((effect.effectType.tag === "BandageBurst" && effect.playerId.toHexString() === playerHexId) ||
           (effect.effectType.tag === "RemoteBandageBurst" && effect.playerId.toHexString() === playerHexId)) {
         bandagingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        
+        // Check if the effect is still active by comparing current time with effect end time
+        const effectEndTimeMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n);
+        bandageEffectStillActive = now_ms < effectEndTimeMs;
         break;
       }
     }
   }
 
-  if (itemDef.name === "Bandage" && bandagingStartTimeMs !== null) {
+  // Only animate if both the effect is still active AND within the animation duration
+  if (itemDef.name === "Bandage" && bandagingStartTimeMs !== null && bandageEffectStillActive) {
     const elapsedBandagingTime = now_ms - bandagingStartTimeMs;
     if (elapsedBandagingTime >= 0 && elapsedBandagingTime < BANDAGING_ANIMATION_DURATION_MS) {
       const animationProgress = elapsedBandagingTime / BANDAGING_ANIMATION_DURATION_MS;
@@ -425,6 +431,7 @@ export const renderEquippedItem = (
   // --- SELO OLIVE OIL ANIMATION & DRAWING --- 
   let seloOliveOilDrawnWithAnimation = false;
   let seloOliveOilStartTimeMs: number | null = null;
+  let seloOliveOilEffectStillActive = false;
 
   // Only show Selo Olive Oil animation if we have both an active effect AND the Selo Olive Oil is actually equipped
   if (itemDef.name === "Selo Olive Oil" && activeConsumableEffects && player.identity) {
@@ -436,13 +443,18 @@ export const renderEquippedItem = (
         const effectDurationMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n) - Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
         if (effectDurationMs <= 2500) { // 2.5 seconds to account for slight timing variations
           seloOliveOilStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+          
+          // Check if the effect is still active by comparing current time with effect end time
+          const effectEndTimeMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n);
+          seloOliveOilEffectStillActive = now_ms < effectEndTimeMs;
           break;
         }
       }
     }
   }
 
-  if (itemDef.name === "Selo Olive Oil" && seloOliveOilStartTimeMs !== null) {
+  // Only animate if both the effect is still active AND within the animation duration
+  if (itemDef.name === "Selo Olive Oil" && seloOliveOilStartTimeMs !== null && seloOliveOilEffectStillActive) {
     const elapsedSeloOliveOilTime = now_ms - seloOliveOilStartTimeMs;
     if (elapsedSeloOliveOilTime >= 0 && elapsedSeloOliveOilTime < SELO_OLIVE_OIL_ANIMATION_DURATION_MS) {
       const animationProgress = elapsedSeloOliveOilTime / SELO_OLIVE_OIL_ANIMATION_DURATION_MS;
@@ -462,6 +474,7 @@ export const renderEquippedItem = (
   // --- WATER DRINKING ANIMATION & DRAWING ---
   let waterDrinkingDrawnWithAnimation = false;
   let waterDrinkingStartTimeMs: number | null = null;
+  let waterDrinkingEffectStillActive = false;
 
   // Only show water drinking animation if we have both an active effect AND a water container is actually equipped
   if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && activeConsumableEffects && player.identity) {
@@ -470,12 +483,17 @@ export const renderEquippedItem = (
       // Show animation if player is drinking water (WaterDrinking effect with 2-second duration)
       if (effect.effectType.tag === "WaterDrinking" && effect.playerId.toHexString() === playerHexId) {
         waterDrinkingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        
+        // Check if the effect is still active by comparing current time with effect end time
+        const effectEndTimeMs = Number(effect.endsAt.microsSinceUnixEpoch / 1000n);
+        waterDrinkingEffectStillActive = now_ms < effectEndTimeMs;
         break;
       }
     }
   }
 
-  if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && waterDrinkingStartTimeMs !== null) {
+  // Only animate if both the effect is still active AND within the animation duration
+  if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && waterDrinkingStartTimeMs !== null && waterDrinkingEffectStillActive) {
     const elapsedWaterDrinkingTime = now_ms - waterDrinkingStartTimeMs;
     if (elapsedWaterDrinkingTime >= 0 && elapsedWaterDrinkingTime < WATER_DRINKING_ANIMATION_DURATION_MS) {
       const animationProgress = elapsedWaterDrinkingTime / WATER_DRINKING_ANIMATION_DURATION_MS;

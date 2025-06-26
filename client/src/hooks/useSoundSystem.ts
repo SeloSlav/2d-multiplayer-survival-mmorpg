@@ -32,6 +32,7 @@ const SOUND_DEFINITIONS = {
     drinking_water: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 525 }, // Drinking water sound
     throwing_up: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 600 }, // Throwing up sound (salt water, food poisoning)
     eating_food: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 600 }, // Eating food sound
+    filling_container: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 700 },
     // Continuous/looping sounds - server managed
     campfire_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.6, maxDistance: 525, isLooping: true },
     lantern_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525, isLooping: true },
@@ -41,6 +42,22 @@ const SOUND_DEFINITIONS = {
     // Rain sounds - server only global continuous sounds during rain
     rain_heavy_storm: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: Infinity, isLooping: true, isEnvironmental: true },
     rain_normal: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: Infinity, isLooping: true, isEnvironmental: true },
+    // Combat sounds - server only
+    melee_hit_sharp: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.4, maxDistance: 700 }, // Sharp melee weapon hits
+    spear_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 650 }, // Spear hits on players/corpses
+    torch_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 600 }, // Torch hits on players/corpses
+    torch_hit_lit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 650 }, // Lit torch hits (plays with torch_hit)
+    light_torch: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 500 }, // Lighting a torch
+    extinguish_torch: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.9, maxDistance: 450 }, // Extinguishing a torch
+    melee_hit_blunt: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 600 }, // Blunt weapon hits on players/corpses
+    weapon_swing: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 400 }, // All weapon swings
+    arrow_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 550 }, // Arrow hits on players/corpses
+    shoot_bow: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 800 }, // Hunting bow firing
+    shoot_crossbow: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 850 }, // Crossbow firing
+    bandaging: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 300 }, // Bandaging (5-second duration, non-looping)
+    stop_bandaging: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.0, maxDistance: 300 }, // Stop bandaging sound
+    // UI/Item interaction sounds - immediate (no server sync needed)
+    crush_bones: { strategy: SoundStrategy.IMMEDIATE, volume: 1.2 }, // Local client sound
 } as const;
 
 type SoundType = keyof typeof SOUND_DEFINITIONS;
@@ -166,6 +183,9 @@ const audioCache = new AudioCache();
 // Active sound tracking for performance
 const activeSounds = new Set<HTMLAudioElement>();
 
+// Track active bandaging sounds per player to allow stopping them
+const activeBandagingSounds = new Map<string, HTMLAudioElement>();
+
 // Preload common sounds
 const PRELOAD_SOUNDS = [
     'tree_chop.mp3', 'tree_chop1.mp3', 'tree_chop2.mp3',  // 3 tree chop variations
@@ -179,12 +199,26 @@ const PRELOAD_SOUNDS = [
     'drinking_water.mp3',                                  // 1 drinking water variation
     'throwing_up.mp3',                                     // 1 throwing up variation (salt water, food poisoning)
     'eating_food.mp3',                                     // 1 eating food variation
+    'filling_container.mp3',                               // 1 filling container variation
     'campfire_looping.mp3',                                // 1 campfire looping variation
     'lantern_looping.mp3',                                 // 1 lantern looping variation
     'repair.mp3',                                          // 1 repair variation
     'repair_fail.mp3',                                     // 1 repair fail variation
     'rain_normal.mp3',                                     // 1 normal rain variation
-];
+    'melee_hit_sharp.mp3',                                  // 1 melee hit sharp variation
+    'spear_hit.mp3',                                        // 1 spear hit variation
+    'torch_hit.mp3',                                        // 1 torch hit variation
+    'torch_hit_lit.mp3',                                    // 1 torch hit lit variation
+    'light_torch.mp3',                                      // 1 light torch variation
+    'extinguish_torch.mp3',                                 // 1 extinguish torch variation
+    'crush_bones.mp3',                                      // 1 crush bones variation
+    'melee_hit_blunt.mp3',                                  // 1 melee hit blunt variation
+    'weapon_swing.mp3',                                     // 1 weapon swing variation
+    'arrow_hit.mp3',                                        // 1 arrow hit variation
+    'shoot_bow.mp3',                                        // 1 shoot bow variation
+    'shoot_crossbow.mp3',                                    // 1 shoot crossbow variation
+    'bandaging.mp3',                                        // 1 bandaging variation
+] as const;
 
 // Enhanced audio loading with error handling and performance monitoring
 const loadAudio = async (filename: string): Promise<HTMLAudioElement> => {
@@ -359,10 +393,40 @@ const playLocalSound = async (
                 variationCount = 1; // throwing_up.mp3
             } else if (soundType === 'eating_food') {
                 variationCount = 1; // eating_food.mp3
+            } else if (soundType === 'filling_container') {
+                variationCount = 1; // filling_container.mp3
             } else if (soundType === 'rain_heavy_storm') {
                 variationCount = 1; // rain_heavy_storm.mp3
             } else if (soundType === 'rain_normal') {
                 variationCount = 1; // rain_normal.mp3
+            } else if (soundType === 'melee_hit_sharp') {
+                variationCount = 1; // melee_hit_sharp.mp3
+            } else if (soundType === 'spear_hit') {
+                variationCount = 1; // spear_hit.mp3
+            } else if (soundType === 'torch_hit') {
+                variationCount = 1; // torch_hit.mp3
+            } else if (soundType === 'torch_hit_lit') {
+                variationCount = 1; // torch_hit_lit.mp3
+            } else if (soundType === 'light_torch') {
+                variationCount = 1; // light_torch.mp3
+            } else if (soundType === 'extinguish_torch') {
+                variationCount = 1; // extinguish_torch.mp3
+            } else if (soundType === 'melee_hit_blunt') {
+                variationCount = 1; // melee_hit_blunt.mp3
+            } else if (soundType === 'weapon_swing') {
+                variationCount = 1; // weapon_swing.mp3
+            } else if (soundType === 'crush_bones') {
+                variationCount = 1; // crush_bones.mp3
+            } else if (soundType === 'arrow_hit') {
+                variationCount = 1; // arrow_hit.mp3
+            } else if (soundType === 'shoot_bow') {
+                variationCount = 1; // shoot_bow.mp3
+            } else if (soundType === 'shoot_crossbow') {
+                variationCount = 1; // shoot_crossbow.mp3
+            } else if (soundType === 'bandaging') {
+                variationCount = 1; // bandaging.mp3
+            } else if (soundType === 'stop_bandaging') {
+                variationCount = 1; // stop_bandaging.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);
@@ -499,6 +563,80 @@ export const useSoundSystem = ({
             // Skip our own sounds if they use PREDICT_CONFIRM strategy
             const soundType = soundEvent.filename.replace(/\d*\.mp3$/, '') as SoundType;
             const definition = SOUND_DEFINITIONS[soundType];
+            
+            // Special handling for stop_bandaging
+            if (soundType === 'stop_bandaging') {
+                const playerKey = soundEvent.triggeredBy.toString();
+                const activeBandagingSound = activeBandagingSounds.get(playerKey);
+                if (activeBandagingSound) {
+                    activeBandagingSound.pause();
+                    activeBandagingSound.currentTime = 0;
+                    activeBandagingSounds.delete(playerKey);
+                    console.log(`🔊 Stopped bandaging sound for player ${playerKey}`);
+                }
+                return; // Don't play the stop_bandaging sound itself
+            }
+            
+            // Special handling for bandaging sounds - track them so they can be stopped
+            if (soundType === 'bandaging') {
+                const playerKey = soundEvent.triggeredBy.toString();
+                
+                // Stop any existing bandaging sound for this player first
+                const existingBandagingSound = activeBandagingSounds.get(playerKey);
+                if (existingBandagingSound) {
+                    existingBandagingSound.pause();
+                    existingBandagingSound.currentTime = 0;
+                    activeBandagingSounds.delete(playerKey);
+                }
+                
+                // Play the new bandaging sound and track it
+                const playBandagingSound = async () => {
+                    try {
+                        const audio = await getAudio(soundEvent.filename);
+                        const audioClone = audio.cloneNode() as HTMLAudioElement;
+                        
+                        const distance = calculateDistance(
+                            soundEvent.posX,
+                            soundEvent.posY,
+                            localPlayerPosition.x,
+                            localPlayerPosition.y
+                        );
+                        
+                        const volume = calculateSpatialVolume(
+                            distance,
+                            soundEvent.volume,
+                            soundEvent.maxDistance
+                        ) * masterVolume;
+                        
+                        if (volume > 0.01) {
+                            audioClone.volume = Math.min(1.0, volume);
+                            audioClone.loop = false; // Bandaging sound should NOT loop - it should play once for the 5-second duration
+                            audioClone.currentTime = 0;
+                            
+                            // Track this sound so it can be stopped if interrupted
+                            activeBandagingSounds.set(playerKey, audioClone);
+                            
+                            // Cleanup when sound ends naturally
+                            const cleanup = () => {
+                                activeBandagingSounds.delete(playerKey);
+                                audioClone.removeEventListener('ended', cleanup);
+                                audioClone.removeEventListener('error', cleanup);
+                            };
+                            
+                            audioClone.addEventListener('ended', cleanup, { once: true });
+                            audioClone.addEventListener('error', cleanup, { once: true });
+                            
+                            await audioClone.play();
+                            console.log(`🔊 Started bandaging sound for player ${playerKey} (non-looping, will end naturally)`);
+                        }
+                    } catch (error) {
+                        console.warn(`🔊 Failed to play bandaging sound for player ${playerKey}:`, error);
+                    }
+                };
+                
+                playBandagingSound();
+                return; // Don't use the regular spatial audio for bandaging
+            }
             
             // All remaining sounds are SERVER_ONLY, so play all server sounds
             

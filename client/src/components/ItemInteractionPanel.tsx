@@ -13,6 +13,7 @@ import { PopulatedItem } from './InventoryUI';
 import { DbConnection } from '../generated';
 import { getItemIcon } from '../utils/itemIconUtils';
 import { isWaterContainer, hasWaterContent } from '../utils/waterContainerHelpers';
+import { playImmediateSound } from '../hooks/useSoundSystem';
 
 interface ItemInteractionPanelProps {
     selectedItem: PopulatedItem;
@@ -131,6 +132,7 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
                 case 'crush':
                     // console.log(`Crushing item ${itemInstanceId}: ${selectedItem.definition.name}`);
                     connection.reducers.crushBoneItem(itemInstanceId);
+                    playImmediateSound('crush_bones');
                     break;
                 case 'consume':
                     // console.log(`Consuming item ${itemInstanceId}: ${selectedItem.definition.name}`);

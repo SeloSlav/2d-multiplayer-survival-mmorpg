@@ -10,7 +10,7 @@ use crate::environment::{is_position_on_inland_water, is_tile_inland_water};
 use crate::active_effects::apply_seawater_poisoning_effect;
 
 // Import sound system for drinking sounds
-use crate::sound_events::{emit_drinking_water_sound, emit_throwing_up_sound};
+use crate::sound_events::{emit_drinking_water_sound, emit_throwing_up_sound, emit_filling_container_sound};
 
 // Import constants for validation
 use crate::{PLAYER_RADIUS, TILE_SIZE_PX};
@@ -282,10 +282,10 @@ pub fn fill_water_container_from_natural_source(ctx: &ReducerContext, item_insta
     crate::items::set_water_content(&mut container_item, new_water_content)?;
     items.instance_id().update(container_item);
     
-    // Emit drinking water sound effect at player position for audio feedback
+    // Emit filling container sound effect at player position for audio feedback
     let player = ctx.db.player().identity().find(&player_id)
         .ok_or_else(|| "Player not found for sound effect.".to_string())?;
-    crate::sound_events::emit_drinking_water_sound(ctx, player.position_x, player.position_y, player_id);
+    emit_filling_container_sound(ctx, player.position_x, player.position_y, player_id);
     
     log::info!("Successfully filled {} with {:.1}L from natural source (now has {:.1}L/{:.1}L)", 
                container_def.name, water_to_add, new_water_content, capacity);

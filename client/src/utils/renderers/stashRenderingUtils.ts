@@ -5,7 +5,7 @@ import { Stash } from '../../generated';
 // import { itemImagesStore } from '../../hooks/useAssetLoader'; 
 import stashImageSrc from '../../assets/doodads/stash.png'; // Assuming this is the correct path
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
-import { applyStandardDropShadow, drawDynamicGroundShadow } from './shadowUtils';
+import { applyStandardDropShadow, drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils';
 import { imageManager } from './imageManager';
 
 // --- Constants ---
@@ -18,6 +18,10 @@ const HEALTH_BAR_WIDTH = 40;
 const HEALTH_BAR_HEIGHT = 5;
 const HEALTH_BAR_Y_OFFSET = 6;
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Health bar stays visible for 3 seconds after last hit
+
+// --- Client-side animation tracking for stash shakes ---
+const clientStashShakeStartTimes = new Map<string, number>(); // stashId -> client timestamp when shake started
+const lastKnownServerStashShakeTimes = new Map<string, number>();
 
 const stashConfig: GroundEntityConfig<Stash> = {
     getImageSource: (entity) => {
@@ -44,6 +48,18 @@ const stashConfig: GroundEntityConfig<Stash> = {
     drawCustomGroundShadow: (ctx, entity, entityImage, entityPosX, entityPosY, imageDrawWidth, imageDrawHeight, cycleProgress) => {
         // Draw DYNAMIC ground shadow if not hidden and not destroyed
         if (!entity.isHidden && !entity.isDestroyed) {
+            // Calculate shake offsets for shadow synchronization using helper function
+            const { shakeOffsetX, shakeOffsetY } = calculateShakeOffsets(
+                entity,
+                entity.id.toString(),
+                {
+                    clientStartTimes: clientStashShakeStartTimes,
+                    lastKnownServerTimes: lastKnownServerStashShakeTimes
+                },
+                SHAKE_DURATION_MS,
+                SHAKE_INTENSITY_PX
+            );
+
             drawDynamicGroundShadow({
                 ctx,
                 entityImage,
@@ -55,7 +71,10 @@ const stashConfig: GroundEntityConfig<Stash> = {
                 maxStretchFactor: 1.2, 
                 minStretchFactor: 0.1,  
                 shadowBlur: 2,         
-                pivotYOffset: 20       
+                pivotYOffset: 20,
+                // NEW: Pass shake offsets so shadow moves with the stash
+                shakeOffsetX,
+                shakeOffsetY      
             });
         }
     },

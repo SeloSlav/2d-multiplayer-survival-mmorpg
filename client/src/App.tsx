@@ -106,6 +106,8 @@ function AppContent() {
     const [loadingSequenceComplete, setLoadingSequenceComplete] = useState<boolean>(false);
     // 🎣 FISHING INPUT FIX: Add fishing state to App level
     const [isFishing, setIsFishing] = useState(false);
+    // Music panel state
+    const [isMusicPanelVisible, setIsMusicPanelVisible] = useState(false);
     
     // --- Volume Settings State ---
     const [musicVolume, setMusicVolume] = useState(() => {
@@ -204,6 +206,7 @@ function AppContent() {
             trees,
             stones,
             boxes: woodenStorageBoxes,
+            rainCollectors,
             shelters,
             players
         }
@@ -798,6 +801,8 @@ function AppContent() {
                             playerDrinkingCooldowns={playerDrinkingCooldowns}
                             rainCollectors={rainCollectors}
                             waterPatches={waterPatches}
+                            isMusicPanelVisible={isMusicPanelVisible}
+                            setIsMusicPanelVisible={setIsMusicPanelVisible}
                         />
                     );
                 })()
