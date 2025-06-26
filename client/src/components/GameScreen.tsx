@@ -81,6 +81,7 @@ import { useSpeechBubbleManager } from '../hooks/useSpeechBubbleManager';
 
 // Import voice interface components and hooks
 import VoiceInterface from './VoiceInterface';
+import SOVALoadingBar from './SOVALoadingBar';
 import { useVoiceInterface } from '../hooks/useVoiceInterface';
 
 // Import other necessary imports
@@ -292,6 +293,22 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         isGameMenuOpen: currentMenu !== null,
         isInventoryOpen: showInventoryState,
     });
+
+    // SOVA loading bar state
+    const [sovaLoadingState, setSOVALoadingState] = useState({
+        isRecording: false,
+        isTranscribing: false,
+        isGeneratingResponse: false,
+        isSynthesizingVoice: false,
+        isPlayingAudio: false,
+        transcribedText: '',
+        currentPhase: 'Ready',
+    });
+
+    // Handle SOVA loading state changes from VoiceInterface
+    const handleSOVALoadingStateChange = useCallback((state: typeof sovaLoadingState) => {
+        setSOVALoadingState(state);
+    }, []);
 
     // You can also add a useEffect here if the above doesn't show up
     useEffect(() => {
@@ -905,6 +922,16 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 }}
             />
 
+            {/* SOVA Loading Bar - positioned above hotbar */}
+            <SOVALoadingBar
+                isRecording={sovaLoadingState.isRecording}
+                isTranscribing={sovaLoadingState.isTranscribing}
+                isGeneratingResponse={sovaLoadingState.isGeneratingResponse}
+                isSynthesizingVoice={sovaLoadingState.isSynthesizingVoice}
+                isPlayingAudio={sovaLoadingState.isPlayingAudio}
+                currentPhase={sovaLoadingState.currentPhase}
+            />
+
             {/* Voice Interface - SOVA Voice Commands */}
             <VoiceInterface
                 isVisible={voiceState.isVisible}
@@ -917,6 +944,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 itemDefinitions={itemDefinitions}
                 activeEquipments={activeEquipments}
                 inventoryItems={inventoryItems}
+                onLoadingStateChange={handleSOVALoadingStateChange}
             />
 
         </div>

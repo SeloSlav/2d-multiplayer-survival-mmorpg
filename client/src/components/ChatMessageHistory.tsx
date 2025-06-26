@@ -95,9 +95,17 @@ const ChatMessageHistory: React.FC<ChatMessageHistoryProps> = ({ messages, priva
         // Use msg.id if it exists on both types and is unique, otherwise use index or generate key
         const key = msg.id ? msg.id.toString() : Math.random().toString(); 
 
+        // Convert microseconds to Date for timestamp display
+        const timestamp = new Date(Number(msg.sent?.microsSinceUnixEpoch ?? 0n) / 1000);
+
         return (
           <div key={key} className={styles.message} style={messageStyle}>
-            <span className={styles.senderName}>{senderName}:</span>
+            <div className={styles.messageHeader}>
+              <span className={styles.senderName}>{senderName}:</span>
+              <span className={styles.timestamp}>
+                {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
             <span className={styles.messageText}>{messageText}</span>
           </div>
         );

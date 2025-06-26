@@ -34,7 +34,7 @@ const SOVAMessage: React.FC<{message: {id: string, text: string, isUser: boolean
         {message.isUser ? 'You' : 'SOVA'}
       </span>
       <span className={styles.timestamp}>
-        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </span>
     </div>
     <div className={styles.messageContent}>

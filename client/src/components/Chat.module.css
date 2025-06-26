@@ -223,9 +223,9 @@
 
 .timestamp {
   font-size: 8px; /* Increased from 5px to 8px */
-  color: #88aacc;
-  text-shadow: 0 0 3px rgba(136, 170, 204, 0.4);
-  opacity: 0.8;
+  color: #ffffff;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.4);
+  opacity: 0.9;
 }
 
 .messageContent {

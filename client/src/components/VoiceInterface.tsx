@@ -18,11 +18,24 @@ interface VoiceInterfaceProps {
   itemDefinitions?: Map<string, any>;
   activeEquipments?: Map<string, any>;
   inventoryItems?: Map<string, any>;
+  // NEW: Callback to update loading states for external loading bar
+  onLoadingStateChange?: (state: {
+    isRecording: boolean;
+    isTranscribing: boolean;
+    isGeneratingResponse: boolean;
+    isSynthesizingVoice: boolean;
+    isPlayingAudio: boolean;
+    transcribedText: string;
+    currentPhase: string;
+  }) => void;
 }
 
 interface VoiceState {
   isRecording: boolean;
-  isProcessing: boolean;
+  isTranscribing: boolean;
+  isGeneratingResponse: boolean;
+  isSynthesizingVoice: boolean;
+  isPlayingAudio: boolean;
   transcribedText: string;
   error: string | null;
   recordingStartTime: number | null;
@@ -39,10 +52,14 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   itemDefinitions,
   activeEquipments,
   inventoryItems,
+  onLoadingStateChange,
 }) => {
   const [voiceState, setVoiceState] = useState<VoiceState>({
     isRecording: false,
-    isProcessing: false,
+    isTranscribing: false,
+    isGeneratingResponse: false,
+    isSynthesizingVoice: false,
+    isPlayingAudio: false,
     transcribedText: '',
     error: null,
     recordingStartTime: null,
@@ -60,12 +77,48 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     });
   }, [onAddSOVAMessage]);
 
-  // Start recording when interface becomes visible
+  // NEW: Clear previous state when interface becomes visible (V key pressed)
   useEffect(() => {
-    if (isVisible && !voiceState.isRecording && !recordingStartedRef.current) {
-      startRecording();
+    if (isVisible) {
+      console.log('[VoiceInterface] Interface opened - clearing previous state');
+      setVoiceState(prev => ({
+        ...prev,
+        transcribedText: '', // Clear previous transcription
+        error: null, // Clear previous errors
+        isTranscribing: false,
+        isGeneratingResponse: false,
+        isSynthesizingVoice: false,
+        isPlayingAudio: false,
+      }));
+      
+      // Start recording if not already started
+      if (!voiceState.isRecording && !recordingStartedRef.current) {
+        startRecording();
+      }
     }
   }, [isVisible]);
+
+  // NEW: Notify parent component of loading state changes
+  useEffect(() => {
+    if (onLoadingStateChange) {
+      const currentPhase = voiceState.isRecording ? 'Listening...' :
+                          voiceState.isTranscribing ? 'Processing speech...' :
+                          voiceState.isGeneratingResponse ? 'Generating response...' :
+                          voiceState.isSynthesizingVoice ? 'Creating voice...' :
+                          voiceState.isPlayingAudio ? 'Playing response...' :
+                          'Ready';
+      
+      onLoadingStateChange({
+        isRecording: voiceState.isRecording,
+        isTranscribing: voiceState.isTranscribing,
+        isGeneratingResponse: voiceState.isGeneratingResponse,
+        isSynthesizingVoice: voiceState.isSynthesizingVoice,
+        isPlayingAudio: voiceState.isPlayingAudio,
+        transcribedText: voiceState.transcribedText,
+        currentPhase,
+      });
+    }
+  }, [voiceState, onLoadingStateChange]);
 
   // Start voice recording
   const startRecording = useCallback(async () => {
@@ -121,7 +174,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     setVoiceState(prev => ({
       ...prev,
       isRecording: false,
-      isProcessing: true,
+      isTranscribing: true,
     }));
 
     try {
@@ -138,7 +191,8 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       setVoiceState(prev => ({
         ...prev,
         transcribedText,
-        isProcessing: false,
+        isTranscribing: false,
+        isGeneratingResponse: true,
       }));
 
       // Notify parent component
@@ -218,6 +272,12 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       if (aiResponse.success && aiResponse.response) {
         console.log('[VoiceInterface] ✅ AI response generated successfully');
 
+        setVoiceState(prev => ({
+          ...prev,
+          isGeneratingResponse: false,
+          isSynthesizingVoice: true,
+        }));
+
         // Generate voice synthesis with timing data collection
         console.log('[VoiceInterface] 🎤 Generating voice synthesis...');
         const voiceResponse = await kikashiService.synthesizeVoice({
@@ -244,6 +304,12 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         if (voiceResponse.success && voiceResponse.audioUrl) {
           console.log('[VoiceInterface] ✅ Voice synthesis successful');
 
+          setVoiceState(prev => ({
+            ...prev,
+            isSynthesizingVoice: false,
+            isPlayingAudio: true,
+          }));
+
           // Add SOVA response to chat
           if (onAddSOVAMessage) {
             const botResponse = {
@@ -267,11 +333,24 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           console.log('[VoiceInterface] 🔊 Playing audio response...');
           await kikashiService.playAudio(voiceResponse.audioUrl);
           console.log('[VoiceInterface] ✅ Audio playback completed');
+          
+          setVoiceState(prev => ({
+            ...prev,
+            isPlayingAudio: false,
+          }));
         } else {
           console.error('[VoiceInterface] ❌ Voice synthesis failed:', voiceResponse.error);
+          setVoiceState(prev => ({
+            ...prev,
+            isSynthesizingVoice: false,
+          }));
         }
       } else {
         console.error('[VoiceInterface] ❌ AI response generation failed:', aiResponse.error);
+        setVoiceState(prev => ({
+          ...prev,
+          isGeneratingResponse: false,
+        }));
       }
 
     } catch (error) {
@@ -279,7 +358,10 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'Voice processing failed';
       setVoiceState(prev => ({
         ...prev,
-        isProcessing: false,
+        isTranscribing: false,
+        isGeneratingResponse: false,
+        isSynthesizingVoice: false,
+        isPlayingAudio: false,
         error: errorMessage,
       }));
       onError?.(errorMessage);
@@ -307,6 +389,9 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     ? Math.floor((Date.now() - voiceState.recordingStartTime) / 1000)
     : 0;
 
+  // Determine if any processing is happening
+  const isProcessing = voiceState.isTranscribing || voiceState.isGeneratingResponse || voiceState.isSynthesizingVoice || voiceState.isPlayingAudio;
+
   if (!isVisible) return null;
 
   return (
@@ -324,7 +409,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
         {/* Center Circle */}
         <div className={`voice-interface-center ${voiceState.isRecording ? 'recording' : 'idle'}`}>
-          {voiceState.isProcessing ? (
+          {isProcessing ? (
             <div className="voice-interface-processing">⚡</div>
           ) : voiceState.error ? (
             <div className="voice-interface-error">❌</div>
@@ -344,8 +429,14 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
         {/* Status Text */}
         <div className="voice-interface-status">
-          {voiceState.isProcessing ? (
-            'PROCESSING...'
+          {voiceState.isTranscribing ? (
+            'PROCESSING SPEECH...'
+          ) : voiceState.isGeneratingResponse ? (
+            'GENERATING RESPONSE...'
+          ) : voiceState.isSynthesizingVoice ? (
+            'CREATING VOICE...'
+          ) : voiceState.isPlayingAudio ? (
+            'PLAYING RESPONSE...'
           ) : voiceState.isRecording ? (
             `LISTENING... ${recordingDuration}s`
           ) : voiceState.error ? (
@@ -362,8 +453,8 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           </div>
         )}
 
-        {/* Transcribed Text Preview */}
-        {voiceState.transcribedText && (
+        {/* NEW: Real-time Transcribed Text Preview - Show while recording or just after */}
+        {voiceState.transcribedText && (voiceState.isRecording || isProcessing) && (
           <div className="voice-interface-transcription">
             "{voiceState.transcribedText}"
           </div>

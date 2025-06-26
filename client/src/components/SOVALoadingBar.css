@@ -1,0 +1,197 @@
+/* SOVA Loading Bar - Cyberpunk Style */
+/* Positioned above the hotbar for voice processing feedback */
+
+.sova-loading-bar-container {
+  position: fixed;
+  bottom: 140px; /* Above hotbar (hotbar is around bottom: 80px) */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8000;
+  width: 600px;
+  height: 60px;
+  pointer-events: none;
+  font-family: "Press Start 2P", cursive;
+}
+
+/* Main loading bar */
+.sova-loading-bar {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid rgba(0, 255, 255, 0.4);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 
+    0 0 20px rgba(0, 255, 255, 0.3),
+    inset 0 0 10px rgba(0, 0, 0, 0.8);
+}
+
+/* Background track */
+.sova-loading-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    rgba(0, 50, 50, 0.3) 0%, 
+    rgba(0, 100, 100, 0.2) 50%, 
+    rgba(0, 50, 50, 0.3) 100%
+  );
+}
+
+/* Progress fill */
+.sova-loading-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  transition: width 0.5s ease-in-out;
+  background: linear-gradient(90deg, 
+    #00ffff 0%, 
+    #ff00ff 50%, 
+    #ffff00 100%
+  );
+  box-shadow: 
+    0 0 15px rgba(0, 255, 255, 0.6),
+    inset 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* Processing animation */
+.sova-loading-fill.processing {
+  background: linear-gradient(90deg, 
+    #00ffff 0%, 
+    #ff00ff 25%,
+    #ffff00 50%,
+    #ff00ff 75%,
+    #00ffff 100%
+  );
+  background-size: 200% 100%;
+  animation: sova-processing 2s linear infinite;
+}
+
+/* Recording animation */
+.sova-loading-fill.recording {
+  background: linear-gradient(90deg, 
+    #00ff00 0%, 
+    #00ffff 50%, 
+    #00ff00 100%
+  );
+  box-shadow: 
+    0 0 15px rgba(0, 255, 0, 0.6),
+    inset 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* Animated scanner */
+.sova-loading-scanner {
+  position: absolute;
+  top: 0;
+  left: -20px;
+  width: 20px;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.8), 
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sova-loading-scanner.active {
+  opacity: 1;
+  animation: sova-scan 3s linear infinite;
+}
+
+/* Phase indicator dots */
+.sova-loading-phases {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2%;
+}
+
+.sova-phase-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 255, 255, 0.3);
+  border: 1px solid rgba(0, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.sova-phase-dot.active {
+  background: #00ffff;
+  box-shadow: 
+    0 0 10px #00ffff,
+    0 0 20px rgba(0, 255, 255, 0.5);
+  transform: scale(1.2);
+}
+
+/* Status text */
+.sova-loading-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 8px;
+  margin-bottom: 4px;
+}
+
+.sova-status-label {
+  color: #00ffff;
+  text-shadow: 0 0 5px #00ffff;
+  letter-spacing: 2px;
+}
+
+.sova-status-phase {
+  color: #ffffff;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+  letter-spacing: 1px;
+}
+
+
+
+/* Animations */
+@keyframes sova-processing {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+@keyframes sova-scan {
+  0% { left: -20px; }
+  50% { left: 50%; }
+  100% { left: 100%; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sova-loading-bar-container {
+    width: 90%;
+    max-width: 500px;
+    bottom: 120px;
+  }
+  
+  .sova-loading-status {
+    font-size: 7px;
+  }
+}
+
+/* Enhanced glow effects */
+.sova-loading-bar-container::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: radial-gradient(circle, rgba(0, 255, 255, 0.1), transparent 70%);
+  border-radius: 10px;
+  z-index: -1;
+  opacity: 0.6;
+} 
