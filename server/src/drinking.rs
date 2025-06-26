@@ -21,7 +21,7 @@ const DRINKING_COOLDOWN_MS: u64 = 2_000; // 2 second cooldown between drinks
 const RIVER_WATER_THIRST_GAIN: f32 = 15.0; // One gulp ≈ 1 liter equivalent (15 thirst per liter scale)
 const SEA_WATER_THIRST_LOSS: f32 = -10.0; // Reduced dehydration to match new scale
 
-// Drinking action table to track cooldowns
+// Drinking action table to track cooldowns (shared between drinking and water filling)
 #[spacetimedb::table(name = player_drinking_cooldown, public)]
 #[derive(Clone, Debug)]
 pub struct PlayerDrinkingCooldown {
@@ -110,7 +110,7 @@ fn check_drinking_cooldown(ctx: &ReducerContext, player_id: Identity) -> Result<
         
         if time_since_last_drink < cooldown_micros {
             let remaining_ms = (cooldown_micros - time_since_last_drink) / 1000;
-            return Err(format!("Must wait {:.1}s before drinking again.", remaining_ms as f32 / 1000.0));
+            return Err(format!("Must wait {:.1}s before interacting with water again.", remaining_ms as f32 / 1000.0));
         }
     }
     
@@ -217,6 +217,9 @@ pub fn fill_water_container_from_natural_source(ctx: &ReducerContext, item_insta
     log::info!("Player {:?} attempting to fill water container {} with {}mL from natural source", 
                player_id, item_instance_id, fill_amount_ml);
     
+    // Check drinking cooldown (shared between drinking and filling)
+    check_drinking_cooldown(ctx, player_id)?;
+    
     // Validate fill amount (max 250mL per action as specified in client)
     if fill_amount_ml == 0 {
         return Err("Fill amount must be greater than zero.".to_string());
@@ -286,6 +289,9 @@ pub fn fill_water_container_from_natural_source(ctx: &ReducerContext, item_insta
     let player = ctx.db.player().identity().find(&player_id)
         .ok_or_else(|| "Player not found for sound effect.".to_string())?;
     emit_filling_container_sound(ctx, player.position_x, player.position_y, player_id);
+    
+    // Update drinking cooldown (shared between drinking and filling)
+    update_drinking_cooldown(ctx, player_id);
     
     log::info!("Successfully filled {} with {:.1}L from natural source (now has {:.1}L/{:.1}L)", 
                container_def.name, water_to_add, new_water_content, capacity);

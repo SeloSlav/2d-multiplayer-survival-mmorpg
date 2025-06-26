@@ -214,12 +214,15 @@ const CraftingSearchBar: React.FC<CraftingSearchBarProps> = (props) => {
       );
       onFilteredRecipesChange?.(filteredAndSorted);
     }
-  }, [recipes, searchTerm, selectedCategory, playerInventory, playerHotbar, onFilteredRecipesChange]);
+  }, [recipes, searchTerm, selectedCategory, playerInventory, playerHotbar]); // Removed onFilteredRecipesChange from deps
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key.toLowerCase() === 'g' || event.key === ' ') {
-      // Prevent 'g' and 'spacebar' from triggering game actions
-      // but still allow typing them into the input.
+    // Prevent ALL game control keys from bubbling up to the game
+    const gameControlKeys = ['f', 'g', ' ', 'e', 'w', 'a', 's', 'd', 'z', 'c', 'm'];
+    const key = event.key.toLowerCase();
+    
+    if (gameControlKeys.includes(key)) {
+      // Prevent game actions but allow typing in the input
       event.stopPropagation();
     }
     
@@ -257,9 +260,20 @@ const CraftingSearchBar: React.FC<CraftingSearchBarProps> = (props) => {
         value={searchTerm}
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder={placeholder}
-        onFocus={onFocus}
-        onBlur={onBlur}
+        onFocus={() => {
+          console.log('[CraftingSearchBar] Input focused - should block game controls');
+          onFocus?.();
+        }}
+        onBlur={() => {
+          console.log('[CraftingSearchBar] Input blurred - should unblock game controls');
+          onBlur?.();
+        }}
         onKeyDown={handleKeyDown}
+        data-is-chat-input="true"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
       />
       <div className={styles.filterButtonContainer}>
         <button

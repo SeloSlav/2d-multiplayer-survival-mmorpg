@@ -113,7 +113,7 @@ export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 100.0 * 100.0;
 // PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED is now imported from playerCorpseRenderingUtils
 export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 32.0 * 32.0;
-export const PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
+export const PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0;
 
 // --- Locally Defined Visual Heights for Interaction (formerly in gameConfig.ts) ---
 export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
@@ -542,7 +542,7 @@ export function useInteractionFinder({
                     const distance = Math.sqrt(distSq);
                     
                     // DEBUG: Log distance check
-                    console.log(`[InteractionFinder] Rain collector ${rainCollector.id} distance: ${distance.toFixed(1)}px (threshold: ${Math.sqrt(PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED).toFixed(1)}px)`);
+                    // console.log(`[InteractionFinder] Rain collector ${rainCollector.id} distance: ${distance.toFixed(1)}px (threshold: ${Math.sqrt(PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED).toFixed(1)}px)`);
                     
                     if (distSq < closestRainCollectorDistSq) {
                         // Check shelter access control
@@ -550,11 +550,11 @@ export function useInteractionFinder({
                             playerX, playerY, localPlayer.identity.toHexString(),
                             rainCollector.posX, rainCollector.posY, shelters
                         )) {
-                            console.log(`[InteractionFinder] Rain collector ${rainCollector.id} is now closest interactable`);
+                            // console.log(`[InteractionFinder] Rain collector ${rainCollector.id} is now closest interactable`);
                             closestRainCollectorDistSq = distSq;
                             closestRainCollectorId = rainCollector.id;
                         } else {
-                            console.log(`[InteractionFinder] Rain collector ${rainCollector.id} blocked by shelter access control`);
+                            // console.log(`[InteractionFinder] Rain collector ${rainCollector.id} blocked by shelter access control`);
                         }
                     }
                 });

@@ -16,7 +16,7 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
   onCloseChat,
   isActive,
 }, ref) => {
-  // Focus the input when it becomes active
+  // Focus the input when it becomes active, and ensure it's properly unfocused when inactive
   useEffect(() => {
     if (isActive && ref && 'current' in ref && ref.current) {
       // Small timeout to ensure DOM is ready and avoid focus conflicts
@@ -28,6 +28,17 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
           ref.current.setSelectionRange(length, length);
         }
       }, 100); // Increased timeout for better reliability
+      
+      return () => clearTimeout(timer);
+    } else if (!isActive && ref && 'current' in ref && ref.current) {
+      // Ensure focus is released when chat becomes inactive
+      const timer = setTimeout(() => {
+        if (ref.current && document.activeElement === ref.current) {
+          ref.current.blur();
+          document.body.focus();
+          console.log('[ChatInput] Force released focus - chat inactive');
+        }
+      }, 50);
       
       return () => clearTimeout(timer);
     }
@@ -74,6 +85,13 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({
       } else {
         // Otherwise just close chat
         onCloseChat();
+      }
+      
+      // Ensure focus is completely released
+      if (inputEl) {
+        inputEl.blur();
+        // Force focus to the document body to ensure no input elements retain focus
+        document.body.focus();
       }
     }, 50); // Slightly longer delay for better reliability
   };

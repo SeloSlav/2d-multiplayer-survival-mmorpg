@@ -255,10 +255,24 @@ export const renderYSortedEntities = ({
            
             // Check for actual position changes (skip if already detected dodge rolling)
             let hasPositionChanged = false;
+            
+            // Compare current position with last known position
+            if (movementCache.lastKnownPosition) {
+                const positionThreshold = 0.1; // Small threshold to avoid floating point precision issues
+                const dx = Math.abs(playerForRendering.positionX - movementCache.lastKnownPosition.x);
+                const dy = Math.abs(playerForRendering.positionY - movementCache.lastKnownPosition.y);
+                hasPositionChanged = dx > positionThreshold || dy > positionThreshold;
+            } else {
+                // First time seeing this player, initialize position
+                movementCache.lastKnownPosition = { x: playerForRendering.positionX, y: playerForRendering.positionY };
+                hasPositionChanged = false;
+            }
+            
             // Update movement cache if position changed
             if (hasPositionChanged) {
                 movementCache.lastMovementTime = nowMs;
                 movementCache.isCurrentlyMoving = true;
+                movementCache.lastKnownPosition = { x: playerForRendering.positionX, y: playerForRendering.positionY };
                 isPlayerMoving = true;
                 movementReason = 'position_change';
             } else {

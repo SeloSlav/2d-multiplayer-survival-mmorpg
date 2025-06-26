@@ -50,6 +50,9 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Wooden Spear", 1, None, Some(13u16)),
         ("Rock", 1, None, Some(14u16)),
         ("Combat Ladle", 1, None, Some(15u16)),
+        ("Metal Fragments", 2000, None, Some(16u16)),
+        ("Stone", 2000, None, Some(17u16)),
+        ("Wood", 2000, None, Some(18u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

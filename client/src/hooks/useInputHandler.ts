@@ -20,7 +20,7 @@ import {
     formatTargetForLogging,
     isTargetValid
 } from '../types/interactions';
-import { hasWaterContent, getWaterContent, getWaterCapacity } from '../utils/waterContainerHelpers';
+import { hasWaterContent, getWaterContent, getWaterCapacity, isWaterContainer } from '../utils/waterContainerHelpers';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -399,12 +399,45 @@ export const useInputHandler = ({
     // --- Input Event Handlers ---
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            const isUIFocused = isChatting || isGameMenuOpen || !!isSearchingCraftRecipes;
+            const key = event.key.toLowerCase();
+            
+            // Enhanced chat input detection to prevent race conditions
+            const target = event.target as Element;
+            const activeElement = document.activeElement as Element;
+            
+            // Check if ANY input is currently focused (either event target or active element)
+            const isChatInputFocused = target?.getAttribute('data-is-chat-input') === 'true' || 
+                                     target?.closest('[data-is-chat-input="true"]') !== null ||
+                                     target?.tagName === 'INPUT' ||
+                                     target?.tagName === 'TEXTAREA' ||
+                                     activeElement?.getAttribute('data-is-chat-input') === 'true' ||
+                                     activeElement?.tagName === 'INPUT' ||
+                                     activeElement?.tagName === 'TEXTAREA';
+            
+            const isUIFocused = isChatting || isGameMenuOpen || !!isSearchingCraftRecipes || isChatInputFocused;
+            
             if (isUIFocused) {
+                console.log('[InputHandler] Input blocked - UI focused:', { 
+                    key,
+                    isChatting, 
+                    isGameMenuOpen, 
+                    isSearchingCraftRecipes, 
+                    isChatInputFocused,
+                    targetTag: target?.tagName,
+                    targetDataAttr: target?.getAttribute('data-is-chat-input'),
+                    activeElement: document.activeElement?.tagName,
+                    activeElementDataAttr: document.activeElement?.getAttribute('data-is-chat-input')
+                });
+                
+                // If user is trying to use space but chat input is blocking, try to clear focus
+                // Note: Removed F key from this check as it interferes with typing 'f' in inputs
+                if (key === ' ' && isChatInputFocused && !isChatting && !isSearchingCraftRecipes) {
+                    console.log('[InputHandler] Attempting to clear stuck chat input focus');
+                    forceClearInputFocus();
+                }
+                
                 return;
             }
-
-            const key = event.key.toLowerCase();
 
             // This block prevents non-essential game actions from firing while inventory/map is open
             const allowedKeysInUI = ['i', 'tab', 'escape', 'm', 'g']; // 'g' is now allowed
@@ -493,6 +526,77 @@ export const useInputHandler = ({
                         console.error("[InputHandler] Error calling jump:", err);
                     }
                 }
+            }
+
+            // Water container filling key ('f')
+            if (key === 'f' && !event.repeat) {
+                if (isPlayerDead) return;
+                
+                const localPlayerActiveEquipment = activeEquipmentsRef.current?.get(localPlayerId || '');
+                if (!localPlayerActiveEquipment?.equippedItemInstanceId || !localPlayerActiveEquipment?.equippedItemDefId) {
+                    console.log('[F-Key] No equipped item for water filling');
+                    return;
+                }
+
+                const equippedItemDef = itemDefinitionsRef.current?.get(localPlayerActiveEquipment.equippedItemDefId.toString());
+                if (!equippedItemDef) {
+                    console.log('[F-Key] No item definition found for equipped item');
+                    return;
+                }
+
+                // Check if equipped item is a water container
+                if (!isWaterContainer(equippedItemDef.name)) {
+                    console.log('[F-Key] Equipped item is not a water container');
+                    return;
+                }
+
+                // Get the water container item
+                const waterContainer = inventoryItems.get(localPlayerActiveEquipment.equippedItemInstanceId.toString());
+                if (!waterContainer || !connectionRef.current?.reducers) {
+                    console.log('[F-Key] No water container found or no connection');
+                    return;
+                }
+
+                // Check if player is standing on water for filling
+                if (localPlayerRef.current?.isOnWater) {
+                    console.log('[F-Key] Player is on water - attempting to fill container');
+                    
+                    // TODO: Add salt water detection when implemented
+                    const isOnSaltWater = false; // Placeholder - all water is fresh for now
+                    
+                    if (isOnSaltWater) {
+                        console.log('[F-Key] Cannot fill water container from salt water source');
+                        return;
+                    }
+
+                    // Calculate remaining capacity using helper functions
+                    const currentWaterContent = getWaterContent(waterContainer) || 0; // in liters
+                    const maxCapacityLiters = getWaterCapacity(equippedItemDef.name); // in liters
+                    const remainingCapacityMl = Math.floor((maxCapacityLiters - currentWaterContent) * 1000); // Convert L to mL
+
+                    console.log(`[F-Key] Current water: ${currentWaterContent}L, Max: ${maxCapacityLiters}L, Remaining: ${remainingCapacityMl}mL`);
+
+                    if (remainingCapacityMl <= 0) {
+                        console.log('[F-Key] Water container is already full');
+                        return;
+                    }
+
+                    const fillAmount = Math.min(250, remainingCapacityMl); // Fill 250mL or remaining capacity
+                    console.log(`[F-Key] Attempting to fill ${equippedItemDef.name} with ${fillAmount}mL from fresh water source`);
+
+                    try {
+                        connectionRef.current.reducers.fillWaterContainerFromNaturalSource(
+                            localPlayerActiveEquipment.equippedItemInstanceId, 
+                            fillAmount
+                        );
+                        console.log(`[F-Key] Successfully called fillWaterContainerFromNaturalSource`);
+                    } catch (err) {
+                        console.error('[F-Key] Error filling water container:', err);
+                    }
+                } else {
+                    console.log('[F-Key] Player not on water - cannot fill container');
+                }
+                return;
             }
 
             // Interaction key ('e')
@@ -723,6 +827,37 @@ export const useInputHandler = ({
             if (event.target !== canvasRef?.current) return;
             if (isInventoryOpen) return;
             if (isActivelyHolding) return;
+            
+            // Enhanced chat input detection for mouse events
+            const target = event.target as Element;
+            const activeElement = document.activeElement as Element;
+            
+            // Check if ANY input is currently focused (either event target or active element)
+            const isChatInputFocused = target?.getAttribute('data-is-chat-input') === 'true' || 
+                                     target?.closest('[data-is-chat-input="true"]') !== null ||
+                                     target?.tagName === 'INPUT' ||
+                                     target?.tagName === 'TEXTAREA' ||
+                                     activeElement?.getAttribute('data-is-chat-input') === 'true' ||
+                                     activeElement?.tagName === 'INPUT' ||
+                                     activeElement?.tagName === 'TEXTAREA';
+            
+            if (isChatting || isChatInputFocused) {
+                console.log('[InputHandler] Mouse input blocked - chat focused:', { 
+                    isChatting, 
+                    isChatInputFocused,
+                    targetTag: target?.tagName,
+                    targetDataAttr: target?.getAttribute('data-is-chat-input')
+                });
+                
+                // If user is trying to left-click but chat input is blocking, try to clear focus
+                // Only clear if not actively searching in crafting recipes
+                if (event.button === 0 && isChatInputFocused && !isChatting && !isSearchingCraftRecipes) {
+                    console.log('[InputHandler] Attempting to clear stuck chat input focus on mouse click');
+                    forceClearInputFocus();
+                }
+                
+                return;
+            }
 
             if (event.button === 0) { // Left Click
                 // 🎣 FISHING INPUT FIX: Disable left mouse button actions while fishing
@@ -774,8 +909,8 @@ export const useInputHandler = ({
                             // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
                             return;
                         }
-                                                // 5. Water Containers: Fill from water source or use for watering crops
-                        else if ((equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") && localPlayerActiveEquipment.equippedItemInstanceId) {
+                                                // 5. Water Containers: Prevent left-click pouring while on water, only allow crop watering
+                        else if (isWaterContainer(equippedItemDef.name) && localPlayerActiveEquipment.equippedItemInstanceId) {
                             console.log('[InputHandler] Left-click with water container');
                             
                             // Get the water container item first
@@ -785,53 +920,9 @@ export const useInputHandler = ({
                                 return;
                             }
                             
-                            // Check if player is standing on water for filling
+                            // Prevent left-click actions while on water tiles to avoid race conditions
                             if (localPlayerRef.current?.isOnWater) {
-                                console.log('[InputHandler] Player is on water - attempting to fill container');
-                                
-                                // TODO: Add salt water detection when implemented
-                                const isOnSaltWater = false; // Placeholder - all water is fresh for now
-                                
-                                if (isOnSaltWater) {
-                                    console.log('[InputHandler] Cannot fill water container from salt water source');
-                                    return;
-                                }
-                                
-                                // Calculate remaining capacity using helper functions
-                                const currentWaterContent = getWaterContent(waterContainer) || 0; // in liters
-                                const maxCapacityLiters = getWaterCapacity(equippedItemDef.name); // in liters
-                                const remainingCapacityMl = Math.floor((maxCapacityLiters - currentWaterContent) * 1000); // Convert L to mL
-                                
-                                console.log(`[InputHandler] Current water: ${currentWaterContent}L, Max: ${maxCapacityLiters}L, Remaining: ${remainingCapacityMl}mL`);
-                                
-                                if (remainingCapacityMl <= 0) {
-                                    console.log('[InputHandler] Water container is already full - switching to crop watering mode');
-                                    // Container is full, so even if on water, use for crop watering instead
-                                    if (hasWaterContent(waterContainer)) {
-                                        console.log("[InputHandler] Full water container - calling water_crops reducer.");
-                                        connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
-                                        return;
-                                    }
-                                    return;
-                                }
-                                
-                                const fillAmount = Math.min(250, remainingCapacityMl); // Fill 250mL or remaining capacity
-                                console.log(`[InputHandler] Attempting to fill ${equippedItemDef.name} with ${fillAmount}mL from fresh water source`);
-                                
-                                try {
-                                    connectionRef.current.reducers.fillWaterContainerFromNaturalSource(
-                                        localPlayerActiveEquipment.equippedItemInstanceId, 
-                                        fillAmount
-                                    );
-                                    console.log(`[InputHandler] Successfully called fillWaterContainerFromNaturalSource`);
-                                } catch (err) {
-                                    console.error('[InputHandler] Error filling water container - falling back to crop watering:', err);
-                                    // If filling fails, try crop watering as fallback
-                                    if (hasWaterContent(waterContainer)) {
-                                        console.log("[InputHandler] Fallback - calling water_crops reducer.");
-                                        connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
-                                    }
-                                }
+                                console.log('[InputHandler] Player is on water - left-click disabled for water containers (use F key to fill)');
                                 return;
                             } else {
                                 console.log('[InputHandler] Player not on water - checking for crop watering');
@@ -1204,6 +1295,23 @@ export const useInputHandler = ({
             setInteractionProgress(null);
             // Clear auto-attack state when window loses focus
             setIsAutoAttacking(false);
+        };
+        
+        // Utility function to force clear all input focus (called when needed)
+        const forceClearInputFocus = () => {
+            const activeEl = document.activeElement as HTMLElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.getAttribute('data-is-chat-input'))) {
+                console.log('[InputHandler] Force clearing input focus from:', activeEl.tagName, activeEl.getAttribute('data-is-chat-input'));
+                activeEl.blur();
+                document.body.focus();
+                // Small delay to ensure focus change is processed
+                setTimeout(() => {
+                    if (document.activeElement === activeEl) {
+                        console.log('[InputHandler] Secondary force focus clear');
+                        document.body.focus();
+                    }
+                }, 100);
+            }
         };
 
         // Add global listeners

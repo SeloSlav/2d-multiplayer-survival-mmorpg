@@ -97,24 +97,7 @@ const rainCollectorConfig: GroundEntityConfig<RainCollector> = {
             return;
         }
 
-        // Draw water level indicator on the rain collector
-        const maxWater = 40; // Updated to match the new capacity
-        const waterRatio = Math.min(entity.totalWaterCollected / maxWater, 1.0);
-        const waterHeight = finalDrawHeight * waterRatio * 0.3; // Only use bottom 30% for water display
-
-        if (waterRatio > 0.1) { // Only show if there's meaningful water
-            ctx.save();
-            ctx.fillStyle = '#4a90e2'; // Blue water color
-            ctx.globalAlpha = 0.7;
-            
-            // Draw water level at bottom of rain collector
-            const waterX = finalDrawX + finalDrawWidth * 0.2;
-            const waterY = finalDrawY + finalDrawHeight - waterHeight - finalDrawHeight * 0.1;
-            const waterWidth = finalDrawWidth * 0.6;
-            
-            ctx.fillRect(waterX, waterY, waterWidth, waterHeight);
-            ctx.restore();
-        }
+        // Water level indicator removed - players can check water level by opening the rain collector interface
 
         // Health bar logic (similar to other objects)
         const health = entity.health ?? 0;

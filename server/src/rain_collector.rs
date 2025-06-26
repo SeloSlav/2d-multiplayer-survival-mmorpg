@@ -10,8 +10,8 @@ use spacetimedb::{Identity, ReducerContext, SpacetimeType, Table, Timestamp};
 use log;
 
 // --- Constants --- 
-pub(crate) const RAIN_COLLECTOR_COLLISION_RADIUS: f32 = 20.0; // Slightly larger than storage box
-pub(crate) const RAIN_COLLECTOR_COLLISION_Y_OFFSET: f32 = 52.0; // Match other placeables
+pub(crate) const RAIN_COLLECTOR_COLLISION_RADIUS: f32 = 30.0; // Increased for easier targeting from all sides
+pub(crate) const RAIN_COLLECTOR_COLLISION_Y_OFFSET: f32 = 0.0; // Match client-side visual alignment
 pub(crate) const PLAYER_RAIN_COLLECTOR_COLLISION_DISTANCE_SQUARED: f32 = (super::PLAYER_RADIUS + RAIN_COLLECTOR_COLLISION_RADIUS) * (super::PLAYER_RADIUS + RAIN_COLLECTOR_COLLISION_RADIUS);
 const RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED: f32 = 96.0 * 96.0; // Same as storage box
 pub(crate) const RAIN_COLLECTOR_RAIN_COLLECTOR_COLLISION_DISTANCE_SQUARED: f32 = (RAIN_COLLECTOR_COLLISION_RADIUS * 2.0) * (RAIN_COLLECTOR_COLLISION_RADIUS * 2.0);

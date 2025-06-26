@@ -63,11 +63,11 @@ export function renderWaterPatches(
     viewHeight: number
 ): void {
     // Debug logging to check if water patches exist
-    if (waterPatches.size > 0) {
-        console.log(`[WaterPatch] Rendering ${waterPatches.size} water patches`);
-        const firstPatch = Array.from(waterPatches.values())[0];
-        console.log(`[WaterPatch] First patch: pos(${firstPatch.posX}, ${firstPatch.posY}), opacity: ${firstPatch.currentOpacity}`);
-    }
+    // if (waterPatches.size > 0) {
+    //     console.log(`[WaterPatch] Rendering ${waterPatches.size} water patches`);
+    //     const firstPatch = Array.from(waterPatches.values())[0];
+    //     console.log(`[WaterPatch] First patch: pos(${firstPatch.posX}, ${firstPatch.posY}), opacity: ${firstPatch.currentOpacity}`);
+    // }
 
     // Calculate view bounds with some padding for smooth transitions
     const padding = WATER_PATCH_VISUAL_RADIUS * 2;
@@ -94,9 +94,9 @@ export function renderWaterPatches(
         renderedCount++;
     }
     
-    if (renderedCount > 0) {
-        console.log(`[WaterPatch] Actually rendered ${renderedCount} patches`);
-    }
+    // if (renderedCount > 0) {
+    //     console.log(`[WaterPatch] Actually rendered ${renderedCount} patches`);
+    // }
 }
 
 /**

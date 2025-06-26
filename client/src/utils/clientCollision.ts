@@ -11,7 +11,7 @@ const COLLISION_RADII = {
   TREE: 38,
   STONE: 28,       // Smaller radius for flattened stones
   STORAGE_BOX: 25, // Much tighter radius for boxes
-  RAIN_COLLECTOR: 20, // Match server-side rain collector radius
+  RAIN_COLLECTOR: 30, // Increased to match server-side for easier targeting
   PLAYER: PLAYER_RADIUS,
 } as const;
 
@@ -20,7 +20,7 @@ const COLLISION_OFFSETS = {
   TREE: { x: 0, y: -68 },      // Adjusted to keep top boundary similar while squishing from bottom
   STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
-  RAIN_COLLECTOR: { x: 0, y: -52 }, // Match server-side rain collector Y offset
+  RAIN_COLLECTOR: { x: 0, y: 0 }, // Pushed down to align with visual base
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
 } as const;
 
