@@ -4,12 +4,12 @@ import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { resolveClientCollision, GameEntities } from '../utils/clientCollision';
 
 // Simple client-authoritative movement constants
-const POSITION_UPDATE_INTERVAL_MS = 33; // 30fps as requested by manager (better for high ping)
+const POSITION_UPDATE_INTERVAL_MS = 25; // 40fps for better prediction accuracy with high latency
 const PLAYER_SPEED = 400; // pixels per second - balanced for 60s world traversal
 const SPRINT_MULTIPLIER = 2.0; // 2x speed for sprinting (800 px/s)
 const WATER_SPEED_PENALTY = 0.5; // Half speed in water (matches server WATER_SPEED_PENALTY)
-const RUBBER_BAND_THRESHOLD = 100; // Reduced threshold for tighter sync
-const SMOOTH_INTERPOLATION_SPEED = 0.2; // For smoother rubber banding
+const RUBBER_BAND_THRESHOLD = 200; // Increased threshold for sprinting tolerance (Croatia-Netherlands ~50-100ms latency)
+const SMOOTH_INTERPOLATION_SPEED = 0.3; // Faster interpolation for less noticeable rubber banding
 
 // Performance monitoring constants
 const PERFORMANCE_LOG_INTERVAL = 10000; // Log every 10 seconds

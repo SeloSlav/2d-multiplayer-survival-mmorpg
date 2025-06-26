@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { Player } from '../generated';
 
-const INTERPOLATION_SPEED = 8.0; // Tuned to match local player smoothness
+const INTERPOLATION_SPEED = 12.0; // Increased for faster response to rapid position changes (sprinting)
 
 interface RemotePlayerState {
   lastServerPosition: { x: number; y: number };

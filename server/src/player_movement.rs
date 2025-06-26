@@ -411,9 +411,9 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 1.5; // 1200 px/s max (50% buffer over 800 px/s sprint speed)
-const MAX_TELEPORT_DISTANCE: f32 = 400.0; // Increased for high ping tolerance  
-const POSITION_UPDATE_TIMEOUT_MS: u64 = 15000; // 15 seconds for users with 100+ ms ping
+const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // 1600 px/s max (100% buffer over 800 px/s sprint speed for high latency)
+const MAX_TELEPORT_DISTANCE: f32 = 600.0; // Increased for high ping tolerance (Croatia-Netherlands)
+const POSITION_UPDATE_TIMEOUT_MS: u64 = 20000; // 20 seconds for users with 100+ ms ping
 
 /// Simple timestamped position update from client
 /// This replaces complex prediction with simple client-authoritative movement
@@ -489,7 +489,8 @@ pub fn update_player_position_simple(
     let time_diff_ms = now_ms.saturating_sub(last_update_ms);
     
     // Only validate speed for reasonable time intervals (avoid false positives from lag spikes)
-    if time_diff_ms >= 25 && time_diff_ms <= 200 && distance_moved > 10.0 { // 25-200ms window, min 10px movement
+    // More lenient validation for high-latency connections (Croatia-Netherlands)
+    if time_diff_ms >= 20 && time_diff_ms <= 300 && distance_moved > 5.0 { // 20-300ms window, min 5px movement
         let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
         if speed_px_per_sec > MAX_MOVEMENT_SPEED {
             log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}) over {}ms", 
@@ -523,7 +524,8 @@ pub fn update_player_position_simple(
     }
     
     // Only apply collision correction for reasonable movements to avoid rubber banding
-    let (final_x, final_y) = if movement_distance < 150.0 { // Increased threshold for better teleport handling
+    // Further increased threshold for sprinting with high latency (Croatia-Netherlands)
+    let (final_x, final_y) = if movement_distance < 200.0 { // Increased threshold for sprinting + latency tolerance
         // Apply collision detection with improved separation
         let server_dx = clamped_x - current_player.position_x;
         let server_dy = clamped_y - current_player.position_y;
