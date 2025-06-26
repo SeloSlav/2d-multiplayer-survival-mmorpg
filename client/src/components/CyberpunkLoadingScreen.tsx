@@ -51,6 +51,7 @@ export const CyberpunkErrorBar: React.FC<CyberpunkErrorBarProps> = ({ message })
 
 interface CyberpunkLoadingScreenProps {
     authLoading: boolean;
+    spacetimeLoading?: boolean; // Add SpacetimeDB loading state
     onSequenceComplete?: () => void;
     musicPreloadProgress?: number; // 0-1 for music preload progress
     musicPreloadComplete?: boolean;
@@ -165,7 +166,7 @@ const preloadAudio = async () => {
     }
 };
 
-const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoading, onSequenceComplete, musicPreloadProgress = 0, musicPreloadComplete = false }) => {
+const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoading, spacetimeLoading = false, onSequenceComplete, musicPreloadProgress = 0, musicPreloadComplete = false }) => {
 
     const [visibleLogs, setVisibleLogs] = useState<string[]>([]);
     const [currentLogIndex, setCurrentLogIndex] = useState(0);
@@ -191,13 +192,16 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
             "└─ Establishing secure link to authentication nexus...",
             "└─ Authenticating biometric signature...",
             "└─ [AUTH] Identity verified. Welcome, Survivor.",
-        ] : [
+        ] : spacetimeLoading ? [
+            "└─ [AUTH] Identity verification complete.",
             "└─ Scanning for Arkyv node broadcasts...",
             "└─ [NETWORK] Detecting Zvezdanet backbone signals...",
             "└─ Establishing quantum tunnel to Babachain...",
             "└─ [CRYPTO] Synchronizing blockchain ledger...",
             "└─ Handshaking with distributed survivor network...",
             "└─ [MESH] P2P connection protocols active...",
+            "└─ [READY] Babachain connection established. Initializing world access...",
+        ] : [
             "└─ Loading encrypted world state from distributed cache...",
             "└─ [WORLD] Verifying territorial claims and resource deposits...",
             "└─ Initializing real-time consensus mechanisms...",
@@ -216,7 +220,7 @@ const CyberpunkLoadingScreen: React.FC<CyberpunkLoadingScreenProps> = ({ authLoa
         }
 
         return baseLogs;
-    }, [authLoading, musicPreloadProgress, musicPreloadComplete]);
+    }, [authLoading, spacetimeLoading, musicPreloadProgress, musicPreloadComplete]);
 
     // Auto-scroll to bottom function
     const scrollToBottom = () => {

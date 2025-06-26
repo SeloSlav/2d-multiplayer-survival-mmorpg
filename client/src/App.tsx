@@ -77,6 +77,7 @@ function AppContent() {
         isLoading: spacetimeLoading, // Rename for clarity
         error: connectionError,
         registerPlayer,
+        retryConnection,
     } = useGameConnection();
 
     // --- Player Actions ---
@@ -534,7 +535,7 @@ function AppContent() {
     // --- Determine overall loading state ---
     // We'll determine this after loggedInPlayer and getStoredUsername are defined
     
-    // Debug logging for loading states
+    // Debug logging for loading states  
     // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, loadingSequenceComplete: ${loadingSequenceComplete}, shouldShowLoadingScreen: ${shouldShowLoadingScreen}`);
 
     // --- Handle loading sequence completion ---
@@ -596,9 +597,20 @@ function AppContent() {
         }
         
         // Layer 3: Verify SpacetimeDB connection and identity
-        if (!connection || !dbIdentity) {
-            console.error("SECURITY: No valid SpacetimeDB connection or identity for registration.");
-            const errorMessage = "Connection error, cannot access game servers. Please try refreshing your browser.";
+        // NOTE: For new users after database clearing, we need to allow some flexibility here
+        // The connection might be established but identity might not be set yet
+        if (!connection) {
+            console.error("SECURITY: No valid SpacetimeDB connection for registration.");
+            const errorMessage = spacetimeLoading ? 
+                "Connecting to game servers, please wait..." : 
+                "Please refresh your browser to re-establish connection.";
+            throw new Error(errorMessage);
+        }
+        
+        // If we have a connection but no identity yet, wait for it to be established
+        if (!dbIdentity) {
+            console.warn("SpacetimeDB identity not yet established, waiting for connection to complete...");
+            const errorMessage = "Establishing connection, please wait a moment...";
             throw new Error(errorMessage);
         }
         
@@ -665,14 +677,19 @@ function AppContent() {
 
     // --- Determine loading screen visibility ---
     // Loading screen should ONLY show when:
-    // 1. Auth is loading, OR
-    // 2. User is authenticated AND has player data/username AND SpacetimeDB is loading, OR  
-    // 3. User is authenticated AND has player data/username AND sequence not complete
-    // Do NOT show loading screen for new players without username - they need to enter it first
+    // 1. User is authenticated AND has existing player data AND (auth loading OR connection not ready OR sequence not complete)
+    // NEW USERS (no player data) NEVER see loading screen - they wait in LoginScreen or see black screen
     const hasPlayerDataOrUsername = loggedInPlayer || getStoredUsername;
-    const shouldShowLoadingScreen = authLoading || 
-                                   (isAuthenticated && hasPlayerDataOrUsername && spacetimeLoading) || 
-                                   (isAuthenticated && hasPlayerDataOrUsername && !loadingSequenceComplete);
+    const isSpacetimeReady = !spacetimeLoading && !!connection && !!dbIdentity;
+    const shouldShowLoadingScreen = isAuthenticated && hasPlayerDataOrUsername && (authLoading || !isSpacetimeReady || !loadingSequenceComplete);
+
+    // Debug logging for loading states (enable when debugging)
+    // console.log(`[App DEBUG] authLoading: ${authLoading}, isAuthenticated: ${isAuthenticated}, spacetimeLoading: ${spacetimeLoading}, connection: ${!!connection}, dbIdentity: ${!!dbIdentity}, isSpacetimeReady: ${isSpacetimeReady}, hasPlayerData: ${!!hasPlayerDataOrUsername}, shouldShowLoadingScreen: ${shouldShowLoadingScreen}`);
+
+    // Track when isSpacetimeReady changes (key metric for connection readiness)
+    useEffect(() => {
+        console.log(`[App] isSpacetimeReady changed to: ${isSpacetimeReady} (spacetimeLoading: ${spacetimeLoading}, connection: ${!!connection}, dbIdentity: ${!!dbIdentity})`);
+    }, [isSpacetimeReady, spacetimeLoading, connection, dbIdentity]);
 
     // Reset sequence completion when loading starts again
     useEffect(() => {
@@ -697,7 +714,8 @@ function AppContent() {
             {/* Show loading screen only when needed */} 
             {shouldShowLoadingScreen && (
                 <CyberpunkLoadingScreen 
-                    authLoading={authLoading} 
+                    authLoading={authLoading}
+                    spacetimeLoading={spacetimeLoading}
                     onSequenceComplete={handleSequenceComplete}
                     musicPreloadProgress={musicSystem.preloadProgress}
                     musicPreloadComplete={musicSystem.preloadProgress >= 1 && !musicSystem.isLoading}
@@ -711,6 +729,8 @@ function AppContent() {
                     loggedInPlayer={null}
                     connectionError={connectionError}
                     isSpacetimeConnected={spacetimeConnected}
+                    isSpacetimeReady={isSpacetimeReady}
+                    retryConnection={retryConnection}
                  />
             )}
 
@@ -722,6 +742,8 @@ function AppContent() {
                     connectionError={connectionError}
                     storedUsername={getStoredUsername}
                     isSpacetimeConnected={spacetimeConnected}
+                    isSpacetimeReady={isSpacetimeReady}
+                    retryConnection={retryConnection}
                  />
             )}
             

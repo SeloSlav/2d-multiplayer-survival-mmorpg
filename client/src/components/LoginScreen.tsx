@@ -48,6 +48,8 @@ interface LoginScreenProps {
     connectionError?: string | null; // SpacetimeDB connection error from GameConnectionContext
     storedUsername?: string | null; // Username from localStorage for connection error fallback
     isSpacetimeConnected?: boolean; // Whether SpacetimeDB is connected (used to hide username for connection issues)
+    isSpacetimeReady?: boolean; // Whether SpacetimeDB is fully ready (connection + identity established)
+    retryConnection?: () => void; // Function to retry the SpacetimeDB connection
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -56,6 +58,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     connectionError,
     storedUsername,
     isSpacetimeConnected = true, // Default to true for backwards compatibility
+    isSpacetimeReady = true, // Default to true for backwards compatibility
+    retryConnection,
 }) => {
     // Get OpenAuth state and functions
     const {
@@ -70,6 +74,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     // Local state for the username input field (only used for new players)
     const [inputUsername, setInputUsername] = useState<string>('');
     const [localError, setLocalError] = useState<string | null>(null);
+
+    // Debug logging for new users (enable when debugging)
+    // React.useEffect(() => {
+    //     if (isAuthenticated && !loggedInPlayer && !storedUsername) {
+    //         console.log(`[LoginScreen DEBUG] New user state - isSpacetimeReady: ${isSpacetimeReady}, isSpacetimeConnected: ${isSpacetimeConnected}, connectionError: ${connectionError}`);
+    //     }
+    // }, [isAuthenticated, loggedInPlayer, storedUsername, isSpacetimeReady, isSpacetimeConnected, connectionError]);
     const [isMobile, setIsMobile] = useState<boolean>(false);
     const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
     const [backgroundLoaded, setBackgroundLoaded] = useState<boolean>(false);
@@ -274,6 +285,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     0% { opacity: 0.4; }
                     100% { opacity: 0.8; }
                 }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
             `}</style>
         <div style={{
             minHeight: '100vh', // Ensure page is tall enough to scroll
@@ -365,23 +380,34 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     {/* Display based on authentication and player existence */}
                     {authIsLoading ? (
                         <p>Loading...</p>
-                    ) : (authError || connectionError) ? (
+                    ) : (authError || (connectionError && (loggedInPlayer || storedUsername))) ? (
                         <>
                             <p style={{
-                                color: 'red',
+                                color: 'white',
                                 marginTop: '15px',
                                 fontSize: '12px',
                                 padding: '8px',
-                                backgroundColor: 'rgba(255,0,0,0.1)',
+                                backgroundColor: 'rgba(128, 0, 128, 0.1)',
                                 borderRadius: '4px',
                                 marginBottom: '20px',
+                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                             }}>
                                 {connectionError || 'Connection failed. Please ensure you have an internet connection and try again.'}<br />
                                 {!connectionError && 'If the problem persists, please try signing out and signing in.'}
                             </p>
                             <div style={{ display: 'flex', flexDirection: 'row', gap: '15px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                                 <button
-                                    onClick={() => window.location.reload()}
+                                    onClick={() => {
+                                        // If it says "refresh your browser", do a page reload
+                                        // Otherwise use retry function if available
+                                        if (connectionError && connectionError.includes('Please refresh your browser')) {
+                                            window.location.reload();
+                                        } else if (connectionError && retryConnection) {
+                                            retryConnection();
+                                        } else {
+                                            window.location.reload();
+                                        }
+                                    }}
                                     disabled={authIsLoading}
                                     onMouseEnter={(e) => {
                                         if (!authIsLoading) {
@@ -415,7 +441,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                         overflow: 'hidden',
                                     }}
                                 >
-                                    Try Again
+                                    {connectionError && connectionError.includes('Please refresh your browser') ? 'Refresh' : 'Try Again'}
                                 </button>
                                 <button
                                     onClick={logout}
@@ -478,75 +504,91 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             </p>
                         ) : connectionError ? (
                             // Connection error without stored username: Show generic authenticated message
-                            <p style={{
+                            <div style={{
                                 marginBottom: '20px',
-                                fontSize: '14px'
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '12px'
                             }}>
-                                Authenticated - Reconnect to game
-                            </p>
-                        ) : (
-                            // New Player: Show username input if we're confident this is a new user
-                            // Show input if: authenticated, connected, no errors, no existing player data
-                            !authError && !connectionError && !localError && isSpacetimeConnected && !loggedInPlayer && !storedUsername ? (
+                                {/* Loading Spinner */}
                                 <div style={{
-                                    maxWidth: '350px',
-                                    margin: '0 auto',
-                                    textAlign: 'left',
+                                    width: '32px',
+                                    height: '32px',
+                                    border: '3px solid rgba(255, 165, 0, 0.3)',
+                                    borderTop: '3px solid #ff8c00',
+                                    borderRadius: '50%',
+                                    animation: 'spin 1s linear infinite',
+                                }} />
+                                <p style={{
+                                    fontSize: '14px',
+                                    margin: '0',
+                                    color: 'rgba(255, 255, 255, 0.9)',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                                 }}>
-                                    <div style={{
-                                        marginBottom: '25px',
+                                    Authenticated - Reconnecting to game...
+                                </p>
+                            </div>
+                        ) : !authError && !connectionError && !localError && !loggedInPlayer && !storedUsername ? (
+                            // New Player: Always show username input (don't wait for SpacetimeDB)
+                            <div style={{
+                                maxWidth: '350px',
+                                margin: '0 auto',
+                                textAlign: 'left',
+                            }}>
+                                <div style={{
+                                    marginBottom: '25px',
+                                }}>
+                                    <label style={{
+                                        display: 'block',
+                                        marginBottom: '8px',
+                                        fontSize: '13px',
+                                        color: 'rgba(255, 255, 255, 0.9)',
+                                        fontWeight: '500',
+                                        textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                        letterSpacing: '0.5px',
+                                        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     }}>
-                                        <label style={{
-                                            display: 'block',
-                                            marginBottom: '8px',
-                                            fontSize: '13px',
-                                            color: 'rgba(255, 255, 255, 0.9)',
-                                            fontWeight: '500',
-                                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                            letterSpacing: '0.5px',
+                                        Choose Your Username
+                                    </label>
+                                    <input
+                                        ref={usernameInputRef}
+                                        type="text"
+                                        placeholder="Enter username"
+                                        value={inputUsername}
+                                        onChange={(e) => setInputUsername(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        style={{
+                                            width: '100%',
+                                            padding: '16px 20px',
+                                            background: 'rgba(255, 255, 255, 0.1)',
+                                            border: '2px solid rgba(255, 255, 255, 0.3)',
+                                            borderRadius: '12px',
+                                            color: 'white',
+                                            fontSize: '16px',
                                             fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                        }}>
-                                            Choose Your Username
-                                        </label>
-                                        <input
-                                            ref={usernameInputRef}
-                                            type="text"
-                                            placeholder="Enter username"
-                                            value={inputUsername}
-                                            onChange={(e) => setInputUsername(e.target.value)}
-                                            onKeyDown={handleKeyDown}
-                                            style={{
-                                                width: '100%',
-                                                padding: '16px 20px',
-                                                background: 'rgba(255, 255, 255, 0.1)',
-                                                border: '2px solid rgba(255, 255, 255, 0.3)',
-                                                borderRadius: '12px',
-                                                color: 'white',
-                                                fontSize: '16px',
-                                                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
-                                                backdropFilter: 'blur(8px)',
-                                                transition: 'all 0.3s ease',
-                                                boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)',
-                                                boxSizing: 'border-box',
-                                                outline: 'none',
-                                            }}
-                                            onFocus={(e) => {
-                                                e.currentTarget.style.borderColor = '#ff8c00';
-                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                                                e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2)';
-                                            }}
-                                            onBlur={(e) => {
-                                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                                                e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2)';
-                                            }}
-                                        />
-                                    </div>
+                                            backdropFilter: 'blur(8px)',
+                                            transition: 'all 0.3s ease',
+                                            boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)',
+                                            boxSizing: 'border-box',
+                                            outline: 'none',
+                                        }}
+                                        onFocus={(e) => {
+                                            e.currentTarget.style.borderColor = '#ff8c00';
+                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                                            e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(255, 140, 0, 0.2)';
+                                        }}
+                                        onBlur={(e) => {
+                                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                                            e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0, 0, 0, 0.2)';
+                                        }}
+                                    />
                                 </div>
-                            ) : (
-                                // Not showing username input - show loading message
-                                <></>
-                            )
+                            </div>
+                        ) : (
+                            // Other states - show empty
+                            <></>
                         )
                     ) : null /* Not loading, no error, not authenticated: Button below will handle Sign In */}
 
@@ -558,13 +600,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 // Disable if there's any auth error, or connection error without stored username
                                 disabled={authError !== null || (connectionError !== null && !storedUsername) || localError !== null}
                                 onMouseEnter={(e) => {
-                                    if (!authError && (!connectionError || storedUsername) && !localError) {
+                                    const isButtonDisabled = authError !== null || (connectionError !== null && !storedUsername) || localError !== null;
+                                    if (!isButtonDisabled) {
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4), 0 0 20px rgba(255,165,0,0.3)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!authError && (!connectionError || storedUsername) && !localError) {
+                                    const isButtonDisabled = authError !== null || (connectionError !== null && !storedUsername) || localError !== null;
+                                    if (!isButtonDisabled) {
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
                                     }
@@ -572,14 +616,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 style={{
                                     padding: '16px 32px',
                                     border: '2px solid rgba(255, 165, 0, 0.6)',
-                                    backgroundColor: (authError || (connectionError && !storedUsername) || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))',
-                                    background: (authError || (connectionError && !storedUsername) || localError) ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)',
-                                    color: (authError || (connectionError && !storedUsername) || localError) ? '#ccc' : 'white',
+                                    backgroundColor: (() => {
+                                        const isDisabled = authError || (connectionError && !storedUsername) || localError;
+                                        return isDisabled ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(200, 100, 0, 0.9))';
+                                    })(),
+                                    background: (() => {
+                                        const isDisabled = authError || (connectionError && !storedUsername) || localError;
+                                        return isDisabled ? 'rgba(100, 50, 50, 0.6)' : 'linear-gradient(135deg, #ff8c00, #cc6400)';
+                                    })(),
+                                    color: (() => {
+                                        const isDisabled = authError || (connectionError && !storedUsername) || localError;
+                                        return isDisabled ? '#ccc' : 'white';
+                                    })(),
                                     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
                                     fontSize: '16px',
                                     fontWeight: 'bold',
-                                    cursor: (authError || (connectionError && !storedUsername) || localError) ? 'not-allowed' : 'pointer',
-                                    boxShadow: (authError || (connectionError && !storedUsername) || localError) ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)',
+                                    cursor: (() => {
+                                        const isDisabled = authError || (connectionError && !storedUsername) || localError;
+                                        return isDisabled ? 'not-allowed' : 'pointer';
+                                    })(),
+                                    boxShadow: (() => {
+                                        const isDisabled = authError || (connectionError && !storedUsername) || localError;
+                                        return isDisabled ? '2px 2px 6px rgba(0,0,0,0.4)' : '0 4px 15px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.4)';
+                                    })(),
                                     display: 'inline-block',
                                     boxSizing: 'border-box',
                                     textTransform: 'uppercase',
@@ -591,7 +650,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     overflow: 'hidden',
                                 }}
                             >
-                                {isAuthenticated ? 'Join Game' : 'Start Your Journey'}
+                                {(() => {
+                                    if (!isAuthenticated) return 'Start Your Journey';
+                                    return 'Join Game';
+                                })()}
                             </button>
 
                             {/* Version Text with Learn More */}
@@ -658,16 +720,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     )}
 
                     {/* Show error state with Refresh button for connection-related localErrors */}
-                    {!authIsLoading && !authError && localError && localError.includes('Connection error') && (
+                    {!authIsLoading && !authError && !connectionError && localError && (localError.includes('Connection error') || localError.includes('Quantum tunnel collapsed') || localError.includes('Please refresh your browser')) && localError !== connectionError && (
                         <>
                             <p style={{
-                                color: 'red',
+                                color: 'white',
                                 marginTop: '15px',
                                 fontSize: '12px',
                                 padding: '8px',
-                                backgroundColor: 'rgba(255,0,0,0.1)',
+                                backgroundColor: 'rgba(128, 0, 128, 0.1)',
                                 borderRadius: '4px',
                                 marginBottom: '20px',
+                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                             }}>
                                 {localError}
                             </p>
@@ -695,15 +758,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     )}
 
                     {/* Local Error Messages (e.g., for username validation) - show if not authError and not connection error */}
-                    {localError && !authError && !localError.includes('Connection error') && (
+                    {localError && !authError && !localError.includes('Connection error') && !localError.includes('Quantum tunnel collapsed') && !localError.includes('Please refresh your browser') && localError !== connectionError && (
                         <p style={{
-                            color: 'red',
+                            color: 'white',
                             marginTop: '0px',
                             marginBottom: '15px',
                             fontSize: '12px',
                             padding: '8px',
-                            backgroundColor: 'rgba(255,0,0,0.1)',
+                            backgroundColor: 'rgba(128, 0, 128, 0.1)',
                             borderRadius: '4px',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                         }}>
                             {localError}
                         </p>
