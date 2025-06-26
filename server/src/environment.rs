@@ -157,8 +157,9 @@ fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     return false;
 }
 
-/// NEW: Smart water check for grass spawning that handles both land and water foliage
-/// Returns true if spawning should be blocked (wrong tile type for the given grass type)
+/// DISABLED: Smart water check for grass spawning - grass spawning disabled for performance
+/// This function is no longer used as grass spawning has been completely disabled
+#[allow(dead_code)]
 fn is_grass_water_check_blocked(ctx: &ReducerContext, pos_x: f32, pos_y: f32, grass_type: &crate::grass::GrassAppearanceType) -> bool {
     let is_water_tile = is_position_on_water(ctx, pos_x, pos_y);
     
@@ -531,13 +532,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
 
     if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}). Skipping.",
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}). Grass spawning disabled. Skipping.",
             trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, reeds, clouds)..." );
+    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, reeds, clouds) - grass disabled for performance..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -568,9 +569,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
-    // Grass seeding parameters (using constants from grass.rs) - COMMENTED OUT
-    let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
-    let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
+    // DISABLED: Grass seeding parameters for performance optimization
+    // let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
+    // let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
 
     // --- NEW: Region parameters for grass types ---
     const GRASS_REGION_SIZE_CHUNKS: u32 = 10; // Each region is 10x10 chunks
@@ -590,7 +591,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     log::info!("Target Reeds: {}, Max Attempts: {}", target_reed_count, max_reed_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
-    // log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts); // COMMENTED OUT
+    // DISABLED: Grass spawning log - grass spawning disabled for performance optimization
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -606,7 +607,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
     let mut spawned_reed_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // COMMENTED OUT
+    // DISABLED: let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // Grass spawning disabled
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -626,8 +627,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut reed_attempts = 0;
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
-    let mut spawned_grass_count = 0; // COMMENTED OUT
-    let mut grass_attempts = 0; // COMMENTED OUT
+    // DISABLED: let mut spawned_grass_count = 0; // Grass spawning disabled
+    // DISABLED: let mut grass_attempts = 0; // Grass spawning disabled
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -1034,137 +1035,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_reed_count, target_reed_count, reed_attempts
     );
 
-    // --- Seed Grass --- (New Section) - COMMENTED OUT
-    log::info!("Seeding Grass...");
-    let (grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y) = 
-        calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::grass::GRASS_SPAWN_WORLD_MARGIN_TILES);
-    
-    while spawned_grass_count < target_grass_count && grass_attempts < max_grass_attempts {
-        grass_attempts += 1;
-
-        // Generate random values for grass appearance and sway before the attempt_single_spawn call
-        let appearance_roll_for_this_attempt: u32 = rng.gen_range(0..100);
-        let sway_offset_seed_for_this_attempt: u32 = rng.gen();
-
-        // Pre-determine grass type to use in water check
-        // First, do a quick check to see if this position might be on inland water
-        let test_tile_x = rng.gen_range(grass_min_tile_x..grass_max_tile_x) as i32;
-        let test_tile_y = rng.gen_range(grass_min_tile_y..grass_max_tile_y) as i32;
-        let test_pos_x = (test_tile_x as f32 + 0.5) * TILE_SIZE_PX as f32;
-        let test_pos_y = (test_tile_y as f32 + 0.5) * TILE_SIZE_PX as f32;
-        let is_on_inland_water = is_position_on_inland_water(ctx, test_pos_x, test_pos_y);
-        
-        let mut appearance_roll = appearance_roll_for_this_attempt;
-        
-        // Heavily bias towards water foliage if we're in a water area
-        let predetermined_grass_type = if is_on_inland_water {
-            // Check if this is a lake-like area (larger water body) for even more foliage
-            let is_lake_area = is_position_in_lake_area(ctx, test_pos_x, test_pos_y);
-            
-            if is_lake_area {
-                // In lake areas, make 90% water foliage with more diverse types
-                if appearance_roll < 25 { // 25% LilyPads - very common in lakes
-                    crate::grass::GrassAppearanceType::LilyPads
-                } else if appearance_roll < 40 { // 15% ReedBedsA
-                    crate::grass::GrassAppearanceType::ReedBedsA
-                } else if appearance_roll < 55 { // 15% ReedBedsB
-                    crate::grass::GrassAppearanceType::ReedBedsB
-                } else if appearance_roll < 70 { // 15% Bulrushes
-                    crate::grass::GrassAppearanceType::Bulrushes
-                } else if appearance_roll < 80 { // 10% AlgaeMats - surface plants for lakes
-                    crate::grass::GrassAppearanceType::AlgaeMats
-                } else if appearance_roll < 87 { // 7% SeaweedForest
-                    crate::grass::GrassAppearanceType::SeaweedForest
-                } else { // 7% fallback to PatchA
-                    crate::grass::GrassAppearanceType::PatchA
-                }
-            } else {
-                // In river areas, make 80% water foliage (original distribution)
-                if appearance_roll < 20 { // 20% ReedBedsA - most common in rivers
-                    crate::grass::GrassAppearanceType::ReedBedsA
-                } else if appearance_roll < 35 { // 15% ReedBedsB 
-                    crate::grass::GrassAppearanceType::ReedBedsB
-                } else if appearance_roll < 50 { // 15% Bulrushes
-                    crate::grass::GrassAppearanceType::Bulrushes
-                } else if appearance_roll < 65 { // 15% LilyPads
-                    crate::grass::GrassAppearanceType::LilyPads
-                } else if appearance_roll < 85 { // 10% SeaweedForest
-                    crate::grass::GrassAppearanceType::SeaweedForest
-                } else if appearance_roll < 95 { // 10% AlgaeMats
-                    crate::grass::GrassAppearanceType::AlgaeMats
-                } else { // 5% fallback to PatchA
-                    crate::grass::GrassAppearanceType::PatchA
-                }
-            }
-        } else {
-            // Regular land-based distribution
-            if appearance_roll < 20 { // 20% PatchA
-                crate::grass::GrassAppearanceType::PatchA
-            } else if appearance_roll < 35 { // 15% PatchB
-                crate::grass::GrassAppearanceType::PatchB
-            } else if appearance_roll < 50 { // 15% PatchC
-                crate::grass::GrassAppearanceType::PatchC
-            } else if appearance_roll < 65 { // 15% TallGrassA
-                crate::grass::GrassAppearanceType::TallGrassA
-            } else if appearance_roll < 75 { // 10% TallGrassB
-                crate::grass::GrassAppearanceType::TallGrassB
-            } else if appearance_roll < 85 { // 10% BramblesA
-                crate::grass::GrassAppearanceType::BramblesA
-            } else { // 15% BramblesB
-                crate::grass::GrassAppearanceType::BramblesB
-            }
-        };
-
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles, // Grass can share tiles with other non-blocking items, but not other grass or solid objects initially
-            &mut spawned_grass_positions,
-            &spawned_tree_positions,    
-            &spawned_stone_positions,   
-            grass_min_tile_x, grass_max_tile_x, grass_min_tile_y, grass_max_tile_y,
-            &fbm,
-            crate::grass::GRASS_SPAWN_NOISE_FREQUENCY, 
-            crate::grass::GRASS_SPAWN_NOISE_THRESHOLD,          
-            crate::grass::MIN_GRASS_DISTANCE_SQ,
-            crate::grass::MIN_GRASS_TREE_DISTANCE_SQ,
-            crate::grass::MIN_GRASS_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, (predetermined_type, sway_seed): (crate::grass::GrassAppearanceType, u32)| { // Use predetermined type
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                // Use the predetermined grass type (passed in as argument)
-                let appearance_type = predetermined_type;
-
-                crate::grass::Grass {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    health: crate::grass::GRASS_INITIAL_HEALTH,
-                    appearance_type,
-                    chunk_index: chunk_idx,
-                    last_hit_time: None,
-                    respawn_at: None,
-                    sway_offset_seed: sway_seed, // Use the passed-in sway_seed
-                    sway_speed: 0.3f32, // Increased base sway speed to 0.3
-                    // Initialize disturbance fields for new grass
-                    disturbed_at: None,
-                    disturbance_direction_x: 0.0,
-                    disturbance_direction_y: 0.0,
-                }
-            },
-            (predetermined_grass_type.clone(), sway_offset_seed_for_this_attempt), // Pass the predetermined type and sway seed
-            |pos_x, pos_y| is_grass_water_check_blocked(ctx, pos_x, pos_y, &predetermined_grass_type), // NEW: Smart water check function
-            grasses, // Pass the grass table handle
-        ) {
-            Ok(true) => spawned_grass_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} grass patches (target: {}, attempts: {}).",
-        spawned_grass_count, target_grass_count, grass_attempts
-    );
-    // --- End Seed Grass --- (COMMENTED OUT)
+    // --- DISABLED: Grass Seeding for Performance Optimization ---
+    // Grass spawning has been completely disabled to prevent creation of thousands
+    // of grass entities that could cause server performance issues and rubber-banding.
+    // The client will handle grass rendering procedurally without server entities.
+    log::info!("Grass seeding DISABLED for performance optimization - no grass entities will be spawned.");
+    let spawned_grass_count = 0; // Set to 0 since we're not spawning any grass
+    // --- End Disabled Grass Seeding ---
 
     // --- Seed Clouds ---
     log::info!("Seeding Clouds...");
@@ -1406,20 +1283,8 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         }
     );
 
-    // Respawn Grass
-    check_and_respawn_resource!(
-        ctx,
-        grass, // Table symbol
-        crate::grass::Grass, // Entity type
-        "Grass", // Name for logging
-        |g: &crate::grass::Grass| g.health == 0, // Filter: only check grass with 0 health
-        |g: &mut crate::grass::Grass| { // Update logic
-            g.health = crate::grass::GRASS_INITIAL_HEALTH;
-            g.respawn_at = None;
-            g.last_hit_time = None;
-            // appearance_type and sway_offset_seed remain the same on respawn
-        }
-    );
+    // DISABLED: Grass respawn logic - grass spawning disabled for performance optimization
+    // No grass entities exist, so no respawn logic needed
 
     // Note: Clouds are static for now, so no respawn logic needed in check_resource_respawns.
     // If they were to drift or change, a similar `check_and_respawn_resource!` or a dedicated
