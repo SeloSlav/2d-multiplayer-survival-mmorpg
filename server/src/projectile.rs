@@ -209,6 +209,10 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
     let weapon_stats = ctx.db.ranged_weapon_stats().item_name().find(&item_def.name)
         .ok_or(format!("Ranged weapon stats not found for: {}", item_def.name))?;
 
+    // Get ammunition item definition for special projectile properties
+    let ammo_item_def = ctx.db.item_definition().id().find(loaded_ammo_def_id)
+        .ok_or("Loaded ammunition definition not found.")?;
+
     if let Some(last_attack_record) = ctx.db.player_last_attack_timestamp().player_id().find(&player_id) {
         let time_since_last_attack = ctx.timestamp.to_micros_since_unix_epoch() - last_attack_record.last_attack_timestamp.to_micros_since_unix_epoch();
         let required_reload_time_micros = (weapon_stats.reload_time_secs * 1_000_000.0) as i64;
@@ -252,7 +256,18 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
     // --- Physics Calculation for Initial Velocity to Hit Target ---
     let delta_x = target_world_x - player.position_x;
     let delta_y = target_world_y - player.position_y;
-    let v0 = weapon_stats.projectile_speed;
+    
+    // Apply ammunition-specific speed modifications
+    let mut v0 = weapon_stats.projectile_speed;
+    let mut max_range = weapon_stats.weapon_range;
+    
+    // Hollow Reed Arrows: +25% speed (lighter, more aerodynamic)
+    // Applies to both bows and crossbows - only the physics differ, not ammo compatibility
+    if ammo_item_def.name == "Hollow Reed Arrow" {
+        v0 *= 1.25; // 25% faster
+        log::debug!("Hollow Reed Arrow: Enhanced speed ({:.1}) for weapon '{}'", v0, item_def.name);
+    }
+    
     let g = GRAVITY; // GRAVITY const defined at the top of the file
     
     let distance_sq = delta_x * delta_x + delta_y * delta_y;
@@ -369,7 +384,7 @@ pub fn fire_projectile(ctx: &ReducerContext, target_world_x: f32, target_world_y
         start_pos_y: player.position_y,
         velocity_x: final_vx, // Use calculated velocity
         velocity_y: final_vy, // Use calculated velocity
-        max_range: weapon_stats.weapon_range, // Keep max_range for flight limit
+        max_range: max_range, // Use modified max_range for ammunition-specific flight limit
     };
 
     ctx.db.projectile().insert(projectile);
@@ -506,6 +521,48 @@ fn apply_projectile_burn_effect(
 }
 // --- END NEW HELPER FUNCTION ---
 
+// --- NEW HELPER FUNCTION FOR DAMAGE CALCULATION ---
+fn calculate_projectile_damage(
+    weapon_item_def: &crate::items::ItemDefinition,
+    ammo_item_def: &crate::items::ItemDefinition,
+    projectile: &Projectile,
+    rng: &mut rand::rngs::StdRng,
+) -> f32 {
+    // Calculate base weapon damage
+    let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
+    let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
+    let weapon_damage = if weapon_damage_min == weapon_damage_max {
+        weapon_damage_min
+    } else {
+        rng.gen_range(weapon_damage_min..=weapon_damage_max)
+    };
+
+    // Calculate ammunition damage
+    let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
+    let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
+    let ammo_damage = if ammo_damage_min == ammo_damage_max {
+        ammo_damage_min
+    } else {
+        rng.gen_range(ammo_damage_min..=ammo_damage_max)
+    };
+
+    // Check if this is a thrown item (ammo_def_id == item_def_id)
+    let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
+
+    if is_thrown_item {
+        // Thrown items do double the weapon's base damage
+        weapon_damage * 2.0
+    } else if ammo_item_def.name == "Fire Arrow" {
+        ammo_damage
+    } else if ammo_item_def.name == "Hollow Reed Arrow" {
+        // Hollow Reed Arrows: Subtract ammo damage from weapon damage due to light construction
+        (weapon_damage - ammo_damage).max(1.0) // Minimum 1 damage
+    } else {
+        weapon_damage + ammo_damage
+    }
+}
+// --- END NEW HELPER FUNCTION ---
+
 #[reducer]
 pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule) -> Result<(), String> {
     // Security check - only allow scheduler to call this
@@ -598,37 +655,10 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 projectile.id, projectile.owner_id, shelter_id, collision_x, collision_y
             );
             
-            // Apply damage to the shelter before handling the projectile
-            if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
-                if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                    // Calculate combined damage (same logic as shelter)
-                    let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                    let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                    let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                        weapon_damage_min
-                    } else {
-                        rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                    };
-
-                    let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                    let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                    let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                        ammo_damage_min
-                    } else {
-                        rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                    };
-
-                    // Check if this is a thrown item (ammo_def_id == item_def_id)
-                    let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                    let final_damage = if is_thrown_item {
-                        // Thrown items do double the weapon's base damage
-                        weapon_damage * 2.0
-                    } else if ammo_item_def.name == "Fire Arrow" {
-                        ammo_damage
-                    } else {
-                        weapon_damage + ammo_damage
-                    };
+                            // Apply damage to the shelter before handling the projectile
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                     if final_damage > 0.0 {
                         match crate::shelter::damage_shelter(
@@ -761,34 +791,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 // Apply damage using existing combat system
                 if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
                     if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                        // Calculate combined damage (same logic as shelter)
-                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                            weapon_damage_min
-                        } else {
-                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                        };
-
-                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                            ammo_damage_min
-                        } else {
-                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                        };
-
-                        // Check if this is a thrown item (ammo_def_id == item_def_id)
-                        let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                        let final_damage = if is_thrown_item {
-                            // Thrown items do double the weapon's base damage
-                            weapon_damage * 2.0
-                        } else if ammo_item_def.name == "Fire Arrow" {
-                            ammo_damage
-                        } else {
-                            weapon_damage + ammo_damage
-                        };
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                         if final_damage > 0.0 {
                             match combat::damage_campfire(ctx, projectile.owner_id, campfire.id, final_damage, current_time, &mut rng) {
@@ -845,34 +848,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 // Apply damage using existing combat system
                 if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
                     if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                        // Calculate combined damage (same logic as shelter)
-                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                            weapon_damage_min
-                        } else {
-                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                        };
-
-                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                            ammo_damage_min
-                        } else {
-                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                        };
-
-                        // Check if this is a thrown item (ammo_def_id == item_def_id)
-                        let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                        let final_damage = if is_thrown_item {
-                            // Thrown items do double the weapon's base damage
-                            weapon_damage * 2.0
-                        } else if ammo_item_def.name == "Fire Arrow" {
-                            ammo_damage
-                        } else {
-                            weapon_damage + ammo_damage
-                        };
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                         if final_damage > 0.0 {
                             match combat::damage_wooden_storage_box(ctx, projectile.owner_id, storage_box.id, final_damage, current_time, &mut rng) {
@@ -926,34 +902,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 // Apply damage using existing combat system
                 if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
                     if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                        // Calculate combined damage (same logic as shelter)
-                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                            weapon_damage_min
-                        } else {
-                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                        };
-
-                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                            ammo_damage_min
-                        } else {
-                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                        };
-
-                        // Check if this is a thrown item (ammo_def_id == item_def_id)
-                        let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                        let final_damage = if is_thrown_item {
-                            // Thrown items do double the weapon's base damage
-                            weapon_damage * 2.0
-                        } else if ammo_item_def.name == "Fire Arrow" {
-                            ammo_damage
-                        } else {
-                            weapon_damage + ammo_damage
-                        };
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                         if final_damage > 0.0 {
                             match combat::damage_stash(ctx, projectile.owner_id, stash.id, final_damage, current_time, &mut rng) {
@@ -1010,34 +959,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 // Apply damage using existing combat system
                 if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
                     if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                        // Calculate combined damage (same logic as shelter)
-                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                            weapon_damage_min
-                        } else {
-                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                        };
-
-                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                            ammo_damage_min
-                        } else {
-                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                        };
-
-                        // Check if this is a thrown item (ammo_def_id == item_def_id)
-                        let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                        let final_damage = if is_thrown_item {
-                            // Thrown items do double the weapon's base damage
-                            weapon_damage * 2.0
-                        } else if ammo_item_def.name == "Fire Arrow" {
-                            ammo_damage
-                        } else {
-                            weapon_damage + ammo_damage
-                        };
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                         if final_damage > 0.0 {
                             match combat::damage_sleeping_bag(ctx, projectile.owner_id, sleeping_bag.id, final_damage, current_time, &mut rng) {
@@ -1092,34 +1014,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 // Apply damage using existing combat system
                 if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
                     if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
-                        // Calculate combined damage (same logic as other entities)
-                        let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                        let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                            weapon_damage_min
-                        } else {
-                            rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                        };
-
-                        let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                        let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                        let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                            ammo_damage_min
-                        } else {
-                            rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                        };
-
-                        // Check if this is a thrown item (ammo_def_id == item_def_id)
-                        let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                        let final_damage = if is_thrown_item {
-                            // Thrown items do double the weapon's base damage
-                            weapon_damage * 2.0
-                        } else if ammo_item_def.name == "Fire Arrow" {
-                            ammo_damage
-                        } else {
-                            weapon_damage + ammo_damage
-                        };
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                         if final_damage > 0.0 {
                             match combat::damage_player_corpse(ctx, projectile.owner_id, corpse.id, final_damage, &weapon_item_def, current_time, &mut rng) {
@@ -1212,42 +1107,15 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     }
                 };
 
-                // Calculate base weapon damage
-                let weapon_damage_min = weapon_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                let weapon_damage_max = weapon_item_def.pvp_damage_max.unwrap_or(weapon_damage_min as u32) as f32;
-                let weapon_damage = if weapon_damage_min == weapon_damage_max {
-                    weapon_damage_min
-                } else {
-                    rng.gen_range(weapon_damage_min..=weapon_damage_max)
-                };
-
-                // Calculate ammunition damage
-                let ammo_damage_min = ammo_item_def.pvp_damage_min.unwrap_or(0) as f32;
-                let ammo_damage_max = ammo_item_def.pvp_damage_max.unwrap_or(ammo_damage_min as u32) as f32;
-                let ammo_damage = if ammo_damage_min == ammo_damage_max {
-                    ammo_damage_min
-                } else {
-                    rng.gen_range(ammo_damage_min..=ammo_damage_max)
-                };
-
-                // Check if this is a thrown item (ammo_def_id == item_def_id)
-                let is_thrown_item = projectile.ammo_def_id == projectile.item_def_id;
-
-                let final_damage = if is_thrown_item {
-                    // Thrown items do double the weapon's base damage
-                    weapon_damage * 2.0
-                } else if ammo_item_def.name == "Fire Arrow" {
-                    ammo_damage
-                } else {
-                    weapon_damage + ammo_damage
-                };
+                // Calculate damage using the centralized helper function
+                let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
 
                 if is_thrown_item {
-                    log::info!("Thrown item damage calculation: Item '{}' base damage ({:.1}) * 2 = {:.1} total damage", 
-                             weapon_item_def.name, weapon_damage, final_damage);
+                    log::info!("Thrown item damage calculation: Item '{}' dealt {:.1} total damage", 
+                             weapon_item_def.name, final_damage);
                 } else {
-                    log::info!("Projectile damage calculation: Weapon '{}' ({:.1}) + Ammo '{}' ({:.1}) = {:.1} total damage", 
-                             weapon_item_def.name, weapon_damage, ammo_item_def.name, ammo_damage, final_damage);
+                    log::info!("Projectile damage calculation: Weapon '{}' + Ammo '{}' = {:.1} total damage", 
+                             weapon_item_def.name, ammo_item_def.name, final_damage);
                 }
 
                 // Apply combined damage via combat::damage_player

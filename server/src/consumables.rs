@@ -14,6 +14,9 @@ use crate::models::ItemLocation; // Added import
 // Import active effects related items
 use crate::active_effects::{ActiveConsumableEffect, EffectType, active_consumable_effect as ActiveConsumableEffectTableTrait, cancel_bleed_effects, cancel_health_regen_effects, player_has_cozy_effect, COZY_FOOD_HEALING_MULTIPLIER};
 
+// Import sound system for eating food sound and drinking water sound
+use crate::sound_events::{emit_eating_food_sound, emit_drinking_water_sound};
+
 // --- Max Stat Value ---
 pub const MAX_HEALTH_VALUE: f32 = 100.0; // Max value for health
 pub const MAX_HUNGER_VALUE: f32 = 250.0; // Max value for hunger
@@ -22,6 +25,10 @@ pub const MAX_STAMINA_VALUE: f32 = 100.0; // Max value for stamina
 pub const MAX_WARMTH_VALUE: f32 = 100.0; // Max value for warmth
 pub const MIN_STAT_VALUE: f32 = 0.0;   // Min value for stats like health
 const CONSUMPTION_COOLDOWN_MICROS: u64 = 1_000_000; // 1 second cooldown
+
+// --- Water container thirst values ---
+// Import from rain collector module for consistency
+use crate::rain_collector::{REED_WATER_BOTTLE_CAPACITY, PLASTIC_WATER_JUG_CAPACITY};
 
 #[spacetimedb::reducer]
 pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
@@ -76,6 +83,9 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
 
     // Call the centralized helper function
     apply_item_effects_and_consume(ctx, sender_id, &item_def, item_instance_id, &mut player_to_update)?;
+
+    // Emit eating food sound
+    emit_eating_food_sound(ctx, player_to_update.position_x, player_to_update.position_y, sender_id);
 
     // Update player table after effects are applied and item consumed
     players_table.identity().update(player_to_update);
@@ -330,4 +340,102 @@ fn apply_timed_effect_for_helper(
             Err(format!("Failed to apply timed effect: {:?}", e))
         }
     }
-} 
+}
+
+/// Consume a filled water container (bottles/jugs) to replenish thirst
+#[spacetimedb::reducer]
+pub fn consume_filled_water_container(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), String> {
+    let sender_id = ctx.sender;
+    let players_table = ctx.db.player();
+    let item_defs = ctx.db.item_definition();
+
+    log::info!("[ConsumeWater] Player {:?} attempting to drink from container instance {}", sender_id, item_instance_id);
+
+    let mut player_to_update = players_table.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found.".to_string())?;
+
+    // --- Check player state first ---
+    if player_to_update.is_dead {
+        return Err("Cannot drink while dead.".to_string());
+    }
+    if player_to_update.is_knocked_out {
+        return Err("Cannot drink while knocked out.".to_string());
+    }
+
+    // --- Check consumption cooldown ---
+    if let Some(last_consumed_ts) = player_to_update.last_consumed_at {
+        let cooldown_duration = TimeDuration::from_micros(CONSUMPTION_COOLDOWN_MICROS as i64);
+        if ctx.timestamp < last_consumed_ts + cooldown_duration {
+            return Err("You are consuming items too quickly.".to_string());
+        }
+    }
+
+    let water_container = ctx.db.inventory_item().instance_id().find(item_instance_id)
+        .ok_or_else(|| format!("Water container instance {} not found.", item_instance_id))?;
+
+    // --- Check if the item is in player's possession ---
+    let is_in_possession = match &water_container.location {
+        ItemLocation::Inventory(data) => data.owner_id == sender_id,
+        ItemLocation::Hotbar(data) => data.owner_id == sender_id,
+        _ => false,
+    };
+
+    if !is_in_possession {
+        return Err("Cannot consume a water container not in your inventory or hotbar.".to_string());
+    }
+
+    // --- Get item definition ---
+    let item_def = item_defs.id().find(&water_container.item_def_id)
+        .ok_or_else(|| "Water container definition not found.".to_string())?;
+
+    // --- Check if container has water ---
+    let water_content = crate::items::get_water_content(&water_container)
+        .ok_or_else(|| "Water container is empty.".to_string())?;
+
+    // --- Verify it's a valid water container type ---
+    if !matches!(item_def.name.as_str(), "Reed Water Bottle" | "Plastic Water Jug") {
+        return Err("Item is not a water container.".to_string());
+    }
+
+    // --- Calculate consumption amount (250mL per sip) ---
+    const CONSUMPTION_AMOUNT_LITERS: f32 = 0.25; // 250mL per right-click
+    let actual_consumption = water_content.min(CONSUMPTION_AMOUNT_LITERS);
+    
+    // --- Calculate thirst value ---
+    // Using 15 thirst per liter - scaled for gameplay balance while maintaining realistic proportions
+    let thirst_value = actual_consumption * 15.0;
+
+    // --- Apply thirst restoration ---
+    let old_thirst = player_to_update.thirst;
+    let new_thirst = (player_to_update.thirst + thirst_value).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
+    player_to_update.thirst = new_thirst;
+    player_to_update.last_consumed_at = Some(ctx.timestamp);
+
+    // --- Update water content (reduce by consumption amount) ---
+    let mut container_to_update = water_container.clone();
+    let remaining_water = water_content - actual_consumption;
+    if remaining_water <= 0.001 { // Account for floating point precision
+        crate::items::clear_water_content(&mut container_to_update); // Empty the container
+    } else {
+        crate::items::set_water_content(&mut container_to_update, remaining_water);
+    }
+    ctx.db.inventory_item().instance_id().update(container_to_update);
+
+    // --- Update player ---
+    players_table.identity().update(player_to_update.clone());
+
+    // --- Emit drinking water sound ---
+    emit_drinking_water_sound(ctx, player_to_update.position_x, player_to_update.position_y, sender_id);
+
+    // --- Apply visual drinking effect ---
+    const WATER_DRINKING_DURATION: f32 = 2.0; // 2 seconds of shake animation
+    if let Err(e) = crate::active_effects::apply_water_drinking_effect(ctx, sender_id, item_def.id, WATER_DRINKING_DURATION) {
+        log::error!("Failed to apply water drinking visual effect for player {:?}: {}", sender_id, e);
+        // Don't fail the consumption - visual effect is optional
+    }
+
+    log::info!("Player {:?} drank {:.3}L from {} and restored {:.1} thirst ({:.1} -> {:.1}). Remaining water: {:.3}L", 
+               sender_id, actual_consumption, item_def.name, thirst_value, old_thirst, new_thirst, remaining_water);
+
+    Ok(())
+}

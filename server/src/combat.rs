@@ -1134,6 +1134,48 @@ pub fn damage_player(
         log::info!("[BleedCheck] Item '{}' does not have all necessary bleed properties defined. Not applying bleed.", item_def.name);
     }
 
+    // Apply burn effect if the weapon is a lit torch
+    if item_def.name == "Torch" {
+        // Check if the attacker's torch is currently lit by checking the player's is_torch_lit field
+        if let Some(attacker_player) = ctx.db.player().identity().find(&attacker_id) {
+            if attacker_player.is_torch_lit {
+                log::info!(
+                    "[BurnCheck] Lit torch '{}' (Def ID: {}) hit player {:?}. Applying 3-second burn effect.", 
+                    item_def.name, item_def.id, target_id
+                );
+                
+                // Apply 3 seconds of burn damage (similar to campfire burn)
+                const TORCH_BURN_DURATION: f32 = 3.0; // 3 seconds
+                const TORCH_BURN_DAMAGE_PER_TICK: f32 = 2.0; // 2 damage per tick
+                const TORCH_BURN_TICK_INTERVAL: f32 = 1.0; // Every 1 second
+                
+                match active_effects::apply_burn_effect(
+                    ctx, 
+                    target_id, 
+                    TORCH_BURN_DAMAGE_PER_TICK * (TORCH_BURN_DURATION / TORCH_BURN_TICK_INTERVAL), // Total damage: 6
+                    TORCH_BURN_DURATION, 
+                    TORCH_BURN_TICK_INTERVAL,
+                    item_def.id
+                ) {
+                    Ok(_) => {
+                        log::info!(
+                            "Successfully applied torch burn effect to player {:?} for {} seconds (total {} damage)",
+                            target_id, TORCH_BURN_DURATION, TORCH_BURN_DAMAGE_PER_TICK * (TORCH_BURN_DURATION / TORCH_BURN_TICK_INTERVAL)
+                        );
+                    }
+                    Err(e) => {
+                        log::error!("Failed to apply torch burn effect to player {:?}: {}", target_id, e);
+                    }
+                }
+            } else {
+                log::debug!(
+                    "[BurnCheck] Torch '{}' hit player {:?}, but torch is not lit. No burn effect applied.", 
+                    item_def.name, target_id
+                );
+            }
+        }
+    }
+
     // INTERRUPT BANDAGE IF DAMAGED
     active_effects::cancel_bandage_burst_effects(ctx, target_id);
 

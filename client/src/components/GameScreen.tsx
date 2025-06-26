@@ -56,6 +56,8 @@ import {
     SleepingBag as SpacetimeDBSleepingBag,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
+    RainCollector as SpacetimeDBRainCollector,
+    WaterPatch as SpacetimeDBWaterPatch,
     ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
     Cloud as SpacetimeDBCloud,
     Grass as SpacetimeDBGrass,
@@ -66,7 +68,8 @@ import {
     Shelter as SpacetimeDBShelter,
     MinimapCache as SpacetimeDBMinimapCache,
     FishingSession,
-    PlantedSeed as SpacetimeDBPlantedSeed
+    PlantedSeed as SpacetimeDBPlantedSeed,
+    PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -125,6 +128,15 @@ interface GameScreenProps {
     grass: Map<string, SpacetimeDBGrass>;
     knockedOutStatus: Map<string, SpacetimeDBKnockedOutStatus>;
     rangedWeaponStats: Map<string, RangedWeaponStats>;
+    
+    // Add player drinking cooldowns for water interaction
+    playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>;
+    
+    // Rain collectors
+    rainCollectors: Map<string, SpacetimeDBRainCollector>;
+    
+    // Water patches
+    waterPatches: Map<string, SpacetimeDBWaterPatch>;
     
     // Connection & Player Info
     localPlayerId?: string;
@@ -261,6 +273,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         onSoundVolumeChange,
         onEnvironmentalVolumeChange,
         soundSystem,
+        playerDrinkingCooldowns,
+        rainCollectors,
+        waterPatches,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -757,6 +772,9 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 onAutoActionStatesChange={handleAutoActionStatesChange}
                 isFishing={isFishing}
                 lanterns={lanterns}
+                playerDrinkingCooldowns={playerDrinkingCooldowns}
+                rainCollectors={rainCollectors}
+                waterPatches={waterPatches}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}
@@ -785,6 +803,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 woodenStorageBoxes={woodenStorageBoxes}
                 playerCorpses={playerCorpses}
                 stashes={stashes}
+                rainCollectors={rainCollectors}
                 currentStorageBox={
                     interactingWith?.type === 'wooden_storage_box'
                         ? woodenStorageBoxes.get(interactingWith.id.toString()) || null

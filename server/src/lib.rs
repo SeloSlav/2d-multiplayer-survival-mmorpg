@@ -72,6 +72,8 @@ mod fishing; // <<< ADDED fishing module
 mod drinking; // <<< ADDED drinking module
 mod wet; // <<< ADDED wet status effect module
 mod sound_events; // <<< ADDED sound events module
+mod rain_collector; // <<< ADDED rain collector module
+mod water_patch; // <<< ADDED water patch module for crop watering
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -96,6 +98,15 @@ pub use drinking::drink_water;
 
 // ADD: Re-export planted seeds reducer
 pub use planted_seeds::plant_seed;
+
+// ADD: Re-export rain collector reducers
+pub use rain_collector::{place_rain_collector, move_item_to_rain_collector, move_item_from_rain_collector, fill_water_container};
+
+// ADD: Re-export water container consumption reducer
+pub use consumables::consume_filled_water_container;
+
+// ADD: Re-export water patch reducer
+pub use water_patch::water_crops;
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -175,6 +186,8 @@ use crate::drinking::player_drinking_cooldown as PlayerDrinkingCooldownTableTrai
 use crate::planted_seeds::planted_seed as PlantedSeedTableTrait; // <<< ADDED: Import PlantedSeed table trait
 use crate::sound_events::sound_event as SoundEventTableTrait; // <<< ADDED: Import SoundEvent table trait
 use crate::sound_events::sound_event_cleanup_schedule as SoundEventCleanupScheduleTableTrait; // <<< ADDED: Import SoundEventCleanupSchedule table trait
+use crate::rain_collector::rain_collector as RainCollectorTableTrait; // <<< ADDED: Import RainCollector table trait
+use crate::water_patch::water_patch as WaterPatchTableTrait; // <<< ADDED: Import WaterPatch table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -188,7 +201,9 @@ use crate::player_stats::{
     SPRINT_SPEED_MULTIPLIER,
     JUMP_COOLDOWN_MS,
     LOW_THIRST_SPEED_PENALTY,
-    LOW_WARMTH_SPEED_PENALTY
+    LOW_WARMTH_SPEED_PENALTY,
+    PLAYER_STARTING_HUNGER,
+    PLAYER_STARTING_THIRST
 };
 
 // Use specific items needed globally (or use qualified paths)
@@ -417,6 +432,9 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::projectile::init_projectile_system(ctx)?;
     // ADD: Initialize plant growth system
     crate::planted_seeds::init_plant_growth_system(ctx)?;
+    
+    // ADD: Initialize water patch cleanup system
+    crate::water_patch::init_water_patch_system(ctx)?;
     
     // ADD: Initialize sound event cleanup system
     crate::sound_events::init_sound_cleanup_system(ctx)?;
@@ -899,8 +917,8 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         jump_start_time_ms: 0,
         health: 100.0,
         stamina: 100.0,
-        thirst: 250.0,
-        hunger: 250.0,
+        thirst: PLAYER_STARTING_THIRST,
+        hunger: PLAYER_STARTING_HUNGER,
         warmth: 100.0,
         is_sprinting: false,
         is_dead: false,

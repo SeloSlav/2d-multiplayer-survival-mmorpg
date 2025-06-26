@@ -82,6 +82,16 @@ import hempSeedsIcon from '../assets/items/hemp_seeds.png';
 import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
 import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
 import pumpkinSeedsIcon from '../assets/items/pumpkin_seeds.png';
+import hollowReedArrowIcon from '../assets/items/hollow_reed_arrow.png';
+import reedBellowsIcon from '../assets/items/reed_bellows.png';
+import reedRainCollectorIcon from '../assets/items/reed_rain_collector.png';
+import reedWaterBottleIcon from '../assets/items/reed_water_bottle.png';
+import tinOfSpratsIcon from '../assets/items/tin_of_sprats.png';
+import fermentedCabbageJarIcon from '../assets/items/fermented_cabbage_jar.png';
+import oldHardtackBiscuitsIcon from '../assets/items/old_hardtack_biscuits.png';
+import expiredSovietChocolateIcon from '../assets/items/expired_soviet_chocolate.png';
+import mysteryCanIcon from '../assets/items/mystery_can.png';
+import waterJugIcon from '../assets/items/water_jug.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -164,6 +174,16 @@ const iconMap: { [key: string]: string | undefined } = {
   'reed_rhizome.png': reedRhizomeIcon,
   'mushroom_spore.png': mushroomSporeIcon,
   'pumpkin_seeds.png': pumpkinSeedsIcon,
+  'hollow_reed_arrow.png': hollowReedArrowIcon,
+  'reed_bellows.png': reedBellowsIcon,
+  'reed_rain_collector.png': reedRainCollectorIcon,
+  'reed_water_bottle.png': reedWaterBottleIcon,
+  'tin_of_sprats.png': tinOfSpratsIcon,
+  'fermented_cabbage_jar.png': fermentedCabbageJarIcon,
+  'old_hardtack_biscuits.png': oldHardtackBiscuitsIcon,
+  'expired_soviet_chocolate.png': expiredSovietChocolateIcon,
+  'mystery_can.png': mysteryCanIcon,
+  'water_jug.png': waterJugIcon,
 };
 
 // Export a function that provides the fallback logic

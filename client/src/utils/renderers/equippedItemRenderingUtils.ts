@@ -19,6 +19,11 @@ const SELO_OLIVE_OIL_ANIMATION_DURATION_MS = 2000; // Duration of the Selo Olive
 const SELO_OLIVE_OIL_MAX_ROTATION_RAD = Math.PI / 16; // Much gentler rotation than bandage (was Math.PI / 10)
 const SELO_OLIVE_OIL_WOBBLES = 8; // Fewer wobbles for a gentler shake (was 15)
 
+// Water drinking animation constants
+const WATER_DRINKING_ANIMATION_DURATION_MS = 2000; // Duration of the water drinking animation (MATCHES SERVER: 2 seconds)
+const WATER_DRINKING_MAX_ROTATION_RAD = Math.PI / 20; // Gentle rotation for drinking
+const WATER_DRINKING_WOBBLES = 6; // Gentle wobbles for drinking
+
 // --- Client-side animation tracking ---
 const clientSwingStartTimes = new Map<string, number>(); // playerId -> client timestamp when swing started
 const lastKnownServerSwingTimes = new Map<string, number>(); // playerId -> last known server timestamp for the swing
@@ -454,8 +459,41 @@ export const renderEquippedItem = (
   }
   // --- END SELO OLIVE OIL ANIMATION & DRAWING ---
 
+  // --- WATER DRINKING ANIMATION & DRAWING ---
+  let waterDrinkingDrawnWithAnimation = false;
+  let waterDrinkingStartTimeMs: number | null = null;
+
+  // Only show water drinking animation if we have both an active effect AND a water container is actually equipped
+  if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && activeConsumableEffects && player.identity) {
+    const playerHexId = player.identity.toHexString();
+    for (const effect of activeConsumableEffects.values()) {
+      // Show animation if player is drinking water (WaterDrinking effect with 2-second duration)
+      if (effect.effectType.tag === "WaterDrinking" && effect.playerId.toHexString() === playerHexId) {
+        waterDrinkingStartTimeMs = Number(effect.startedAt.microsSinceUnixEpoch / 1000n);
+        break;
+      }
+    }
+  }
+
+  if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && waterDrinkingStartTimeMs !== null) {
+    const elapsedWaterDrinkingTime = now_ms - waterDrinkingStartTimeMs;
+    if (elapsedWaterDrinkingTime >= 0 && elapsedWaterDrinkingTime < WATER_DRINKING_ANIMATION_DURATION_MS) {
+      const animationProgress = elapsedWaterDrinkingTime / WATER_DRINKING_ANIMATION_DURATION_MS;
+      const waterDrinkingRotation = Math.sin(animationProgress * Math.PI * WATER_DRINKING_WOBBLES * 2) * WATER_DRINKING_MAX_ROTATION_RAD;
+      
+      ctx.save(); // Save for water drinking specific animation transforms
+      // Water drinking rotation is applied here. Pivot is already at item center due to prior ctx.translate(pivotX, pivotY)
+      // and items are drawn relative to -itemWidth/2, -itemHeight/2.
+      ctx.rotate(waterDrinkingRotation); // Apply the wobble
+      ctx.drawImage(imageToRender, -itemWidth / 2, -itemHeight / 2, itemWidth, itemHeight); // Draw centered & rotated water container
+      ctx.restore(); // Restore from water drinking specific animation
+      waterDrinkingDrawnWithAnimation = true;
+    }
+  }
+  // --- END WATER DRINKING ANIMATION & DRAWING ---
+
   // --- REGULAR ITEM DRAWING (AND SWING FOR NON-SPEAR/NON-BANDAGE-ANIMATING) --- 
-  if (!bandageDrawnWithAnimation && !seloOliveOilDrawnWithAnimation) {
+  if (!bandageDrawnWithAnimation && !seloOliveOilDrawnWithAnimation && !waterDrinkingDrawnWithAnimation) {
     ctx.save(); // Save for regular item drawing / swing
     if (itemDef.name !== "Wooden Spear" && itemDef.name !== "Stone Spear" && itemDef.name !== "Bandage" && itemDef.name !== "Selo Olive Oil"
         && itemDef.name?.toLowerCase() !== "hunting bow" && itemDef.category?.tag !== "RangedWeapon") {

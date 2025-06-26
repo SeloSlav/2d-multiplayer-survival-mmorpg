@@ -54,10 +54,14 @@ import { CheckPlantGrowth } from "./check_plant_growth_reducer.ts";
 export { CheckPlantGrowth };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
+import { CleanupExpiredWaterPatches } from "./cleanup_expired_water_patches_reducer.ts";
+export { CleanupExpiredWaterPatches };
 import { CleanupOldSoundEvents } from "./cleanup_old_sound_events_reducer.ts";
 export { CleanupOldSoundEvents };
 import { ClearActiveItemReducer } from "./clear_active_item_reducer_reducer.ts";
 export { ClearActiveItemReducer };
+import { ConsumeFilledWaterContainer } from "./consume_filled_water_container_reducer.ts";
+export { ConsumeFilledWaterContainer };
 import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
 import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
@@ -94,6 +98,8 @@ import { EquipArmorFromInventory } from "./equip_armor_from_inventory_reducer.ts
 export { EquipArmorFromInventory };
 import { ExtinguishLantern } from "./extinguish_lantern_reducer.ts";
 export { ExtinguishLantern };
+import { FillWaterContainer } from "./fill_water_container_reducer.ts";
+export { FillWaterContainer };
 import { FinishFishing } from "./finish_fishing_reducer.ts";
 export { FinishFishing };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
@@ -150,6 +156,8 @@ import { MoveItemFromBox } from "./move_item_from_box_reducer.ts";
 export { MoveItemFromBox };
 import { MoveItemFromCorpse } from "./move_item_from_corpse_reducer.ts";
 export { MoveItemFromCorpse };
+import { MoveItemFromRainCollector } from "./move_item_from_rain_collector_reducer.ts";
+export { MoveItemFromRainCollector };
 import { MoveItemFromStash } from "./move_item_from_stash_reducer.ts";
 export { MoveItemFromStash };
 import { MoveItemToBox } from "./move_item_to_box_reducer.ts";
@@ -160,6 +168,8 @@ import { MoveItemToHotbar } from "./move_item_to_hotbar_reducer.ts";
 export { MoveItemToHotbar };
 import { MoveItemToInventory } from "./move_item_to_inventory_reducer.ts";
 export { MoveItemToInventory };
+import { MoveItemToRainCollector } from "./move_item_to_rain_collector_reducer.ts";
+export { MoveItemToRainCollector };
 import { MoveItemToStash } from "./move_item_to_stash_reducer.ts";
 export { MoveItemToStash };
 import { MoveItemWithinBox } from "./move_item_within_box_reducer.ts";
@@ -182,6 +192,8 @@ import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
 import { PlaceLantern } from "./place_lantern_reducer.ts";
 export { PlaceLantern };
+import { PlaceRainCollector } from "./place_rain_collector_reducer.ts";
+export { PlaceRainCollector };
 import { PlaceShelter } from "./place_shelter_reducer.ts";
 export { PlaceShelter };
 import { PlaceSleepingBag } from "./place_sleeping_bag_reducer.ts";
@@ -214,6 +226,8 @@ import { QuickMoveFromCorpse } from "./quick_move_from_corpse_reducer.ts";
 export { QuickMoveFromCorpse };
 import { QuickMoveFromStash } from "./quick_move_from_stash_reducer.ts";
 export { QuickMoveFromStash };
+import { QuickMoveItemFromRainCollector } from "./quick_move_item_from_rain_collector_reducer.ts";
+export { QuickMoveItemFromRainCollector };
 import { QuickMoveToBox } from "./quick_move_to_box_reducer.ts";
 export { QuickMoveToBox };
 import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
@@ -332,6 +346,8 @@ import { UpdateViewport } from "./update_viewport_reducer.ts";
 export { UpdateViewport };
 import { UseEquippedItem } from "./use_equipped_item_reducer.ts";
 export { UseEquippedItem };
+import { WaterCrops } from "./water_crops_reducer.ts";
+export { WaterCrops };
 
 // Import and reexport all table handle types
 import { ActiveConnectionTableHandle } from "./active_connection_table.ts";
@@ -432,6 +448,8 @@ import { ProjectileUpdateScheduleTableHandle } from "./projectile_update_schedul
 export { ProjectileUpdateScheduleTableHandle };
 import { PumpkinTableHandle } from "./pumpkin_table.ts";
 export { PumpkinTableHandle };
+import { RainCollectorTableHandle } from "./rain_collector_table.ts";
+export { RainCollectorTableHandle };
 import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
@@ -456,6 +474,10 @@ import { ThunderEventTableHandle } from "./thunder_event_table.ts";
 export { ThunderEventTableHandle };
 import { TreeTableHandle } from "./tree_table.ts";
 export { TreeTableHandle };
+import { WaterPatchTableHandle } from "./water_patch_table.ts";
+export { WaterPatchTableHandle };
+import { WaterPatchCleanupScheduleTableHandle } from "./water_patch_cleanup_schedule_table.ts";
+export { WaterPatchCleanupScheduleTableHandle };
 import { WoodenStorageBoxTableHandle } from "./wooden_storage_box_table.ts";
 export { WoodenStorageBoxTableHandle };
 import { WorldChunkDataTableHandle } from "./world_chunk_data_table.ts";
@@ -596,6 +618,8 @@ import { ProjectileUpdateSchedule } from "./projectile_update_schedule_type.ts";
 export { ProjectileUpdateSchedule };
 import { Pumpkin } from "./pumpkin_type.ts";
 export { Pumpkin };
+import { RainCollector } from "./rain_collector_type.ts";
+export { RainCollector };
 import { RangedWeaponStats } from "./ranged_weapon_stats_type.ts";
 export { RangedWeaponStats };
 import { Recipe } from "./recipe_type.ts";
@@ -634,6 +658,10 @@ import { Tree } from "./tree_type.ts";
 export { Tree };
 import { TreeType } from "./tree_type_type.ts";
 export { TreeType };
+import { WaterPatch } from "./water_patch_type.ts";
+export { WaterPatch };
+import { WaterPatchCleanupSchedule } from "./water_patch_cleanup_schedule_type.ts";
+export { WaterPatchCleanupSchedule };
 import { WeatherType } from "./weather_type_type.ts";
 export { WeatherType };
 import { WoodenStorageBox } from "./wooden_storage_box_type.ts";
@@ -894,6 +922,11 @@ const REMOTE_MODULE = {
       rowType: Pumpkin.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    rain_collector: {
+      tableName: "rain_collector",
+      rowType: RainCollector.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     ranged_weapon_stats: {
       tableName: "ranged_weapon_stats",
       rowType: RangedWeaponStats.getTypeScriptAlgebraicType(),
@@ -952,6 +985,16 @@ const REMOTE_MODULE = {
     tree: {
       tableName: "tree",
       rowType: Tree.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    water_patch: {
+      tableName: "water_patch",
+      rowType: WaterPatch.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    water_patch_cleanup_schedule: {
+      tableName: "water_patch_cleanup_schedule",
+      rowType: WaterPatchCleanupSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     wooden_storage_box: {
@@ -1020,6 +1063,10 @@ const REMOTE_MODULE = {
       reducerName: "check_resource_respawns",
       argsType: CheckResourceRespawns.getTypeScriptAlgebraicType(),
     },
+    cleanup_expired_water_patches: {
+      reducerName: "cleanup_expired_water_patches",
+      argsType: CleanupExpiredWaterPatches.getTypeScriptAlgebraicType(),
+    },
     cleanup_old_sound_events: {
       reducerName: "cleanup_old_sound_events",
       argsType: CleanupOldSoundEvents.getTypeScriptAlgebraicType(),
@@ -1027,6 +1074,10 @@ const REMOTE_MODULE = {
     clear_active_item_reducer: {
       reducerName: "clear_active_item_reducer",
       argsType: ClearActiveItemReducer.getTypeScriptAlgebraicType(),
+    },
+    consume_filled_water_container: {
+      reducerName: "consume_filled_water_container",
+      argsType: ConsumeFilledWaterContainer.getTypeScriptAlgebraicType(),
     },
     consume_item: {
       reducerName: "consume_item",
@@ -1099,6 +1150,10 @@ const REMOTE_MODULE = {
     extinguish_lantern: {
       reducerName: "extinguish_lantern",
       argsType: ExtinguishLantern.getTypeScriptAlgebraicType(),
+    },
+    fill_water_container: {
+      reducerName: "fill_water_container",
+      argsType: FillWaterContainer.getTypeScriptAlgebraicType(),
     },
     finish_fishing: {
       reducerName: "finish_fishing",
@@ -1212,6 +1267,10 @@ const REMOTE_MODULE = {
       reducerName: "move_item_from_corpse",
       argsType: MoveItemFromCorpse.getTypeScriptAlgebraicType(),
     },
+    move_item_from_rain_collector: {
+      reducerName: "move_item_from_rain_collector",
+      argsType: MoveItemFromRainCollector.getTypeScriptAlgebraicType(),
+    },
     move_item_from_stash: {
       reducerName: "move_item_from_stash",
       argsType: MoveItemFromStash.getTypeScriptAlgebraicType(),
@@ -1231,6 +1290,10 @@ const REMOTE_MODULE = {
     move_item_to_inventory: {
       reducerName: "move_item_to_inventory",
       argsType: MoveItemToInventory.getTypeScriptAlgebraicType(),
+    },
+    move_item_to_rain_collector: {
+      reducerName: "move_item_to_rain_collector",
+      argsType: MoveItemToRainCollector.getTypeScriptAlgebraicType(),
     },
     move_item_to_stash: {
       reducerName: "move_item_to_stash",
@@ -1275,6 +1338,10 @@ const REMOTE_MODULE = {
     place_lantern: {
       reducerName: "place_lantern",
       argsType: PlaceLantern.getTypeScriptAlgebraicType(),
+    },
+    place_rain_collector: {
+      reducerName: "place_rain_collector",
+      argsType: PlaceRainCollector.getTypeScriptAlgebraicType(),
     },
     place_shelter: {
       reducerName: "place_shelter",
@@ -1339,6 +1406,10 @@ const REMOTE_MODULE = {
     quick_move_from_stash: {
       reducerName: "quick_move_from_stash",
       argsType: QuickMoveFromStash.getTypeScriptAlgebraicType(),
+    },
+    quick_move_item_from_rain_collector: {
+      reducerName: "quick_move_item_from_rain_collector",
+      argsType: QuickMoveItemFromRainCollector.getTypeScriptAlgebraicType(),
     },
     quick_move_to_box: {
       reducerName: "quick_move_to_box",
@@ -1576,6 +1647,10 @@ const REMOTE_MODULE = {
       reducerName: "use_equipped_item",
       argsType: UseEquippedItem.getTypeScriptAlgebraicType(),
     },
+    water_crops: {
+      reducerName: "water_crops",
+      argsType: WaterCrops.getTypeScriptAlgebraicType(),
+    },
   },
   // Constructors which are used by the DbConnectionImpl to
   // extract type information from the generated RemoteModule.
@@ -1614,8 +1689,10 @@ export type Reducer = never
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckPlantGrowth", args: CheckPlantGrowth }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
+| { name: "CleanupExpiredWaterPatches", args: CleanupExpiredWaterPatches }
 | { name: "CleanupOldSoundEvents", args: CleanupOldSoundEvents }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
+| { name: "ConsumeFilledWaterContainer", args: ConsumeFilledWaterContainer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
 | { name: "DebugSetTime", args: DebugSetTime }
@@ -1634,6 +1711,7 @@ export type Reducer = never
 | { name: "EquipArmorFromDrag", args: EquipArmorFromDrag }
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
 | { name: "ExtinguishLantern", args: ExtinguishLantern }
+| { name: "FillWaterContainer", args: FillWaterContainer }
 | { name: "FinishFishing", args: FinishFishing }
 | { name: "FireProjectile", args: FireProjectile }
 | { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
@@ -1662,11 +1740,13 @@ export type Reducer = never
 | { name: "MoveFuelWithinLantern", args: MoveFuelWithinLantern }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
+| { name: "MoveItemFromRainCollector", args: MoveItemFromRainCollector }
 | { name: "MoveItemFromStash", args: MoveItemFromStash }
 | { name: "MoveItemToBox", args: MoveItemToBox }
 | { name: "MoveItemToCorpse", args: MoveItemToCorpse }
 | { name: "MoveItemToHotbar", args: MoveItemToHotbar }
 | { name: "MoveItemToInventory", args: MoveItemToInventory }
+| { name: "MoveItemToRainCollector", args: MoveItemToRainCollector }
 | { name: "MoveItemToStash", args: MoveItemToStash }
 | { name: "MoveItemWithinBox", args: MoveItemWithinBox }
 | { name: "MoveItemWithinCorpse", args: MoveItemWithinCorpse }
@@ -1678,6 +1758,7 @@ export type Reducer = never
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
 | { name: "PlaceLantern", args: PlaceLantern }
+| { name: "PlaceRainCollector", args: PlaceRainCollector }
 | { name: "PlaceShelter", args: PlaceShelter }
 | { name: "PlaceSleepingBag", args: PlaceSleepingBag }
 | { name: "PlaceStash", args: PlaceStash }
@@ -1694,6 +1775,7 @@ export type Reducer = never
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
 | { name: "QuickMoveFromStash", args: QuickMoveFromStash }
+| { name: "QuickMoveItemFromRainCollector", args: QuickMoveItemFromRainCollector }
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
@@ -1753,6 +1835,7 @@ export type Reducer = never
 | { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
 | { name: "UseEquippedItem", args: UseEquippedItem }
+| { name: "WaterCrops", args: WaterCrops }
 ;
 
 export class RemoteReducers {
@@ -1922,6 +2005,22 @@ export class RemoteReducers {
     this.connection.offReducer("check_resource_respawns", callback);
   }
 
+  cleanupExpiredWaterPatches(args: WaterPatchCleanupSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    CleanupExpiredWaterPatches.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("cleanup_expired_water_patches", __argsBuffer, this.setCallReducerFlags.cleanupExpiredWaterPatchesFlags);
+  }
+
+  onCleanupExpiredWaterPatches(callback: (ctx: ReducerEventContext, args: WaterPatchCleanupSchedule) => void) {
+    this.connection.onReducer("cleanup_expired_water_patches", callback);
+  }
+
+  removeOnCleanupExpiredWaterPatches(callback: (ctx: ReducerEventContext, args: WaterPatchCleanupSchedule) => void) {
+    this.connection.offReducer("cleanup_expired_water_patches", callback);
+  }
+
   cleanupOldSoundEvents(args: SoundEventCleanupSchedule) {
     const __args = { args };
     let __writer = new BinaryWriter(1024);
@@ -1952,6 +2051,22 @@ export class RemoteReducers {
 
   removeOnClearActiveItemReducer(callback: (ctx: ReducerEventContext, playerIdentity: Identity) => void) {
     this.connection.offReducer("clear_active_item_reducer", callback);
+  }
+
+  consumeFilledWaterContainer(itemInstanceId: bigint) {
+    const __args = { itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    ConsumeFilledWaterContainer.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("consume_filled_water_container", __argsBuffer, this.setCallReducerFlags.consumeFilledWaterContainerFlags);
+  }
+
+  onConsumeFilledWaterContainer(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("consume_filled_water_container", callback);
+  }
+
+  removeOnConsumeFilledWaterContainer(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("consume_filled_water_container", callback);
   }
 
   consumeItem(itemInstanceId: bigint) {
@@ -2232,6 +2347,22 @@ export class RemoteReducers {
 
   removeOnExtinguishLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
     this.connection.offReducer("extinguish_lantern", callback);
+  }
+
+  fillWaterContainer(collectorId: number) {
+    const __args = { collectorId };
+    let __writer = new BinaryWriter(1024);
+    FillWaterContainer.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("fill_water_container", __argsBuffer, this.setCallReducerFlags.fillWaterContainerFlags);
+  }
+
+  onFillWaterContainer(callback: (ctx: ReducerEventContext, collectorId: number) => void) {
+    this.connection.onReducer("fill_water_container", callback);
+  }
+
+  removeOnFillWaterContainer(callback: (ctx: ReducerEventContext, collectorId: number) => void) {
+    this.connection.offReducer("fill_water_container", callback);
   }
 
   finishFishing(success: boolean, caughtItems: string[]) {
@@ -2642,6 +2773,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_from_corpse", callback);
   }
 
+  moveItemFromRainCollector(collectorId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { collectorId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemFromRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_from_rain_collector", __argsBuffer, this.setCallReducerFlags.moveItemFromRainCollectorFlags);
+  }
+
+  onMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_from_rain_collector", callback);
+  }
+
+  removeOnMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_from_rain_collector", callback);
+  }
+
   moveItemFromStash(stashId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { stashId, sourceSlotIndex, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -2720,6 +2867,22 @@ export class RemoteReducers {
 
   removeOnMoveItemToInventory(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, targetInventorySlot: number) => void) {
     this.connection.offReducer("move_item_to_inventory", callback);
+  }
+
+  moveItemToRainCollector(collectorId: number, itemInstanceId: bigint, targetSlotIndex: number) {
+    const __args = { collectorId, itemInstanceId, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_rain_collector", __argsBuffer, this.setCallReducerFlags.moveItemToRainCollectorFlags);
+  }
+
+  onMoveItemToRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, itemInstanceId: bigint, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_to_rain_collector", callback);
+  }
+
+  removeOnMoveItemToRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, itemInstanceId: bigint, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_to_rain_collector", callback);
   }
 
   moveItemToStash(stashId: number, targetSlotIndex: number, itemInstanceId: bigint) {
@@ -2896,6 +3059,22 @@ export class RemoteReducers {
 
   removeOnPlaceLantern(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
     this.connection.offReducer("place_lantern", callback);
+  }
+
+  placeRainCollector(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_rain_collector", __argsBuffer, this.setCallReducerFlags.placeRainCollectorFlags);
+  }
+
+  onPlaceRainCollector(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_rain_collector", callback);
+  }
+
+  removeOnPlaceRainCollector(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_rain_collector", callback);
   }
 
   placeShelter(itemInstanceId: bigint, worldX: number, worldY: number) {
@@ -3152,6 +3331,22 @@ export class RemoteReducers {
 
   removeOnQuickMoveFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number) => void) {
     this.connection.offReducer("quick_move_from_stash", callback);
+  }
+
+  quickMoveItemFromRainCollector(collectorId: number, sourceSlotIndex: number) {
+    const __args = { collectorId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveItemFromRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_item_from_rain_collector", __argsBuffer, this.setCallReducerFlags.quickMoveItemFromRainCollectorFlags);
+  }
+
+  onQuickMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_item_from_rain_collector", callback);
+  }
+
+  removeOnQuickMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_item_from_rain_collector", callback);
   }
 
   quickMoveToBox(boxId: number, itemInstanceId: bigint) {
@@ -4054,6 +4249,22 @@ export class RemoteReducers {
     this.connection.offReducer("use_equipped_item", callback);
   }
 
+  waterCrops(containerInstanceId: bigint) {
+    const __args = { containerInstanceId };
+    let __writer = new BinaryWriter(1024);
+    WaterCrops.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("water_crops", __argsBuffer, this.setCallReducerFlags.waterCropsFlags);
+  }
+
+  onWaterCrops(callback: (ctx: ReducerEventContext, containerInstanceId: bigint) => void) {
+    this.connection.onReducer("water_crops", callback);
+  }
+
+  removeOnWaterCrops(callback: (ctx: ReducerEventContext, containerInstanceId: bigint) => void) {
+    this.connection.offReducer("water_crops", callback);
+  }
+
 }
 
 export class SetReducerFlags {
@@ -4112,6 +4323,11 @@ export class SetReducerFlags {
     this.checkResourceRespawnsFlags = flags;
   }
 
+  cleanupExpiredWaterPatchesFlags: CallReducerFlags = 'FullUpdate';
+  cleanupExpiredWaterPatches(flags: CallReducerFlags) {
+    this.cleanupExpiredWaterPatchesFlags = flags;
+  }
+
   cleanupOldSoundEventsFlags: CallReducerFlags = 'FullUpdate';
   cleanupOldSoundEvents(flags: CallReducerFlags) {
     this.cleanupOldSoundEventsFlags = flags;
@@ -4120,6 +4336,11 @@ export class SetReducerFlags {
   clearActiveItemReducerFlags: CallReducerFlags = 'FullUpdate';
   clearActiveItemReducer(flags: CallReducerFlags) {
     this.clearActiveItemReducerFlags = flags;
+  }
+
+  consumeFilledWaterContainerFlags: CallReducerFlags = 'FullUpdate';
+  consumeFilledWaterContainer(flags: CallReducerFlags) {
+    this.consumeFilledWaterContainerFlags = flags;
   }
 
   consumeItemFlags: CallReducerFlags = 'FullUpdate';
@@ -4210,6 +4431,11 @@ export class SetReducerFlags {
   extinguishLanternFlags: CallReducerFlags = 'FullUpdate';
   extinguishLantern(flags: CallReducerFlags) {
     this.extinguishLanternFlags = flags;
+  }
+
+  fillWaterContainerFlags: CallReducerFlags = 'FullUpdate';
+  fillWaterContainer(flags: CallReducerFlags) {
+    this.fillWaterContainerFlags = flags;
   }
 
   finishFishingFlags: CallReducerFlags = 'FullUpdate';
@@ -4342,6 +4568,11 @@ export class SetReducerFlags {
     this.moveItemFromCorpseFlags = flags;
   }
 
+  moveItemFromRainCollectorFlags: CallReducerFlags = 'FullUpdate';
+  moveItemFromRainCollector(flags: CallReducerFlags) {
+    this.moveItemFromRainCollectorFlags = flags;
+  }
+
   moveItemFromStashFlags: CallReducerFlags = 'FullUpdate';
   moveItemFromStash(flags: CallReducerFlags) {
     this.moveItemFromStashFlags = flags;
@@ -4365,6 +4596,11 @@ export class SetReducerFlags {
   moveItemToInventoryFlags: CallReducerFlags = 'FullUpdate';
   moveItemToInventory(flags: CallReducerFlags) {
     this.moveItemToInventoryFlags = flags;
+  }
+
+  moveItemToRainCollectorFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToRainCollector(flags: CallReducerFlags) {
+    this.moveItemToRainCollectorFlags = flags;
   }
 
   moveItemToStashFlags: CallReducerFlags = 'FullUpdate';
@@ -4420,6 +4656,11 @@ export class SetReducerFlags {
   placeLanternFlags: CallReducerFlags = 'FullUpdate';
   placeLantern(flags: CallReducerFlags) {
     this.placeLanternFlags = flags;
+  }
+
+  placeRainCollectorFlags: CallReducerFlags = 'FullUpdate';
+  placeRainCollector(flags: CallReducerFlags) {
+    this.placeRainCollectorFlags = flags;
   }
 
   placeShelterFlags: CallReducerFlags = 'FullUpdate';
@@ -4500,6 +4741,11 @@ export class SetReducerFlags {
   quickMoveFromStashFlags: CallReducerFlags = 'FullUpdate';
   quickMoveFromStash(flags: CallReducerFlags) {
     this.quickMoveFromStashFlags = flags;
+  }
+
+  quickMoveItemFromRainCollectorFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveItemFromRainCollector(flags: CallReducerFlags) {
+    this.quickMoveItemFromRainCollectorFlags = flags;
   }
 
   quickMoveToBoxFlags: CallReducerFlags = 'FullUpdate';
@@ -4797,6 +5043,11 @@ export class SetReducerFlags {
     this.useEquippedItemFlags = flags;
   }
 
+  waterCropsFlags: CallReducerFlags = 'FullUpdate';
+  waterCrops(flags: CallReducerFlags) {
+    this.waterCropsFlags = flags;
+  }
+
 }
 
 export class RemoteTables {
@@ -4998,6 +5249,10 @@ export class RemoteTables {
     return new PumpkinTableHandle(this.connection.clientCache.getOrCreateTable<Pumpkin>(REMOTE_MODULE.tables.pumpkin));
   }
 
+  get rainCollector(): RainCollectorTableHandle {
+    return new RainCollectorTableHandle(this.connection.clientCache.getOrCreateTable<RainCollector>(REMOTE_MODULE.tables.rain_collector));
+  }
+
   get rangedWeaponStats(): RangedWeaponStatsTableHandle {
     return new RangedWeaponStatsTableHandle(this.connection.clientCache.getOrCreateTable<RangedWeaponStats>(REMOTE_MODULE.tables.ranged_weapon_stats));
   }
@@ -5044,6 +5299,14 @@ export class RemoteTables {
 
   get tree(): TreeTableHandle {
     return new TreeTableHandle(this.connection.clientCache.getOrCreateTable<Tree>(REMOTE_MODULE.tables.tree));
+  }
+
+  get waterPatch(): WaterPatchTableHandle {
+    return new WaterPatchTableHandle(this.connection.clientCache.getOrCreateTable<WaterPatch>(REMOTE_MODULE.tables.water_patch));
+  }
+
+  get waterPatchCleanupSchedule(): WaterPatchCleanupScheduleTableHandle {
+    return new WaterPatchCleanupScheduleTableHandle(this.connection.clientCache.getOrCreateTable<WaterPatchCleanupSchedule>(REMOTE_MODULE.tables.water_patch_cleanup_schedule));
   }
 
   get woodenStorageBox(): WoodenStorageBoxTableHandle {

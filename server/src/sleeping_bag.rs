@@ -7,6 +7,7 @@
 
 use spacetimedb::{Identity, ReducerContext, Table, Timestamp};
 use log;
+use rand::Rng;
 
 // --- Constants --- 
 pub(crate) const SLEEPING_BAG_COLLISION_RADIUS: f32 = 18.0; // Width approx 36
@@ -33,6 +34,7 @@ use crate::items::{
 use crate::active_equipment; 
 use crate::crafting_queue;
 use crate::models::{ItemLocation, EquipmentSlotType}; // Removed PlayerActivity
+use crate::player_stats::{PLAYER_STARTING_HUNGER, PLAYER_STARTING_THIRST};
 
 /// --- Sleeping Bag Data Structure ---
 /// Represents a placed sleeping bag in the world.
@@ -241,6 +243,7 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
             item_def_id: combat_ladle_def.id,
             quantity: 1,
             location: combat_ladle_location,
+            item_data: None, // Initialize as empty
         }) {
             Ok(_) => log::info!("Granted 1 Combat Ladle (slot 0) to player {}", player.username),
             Err(e) => log::error!("Failed to grant starting Combat Ladle to player {}: {}", player.username, e),
@@ -260,6 +263,7 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
                 item_def_id: torch_def.id,
                 quantity: 1,
                 location: torch_location, // Attempt hotbar slot 1
+                item_data: None, // Initialize as empty
             }) {
                 Ok(_) => log::info!("Granted 1 Torch (slot 1) to player {}", player.username),
                 Err(_e) => {
@@ -292,8 +296,8 @@ pub fn respawn_at_sleeping_bag(ctx: &ReducerContext, bag_id: u32) -> Result<(), 
     player.position_y = sleeping_bag.pos_y;
     player.death_timestamp = None; // Clear death timestamp
     // Reset other stats like in respawn_randomly
-    player.hunger = 250.0;
-    player.thirst = 250.0;
+    player.hunger = PLAYER_STARTING_HUNGER;
+    player.thirst = PLAYER_STARTING_THIRST;
     player.warmth = 100.0;
     player.stamina = 100.0;
     player.jump_start_time_ms = 0;

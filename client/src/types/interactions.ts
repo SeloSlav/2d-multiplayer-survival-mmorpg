@@ -45,7 +45,8 @@ export type InteractionTargetType =
     | 'stash' 
     | 'sleeping_bag' 
     | 'knocked_out_player' 
-    | 'water';
+    | 'water'
+    | 'rain_collector';
 
 // Interaction behaviors - determines how the interaction works
 export enum InteractionBehavior {
@@ -145,6 +146,13 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
         holdDurationMs: 250, // 250ms for drinking water
         priority: 85,
         actionType: 'drink_water'
+    },
+    
+    // Rain collector - interface for managing water containers
+    rain_collector: {
+        behavior: InteractionBehavior.INTERFACE,
+        priority: 70,
+        actionType: 'open_rain_collector'
     }
 };
 

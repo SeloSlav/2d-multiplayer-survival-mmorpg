@@ -21,7 +21,8 @@ import {
     Projectile as SpacetimeDBProjectile,
     Shelter as SpacetimeDBShelter,
     PlayerDodgeRollState as SpacetimeDBPlayerDodgeRollState,
-    PlantedSeed as SpacetimeDBPlantedSeed
+    PlantedSeed as SpacetimeDBPlantedSeed,
+    RainCollector as SpacetimeDBRainCollector
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { gameConfig } from '../../config/gameConfig';
@@ -48,6 +49,7 @@ import { imageManager } from './imageManager';
 import { getItemIcon } from '../itemIconUtils';
 import { renderPlayerTorchLight, renderCampfireLight } from './lightRenderingUtils';
 import { drawInteractionOutline, drawCircularInteractionOutline, getInteractionOutlineColor } from './outlineUtils';
+import { drawDynamicGroundShadow } from './shadowUtils';
 
 // Type alias for Y-sortable entities
 import { YSortedEntityType } from '../../hooks/useEntityFiltering';
@@ -55,6 +57,94 @@ import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
 
 // Module-level cache for debug logging
 const playerDebugStateCache = new Map<string, { prevIsDead: boolean, prevLastHitTime: string | null }>();
+
+/**
+ * Rain collector rendering function with proper sprite and dynamic shadow
+ */
+const renderRainCollector = (
+    ctx: CanvasRenderingContext2D,
+    rainCollector: SpacetimeDBRainCollector,
+    closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null,
+    cycleProgress: number = 0,
+    doodadImagesRef?: React.RefObject<Map<string, HTMLImageElement>>
+) => {
+    if (rainCollector.isDestroyed) return;
+
+    const x = rainCollector.posX;
+    const y = rainCollector.posY;
+    
+    // Try to get the rain collector image
+    const rainCollectorImg = doodadImagesRef?.current?.get('reed_rain_collector.png');
+    
+    if (rainCollectorImg) {
+        // Use the actual sprite image
+        const spriteWidth = 96;  // Doubled from 48
+        const spriteHeight = 128; // Doubled from 64
+        
+        ctx.save();
+        
+        // Draw dynamic ground shadow first
+        drawDynamicGroundShadow({
+            ctx,
+            entityImage: rainCollectorImg,
+            entityCenterX: x,
+            entityBaseY: y + spriteHeight/2, // Base at bottom of sprite
+            imageDrawWidth: spriteWidth,
+            imageDrawHeight: spriteHeight,
+            cycleProgress: cycleProgress,
+            baseShadowColor: '0,0,0',
+            maxShadowAlpha: 0.4,
+            shadowBlur: 1,
+        });
+        
+        // Draw the rain collector sprite
+        ctx.drawImage(
+            rainCollectorImg,
+            x - spriteWidth/2,
+            y - spriteHeight/2,
+            spriteWidth,
+            spriteHeight
+        );
+        
+        // Highlight if interactable
+        if (closestInteractableTarget?.type === 'rain_collector' && 
+            closestInteractableTarget.id.toString() === rainCollector.id.toString()) {
+            const outlineColor = getInteractionOutlineColor('open');
+            drawInteractionOutline(ctx, x, y, spriteWidth + 20, spriteHeight + 20, cycleProgress, outlineColor);
+        }
+        
+        ctx.restore();
+    } else {
+        // Fallback to simple rectangle if image not loaded
+        const size = 96; // Doubled from 48
+        ctx.save();
+        
+        // Draw base (darker blue)
+        ctx.fillStyle = '#2c5aa0';
+        ctx.fillRect(x - size/2, y - size/2, size, size);
+        
+        // Draw water level indicator
+        const maxWater = 40; // Updated to match the new capacity
+        const waterRatio = Math.min(rainCollector.totalWaterCollected / maxWater, 1.0);
+        const waterHeight = size * waterRatio * 0.8;
+        ctx.fillStyle = '#4a90e2';
+        ctx.fillRect(x - size/2 + 4, y + size/2 - waterHeight - 4, size - 8, waterHeight);
+        
+        // Draw outline
+        ctx.strokeStyle = '#1a3d6b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - size/2, y - size/2, size, size);
+        
+        // Highlight if interactable
+        if (closestInteractableTarget?.type === 'rain_collector' && 
+            closestInteractableTarget.id.toString() === rainCollector.id.toString()) {
+            const outlineColor = getInteractionOutlineColor('open');
+            drawInteractionOutline(ctx, x, y, size + 20, size + 20, cycleProgress, outlineColor);
+        }
+        
+        ctx.restore();
+    }
+};
 
 // Movement smoothing cache to prevent animation jitters
 const playerMovementCache = new Map<string, { 
@@ -576,6 +666,9 @@ export const renderYSortedEntities = ({
             const plantedSeed = entity as SpacetimeDBPlantedSeed;
             const plantedSeedImg = doodadImagesRef.current?.get('planted_seed.png');
             renderPlantedSeed(ctx, plantedSeed, nowMs, cycleProgress, plantedSeedImg);
+        } else if (type === 'rain_collector') {
+            const rainCollector = entity as SpacetimeDBRainCollector;
+            renderRainCollector(ctx, rainCollector, closestInteractableTarget, cycleProgress, doodadImagesRef);
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -631,6 +724,8 @@ export const renderYSortedEntities = ({
             // No action needed in the shadow-only pass
         } else if (type === 'planted_seed') {
             // Planted seeds are fully rendered in the first pass - no second pass needed
+        } else if (type === 'rain_collector') {
+            // Rain collectors are fully rendered in the first pass - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

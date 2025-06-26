@@ -15,7 +15,8 @@ import {
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
   Grass as SpacetimeDBGrass,
-  Shelter // ADDED Shelter type
+  Shelter, // ADDED Shelter type
+  RainCollector as SpacetimeDBRainCollector // ADDED RainCollector type
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
@@ -208,4 +209,21 @@ export function isGrass(entity: any): entity is SpacetimeDBGrass | InterpolatedG
 
 export function isShelter(entity: any): entity is Shelter {
     return entity && typeof entity === 'object' && 'placedBy' in entity && 'maxHealth' in entity && !('treeType' in entity) && !('isBurning' in entity) && !('itemDefId' in entity);
+}
+
+// Type guard for RainCollector
+export function isRainCollector(entity: any): entity is SpacetimeDBRainCollector {
+    return entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' &&
+           typeof entity.totalWaterCollected === 'number' && // Unique to rain collectors
+           typeof entity.placedBy !== 'undefined' && // Has placedBy like other placed items
+           typeof entity.isDestroyed === 'boolean' && // Has destruction state
+           // Ensure it doesn't match other types
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.health === 'undefined' && // Not a Stone
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           typeof entity.itemDefId === 'undefined'; // Not a DroppedItem
 } 

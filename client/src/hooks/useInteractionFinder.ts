@@ -15,9 +15,11 @@ import {
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
     Shelter as SpacetimeDBShelter,
+    RainCollector as SpacetimeDBRainCollector,
     DbConnection,
     InventoryItem as SpacetimeDBInventoryItem,
     ItemDefinition as SpacetimeDBItemDefinition,
+    PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
 } from '../generated';
 import { InteractableTarget } from '../types/interactions';
 import {
@@ -63,12 +65,14 @@ interface UseInteractionFinderProps {
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
+    rainCollectors: Map<string, SpacetimeDBRainCollector>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     players: Map<string, SpacetimeDBPlayer>;
     shelters: Map<string, SpacetimeDBShelter>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     connection: DbConnection | null; // NEW: Connection for water tile access
+    playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // NEW: Player drinking cooldowns
 }
 
 // Define the hook's return type
@@ -91,6 +95,7 @@ interface UseInteractionFinderResult {
     isClosestInteractableBoxEmpty: boolean;
     closestInteractableCorpseId: bigint | null;
     closestInteractableStashId: number | null;
+    closestInteractableRainCollectorId: number | null;
     closestInteractableSleepingBagId: number | null;
     closestInteractableKnockedOutPlayerId: string | null;
     closestInteractableWaterPosition: { x: number; y: number } | null;
@@ -108,6 +113,7 @@ export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 100.0 * 100.0;
 // PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED is now imported from playerCorpseRenderingUtils
 export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 32.0 * 32.0;
+export const PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 
 // --- Locally Defined Visual Heights for Interaction (formerly in gameConfig.ts) ---
 export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
@@ -188,6 +194,7 @@ export function useInteractionFinder({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
+    rainCollectors,
     sleepingBags,
     players,
     shelters,
@@ -195,6 +202,7 @@ export function useInteractionFinder({
     inventoryItems,
     itemDefinitions,
     connection,
+    playerDrinkingCooldowns,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -211,6 +219,7 @@ export function useInteractionFinder({
     const [isClosestInteractableBoxEmpty, setIsClosestInteractableBoxEmpty] = useState<boolean>(false);
     const [closestInteractableCorpseId, setClosestInteractableCorpseId] = useState<bigint | null>(null);
     const [closestInteractableStashId, setClosestInteractableStashId] = useState<number | null>(null);
+    const [closestInteractableRainCollectorId, setClosestInteractableRainCollectorId] = useState<number | null>(null);
     const [closestInteractableSleepingBagId, setClosestInteractableSleepingBagId] = useState<number | null>(null);
     const [closestInteractableKnockedOutPlayerId, setClosestInteractableKnockedOutPlayerId] = useState<string | null>(null);
     const [closestInteractableWaterPosition, setClosestInteractableWaterPosition] = useState<{ x: number; y: number } | null>(null);
@@ -257,6 +266,9 @@ export function useInteractionFinder({
         let closestCorpseDistSq = PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED;
 
         let closestStashId: number | null = null;
+
+        let closestRainCollectorId: number | null = null;
+        let closestRainCollectorDistSq = PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED;
 
         let closestSleepingBagId: number | null = null;
         let closestSleepingBagDistSq = PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED;
@@ -510,7 +522,43 @@ export function useInteractionFinder({
                 // within its specific interaction range AND is the closest among such stashes.
             }
 
-          
+            // Find closest rain collector
+            if (rainCollectors) {
+                // DEBUG: Log rain collector search
+                // if (rainCollectors.size > 0) {
+                //     console.log('[InteractionFinder] Searching rain collectors:', {
+                //         playerPos: { x: playerX, y: playerY },
+                //         rainCollectorCount: rainCollectors.size,
+                //         rainCollectorPositions: Array.from(rainCollectors.values()).map(rc => ({ id: rc.id, pos: { x: rc.posX, y: rc.posY }, destroyed: rc.isDestroyed }))
+                //     });
+                // }
+                
+                rainCollectors.forEach((rainCollector) => {
+                    if (rainCollector.isDestroyed) return;
+                    
+                    const dx = playerX - rainCollector.posX;
+                    const dy = playerY - rainCollector.posY;
+                    const distSq = dx * dx + dy * dy;
+                    const distance = Math.sqrt(distSq);
+                    
+                    // DEBUG: Log distance check
+                    console.log(`[InteractionFinder] Rain collector ${rainCollector.id} distance: ${distance.toFixed(1)}px (threshold: ${Math.sqrt(PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED).toFixed(1)}px)`);
+                    
+                    if (distSq < closestRainCollectorDistSq) {
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            rainCollector.posX, rainCollector.posY, shelters
+                        )) {
+                            console.log(`[InteractionFinder] Rain collector ${rainCollector.id} is now closest interactable`);
+                            closestRainCollectorDistSq = distSq;
+                            closestRainCollectorId = rainCollector.id;
+                        } else {
+                            console.log(`[InteractionFinder] Rain collector ${rainCollector.id} blocked by shelter access control`);
+                        }
+                    }
+                });
+            }
 
             // Find closest knocked out player (excluding local player)
             if (players) {
@@ -535,44 +583,59 @@ export function useInteractionFinder({
 
             // Find closest water position
             if (connection) {
-                // Check for water tiles in a small radius around the player
-                const checkRadiusTiles = 2; // Check 2 tiles around player (matches server-side logic)
-                const playerTileX = Math.floor(playerX / TILE_SIZE);
-                const playerTileY = Math.floor(playerY / TILE_SIZE);
+                // Check if player has drinking cooldown first
+                const playerIdHex = localPlayer.identity.toHexString();
+                const drinkingCooldown = playerDrinkingCooldowns?.get(playerIdHex);
                 
-                for (let dy = -checkRadiusTiles; dy <= checkRadiusTiles; dy++) {
-                    for (let dx = -checkRadiusTiles; dx <= checkRadiusTiles; dx++) {
-                        const checkTileX = playerTileX + dx;
-                        const checkTileY = playerTileY + dy;
-                        
-                        // Calculate tile center position
-                        const tileCenterX = (checkTileX + 0.5) * TILE_SIZE;
-                        const tileCenterY = (checkTileY + 0.5) * TILE_SIZE;
-                        
-                        // Calculate distance from player to tile center
-                        const distanceToTileSq = (playerX - tileCenterX) * (playerX - tileCenterX) + 
-                                               (playerY - tileCenterY) * (playerY - tileCenterY);
-                        
-                        // Only check tiles within drinking distance
-                        if (distanceToTileSq <= closestWaterDistSq) {
-                            // Check if this tile is water by looking through all world tiles
-                            for (const tile of connection.db.worldTile.iter()) {
-                                if (tile.worldX === checkTileX && tile.worldY === checkTileY) {
-                                    // Found the tile at this position, check if it's water
-                                    if (tile.tileType.tag === 'Sea') {
-                                        // This is a water tile and it's closer than our current closest
-                                        closestWaterDistSq = distanceToTileSq;
-                                        closestWaterPosition = { x: tileCenterX, y: tileCenterY };
-                                        break; // Found water at this position, no need to continue checking this tile
+                let isOnCooldown = false;
+                if (drinkingCooldown) {
+                    const currentTime = Date.now() * 1000; // Convert to microseconds
+                    const timeSinceLastDrink = currentTime - Number(drinkingCooldown.lastDrinkTime.__timestamp_micros_since_unix_epoch__);
+                    const cooldownMicros = 2000 * 1000; // 2 seconds in microseconds
+                    isOnCooldown = timeSinceLastDrink < cooldownMicros;
+                }
+                
+                // Only check for water tiles if not on cooldown
+                if (!isOnCooldown) {
+                    // Check for water tiles in a small radius around the player
+                    const checkRadiusTiles = 2; // Check 2 tiles around player (matches server-side logic)
+                    const playerTileX = Math.floor(playerX / TILE_SIZE);
+                    const playerTileY = Math.floor(playerY / TILE_SIZE);
+                    
+                    for (let dy = -checkRadiusTiles; dy <= checkRadiusTiles; dy++) {
+                        for (let dx = -checkRadiusTiles; dx <= checkRadiusTiles; dx++) {
+                            const checkTileX = playerTileX + dx;
+                            const checkTileY = playerTileY + dy;
+                            
+                            // Calculate tile center position
+                            const tileCenterX = (checkTileX + 0.5) * TILE_SIZE;
+                            const tileCenterY = (checkTileY + 0.5) * TILE_SIZE;
+                            
+                            // Calculate distance from player to tile center
+                            const distanceToTileSq = (playerX - tileCenterX) * (playerX - tileCenterX) + 
+                                                   (playerY - tileCenterY) * (playerY - tileCenterY);
+                            
+                            // Only check tiles within drinking distance
+                            if (distanceToTileSq <= closestWaterDistSq) {
+                                // Check if this tile is water by looking through all world tiles
+                                for (const tile of connection.db.worldTile.iter()) {
+                                    if (tile.worldX === checkTileX && tile.worldY === checkTileY) {
+                                        // Found the tile at this position, check if it's water
+                                        if (tile.tileType.tag === 'Sea') {
+                                            // This is a water tile and it's closer than our current closest
+                                            closestWaterDistSq = distanceToTileSq;
+                                            closestWaterPosition = { x: tileCenterX, y: tileCenterY };
+                                            break; // Found water at this position, no need to continue checking this tile
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    
-                    // Early exit if we found very close water
-                    if (closestWaterPosition && closestWaterDistSq < (32.0 * 32.0)) {
-                        break;
+                        
+                        // Early exit if we found very close water
+                        if (closestWaterPosition && closestWaterDistSq < (32.0 * 32.0)) {
+                            break;
+                        }
                     }
                 }
             }
@@ -704,6 +767,14 @@ export function useInteractionFinder({
                     });
                 }
             }
+            if (closestRainCollectorId) {
+                candidates.push({
+                    type: 'rain_collector',
+                    id: closestRainCollectorId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestRainCollectorDistSq)
+                });
+            }
             if (closestSleepingBagId) {
                 candidates.push({
                     type: 'sleeping_bag',
@@ -752,12 +823,13 @@ export function useInteractionFinder({
             isClosestInteractableBoxEmpty: isClosestBoxEmpty,
             closestInteractableCorpseId: closestCorpse,
             closestInteractableStashId: closestStashId,
+            closestInteractableRainCollectorId: closestRainCollectorId,
             closestInteractableSleepingBagId: closestSleepingBagId,
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
             closestInteractableWaterPosition: closestWaterPosition,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
+    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -802,6 +874,9 @@ export function useInteractionFinder({
         if (interactionResult.closestInteractableStashId !== closestInteractableStashId) {
             setClosestInteractableStashId(interactionResult.closestInteractableStashId);
         }
+        if (interactionResult.closestInteractableRainCollectorId !== closestInteractableRainCollectorId) {
+            setClosestInteractableRainCollectorId(interactionResult.closestInteractableRainCollectorId);
+        }
         if (interactionResult.closestInteractableSleepingBagId !== closestInteractableSleepingBagId) {
             setClosestInteractableSleepingBagId(interactionResult.closestInteractableSleepingBagId);
         }
@@ -829,6 +904,7 @@ export function useInteractionFinder({
         isClosestInteractableBoxEmpty,
         closestInteractableCorpseId,
         closestInteractableStashId,
+        closestInteractableRainCollectorId,
         closestInteractableSleepingBagId,
         closestInteractableKnockedOutPlayerId,
         closestInteractableWaterPosition,

@@ -37,6 +37,7 @@ export type InventoryItem = {
   itemDefId: bigint,
   quantity: number,
   location: __ItemLocation,
+  itemData: string | undefined,
 };
 
 /**
@@ -53,6 +54,7 @@ export namespace InventoryItem {
       new ProductTypeElement("itemDefId", AlgebraicType.createU64Type()),
       new ProductTypeElement("quantity", AlgebraicType.createU32Type()),
       new ProductTypeElement("location", __ItemLocation.getTypeScriptAlgebraicType()),
+      new ProductTypeElement("itemData", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
     ]);
   }
 

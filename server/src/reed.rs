@@ -31,7 +31,7 @@ const REED_RADIUS: f32 = BASE_RESOURCE_RADIUS * 0.8; // Slightly smaller than mu
 
 // --- Spawning Constants ---
 /// Target percentage of map tiles containing reed stalks
-pub const REED_DENSITY_PERCENT: f32 = 0.0012; // 0.12% - targets ~90 reed patches on 75k land tiles (higher than corn since they're along water)
+pub const REED_DENSITY_PERCENT: f32 = 0.003; // 0.3% - targets ~225 reed patches on 75k land tiles (increased from 0.12% due to restrictive spawn conditions)
 /// Minimum distance between reed stalks to prevent clustering
 pub const MIN_REED_DISTANCE_SQ: f32 = 25.0 * 25.0; // Min distance between reeds squared (smaller than corn - reeds can grow closer together)
 /// Minimum distance from trees for better distribution

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, Lantern as SpacetimeDBLantern, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, Lantern as SpacetimeDBLantern, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState, RainCollector as SpacetimeDBRainCollector } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -42,6 +42,7 @@ interface PlayerUIProps {
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   playerCorpses: Map<string, PlayerCorpse>;
   stashes: Map<string, SpacetimeDBStash>;
+  rainCollectors: Map<string, SpacetimeDBRainCollector>;
   onCraftingSearchFocusChange?: (isFocused: boolean) => void;
   showInventory: boolean;
   onToggleInventory: () => void;
@@ -74,6 +75,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
+    rainCollectors,
     onCraftingSearchFocusChange,
     showInventory,
     onToggleInventory,
@@ -875,6 +877,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     woodenStorageBoxes={woodenStorageBoxes}
                     playerCorpses={playerCorpses}
                     stashes={stashes}
+                    rainCollectors={rainCollectors}
                     startPlacement={startPlacement}
                     cancelPlacement={cancelPlacement}
                     placementInfo={placementInfo}

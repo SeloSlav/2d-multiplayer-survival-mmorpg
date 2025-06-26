@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash, Player, ActiveConsumableEffect, ActiveEquipment } from '../generated';
 import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
+import { isWaterContainer, hasWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
 
 // Import Custom Components
 import DraggableItem from './DraggableItem';
@@ -171,8 +172,16 @@ const Hotbar: React.FC<HotbarProps> = ({
     const itemInSlot = findItemForSlot(slotIndex);
     if (!itemInSlot) return false;
     
-    // Allow torches to be used in water
-    if (itemInSlot.definition.name === 'Torch') return false;
+    // Allow specific items to be used in water
+    const allowedInWater = [
+      'Torch',
+      'Reed Water Bottle', 
+      'Plastic Water Jug'
+    ];
+    if (allowedInWater.includes(itemInSlot.definition.name)) return false;
+    
+    // Allow seeds and food (consumables) to be used in water
+    if (itemInSlot.definition.category.tag === 'Consumable') return false;
     
     const categoryTag = itemInSlot.definition.category.tag;
     return categoryTag === 'Weapon' || 
@@ -433,9 +442,14 @@ const Hotbar: React.FC<HotbarProps> = ({
       if (selectedSlot >= 0 && selectedSlot < numSlots) {
         const currentItem = findItemForSlot(selectedSlot);
         if (currentItem) {
-          // Don't auto-unequip torches in water
-          if (currentItem.definition.name === 'Torch') {
-            return; // Keep torch equipped
+          // Don't auto-unequip allowed items in water
+          const allowedInWater = [
+            'Torch',
+            'Reed Water Bottle', 
+            'Plastic Water Jug'
+          ];
+          if (allowedInWater.includes(currentItem.definition.name)) {
+            return; // Keep allowed items equipped
           }
           
           const categoryTag = currentItem.definition.category.tag;
@@ -565,15 +579,21 @@ const Hotbar: React.FC<HotbarProps> = ({
     const instanceId = BigInt(itemInSlot.instance.instanceId);
     const isEquippable = itemInSlot.definition.isEquippable;
 
-    // Check if player is in water and trying to use a weapon (except torches)
+    // Check if player is in water and trying to use a weapon (except allowed items)
     const isWeaponType = categoryTag === 'Weapon' || 
                         categoryTag === 'RangedWeapon' || 
                         categoryTag === 'Tool' ||
                         isEquippable;
     
-    if (localPlayer?.isOnWater && isWeaponType && itemInSlot.definition.name !== 'Torch') {
+    const allowedInWater = [
+      'Torch',
+      'Reed Water Bottle', 
+      'Plastic Water Jug'
+    ];
+    
+    if (localPlayer?.isOnWater && isWeaponType && !allowedInWater.includes(itemInSlot.definition.name)) {
       console.log('[Hotbar] Cannot use weapons while in water:', itemInSlot.definition.name);
-      return; // Prevent weapon activation in water (except torches)
+      return; // Prevent weapon activation in water (except allowed items)
     }
 
     // console.log(`[Hotbar] Activating slot ${slotIndex}: "${itemInSlot.definition.name}" (Category: ${categoryTag}, Equippable: ${isEquippable})`);
@@ -848,7 +868,7 @@ const Hotbar: React.FC<HotbarProps> = ({
                console.error("[Hotbar ContextMenu Hotbar->Corpse] Failed to call quickMoveToCorpse reducer:", error);
            }
            return;
-      } else if (interactingWith?.type === 'stash') {
+      }       else if (interactingWith?.type === 'stash') {
           const stashId = Number(interactingWith.id);
           const currentStash = stashes.get(interactingWith.id.toString());
           if (currentStash && !currentStash.isHidden) {
@@ -862,7 +882,30 @@ const Hotbar: React.FC<HotbarProps> = ({
           }
           return;
       }
+      else if (interactingWith?.type === 'rain_collector') {
+          const rainCollectorId = Number(interactingWith.id);
+          try {
+              connection.reducers.moveItemToRainCollector(rainCollectorId, itemInstanceId, 0);
+          } catch (error: any) {
+              console.error("[Hotbar ContextMenu Hotbar->RainCollector] Failed to call moveItemToRainCollector reducer:", error);
+          }
+          return;
+      }
       else {
+          // Check if it's a water container with water content
+          const isWaterContainerItem = isWaterContainer(itemInfo.definition.name);
+          const hasWater = hasWaterContent(itemInfo.instance);
+          
+          if (isWaterContainerItem && hasWater) {
+              try {
+                  console.log(`[Hotbar ContextMenu] Consuming water from ${itemInfo.definition.name}`);
+                  connection.reducers.consumeFilledWaterContainer(itemInstanceId);
+              } catch (error: any) {
+                  console.error("[Hotbar ContextMenu] Failed to consume water container:", error);
+              }
+              return;
+          }
+
           const isArmor = itemInfo.definition.category.tag === 'Armor';
           const hasEquipSlot = itemInfo.definition.equipmentSlotType !== null && itemInfo.definition.equipmentSlotType !== undefined;
           
@@ -1049,6 +1092,43 @@ const Hotbar: React.FC<HotbarProps> = ({
                       onContextMenu={(event) => handleHotbarItemContextMenu(event, populatedItem)}
                    />
               )}
+              
+              {/* Water level indicator for water containers */}
+              {populatedItem && isWaterContainer(populatedItem.definition.name) && (() => {
+                const waterLevelPercentage = getWaterLevelPercentage(populatedItem.instance, populatedItem.definition.name);
+                const hasWater = waterLevelPercentage > 0;
+                
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '4px',
+                      top: '4px',
+                      bottom: '4px',
+                      width: '3px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                      borderRadius: '1px',
+                      zIndex: 4,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {hasWater && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '0px',
+                          left: '0px',
+                          right: '0px',
+                          height: `${waterLevelPercentage * 100}%`,
+                          backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                          borderRadius: '1px',
+                          transition: 'height 0.3s ease-in-out',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })()}
               {/* Debug info for consumable cooldowns */}
               {cooldownSlot === index && (
                 <div style={{

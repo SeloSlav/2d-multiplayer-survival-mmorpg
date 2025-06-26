@@ -12,6 +12,7 @@ import styles from './ItemInteractionPanel.module.css';
 import { PopulatedItem } from './InventoryUI';
 import { DbConnection } from '../generated';
 import { getItemIcon } from '../utils/itemIconUtils';
+import { isWaterContainer, hasWaterContent } from '../utils/waterContainerHelpers';
 
 interface ItemInteractionPanelProps {
     selectedItem: PopulatedItem;
@@ -91,8 +92,18 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
             });
         }
 
-        // Check if item is consumable (but not a bandage)
-        if (itemName !== "Bandage" && (
+        // Check if item is a water container with water content
+        if (isWaterContainer(itemName) && hasWaterContent(item.instance)) {
+            actions.push({
+                label: 'Drink',
+                action: 'drink',
+                description: 'Drink water from this container',
+                buttonStyle: 'consumeButton'
+            });
+        }
+
+        // Check if item is consumable (but not a bandage or water container)
+        if (itemName !== "Bandage" && !isWaterContainer(itemName) && (
             def.category.tag === 'Consumable' || 
             def.consumableHealthGain !== undefined ||
             def.consumableHungerSatiated !== undefined ||
@@ -124,6 +135,10 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
                 case 'consume':
                     // console.log(`Consuming item ${itemInstanceId}: ${selectedItem.definition.name}`);
                     connection.reducers.consumeItem(itemInstanceId);
+                    break;
+                case 'drink':
+                    // console.log(`Drinking from water container ${itemInstanceId}: ${selectedItem.definition.name}`);
+                    connection.reducers.consumeFilledWaterContainer(itemInstanceId);
                     break;
                 default:
                     console.warn(`Unknown action: ${action}`);

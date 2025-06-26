@@ -163,11 +163,17 @@ pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Resu
         "WorldState singleton not found".to_string()
     })?;
     
-    // 🌧️ Stop heavy rain sound if we're changing away from heavy weather
+    // 🌧️ Stop rain sounds if we're changing away from rainy weather
     if matches!(world_state.current_weather, WeatherType::HeavyRain | WeatherType::HeavyStorm) 
         && !matches!(weather_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
         sound_events::stop_heavy_storm_rain_sound(ctx);
         log::info!("🌧️ Stopped heavy rain sound due to debug weather change: {:?} -> {:?}", world_state.current_weather, weather_type);
+    }
+    
+    if matches!(world_state.current_weather, WeatherType::LightRain | WeatherType::ModerateRain) 
+        && !matches!(weather_type, WeatherType::LightRain | WeatherType::ModerateRain) {
+        sound_events::stop_normal_rain_sound(ctx);
+        log::info!("🌦️ Stopped normal rain sound due to debug weather change: {:?} -> {:?}", world_state.current_weather, weather_type);
     }
     
     // Set the weather immediately
@@ -200,12 +206,18 @@ pub fn debug_set_weather(ctx: &ReducerContext, weather_type_str: String) -> Resu
         log::info!("Heavy Storm started with thunder scheduled in {:.1} seconds", first_thunder_delay);
     }
     
-    // 🌧️ Start continuous heavy rain sound for both HeavyRain and HeavyStorm
+    // 🌧️ Start continuous rain sounds based on weather type
     if matches!(weather_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
         if let Err(e) = sound_events::start_heavy_storm_rain_sound(ctx) {
             log::error!("Failed to start heavy rain sound: {}", e);
         } else {
             log::info!("🌧️ Started heavy rain sound for debug weather change: {:?}", weather_type);
+        }
+    } else if matches!(weather_type, WeatherType::LightRain | WeatherType::ModerateRain) {
+        if let Err(e) = sound_events::start_normal_rain_sound(ctx) {
+            log::error!("Failed to start normal rain sound: {}", e);
+        } else {
+            log::info!("🌦️ Started normal rain sound for debug weather change: {:?}", weather_type);
         }
     }
     
@@ -418,12 +430,18 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                         log::info!("Heavy Storm started with thunder scheduled in {:.1} seconds", first_thunder_delay);
                     }
                     
-                    // 🌧️ Start continuous heavy rain sound for both HeavyRain and HeavyStorm
+                    // 🌧️ Start continuous rain sounds based on rain type
                     if matches!(rain_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
                         if let Err(e) = sound_events::start_heavy_storm_rain_sound(ctx) {
                             log::error!("Failed to start heavy rain sound: {}", e);
                         } else {
                             log::info!("🌧️ Started heavy rain sound for {:?}", rain_type);
+                        }
+                    } else if matches!(rain_type, WeatherType::LightRain | WeatherType::ModerateRain) {
+                        if let Err(e) = sound_events::start_normal_rain_sound(ctx) {
+                            log::error!("Failed to start normal rain sound: {}", e);
+                        } else {
+                            log::info!("🌦️ Started normal rain sound for {:?}", rain_type);
                         }
                     }
                     
@@ -434,6 +452,11 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                     if matches!(rain_type, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
                         extinguish_unprotected_campfires(ctx, &rain_type)?;
                     }
+                    
+                    // Start rain collection for all rain collectors
+                    if let Err(e) = crate::rain_collector::update_rain_collectors(ctx, &rain_type, elapsed_seconds) {
+                        log::error!("Failed to update rain collectors: {}", e);
+                    }
                 }
             }
         },
@@ -443,9 +466,11 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                 let rain_elapsed = (now.to_micros_since_unix_epoch() - start_time.to_micros_since_unix_epoch()) as f32 / 1_000_000.0;
                 
                 if rain_elapsed >= duration {
-                    // 🌧️ Stop heavy rain sound if it was heavy rain or heavy storm (check before changing weather)
+                    // 🌧️ Stop rain sounds based on current weather type (check before changing weather)
                     if matches!(world_state.current_weather, WeatherType::HeavyRain | WeatherType::HeavyStorm) {
                         sound_events::stop_heavy_storm_rain_sound(ctx);
+                    } else if matches!(world_state.current_weather, WeatherType::LightRain | WeatherType::ModerateRain) {
+                        sound_events::stop_normal_rain_sound(ctx);
                     }
                     
                     // End rain
@@ -486,6 +511,11 @@ fn update_weather(ctx: &ReducerContext, world_state: &mut WorldState, elapsed_se
                                 // Lightning sound removed - too aggressive for gameplay
                             }
                         }
+                    }
+                    
+                    // Continue rain collection for all rain collectors
+                    if let Err(e) = crate::rain_collector::update_rain_collectors(ctx, &world_state.current_weather, elapsed_seconds) {
+                        log::error!("Failed to update rain collectors during rain: {}", e);
                     }
                     
                     // Optionally vary intensity slightly during rain

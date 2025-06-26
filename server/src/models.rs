@@ -9,6 +9,7 @@ pub enum ContainerType {
     PlayerCorpse,
     Stash,
     Lantern,
+    RainCollector,
     // Other container types can be added here
 }
 

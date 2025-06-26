@@ -300,7 +300,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({
       className={`${styles.draggableItem} ${isDraggingState ? styles.isDraggingFeedback : ''}`}
       onMouseDown={handleMouseDown}
       onDragStart={handleDragStart}
-      title={`${item.definition.name} (x${item.instance.quantity})`}
+
       onContextMenu={handleContextMenu}
       onMouseEnter={onMouseEnter ? (e) => onMouseEnter(e, item) : undefined}
       onMouseLeave={onMouseLeave}

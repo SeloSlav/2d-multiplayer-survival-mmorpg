@@ -21,6 +21,8 @@ import {
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
+  RainCollector as SpacetimeDBRainCollector,
+  WaterPatch as SpacetimeDBWaterPatch,
   Cloud as SpacetimeDBCloud,
   ActiveConsumableEffect as SpacetimeDBActiveConsumableEffect,
   Grass as SpacetimeDBGrass,
@@ -30,7 +32,8 @@ import {
   Potato as SpacetimeDBPotato,
   MinimapCache as SpacetimeDBMinimapCache,
   FishingSession,
-  PlantedSeed as SpacetimeDBPlantedSeed
+  PlantedSeed as SpacetimeDBPlantedSeed,
+  PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
 } from '../generated';
 
 // --- Core Hooks ---
@@ -77,6 +80,7 @@ import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
+import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
@@ -119,6 +123,8 @@ interface GameCanvasProps {
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
   playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
   stashes: Map<string, SpacetimeDBStash>;
+  rainCollectors: Map<string, SpacetimeDBRainCollector>;
+  waterPatches: Map<string, SpacetimeDBWaterPatch>;
   playerPins: Map<string, SpacetimeDBPlayerPin>;
   inventoryItems: Map<string, SpacetimeDBInventoryItem>;
   itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -151,6 +157,7 @@ interface GameCanvasProps {
   onAutoActionStatesChange?: (isAutoAttacking: boolean) => void;
   isFishing: boolean;
   plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
+  playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // Add player drinking cooldowns
 }
 
 /**
@@ -178,6 +185,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   sleepingBags,
   playerCorpses,
   stashes,
+  rainCollectors,
+  waterPatches,
   playerPins,
   inventoryItems,
   itemDefinitions,
@@ -210,6 +219,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   onAutoActionStatesChange,
   isFishing,
   plantedSeeds,
+  playerDrinkingCooldowns,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -371,6 +381,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     lanterns,
     inventoryItems,
     itemDefinitions,
+    playerDrinkingCooldowns,
+    rainCollectors,
   });
 
 
@@ -390,6 +402,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     localPlayer,
     activeEquipments,
     itemDefinitions,
+    inventoryItems,
     placementInfo,
     placementActions,
     worldMousePos,
@@ -478,7 +491,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     projectiles,
     shelters,
     clouds,
-    plantedSeeds
+    plantedSeeds,
+    rainCollectors,
   );
 
   // --- UI State ---
@@ -565,6 +579,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         doodadImagesRef.current.set('planted_seed.png', img);
       };
       img.onerror = () => console.error('Failed to load planted_seed.png');
+      img.src = module.default;
+    });
+
+    import('../assets/doodads/reed_rain_collector.png').then((module) => {
+      const img = new Image();
+      img.onload = () => {
+        doodadImagesRef.current.set('reed_rain_collector.png', img);
+      };
+      img.onerror = () => console.error('Failed to load reed_rain_collector.png');
       img.src = module.default;
     });
   }, []);
@@ -734,6 +757,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     );
     // --- End Water Overlay ---
 
+    // --- Render Water Patches ---
+    // Water patches show as transparent black circles on the ground that boost plant growth
+    // Note: Context is already translated by cameraOffset, so we pass the actual camera world position
+    renderWaterPatches(
+      ctx,
+      waterPatches,
+      -cameraOffsetX, // Camera world X position
+      -cameraOffsetY, // Camera world Y position
+      currentCanvasWidth,
+      currentCanvasHeight
+    );
+    // --- End Water Patches ---
+
     const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null)
       ? isPlacementTooFar(placementInfo, localPlayer.positionX, localPlayer.positionY, currentWorldMouseX, currentWorldMouseY)
       : false;
@@ -877,8 +913,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       sleepingBags: visibleSleepingBagsMap,
       players: players,
       itemDefinitions,
-      closestInteractableTarget,
+      closestInteractableTarget: closestInteractableTarget as any,
       lanterns: visibleLanternsMap,
+      rainCollectors: rainCollectors,
     });
     renderPlacementPreview({
       ctx, placementInfo, itemImagesRef, shelterImageRef, worldMouseX: currentWorldMouseX,

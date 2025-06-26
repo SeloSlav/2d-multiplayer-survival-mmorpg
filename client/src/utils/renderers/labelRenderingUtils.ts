@@ -12,7 +12,8 @@ import {
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
     Player as SpacetimeDBPlayer,
-    Pumpkin as SpacetimeDBPumpkin
+    Pumpkin as SpacetimeDBPumpkin,
+    RainCollector as SpacetimeDBRainCollector
 } from '../../generated';
 
 // Import visual heights from useInteractionFinder.ts
@@ -34,9 +35,12 @@ import { getResourceInteractionLabel } from './resourceConfigurations';
 // Define Sleeping Bag dimensions locally for label positioning
 const SLEEPING_BAG_HEIGHT = 64;
 
+// Define Rain Collector dimensions locally for label positioning
+const RAIN_COLLECTOR_HEIGHT = 128; // Doubled from 64
+
 // Define the single target type for labels
 interface InteractableTarget {
-    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water';
+    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water' | 'rain_collector';
     id: bigint | number | string;
     position: { x: number; y: number };
     distance: number;
@@ -58,6 +62,7 @@ interface RenderLabelsParams {
     playerCorpses: Map<string, SpacetimeDBPlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
+    rainCollectors: Map<string, SpacetimeDBRainCollector>;
     players: Map<string, SpacetimeDBPlayer>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     // NEW: Single unified target
@@ -223,6 +228,7 @@ export function renderInteractionLabels({
     playerCorpses,
     stashes,
     sleepingBags,
+    rainCollectors,
     players,
     itemDefinitions,
     closestInteractableTarget,
@@ -384,6 +390,16 @@ export function renderInteractionLabels({
         }
         case 'water': {
             // Water interaction label handled elsewhere if needed
+            break;
+        }
+        case 'rain_collector': {
+            const rainCollector = rainCollectors.get(closestInteractableTarget.id.toString());
+            if (rainCollector) {
+                const visualCenterY = rainCollector.posY - (RAIN_COLLECTOR_HEIGHT / 2);
+                textX = rainCollector.posX;
+                textY = visualCenterY - 5;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
             break;
         }
     }

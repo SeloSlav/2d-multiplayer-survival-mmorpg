@@ -192,13 +192,29 @@ const tipSectionDefinitions = {
             'Hold E over any water body to drink and restore thirst.',
             'Coastal waters (beaches, bays, ocean inlets) are salty and cause dehydration.',
             'Inland waters (mountain lakes, forest ponds, deep rivers) are fresh and restore thirst.',
-            'There is a brief cooldown between drinking attempts.',
-            'Salty water makes you more thirsty - avoid drinking from the ocean.',
-            'Craft water bottles or jugs to carry water with you - equip and left-click over water to fill.',
+        ]
+    },
+
+    waterContainers: {
+        title: '🏺 Water Containers & Rain Collection',
+        tips: [
+            'Craft Reed Water Bottles or find Plastic Water Jugs to store and transport water.',
+            'Build Rain Collectors to automatically gather fresh water during rainstorms.',
+            'Rain Collectors fill with clean, drinkable water that can be collected with containers.',
+            'Equip a water container and left-click over water sources to fill it.',
             'Right-click with a filled water container to drink from it anywhere.',
-            'Water containers can be used to put out fires caused by fire arrows.',
-            'Desalinate ocean water by placing a water container over a campfire, filling it with salt water, and letting it burn.',
-            'The desalination process converts salty ocean water into fresh, drinkable water, and also can be used for pouring onto plants and planter boxes.',
+            'Left-click with filled containers to dump water - useful for multiple purposes.',
+            'Pour water onto plants and crops to make them grow significantly faster.',
+            'Dump water on environmental fires to extinguish them quickly.',
+            'Pour water on burning players to stop fire damage and save their lives.',
+            'Use water containers to extinguish burning shelters and structures.',
+            'Fill containers with salt water from the ocean for desalination purposes.',
+            'Place salt water containers over campfires to desalinate ocean water into fresh water.',
+            'The desalination process converts harmful salt water into safe, drinkable fresh water.',
+            'Water containers can hold different amounts - jugs hold more than bottles.',
+            'Keep multiple water containers filled as backup for emergencies.',
+            'Strategic water dumping can help control fires during combat situations.',
+            'Water containers are crucial survival tools - always carry at least one.',
         ]
     },
 
@@ -314,6 +330,7 @@ const tipSectionOrder = [
     'resourceGathering',
     'farming',
     'waterSources',
+    'waterContainers',
     'campfires',
     'foodCooking',
     'fishing',

@@ -21,6 +21,7 @@ import {
   Shelter as SpacetimeDBShelter,
   Cloud as SpacetimeDBCloud,
   PlantedSeed as SpacetimeDBPlantedSeed,
+  RainCollector as SpacetimeDBRainCollector,
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -34,7 +35,8 @@ import {
   isPumpkin,
   isPlayerCorpse,
   isGrass, // Type guard might need adjustment or can work if structure is similar enough
-  isShelter // ADDED Shelter type guard import (will be created in typeGuards.ts)
+  isShelter, // ADDED Shelter type guard import (will be created in typeGuards.ts)
+  isRainCollector // ADDED RainCollector type guard import
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
@@ -87,6 +89,8 @@ interface EntityFilteringResult {
   visiblePlantedSeeds: SpacetimeDBPlantedSeed[];
   visiblePlantedSeedsMap: Map<string, SpacetimeDBPlantedSeed>; // ADDED
   visibleClouds: SpacetimeDBCloud[]; // ADDED
+  visibleRainCollectors: SpacetimeDBRainCollector[];
+  visibleRainCollectorsMap: Map<string, SpacetimeDBRainCollector>;
 }
 
 // Define a unified entity type for sorting
@@ -109,7 +113,8 @@ export type YSortedEntityType =
   | { type: 'projectile'; entity: SpacetimeDBProjectile }
   | { type: 'shelter'; entity: SpacetimeDBShelter }
   | { type: 'grass'; entity: InterpolatedGrassData }
-  | { type: 'planted_seed'; entity: SpacetimeDBPlantedSeed };
+  | { type: 'planted_seed'; entity: SpacetimeDBPlantedSeed }
+  | { type: 'rain_collector'; entity: SpacetimeDBRainCollector };
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -136,7 +141,8 @@ export function useEntityFiltering(
   projectiles: Map<string, SpacetimeDBProjectile>,
   shelters: Map<string, SpacetimeDBShelter>, // ADDED shelters argument
   clouds: Map<string, SpacetimeDBCloud>, // ADDED clouds argument
-  plantedSeeds: Map<string, SpacetimeDBPlantedSeed>
+  plantedSeeds: Map<string, SpacetimeDBPlantedSeed>,
+  rainCollectors: Map<string, SpacetimeDBRainCollector>
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
@@ -461,6 +467,12 @@ export function useEntityFiltering(
     [plantedSeeds, isEntityInView, viewBounds, currentTime]
   );
 
+  const visibleRainCollectors = useMemo(() => 
+    rainCollectors ? Array.from(rainCollectors.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [rainCollectors, isEntityInView, viewBounds, currentTime]
+  );
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -512,9 +524,14 @@ export function useEntityFiltering(
     [visibleReeds]
   );
 
-  const visiblePlantedSeedsMap = useMemo(() => 
-    new Map(visiblePlantedSeeds.map(p => [p.id.toString(), p])),
+    const visiblePlantedSeedsMap = useMemo(() => 
+    new Map(visiblePlantedSeeds.map(p => [p.id.toString(), p])), 
     [visiblePlantedSeeds]
+  );
+
+  const visibleRainCollectorsMap = useMemo(() => 
+    new Map(visibleRainCollectors.map(r => [r.id.toString(), r])), 
+    [visibleRainCollectors]
   );
 
   const visibleProjectilesMap = useMemo(() => 
@@ -580,6 +597,7 @@ export function useEntityFiltering(
       ...visibleShelters.map(s => ({ type: 'shelter' as const, entity: s })),
       ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
       ...visiblePlantedSeeds.map(p => ({ type: 'planted_seed' as const, entity: p })),
+      ...visibleRainCollectors.map(r => ({ type: 'rain_collector' as const, entity: r })),
     ];
     
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
@@ -716,7 +734,8 @@ export function useEntityFiltering(
     visibleCampfires, visibleLanterns, visibleDroppedItems, visibleMushrooms, visiblePumpkins,
     visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
     visibleShelters, // ADDED visibleShelters to dependencies
-    visiblePlantedSeeds // ADDED visiblePlantedSeeds to dependencies
+    visiblePlantedSeeds, // ADDED visiblePlantedSeeds to dependencies
+    visibleRainCollectors // ADDED visibleRainCollectors to dependencies
   ]);
 
   return {
@@ -760,6 +779,8 @@ export function useEntityFiltering(
     visibleReedsMap,
     visibleClouds,
     visiblePlantedSeeds,
-    visiblePlantedSeedsMap
+    visiblePlantedSeedsMap,
+    visibleRainCollectors,
+    visibleRainCollectorsMap
   };
 } 

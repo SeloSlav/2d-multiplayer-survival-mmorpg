@@ -8,14 +8,17 @@ use crate::{world_pos_to_tile_coords, is_player_on_water, TileType, get_tile_typ
 use crate::environment::{is_position_on_inland_water, is_tile_inland_water};
 use crate::active_effects::apply_seawater_poisoning_effect;
 
+// Import sound system for drinking sounds
+use crate::sound_events::{emit_drinking_water_sound, emit_throwing_up_sound};
+
 // Import constants for validation
 use crate::{PLAYER_RADIUS, TILE_SIZE_PX};
 
 // Drinking mechanics constants
 const DRINKING_INTERACTION_DISTANCE_SQUARED: f32 = 64.0 * 64.0; // Close to water to drink
 const DRINKING_COOLDOWN_MS: u64 = 2_000; // 2 second cooldown between drinks
-const RIVER_WATER_THIRST_GAIN: f32 = 75.0; // Big hydration boost from clean water
-const SEA_WATER_THIRST_LOSS: f32 = -25.0; // Dehydration from salt water
+const RIVER_WATER_THIRST_GAIN: f32 = 15.0; // One gulp ≈ 1 liter equivalent (15 thirst per liter scale)
+const SEA_WATER_THIRST_LOSS: f32 = -10.0; // Reduced dehydration to match new scale
 
 // Drinking action table to track cooldowns
 #[spacetimedb::table(name = player_drinking_cooldown, public)]
@@ -169,6 +172,15 @@ pub fn drink_water(ctx: &ReducerContext) -> Result<(), String> {
     
     // Update player in database
     players.identity().update(player.clone());
+    
+    // Emit appropriate sound based on water type
+    if is_inland_water {
+        // Fresh water - pleasant drinking sound
+        emit_drinking_water_sound(ctx, player.position_x, player.position_y, player_id);
+    } else {
+        // Salt water - unpleasant throwing up sound
+        emit_throwing_up_sound(ctx, player.position_x, player.position_y, player_id);
+    }
     
     // Update drinking cooldown
     update_drinking_cooldown(ctx, player_id);

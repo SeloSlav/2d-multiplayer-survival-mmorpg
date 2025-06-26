@@ -224,6 +224,7 @@ pub fn pickup_lantern(ctx: &ReducerContext, lantern_id: u32) -> Result<(), Strin
         item_def_id: lantern_def.id,
         quantity: 1,
         location: new_location,
+        item_data: None, // Initialize as empty
     };
     
     ctx.db.inventory_item().try_insert(new_lantern_item)

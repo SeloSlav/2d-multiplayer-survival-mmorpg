@@ -1257,7 +1257,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 textTransform: 'uppercase',
                                                                                 letterSpacing: '0.5px',
                                                                             }}>
-                                                                                ✓ {feature.status}
+                                                                                {feature.status}
                                                                             </span>
                                                                         </td>
                                                                 </tr>
@@ -1300,7 +1300,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 textTransform: 'uppercase',
                                                                                 letterSpacing: '0.5px',
                                                                             }}>
-                                                                                ⚡ {feature.status}
+                                                                                {feature.status}
                                                                             </span>
                                                                         </td>
                                                                 </tr>
@@ -1344,7 +1344,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                                 textTransform: 'uppercase',
                                                                                 letterSpacing: '0.5px',
                                                                             }}>
-                                                                                📋 {feature.status}
+                                                                                {feature.status}
                                                                             </span>
                                                                         </td>
                                                                 </tr>

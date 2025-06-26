@@ -23,11 +23,13 @@ import {
     Stash as SpacetimeDBStash, // Added Stash type
     Shelter as SpacetimeDBShelter, // Added Shelter type
     Tree as SpacetimeDBTree, // Added Tree type
+    RainCollector as SpacetimeDBRainCollector, // Added RainCollector type
     WorldState
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
 import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 import { PopulatedItem } from './InventoryUI';
+import { isWaterContainer, getWaterContent, formatWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
 
 // Constants
 const NUM_FUEL_SLOTS = 5;
@@ -35,6 +37,7 @@ const NUM_LANTERN_FUEL_SLOTS = 1; // Lanterns have 1 fuel slot
 const NUM_BOX_SLOTS = 18;
 const NUM_CORPSE_SLOTS = 30;
 const NUM_STASH_SLOTS = 6; // Added for Stash
+const NUM_RAIN_COLLECTOR_SLOTS = 1; // Rain collector has 1 slot for water containers
 const BOX_COLS = 6;
 const CORPSE_COLS = 6;
 const STASH_COLS = 6; // Stash layout: 1 row of 6
@@ -48,6 +51,7 @@ interface ExternalContainerUIProps {
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
     stashes: Map<string, SpacetimeDBStash>; // Added stashes
+    rainCollectors: Map<string, SpacetimeDBRainCollector>; // Added rain collectors
     shelters?: Map<string, SpacetimeDBShelter>; // Added shelters (optional)
     trees?: Map<string, SpacetimeDBTree>; // Added trees (optional)
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null;
@@ -71,6 +75,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes, // Added stashes
+    rainCollectors, // Added rain collectors
     shelters, // Added shelters
     trees, // Added trees
     currentStorageBox,
@@ -204,6 +209,13 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     const isStashInteraction = interactionTarget?.type === 'stash';
     const stashIdNum = isStashInteraction ? Number(interactionTarget!.id) : null;
     const currentStash = stashIdNum !== null ? stashes.get(stashIdNum.toString()) : undefined;
+
+    // --- Derived Data for Rain Collector ---
+    const isRainCollectorInteraction = interactionTarget?.type === 'rain_collector';
+    const rainCollectorIdNum = isRainCollectorInteraction ? Number(interactionTarget!.id) : null;
+    const currentRainCollector = rainCollectorIdNum !== null && rainCollectors ? rainCollectors.get(rainCollectorIdNum.toString()) : undefined;
+    
+
     const stashItems = useMemo(() => {
         const items: (PopulatedItem | null)[] = Array(NUM_STASH_SLOTS).fill(null);
         if (!isStashInteraction || !currentStash) return items;
@@ -226,10 +238,97 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         return items;
     }, [isStashInteraction, currentStash, inventoryItems, itemDefinitions]);
 
-    // --- Tooltip Handlers (simplified to call props) ---
+    const rainCollectorItems = useMemo(() => {
+        const items: (PopulatedItem | null)[] = Array(NUM_RAIN_COLLECTOR_SLOTS).fill(null);
+        if (!isRainCollectorInteraction || !currentRainCollector) return items;
+        
+        // Rain collector has only one slot
+        if (currentRainCollector.slot0InstanceId) {
+            const instanceIdStr = currentRainCollector.slot0InstanceId.toString();
+            const foundInvItem = inventoryItems.get(instanceIdStr);
+            if (foundInvItem) {
+                const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
+                if (definition) {
+                    items[0] = { instance: foundInvItem, definition };
+                }
+            }
+        }
+        
+        return items;
+    }, [isRainCollectorInteraction, currentRainCollector, inventoryItems, itemDefinitions]);
+
+    // --- Tooltip Handlers ---
     const handleItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent browser tooltip
+        event.currentTarget.removeAttribute('title');
         onExternalItemMouseEnter(item, event);
     }, [onExternalItemMouseEnter]);
+
+    // Enhanced tooltip handler for campfire items to show Reed Bellows effects
+    const handleCampfireFuelMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent browser tooltip
+        event.currentTarget.removeAttribute('title');
+        
+        // Check if Reed Bellows is present in the campfire
+        const hasReedBellows = currentCampfire && [
+            currentCampfire.fuelDefId0, currentCampfire.fuelDefId1, 
+            currentCampfire.fuelDefId2, currentCampfire.fuelDefId3, 
+            currentCampfire.fuelDefId4
+        ].some(defId => {
+            if (defId) {
+                const itemDef = itemDefinitions.get(defId.toString());
+                return itemDef?.name === 'Reed Bellows';
+            }
+            return false;
+        });
+
+        if (hasReedBellows) {
+            let enhancedItem = { ...item };
+            let descriptionAddition = '';
+
+            // Handle fuel items - show enhanced burn time
+            if (item.definition.fuelBurnDurationSecs && item.definition.fuelBurnDurationSecs > 0) {
+                const enhancedBurnTime = Math.round(item.definition.fuelBurnDurationSecs * 1.5);
+                enhancedItem = {
+                    ...item,
+                    definition: {
+                        ...item.definition,
+                        fuelBurnDurationSecs: enhancedBurnTime // Show the actual effective burn time
+                    }
+                };
+                descriptionAddition = `\n\n🎐 Reed Bellows: +50% burn time (${item.definition.fuelBurnDurationSecs}s → ${enhancedBurnTime}s)`;
+            }
+            
+            // Handle cookable items - show enhanced cooking speed
+            else if (item.definition.cookTimeSecs && item.definition.cookTimeSecs > 0) {
+                const enhancedCookTime = Math.round(item.definition.cookTimeSecs / 1.4); // 40% faster = divide by 1.4
+                enhancedItem = {
+                    ...item,
+                    definition: {
+                        ...item.definition,
+                        cookTimeSecs: enhancedCookTime // Show the actual effective cook time
+                    }
+                };
+                descriptionAddition = `\n\n🎐 Reed Bellows: +40% cooking speed (${item.definition.cookTimeSecs}s → ${enhancedCookTime}s)`;
+            }
+
+            // Add description if we have enhancement info
+            if (descriptionAddition) {
+                enhancedItem = {
+                    ...enhancedItem,
+                    definition: {
+                        ...enhancedItem.definition,
+                        description: `${item.definition.description}${descriptionAddition}`
+                    }
+                };
+            }
+
+            onExternalItemMouseEnter(enhancedItem, event);
+        } else {
+            // Regular tooltip when no Reed Bellows present
+            onExternalItemMouseEnter(item, event);
+        }
+    }, [onExternalItemMouseEnter, currentCampfire, itemDefinitions]);
 
     const handleItemMouseLeave = useCallback(() => {
         onExternalItemMouseLeave();
@@ -360,6 +459,35 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             console.error("Error toggling stash visibility:", e);
         }
     }, [connection, stashIdNum, currentStash]);
+
+    // --- NEW Callback for Rain Collector Context Menu (Quick Move from Rain Collector) ---
+    const handleRainCollectorItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
+        event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            return;
+        }
+        
+        if (!connection?.reducers || !itemInfo || rainCollectorIdNum === null || !currentRainCollector) return;
+        console.log('[ExternalContainerUI] Processing rain collector context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
+        try {
+            connection.reducers.quickMoveItemFromRainCollector(rainCollectorIdNum, slotIndex);
+        } catch (e: any) { 
+            console.error("[ExtCont CtxMenu RainCollector->Inv]", e); 
+        }
+    }, [connection, rainCollectorIdNum, currentRainCollector]);
+
+    // --- NEW Callback for Fill Water Container ---
+    const handleFillWaterContainer = useCallback(() => {
+        if (!connection?.reducers || rainCollectorIdNum === null || !currentRainCollector) return;
+        try {
+            connection.reducers.fillWaterContainer(rainCollectorIdNum);
+        } catch (e: any) {
+            console.error("Error filling water container:", e);
+        }
+    }, [connection, rainCollectorIdNum, currentRainCollector]);
 
     // Helper function to check if it's raining heavily enough to prevent campfire lighting
     // Only heavy rain/storms prevent lighting, light/moderate rain should allow lighting
@@ -503,6 +631,8 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             // If it's hidden and not our stash (placer/surfacer), don't show item UI, only surface button potentially.
             // For now, the generic title change is enough, actual slot rendering will be conditional.
         }
+    } else if (isRainCollectorInteraction) {
+        containerTitle = "RAIN COLLECTOR";
     }
 
     // Determine if the current player can operate the stash hide/surface button
@@ -544,11 +674,48 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 onItemDragStart={onItemDragStart}
                                                 onItemDrop={handleItemDropWithTracking}
                                                 onContextMenu={(event) => handleRemoveFuel(event, index)}
-                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseEnter={(e) => handleCampfireFuelMouseEnter(itemInSlot, e)}
                                                 onMouseLeave={handleItemMouseLeave}
                                                 onMouseMove={handleItemMouseMove}
                                             />
                                         )}
+                                        
+                                        {/* Water level indicator for water containers in campfire */}
+                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                            const hasWater = waterLevelPercentage > 0;
+                                            
+                                            return (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '4px',
+                                                        top: '4px',
+                                                        bottom: '4px',
+                                                        width: '3px',
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                        borderRadius: '1px',
+                                                        zIndex: 4,
+                                                        pointerEvents: 'none',
+                                                    }}
+                                                >
+                                                    {hasWater && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '0px',
+                                                                left: '0px',
+                                                                right: '0px',
+                                                                height: `${waterLevelPercentage * 100}%`,
+                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                                borderRadius: '1px',
+                                                                transition: 'height 0.3s ease-in-out',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </DroppableSlot>
                                 );
                             })}
@@ -561,24 +728,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                     ? styles.extinguishButton
                                     : styles.lightFireButton
                             }`}
-                            title={
-                                isToggleButtonDisabled && !currentCampfire.isBurning 
-                                    ? (() => {
-                                        // Check fuel first
-                                        const hasValidFuel = fuelItems.some(item => 
-                                            item && 
-                                            item.definition.fuelBurnDurationSecs !== undefined && 
-                                            item.definition.fuelBurnDurationSecs > 0 && 
-                                            item.instance.quantity > 0
-                                        );
-                                        if (!hasValidFuel) return "Requires Fuel > 0";
-                                        
-                                        // Note: Rain protection is now handled server-side only
-                                        
-                                        return ""; // Shouldn't reach here if button is disabled
-                                    })()
-                                    : ""
-                            }
+
                         >
                             {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
                         </button>
@@ -630,13 +780,54 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 onMouseMove={handleItemMouseMove}
                                             />
                                         )}
+                                        
+                                        {/* Water level indicator for water containers in lantern fuel slot */}
+                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                            const hasWater = waterLevelPercentage > 0;
+                                            
+                                            return (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '4px',
+                                                        top: '4px',
+                                                        bottom: '4px',
+                                                        width: '3px',
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                        borderRadius: '1px',
+                                                        zIndex: 4,
+                                                        pointerEvents: 'none',
+                                                    }}
+                                                >
+                                                    {hasWater && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '0px',
+                                                                left: '0px',
+                                                                right: '0px',
+                                                                height: `${waterLevelPercentage * 100}%`,
+                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                                borderRadius: '1px',
+                                                                transition: 'height 0.3s ease-in-out',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </DroppableSlot>
                                 );
                             })}
                         </div>
                         <button
                             onClick={handleToggleLanternBurn}
-                            disabled={!currentLantern || (!currentLantern.isBurning && !lanternFuelItems.some(item => item && item.instance.quantity > 0))}
+                            disabled={!currentLantern || (!currentLantern.isBurning && !lanternFuelItems.some(item => 
+                                item && 
+                                item.definition.name === 'Tallow' && 
+                                item.instance.quantity > 0
+                            ))}
                             className={`${styles.interactionButton} ${
                                 currentLantern.isBurning
                                     ? styles.extinguishButton
@@ -680,6 +871,43 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             onMouseMove={handleItemMouseMove}
                                         />
                                     )}
+                                    
+                                    {/* Water level indicator for water containers in wooden storage box */}
+                                    {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                        const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                        const hasWater = waterLevelPercentage > 0;
+                                        
+                                        return (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: '4px',
+                                                    top: '4px',
+                                                    bottom: '4px',
+                                                    width: '3px',
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                    borderRadius: '1px',
+                                                    zIndex: 4,
+                                                    pointerEvents: 'none',
+                                                }}
+                                            >
+                                                {hasWater && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            bottom: '0px',
+                                                            left: '0px',
+                                                            right: '0px',
+                                                            height: `${waterLevelPercentage * 100}%`,
+                                                            backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                            borderRadius: '1px',
+                                                            transition: 'height 0.3s ease-in-out',
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </DroppableSlot>
                             );
                         })}
@@ -720,6 +948,43 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                             onMouseMove={handleItemMouseMove}
                                         />
                                     )}
+                                    
+                                    {/* Water level indicator for water containers in corpse */}
+                                    {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                        const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                        const hasWater = waterLevelPercentage > 0;
+                                        
+                                        return (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: '4px',
+                                                    top: '4px',
+                                                    bottom: '4px',
+                                                    width: '3px',
+                                                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                    borderRadius: '1px',
+                                                    zIndex: 4,
+                                                    pointerEvents: 'none',
+                                                }}
+                                            >
+                                                {hasWater && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            bottom: '0px',
+                                                            left: '0px',
+                                                            right: '0px',
+                                                            height: `${waterLevelPercentage * 100}%`,
+                                                            backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                            borderRadius: '1px',
+                                                            transition: 'height 0.3s ease-in-out',
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </DroppableSlot>
                             );
                         })}
@@ -759,6 +1024,43 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                                                 onMouseMove={handleItemMouseMove}
                                             />
                                         )}
+                                        
+                                        {/* Water level indicator for water containers in stash */}
+                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                            const hasWater = waterLevelPercentage > 0;
+                                            
+                                            return (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '4px',
+                                                        top: '4px',
+                                                        bottom: '4px',
+                                                        width: '3px',
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                        borderRadius: '1px',
+                                                        zIndex: 4,
+                                                        pointerEvents: 'none',
+                                                    }}
+                                                >
+                                                    {hasWater && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '0px',
+                                                                left: '0px',
+                                                                right: '0px',
+                                                                height: `${waterLevelPercentage * 100}%`,
+                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                                borderRadius: '1px',
+                                                                transition: 'height 0.3s ease-in-out',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </DroppableSlot>
                                 );
                             })}
@@ -783,6 +1085,104 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             )}
             {isStashInteraction && !currentStash && (
                 <div>Error: Stash data missing.</div>
+            )}
+
+            {/* Rain Collector UI */}
+            {isRainCollectorInteraction && currentRainCollector && (
+                <>
+                    <div className={styles.inventoryGrid} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        {/* Single slot for water container */}
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
+                            {Array.from({ length: NUM_RAIN_COLLECTOR_SLOTS }).map((_, index) => {
+                                const itemInSlot = rainCollectorItems[index];
+                                const currentRainCollectorSlotInfo: DragSourceSlotInfo = { type: 'rain_collector', index: index, parentId: rainCollectorIdNum ?? undefined };
+                                const slotKey = `rain-collector-${rainCollectorIdNum ?? 'unknown'}-${index}`;
+                                return (
+                                    <DroppableSlot
+                                        key={slotKey}
+                                        slotInfo={currentRainCollectorSlotInfo}
+                                        onItemDrop={handleItemDropWithTracking}
+                                        className={styles.slot}
+                                        isDraggingOver={false}
+                                    >
+                                        {itemInSlot && (
+                                            <DraggableItem
+                                                item={itemInSlot}
+                                                sourceSlot={currentRainCollectorSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={handleItemDropWithTracking}
+                                                onContextMenu={(event) => handleRainCollectorItemContextMenu(event, itemInSlot, index)}
+                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
+                                            />
+                                        )}
+                                        
+                                        {/* Water level indicator for water containers in rain collector */}
+                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
+                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
+                                            const hasWater = waterLevelPercentage > 0;
+                                            
+                                            return (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '4px',
+                                                        top: '4px',
+                                                        bottom: '4px',
+                                                        width: '3px',
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                        borderRadius: '1px',
+                                                        zIndex: 4,
+                                                        pointerEvents: 'none',
+                                                    }}
+                                                >
+                                                    {hasWater && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '0px',
+                                                                left: '0px',
+                                                                right: '0px',
+                                                                height: `${waterLevelPercentage * 100}%`,
+                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                                borderRadius: '1px',
+                                                                transition: 'height 0.3s ease-in-out',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </DroppableSlot>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Fill Water Container Button */}
+                        <button
+                            onClick={handleFillWaterContainer}
+                            disabled={!currentRainCollector || !rainCollectorItems[0] || !['Reed Water Bottle', 'Plastic Water Jug'].includes(rainCollectorItems[0].definition.name) || currentRainCollector.totalWaterCollected <= 0}
+                            className={`${styles.interactionButton} ${styles.lightFireButton}`}
+                        >
+                            Fill Container ({currentRainCollector.totalWaterCollected.toFixed(1)}L)
+                        </button>
+                        
+                        {/* Water collection info */}
+                        <div style={{ 
+                            marginTop: '4px', 
+                            color: '#87CEEB', 
+                            fontSize: '12px', 
+                            textAlign: 'center',
+                            fontStyle: 'italic'
+                        }}>
+                            💧 Place water containers (bottles/jugs) to fill during rain
+                        </div>
+                    </div>
+                </>
+            )}
+            {isRainCollectorInteraction && !currentRainCollector && (
+                <div>Error: Rain Collector data missing.</div>
             )}
         </div>
     );

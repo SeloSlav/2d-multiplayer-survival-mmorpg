@@ -37,15 +37,14 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Sleeping Bag", 1, None, Some(0u16)),
         ("Wooden Storage Box", 1, None, Some(1u16)),
         ("Camp Fire", 1, None, Some(2u16)),
-        ("Wooden Arrow", 25, None, Some(3u16)),
-        ("Shelter", 1, None, Some(4u16)),
-        ("Fire Arrow", 25, None, Some(5u16)),
+        ("Wooden Arrow", 15, None, Some(3u16)),
+        ("Hollow Reed Arrow", 10, None, Some(4u16)),
+        ("Shelter", 1, None, Some(5u16)),
         ("Torch", 1, None, Some(6u16)),
-        ("Lantern", 1, None, Some(7u16)),
-        ("Lantern", 1, None, Some(8u16)),
-        ("Tallow", 1000, None, Some(9u16)),
-        ("Bone Fragments", 1000, None, Some(10u16)),
-        ("Hemp Seeds", 50, None, Some(11u16)),
+        ("Reed Bellows", 1, None, Some(7u16)),
+        ("Reed Rain Collector", 1, None, Some(8u16)),
+        ("Reed Water Bottle", 1, None, Some(9u16)),
+        ("Plastic Water Jug", 1, None, Some(10u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());
@@ -66,6 +65,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
                 item_def_id: item_def.id,
                 quantity: *quantity,
                 location,
+                item_data: None, // Initialize as empty
             };
             match inventory.try_insert(item_to_insert) {
                 Ok(_) => {
@@ -142,6 +142,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
                     item_def_id: item_def.id,
                     quantity: 1, // Equipment is typically quantity 1
                     location: ItemLocation::Equipped(crate::models::EquippedLocationData { owner_id: player_id, slot_type: target_slot_type.clone() }),
+                    item_data: None, // Initialize as empty
                 };
                 match inventory.try_insert(item_to_equip_for_insert) {
                     Ok(inserted_item) => {

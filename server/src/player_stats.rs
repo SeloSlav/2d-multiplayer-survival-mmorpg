@@ -79,6 +79,10 @@ pub(crate) const PLAYER_MAX_THIRST: f32 = 250.0;
 pub(crate) const HUNGER_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
 pub(crate) const THIRST_RECOVERY_THRESHOLD: f32 = 127.5; // ~51% of 250
 
+// Add constants for starting values (when spawning/respawning)
+pub(crate) const PLAYER_STARTING_HUNGER: f32 = 100.0; // Start at 40% of max (100/250)
+pub(crate) const PLAYER_STARTING_THIRST: f32 = 100.0; // Start at 40% of max (100/250)
+
 // Cold-induced hunger drain constants
 pub(crate) const HUNGER_DRAIN_MULTIPLIER_LOW_WARMTH: f32 = 1.5; // 50% faster hunger drain when cold
 pub(crate) const HUNGER_DRAIN_MULTIPLIER_ZERO_WARMTH: f32 = 2.0; // 100% faster hunger drain when freezing

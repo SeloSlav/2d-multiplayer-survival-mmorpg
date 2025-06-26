@@ -20,6 +20,7 @@ import {
     formatTargetForLogging,
     isTargetValid
 } from '../types/interactions';
+import { hasWaterContent } from '../utils/waterContainerHelpers';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -37,6 +38,7 @@ interface InputHandlerProps {
     localPlayer: Player | undefined | null;
     activeEquipments: Map<string, ActiveEquipment>;
     itemDefinitions: Map<string, ItemDefinition>;
+    inventoryItems: Map<string, SpacetimeDB.InventoryItem>;
     placementInfo: PlacementItemInfo | null;
     placementActions: PlacementActions;
     worldMousePos: { x: number | null; y: number | null };
@@ -103,6 +105,7 @@ export const useInputHandler = ({
     localPlayer,
     activeEquipments,
     itemDefinitions,
+    inventoryItems,
     placementInfo,
     placementActions,
     worldMousePos,
@@ -682,6 +685,11 @@ export const useInputHandler = ({
                                         onSetInteractingWith({ type: 'sleeping_bag', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
+                                    case 'rain_collector':
+                                        console.log('[E-Tap ACTION] Opening rain collector interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'rain_collector', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
                                 }
                             }
                         } else {
@@ -758,6 +766,17 @@ export const useInputHandler = ({
                         else if (equippedItemDef.name === "Selo Olive Oil") {
                             // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
                             return;
+                        }
+                        // 5. Water Containers: Use for watering crops instead of swinging
+                        else if ((equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") && localPlayerActiveEquipment.equippedItemInstanceId) {
+                            // Check if the water container has water content
+                            const waterContainer = inventoryItems.get(localPlayerActiveEquipment.equippedItemInstanceId.toString());
+                            if (waterContainer && hasWaterContent(waterContainer) && connectionRef.current?.reducers) {
+                                // console.log("[InputHandler MOUSEDOWN] Water container with water equipped. Calling water_crops reducer.");
+                                connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
+                                return;
+                            }
+                            // If no water content, fall through to normal swing behavior
                         }
                         // If none of the above special cases, fall through to default item use (melee/tool)
                     } else {
@@ -881,6 +900,17 @@ export const useInputHandler = ({
                     // Ranged/Bandage/Selo Olive Oil already handled or should not be triggered by this melee path
                     return;
                 }
+                
+                // Water Containers: Use for watering crops instead of swinging
+                if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && localEquipment.equippedItemInstanceId) {
+                    const waterContainer = inventoryItems.get(localEquipment.equippedItemInstanceId.toString());
+                    if (waterContainer && hasWaterContent(waterContainer)) {
+                        // console.log("[CanvasClick] Water container with water equipped. Calling water_crops reducer.");
+                        connectionRef.current.reducers.waterCrops(localEquipment.equippedItemInstanceId);
+                        return;
+                    }
+                    // If no water content, fall through to normal swing behavior
+                }
                 const now = Date.now();
                 const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
                 if (now - lastServerSwingTimestampRef.current < attackIntervalMs) return;
@@ -970,6 +1000,26 @@ export const useInputHandler = ({
                             connectionRef.current.reducers.useEquippedItem();
                         } else {
                             console.warn("[InputHandler CTXMENU] No connection or reducers to call useEquippedItem for Selo Olive Oil.");
+                        }
+                        return;
+                    } else if (equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") {
+                        // console.log("[InputHandler CTXMENU] Water container equipped. Checking for water content.");
+                        event.preventDefault();
+                        
+                        // Find the equipped item instance to check if it has water
+                        const equippedItemInstance = Array.from(inventoryItems.values()).find((item: SpacetimeDB.InventoryItem) => 
+                            item.instanceId === BigInt(localPlayerActiveEquipment?.equippedItemInstanceId || 0)
+                        );
+                        
+                        if (equippedItemInstance && hasWaterContent(equippedItemInstance)) {
+                            if (connectionRef.current?.reducers && localPlayerActiveEquipment?.equippedItemInstanceId) {
+                                // console.log("[InputHandler CTXMENU] Calling consumeFilledWaterContainer for equipped water container.");
+                                connectionRef.current.reducers.consumeFilledWaterContainer(BigInt(localPlayerActiveEquipment.equippedItemInstanceId));
+                            } else {
+                                console.warn("[InputHandler CTXMENU] No connection or reducers to call consumeFilledWaterContainer for water container.");
+                            }
+                        } else {
+                            console.log("[InputHandler CTXMENU] Water container is empty, cannot drink.");
                         }
                         return;
                     }

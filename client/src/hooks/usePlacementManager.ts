@@ -61,21 +61,94 @@ function isPositionOnWater(connection: DbConnection | null, worldX: number, worl
 }
 
 /**
+ * Calculates the distance to the nearest shore (non-water tile) from a water position.
+ * Returns distance in pixels, or -1 if position is not on water.
+ */
+function calculateShoreDistance(connection: DbConnection | null, worldX: number, worldY: number): number {
+  if (!connection) return -1;
+  
+  const TILE_SIZE = 64; // pixels per tile
+  const MAX_SEARCH_RADIUS = 20; // tiles (matching server-side 20m limit)
+  
+  const { tileX: centerTileX, tileY: centerTileY } = worldPosToTileCoords(worldX, worldY);
+  
+  // First verify we're on water
+  if (!isPositionOnWater(connection, worldX, worldY)) {
+    return -1; // Not on water
+  }
+  
+  // Search outward in concentric circles to find nearest non-water tile
+  for (let radius = 1; radius <= MAX_SEARCH_RADIUS; radius++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        // Only check tiles on the perimeter of the current radius
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        
+        const checkTileX = centerTileX + dx;
+        const checkTileY = centerTileY + dy;
+        
+        // Find this tile
+        for (const tile of connection.db.worldTile.iter()) {
+          if (tile.worldX === checkTileX && tile.worldY === checkTileY) {
+            // If this tile is not water, we found shore
+            if (tile.tileType.tag !== 'Sea') {
+              return radius * TILE_SIZE; // Return distance in pixels
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  return MAX_SEARCH_RADIUS * TILE_SIZE + 1; // Beyond max search radius
+}
+
+/**
+ * Checks if Reed Rhizome placement is valid (water within 20m of shore).
+ * Returns true if placement should be blocked.
+ */
+function isReedRhizomePlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+  if (!connection) return false;
+  
+  // Reed Rhizomes must be on water
+  if (!isPositionOnWater(connection, worldX, worldY)) {
+    return true; // Block if not on water
+  }
+  
+  // Reed Rhizomes must be within 20m (1280 pixels) of shore
+  const shoreDistance = calculateShoreDistance(connection, worldX, worldY);
+  const MAX_SHORE_DISTANCE = 20 * 64; // 20 tiles * 64 pixels/tile = 1280 pixels
+  
+  if (shoreDistance < 0 || shoreDistance > MAX_SHORE_DISTANCE) {
+    return true; // Block if too far from shore
+  }
+  
+  return false; // Valid placement
+}
+
+/**
  * Checks if placement should be blocked due to water tiles.
- * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, sleeping bags, and seeds.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, sleeping bags, and most seeds.
+ * Reed Rhizomes have special handling and require water instead.
  */
 function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
   if (!connection || !placementInfo) {
     return false;
   }
 
+  // Special case: Reed Rhizomes require water near shore
+  if (placementInfo.itemName === 'Reed Rhizome') {
+    return isReedRhizomePlacementBlocked(connection, worldX, worldY);
+  }
+
   // List of items that cannot be placed on water
-  const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
+  const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector'];
   
-  // Seeds also cannot be planted on water
-  const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
+  // Other seeds (not Reed Rhizome) cannot be planted on water
+  const otherSeeds = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Pumpkin Seeds'];
   
-  if (waterBlockedItems.includes(placementInfo.itemName) || seedItems.includes(placementInfo.itemName)) {
+  if (waterBlockedItems.includes(placementInfo.itemName) || otherSeeds.includes(placementInfo.itemName)) {
     return isPositionOnWater(connection, worldX, worldY);
   }
   
@@ -223,6 +296,11 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeShelter(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx will need a handleShelterInsert callback (added in useSpacetimeTables)
           // which should call cancelPlacement on success.
+          break;
+        case 'Reed Rain Collector':
+          // console.log(`[PlacementManager] Calling placeRainCollector reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeRainCollector(placementInfo.instanceId, worldX, worldY);
+          // Assume App.tsx will need a handleRainCollectorInsert callback to cancel placement on success
           break;
                 // Seed planting cases
         case 'Mushroom Spores':

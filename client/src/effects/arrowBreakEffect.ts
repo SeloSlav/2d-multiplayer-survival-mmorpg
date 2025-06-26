@@ -1,3 +1,5 @@
+import { ArrowBreakEvent } from '../generated';
+
 interface ArrowBreakParticle {
     id: string;
     x: number;
@@ -10,6 +12,7 @@ interface ArrowBreakParticle {
     scale: number;
     startTime: number;
     lifetime: number;
+    color?: string; // Optional custom color based on arrow type
 }
 
 const PARTICLE_LIFETIME_MS = 500; // 0.5 seconds
@@ -28,14 +31,32 @@ const PARTICLE_COLORS = [
 
 const activeParticles: ArrowBreakParticle[] = [];
 
-export function spawnArrowBreakParticles(centerX: number, centerY: number) {
+export function spawnArrowBreakParticles(centerX: number, centerY: number, arrowType?: string) {
     const now = Date.now();
-    console.log(`[ArrowBreak] Spawning ${NUM_PARTICLES_PER_BREAK} particles at (${centerX}, ${centerY})`);
+    console.log(`[ArrowBreak] Spawning ${NUM_PARTICLES_PER_BREAK} particles at (${centerX}, ${centerY}) for arrow type: ${arrowType || 'default'}`);
 
-    for (let i = 0; i < NUM_PARTICLES_PER_BREAK; i++) {
+    // Determine particle properties based on arrow type
+    let particleColor: string | undefined;
+    let particleCount = NUM_PARTICLES_PER_BREAK;
+    let speedMultiplier = 1.0;
+    
+    if (arrowType === 'Hollow Reed Arrow') {
+        particleColor = '#90EE90'; // Light green for reed particles  
+        particleCount = Math.floor(NUM_PARTICLES_PER_BREAK * 0.7); // Fewer particles (lighter arrow)
+        speedMultiplier = 0.8; // Lighter fragments move slower
+    } else if (arrowType === 'Bone Arrow') {
+        particleColor = '#F5F5DC'; // Beige for bone particles
+        speedMultiplier = 1.2; // Heavier fragments move faster
+    } else if (arrowType === 'Fire Arrow') {
+        particleColor = '#FF4500'; // Orange-red for fire arrow particles
+        speedMultiplier = 1.1;
+    }
+    // If no specific type, particleColor remains undefined and will use default colors
+
+    for (let i = 0; i < particleCount; i++) {
         // Create particles in a circular spread pattern
-        const angle = (i / NUM_PARTICLES_PER_BREAK) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-        const speed = INITIAL_SPEED_MIN + Math.random() * (INITIAL_SPEED_MAX - INITIAL_SPEED_MIN);
+        const angle = (i / particleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const speed = (INITIAL_SPEED_MIN + Math.random() * (INITIAL_SPEED_MAX - INITIAL_SPEED_MIN)) * speedMultiplier;
         
         const particle: ArrowBreakParticle = {
             id: `arrow_break_${i}_${now}`,
@@ -49,6 +70,7 @@ export function spawnArrowBreakParticles(centerX: number, centerY: number) {
             scale: 0.8 + Math.random() * 0.4, // Random scale 0.8 to 1.2
             startTime: now,
             lifetime: PARTICLE_LIFETIME_MS,
+            color: particleColor, // Set custom color if specified
         };
         activeParticles.push(particle);
     }
@@ -91,9 +113,14 @@ export function renderArrowBreakEffects(ctx: CanvasRenderingContext2D, nowMs: nu
         if (particle.opacity > 0) {
             ctx.globalAlpha = particle.opacity;
             
-            // Choose color based on particle ID for consistency
-            const colorIndex = Math.abs(particle.id.charCodeAt(particle.id.length - 1)) % PARTICLE_COLORS.length;
-            ctx.fillStyle = PARTICLE_COLORS[colorIndex];
+            // Use custom color if specified, otherwise use default colors
+            if (particle.color) {
+                ctx.fillStyle = particle.color;
+            } else {
+                // Choose color based on particle ID for consistency
+                const colorIndex = Math.abs(particle.id.charCodeAt(particle.id.length - 1)) % PARTICLE_COLORS.length;
+                ctx.fillStyle = PARTICLE_COLORS[colorIndex];
+            }
             
             ctx.save();
             ctx.translate(particle.x, particle.y);
@@ -116,4 +143,88 @@ export function renderArrowBreakEffects(ctx: CanvasRenderingContext2D, nowMs: nu
 // Cleanup function
 export function cleanupArrowBreakEffectSystem() {
     activeParticles.length = 0; // Clear all particles
-} 
+}
+
+export const createArrowBreakEffect = (
+  ctx: CanvasRenderingContext2D,
+  event: ArrowBreakEvent,
+  ammoType?: string // NEW: Add ammo type parameter
+) => {
+  const particleCount = 8;
+  const particles: Array<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    maxLife: number;
+    color: string; // NEW: Color based on arrow type
+  }> = [];
+
+  // NEW: Determine particle color based on arrow type
+  let particleColor = '#8B4513'; // Default brown for wood arrows
+  if (ammoType === 'Hollow Reed Arrow') {
+    particleColor = '#90EE90'; // Light green for reed arrows
+  } else if (ammoType === 'Fire Arrow') {
+    particleColor = '#FF6347'; // Orange-red for fire arrows
+  } else if (ammoType === 'Bone Arrow') {
+    particleColor = '#F5F5DC'; // Beige for bone arrows
+  }
+
+  // Create particles
+  for (let i = 0; i < particleCount; i++) {
+    const angle = (i / particleCount) * Math.PI * 2;
+    const speed = 60 + Math.random() * 40; // Random speed between 60-100
+    
+    particles.push({
+      x: event.posX,
+      y: event.posY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1.0,
+      maxLife: 1.0,
+      color: particleColor // Use arrow-specific color
+    });
+  }
+
+  // Animation function
+  const animate = (deltaTime: number) => {
+    ctx.save();
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const particle = particles[i];
+      
+      // Update particle physics
+      particle.x += particle.vx * deltaTime;
+      particle.y += particle.vy * deltaTime;
+      particle.vy += 200 * deltaTime; // Gravity
+      particle.life -= deltaTime * 2; // Fade over 0.5 seconds
+      
+      // Remove dead particles
+      if (particle.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      
+      // Draw particle
+      const alpha = particle.life / particle.maxLife;
+      const size = 2 + (1 - alpha) * 2; // Grow as they fade
+      
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = particle.color;
+      ctx.fillRect(
+        particle.x - size / 2,
+        particle.y - size / 2,
+        size,
+        size
+      );
+    }
+    
+    ctx.restore();
+    
+    // Return true if animation should continue
+    return particles.length > 0;
+  };
+
+  return animate;
+}; 

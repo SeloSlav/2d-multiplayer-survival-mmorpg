@@ -19,6 +19,10 @@ client/public/sounds/
 ├── button_click.mp3  # UI and other sound effects
 ├── item_pickup.mp3   
 ├── error.mp3         
+├── drinking_water.mp3 # Water drinking sound effect
+├── throwing_up.mp3   # Throwing up sound (salt water, food poisoning)
+├── eating_food.mp3    # Eating food sound effect
+├── campfire_looping.mp3 # Campfire ambient loop
 └── [other sounds]    # Add any additional sound files as needed
 ```
 
@@ -27,6 +31,9 @@ client/public/sounds/
 ### 🌳 **Resource Gathering** (PREDICT_CONFIRM Strategy)
 - **Tree chopping**: Played when hitting trees with hatchets/axes
 - **Stone hitting**: Played when hitting stones with pickaxes
+- **Drinking water**: Played when drinking from fresh water sources
+- **Throwing up**: Played when drinking salt water or eating poisonous food
+- **Eating food**: Played when eating food
 - **Characteristics**: Short (0.1-0.5s), punchy, satisfying impact sounds
 - **Volume**: Medium-high impact for satisfying feedback
 
@@ -133,6 +140,9 @@ if (itemName.includes('hatchet') || itemName.includes('axe')) {
 ### For Resource Gathering:
 - **Tree Chop**: Wood impact, axe bite, satisfying thunk
 - **Stone Hit**: Rock crack, metal ring, sharp impact
+- **Drinking Water**: Water sipping/gulping sound, refreshing liquid sound
+- **Throwing Up**: Unpleasant retching/vomiting sound, brief but distinct
+- **Eating Food**: Eating food sound
 - **Variations**: Change pitch slightly, different impact angles
 
 ### For UI:

@@ -158,6 +158,8 @@ function AppContent() {
       sleepingBags, // ADD destructuring
       playerCorpses, // <<< ADD playerCorpses destructuring
       stashes, // <<< ADD stashes destructuring
+      rainCollectors, // <<< ADD rainCollectors destructuring
+      waterPatches, // <<< ADD waterPatches destructuring
       activeConsumableEffects, // <<< ADD activeConsumableEffects destructuring
       grass, // <<< ADD grass destructuring
       knockedOutStatus, // <<< ADD knockedOutStatus destructuring
@@ -171,7 +173,8 @@ function AppContent() {
       fishingSessions, // <<< ADD fishingSessions HERE
       soundEvents, // <<< ADD soundEvents HERE
       continuousSounds, // <<< ADD continuousSounds HERE
-      localPlayerIdentity // <<< ADD localPlayerIdentity HERE
+      localPlayerIdentity, // <<< ADD localPlayerIdentity HERE
+      playerDrinkingCooldowns, // <<< ADD playerDrinkingCooldowns HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -792,6 +795,9 @@ function AppContent() {
                             onSoundVolumeChange={handleSoundVolumeChange}
                             onEnvironmentalVolumeChange={handleEnvironmentalVolumeChange}
                             soundSystem={soundSystemState}
+                            playerDrinkingCooldowns={playerDrinkingCooldowns}
+                            rainCollectors={rainCollectors}
+                            waterPatches={waterPatches}
                         />
                     );
                 })()

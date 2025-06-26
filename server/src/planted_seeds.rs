@@ -28,6 +28,9 @@ use crate::world_state::{world_state as WorldStateTableTrait, WeatherType, TimeO
 use crate::cloud::cloud as CloudTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::lantern::lantern as LanternTableTrait;
+use crate::shelter::shelter as ShelterTableTrait;
+// Import water tile detection from fishing module
+use crate::fishing::is_water_tile;
 
 // --- Planted Seed Tracking Table ---
 
@@ -300,6 +303,28 @@ fn get_crowding_penalty_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: 
     multiplier.max(0.1) // Ensure minimum 10% growth rate
 }
 
+/// Calculate shelter penalty for a specific planted seed
+/// Returns a multiplier of 0.1 (90% penalty) if inside any shelter, 1.0 otherwise
+fn get_shelter_penalty_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: f32) -> f32 {
+    // Check if plant is inside any shelter
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { 
+            continue; 
+        }
+        
+        // Use the shelter's collision detection logic to check if plant is inside
+        if crate::shelter::is_player_inside_shelter(plant_x, plant_y, &shelter) {
+            log::info!(
+                "Plant at ({:.1}, {:.1}) is inside Shelter {} - applying 90% growth penalty", 
+                plant_x, plant_y, shelter.id
+            );
+            return 0.1; // 90% penalty - only 10% growth rate
+        }
+    }
+    
+    1.0 // No penalty if not inside any shelter
+}
+
 /// Calculate the effective growth rate for current conditions
 fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> f32 {
     // Get current world state
@@ -339,6 +364,73 @@ pub fn init_plant_growth_system(ctx: &ReducerContext) -> Result<(), String> {
         log::info!("Plant growth system initialized - checking every {} seconds", PLANT_GROWTH_CHECK_INTERVAL_SECS);
     }
     
+    Ok(())
+}
+
+// --- Shore Distance Calculation ---
+
+/// Calculate distance from a position to the nearest shore
+/// Returns distance in pixels (same units as world coordinates)
+/// Adapted from FishingManager.tsx logic but optimized for server use
+fn calculate_shore_distance(ctx: &ReducerContext, x: f32, y: f32) -> f32 {
+    // Use efficient radial search instead of grid search
+    // This reduces checks from ~1,000 to ~50-100 and stops early when shore is found
+    
+    const MAX_SEARCH_RADIUS: f32 = 200.0; // Maximum search distance in pixels
+    const RADIUS_STEP: f32 = 16.0; // Check every 16 pixels radially
+    const ANGLE_STEP: f32 = std::f32::consts::PI / 8.0; // Check 16 directions (22.5° apart)
+    
+    let mut min_distance = MAX_SEARCH_RADIUS;
+    
+    // Search outward in concentric circles
+    let mut radius = RADIUS_STEP;
+    while radius <= MAX_SEARCH_RADIUS {
+        let mut found_shore_at_this_radius = false;
+        
+        // Check points around the circle at this radius
+        let mut angle = 0.0;
+        while angle < std::f32::consts::PI * 2.0 {
+            let check_x = x + angle.cos() * radius;
+            let check_y = y + angle.sin() * radius;
+            
+            // If this position is not water (i.e., it's shore/land)
+            if !is_water_tile(ctx, check_x, check_y) {
+                min_distance = min_distance.min(radius);
+                found_shore_at_this_radius = true;
+            }
+            
+            angle += ANGLE_STEP;
+        }
+        
+        // Early exit: if we found shore at this radius, we don't need to search further
+        // (since we're searching outward, this is likely the minimum distance)
+        if found_shore_at_this_radius {
+            break;
+        }
+        
+        radius += RADIUS_STEP;
+    }
+    
+    min_distance
+}
+
+/// Validate reed rhizome planting location
+/// Reed rhizomes can only be planted on water tiles within 20 meters of shore
+fn validate_reed_rhizome_planting(ctx: &ReducerContext, x: f32, y: f32) -> Result<(), String> {
+    // First check if it's a water tile
+    if !is_water_tile(ctx, x, y) {
+        return Err("Reed Rhizome can only be planted in water".to_string());
+    }
+    
+    // Check distance to shore (20 meters = ~200 pixels at current scale)
+    const MAX_SHORE_DISTANCE: f32 = 200.0; // 20 meters in pixels
+    let shore_distance = calculate_shore_distance(ctx, x, y);
+    
+    if shore_distance > MAX_SHORE_DISTANCE {
+        return Err(format!("Reed Rhizome must be planted within 20m of shore (current distance: {:.1}m)", shore_distance / 10.0));
+    }
+    
+    log::info!("Reed Rhizome planting validated at ({:.1}, {:.1}) - {:.1}m from shore", x, y, shore_distance / 10.0);
     Ok(())
 }
 
@@ -416,6 +508,14 @@ pub fn plant_seed(
             log::error!("PLANT_SEED: '{}' is not a plantable seed", item_def.name);
             format!("'{}' is not a plantable seed", item_def.name)
         })?;
+    
+    // Special validation for Reed Rhizome - must be planted on water near shore
+    if item_def.name == "Reed Rhizome" {
+        if let Err(e) = validate_reed_rhizome_planting(ctx, plant_pos_x, plant_pos_y) {
+            log::error!("PLANT_SEED: Reed Rhizome validation failed: {}", e);
+            return Err(e);
+        }
+    }
     
     // Calculate growth time
     let growth_time_secs = if growth_config.min_growth_time_secs >= growth_config.max_growth_time_secs {
@@ -513,8 +613,14 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
         // Calculate crowding penalty for this specific plant
         let crowding_multiplier = get_crowding_penalty_multiplier(ctx, plant.pos_x, plant.pos_y, plant.id);
         
+        // Calculate shelter penalty for this specific plant
+        let shelter_multiplier = get_shelter_penalty_multiplier(ctx, plant.pos_x, plant.pos_y);
+        
+        // Calculate water patch bonus for this specific plant
+        let water_multiplier = crate::water_patch::get_water_patch_growth_multiplier(ctx, plant.pos_x, plant.pos_y);
+        
         // Combine all growth modifiers for this plant
-        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier * light_multiplier * crowding_multiplier;
+        let total_growth_multiplier = base_growth_multiplier * cloud_multiplier * light_multiplier * crowding_multiplier * shelter_multiplier * water_multiplier;
         
         // Calculate growth progress increment
         let base_growth_rate = 1.0 / plant.base_growth_time_secs as f32; // Progress per second at 1x multiplier
@@ -561,15 +667,15 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
             plants_updated += 1;
             
             if growth_increment > 0.0 {
-                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, light: {:.2}x, crowding: {:.2}x, total: {:.2}x)", 
+                log::debug!("Plant {} ({}) grew from {:.1}% to {:.1}% (base: {:.2}x, cloud: {:.2}x, light: {:.2}x, crowding: {:.2}x, shelter: {:.2}x, water: {:.2}x, total: {:.2}x)", 
                            plant_id, plant_type, old_progress * 100.0, progress_pct, 
-                           base_growth_multiplier, cloud_multiplier, light_multiplier, crowding_multiplier, total_growth_multiplier);
+                           base_growth_multiplier, cloud_multiplier, light_multiplier, crowding_multiplier, shelter_multiplier, water_multiplier, total_growth_multiplier);
             }
         }
     }
     
     if plants_matured > 0 || plants_updated > 0 {
-        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light/crowding effects vary per plant)", 
+        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light/crowding/shelter effects vary per plant)", 
                   plants_matured, plants_updated, base_growth_multiplier);
     }
     

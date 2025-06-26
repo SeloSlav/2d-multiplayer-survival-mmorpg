@@ -154,7 +154,11 @@ export function getInteractionText(state: InteractionIndicatorState): string {
             return '[Hold E] Revive Player';
         case 'water':
             return '[Hold E] Drink Water';
+        case 'rain_collector':
+            return '[E] Manage Rain Collector';
         default:
             return `[E] Interact with ${target.type}`;
     }
+
+    return '';
 } 

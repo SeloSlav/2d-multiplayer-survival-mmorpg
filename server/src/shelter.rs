@@ -226,6 +226,7 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
                 item_def_id: shelter_item_def_id,
                 quantity: 1,
                 location: original_item_location, // Use the cloned original location
+                item_data: None, // Initialize as empty
             };
             if inventory_items.try_insert(refund_item).is_err() {
                 log::error!("Critical error: Failed to refund Shelter item to player {:?} after placement failure.", sender_id);

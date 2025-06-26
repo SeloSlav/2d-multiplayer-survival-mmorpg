@@ -30,6 +30,7 @@ import {
     CraftingQueueItem,
     PlayerCorpse,
     Stash as SpacetimeDBStash,
+    RainCollector as SpacetimeDBRainCollector,
     WorldState,
     // Import the generated types for ItemLocation variants
     ItemLocation,
@@ -53,6 +54,8 @@ import Tooltip, { TooltipContent, TooltipStats } from './Tooltip';
 import { formatStatDisplay } from '../utils/formatUtils';
 // ADD: Import ItemInteractionPanel component
 import ItemInteractionPanel from './ItemInteractionPanel';
+// Import water container helpers
+import { isWaterContainer, getWaterContent, formatWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
 
 // --- Type Definitions ---
 // Define props for InventoryUI component
@@ -73,6 +76,7 @@ interface InventoryUIProps {
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>; // <<< ADDED Prop Definition
     playerCorpses: Map<string, PlayerCorpse>; // <<< ADD prop definition for corpses
     stashes: Map<string, SpacetimeDBStash>; // <<< ADDED stashes prop
+    rainCollectors: Map<string, SpacetimeDBRainCollector>; // Add rain collectors prop
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null; // <<< ADDED Prop Definition
     // NEW: Add Generic Placement Props
     startPlacement: (itemInfo: PlacementItemInfo) => void;
@@ -126,6 +130,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     woodenStorageBoxes,
     playerCorpses,
     stashes,
+    rainCollectors,
     currentStorageBox,
     startPlacement,
     cancelPlacement,
@@ -237,6 +242,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
 
     // --- Callbacks & Handlers ---
     const handleItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent browser tooltip
+        event.currentTarget.removeAttribute('title');
+        
         if (inventoryPanelRef.current) {
             const panelRect = inventoryPanelRef.current.getBoundingClientRect();
             const relativeX = event.clientX - panelRect.left;
@@ -310,6 +318,17 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             // Fuel Stats
             if (def.fuelBurnDurationSecs !== undefined && def.fuelBurnDurationSecs > 0) {
                 stats.push({ label: 'Burn Time', value: `${def.fuelBurnDurationSecs}s` });
+            }
+
+            // Water Container Stats
+            if (isWaterContainer(def.name)) {
+                const waterContent = getWaterContent(item.instance);
+                const waterDisplay = formatWaterContent(item.instance, def.name);
+                stats.push({ 
+                    label: 'Water', 
+                    value: waterDisplay, 
+                    color: waterContent !== null ? '#5bc0de' : '#999' 
+                });
             }
 
             const content: TooltipContent = {
@@ -399,6 +418,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const currentLanternId = currentInteraction?.type === 'lantern' ? Number(currentInteraction.id) : null;
         const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
         const currentStashId = currentInteraction?.type === 'stash' ? Number(currentInteraction.id) : null;
+        const currentRainCollectorId = currentInteraction?.type === 'rain_collector' ? Number(currentInteraction.id) : null;
 
         // --- PRIORITY 1: Open Corpse ---
         if (currentCorpseId !== null) {
@@ -439,6 +459,24 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 // Optionally set a UI error here to inform the player
             }
             return; // Action handled (or intentionally not handled if hidden)
+        }
+        // --- PRIORITY 3.5: Open Rain Collector ---
+        else if (currentRainCollectorId !== null) {
+            // Only allow water containers to be moved to rain collectors
+            const allowedWaterContainers = ['Reed Water Bottle', 'Plastic Water Jug'];
+            if (allowedWaterContainers.includes(itemInfo.definition.name)) {
+                try {
+                    // console.log(`[Inv CtxMenu Inv->RainCollector] Rain Collector ${currentRainCollectorId} open. Calling moveItemToRainCollector for item ${itemInstanceId}`);
+                    connection.reducers.moveItemToRainCollector(currentRainCollectorId, itemInstanceId, 0);
+                } catch (e: any) {
+                    console.error(`[Inv CtxMenu Inv->RainCollector] Error quick moving item ${itemInstanceId} to rain collector ${currentRainCollectorId}:`, e);
+                    // TODO: setUiError
+                }
+            } else {
+                // console.log(`[Inv CtxMenu Inv->RainCollector] Item ${itemInfo.definition.name} cannot be moved to rain collector. Only water containers allowed.`);
+                // Optionally show a brief message to the player
+            }
+            return; // Action handled
         }
         // --- PRIORITY 4: Open Campfire --- 
         else if (currentCampfireId !== null) {
@@ -486,9 +524,13 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     // These handlers will be identical to the ones above but are explicitly for external items
     // to avoid any potential confusion if we ever needed to differentiate them.
     const handleExternalItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent browser tooltip
+        event.currentTarget.removeAttribute('title');
+        
         if (inventoryPanelRef.current) {
             const panelRect = inventoryPanelRef.current.getBoundingClientRect();
-            const relativeX = event.clientX - panelRect.left;
+            // Position tooltip to the left to prevent cutoff in external containers
+            const relativeX = Math.max(50, event.clientX - panelRect.left - 200); // Offset left by 200px, minimum 50px from edge
             const relativeY = event.clientY - panelRect.top;
 
             const stats: TooltipStats[] = [];
@@ -554,6 +596,17 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 stats.push({ label: 'Burn Time', value: `${def.fuelBurnDurationSecs}s` });
             }
 
+            // Water Container Stats
+            if (isWaterContainer(def.name)) {
+                const waterContent = getWaterContent(item.instance);
+                const waterDisplay = formatWaterContent(item.instance, def.name);
+                stats.push({ 
+                    label: 'Water', 
+                    value: waterDisplay, 
+                    color: waterContent !== null ? '#5bc0de' : '#999' 
+                });
+            }
+
             const content: TooltipContent = {
                 name: def.name,
                 description: def.description,
@@ -576,7 +629,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     const handleExternalItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
         if (inventoryPanelRef.current && tooltipVisible) {
             const panelRect = inventoryPanelRef.current.getBoundingClientRect();
-            const relativeX = event.clientX - panelRect.left;
+            // Position tooltip to the left to prevent cutoff in external containers
+            const relativeX = Math.max(50, event.clientX - panelRect.left - 200); // Offset left by 200px, minimum 50px from edge
             const relativeY = event.clientY - panelRect.top;
             setTooltipPosition({ x: relativeX, y: relativeY });
         }
@@ -678,18 +732,55 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                     className={styles.slot}
                                     isDraggingOver={false} // Add state if needed
                                 >
-                                    {item && (
-                                        <DraggableItem
-                                            item={item}
-                                            sourceSlot={currentSlotInfo}
-                                            onItemDragStart={onItemDragStart}
-                                            onItemDrop={handleItemDropWithTracking}
-                                            onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
-                                            onMouseLeave={handleItemMouseLeave}
-                                            onMouseMove={handleItemMouseMove}
-                                            // No context menu needed for equipped items? Or move back to inv?
-                                        />
-                                    )}
+                                                                            {item && (
+                                            <DraggableItem
+                                                item={item}
+                                                sourceSlot={currentSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={handleItemDropWithTracking}
+                                                onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => handleItemMouseEnter(item, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
+                                                // No context menu needed for equipped items? Or move back to inv?
+                                            />
+                                        )}
+                                        
+                                        {/* Water level indicator for water containers in equipment slots */}
+                                        {item && isWaterContainer(item.definition.name) && (() => {
+                                            const waterLevelPercentage = getWaterLevelPercentage(item.instance, item.definition.name);
+                                            const hasWater = waterLevelPercentage > 0;
+                                            
+                                            return (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '4px',
+                                                        top: '4px',
+                                                        bottom: '4px',
+                                                        width: '3px',
+                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                        borderRadius: '1px',
+                                                        zIndex: 4,
+                                                        pointerEvents: 'none',
+                                                    }}
+                                                >
+                                                    {hasWater && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '0px',
+                                                                left: '0px',
+                                                                right: '0px',
+                                                                height: `${waterLevelPercentage * 100}%`,
+                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                                borderRadius: '1px',
+                                                                transition: 'height 0.3s ease-in-out',
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                 </DroppableSlot>
                                 <div className={styles.slotLabel}>{slotInfo.name}</div>
                             </div>
@@ -728,6 +819,43 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                                         onClick={(e: React.MouseEvent<HTMLDivElement>) => handleInventoryItemClick(item, e)}
                                     />
                                 )}
+                                
+                                {/* Water level indicator for water containers */}
+                                {item && isWaterContainer(item.definition.name) && (() => {
+                                    const waterLevelPercentage = getWaterLevelPercentage(item.instance, item.definition.name);
+                                    const hasWater = waterLevelPercentage > 0;
+                                    
+                                    return (
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                left: '4px',
+                                                top: '4px',
+                                                bottom: '4px',
+                                                width: '3px',
+                                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                                borderRadius: '1px',
+                                                zIndex: 4,
+                                                pointerEvents: 'none',
+                                            }}
+                                        >
+                                            {hasWater && (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        bottom: '0px',
+                                                        left: '0px',
+                                                        right: '0px',
+                                                        height: `${waterLevelPercentage * 100}%`,
+                                                        backgroundColor: 'rgba(0, 150, 255, 0.8)',
+                                                        borderRadius: '1px',
+                                                        transition: 'height 0.3s ease-in-out',
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </DroppableSlot>
                         );
                     })}
@@ -759,6 +887,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             woodenStorageBoxes={woodenStorageBoxes}
                             playerCorpses={playerCorpses}
                             stashes={stashes}
+                            rainCollectors={rainCollectors}
                             currentStorageBox={currentStorageBox}
                             connection={connection}
                             onItemDragStart={onItemDragStart}

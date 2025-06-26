@@ -588,6 +588,12 @@ export const useDragDropManager = ({
                     if (sourceStashId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing StashID/SourceIndex for move from stash"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
                     connection.reducers.moveItemFromStash(sourceStashId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'rain_collector') { // Moving FROM rain collector TO inventory
+                    const sourceRainCollectorId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceRainCollectorId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing RainCollectorID/SourceIndex for move from rain collector"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_rain_collector (RainCollectorID: ${sourceRainCollectorId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
+                    connection.reducers.moveItemFromRainCollector(sourceRainCollectorId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
                     // Default move to inventory (from inv/hotbar/equip)
                     connection.reducers.moveItemToInventory(itemInstanceId, targetIndexNum);
@@ -624,6 +630,12 @@ export const useDragDropManager = ({
                     if (sourceStashId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing StashID/SourceIndex for move from stash"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling move_item_from_stash (StashID: ${sourceStashId}, Slot: ${sourceIndexNum} to hotbar ${targetIndexNum})`);
                     connection.reducers.moveItemFromStash(sourceStashId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'rain_collector') { // Moving FROM rain collector TO hotbar
+                    const sourceRainCollectorId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceRainCollectorId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing RainCollectorID/SourceIndex for move from rain collector"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_rain_collector (RainCollectorID: ${sourceRainCollectorId}, Slot: ${sourceIndexNum} to hotbar ${targetIndexNum})`);
+                    connection.reducers.moveItemFromRainCollector(sourceRainCollectorId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else {
                     // Default move to hotbar (from inv/hotbar/equip)
                     connection.reducers.moveItemToHotbar(itemInstanceId, targetIndexNum);
@@ -757,10 +769,47 @@ export const useDragDropManager = ({
                     console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to stash`);
                     setDropError("Cannot move item from this location to a stash.");
                 }
+            } else if (targetSlot.type === 'rain_collector') { // New block for moving TO rain collector
+                const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                if (isNaN(targetIndexNum)) { console.error("Invalid rain collector index", targetSlot.index); setDropError("Invalid slot."); return; }
+                const rainCollectorIdNum = targetSlot.parentId ? Number(targetSlot.parentId) : (interactingWith?.type === 'rain_collector' ? Number(interactingWith.id) : null);
+                if (rainCollectorIdNum === null || isNaN(rainCollectorIdNum)) {
+                    console.error("[useDragDropManager Drop] Rain Collector ID could not be determined.");
+                    setDropError("Cannot move item: Rain Collector context lost.");
+                    return;
+                }
+                const source_type = sourceInfo.sourceSlot.type.trim();
+                if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
+                    // Check if the item is a water container before allowing the drop
+                    const allowedWaterContainers = ['Reed Water Bottle', 'Plastic Water Jug'];
+                    if (allowedWaterContainers.includes(sourceInfo.item.definition.name)) {
+                        // console.log(`[useDragDropManager Drop] Calling move_item_to_rain_collector (RainCollectorID: ${rainCollectorIdNum}, Slot: ${targetIndexNum}, Item: ${itemInstanceId})`);
+                        connection.reducers.moveItemToRainCollector(rainCollectorIdNum, itemInstanceId, targetIndexNum);
+                    } else {
+                        // Don't show error UI for this validation - just silently reject the drop
+                        return;
+                    }
+                } else if (source_type === 'rain_collector') {
+                    // Rain collector only has 1 slot, so within-container moves don't make much sense
+                    // But keeping the pattern consistent for future extensibility
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source rain collector index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== rainCollectorIdNum) {
+                        setDropError("Cannot move items between different rain collectors yet.");
+                        return;
+                    }
+                    // For now, since there's only 1 slot, moving within the same rain collector doesn't do anything
+                    console.log(`[useDragDropManager Drop] Rain collector within-container move ignored (only 1 slot)`);
+                } else {
+                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to rain_collector`);
+                    setDropError("Cannot move item from this location to a rain collector.");
+                }
             }
         } catch (error: any) {
             console.error("[useDragDropManager Drop] Error handling drop:", error);
-            setDropError(`Failed to handle drop: ${error?.message || error}`);
+            // Don't show technical errors to users - just log them for debugging
+            // Most drop failures are due to validation or connection issues that don't need user notification
+            return;
         }
     }, [connection, interactingWith, playerIdentity]);
 

@@ -621,6 +621,7 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
             container_id: new_campfire_id as u64, 
             slot_index: 0, 
         }),
+        item_data: None, // Initialize as empty
     };
     let inserted_fuel_item = inventory_items.try_insert(initial_fuel_item)
         .map_err(|e| format!("Failed to insert initial fuel item: {}", e))?;
@@ -794,7 +795,11 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
              })
          });
  
-         match crate::cooking::process_appliance_cooking_tick(ctx, &mut campfire, time_increment, active_fuel_instance_id_for_cooking_check) {
+         // Apply Reed Bellows cooking speed multiplier (makes cooking faster)
+         let cooking_speed_multiplier = get_cooking_speed_multiplier(ctx, &campfire);
+         let adjusted_cooking_time_increment = time_increment * cooking_speed_multiplier;
+         
+         match crate::cooking::process_appliance_cooking_tick(ctx, &mut campfire, adjusted_cooking_time_increment, active_fuel_instance_id_for_cooking_check) {
              Ok(cooking_modified_appliance) => {
                  if cooking_modified_appliance {
                      made_changes_to_campfire_struct = true;
@@ -809,7 +814,10 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
          // --- FUEL CONSUMPTION LOGIC (remains specific to campfire) ---
          if let Some(mut remaining_time) = campfire.remaining_fuel_burn_time_secs {
              if remaining_time > 0.0 {
-                 remaining_time -= time_increment; // time_increment was defined above
+                 // Apply Reed Bellows fuel burn rate multiplier (makes fuel burn slower)
+                 let fuel_burn_multiplier = get_fuel_burn_rate_multiplier(ctx, &campfire);
+                 let adjusted_time_increment = time_increment / fuel_burn_multiplier;
+                 remaining_time -= adjusted_time_increment;
  
                  if remaining_time <= 0.0 {
                      // log::info!("[ProcessCampfireScheduled] Campfire {} fuel unit (Def: {:?}) burnt out. Consuming unit and checking stack/new fuel.", campfire.id, campfire.current_fuel_def_id);
@@ -1340,6 +1348,7 @@ fn try_add_charcoal_to_campfire_or_drop(
                 item_def_id: charcoal_def_id,
                 quantity, // This will be 1 from production
                 location: new_charcoal_location,
+                item_data: None, // Initialize as empty
             };
             match inventory_items_table.try_insert(new_charcoal_item) {
                 Ok(inserted_item) => {
@@ -1491,4 +1500,42 @@ fn is_campfire_protected_from_rain(ctx: &ReducerContext, campfire: &Campfire) ->
     }
     
     false
+}
+
+/// Check if a Reed Bellows is present in any of the campfire's fuel slots
+pub fn has_reed_bellows(ctx: &ReducerContext, campfire: &Campfire) -> bool {
+    let item_defs_table = ctx.db.item_definition();
+    
+    // Check all fuel slots for Reed Bellows
+    for slot_index in 0..NUM_FUEL_SLOTS {
+        if let Some(fuel_def_id) = campfire.get_slot_def_id(slot_index as u8) {
+            if let Some(item_def) = item_defs_table.id().find(fuel_def_id) {
+                if item_def.name == "Reed Bellows" {
+                    log::debug!("Reed Bellows found in campfire {} slot {}", campfire.id, slot_index);
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Get the fuel burn rate multiplier based on whether Reed Bellows is present
+/// Reed Bellows makes fuel burn 50% slower (multiplier = 1.5)
+pub fn get_fuel_burn_rate_multiplier(ctx: &ReducerContext, campfire: &Campfire) -> f32 {
+    if has_reed_bellows(ctx, campfire) {
+        1.5 // Fuel burns 50% slower with bellows (lasts 1.5x longer)
+    } else {
+        1.0 // Normal burn rate
+    }
+}
+
+/// Get the cooking speed multiplier based on whether Reed Bellows is present  
+/// Reed Bellows makes cooking 40% faster (multiplier = 1.4)
+pub fn get_cooking_speed_multiplier(ctx: &ReducerContext, campfire: &Campfire) -> f32 {
+    if has_reed_bellows(ctx, campfire) {
+        1.4 // Cooking 40% faster with bellows
+    } else {
+        1.0 // Normal cooking speed
+    }
 }

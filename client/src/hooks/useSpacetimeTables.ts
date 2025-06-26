@@ -105,6 +105,8 @@ export interface SpacetimeTableStates {
     droppedItems: Map<string, SpacetimeDB.DroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDB.WoodenStorageBox>;
     stashes: Map<string, SpacetimeDB.Stash>;
+    rainCollectors: Map<string, SpacetimeDB.RainCollector>;
+    waterPatches: Map<string, SpacetimeDB.WaterPatch>;
     recipes: Map<string, SpacetimeDB.Recipe>;
     craftingQueueItems: Map<string, SpacetimeDB.CraftingQueueItem>;
     messages: Map<string, SpacetimeDB.Message>;
@@ -129,6 +131,7 @@ export interface SpacetimeTableStates {
     soundEvents: Map<string, SpacetimeDB.SoundEvent>;
     continuousSounds: Map<string, SpacetimeDB.ContinuousSound>;
     localPlayerIdentity: Identity | null;
+    playerDrinkingCooldowns: Map<string, SpacetimeDB.PlayerDrinkingCooldown>;
 }   
 
 // Define the props the hook accepts
@@ -175,7 +178,9 @@ export const useSpacetimeTables = ({
     const [sleepingBags, setSleepingBags] = useState<Map<string, SpacetimeDB.SleepingBag>>(() => new Map());
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
-    const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
+    const [rainCollectors, setRainCollectors] = useState<Map<string, SpacetimeDB.RainCollector>>(() => new Map());
+const [waterPatches, setWaterPatches] = useState<Map<string, SpacetimeDB.WaterPatch>>(() => new Map());
+const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
     const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map());
     const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // DISABLED: Always empty for performance
     const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map());
@@ -189,6 +194,7 @@ export const useSpacetimeTables = ({
     const [fishingSessions, setFishingSessions] = useState<Map<string, SpacetimeDB.FishingSession>>(() => new Map());
     const [soundEvents, setSoundEvents] = useState<Map<string, SpacetimeDB.SoundEvent>>(() => new Map());
     const [continuousSounds, setContinuousSounds] = useState<Map<string, SpacetimeDB.ContinuousSound>>(() => new Map());
+    const [playerDrinkingCooldowns, setPlayerDrinkingCooldowns] = useState<Map<string, SpacetimeDB.PlayerDrinkingCooldown>>(() => new Map());
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -397,7 +403,9 @@ export const useSpacetimeTables = ({
                                 `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`
+                                `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`
                             ];
                             newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
@@ -467,6 +475,8 @@ export const useSpacetimeTables = ({
                             newHandlesForChunk.push(timedSubscribe('Campfire', `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WoodenStorageBox', `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('DroppedItem', `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('RainCollector', `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1044,6 +1054,42 @@ export const useSpacetimeTables = ({
                 setContinuousSounds(prev => { const newMap = new Map(prev); newMap.delete(continuousSound.objectId.toString()); return newMap; });
             };
 
+            // --- PlayerDrinkingCooldown Subscriptions ---
+            const handlePlayerDrinkingCooldownInsert = (ctx: any, cooldown: SpacetimeDB.PlayerDrinkingCooldown) => {
+                setPlayerDrinkingCooldowns(prev => new Map(prev).set(cooldown.playerId.toHexString(), cooldown));
+            };
+            const handlePlayerDrinkingCooldownUpdate = (ctx: any, oldCooldown: SpacetimeDB.PlayerDrinkingCooldown, newCooldown: SpacetimeDB.PlayerDrinkingCooldown) => {
+                setPlayerDrinkingCooldowns(prev => new Map(prev).set(newCooldown.playerId.toHexString(), newCooldown));
+            };
+            const handlePlayerDrinkingCooldownDelete = (ctx: any, cooldown: SpacetimeDB.PlayerDrinkingCooldown) => {
+                setPlayerDrinkingCooldowns(prev => { const newMap = new Map(prev); newMap.delete(cooldown.playerId.toHexString()); return newMap; });
+            };
+
+            // --- RainCollector Subscriptions ---
+            const handleRainCollectorInsert = (ctx: any, rainCollector: SpacetimeDB.RainCollector) => {
+                setRainCollectors(prev => new Map(prev).set(rainCollector.id.toString(), rainCollector));
+                if (connection.identity && rainCollector.placedBy.isEqual(connection.identity)) {
+                   cancelPlacementRef.current();
+                }
+            };
+            const handleRainCollectorUpdate = (ctx: any, oldRainCollector: SpacetimeDB.RainCollector, newRainCollector: SpacetimeDB.RainCollector) => {
+                setRainCollectors(prev => new Map(prev).set(newRainCollector.id.toString(), newRainCollector));
+            };
+            const handleRainCollectorDelete = (ctx: any, rainCollector: SpacetimeDB.RainCollector) => {
+                setRainCollectors(prev => { const newMap = new Map(prev); newMap.delete(rainCollector.id.toString()); return newMap; });
+            };
+
+            // --- WaterPatch Subscriptions ---
+            const handleWaterPatchInsert = (ctx: any, waterPatch: SpacetimeDB.WaterPatch) => {
+                setWaterPatches(prev => new Map(prev).set(waterPatch.id.toString(), waterPatch));
+            };
+            const handleWaterPatchUpdate = (ctx: any, oldWaterPatch: SpacetimeDB.WaterPatch, newWaterPatch: SpacetimeDB.WaterPatch) => {
+                setWaterPatches(prev => new Map(prev).set(newWaterPatch.id.toString(), newWaterPatch));
+            };
+            const handleWaterPatchDelete = (ctx: any, waterPatch: SpacetimeDB.WaterPatch) => {
+                setWaterPatches(prev => { const newMap = new Map(prev); newMap.delete(waterPatch.id.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1148,6 +1194,21 @@ export const useSpacetimeTables = ({
             connection.db.continuousSound.onUpdate(handleContinuousSoundUpdate);
             connection.db.continuousSound.onDelete(handleContinuousSoundDelete);
 
+            // Register PlayerDrinkingCooldown callbacks - ADDED
+            connection.db.playerDrinkingCooldown.onInsert(handlePlayerDrinkingCooldownInsert);
+            connection.db.playerDrinkingCooldown.onUpdate(handlePlayerDrinkingCooldownUpdate);
+            connection.db.playerDrinkingCooldown.onDelete(handlePlayerDrinkingCooldownDelete);
+
+            // Register RainCollector callbacks - ADDED
+            connection.db.rainCollector.onInsert(handleRainCollectorInsert);
+            connection.db.rainCollector.onUpdate(handleRainCollectorUpdate);
+            connection.db.rainCollector.onDelete(handleRainCollectorDelete);
+
+            // Register WaterPatch callbacks - ADDED
+            connection.db.waterPatch.onInsert(handleWaterPatchInsert);
+            connection.db.waterPatch.onUpdate(handleWaterPatchUpdate);
+            connection.db.waterPatch.onDelete(handleWaterPatchDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1228,6 +1289,10 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[CONTINUOUS_SOUND Sub Error]:", err))
                     .subscribe('SELECT * FROM continuous_sound'),
+                 // ADDED PlayerDrinkingCooldown subscription for water drinking cooldowns
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[PLAYER_DRINKING_COOLDOWN Sub Error]:", err))
+                    .subscribe('SELECT * FROM player_drinking_cooldown'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1283,7 +1348,8 @@ export const useSpacetimeTables = ({
                                     `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
 
@@ -1394,6 +1460,8 @@ export const useSpacetimeTables = ({
                  setSleepingBags(new Map());
                  setPlayerCorpses(new Map());
                  setStashes(new Map());
+                 setRainCollectors(new Map());
+                 setWaterPatches(new Map());
                  setActiveConsumableEffects(new Map());
                  setClouds(new Map());
                  setGrass(new Map()); // Always keep grass empty for performance
@@ -1409,7 +1477,10 @@ export const useSpacetimeTables = ({
                  // Clear the playerDodgeRollStates ref as well
                  playerDodgeRollStatesRef.current.clear();
                  setFishingSessions(new Map());
+                 setPlantedSeeds(new Map());
                  setSoundEvents(new Map());
+                 setContinuousSounds(new Map());
+                 setPlayerDrinkingCooldowns(new Map());
              }
         };
 
@@ -1443,6 +1514,8 @@ export const useSpacetimeTables = ({
         sleepingBags,
         playerCorpses,
         stashes,
+        rainCollectors,
+        waterPatches,
         activeConsumableEffects,
         clouds,
         grass,
@@ -1459,5 +1532,6 @@ export const useSpacetimeTables = ({
         soundEvents,
         continuousSounds,
         localPlayerIdentity, // Add this to the return
+        playerDrinkingCooldowns,
     };
 }; 

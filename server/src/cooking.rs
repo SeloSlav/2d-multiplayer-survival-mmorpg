@@ -84,7 +84,8 @@ pub(crate) fn transform_item_in_appliance<T: CookableAppliance>(
         instance_id: 0, 
         item_def_id: new_item_def.id,
         quantity: output_quantity, // 🔥 NOW USES crafting_output_quantity!
-        location: ItemLocation::Unknown, 
+        location: ItemLocation::Unknown,
+        item_data: None, // Initialize as empty
     };
 
     let inserted_item = inventory_items_table.try_insert(new_inventory_item)

@@ -473,14 +473,14 @@ fn is_pumpkin_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) ->
 }
 
 /// Checks if position is suitable for reed spawning (along inland water sources)
-/// Reeds prefer to grow directly adjacent to inland water (rivers/lakes) but not ocean water
+/// Reeds prefer to grow near inland water (rivers/lakes) but not ocean water
 fn is_reed_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     // Convert pixel position to tile coordinates
     let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
     
-    // Check if position is immediately adjacent to inland water
-    let search_radius = 1; // Check 1 tile in each direction (immediate neighbors)
+    // Check if position is near inland water (increased from 1 to 2 tiles for better spawn rates)
+    let search_radius = 2; // Check 2 tiles in each direction (allows reeds slightly further from water)
     let world_tiles = ctx.db.world_tile();
     
     for dy in -search_radius..=search_radius {
@@ -988,7 +988,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
 
     // --- Seed Reeds --- Use helper function ---
     log::info!("Seeding Reeds...");
-    let reed_noise_threshold = 0.62; // Lower threshold for reeds (easier to spawn near water)
+    let reed_noise_threshold = 0.58; // Lowered threshold for reeds (easier to spawn near water)
     while spawned_reed_count < target_reed_count && reed_attempts < max_reed_attempts {
         reed_attempts += 1;
         match attempt_single_spawn(

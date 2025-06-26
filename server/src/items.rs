@@ -29,6 +29,7 @@ use crate::campfire::CampfireClearer;
 use crate::wooden_storage_box::WoodenStorageBoxClearer;
 use crate::player_corpse::PlayerCorpseClearer;
 use crate::stash::StashClearer; // Added StashClearer import
+use crate::rain_collector::RainCollector as RainCollectorClearer; // Added RainCollectorClearer import
 use crate::ranged_weapon_stats::RangedWeaponStats; // For the struct
 use crate::ranged_weapon_stats::ranged_weapon_stats as ranged_weapon_stats_table_accessor; // For ctx.db.ranged_weapon_stats()
 use crate::active_effects::{FoodPoisoningRisk, food_poisoning_risk as FoodPoisoningRiskTableTrait}; // For food poisoning
@@ -117,6 +118,7 @@ pub struct InventoryItem {
     pub item_def_id: u64,      // Links to ItemDefinition table (FK)
     pub quantity: u32,         // How many of this item
     pub location: ItemLocation, // <<< NEW FIELD ADDED
+    pub item_data: Option<String>, // JSON string for item-specific data (water content, durability, etc.)
     // Add other instance-specific data later (e.g., current_durability)
 }
 
@@ -383,6 +385,7 @@ pub(crate) fn add_item_to_player_inventory(ctx: &ReducerContext, player_id: Iden
                 item_def_id,
                 quantity: final_quantity_to_add,
                 location: ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: player_id, slot_index: empty_hotbar_slot }),
+                item_data: None, // Initialize as empty
             };
             let inserted_item = inventory.insert(new_item);
             log::info!("[AddItem] Added {} of item def {} to hotbar slot {} for player {:?}. New ID: {}",
@@ -402,6 +405,7 @@ pub(crate) fn add_item_to_player_inventory(ctx: &ReducerContext, player_id: Iden
                     item_def_id,
                     quantity: final_quantity_to_add,
                     location: ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: player_id, slot_index: empty_inventory_slot }),
+                    item_data: None, // Initialize as empty
                 };
                 let inserted_item = inventory.insert(new_item);
                 log::info!("[AddItem] Added {} of item def {} to inventory slot {} for player {:?}. (Hotbar was full) New ID: {}",
@@ -500,6 +504,12 @@ pub(crate) fn clear_item_from_any_container(ctx: &ReducerContext, item_instance_
     // Attempt to clear from Stash slots
     if StashClearer::clear_item(ctx, item_instance_id) {
         log::debug!("[ItemsClear] Item {} cleared from a stash.", item_instance_id);
+        return; // Item found and handled
+    }
+
+    // Attempt to clear from RainCollector slots
+    if RainCollectorClearer::clear_item(ctx, item_instance_id) {
+        log::debug!("[ItemsClear] Item {} cleared from a rain collector.", item_instance_id);
         return; // Item found and handled
     }
 
@@ -694,6 +704,7 @@ pub(crate) fn split_stack_helper(
         item_def_id: source_item.item_def_id,
         quantity: quantity_to_split,
         location: initial_location_for_new_item.clone(), // Set by caller, clone for logging
+        item_data: source_item.item_data.clone(), // Copy item data from source
     };
     let inserted_item = ctx.db.inventory_item().insert(new_item);
     let new_instance_id = inserted_item.instance_id;
@@ -956,4 +967,33 @@ pub fn init_ranged_weapon_stats(ctx: &ReducerContext) {
         ctx.db.ranged_weapon_stats().insert(stats);
     }
     log::info!("Populated RangedWeaponStats table with initial data.");
+}
+
+// --- Helper functions for item data management ---
+
+/// Get water content from a water container item
+pub fn get_water_content(item: &InventoryItem) -> Option<f32> {
+    if let Some(data_str) = &item.item_data {
+        // Try to parse JSON
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(data_str) {
+            if let Some(water_liters) = json_value.get("water_liters") {
+                return water_liters.as_f64().map(|v| v as f32);
+            }
+        }
+    }
+    None
+}
+
+/// Set water content for a water container item
+pub fn set_water_content(item: &mut InventoryItem, water_liters: f32) -> Result<(), String> {
+    let data = serde_json::json!({
+        "water_liters": water_liters
+    });
+    item.item_data = Some(data.to_string());
+    Ok(())
+}
+
+/// Remove water content from a water container (make it empty)
+pub fn clear_water_content(item: &mut InventoryItem) {
+    item.item_data = None;
 } 

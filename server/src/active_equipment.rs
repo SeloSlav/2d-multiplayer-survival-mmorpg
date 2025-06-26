@@ -309,7 +309,7 @@ pub fn load_ranged_weapon(ctx: &ReducerContext) -> Result<(), String> {
     }
 
     // Define all available arrow types in order
-    let arrow_types = vec!["Wooden Arrow", "Bone Arrow", "Fire Arrow"];
+            let arrow_types = vec!["Wooden Arrow", "Bone Arrow", "Fire Arrow", "Hollow Reed Arrow"];
     
     // Find all available arrow types in player's inventory/hotbar
     let mut available_arrows: Vec<(String, u64)> = Vec::new(); // (name, def_id)

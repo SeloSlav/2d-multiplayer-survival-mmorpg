@@ -13,6 +13,9 @@ use crate::world_state::world_state as WorldStateTableTrait;
 use crate::shelter::shelter as ShelterTableTrait;
 use crate::tree::tree as TreeTableTrait;
 
+// Import sound system for throwing up sound when poisoned
+use crate::sound_events::emit_throwing_up_sound;
+
 #[table(name = active_consumable_effect, public)] // public for client UI if needed
 #[derive(Clone, Debug)]
 pub struct ActiveConsumableEffect {
@@ -46,6 +49,7 @@ pub enum EffectType {
     Cozy, // Health regen bonus and food healing bonus when near campfires or in owned shelters
     Wet, // Cold damage multiplier when exposed to water/rain
     TreeCover, // Natural shelter and protection from trees
+    WaterDrinking, // Visual effect for drinking water containers
 }
 
 // Table defining food poisoning risks for different food items
@@ -146,7 +150,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover | EffectType::WaterDrinking => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -342,6 +346,11 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             // No healing per tick for BandageBurst/RemoteBandageBurst, healing is applied only when the effect ends.
                             // This arm handles the per-tick calculation, so it should be 0 here.
                             amount_this_tick = 0.0; 
+                        }
+                        EffectType::WaterDrinking => {
+                            // WaterDrinking is purely a visual effect, no per-tick processing needed
+                            // It just exists for the duration to trigger client-side animations
+                            amount_this_tick = 0.0;
                         }
                         EffectType::Cozy => {
                             // Cozy provides health regeneration bonus and food healing bonus
@@ -559,6 +568,11 @@ pub fn apply_food_poisoning_effect(ctx: &ReducerContext, player_id: Identity, it
     log::info!("Food poisoning triggered for player {:?}, item {}: {:.1}% <= {:.1}%", 
         player_id, item_def_id, roll, poisoning_risk.poisoning_chance_percent);
 
+    // Get player position for sound emission
+    if let Some(player) = ctx.db.player().identity().find(&player_id) {
+        emit_throwing_up_sound(ctx, player.position_x, player.position_y, player_id);
+    }
+
     // Check for existing food poisoning effects and extend if found
     for existing_effect in ctx.db.active_consumable_effect().iter() {
         if existing_effect.player_id == player_id && existing_effect.effect_type == EffectType::FoodPoisoning {
@@ -664,6 +678,11 @@ pub fn apply_seawater_poisoning_effect(ctx: &ReducerContext, player_id: Identity
         ctx.db.active_consumable_effect().insert(effect);
         log::info!("Applied seawater poisoning effect to player {:?} for {} seconds ({} total damage)", 
             player_id, duration_seconds, total_damage);
+
+        // Emit throwing up sound for seawater poisoning
+        if let Some(player) = ctx.db.player().identity().find(&player_id) {
+            emit_throwing_up_sound(ctx, player.position_x, player.position_y, player_id);
+        }
     }
     
     Ok(())
@@ -1034,6 +1053,39 @@ fn is_player_protected_from_rain(ctx: &ReducerContext, player: &crate::Player) -
 
 /// Applies or extends a burn effect on a player
 /// This creates a proper damage-over-time effect that continues burning even after leaving the source
+pub fn apply_water_drinking_effect(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    item_def_id: u64,
+    duration_seconds: f32
+) -> Result<(), String> {
+    let duration_micros = (duration_seconds * 1_000_000.0) as i64;
+    let tick_interval_micros = 1_000_000i64; // 1 second (doesn't matter much since it's visual only)
+    
+    let effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id,
+        consuming_item_instance_id: None,
+        started_at: ctx.timestamp,
+        ends_at: Timestamp::from_micros_since_unix_epoch(
+            ctx.timestamp.to_micros_since_unix_epoch() + duration_micros
+        ),
+        total_amount: None, // Visual effect only
+        amount_applied_so_far: None,
+        effect_type: EffectType::WaterDrinking,
+        tick_interval_micros: tick_interval_micros as u64,
+        next_tick_at: Timestamp::from_micros_since_unix_epoch(
+            ctx.timestamp.to_micros_since_unix_epoch() + tick_interval_micros
+        ),
+    };
+    
+    ctx.db.active_consumable_effect().insert(effect);
+    log::info!("[WaterDrinking] Applied water drinking visual effect for player {:?}, duration: {:.2}s", player_id, duration_seconds);
+    Ok(())
+}
+
 pub fn apply_burn_effect(
     ctx: &ReducerContext, 
     player_id: Identity, 

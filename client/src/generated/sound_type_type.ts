@@ -48,6 +48,11 @@ export namespace SoundType {
   export type Repair = { tag: "Repair" };
   export type RepairFail = { tag: "RepairFail" };
   export type HeavyStormRain = { tag: "HeavyStormRain" };
+  export type NormalRain = { tag: "NormalRain" };
+  export type DrinkingWater = { tag: "DrinkingWater" };
+  export type ThrowingUp = { tag: "ThrowingUp" };
+  export type EatingFood = { tag: "EatingFood" };
+  export type WateringCrops = { tag: "WateringCrops" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -68,6 +73,11 @@ export namespace SoundType {
   export const Repair = { tag: "Repair" };
   export const RepairFail = { tag: "RepairFail" };
   export const HeavyStormRain = { tag: "HeavyStormRain" };
+  export const NormalRain = { tag: "NormalRain" };
+  export const DrinkingWater = { tag: "DrinkingWater" };
+  export const ThrowingUp = { tag: "ThrowingUp" };
+  export const EatingFood = { tag: "EatingFood" };
+  export const WateringCrops = { tag: "WateringCrops" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -84,6 +94,11 @@ export namespace SoundType {
       new SumTypeVariant("Repair", AlgebraicType.createProductType([])),
       new SumTypeVariant("RepairFail", AlgebraicType.createProductType([])),
       new SumTypeVariant("HeavyStormRain", AlgebraicType.createProductType([])),
+      new SumTypeVariant("NormalRain", AlgebraicType.createProductType([])),
+      new SumTypeVariant("DrinkingWater", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ThrowingUp", AlgebraicType.createProductType([])),
+      new SumTypeVariant("EatingFood", AlgebraicType.createProductType([])),
+      new SumTypeVariant("WateringCrops", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -98,7 +113,7 @@ export namespace SoundType {
 }
 
 // The tagged union or sum type for the algebraic type `SoundType`.
-export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain;
+export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain | SoundType.NormalRain | SoundType.DrinkingWater | SoundType.ThrowingUp | SoundType.EatingFood | SoundType.WateringCrops;
 
 export default SoundType;
 

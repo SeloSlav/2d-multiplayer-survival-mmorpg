@@ -10,6 +10,7 @@ export type SlotType =
     | 'wooden_storage_box'
     | 'player_corpse'
     | 'stash'
+    | 'rain_collector'
     | 'split'
     // Add more types as needed (e.g., 'furnace_input', 'furnace_fuel', 'crafting_output')
 

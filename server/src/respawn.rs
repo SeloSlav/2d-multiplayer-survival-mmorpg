@@ -1,5 +1,6 @@
 use rand::Rng; // Add rand for random respawn location
 use spacetimedb::{ReducerContext, Identity, Timestamp, Table, log};
+use rand::prelude::*;
 
 // Import table traits
 use crate::player;
@@ -19,6 +20,12 @@ use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::world_tile as WorldTileTableTrait;
+
+// Import necessary modules and constants
+use crate::{Player, WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, world_pos_to_tile_coords, get_tile_type_at_position, PLAYER_RADIUS};
+use crate::environment::calculate_chunk_index;
+use crate::player_stats::{PLAYER_STARTING_HUNGER, PLAYER_STARTING_THIRST};
+use crate::death_marker::{DeathMarker, death_marker as DeathMarkerTableTrait};
 
 // Respawn Collision Check Constants
 pub const RESPAWN_CHECK_RADIUS: f32 = TILE_SIZE_PX as f32 * 3.0; // 3 tiles radius (144 pixels) for realistic proximity blocking
@@ -303,8 +310,8 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
 
     // --- Reset Stats and State ---
     player.health = 100.0;
-    player.hunger = 250.0;
-    player.thirst = 250.0;
+    player.hunger = PLAYER_STARTING_HUNGER;
+    player.thirst = PLAYER_STARTING_THIRST;
     player.warmth = 100.0;
     player.stamina = 100.0;
     player.jump_start_time_ms = 0;

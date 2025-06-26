@@ -196,44 +196,44 @@ struct SeedDropConfig {
 }
 
 /// Mapping of harvestable resources to their corresponding seed drops
-/// Updated for sustainable farming - each harvest should give back more seeds than planted
+/// Balanced for sustainable farming with growth potential - expected seed return > 1.0
 fn get_seed_drop_config(resource_name: &str) -> Option<SeedDropConfig> {
     match resource_name {
         "Potato" => Some(SeedDropConfig {
             seed_item_name: "Seed Potato",
-            drop_chance: 0.85, // 85% chance (potatoes naturally multiply well)
-            min_seeds: 2,      // 2-4 seeds per harvest
-            max_seeds: 4,
+            drop_chance: 0.70, // 70% chance - Expected: 0.7 × 1.5 = 1.05 seeds
+            min_seeds: 1,      // 1-2 seeds per harvest
+            max_seeds: 2,
         }),
         "Corn" => Some(SeedDropConfig {
             seed_item_name: "Corn Seeds", 
-            drop_chance: 0.80, // 80% chance (reliable food crop)
-            min_seeds: 2,      // 2-3 seeds per harvest
-            max_seeds: 3,
+            drop_chance: 0.65, // 65% chance - Expected: 0.65 × 1.5 = 0.975 seeds
+            min_seeds: 1,      // 1-2 seeds per harvest (slightly below 1.0 since corn is valuable food)
+            max_seeds: 2,
         }),
         "Pumpkin" => Some(SeedDropConfig {
             seed_item_name: "Pumpkin Seeds",
-            drop_chance: 0.90, // 90% chance (large crop with long growth time - most reliable)
-            min_seeds: 3,      // 3-5 seeds per harvest (highest yield)
-            max_seeds: 5,
+            drop_chance: 0.80, // 80% chance - Expected: 0.8 × 1.5 = 1.2 seeds
+            min_seeds: 1,      // 1-2 seeds per harvest (good growth due to long grow time)
+            max_seeds: 2,
         }),
         "Plant Fiber" => Some(SeedDropConfig { // Note: hemp primary yield is "Plant Fiber"
             seed_item_name: "Hemp Seeds",
-            drop_chance: 0.88, // 88% chance (fiber crop essential for crafting)
-            min_seeds: 2,      // 2-4 seeds per harvest
-            max_seeds: 4,
+            drop_chance: 0.75, // 75% chance - Expected: 0.75 × 1.5 = 1.125 seeds
+            min_seeds: 1,      // 1-2 seeds per harvest (essential for crafting)
+            max_seeds: 2,
         }),
         "Common Reed Stalk" => Some(SeedDropConfig {
             seed_item_name: "Reed Rhizome",
-            drop_chance: 0.82, // 82% chance (building material)
-            min_seeds: 2,      // 2-3 rhizomes per harvest
-            max_seeds: 3,
+            drop_chance: 0.60, // 60% chance - Expected: 0.6 × 1.5 = 0.9 seeds
+            min_seeds: 1,      // 1-2 rhizomes per harvest (building material, slower growth)
+            max_seeds: 2,
         }),
         "Mushroom" => Some(SeedDropConfig {
             seed_item_name: "Mushroom Spores",
-            drop_chance: 0.95, // 95% chance (basic food, fastest growing - most reliable)
-            min_seeds: 2,      // 2-3 spores per harvest
-            max_seeds: 3,
+            drop_chance: 0.85, // 85% chance - Expected: 0.85 × 1.5 = 1.275 seeds
+            min_seeds: 1,      // 1-2 spores per harvest (basic food, fast growth, most sustainable)
+            max_seeds: 2,
         }),
         _ => None, // No seed drops for other resources
     }
