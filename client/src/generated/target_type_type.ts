@@ -45,7 +45,6 @@ export namespace TargetType {
   export type SleepingBag = { tag: "SleepingBag" };
   export type Animal = { tag: "Animal" };
   export type PlayerCorpse = { tag: "PlayerCorpse" };
-  export type Grass = { tag: "Grass" };
   export type Shelter = { tag: "Shelter" };
   export type RainCollector = { tag: "RainCollector" };
 
@@ -65,7 +64,6 @@ export namespace TargetType {
   export const SleepingBag = { tag: "SleepingBag" };
   export const Animal = { tag: "Animal" };
   export const PlayerCorpse = { tag: "PlayerCorpse" };
-  export const Grass = { tag: "Grass" };
   export const Shelter = { tag: "Shelter" };
   export const RainCollector = { tag: "RainCollector" };
 
@@ -81,7 +79,6 @@ export namespace TargetType {
       new SumTypeVariant("SleepingBag", AlgebraicType.createProductType([])),
       new SumTypeVariant("Animal", AlgebraicType.createProductType([])),
       new SumTypeVariant("PlayerCorpse", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Grass", AlgebraicType.createProductType([])),
       new SumTypeVariant("Shelter", AlgebraicType.createProductType([])),
       new SumTypeVariant("RainCollector", AlgebraicType.createProductType([])),
     ]);
@@ -98,7 +95,7 @@ export namespace TargetType {
 }
 
 // The tagged union or sum type for the algebraic type `TargetType`.
-export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.Lantern | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.Grass | TargetType.Shelter | TargetType.RainCollector;
+export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.Lantern | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.Shelter | TargetType.RainCollector;
 
 export default TargetType;
 

@@ -26,13 +26,13 @@ use crate::tree;
 use crate::stone;
 use crate::wooden_storage_box;
 use crate::player_corpse;
-use crate::grass;
+// REMOVED: grass module import - grass collision detection removed for performance
 
 // Specific constants needed
 use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
 use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS, STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
-use crate::grass::grass as GrassTableTrait;
+// REMOVED: grass table trait import - grass collision detection removed for performance
 
 // Table trait imports for database access
 use crate::tree::tree as TreeTableTrait;
@@ -62,9 +62,7 @@ use crate::armor;
 use crate::player_stats;
 // Import the utils module
 use crate::utils::get_distance_squared;
-// Import grass respawn types
-use crate::grass::{GrassRespawnData, GrassRespawnSchedule, GRASS_INITIAL_HEALTH};
-use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
+// REMOVED: grass respawn imports - grass collision detection removed for performance
 // Import knocked out recovery function and types (re-exported from lib.rs)
 use crate::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule};
 use crate::knocked_out::knocked_out_recovery_schedule as KnockedOutRecoveryScheduleTableTrait;
@@ -93,7 +91,7 @@ pub enum TargetId {
     Stash(u32),
     SleepingBag(u32),
     PlayerCorpse(u32),
-    Grass(u64),
+    // REMOVED: Grass(u64) - grass collision detection removed for performance
     Shelter(u32),
     RainCollector(u32), // ADDED: Rain collector target
 }
@@ -548,39 +546,8 @@ pub fn find_targets_in_cone(
         }
     }
 
-    // Check Grass
-    for grass_entity in ctx.db.grass().iter() {
-        if grass_entity.health == 0 { continue; } // Skip already destroyed grass
-        
-        // --- NEW: Skip Brambles from targeting ---
-        if grass_entity.appearance_type.is_bramble() {
-            continue; // Skip bramble types
-        }
-        // --- END NEW ---
-
-        let dx = grass_entity.pos_x - player.position_x;
-        // Grass Y-offset is likely less significant than trees/stones, using a smaller or no offset
-        // For now, let's assume its base position is fine for targeting.
-        let dy = grass_entity.pos_y - player.position_y; 
-        let dist_sq = dx * dx + dy * dy;
-        
-        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
-            let distance = dist_sq.sqrt();
-            let target_vec_x = dx / distance;
-            let target_vec_y = dy / distance;
-
-            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
-            let angle_rad = dot_product.acos();
-
-            if angle_rad <= half_attack_angle_rad {
-                targets.push(Target {
-                    target_type: TargetType::Grass,
-                    id: TargetId::Grass(grass_entity.id),
-                    distance_sq: dist_sq,
-                });
-            }
-        }
-    }
+    // REMOVED: Grass collision detection to fix rubber-banding performance issues
+    // Grass entities are no longer processed for combat targeting
     
     // Check rain collectors
     for rain_collector_entity in ctx.db.rain_collector().iter() {
@@ -777,12 +744,7 @@ pub fn calculate_damage_and_yield(
 
     // Fallback for non-primary targets (or if primary_target_type is None)
     // Apply default damage (1.0), no yield for most other PvE targets unless specified
-    if target_type == TargetType::Grass {
-        // Grass is destroyed in one hit if any damage is applied.
-        // The actual health is 1, so any positive damage destroys it.
-        // No yield.
-        return (1.0, 0, "".to_string());
-    }
+    // REMOVED: Grass damage calculation - grass collision detection removed for performance
     
     // NEW: Fallback harvesting for tools on harvestable resources
     // Any tool should be able to harvest minimal amounts from trees and stones
@@ -2073,13 +2035,7 @@ pub fn process_attack(
                 return Err("Target corpse not found".to_string());
             }
         },
-        TargetId::Grass(grass_id) => {
-            if let Some(grass) = ctx.db.grass().id().find(grass_id) {
-                (grass.pos_x, grass.pos_y, None)
-            } else {
-                return Err("Target grass not found".to_string());
-            }
-        },
+        // REMOVED: Grass position lookup - grass collision detection removed for performance
         TargetId::Shelter(shelter_id) => {
             if let Some(shelter) = ctx.db.shelter().id().find(shelter_id) {
                 // Use shelter module function to get target coordinates
@@ -2172,9 +2128,7 @@ pub fn process_attack(
             // Removed harvest_power from the call, pass item_def instead
             damage_player_corpse(ctx, attacker_id, *corpse_id, damage, item_def, timestamp, rng)
         },
-        TargetId::Grass(grass_id) => {
-            damage_grass(ctx, attacker_id, *grass_id, damage, timestamp, rng)
-        },
+        // REMOVED: Grass damage routing - grass collision detection removed for performance
         TargetId::Shelter(shelter_id) => {
             crate::shelter::damage_shelter(ctx, attacker_id, *shelter_id, damage, timestamp, rng)
         },
@@ -2261,77 +2215,7 @@ fn resolve_knockback_collision(
     (proposed_x, proposed_y)
 }
 
-// --- NEW: Damage Grass Function ---
-pub fn damage_grass(
-    ctx: &ReducerContext,
-    attacker_id: Identity,
-    grass_id: u64,
-    damage: f32,
-    timestamp: Timestamp,
-    rng: &mut impl Rng
-) -> Result<AttackResult, String> {
-    let grass_table = ctx.db.grass();
-    if let Some(grass_entity) = grass_table.id().find(&grass_id) { // Make grass_entity immutable here
-        if grass_entity.health == 0 {
-            return Ok(AttackResult { hit: false, target_type: Some(TargetType::Grass), resource_granted: None }); // Already destroyed
-        }
-
-        // --- NEW: Check if this grass type is a bramble (indestructible) ---
-        if grass_entity.appearance_type.is_bramble() {
-            log::info!("Grass ID {} (bramble type {:?}) hit by {} but brambles are indestructible. No damage applied.", 
-                      grass_id, grass_entity.appearance_type, attacker_id);
-            return Ok(AttackResult { hit: false, target_type: Some(TargetType::Grass), resource_granted: None });
-        }
-
-        let current_health = grass_entity.health;
-        let new_health = (current_health as f32 - damage).max(0.0) as u32;
-
-        log::info!("Grass ID {} hit by {}, health: {} -> {}", grass_id, attacker_id, current_health, new_health);
-
-        if new_health == 0 {
-            log::info!("Grass ID {} destroyed by {}. Scheduling respawn.", grass_id, attacker_id);
-            
-            // Prepare data for respawn schedule
-            let respawn_data = GrassRespawnData {
-                pos_x: grass_entity.pos_x,
-                pos_y: grass_entity.pos_y,
-                appearance_type: grass_entity.appearance_type.clone(),
-                chunk_index: grass_entity.chunk_index,
-                sway_offset_seed: grass_entity.sway_offset_seed,
-                sway_speed: grass_entity.sway_speed, // Use the renamed field
-            };
-
-            let respawn_delay_secs = rng.gen_range(crate::grass::MIN_GRASS_RESPAWN_TIME_SECS..=crate::grass::MAX_GRASS_RESPAWN_TIME_SECS);
-            let respawn_at_timestamp = timestamp + TimeDuration::from_micros(respawn_delay_secs as i64 * 1_000_000);
-
-            let schedule_entry = GrassRespawnSchedule {
-                schedule_id: 0, // Auto-incremented by SpacetimeDB
-                respawn_data,
-                scheduled_at: respawn_at_timestamp.into(), // Convert Timestamp to ScheduleAt
-            };
-
-            // Insert into the respawn schedule table
-            match ctx.db.grass_respawn_schedule().try_insert(schedule_entry) {
-                Ok(_) => log::info!("Grass ID {} respawn scheduled for {:?}", grass_id, respawn_at_timestamp),
-                Err(e) => log::error!("Failed to schedule respawn for grass ID {}: {}", grass_id, e),
-            }
-
-            // Delete the original grass entity
-            grass_table.id().delete(&grass_id);
-            
-            Ok(AttackResult { hit: true, target_type: Some(TargetType::Grass), resource_granted: None })
-        } else {
-            // Grass still has health, update it
-            let mut mutable_grass_entity = grass_entity.clone(); // Clone to make it mutable for update
-            mutable_grass_entity.health = new_health;
-            mutable_grass_entity.last_hit_time = Some(timestamp);
-            grass_table.id().update(mutable_grass_entity);
-            Ok(AttackResult { hit: true, target_type: Some(TargetType::Grass), resource_granted: None })
-        }
-    } else {
-        Err(format!("Grass with ID {} not found.", grass_id))
-    }
-}
+// REMOVED: damage_grass function - grass collision detection removed for performance
 
 /// Applies damage to a rain collector and handles destruction/item scattering
 pub fn damage_rain_collector(

@@ -101,7 +101,7 @@ pub enum TargetType {
     SleepingBag,
     Animal, // Added for animal targets
     PlayerCorpse,
-    Grass,
+    // REMOVED: Grass - grass collision detection removed for performance
     Shelter, // ADDED Shelter TargetType
     RainCollector, // ADDED RainCollector TargetType
 }

@@ -47,6 +47,8 @@ pub fn grid_height() -> usize {
 }
 
 // Entities supported by the spatial grid
+// NOTE: Grass is intentionally EXCLUDED from collision detection for performance optimization
+// This prevents the server from iterating through potentially thousands of grass entities
 #[derive(Debug, Clone, Copy)]
 pub enum EntityType {
     Player(Identity),
@@ -59,6 +61,7 @@ pub enum EntityType {
     Shelter(u32), // RE-ENABLE Shelter from EntityType
     PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
     RainCollector(u32), // ADDED RainCollector entity type (assuming u32 ID)
+    // EXCLUDED: Grass - removed for performance to fix rubber-banding issues
 }
 
 // Grid cell that stores entities
