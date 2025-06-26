@@ -64,8 +64,8 @@ const ActiveCraftingQueueUI: React.FC<ActiveCraftingQueueUIProps> = ({
   return (
     <div style={{
       position: 'fixed',
-      bottom: '170px', // Fixed position just above StatusBar
-      right: '15px',
+      bottom: '15px', // Same bottom position as status bars
+      right: '285px', // Position to the left of status bars (which are at right: '15px' with ~220px width)
       display: 'flex',
       alignItems: 'center',
       backgroundColor: 'rgba(40, 40, 55, 0.92)',

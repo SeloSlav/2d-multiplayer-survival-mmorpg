@@ -38,6 +38,7 @@ export type DroppedItem = {
   posY: number,
   chunkIndex: number,
   createdAt: Timestamp,
+  itemData: string | undefined,
 };
 
 /**
@@ -57,6 +58,7 @@ export namespace DroppedItem {
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
+      new ProductTypeElement("itemData", AlgebraicType.createOptionType(AlgebraicType.createStringType())),
     ]);
   }
 

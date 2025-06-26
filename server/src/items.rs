@@ -9,7 +9,7 @@ use crate::campfire::campfire as CampfireTableTrait;
 // Import Player table trait
 use crate::player as PlayerTableTrait;
 // Import DroppedItem helpers
-use crate::dropped_item::{calculate_drop_position, create_dropped_item_entity};
+use crate::dropped_item::{calculate_drop_position, create_dropped_item_entity, create_dropped_item_entity_with_data};
 // REMOVE unused concrete table type imports
 // use crate::items::{InventoryItemTable, ItemDefinitionTable};
 use crate::items_database; // ADD import for new module
@@ -422,6 +422,135 @@ pub(crate) fn add_item_to_player_inventory(ctx: &ReducerContext, player_id: Iden
     }
 }
 
+/// Similar to add_item_to_player_inventory but preserves item data (like water content)
+/// This is used when picking up dropped items that had special data
+pub(crate) fn add_item_to_player_inventory_with_data(
+    ctx: &ReducerContext, 
+    player_id: Identity, 
+    item_def_id: u64, 
+    quantity: u32, 
+    item_data: Option<String>
+) -> Result<Option<u64>, String> {
+    let inventory = ctx.db.inventory_item();
+    let item_defs = ctx.db.item_definition();
+    let mut remaining_quantity = quantity;
+
+    let item_def = item_defs.id().find(item_def_id)
+        .ok_or_else(|| format!("Item definition {} not found", item_def_id))?;
+
+    // For items with data (like water content), we generally don't want to stack them
+    // because each instance might have different data. Only attempt stacking if the item 
+    // has no special data or if we find an exact match.
+    let can_stack = item_def.is_stackable && item_data.is_none();
+
+    if can_stack && remaining_quantity > 0 {
+        let mut items_to_update: Vec<InventoryItem> = Vec::new();
+
+        // Check hotbar first
+        for mut item in inventory.iter().filter(|i| 
+            match &i.location {
+                ItemLocation::Hotbar(data) => data.owner_id == player_id && i.item_def_id == item_def_id && i.item_data.is_none(),
+                _ => false,
+            }
+        ) {
+            let space_available = item_def.stack_size.saturating_sub(item.quantity);
+            if space_available > 0 {
+                let transfer_qty = std::cmp::min(remaining_quantity, space_available);
+                item.quantity += transfer_qty;
+                remaining_quantity -= transfer_qty;
+                items_to_update.push(item.clone());
+                if remaining_quantity == 0 { break; }
+            }
+        }
+
+        // Check inventory if still have remaining quantity
+        if remaining_quantity > 0 {
+            for mut item in inventory.iter().filter(|i| 
+                match &i.location {
+                    ItemLocation::Inventory(data) => data.owner_id == player_id && i.item_def_id == item_def_id && i.item_data.is_none(),
+                    _ => false,
+                }
+            ) {
+                let space_available = item_def.stack_size.saturating_sub(item.quantity);
+                if space_available > 0 {
+                    let transfer_qty = std::cmp::min(remaining_quantity, space_available);
+                    item.quantity += transfer_qty;
+                    remaining_quantity -= transfer_qty;
+                    items_to_update.push(item.clone());
+                    if remaining_quantity == 0 { break; }
+                }
+            }
+        }
+
+        // Update all the items we modified
+        for item in items_to_update {
+            inventory.instance_id().update(item);
+        }
+
+        if remaining_quantity == 0 {
+            log::info!("[AddItemWithData] Fully stacked {} of item def {} for player {:?}.", quantity, item_def_id, player_id);
+            return Ok(None); // Items stacked, no new instance ID
+        }
+    }
+
+    // If we still have remaining quantity, create a new item instance
+    if remaining_quantity > 0 {
+        let final_quantity_to_add = if item_def.is_stackable { remaining_quantity } else { 1 };
+
+        // Find empty hotbar slot first
+        let occupied_hotbar_slots: HashSet<u8> = inventory.iter()
+            .filter_map(|i| match &i.location {
+                ItemLocation::Hotbar(data) if data.owner_id == player_id => Some(data.slot_index),
+                _ => None,
+            })
+            .collect();
+
+        if let Some(empty_hotbar_slot) = (0..crate::player_inventory::NUM_PLAYER_HOTBAR_SLOTS as u8).find(|slot| !occupied_hotbar_slots.contains(slot)) {
+            let new_item = InventoryItem {
+                instance_id: 0, 
+                item_def_id,
+                quantity: final_quantity_to_add,
+                location: ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id: player_id, slot_index: empty_hotbar_slot }),
+                item_data: item_data.clone(), // Preserve the item data
+            };
+            let inserted_item = inventory.insert(new_item);
+            log::info!("[AddItemWithData] Added {} of item def {} to hotbar slot {} for player {:?}. New ID: {} (with data: {})",
+                     final_quantity_to_add, item_def_id, empty_hotbar_slot, player_id, inserted_item.instance_id, 
+                     item_data.is_some());
+            return Ok(Some(inserted_item.instance_id));
+        } else {
+            // Try inventory slot
+            let occupied_inventory_slots: HashSet<u16> = inventory.iter()
+                .filter_map(|i| match &i.location {
+                    ItemLocation::Inventory(data) if data.owner_id == player_id => Some(data.slot_index),
+                    _ => None,
+                })
+                .collect();
+
+            if let Some(empty_inventory_slot) = (0..crate::player_inventory::NUM_PLAYER_INVENTORY_SLOTS as u16).find(|slot| !occupied_inventory_slots.contains(slot)) {
+                let new_item = InventoryItem {
+                    instance_id: 0, 
+                    item_def_id,
+                    quantity: final_quantity_to_add,
+                    location: ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id: player_id, slot_index: empty_inventory_slot }),
+                    item_data: item_data.clone(), // Preserve the item data
+                };
+                let inserted_item = inventory.insert(new_item);
+                log::info!("[AddItemWithData] Added {} of item def {} to inventory slot {} for player {:?}. New ID: {} (with data: {})",
+                         final_quantity_to_add, item_def_id, empty_inventory_slot, player_id, inserted_item.instance_id,
+                         item_data.is_some());
+                return Ok(Some(inserted_item.instance_id));
+            } else {
+                log::error!("[AddItemWithData] No empty hotbar or inventory slots for player {:?} to add item def {}.", player_id, item_def_id);
+                return Err("Inventory is full".to_string());
+            }
+        }
+    } else {
+         log::debug!("[AddItemWithData] Stacking completed successfully for item def {} for player {:?}. No new slot needed.", item_def_id, player_id);
+         Ok(None) // Stacking completed, no new instance ID
+    }
+}
+
 // Helper to clear a specific item instance from any equipment slot it might occupy
 pub(crate) fn clear_specific_item_from_equipment_slots(ctx: &ReducerContext, player_id: spacetimedb::Identity, item_instance_id_to_clear: u64) {
     let active_equip_table = ctx.db.active_equipment();
@@ -791,7 +920,10 @@ pub fn drop_item(
         }
     }
 
-    // --- 5. Handle Quantity & Potential Splitting ---
+    // --- 5. Store item data before potential modification/move ---
+    let item_data_to_preserve = item_to_drop.item_data.clone();
+
+    // --- 6. Handle Quantity & Potential Splitting ---
     if quantity_to_drop == item_to_drop.quantity {
         // Dropping the entire stack
         log::info!("[DropItem] Dropping entire stack (ID: {}, Qty: {}). Deleting original InventoryItem.", item_instance_id, quantity_to_drop);
@@ -810,12 +942,12 @@ pub fn drop_item(
         inventory_items.instance_id().update(item_to_drop);
     }
 
-    // --- 6. Calculate Drop Position ---
+    // --- 7. Calculate Drop Position ---
     let (drop_x, drop_y) = calculate_drop_position(&player);
     log::debug!("[DropItem] Calculated drop position: ({:.1}, {:.1}) for player {:?}", drop_x, drop_y, sender_id);
 
-    // --- 7. Create Dropped Item Entity in World ---
-    create_dropped_item_entity(ctx, item_def.id, quantity_to_drop, drop_x, drop_y)?;
+    // --- 8. Create Dropped Item Entity in World (preserving item data) ---
+    create_dropped_item_entity_with_data(ctx, item_def.id, quantity_to_drop, drop_x, drop_y, item_data_to_preserve)?;
 
     log::info!("[DropItem] Successfully dropped {} of item def {} (Original ID: {}) at ({:.1}, {:.1}) for player {:?}.",
             quantity_to_drop, item_def.id, item_instance_id, drop_x, drop_y, sender_id);

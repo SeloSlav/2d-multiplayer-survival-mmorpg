@@ -20,7 +20,7 @@ import {
     formatTargetForLogging,
     isTargetValid
 } from '../types/interactions';
-import { hasWaterContent } from '../utils/waterContainerHelpers';
+import { hasWaterContent, getWaterContent, getWaterCapacity } from '../utils/waterContainerHelpers';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -767,16 +767,77 @@ export const useInputHandler = ({
                             // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
                             return;
                         }
-                        // 5. Water Containers: Use for watering crops instead of swinging
+                                                // 5. Water Containers: Fill from water source or use for watering crops
                         else if ((equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") && localPlayerActiveEquipment.equippedItemInstanceId) {
-                            // Check if the water container has water content
+                            console.log('[InputHandler] Left-click with water container');
+                            
+                            // Get the water container item first
                             const waterContainer = inventoryItems.get(localPlayerActiveEquipment.equippedItemInstanceId.toString());
-                            if (waterContainer && hasWaterContent(waterContainer) && connectionRef.current?.reducers) {
-                                // console.log("[InputHandler MOUSEDOWN] Water container with water equipped. Calling water_crops reducer.");
-                                connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
+                            if (!waterContainer || !connectionRef.current?.reducers) {
+                                console.log('[InputHandler] No water container found or no connection');
                                 return;
                             }
-                            // If no water content, fall through to normal swing behavior
+                            
+                            // Check if player is standing on water for filling
+                            if (localPlayerRef.current?.isOnWater) {
+                                console.log('[InputHandler] Player is on water - attempting to fill container');
+                                
+                                // TODO: Add salt water detection when implemented
+                                const isOnSaltWater = false; // Placeholder - all water is fresh for now
+                                
+                                if (isOnSaltWater) {
+                                    console.log('[InputHandler] Cannot fill water container from salt water source');
+                                    return;
+                                }
+                                
+                                // Calculate remaining capacity using helper functions
+                                const currentWaterContent = getWaterContent(waterContainer) || 0; // in liters
+                                const maxCapacityLiters = getWaterCapacity(equippedItemDef.name); // in liters
+                                const remainingCapacityMl = Math.floor((maxCapacityLiters - currentWaterContent) * 1000); // Convert L to mL
+                                
+                                console.log(`[InputHandler] Current water: ${currentWaterContent}L, Max: ${maxCapacityLiters}L, Remaining: ${remainingCapacityMl}mL`);
+                                
+                                if (remainingCapacityMl <= 0) {
+                                    console.log('[InputHandler] Water container is already full - switching to crop watering mode');
+                                    // Container is full, so even if on water, use for crop watering instead
+                                    if (hasWaterContent(waterContainer)) {
+                                        console.log("[InputHandler] Full water container - calling water_crops reducer.");
+                                        connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
+                                        return;
+                                    }
+                                    return;
+                                }
+                                
+                                const fillAmount = Math.min(250, remainingCapacityMl); // Fill 250mL or remaining capacity
+                                console.log(`[InputHandler] Attempting to fill ${equippedItemDef.name} with ${fillAmount}mL from fresh water source`);
+                                
+                                try {
+                                    connectionRef.current.reducers.fillWaterContainerFromNaturalSource(
+                                        localPlayerActiveEquipment.equippedItemInstanceId, 
+                                        fillAmount
+                                    );
+                                    console.log(`[InputHandler] Successfully called fillWaterContainerFromNaturalSource`);
+                                } catch (err) {
+                                    console.error('[InputHandler] Error filling water container - falling back to crop watering:', err);
+                                    // If filling fails, try crop watering as fallback
+                                    if (hasWaterContent(waterContainer)) {
+                                        console.log("[InputHandler] Fallback - calling water_crops reducer.");
+                                        connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
+                                    }
+                                }
+                                return;
+                            } else {
+                                console.log('[InputHandler] Player not on water - checking for crop watering');
+                                // Not on water - check if container has water for watering crops
+                                if (hasWaterContent(waterContainer)) {
+                                    console.log("[InputHandler] Water container with water equipped. Calling water_crops reducer.");
+                                    connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
+                                    return;
+                                } else {
+                                    console.log('[InputHandler] No water content - falling through to normal swing behavior');
+                                }
+                                // If no water content, fall through to normal swing behavior
+                            }
                         }
                         // If none of the above special cases, fall through to default item use (melee/tool)
                     } else {
@@ -901,16 +962,8 @@ export const useInputHandler = ({
                     return;
                 }
                 
-                // Water Containers: Use for watering crops instead of swinging
-                if ((itemDef.name === "Reed Water Bottle" || itemDef.name === "Plastic Water Jug") && localEquipment.equippedItemInstanceId) {
-                    const waterContainer = inventoryItems.get(localEquipment.equippedItemInstanceId.toString());
-                    if (waterContainer && hasWaterContent(waterContainer)) {
-                        // console.log("[CanvasClick] Water container with water equipped. Calling water_crops reducer.");
-                        connectionRef.current.reducers.waterCrops(localEquipment.equippedItemInstanceId);
-                        return;
-                    }
-                    // If no water content, fall through to normal swing behavior
-                }
+                // Water containers are now handled in handleMouseDown to prevent conflicts
+                // This section is for regular melee weapons and tools only
                 const now = Date.now();
                 const attackIntervalMs = itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS;
                 if (now - lastServerSwingTimestampRef.current < attackIntervalMs) return;
@@ -1003,7 +1056,7 @@ export const useInputHandler = ({
                         }
                         return;
                     } else if (equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") {
-                        // console.log("[InputHandler CTXMENU] Water container equipped. Checking for water content.");
+                        console.log("[InputHandler] Right-click with water container - attempting to drink");
                         event.preventDefault();
                         
                         // Find the equipped item instance to check if it has water
@@ -1011,15 +1064,23 @@ export const useInputHandler = ({
                             item.instanceId === BigInt(localPlayerActiveEquipment?.equippedItemInstanceId || 0)
                         );
                         
+                        console.log(`[InputHandler] Found equipped item instance:`, !!equippedItemInstance);
+                        console.log(`[InputHandler] Has water content:`, equippedItemInstance ? hasWaterContent(equippedItemInstance) : false);
+                        
                         if (equippedItemInstance && hasWaterContent(equippedItemInstance)) {
                             if (connectionRef.current?.reducers && localPlayerActiveEquipment?.equippedItemInstanceId) {
-                                // console.log("[InputHandler CTXMENU] Calling consumeFilledWaterContainer for equipped water container.");
-                                connectionRef.current.reducers.consumeFilledWaterContainer(BigInt(localPlayerActiveEquipment.equippedItemInstanceId));
+                                console.log("[InputHandler] Calling consumeFilledWaterContainer for equipped water container.");
+                                try {
+                                    connectionRef.current.reducers.consumeFilledWaterContainer(BigInt(localPlayerActiveEquipment.equippedItemInstanceId));
+                                    console.log("[InputHandler] Successfully called consumeFilledWaterContainer");
+                                } catch (err) {
+                                    console.error("[InputHandler] Error calling consumeFilledWaterContainer:", err);
+                                }
                             } else {
-                                console.warn("[InputHandler CTXMENU] No connection or reducers to call consumeFilledWaterContainer for water container.");
+                                console.warn("[InputHandler] No connection or reducers to call consumeFilledWaterContainer for water container.");
                             }
                         } else {
-                            console.log("[InputHandler CTXMENU] Water container is empty, cannot drink.");
+                            console.log("[InputHandler] Water container is empty, cannot drink.");
                         }
                         return;
                     }

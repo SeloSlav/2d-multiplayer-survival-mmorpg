@@ -23,7 +23,7 @@ use std::time::Duration;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait; // Import ItemDefinition trait
 use crate::player as PlayerTableTrait; // Import Player trait
-use crate::items::{add_item_to_player_inventory, InventoryItem, ItemDefinition};
+use crate::items::{add_item_to_player_inventory, add_item_to_player_inventory_with_data, InventoryItem, ItemDefinition};
 // Corrected imports for Player and PLAYER_RADIUS from crate root
 use crate::{Player, PLAYER_RADIUS}; 
 use crate::utils::get_distance_squared; // Assuming a utility function for distance
@@ -42,6 +42,7 @@ pub struct DroppedItem {
     pub pos_y: f32,            // World Y position
     pub chunk_index: u32,      // <<< ADDED chunk_index
     pub created_at: Timestamp, // When the item was dropped (for potential cleanup)
+    pub item_data: Option<String>, // <<< ADDED: JSON data from original item (preserves water content, etc.)
 }
 
 // --- Schedule Table --- 
@@ -99,8 +100,8 @@ pub fn pickup_dropped_item(ctx: &ReducerContext, dropped_item_id: u64) -> Result
                        .map(|def| def.name.clone())
                        .unwrap_or_else(|| format!("[Def ID {}]", dropped_item.item_def_id));
 
-    // Use the new helper that handles full inventory by dropping near player
-    match give_item_to_player_or_drop(ctx, sender_id, dropped_item.item_def_id, dropped_item.quantity) {
+    // Use the new helper that handles full inventory by dropping near player, preserving item data
+    match give_item_to_player_or_drop_with_data(ctx, sender_id, dropped_item.item_def_id, dropped_item.quantity, dropped_item.item_data.clone()) {
         Ok(added_to_inventory) => {
             // 5. Delete the original dropped item regardless of whether it went to inventory or was re-dropped
             dropped_items_table.id().delete(dropped_item_id);
@@ -191,8 +192,21 @@ pub(crate) fn give_item_to_player_or_drop(
     item_def_id: u64,
     quantity: u32,
 ) -> Result<bool, String> {
-    // First try to add to inventory
-    match crate::items::add_item_to_player_inventory(ctx, player_id, item_def_id, quantity) {
+    give_item_to_player_or_drop_with_data(ctx, player_id, item_def_id, quantity, None)
+}
+
+/// Attempts to give an item to a player's inventory with preserved item data. If the inventory is full or cannot stack,
+/// creates a dropped item near the player instead.
+/// Returns Ok(true) if added to inventory, Ok(false) if dropped near player, Err if failed completely.
+pub(crate) fn give_item_to_player_or_drop_with_data(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    item_def_id: u64,
+    quantity: u32,
+    item_data: Option<String>,
+) -> Result<bool, String> {
+    // First try to add to inventory with preserved data
+    match add_item_to_player_inventory_with_data(ctx, player_id, item_def_id, quantity, item_data.clone()) {
         Ok(_) => {
             log::debug!("[GiveOrDrop] Successfully added item def {} (qty {}) to player {} inventory", 
                        item_def_id, quantity, player_id);
@@ -209,8 +223,8 @@ pub(crate) fn give_item_to_player_or_drop(
             // Calculate drop position near player
             let (drop_x, drop_y) = calculate_drop_position(&player);
             
-            // Create dropped item near player
-            create_dropped_item_entity(ctx, item_def_id, quantity, drop_x, drop_y)?;
+            // Create dropped item near player with preserved data
+            create_dropped_item_entity_with_data(ctx, item_def_id, quantity, drop_x, drop_y, item_data)?;
             
             log::info!("[GiveOrDrop] Created dropped item near player {} at ({:.1}, {:.1}) for item def {} (qty {})", 
                       player_id, drop_x, drop_y, item_def_id, quantity);
@@ -229,6 +243,19 @@ pub(crate) fn create_dropped_item_entity(
     pos_x: f32,
     pos_y: f32,
 ) -> Result<(), String> { // Changed return type to Result<(), String> as we don't need the entity back
+    create_dropped_item_entity_with_data(ctx, item_def_id, quantity, pos_x, pos_y, None)
+}
+
+/// Creates a DroppedItem entity in the world with optional item data preservation.
+/// Use this when dropping items that have special data (like water content).
+pub(crate) fn create_dropped_item_entity_with_data(
+    ctx: &ReducerContext,
+    item_def_id: u64,
+    quantity: u32,
+    pos_x: f32,
+    pos_y: f32,
+    item_data: Option<String>,
+) -> Result<(), String> {
     // --- ADD: Calculate chunk index ---
     let chunk_idx = calculate_chunk_index(pos_x, pos_y);
     // --- END ADD ---
@@ -240,6 +267,7 @@ pub(crate) fn create_dropped_item_entity(
         pos_y,
         chunk_index: chunk_idx, // <<< SET chunk_index
         created_at: ctx.timestamp,
+        item_data, // <<< ADDED: Store the item data
     };
 
     match ctx.db.dropped_item().try_insert(new_dropped_item) {
@@ -306,4 +334,17 @@ pub fn try_give_item_to_player(
     quantity: u32,
 ) -> Result<bool, String> {
     give_item_to_player_or_drop(ctx, player_id, item_def_id, quantity)
+}
+
+/// Public API for giving items to players with item data preservation and automatic dropping fallback.
+/// Use this when giving items that have special data (like water content).
+/// Returns Ok(true) if added to inventory, Ok(false) if dropped near player.
+pub fn try_give_item_to_player_with_data(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    item_def_id: u64,
+    quantity: u32,
+    item_data: Option<String>,
+) -> Result<bool, String> {
+    give_item_to_player_or_drop_with_data(ctx, player_id, item_def_id, quantity, item_data)
 }

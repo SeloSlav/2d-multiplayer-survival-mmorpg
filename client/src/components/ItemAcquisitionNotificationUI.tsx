@@ -5,6 +5,7 @@ import { itemIcons } from '../utils/itemIconUtils'; // Assuming you have this fo
 interface ItemAcquisitionNotificationUIProps {
   notifications: NotificationItem[];
   hasActiveCrafting?: boolean;
+  hasActiveStatusEffects?: boolean; // New prop to track if status effects are showing
 }
 
 const MAX_NOTIFICATIONS = 5;
@@ -12,7 +13,8 @@ const NOTIFICATION_TIMEOUT_MS = 3000; // Notifications stay for 3 seconds
 
 const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps> = ({ 
   notifications,
-  hasActiveCrafting = false
+  hasActiveCrafting = false,
+  hasActiveStatusEffects = false // New prop with default false
 }) => {
   const [visibleNotifications, setVisibleNotifications] = useState<NotificationItem[]>([]);
 
@@ -26,14 +28,23 @@ const ItemAcquisitionNotificationUI: React.FC<ItemAcquisitionNotificationUIProps
     return null;
   }
 
-  // Calculate dynamic positioning based on whether there's active crafting
+  // Calculate dynamic positioning based on whether there's active crafting and status effects
   const getBottomPosition = (): string => {
-    if (hasActiveCrafting) {
-      // Position above the crafting queue (which is at 170px, plus some height for the crafting UI)
-      return '230px';
+    if (hasActiveStatusEffects) {
+      // Position above the status effects panel (which is at 140px from bottom)
+      // StatusEffectsPanel is at bottom: '140px', so we need to be above it
+      if (hasActiveCrafting) {
+        return '250px'; // Higher if both status effects and crafting are active
+      } else {
+        return '200px'; // Position above status effects panel
+      }
     } else {
-      // Normal position when no crafting is active
-      return '190px';
+      // No status effects active - position lower for better visibility
+      if (hasActiveCrafting) {
+        return '180px'; // Still need to be above crafting notification
+      } else {
+        return '140px'; // Higher position when no status effects - not too low
+      }
     }
   };
 

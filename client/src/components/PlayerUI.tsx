@@ -797,6 +797,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
             <ItemAcquisitionNotificationUI 
                 notifications={acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED)} 
                 hasActiveCrafting={hasActiveCrafting}
+                hasActiveStatusEffects={getStatusEffectsForPanel().length > 0}
             />
             {/* --- END NEW --- */}
 

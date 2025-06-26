@@ -100,6 +100,8 @@ import { ExtinguishLantern } from "./extinguish_lantern_reducer.ts";
 export { ExtinguishLantern };
 import { FillWaterContainer } from "./fill_water_container_reducer.ts";
 export { FillWaterContainer };
+import { FillWaterContainerFromNaturalSource } from "./fill_water_container_from_natural_source_reducer.ts";
+export { FillWaterContainerFromNaturalSource };
 import { FinishFishing } from "./finish_fishing_reducer.ts";
 export { FinishFishing };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
@@ -1155,6 +1157,10 @@ const REMOTE_MODULE = {
       reducerName: "fill_water_container",
       argsType: FillWaterContainer.getTypeScriptAlgebraicType(),
     },
+    fill_water_container_from_natural_source: {
+      reducerName: "fill_water_container_from_natural_source",
+      argsType: FillWaterContainerFromNaturalSource.getTypeScriptAlgebraicType(),
+    },
     finish_fishing: {
       reducerName: "finish_fishing",
       argsType: FinishFishing.getTypeScriptAlgebraicType(),
@@ -1712,6 +1718,7 @@ export type Reducer = never
 | { name: "EquipArmorFromInventory", args: EquipArmorFromInventory }
 | { name: "ExtinguishLantern", args: ExtinguishLantern }
 | { name: "FillWaterContainer", args: FillWaterContainer }
+| { name: "FillWaterContainerFromNaturalSource", args: FillWaterContainerFromNaturalSource }
 | { name: "FinishFishing", args: FinishFishing }
 | { name: "FireProjectile", args: FireProjectile }
 | { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
@@ -2363,6 +2370,22 @@ export class RemoteReducers {
 
   removeOnFillWaterContainer(callback: (ctx: ReducerEventContext, collectorId: number) => void) {
     this.connection.offReducer("fill_water_container", callback);
+  }
+
+  fillWaterContainerFromNaturalSource(itemInstanceId: bigint, fillAmountMl: number) {
+    const __args = { itemInstanceId, fillAmountMl };
+    let __writer = new BinaryWriter(1024);
+    FillWaterContainerFromNaturalSource.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("fill_water_container_from_natural_source", __argsBuffer, this.setCallReducerFlags.fillWaterContainerFromNaturalSourceFlags);
+  }
+
+  onFillWaterContainerFromNaturalSource(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, fillAmountMl: number) => void) {
+    this.connection.onReducer("fill_water_container_from_natural_source", callback);
+  }
+
+  removeOnFillWaterContainerFromNaturalSource(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, fillAmountMl: number) => void) {
+    this.connection.offReducer("fill_water_container_from_natural_source", callback);
   }
 
   finishFishing(success: boolean, caughtItems: string[]) {
@@ -4436,6 +4459,11 @@ export class SetReducerFlags {
   fillWaterContainerFlags: CallReducerFlags = 'FullUpdate';
   fillWaterContainer(flags: CallReducerFlags) {
     this.fillWaterContainerFlags = flags;
+  }
+
+  fillWaterContainerFromNaturalSourceFlags: CallReducerFlags = 'FullUpdate';
+  fillWaterContainerFromNaturalSource(flags: CallReducerFlags) {
+    this.fillWaterContainerFromNaturalSourceFlags = flags;
   }
 
   finishFishingFlags: CallReducerFlags = 'FullUpdate';

@@ -93,8 +93,8 @@ pub use world_generation::generate_world;
 // ADD: Re-export fishing reducers
 pub use fishing::{cast_fishing_line, finish_fishing, cancel_fishing};
 
-// ADD: Re-export drinking reducer
-pub use drinking::drink_water;
+// ADD: Re-export drinking reducers
+pub use drinking::{drink_water, fill_water_container_from_natural_source};
 
 // ADD: Re-export planted seeds reducer
 pub use planted_seeds::plant_seed;

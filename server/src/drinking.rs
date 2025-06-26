@@ -4,6 +4,7 @@ use log;
 // Import required modules and traits
 use crate::Player;
 use crate::player as PlayerTableTrait;
+use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::{world_pos_to_tile_coords, is_player_on_water, TileType, get_tile_type_at_position};
 use crate::environment::{is_position_on_inland_water, is_tile_inland_water};
 use crate::active_effects::apply_seawater_poisoning_effect;
@@ -201,13 +202,93 @@ pub fn drink_water(ctx: &ReducerContext) -> Result<(), String> {
     }
     
     // Log the action
-    if is_inland_water {
-        log::info!("Player {:?} drank {} and gained {:.1} thirst (was {:.1}, now {:.1})", 
-                  player_id, water_type_msg, thirst_change, old_thirst, player.thirst);
-    } else {
-        log::info!("Player {:?} drank {} and lost {:.1} thirst (was {:.1}, now {:.1}) - dehydrating and poisoned!", 
-                  player_id, water_type_msg, -thirst_change, old_thirst, player.thirst);
-    }
+    log::info!("Player {:?} drank {} (thirst change: {:.1}, new thirst: {:.1})", 
+               player_id, water_type_msg, thirst_change, player.thirst);
     
     Ok(())
-} 
+}
+
+/// Fill water container from natural water source
+/// Allows players to fill water containers directly from water tiles they're standing on/near
+#[spacetimedb::reducer]
+pub fn fill_water_container_from_natural_source(ctx: &ReducerContext, item_instance_id: u64, fill_amount_ml: u32) -> Result<(), String> {
+    let player_id = ctx.sender;
+    
+    log::info!("Player {:?} attempting to fill water container {} with {}mL from natural source", 
+               player_id, item_instance_id, fill_amount_ml);
+    
+    // Validate fill amount (max 250mL per action as specified in client)
+    if fill_amount_ml == 0 {
+        return Err("Fill amount must be greater than zero.".to_string());
+    }
+    if fill_amount_ml > 250 {
+        return Err("Cannot fill more than 250mL at once.".to_string());
+    }
+    
+    // Validate water drinking (distance, water availability, etc.) - reuse existing validation
+    let is_inland_water = validate_water_drinking(ctx, player_id)?;
+    
+    // Only allow filling from fresh water sources
+    if !is_inland_water {
+        return Err("Cannot fill water container from salt water. Find a fresh water source (river or lake).".to_string());
+    }
+    
+    // Get and validate the water container item
+    let items = ctx.db.inventory_item();
+    let mut container_item = items.instance_id().find(&item_instance_id)
+        .ok_or_else(|| "Water container not found.".to_string())?;
+    
+    // Verify ownership by checking the item's location
+    let owns_item = match &container_item.location {
+        crate::models::ItemLocation::Inventory(data) => data.owner_id == player_id,
+        crate::models::ItemLocation::Hotbar(data) => data.owner_id == player_id,
+        crate::models::ItemLocation::Equipped(data) => data.owner_id == player_id,
+        _ => false, // Other locations like containers don't belong to players
+    };
+    
+    if !owns_item {
+        return Err("You don't own this water container.".to_string());
+    }
+    
+    // Get container definition to validate it's a water container
+    let item_defs = ctx.db.item_definition();
+    let container_def = item_defs.id().find(&container_item.item_def_id)
+        .ok_or_else(|| "Container definition not found.".to_string())?;
+    
+    // Determine container capacity and validate it's a water container
+    let capacity = match container_def.name.as_str() {
+        "Reed Water Bottle" => crate::rain_collector::REED_WATER_BOTTLE_CAPACITY,
+        "Plastic Water Jug" => crate::rain_collector::PLASTIC_WATER_JUG_CAPACITY,
+        _ => return Err("Item is not a valid water container.".to_string()),
+    };
+    
+    // Get current water content in container
+    let current_water = crate::items::get_water_content(&container_item).unwrap_or(0.0);
+    let available_capacity = capacity - current_water;
+    
+    // Check if container has any available capacity
+    if available_capacity <= 0.0 {
+        return Err("Water container is already full.".to_string());
+    }
+    
+    // Convert fill amount from mL to liters for internal storage
+    let fill_amount_liters = fill_amount_ml as f32 / 1000.0;
+    
+    // Calculate how much water to actually add (limited by container capacity)
+    let water_to_add = fill_amount_liters.min(available_capacity);
+    let new_water_content = current_water + water_to_add;
+    
+    // Fill the container with water
+    crate::items::set_water_content(&mut container_item, new_water_content)?;
+    items.instance_id().update(container_item);
+    
+    // Emit drinking water sound effect at player position for audio feedback
+    let player = ctx.db.player().identity().find(&player_id)
+        .ok_or_else(|| "Player not found for sound effect.".to_string())?;
+    crate::sound_events::emit_drinking_water_sound(ctx, player.position_x, player.position_y, player_id);
+    
+    log::info!("Successfully filled {} with {:.1}L from natural source (now has {:.1}L/{:.1}L)", 
+               container_def.name, water_to_add, new_water_content, capacity);
+    
+    Ok(())
+}
