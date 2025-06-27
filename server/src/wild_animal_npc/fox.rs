@@ -79,8 +79,8 @@ impl AnimalBehavior for CinderFoxBehavior {
             attack_range: 72.0, // INCREASED from 40.0 - larger melee range like wolf
             attack_speed_ms: 600, // Much faster attacks (was 800ms)
             movement_speed: 200.0, // Faster base movement for quick escapes
-            sprint_speed: 450.0, // REVERTED from 850.0 - back to previous speed (850 was too fast)
-            perception_range: 800.0, // INCREASED from 400.0 - much better vision for early detection
+            sprint_speed: 350.0, // REVERTED from 850.0 - back to previous speed (850 was too fast)
+            perception_range: 600.0, // INCREASED from 400.0 - much better vision for early detection
             perception_angle_degrees: 220.0, // INCREASED from 180.0 - even wider field of view for safety
             patrol_radius: 180.0, // 6m patrol loop
             chase_trigger_range: 120.0, // Shorter chase range - foxes are cautious
@@ -204,24 +204,29 @@ impl AnimalBehavior for CinderFoxBehavior {
                 if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
                     let distance_to_target_sq = get_distance_squared(animal.pos_x, animal.pos_y, target_x, target_y);
                     
-                    // Only return to patrol when VERY far from original threat location
-                    if distance_to_target_sq <= 200.0 * 200.0 { // Much larger safety zone
+                    // Only return to patrol when reached the flee destination
+                    if distance_to_target_sq <= 50.0 * 50.0 { // Reached flee destination
                         animal.investigation_x = None;
                         animal.investigation_y = None;
                         animal.state = AnimalState::Patrolling;
                         animal.state_change_time = current_time;
-                        log::debug!("Fox {} finally reached safe distance, returning to patrol", animal.id);
+                        log::debug!("Fox {} reached flee destination, returning to patrol", animal.id);
                     }
                 } else {
-                    // No flee target - check if far enough from spawn
+                    // No specific flee target - check if far enough from spawn and not stuck
                     let spawn_distance_sq = get_distance_squared(
                         animal.pos_x, animal.pos_y, animal.spawn_x, animal.spawn_y
                     );
                     
-                    if spawn_distance_sq >= (stats.patrol_radius * 2.0).powi(2) { // Much farther requirement
+                    let time_since_flee = current_time.to_micros_since_unix_epoch() - 
+                                         animal.state_change_time.to_micros_since_unix_epoch();
+                    
+                    // Return to patrol after sufficient time has passed OR if far from spawn
+                    if spawn_distance_sq >= (stats.patrol_radius * 1.5).powi(2) || 
+                       time_since_flee > 5_000_000 { // 5 seconds timeout
                         animal.state = AnimalState::Patrolling;
                         animal.state_change_time = current_time;
-                        log::debug!("Fox {} fled far enough from spawn area, returning to patrol", animal.id);
+                        log::debug!("Fox {} timeout or distance check passed, returning to patrol", animal.id);
                     }
                 }
             },
@@ -241,10 +246,65 @@ impl AnimalBehavior for CinderFoxBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) {
+        // Store previous position to detect if we're stuck
+        let prev_x = animal.pos_x;
+        let prev_y = animal.pos_y;
+        
         // Move toward investigation target (flee destination) if set, otherwise toward spawn
         if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
             // Use SPRINT SPEED for fleeing - foxes bolt away fast!
             move_towards_target(ctx, animal, target_x, target_y, stats.sprint_speed, dt);
+            
+            // WATER UNSTUCK LOGIC: Check if we didn't move (stuck on water/collision)
+            let movement_threshold = 5.0; // If moved less than 5px, consider stuck
+            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+            
+            if distance_moved < movement_threshold {
+                // Check if target is water or if we're hitting water
+                let target_is_water = crate::fishing::is_water_tile(ctx, target_x, target_y);
+                let current_hitting_water = crate::fishing::is_water_tile(ctx, animal.pos_x + (target_x - animal.pos_x).signum() * 50.0, animal.pos_y + (target_y - animal.pos_y).signum() * 50.0);
+                
+                if target_is_water || current_hitting_water {
+                    // UNSTUCK: Pick a new flee direction away from water
+                    log::warn!("Fox {} got stuck on water while fleeing! Choosing new escape route...", animal.id);
+                    
+                    // Try multiple random directions to find one that's not water
+                    let mut attempts = 0;
+                    let mut found_safe_direction = false;
+                    
+                    while attempts < 8 && !found_safe_direction {
+                        // Pick a random direction, preferring opposite to original threat
+                        let random_angle = rng.gen::<f32>() * 2.0 * PI;
+                        let flee_distance = 600.0 + (rng.gen::<f32>() * 400.0); // 12-20m flee distance
+                        let new_flee_x = animal.pos_x + random_angle.cos() * flee_distance;
+                        let new_flee_y = animal.pos_y + random_angle.sin() * flee_distance;
+                        
+                        // Check if this direction leads to water
+                        let test_x = animal.pos_x + random_angle.cos() * 100.0; // Test 2m ahead
+                        let test_y = animal.pos_y + random_angle.sin() * 100.0;
+                        
+                        if !crate::fishing::is_water_tile(ctx, test_x, test_y) && 
+                           !super::core::is_position_in_shelter(ctx, test_x, test_y) {
+                            // Found a safe direction!
+                            animal.investigation_x = Some(new_flee_x);
+                            animal.investigation_y = Some(new_flee_y);
+                            found_safe_direction = true;
+                            log::info!("Fox {} found safe escape route at angle {:.1}° - heading to ({:.1}, {:.1})", 
+                                      animal.id, random_angle.to_degrees(), new_flee_x, new_flee_y);
+                        }
+                        attempts += 1;
+                    }
+                    
+                    if !found_safe_direction {
+                        // Last resort: flee directly away from current position
+                        let emergency_angle = rng.gen::<f32>() * 2.0 * PI;
+                        let emergency_distance = 800.0;
+                        animal.investigation_x = Some(animal.pos_x + emergency_angle.cos() * emergency_distance);
+                        animal.investigation_y = Some(animal.pos_y + emergency_angle.sin() * emergency_distance);
+                        log::warn!("Fox {} using emergency escape route!", animal.id);
+                    }
+                }
+            }
             
             // DON'T return to patrol here - let update_ai_state_logic handle it with larger safety zones
             // This prevents premature patrol returns
@@ -262,8 +322,17 @@ impl AnimalBehavior for CinderFoxBehavior {
         dt: f32,
         rng: &mut impl Rng,
     ) {
-        // Circular patrol pattern
-        animal.patrol_phase += dt * 0.3; // Adjust speed
+        // Store previous position to detect if we're stuck
+        let prev_x = animal.pos_x;
+        let prev_y = animal.pos_y;
+        
+        // FIXED: Improved circular patrol pattern with proper phase management
+        // Scale patrol_phase increment based on movement speed and patrol radius
+        let patrol_speed_multiplier = stats.movement_speed / 100.0; // Normalize speed
+        let radius_scale = 180.0 / stats.patrol_radius.max(1.0); // Scale based on patrol radius
+        
+        animal.patrol_phase += dt * patrol_speed_multiplier * radius_scale * 0.4; // Smooth movement
+        
         if animal.patrol_phase >= 2.0 * PI {
             animal.patrol_phase -= 2.0 * PI;
         }
@@ -275,9 +344,31 @@ impl AnimalBehavior for CinderFoxBehavior {
         if !super::core::is_position_in_shelter(ctx, target_x, target_y) &&
            !crate::fishing::is_water_tile(ctx, target_x, target_y) {
             move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
+            
+            // WATER UNSTUCK LOGIC: Check if we didn't move (stuck on water/collision during patrol)
+            let movement_threshold = 3.0; // If moved less than 3px, consider stuck
+            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+            
+            if distance_moved < movement_threshold {
+                // Check if we're hitting water ahead
+                let ahead_x = animal.pos_x + (target_x - animal.pos_x).signum() * 60.0;
+                let ahead_y = animal.pos_y + (target_y - animal.pos_y).signum() * 60.0;
+                
+                if crate::fishing::is_water_tile(ctx, ahead_x, ahead_y) {
+                    // Skip ahead in patrol to get around water
+                    animal.patrol_phase += dt * patrol_speed_multiplier * radius_scale * 1.5; // Skip faster
+                    log::debug!("Fox {} skipping around water during patrol - new phase: {:.2}", 
+                               animal.id, animal.patrol_phase);
+                }
+            }
+            
+            log::debug!("Fox {} patrolling to ({:.1}, {:.1}) - phase: {:.2}, speed: {:.1}", 
+                       animal.id, target_x, target_y, animal.patrol_phase, stats.movement_speed);
         } else {
             // If target position is blocked, skip ahead in the patrol phase
-            animal.patrol_phase += dt * 0.5; // Move faster to find clear space
+            animal.patrol_phase += dt * patrol_speed_multiplier * radius_scale * 0.8; // Move faster to find clear space
+            log::debug!("Fox {} skipping blocked patrol position - new phase: {:.2}", 
+                       animal.id, animal.patrol_phase);
         }
     }
 

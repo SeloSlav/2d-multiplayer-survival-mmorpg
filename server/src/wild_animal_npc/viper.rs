@@ -107,7 +107,7 @@ impl ViperBehavior for CableViperBehavior {
         target_player: &Player,
         current_time: Timestamp,
     ) -> Result<(), String> {
-        // Calculate direction to player
+        // Calculate direction to player with predictive aiming
         let dx = target_player.position_x - animal.pos_x;
         let dy = target_player.position_y - animal.pos_y;
         let distance = (dx * dx + dy * dy).sqrt();
@@ -116,10 +116,32 @@ impl ViperBehavior for CableViperBehavior {
             return Err("Target too close for spittle".to_string());
         }
         
-        // Spittle projectile speed
-        const SPITTLE_SPEED: f32 = 600.0; // Slower than arrows but faster than player
-        let velocity_x = (dx / distance) * SPITTLE_SPEED;
-        let velocity_y = (dy / distance) * SPITTLE_SPEED;
+        // ENHANCED: Faster, more accurate spittle against ranged users
+        let player_has_ranged = Self::player_has_ranged_weapon(ctx, target_player.identity);
+        let base_speed = if player_has_ranged { 750.0 } else { 600.0 }; // Faster against bow users
+        
+        // Predictive aiming - anticipate player movement
+        let player_speed = 150.0; // Assume average player speed
+        let projectile_time = distance / base_speed;
+        
+        // Predict where player will be
+        let predicted_x = target_player.position_x + (dx.signum() * player_speed * projectile_time * 0.7); // 70% prediction
+        let predicted_y = target_player.position_y + (dy.signum() * player_speed * projectile_time * 0.7);
+        
+        // Calculate velocity toward predicted position
+        let pred_dx = predicted_x - animal.pos_x;
+        let pred_dy = predicted_y - animal.pos_y;
+        let pred_distance = (pred_dx * pred_dx + pred_dy * pred_dy).sqrt();
+        
+        if pred_distance < 1.0 {
+            return Err("Predicted target too close".to_string());
+        }
+        
+        let velocity_x = (pred_dx / pred_distance) * base_speed;
+        let velocity_y = (pred_dy / pred_distance) * base_speed;
+        
+        // ENHANCED: Longer range and more persistent projectiles against ranged users
+        let max_range = if player_has_ranged { 500.0 } else { 400.0 }; // 10m vs 8m range
         
         // Create spittle projectile
         let spittle = ViperSpittle {
@@ -131,11 +153,18 @@ impl ViperBehavior for CableViperBehavior {
             start_pos_y: animal.pos_y,
             velocity_x,
             velocity_y,
-            max_range: 400.0, // 8m range
+            max_range,
         };
         
         ctx.db.viper_spittle().insert(spittle);
-        log::info!("Cable Viper {} fired spittle at player {:?}", animal.id, target_player.identity);
+        
+        if player_has_ranged {
+            log::info!("Cable Viper {} fired ENHANCED spittle (speed:{:.0}, range:{:.0}) at bow user {:?}", 
+                      animal.id, base_speed, max_range, target_player.identity);
+        } else {
+            log::info!("Cable Viper {} fired spittle at player {:?}", animal.id, target_player.identity);
+        }
+        
         Ok(())
     }
     
@@ -163,10 +192,10 @@ impl AnimalBehavior for CableViperBehavior {
             attack_speed_ms: 1500, // Slower but devastating strikes
             movement_speed: 60.0,  // Very slow movement (ambush predator)
             sprint_speed: 400.0,   // Lightning fast dash when attacking
-            perception_range: 300.0, // INCREASED: Better detection for ranged combat
+            perception_range: 400.0, // ENHANCED: Much longer detection for bow combat
             perception_angle_degrees: 360.0, // Vibration sensing
             patrol_radius: 60.0, // 2m figure-eight
-            chase_trigger_range: 250.0, // INCREASED: Longer range for spittle attacks
+            chase_trigger_range: 350.0, // ENHANCED: Extended range for spittle combat
             flee_trigger_health_percent: 0.7, // Flees when injured (70%)
             hide_duration_ms: 2000, // FIXED: Much shorter burrow time (2 seconds max)
         }
@@ -230,7 +259,7 @@ impl AnimalBehavior for CableViperBehavior {
                     // NEW: Check if player has ranged weapon for spittle combat
                     let player_has_ranged = Self::player_has_ranged_weapon(ctx, player.identity);
                     
-                    if player_has_ranged && distance <= 300.0 && distance > 120.0 {
+                    if player_has_ranged && distance <= 350.0 && distance > 120.0 {
                         // Player has ranged weapon and is in spittle range but not melee range
                         animal.state = AnimalState::Investigating; // Use investigating state for spittle combat
                         animal.target_player_id = Some(player.identity);
@@ -261,7 +290,7 @@ impl AnimalBehavior for CableViperBehavior {
             },
             
             AnimalState::Investigating => {
-                // NEW: Spittle combat mode with strafing
+                // NEW: Aggressive spittle combat mode with enhanced strafing against ranged weapons
                 if let Some(target_id) = animal.target_player_id {
                     if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
                         let distance_sq = get_distance_squared(
@@ -273,7 +302,7 @@ impl AnimalBehavior for CableViperBehavior {
                         // Check if player still has ranged weapon
                         let player_has_ranged = Self::player_has_ranged_weapon(ctx, target_player.identity);
                         
-                        if !player_has_ranged || distance > 350.0 {
+                        if !player_has_ranged || distance > 400.0 {
                             // Player no longer has ranged weapon or moved too far - return to patrol
                             animal.state = AnimalState::Patrolling;
                             animal.target_player_id = None;
@@ -289,20 +318,39 @@ impl AnimalBehavior for CableViperBehavior {
                             animal.state_change_time = current_time;
                             log::debug!("Cable Viper {} switching to melee - player too close", animal.id);
                         } else {
-                            // Fire spittle every 2 seconds and continue strafing
+                            // AGGRESSIVE: Fire spittle much more frequently against bow users
+                            let spittle_interval = if player_has_ranged { 800_000 } else { 2_000_000 }; // 0.8s vs 2s
                             let time_since_state_change = current_time.to_micros_since_unix_epoch() - animal.state_change_time.to_micros_since_unix_epoch();
-                            if time_since_state_change >= 2_000_000 { // 2 seconds
+                            
+                            if time_since_state_change >= spittle_interval {
                                 if let Err(e) = Self::fire_spittle_projectile(ctx, animal, &target_player, current_time) {
                                     log::error!("Failed to fire spittle: {}", e);
+                                } else {
+                                    log::info!("Cable Viper {} rapid-firing spittle at bow user!", animal.id);
                                 }
                                 animal.state_change_time = current_time; // Reset timer
                                 
-                                // Update strafe position (switch direction)
+                                // ENHANCED: More aggressive strafing pattern with prediction
                                 let angle_to_player = (target_player.position_y - animal.pos_y).atan2(target_player.position_x - animal.pos_x);
-                                let strafe_angle = angle_to_player + if rng.gen::<bool>() { PI / 2.0 } else { -PI / 2.0 };
-                                let strafe_distance = 100.0;
+                                
+                                // Calculate player movement prediction for better strafing
+                                let player_speed = 150.0; // Assume average player speed
+                                let predicted_time = distance / 600.0; // Time for spittle to reach player
+                                let predicted_player_x = target_player.position_x + (target_player.position_x - animal.pos_x).signum() * player_speed * predicted_time;
+                                let predicted_player_y = target_player.position_y + (target_player.position_y - animal.pos_y).signum() * player_speed * predicted_time;
+                                
+                                // Strafe perpendicular to predicted position with random variation
+                                let angle_to_predicted = (predicted_player_y - animal.pos_y).atan2(predicted_player_x - animal.pos_x);
+                                let strafe_variation = (rng.gen::<f32>() - 0.5) * 1.0; // ±30 degree variation
+                                let strafe_angle = angle_to_predicted + (PI / 2.0) + strafe_variation;
+                                
+                                // AGGRESSIVE: Larger, more unpredictable strafe distance
+                                let strafe_distance = 120.0 + (rng.gen::<f32>() * 80.0); // 2.4-4m strafe
                                 animal.investigation_x = Some(animal.pos_x + strafe_distance * strafe_angle.cos());
                                 animal.investigation_y = Some(animal.pos_y + strafe_distance * strafe_angle.sin());
+                                
+                                log::debug!("Cable Viper {} aggressive strafe: {:.1}px at angle {:.1}°", 
+                                           animal.id, strafe_distance, strafe_angle.to_degrees());
                             }
                         }
                     } else {

@@ -49,6 +49,7 @@ use crate::world_tile as WorldTileTableTrait; // Added for tile checking
 use crate::{TileType, WorldTile}; // Added for tile type checking
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // Added for wild animals
 use crate::wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern}; // Added for wild animal types
+use crate::wild_animal_npc::core::AnimalBehavior; // Added AnimalBehavior trait
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -540,8 +541,8 @@ pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y:
     
     match species {
         AnimalSpecies::CinderFox => {
-            // RELAXED: Cinder Fox can spawn on almost any land tile - much more flexible
-            if !matches!(tile_type, TileType::Grass | TileType::Dirt | TileType::Beach | TileType::Sand | TileType::DirtRoad) {
+            // RELAXED: Tundra Wolf can spawn on any grassland or dirt - more flexible
+            if !matches!(tile_type, TileType::Grass | TileType::Dirt | TileType::DirtRoad) {
                 return false;
             }
             
@@ -560,40 +561,13 @@ pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y:
         }
         
         AnimalSpecies::CableViper => {
-            // Cable Viper: Prefers beach tiles, dense forests, and dirt roads
-            // First check if on preferred terrain types
-            if matches!(tile_type, TileType::Beach | TileType::DirtRoad) {
-                return true; // Strongly prefer beach and dirt roads
+            // REVERTED: Cable Viper can spawn on almost any land tile - much more permissive
+            if !matches!(tile_type, TileType::Grass | TileType::Dirt | TileType::Beach | TileType::Sand | TileType::DirtRoad) {
+                return false;
             }
             
-            // Check for dense forest areas (near multiple trees)
-            if matches!(tile_type, TileType::Grass | TileType::Dirt) {
-                // Count nearby trees within forest detection radius
-                let forest_detection_radius_sq = 120.0 * 120.0; // 120 pixel radius for forest detection
-                let mut nearby_tree_count = 0;
-                
-                for &(tree_x, tree_y) in tree_positions {
-                    let dx = pos_x - tree_x;
-                    let dy = pos_y - tree_y;
-                    if dx * dx + dy * dy <= forest_detection_radius_sq {
-                        nearby_tree_count += 1;
-                        if nearby_tree_count >= 3 { // Dense forest = 3+ trees nearby
-                            return true; // Prefer dense forest areas
-                        }
-                    }
-                }
-                
-                // If not in dense forest, still allow spawning on grass/dirt but with lower preference
-                // This maintains flexibility while biasing toward preferred terrain
-                return true;
-            }
-            
-            // Allow sand tiles as secondary preference (desert/coastal areas)
-            if tile_type == TileType::Sand {
-                return true;
-            }
-            
-            false // Reject other terrain types
+            // REMOVED: Complex terrain preference logic - vipers can spawn anywhere suitable like before
+            true // Accept any suitable land tile
         }
     }
 }
@@ -1241,12 +1215,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         let patrol_center_x = pos_x;
         let patrol_center_y = pos_y;
         
-        // Set species-specific stats (balanced for bow combat: ~55-60 damage per bone arrow shot)
-        let (max_health, movement_speed, patrol_radius, perception_range, attack_damage) = match chosen_species {
-            AnimalSpecies::CinderFox => (80, 45.0, 96.0, 160.0, 12),     // 2 shots to kill, fast/skittish, moderate damage
-            AnimalSpecies::TundraWolf => (200, 25.0, 288.0, 400.0, 35),  // 4 shots to kill, slow/strong, high damage  
-            AnimalSpecies::CableViper => (120, 20.0, 32.0, 64.0, 25),    // 2-3 shots, very slow, venomous bite
-        };
+        // Get stats directly from the behavior system (single source of truth)
+        let behavior = chosen_species.get_behavior();
+        let stats = behavior.get_stats();
+        
+        // Use the actual behavior stats instead of hardcoded duplicates
+        let max_health = stats.max_health;
+        let movement_speed = stats.movement_speed;
+        let patrol_radius = stats.patrol_radius;
+        let perception_range = stats.perception_range;
+        let attack_damage = stats.attack_damage;
         
         let new_animal = crate::wild_animal_npc::WildAnimal {
             id: 0, // auto_inc

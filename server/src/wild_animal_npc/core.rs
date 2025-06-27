@@ -486,6 +486,27 @@ fn execute_animal_movement(
             }
         },
         
+        AnimalState::Investigating => {
+            // Handle strafe movement for spittle combat (primarily for vipers)
+            if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
+                // Enhanced movement speed for aggressive strafing
+                let strafe_speed = match animal.species {
+                    AnimalSpecies::CableViper => stats.sprint_speed * 0.8, // Fast strafing for vipers
+                    _ => stats.movement_speed * 1.2, // Slightly faster for other species
+                };
+                
+                move_towards_target(ctx, animal, target_x, target_y, strafe_speed, dt);
+                
+                // Check if reached strafe position
+                let distance_to_target = get_distance_squared(animal.pos_x, animal.pos_y, target_x, target_y).sqrt();
+                if distance_to_target <= 20.0 { // Within 20px of strafe target
+                    // Clear investigation position - AI will set new one if needed
+                    animal.investigation_x = None;
+                    animal.investigation_y = None;
+                }
+            }
+        },
+        
         AnimalState::Fleeing => {
             behavior.execute_flee_logic(ctx, animal, stats, dt, current_time, rng);
         },

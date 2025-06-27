@@ -60,8 +60,8 @@ impl AnimalBehavior for TundraWolfBehavior {
             attack_range: 72.0, // INCREASED from 48.0 - larger melee range for more reliable attacks
             attack_speed_ms: 800, // REDUCED from 1000ms - faster, more aggressive attacks
             movement_speed: 200.0, // Faster base movement for pursuit
-            sprint_speed: 450.0, // REDUCED from 850.0 - still faster than player sprint (800) but not teleporting
-            perception_range: 900.0, // Excellent hunter vision (increased)
+            sprint_speed: 350.0, // REDUCED from 850.0 - still faster than player sprint (800) but not teleporting
+            perception_range: 800.0, // Excellent hunter vision (increased)
             perception_angle_degrees: 200.0, // Wider hunter awareness
             patrol_radius: 540.0, // 18m wander
             chase_trigger_range: 600.0, // Long chase range - persistent hunters

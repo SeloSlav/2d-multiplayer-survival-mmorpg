@@ -5,7 +5,7 @@ use log;
 use crate::{TILE_SIZE_PX, WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES};
 use crate::environment::{calculate_chunk_index, is_wild_animal_location_suitable, is_position_on_water, is_position_in_central_compound};
 use crate::utils::calculate_tile_bounds;
-use super::core::{AnimalSpecies, AnimalState, MovementPattern, WildAnimal};
+use super::core::{AnimalSpecies, AnimalState, MovementPattern, WildAnimal, AnimalBehavior};
 
 // Table trait imports
 use crate::wild_animal_npc::core::wild_animal;
@@ -226,12 +226,10 @@ fn spawn_animal(
     pos_y: f32,
     chunk_idx: u32,
 ) -> Result<WildAnimal, String> {
-    // Set species-specific stats (same as initial seeding)
-    let (max_health, _movement_speed, _patrol_radius, _perception_range, _attack_damage) = match species {
-        AnimalSpecies::CinderFox => (80, 45.0, 96.0, 160.0, 12),
-        AnimalSpecies::TundraWolf => (200, 25.0, 288.0, 400.0, 35),
-        AnimalSpecies::CableViper => (120, 20.0, 32.0, 64.0, 25),
-    };
+    // Get stats directly from the behavior system (single source of truth)
+    let behavior = species.get_behavior();
+    let stats = behavior.get_stats();
+    let max_health = stats.max_health;
     
     // Create new animal
     let new_animal = WildAnimal {
@@ -242,7 +240,7 @@ fn spawn_animal(
         direction_x: 0.0,
         direction_y: 1.0,
         state: AnimalState::Patrolling,
-        health: max_health as f32,
+        health: max_health,
         spawn_x: pos_x,
         spawn_y: pos_y,
         target_player_id: None,
