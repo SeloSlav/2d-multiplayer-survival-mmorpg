@@ -628,7 +628,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
     // Wild animal seeding parameters
-    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.03% of tiles (reduced from 0.1% to ~75 total animals for better balance)
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.06% of tiles
     const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
@@ -1109,7 +1109,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // Define species distribution (weighted probabilities)
     let species_weights = [
         (AnimalSpecies::CinderFox, 50),    // 50% - Most common
-        (AnimalSpecies::TundraWolf, 30),   // 30% - Moderately common  
+        (AnimalSpecies::TundraWolf, 30),   // 30% - Moderately common  f
         (AnimalSpecies::CableViper, 20),   // 20% - Least common
     ];
     let total_weight: u32 = species_weights.iter().map(|(_, weight)| weight).sum();

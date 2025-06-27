@@ -16,6 +16,8 @@ use log;
 
 use crate::{Player};
 use crate::utils::get_distance_squared;
+use crate::combat; // Import combat system for damage_player
+use crate::items::{ItemDefinition, ItemCategory}; // Import item types
 
 // Table trait imports
 use crate::player as PlayerTableTrait;
@@ -56,13 +58,6 @@ pub struct ViperSpittleUpdateSchedule {
 }
 
 pub trait ViperBehavior {
-    fn enter_burrowed_state(
-        animal: &mut WildAnimal,
-        stats: &AnimalStats,
-        current_time: Timestamp,
-        rng: &mut impl Rng,
-    );
-    
     fn fire_spittle_projectile(
         ctx: &ReducerContext,
         animal: &WildAnimal,
@@ -77,30 +72,6 @@ pub trait ViperBehavior {
 }
 
 impl ViperBehavior for CableViperBehavior {
-    fn enter_burrowed_state(
-        animal: &mut WildAnimal,
-        stats: &AnimalStats,
-        current_time: Timestamp,
-        rng: &mut impl Rng,
-    ) {
-        animal.state = AnimalState::Burrowed;
-        
-        // FIXED: Much shorter burrow time (1-2 seconds instead of 20 seconds)
-        let burrow_duration_ms = 1000 + (rng.gen::<f32>() * 1000.0) as i64; // 1-2 seconds
-        animal.hide_until = Some(Timestamp::from_micros_since_unix_epoch(
-            current_time.to_micros_since_unix_epoch() + (burrow_duration_ms * 1000)
-        ));
-        
-        // FIXED: Teleport much closer (3-6m away instead of 10-15m)
-        let respawn_distance = 150.0 + (150.0 * rng.gen::<f32>()); // 3-6m (150-300 pixels)
-        let angle = rng.gen::<f32>() * 2.0 * PI;
-        animal.pos_x = animal.spawn_x + respawn_distance * angle.cos();
-        animal.pos_y = animal.spawn_y + respawn_distance * angle.sin();
-        
-        log::info!("Cable Viper {} burrowed for {:.1}s and teleported {:.1}m away", 
-                   animal.id, burrow_duration_ms as f32 / 1000.0, respawn_distance / 50.0);
-    }
-    
     fn fire_spittle_projectile(
         ctx: &ReducerContext,
         animal: &WildAnimal,
@@ -197,7 +168,7 @@ impl AnimalBehavior for CableViperBehavior {
             patrol_radius: 60.0, // 2m figure-eight
             chase_trigger_range: 350.0, // ENHANCED: Extended range for spittle combat
             flee_trigger_health_percent: 0.7, // Flees when injured (70%)
-            hide_duration_ms: 2000, // FIXED: Much shorter burrow time (2 seconds max)
+            hide_duration_ms: 0, // REMOVED: No more burrowing behavior
         }
     }
 
@@ -229,11 +200,8 @@ impl AnimalBehavior for CableViperBehavior {
             log::info!("Cable Viper {} injects deadly persistent venom into player {}! Only Anti-Venom can cure this.", animal.id, target_player.identity);
         }
         
-        // Viper immediately burrows after strike (ambush predator)
-        Self::enter_burrowed_state(animal, stats, current_time, rng);
-        animal.target_player_id = None;
-        
-        log::info!("Cable Viper {} strikes and burrows!", animal.id);
+        // REMOVED: No more burrowing after strike - vipers fight normally
+        log::info!("Cable Viper {} strikes with venomous fangs!", animal.id);
         
         Ok(damage)
     }
@@ -389,8 +357,20 @@ impl AnimalBehavior for CableViperBehavior {
             },
             
             AnimalState::Fleeing => {
-                // Vipers burrow immediately when fleeing
-                Self::enter_burrowed_state(animal, stats, current_time, rng);
+                // REMOVED: No more burrowing when fleeing - vipers flee normally
+                // Move toward spawn position when fleeing
+                let distance_to_spawn = get_distance_squared(animal.pos_x, animal.pos_y, animal.spawn_x, animal.spawn_y).sqrt();
+                
+                if distance_to_spawn > 25.0 {
+                    // Move toward spawn
+                    move_towards_target(ctx, animal, animal.spawn_x, animal.spawn_y, stats.sprint_speed, 0.125);
+                } else {
+                    // Reached spawn area, return to patrolling
+                    animal.state = AnimalState::Patrolling;
+                    animal.target_player_id = None;
+                    animal.state_change_time = current_time;
+                    log::debug!("Cable Viper {} finished fleeing - returning to patrol", animal.id);
+                }
             },
             
             _ => {} // Other states handled by core system
@@ -401,15 +381,27 @@ impl AnimalBehavior for CableViperBehavior {
 
     fn execute_flee_logic(
         &self,
-        _ctx: &ReducerContext,
+        ctx: &ReducerContext,
         animal: &mut WildAnimal,
         stats: &AnimalStats,
         dt: f32,
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) {
-        // Immediate burrow when fleeing
-        Self::enter_burrowed_state(animal, stats, current_time, rng);
+        // REMOVED: No more burrowing when fleeing - vipers flee normally
+        // Move toward spawn position when fleeing
+        let distance_to_spawn = get_distance_squared(animal.pos_x, animal.pos_y, animal.spawn_x, animal.spawn_y).sqrt();
+        
+        if distance_to_spawn > 25.0 {
+            // Move toward spawn
+            move_towards_target(ctx, animal, animal.spawn_x, animal.spawn_y, stats.sprint_speed, dt);
+        } else {
+            // Reached spawn area, return to patrolling
+            animal.state = AnimalState::Patrolling;
+            animal.target_player_id = None;
+            animal.state_change_time = current_time;
+            log::debug!("Cable Viper {} finished fleeing - returning to patrol", animal.id);
+        }
     }
 
     fn execute_patrol_logic(
@@ -462,10 +454,12 @@ impl AnimalBehavior for CableViperBehavior {
     ) -> Result<(), String> {
         let health_percent = animal.health / stats.max_health;
         
-        // Vipers flee when injured (70% threshold)
+        // REMOVED: No more burrowing when injured - vipers flee normally like other animals
         if health_percent < stats.flee_trigger_health_percent {
-            Self::enter_burrowed_state(animal, stats, current_time, rng);
-            log::info!("Cable Viper {} burrowing due to injury ({:.1}% health)", 
+            animal.state = AnimalState::Fleeing;
+            animal.target_player_id = None;
+            animal.state_change_time = current_time;
+            log::info!("Cable Viper {} fleeing due to injury ({:.1}% health)", 
                       animal.id, health_percent * 100.0);
         }
         
@@ -536,11 +530,36 @@ pub fn update_viper_spittle(ctx: &ReducerContext, _args: ViperSpittleUpdateSched
                 if collision_detected {
                     log::info!("Viper spittle {} hit player {:?}", spittle.id, target_player.identity);
                     
-                    // Apply venom effect (lighter than bite)
+                    // Apply immediate damage by modifying player health directly
+                    let spittle_damage = 15.0; // Moderate damage for ranged attack
+                    let mut target_player_mut = target_player.clone();
+                    
+                    let old_health = target_player_mut.health;
+                    target_player_mut.health = (target_player_mut.health - spittle_damage).clamp(0.0, 100.0);
+                    let actual_damage = old_health - target_player_mut.health;
+                    
+                    // Update last hit time for visual effects
+                    target_player_mut.last_hit_time = Some(current_time);
+                    
+                    // Update the player in the database
+                    ctx.db.player().identity().update(target_player_mut.clone());
+                    
+                    log::info!("Viper spittle dealt {:.1} damage to player {:?} (Health: {:.1} -> {:.1})", 
+                              actual_damage, target_player.identity, old_health, target_player_mut.health);
+                    
+                    // PLAY DAMAGE SOUND: Trigger a sharp hit sound
+                    crate::sound_events::emit_melee_hit_sharp_sound(
+                        ctx,
+                        target_player.position_x,
+                        target_player.position_y,
+                        target_player.identity, // Player who got hit triggers the sound
+                    );
+                    
+                    // ADDITIONAL VENOM EFFECT: Apply venom damage over time (lighter than bite)
                     if let Err(e) = crate::active_effects::apply_venom_effect(
                         ctx,
                         target_player.identity,
-                        20.0, // 20 total damage (much less than bite)
+                        20.0, // 20 total damage over time (much less than bite)
                         15.0, // 15 seconds duration
                         3.0   // Tick every 3 seconds
                     ) {
