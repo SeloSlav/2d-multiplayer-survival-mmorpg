@@ -413,6 +413,10 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             player.is_dead = true;
             player.death_timestamp = Some(ctx.timestamp); // Set death timestamp
 
+            // Clear all active effects on death (bleed, venom, burns, healing, etc.)
+            crate::active_effects::clear_all_effects_on_death(ctx, player_id);
+            log::info!("[PlayerDeath] Cleared all active effects for dying player {:?}", player_id);
+
             // --- <<< CHANGED: Call refactored corpse creation function >>> ---
             match player_corpse::create_player_corpse(ctx, player_id, player.position_x, player.position_y, &player.username) {
                 Ok(_) => {

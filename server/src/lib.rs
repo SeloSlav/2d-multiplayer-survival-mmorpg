@@ -74,6 +74,8 @@ mod wet; // <<< ADDED wet status effect module
 mod sound_events; // <<< ADDED sound events module
 mod rain_collector; // <<< ADDED rain collector module
 mod water_patch; // <<< ADDED water patch module for crop watering
+pub mod wild_animal_npc; // <<< ADDED wild animal NPC system (now modular)
+mod animal_collision; // <<< ADDED animal collision system
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -107,6 +109,9 @@ pub use consumables::consume_filled_water_container;
 
 // ADD: Re-export water patch reducer
 pub use water_patch::water_crops;
+
+// ADD: Re-export wild animal NPC reducers
+pub use wild_animal_npc::{spawn_wild_animal, damage_wild_animal, process_wild_animal_ai};
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
@@ -188,6 +193,10 @@ use crate::sound_events::sound_event as SoundEventTableTrait; // <<< ADDED: Impo
 use crate::sound_events::sound_event_cleanup_schedule as SoundEventCleanupScheduleTableTrait; // <<< ADDED: Import SoundEventCleanupSchedule table trait
 use crate::rain_collector::rain_collector as RainCollectorTableTrait; // <<< ADDED: Import RainCollector table trait
 use crate::water_patch::water_patch as WaterPatchTableTrait; // <<< ADDED: Import WaterPatch table trait
+use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // <<< ADDED: Import WildAnimal table trait
+use crate::wild_animal_npc::wild_animal_ai_schedule as WildAnimalAiScheduleTableTrait; // <<< ADDED: Import WildAnimalAiSchedule table trait
+use crate::wild_animal_npc::viper::viper_spittle as ViperSpittleTableTrait; // <<< ADDED: Import ViperSpittle table trait
+use crate::wild_animal_npc::viper::viper_spittle_update_schedule as ViperSpittleUpdateScheduleTableTrait; // <<< ADDED: Import ViperSpittleUpdateSchedule table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;
@@ -438,6 +447,12 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     
     // ADD: Initialize sound event cleanup system
     crate::sound_events::init_sound_cleanup_system(ctx)?;
+    
+    // ADD: Initialize wild animal AI system
+    crate::wild_animal_npc::init_wild_animal_ai_schedule(ctx)?;
+    
+    // ADD: Initialize viper spittle projectile system
+    crate::wild_animal_npc::viper::init_viper_spittle_system(ctx)?;
     
     // ADD: Initialize WorldState for scheduled systems
     crate::world_state::seed_world_state(ctx)?;

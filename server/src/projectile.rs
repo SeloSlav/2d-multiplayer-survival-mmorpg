@@ -31,11 +31,14 @@ use crate::player_corpse::{PlayerCorpse, CORPSE_COLLISION_RADIUS, CORPSE_COLLISI
 use crate::tree::{Tree, tree as TreeTableTrait};
 use crate::stone::{Stone, stone as StoneTableTrait};
 
+// Import wild animal module for collision detection
+use crate::wild_animal_npc::{wild_animal as WildAnimalTableTrait};
+
 const GRAVITY: f32 = 600.0; // Adjust this value to change the arc. Positive values pull downwards.
 
 /// Helper function to check if a line segment intersects with a circle
 /// Returns true if the line from (x1,y1) to (x2,y2) intersects with circle at (cx,cy) with radius r
-fn line_intersects_circle(x1: f32, y1: f32, x2: f32, y2: f32, cx: f32, cy: f32, radius: f32) -> bool {
+pub fn line_intersects_circle(x1: f32, y1: f32, x2: f32, y2: f32, cx: f32, cy: f32, radius: f32) -> bool {
     // Vector from line start to circle center
     let ac_x = cx - x1;
     let ac_y = cy - y1;
@@ -1067,6 +1070,91 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
             projectiles_to_delete.push(projectile.id);
             continue;
+        }
+
+        log::info!("DEBUG: Projectile {} checking wild animal collisions at ({:.1}, {:.1})", projectile.id, current_x, current_y);
+
+        // Check wild animal collisions first
+        let mut hit_wild_animal_this_tick = false;
+        for wild_animal in ctx.db.wild_animal().iter() {
+            // Skip dead animals or animals that are burrowed
+            if wild_animal.health <= 0.0 || wild_animal.state == crate::wild_animal_npc::AnimalState::Burrowed {
+                continue;
+            }
+            
+            // Use line segment collision detection for wild animals
+            const WILD_ANIMAL_HIT_RADIUS: f32 = 32.0; // Generous radius for wild animals
+            let collision_detected = line_intersects_circle(prev_x, prev_y, current_x, current_y, wild_animal.pos_x, wild_animal.pos_y, WILD_ANIMAL_HIT_RADIUS);
+            
+            // Debug logging for nearby collisions
+            if (prev_x - wild_animal.pos_x).abs() < 100.0 && (prev_y - wild_animal.pos_y).abs() < 100.0 {
+                log::info!("DEBUG: Checking collision for projectile {} with wild animal {}. Path: ({:.1},{:.1}) -> ({:.1},{:.1}), Animal: ({:.1},{:.1}), Radius: {:.1}, Collision: {}", 
+                    projectile.id, wild_animal.id, 
+                    prev_x, prev_y, current_x, current_y, 
+                    wild_animal.pos_x, wild_animal.pos_y, 
+                    WILD_ANIMAL_HIT_RADIUS, collision_detected);
+            }
+            
+            if collision_detected {
+                log::info!("Projectile {} from owner {:?} hit wild animal {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})", 
+                         projectile.id, projectile.owner_id, wild_animal.id, prev_x, prev_y, current_x, current_y);
+                
+                // Get weapon and ammunition definitions for damage calculation
+                let weapon_item_def = match item_defs_table.id().find(projectile.item_def_id) {
+                    Some(def) => def,
+                    None => {
+                        log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's weapon (ID: {}). Cannot apply damage to wild animal.", projectile.item_def_id);
+                        projectiles_to_delete.push(projectile.id);
+                        hit_wild_animal_this_tick = true;
+                        break;
+                    }
+                };
+
+                let ammo_item_def = match item_defs_table.id().find(projectile.ammo_def_id) {
+                    Some(def) => def,
+                    None => {
+                        log::error!("[UpdateProjectiles] ItemDefinition not found for projectile's ammunition (ID: {}). Cannot apply damage to wild animal.", projectile.ammo_def_id);
+                        projectiles_to_delete.push(projectile.id);
+                        hit_wild_animal_this_tick = true;
+                        break;
+                    }
+                };
+
+                // Calculate damage using the centralized helper function
+                let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
+
+                if is_thrown_item {
+                    log::info!("Thrown item damage to wild animal: Item '{}' dealt {:.1} total damage", 
+                             weapon_item_def.name, final_damage);
+                } else {
+                    log::info!("Projectile damage to wild animal: Weapon '{}' + Ammo '{}' = {:.1} total damage", 
+                             weapon_item_def.name, ammo_item_def.name, final_damage);
+                }
+
+                // Apply damage to wild animal
+                match crate::wild_animal_npc::damage_wild_animal(ctx, wild_animal.id, final_damage, projectile.owner_id) {
+                    Ok(_) => {
+                        log::info!("Projectile from {:?} (weapon: {} + ammo: {}) dealt {:.1} damage to wild animal {}.", 
+                                 projectile.owner_id, weapon_item_def.name, ammo_item_def.name, final_damage, wild_animal.id);
+                        
+                        // Play arrow hit sound for wild animal hits
+                        sound_events::emit_arrow_hit_sound(ctx, wild_animal.pos_x, wild_animal.pos_y, projectile.owner_id);
+                    }
+                    Err(e) => {
+                        log::error!("Error applying projectile damage to wild animal {}: {}", wild_animal.id, e);
+                    }
+                }
+
+                // Add projectile to dropped item system (with break chance) like other hits
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_wild_animal_this_tick = true;
+                break; // Projectile hits one animal and is consumed
+            }
+        }
+        
+        if hit_wild_animal_this_tick {
+            continue; // Move to the next projectile if this one hit a wild animal
         }
 
         log::info!("DEBUG: Projectile {} checking player collisions at ({:.1}, {:.1})", projectile.id, current_x, current_y);

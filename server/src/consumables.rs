@@ -134,7 +134,18 @@ pub fn apply_item_effects_and_consume(
     let old_thirst = player_to_update.thirst;
     let old_warmth = player_to_update.warmth;
 
-    if let Some(duration_secs) = item_def.consumable_duration_secs {
+    // SPECIAL HANDLING: Anti-Venom instantly cures all venom effects (regardless of duration setting)
+    if item_def.name == "Anti-Venom" {
+        log::info!("[EffectsHelper] Player {:?} using Anti-Venom. Curing all venom effects.", player_id);
+        
+        // Cancel all active venom effects
+        crate::active_effects::cancel_venom_effects(ctx, player_id);
+        
+        // Apply instant effects (health boost and stamina boost)
+        apply_instant_effects_for_helper(ctx, item_def, player_id, player_to_update, &mut stat_changed_instantly);
+        
+        log::info!("[EffectsHelper] Player {:?} has been cured of all venom effects by Anti-Venom!", player_id);
+    } else if let Some(duration_secs) = item_def.consumable_duration_secs {
         if duration_secs > 0.0 { // This branch handles timed effects
             if item_def.name == "Bandage" {
                 if let Some(total_bandage_heal) = item_def.consumable_health_gain {

@@ -85,6 +85,10 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                     player.last_update = current_time; // Update timestamp
                     players.identity().update(player.clone()); // Update player state
 
+                    // Clear all active effects on death (bleed, venom, burns, healing, etc.)
+                    crate::active_effects::clear_all_effects_on_death(ctx, sender_id);
+                    log::info!("[PlayerDeath] Cleared all active effects for player {:?} using {} command", sender_id, command);
+
                     // Create corpse
                     if let Err(e) = player_corpse::create_player_corpse(ctx, sender_id, player.position_x, player.position_y, &player.username) {
                         log::error!("Failed to create corpse for player {:?} after {}: {}", sender_id, command, e);

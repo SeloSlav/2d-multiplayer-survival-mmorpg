@@ -34,6 +34,8 @@ import {
   FishingSession,
   PlantedSeed as SpacetimeDBPlantedSeed,
   PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
+  WildAnimal as SpacetimeDBWildAnimal,
+  ViperSpittle as SpacetimeDBViperSpittle,
 } from '../generated';
 
 // --- Core Hooks ---
@@ -81,6 +83,8 @@ import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
+import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
+import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
@@ -158,6 +162,8 @@ interface GameCanvasProps {
   isFishing: boolean;
   plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
   playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // Add player drinking cooldowns
+  wildAnimals: Map<string, SpacetimeDBWildAnimal>;
+  viperSpittles: Map<string, SpacetimeDBViperSpittle>; // Add viper spittles
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -221,6 +227,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isFishing,
   plantedSeeds,
   playerDrinkingCooldowns,
+  wildAnimals,
+  viperSpittles,
   setMusicPanelVisible,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
@@ -469,6 +477,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleShelters,
     visibleSheltersMap,
     visibleLanterns,
+    visibleWildAnimals,
+    visibleWildAnimalsMap,
+    visibleViperSpittles,
+    visibleViperSpittlesMap,
   } = useEntityFiltering(
     players,
     trees,
@@ -496,6 +508,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     clouds,
     plantedSeeds,
     rainCollectors,
+    wildAnimals,
+    viperSpittles,
   );
 
   // --- UI State ---
@@ -593,6 +607,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       img.onerror = () => console.error('Failed to load reed_rain_collector.png');
       img.src = module.default;
     });
+  }, []);
+
+  // Preload wild animal images
+  useEffect(() => {
+    preloadWildAnimalImages();
   }, []);
 
   // Use arrow break effects hook
@@ -876,6 +895,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       shelterClippingData,
     });
     // --- End Y-Sorted Entities ---
+
+    // Wild animals are now rendered through the Y-sorted entities system for proper layering
 
     // Render campfire particles here, after other world entities but before labels/UI
     if (ctx) { // Ensure context is still valid

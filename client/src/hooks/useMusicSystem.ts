@@ -25,7 +25,6 @@ const MUSIC_TRACKS: MusicTrack[] = [
     { filename: 'Latchkey_Depths.mp3', displayName: 'Latchkey Depths' },
     { filename: 'Low_Tide_Cache.mp3', displayName: 'Low Tide Cache' },
     { filename: 'Saltwind.mp3', displayName: 'Saltwind' },
-    { filename: 'Shiver_Doctrine.mp3', displayName: 'Shiver Doctrine' },
     { filename: 'Snowblind_Signal.mp3', displayName: 'Snowblind Signal' },
     { filename: 'Spoiled_Tallow.mp3', displayName: 'Spoiled Tallow' },
     { filename: 'Whalebone_Relay.mp3', displayName: 'Whalebone Relay' },

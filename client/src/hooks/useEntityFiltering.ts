@@ -22,6 +22,8 @@ import {
   Cloud as SpacetimeDBCloud,
   PlantedSeed as SpacetimeDBPlantedSeed,
   RainCollector as SpacetimeDBRainCollector,
+  WildAnimal as SpacetimeDBWildAnimal,
+  ViperSpittle as SpacetimeDBViperSpittle,
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -36,7 +38,8 @@ import {
   isPlayerCorpse,
   isGrass, // Type guard might need adjustment or can work if structure is similar enough
   isShelter, // ADDED Shelter type guard import (will be created in typeGuards.ts)
-  isRainCollector // ADDED RainCollector type guard import
+  isRainCollector, // ADDED RainCollector type guard import
+  isWildAnimal // ADDED WildAnimal type guard import
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
@@ -91,6 +94,10 @@ interface EntityFilteringResult {
   visibleClouds: SpacetimeDBCloud[]; // ADDED
   visibleRainCollectors: SpacetimeDBRainCollector[];
   visibleRainCollectorsMap: Map<string, SpacetimeDBRainCollector>;
+  visibleWildAnimals: SpacetimeDBWildAnimal[]; // ADDED
+  visibleWildAnimalsMap: Map<string, SpacetimeDBWildAnimal>; // ADDED
+  visibleViperSpittles: SpacetimeDBViperSpittle[]; // ADDED
+  visibleViperSpittlesMap: Map<string, SpacetimeDBViperSpittle>; // ADDED
 }
 
 // Define a unified entity type for sorting
@@ -114,7 +121,9 @@ export type YSortedEntityType =
   | { type: 'shelter'; entity: SpacetimeDBShelter }
   | { type: 'grass'; entity: InterpolatedGrassData }
   | { type: 'planted_seed'; entity: SpacetimeDBPlantedSeed }
-  | { type: 'rain_collector'; entity: SpacetimeDBRainCollector };
+  | { type: 'rain_collector'; entity: SpacetimeDBRainCollector }
+  | { type: 'wild_animal'; entity: SpacetimeDBWildAnimal }
+  | { type: 'viper_spittle'; entity: SpacetimeDBViperSpittle };
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -142,7 +151,9 @@ export function useEntityFiltering(
   shelters: Map<string, SpacetimeDBShelter>, // ADDED shelters argument
   clouds: Map<string, SpacetimeDBCloud>, // ADDED clouds argument
   plantedSeeds: Map<string, SpacetimeDBPlantedSeed>,
-  rainCollectors: Map<string, SpacetimeDBRainCollector>
+  rainCollectors: Map<string, SpacetimeDBRainCollector>,
+  wildAnimals: Map<string, SpacetimeDBWildAnimal>, // ADDED wildAnimals argument
+  viperSpittles: Map<string, SpacetimeDBViperSpittle> // ADDED viperSpittles argument
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
@@ -272,6 +283,21 @@ export function useEntityFiltering(
       x = (entity as any).posX;
       y = (entity as any).posY;
       width = 24; // Small seed size
+      height = 24;
+    } else if (isWildAnimal(entity)) {
+      x = entity.posX;
+      y = entity.posY;
+      // All wild animals now use the same square dimensions for consistency
+      width = 96;
+      height = 96;
+    } else if ((entity as any).viperId !== undefined && (entity as any).startPosX !== undefined) {
+      // Handle viper spittles - calculate current position based on time
+      const spittle = entity as any;
+      const startTime = Number(spittle.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (timestamp - startTime) / 1000.0;
+      x = spittle.startPosX + spittle.velocityX * elapsedSeconds;
+      y = spittle.startPosY + spittle.velocityY * elapsedSeconds;
+      width = 24; // Small spittle size
       height = 24;
     } else {
       return false; // Unknown entity type
@@ -473,6 +499,18 @@ export function useEntityFiltering(
     [rainCollectors, isEntityInView, viewBounds, currentTime]
   );
 
+  const visibleWildAnimals = useMemo(() => 
+    wildAnimals ? Array.from(wildAnimals.values()).filter(e => e.state.tag !== 'Burrowed' && isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [wildAnimals, isEntityInView, viewBounds, currentTime]
+  );
+
+  const visibleViperSpittles = useMemo(() => 
+    viperSpittles ? Array.from(viperSpittles.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [viperSpittles, isEntityInView, viewBounds, currentTime]
+  );
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -534,6 +572,11 @@ export function useEntityFiltering(
     [visibleRainCollectors]
   );
 
+  const visibleWildAnimalsMap = useMemo(() => 
+    new Map(visibleWildAnimals.map(w => [w.id.toString(), w])), 
+    [visibleWildAnimals]
+  );
+
   const visibleProjectilesMap = useMemo(() => 
     new Map(visibleProjectiles.map(p => [p.id.toString(), p])), 
     [visibleProjectiles]
@@ -569,6 +612,12 @@ export function useEntityFiltering(
     [visibleShelters]
   );
 
+  // ADDED: Map for visible viper spittles
+  const visibleViperSpittlesMap = useMemo(() =>
+    new Map(visibleViperSpittles.map(v => [v.id.toString(), v])),
+    [visibleViperSpittles]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleSleepingBags,
@@ -598,6 +647,8 @@ export function useEntityFiltering(
       ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
       ...visiblePlantedSeeds.map(p => ({ type: 'planted_seed' as const, entity: p })),
       ...visibleRainCollectors.map(r => ({ type: 'rain_collector' as const, entity: r })),
+      ...visibleWildAnimals.map(w => ({ type: 'wild_animal' as const, entity: w })),
+      ...visibleViperSpittles.map(v => ({ type: 'viper_spittle' as const, entity: v })),
     ];
     
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
@@ -707,6 +758,22 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      // Handle wild animals - sort by their foot position
+      if (isWildAnimal(entity)) {
+        // Wild animals should sort by their base position (foot)
+        sortY = entity.posY;
+        return sortY;
+      }
+
+      // Handle viper spittles - calculate current Y position like projectiles
+      if ((entity as any).viperId !== undefined && (entity as any).startPosX !== undefined) {
+        const spittle = entity as any;
+        const startTime = Number(spittle.startTime.microsSinceUnixEpoch / 1000n);
+        const elapsedSeconds = (currentTime - startTime) / 1000.0;
+        sortY = spittle.startPosY + spittle.velocityY * elapsedSeconds;
+        return sortY;
+      }
+
       // For other entities, use their standard posY if it exists, otherwise default or handle error.
       // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
       if ((entity as any).posY !== undefined) {
@@ -724,7 +791,43 @@ export function useEntityFiltering(
     validEntities.sort((a, b) => {
       const yA = getSortY(a);
       const yB = getSortY(b);
-      return yA - yB;
+      
+      // Primary sort by Y position
+      if (Math.abs(yA - yB) > 0.1) {
+        return yA - yB;
+      }
+      
+      // Secondary sort: When Y positions are very close, use entity type priority
+      // Trees should render behind wild animals at the same Y position
+      const getTypePriority = (type: string): number => {
+        switch (type) {
+          case 'shelter': return 0;     // Shelters render behind everything
+          case 'tree': return 1;        // Trees render behind most things
+          case 'stone': return 2;       // Stones
+          case 'wild_animal': return 3; // Wild animals render in front of trees
+          case 'wooden_storage_box': return 4;
+          case 'stash': return 5;
+          case 'campfire': return 6;
+          case 'lantern': return 7;
+          case 'grass': return 8;
+          case 'planted_seed': return 9;
+          case 'dropped_item': return 10;
+          case 'corn': return 11;
+          case 'hemp': return 12;
+          case 'reed': return 13;
+          case 'mushroom': return 14;
+          case 'potato': return 15;
+          case 'pumpkin': return 16;
+          case 'rain_collector': return 17;
+          case 'projectile': return 18;
+          case 'viper_spittle': return 18; // Same priority as projectiles
+          case 'player_corpse': return 19;
+          case 'player': return 20;     // Players render in front of most things
+          default: return 15;
+        }
+      };
+      
+      return getTypePriority(a.type) - getTypePriority(b.type);
     });
 
     return validEntities;
@@ -735,7 +838,9 @@ export function useEntityFiltering(
     visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
     visibleShelters, // ADDED visibleShelters to dependencies
     visiblePlantedSeeds, // ADDED visiblePlantedSeeds to dependencies
-    visibleRainCollectors // ADDED visibleRainCollectors to dependencies
+    visibleRainCollectors, // ADDED visibleRainCollectors to dependencies
+    visibleWildAnimals, // ADDED visibleWildAnimals to dependencies
+    visibleViperSpittles, // ADDED visibleViperSpittles to dependencies
   ]);
 
   return {
@@ -781,6 +886,10 @@ export function useEntityFiltering(
     visiblePlantedSeeds,
     visiblePlantedSeedsMap,
     visibleRainCollectors,
-    visibleRainCollectorsMap
+    visibleRainCollectorsMap,
+    visibleWildAnimals,
+    visibleWildAnimalsMap,
+    visibleViperSpittles,
+    visibleViperSpittlesMap
   };
 } 

@@ -178,6 +178,8 @@ function AppContent() {
       continuousSounds, // <<< ADD continuousSounds HERE
       localPlayerIdentity, // <<< ADD localPlayerIdentity HERE
       playerDrinkingCooldowns, // <<< ADD playerDrinkingCooldowns HERE
+      wildAnimals, // <<< ADD wildAnimals HERE
+      viperSpittles, // <<< ADD viperSpittles HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -209,7 +211,8 @@ function AppContent() {
             boxes: woodenStorageBoxes,
             rainCollectors,
             shelters,
-            players
+            players,
+            wildAnimals // Add wild animals to collision system
         }
     });
 
@@ -774,6 +777,8 @@ function AppContent() {
                             plantedSeeds={plantedSeeds}
                             worldTiles={worldTiles}
                             minimapCache={minimapCache}
+                            wildAnimals={wildAnimals}
+                            viperSpittles={viperSpittles}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

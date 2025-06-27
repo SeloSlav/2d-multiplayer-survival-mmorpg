@@ -53,6 +53,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Metal Fragments", 2000, None, Some(16u16)),
         ("Stone", 2000, None, Some(17u16)),
         ("Wood", 2000, None, Some(18u16)),
+        ("Anti-Venom", 2, None, Some(19u16)), // For testing venom system
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

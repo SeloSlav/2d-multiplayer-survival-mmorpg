@@ -32,6 +32,8 @@ use crate::shelter::shelter as ShelterTableTrait; // RE-ENABLE ShelterTableTrait
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // ADDED PlayerCorpse table trait
 // Import rain collector table trait
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
+// Import wild animal table trait
+use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 
 // Cell size should be larger than the largest collision radius to ensure
 // we only need to check adjacent cells. We use 4x the player radius as a safe default.
@@ -61,6 +63,7 @@ pub enum EntityType {
     Shelter(u32), // RE-ENABLE Shelter from EntityType
     PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
     RainCollector(u32), // ADDED RainCollector entity type (assuming u32 ID)
+    WildAnimal(u64), // ADDED WildAnimal entity type
     // EXCLUDED: Grass - removed for performance to fix rubber-banding issues
 }
 
@@ -165,8 +168,9 @@ impl SpatialGrid {
                                   + MushroomTableTrait + DroppedItemTableTrait
                                   + ShelterTableTrait 
                                   + PlayerCorpseTableTrait
-                                  + RainCollectorTableTrait> // ADDED RainCollectorTableTrait to bounds
-                                 (&mut self, db: &DB) {
+                                  + RainCollectorTableTrait
+                                  + WildAnimalTableTrait> // ADDED WildAnimalTableTrait to bounds
+                                 (&mut self, db: &DB, current_time: spacetimedb::Timestamp) {
         self.clear();
         
         // Add players
@@ -255,6 +259,13 @@ impl SpatialGrid {
         for rain_collector in db.rain_collector().iter() {
             if !rain_collector.is_destroyed {
                 self.add_entity(EntityType::RainCollector(rain_collector.id), rain_collector.pos_x, rain_collector.pos_y);
+            }
+        }
+        
+        // Add wild animals (only those not hiding/burrowed)
+        for animal in db.wild_animal().iter() {
+            if animal.hide_until.is_none() || animal.hide_until.unwrap() <= current_time {
+                self.add_entity(EntityType::WildAnimal(animal.id), animal.pos_x, animal.pos_y);
             }
         }
     }

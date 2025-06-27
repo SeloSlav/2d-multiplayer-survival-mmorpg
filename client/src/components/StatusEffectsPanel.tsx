@@ -209,6 +209,8 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                             const displayPercentage = percentage >= 97 ? 100 : Math.round(percentage);
                             return `${displayPercentage}% wetness remaining`;
                           })()
+                        : effect.id === 'venom'
+                        ? 'Persistent until cured'
                         : `${Math.ceil(effect.duration)}s remaining`
                       }
                     </span>
@@ -264,6 +266,8 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                       // If very close to 100% (within 3%), just show 100% to avoid flickering
                       return percentage >= 97 ? '100%' : `${Math.round(percentage)}%`;
                     })()
+                  : effect.id === 'venom'
+                  ? '∞'
                   : `${Math.ceil(effect.duration)}s`
                 }
               </span>

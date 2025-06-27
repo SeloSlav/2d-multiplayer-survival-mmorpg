@@ -66,6 +66,8 @@ import { ConsumeItem } from "./consume_item_reducer.ts";
 export { ConsumeItem };
 import { CrushBoneItem } from "./crush_bone_item_reducer.ts";
 export { CrushBoneItem };
+import { DamageWildAnimal } from "./damage_wild_animal_reducer.ts";
+export { DamageWildAnimal };
 import { DebugSetTime } from "./debug_set_time_reducer.ts";
 export { DebugSetTime };
 import { DebugSetWeather } from "./debug_set_weather_reducer.ts";
@@ -122,6 +124,8 @@ import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
 import { InitProjectileSystem } from "./init_projectile_system_reducer.ts";
 export { InitProjectileSystem };
+import { InitViperSpittleSystem } from "./init_viper_spittle_system_reducer.ts";
+export { InitViperSpittleSystem };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
 import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
@@ -222,6 +226,8 @@ import { ProcessLanternLogicScheduled } from "./process_lantern_logic_scheduled_
 export { ProcessLanternLogicScheduled };
 import { ProcessPlayerStats } from "./process_player_stats_reducer.ts";
 export { ProcessPlayerStats };
+import { ProcessWildAnimalAi } from "./process_wild_animal_ai_reducer.ts";
+export { ProcessWildAnimalAi };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
 export { QuickMoveFromBox };
 import { QuickMoveFromCorpse } from "./quick_move_from_corpse_reducer.ts";
@@ -272,6 +278,8 @@ import { SetPlayerPin } from "./set_player_pin_reducer.ts";
 export { SetPlayerPin };
 import { SetSprinting } from "./set_sprinting_reducer.ts";
 export { SetSprinting };
+import { SpawnWildAnimal } from "./spawn_wild_animal_reducer.ts";
+export { SpawnWildAnimal };
 import { SplitAndDropItemFromBoxSlotToWorld } from "./split_and_drop_item_from_box_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromBoxSlotToWorld };
 import { SplitAndDropItemFromCampfireSlotToWorld } from "./split_and_drop_item_from_campfire_slot_to_world_reducer.ts";
@@ -346,6 +354,8 @@ import { UpdateProjectiles } from "./update_projectiles_reducer.ts";
 export { UpdateProjectiles };
 import { UpdateViewport } from "./update_viewport_reducer.ts";
 export { UpdateViewport };
+import { UpdateViperSpittle } from "./update_viper_spittle_reducer.ts";
+export { UpdateViperSpittle };
 import { UseEquippedItem } from "./use_equipped_item_reducer.ts";
 export { UseEquippedItem };
 import { WaterCrops } from "./water_crops_reducer.ts";
@@ -476,10 +486,18 @@ import { ThunderEventTableHandle } from "./thunder_event_table.ts";
 export { ThunderEventTableHandle };
 import { TreeTableHandle } from "./tree_table.ts";
 export { TreeTableHandle };
+import { ViperSpittleTableHandle } from "./viper_spittle_table.ts";
+export { ViperSpittleTableHandle };
+import { ViperSpittleUpdateScheduleTableHandle } from "./viper_spittle_update_schedule_table.ts";
+export { ViperSpittleUpdateScheduleTableHandle };
 import { WaterPatchTableHandle } from "./water_patch_table.ts";
 export { WaterPatchTableHandle };
 import { WaterPatchCleanupScheduleTableHandle } from "./water_patch_cleanup_schedule_table.ts";
 export { WaterPatchCleanupScheduleTableHandle };
+import { WildAnimalTableHandle } from "./wild_animal_table.ts";
+export { WildAnimalTableHandle };
+import { WildAnimalAiScheduleTableHandle } from "./wild_animal_ai_schedule_table.ts";
+export { WildAnimalAiScheduleTableHandle };
 import { WoodenStorageBoxTableHandle } from "./wooden_storage_box_table.ts";
 export { WoodenStorageBoxTableHandle };
 import { WorldChunkDataTableHandle } from "./world_chunk_data_table.ts";
@@ -496,6 +514,10 @@ import { ActiveConsumableEffect } from "./active_consumable_effect_type.ts";
 export { ActiveConsumableEffect };
 import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
+import { AnimalSpecies } from "./animal_species_type.ts";
+export { AnimalSpecies };
+import { AnimalState } from "./animal_state_type.ts";
+export { AnimalState };
 import { ArrowBreakEvent } from "./arrow_break_event_type.ts";
 export { ArrowBreakEvent };
 import { Campfire } from "./campfire_type.ts";
@@ -584,6 +606,8 @@ import { Message } from "./message_type.ts";
 export { Message };
 import { MinimapCache } from "./minimap_cache_type.ts";
 export { MinimapCache };
+import { MovementPattern } from "./movement_pattern_type.ts";
+export { MovementPattern };
 import { Mushroom } from "./mushroom_type.ts";
 export { Mushroom };
 import { PlantedSeed } from "./planted_seed_type.ts";
@@ -660,12 +684,20 @@ import { Tree } from "./tree_type.ts";
 export { Tree };
 import { TreeType } from "./tree_type_type.ts";
 export { TreeType };
+import { ViperSpittle } from "./viper_spittle_type.ts";
+export { ViperSpittle };
+import { ViperSpittleUpdateSchedule } from "./viper_spittle_update_schedule_type.ts";
+export { ViperSpittleUpdateSchedule };
 import { WaterPatch } from "./water_patch_type.ts";
 export { WaterPatch };
 import { WaterPatchCleanupSchedule } from "./water_patch_cleanup_schedule_type.ts";
 export { WaterPatchCleanupSchedule };
 import { WeatherType } from "./weather_type_type.ts";
 export { WeatherType };
+import { WildAnimal } from "./wild_animal_type.ts";
+export { WildAnimal };
+import { WildAnimalAiSchedule } from "./wild_animal_ai_schedule_type.ts";
+export { WildAnimalAiSchedule };
 import { WoodenStorageBox } from "./wooden_storage_box_type.ts";
 export { WoodenStorageBox };
 import { WorldChunkData } from "./world_chunk_data_type.ts";
@@ -989,6 +1021,16 @@ const REMOTE_MODULE = {
       rowType: Tree.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
+    viper_spittle: {
+      tableName: "viper_spittle",
+      rowType: ViperSpittle.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    viper_spittle_update_schedule: {
+      tableName: "viper_spittle_update_schedule",
+      rowType: ViperSpittleUpdateSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
     water_patch: {
       tableName: "water_patch",
       rowType: WaterPatch.getTypeScriptAlgebraicType(),
@@ -997,6 +1039,16 @@ const REMOTE_MODULE = {
     water_patch_cleanup_schedule: {
       tableName: "water_patch_cleanup_schedule",
       rowType: WaterPatchCleanupSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    wild_animal: {
+      tableName: "wild_animal",
+      rowType: WildAnimal.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    wild_animal_ai_schedule: {
+      tableName: "wild_animal_ai_schedule",
+      rowType: WildAnimalAiSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     wooden_storage_box: {
@@ -1088,6 +1140,10 @@ const REMOTE_MODULE = {
     crush_bone_item: {
       reducerName: "crush_bone_item",
       argsType: CrushBoneItem.getTypeScriptAlgebraicType(),
+    },
+    damage_wild_animal: {
+      reducerName: "damage_wild_animal",
+      argsType: DamageWildAnimal.getTypeScriptAlgebraicType(),
     },
     debug_set_time: {
       reducerName: "debug_set_time",
@@ -1200,6 +1256,10 @@ const REMOTE_MODULE = {
     init_projectile_system: {
       reducerName: "init_projectile_system",
       argsType: InitProjectileSystem.getTypeScriptAlgebraicType(),
+    },
+    init_viper_spittle_system: {
+      reducerName: "init_viper_spittle_system",
+      argsType: InitViperSpittleSystem.getTypeScriptAlgebraicType(),
     },
     interact_with_campfire: {
       reducerName: "interact_with_campfire",
@@ -1401,6 +1461,10 @@ const REMOTE_MODULE = {
       reducerName: "process_player_stats",
       argsType: ProcessPlayerStats.getTypeScriptAlgebraicType(),
     },
+    process_wild_animal_ai: {
+      reducerName: "process_wild_animal_ai",
+      argsType: ProcessWildAnimalAi.getTypeScriptAlgebraicType(),
+    },
     quick_move_from_box: {
       reducerName: "quick_move_from_box",
       argsType: QuickMoveFromBox.getTypeScriptAlgebraicType(),
@@ -1500,6 +1564,10 @@ const REMOTE_MODULE = {
     set_sprinting: {
       reducerName: "set_sprinting",
       argsType: SetSprinting.getTypeScriptAlgebraicType(),
+    },
+    spawn_wild_animal: {
+      reducerName: "spawn_wild_animal",
+      argsType: SpawnWildAnimal.getTypeScriptAlgebraicType(),
     },
     split_and_drop_item_from_box_slot_to_world: {
       reducerName: "split_and_drop_item_from_box_slot_to_world",
@@ -1649,6 +1717,10 @@ const REMOTE_MODULE = {
       reducerName: "update_viewport",
       argsType: UpdateViewport.getTypeScriptAlgebraicType(),
     },
+    update_viper_spittle: {
+      reducerName: "update_viper_spittle",
+      argsType: UpdateViperSpittle.getTypeScriptAlgebraicType(),
+    },
     use_equipped_item: {
       reducerName: "use_equipped_item",
       argsType: UseEquippedItem.getTypeScriptAlgebraicType(),
@@ -1701,6 +1773,7 @@ export type Reducer = never
 | { name: "ConsumeFilledWaterContainer", args: ConsumeFilledWaterContainer }
 | { name: "ConsumeItem", args: ConsumeItem }
 | { name: "CrushBoneItem", args: CrushBoneItem }
+| { name: "DamageWildAnimal", args: DamageWildAnimal }
 | { name: "DebugSetTime", args: DebugSetTime }
 | { name: "DebugSetWeather", args: DebugSetWeather }
 | { name: "DebugUpdateCloudIntensity", args: DebugUpdateCloudIntensity }
@@ -1729,6 +1802,7 @@ export type Reducer = never
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InitProjectileSystem", args: InitProjectileSystem }
+| { name: "InitViperSpittleSystem", args: InitViperSpittleSystem }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithCorn", args: InteractWithCorn }
 | { name: "InteractWithHemp", args: InteractWithHemp }
@@ -1779,6 +1853,7 @@ export type Reducer = never
 | { name: "ProcessKnockedOutRecovery", args: ProcessKnockedOutRecovery }
 | { name: "ProcessLanternLogicScheduled", args: ProcessLanternLogicScheduled }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
+| { name: "ProcessWildAnimalAi", args: ProcessWildAnimalAi }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
 | { name: "QuickMoveFromStash", args: QuickMoveFromStash }
@@ -1804,6 +1879,7 @@ export type Reducer = never
 | { name: "SetActiveItemReducer", args: SetActiveItemReducer }
 | { name: "SetPlayerPin", args: SetPlayerPin }
 | { name: "SetSprinting", args: SetSprinting }
+| { name: "SpawnWildAnimal", args: SpawnWildAnimal }
 | { name: "SplitAndDropItemFromBoxSlotToWorld", args: SplitAndDropItemFromBoxSlotToWorld }
 | { name: "SplitAndDropItemFromCampfireSlotToWorld", args: SplitAndDropItemFromCampfireSlotToWorld }
 | { name: "SplitAndDropItemFromCorpseSlotToWorld", args: SplitAndDropItemFromCorpseSlotToWorld }
@@ -1841,6 +1917,7 @@ export type Reducer = never
 | { name: "UpdatePlayerPositionSimple", args: UpdatePlayerPositionSimple }
 | { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
+| { name: "UpdateViperSpittle", args: UpdateViperSpittle }
 | { name: "UseEquippedItem", args: UseEquippedItem }
 | { name: "WaterCrops", args: WaterCrops }
 ;
@@ -2106,6 +2183,22 @@ export class RemoteReducers {
 
   removeOnCrushBoneItem(callback: (ctx: ReducerEventContext, itemInstanceId: bigint) => void) {
     this.connection.offReducer("crush_bone_item", callback);
+  }
+
+  damageWildAnimal(animalId: bigint, damage: number, attackerId: Identity) {
+    const __args = { animalId, damage, attackerId };
+    let __writer = new BinaryWriter(1024);
+    DamageWildAnimal.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("damage_wild_animal", __argsBuffer, this.setCallReducerFlags.damageWildAnimalFlags);
+  }
+
+  onDamageWildAnimal(callback: (ctx: ReducerEventContext, animalId: bigint, damage: number, attackerId: Identity) => void) {
+    this.connection.onReducer("damage_wild_animal", callback);
+  }
+
+  removeOnDamageWildAnimal(callback: (ctx: ReducerEventContext, animalId: bigint, damage: number, attackerId: Identity) => void) {
+    this.connection.offReducer("damage_wild_animal", callback);
   }
 
   debugSetTime(timeTypeStr: string) {
@@ -2514,6 +2607,18 @@ export class RemoteReducers {
 
   removeOnInitProjectileSystem(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("init_projectile_system", callback);
+  }
+
+  initViperSpittleSystem() {
+    this.connection.callReducer("init_viper_spittle_system", new Uint8Array(0), this.setCallReducerFlags.initViperSpittleSystemFlags);
+  }
+
+  onInitViperSpittleSystem(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("init_viper_spittle_system", callback);
+  }
+
+  removeOnInitViperSpittleSystem(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("init_viper_spittle_system", callback);
   }
 
   interactWithCampfire(campfireId: number) {
@@ -3308,6 +3413,22 @@ export class RemoteReducers {
     this.connection.offReducer("process_player_stats", callback);
   }
 
+  processWildAnimalAi(schedule: WildAnimalAiSchedule) {
+    const __args = { schedule };
+    let __writer = new BinaryWriter(1024);
+    ProcessWildAnimalAi.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_wild_animal_ai", __argsBuffer, this.setCallReducerFlags.processWildAnimalAiFlags);
+  }
+
+  onProcessWildAnimalAi(callback: (ctx: ReducerEventContext, schedule: WildAnimalAiSchedule) => void) {
+    this.connection.onReducer("process_wild_animal_ai", callback);
+  }
+
+  removeOnProcessWildAnimalAi(callback: (ctx: ReducerEventContext, schedule: WildAnimalAiSchedule) => void) {
+    this.connection.offReducer("process_wild_animal_ai", callback);
+  }
+
   quickMoveFromBox(boxId: number, sourceSlotIndex: number) {
     const __args = { boxId, sourceSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3674,6 +3795,22 @@ export class RemoteReducers {
 
   removeOnSetSprinting(callback: (ctx: ReducerEventContext, sprinting: boolean) => void) {
     this.connection.offReducer("set_sprinting", callback);
+  }
+
+  spawnWildAnimal(species: AnimalSpecies, posX: number, posY: number) {
+    const __args = { species, posX, posY };
+    let __writer = new BinaryWriter(1024);
+    SpawnWildAnimal.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("spawn_wild_animal", __argsBuffer, this.setCallReducerFlags.spawnWildAnimalFlags);
+  }
+
+  onSpawnWildAnimal(callback: (ctx: ReducerEventContext, species: AnimalSpecies, posX: number, posY: number) => void) {
+    this.connection.onReducer("spawn_wild_animal", callback);
+  }
+
+  removeOnSpawnWildAnimal(callback: (ctx: ReducerEventContext, species: AnimalSpecies, posX: number, posY: number) => void) {
+    this.connection.offReducer("spawn_wild_animal", callback);
   }
 
   splitAndDropItemFromBoxSlotToWorld(boxId: number, slotIndex: number, quantityToSplit: number) {
@@ -4260,6 +4397,22 @@ export class RemoteReducers {
     this.connection.offReducer("update_viewport", callback);
   }
 
+  updateViperSpittle(args: ViperSpittleUpdateSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    UpdateViperSpittle.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("update_viper_spittle", __argsBuffer, this.setCallReducerFlags.updateViperSpittleFlags);
+  }
+
+  onUpdateViperSpittle(callback: (ctx: ReducerEventContext, args: ViperSpittleUpdateSchedule) => void) {
+    this.connection.onReducer("update_viper_spittle", callback);
+  }
+
+  removeOnUpdateViperSpittle(callback: (ctx: ReducerEventContext, args: ViperSpittleUpdateSchedule) => void) {
+    this.connection.offReducer("update_viper_spittle", callback);
+  }
+
   useEquippedItem() {
     this.connection.callReducer("use_equipped_item", new Uint8Array(0), this.setCallReducerFlags.useEquippedItemFlags);
   }
@@ -4374,6 +4527,11 @@ export class SetReducerFlags {
   crushBoneItemFlags: CallReducerFlags = 'FullUpdate';
   crushBoneItem(flags: CallReducerFlags) {
     this.crushBoneItemFlags = flags;
+  }
+
+  damageWildAnimalFlags: CallReducerFlags = 'FullUpdate';
+  damageWildAnimal(flags: CallReducerFlags) {
+    this.damageWildAnimalFlags = flags;
   }
 
   debugSetTimeFlags: CallReducerFlags = 'FullUpdate';
@@ -4504,6 +4662,11 @@ export class SetReducerFlags {
   initProjectileSystemFlags: CallReducerFlags = 'FullUpdate';
   initProjectileSystem(flags: CallReducerFlags) {
     this.initProjectileSystemFlags = flags;
+  }
+
+  initViperSpittleSystemFlags: CallReducerFlags = 'FullUpdate';
+  initViperSpittleSystem(flags: CallReducerFlags) {
+    this.initViperSpittleSystemFlags = flags;
   }
 
   interactWithCampfireFlags: CallReducerFlags = 'FullUpdate';
@@ -4756,6 +4919,11 @@ export class SetReducerFlags {
     this.processPlayerStatsFlags = flags;
   }
 
+  processWildAnimalAiFlags: CallReducerFlags = 'FullUpdate';
+  processWildAnimalAi(flags: CallReducerFlags) {
+    this.processWildAnimalAiFlags = flags;
+  }
+
   quickMoveFromBoxFlags: CallReducerFlags = 'FullUpdate';
   quickMoveFromBox(flags: CallReducerFlags) {
     this.quickMoveFromBoxFlags = flags;
@@ -4879,6 +5047,11 @@ export class SetReducerFlags {
   setSprintingFlags: CallReducerFlags = 'FullUpdate';
   setSprinting(flags: CallReducerFlags) {
     this.setSprintingFlags = flags;
+  }
+
+  spawnWildAnimalFlags: CallReducerFlags = 'FullUpdate';
+  spawnWildAnimal(flags: CallReducerFlags) {
+    this.spawnWildAnimalFlags = flags;
   }
 
   splitAndDropItemFromBoxSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
@@ -5064,6 +5237,11 @@ export class SetReducerFlags {
   updateViewportFlags: CallReducerFlags = 'FullUpdate';
   updateViewport(flags: CallReducerFlags) {
     this.updateViewportFlags = flags;
+  }
+
+  updateViperSpittleFlags: CallReducerFlags = 'FullUpdate';
+  updateViperSpittle(flags: CallReducerFlags) {
+    this.updateViperSpittleFlags = flags;
   }
 
   useEquippedItemFlags: CallReducerFlags = 'FullUpdate';
@@ -5329,12 +5507,28 @@ export class RemoteTables {
     return new TreeTableHandle(this.connection.clientCache.getOrCreateTable<Tree>(REMOTE_MODULE.tables.tree));
   }
 
+  get viperSpittle(): ViperSpittleTableHandle {
+    return new ViperSpittleTableHandle(this.connection.clientCache.getOrCreateTable<ViperSpittle>(REMOTE_MODULE.tables.viper_spittle));
+  }
+
+  get viperSpittleUpdateSchedule(): ViperSpittleUpdateScheduleTableHandle {
+    return new ViperSpittleUpdateScheduleTableHandle(this.connection.clientCache.getOrCreateTable<ViperSpittleUpdateSchedule>(REMOTE_MODULE.tables.viper_spittle_update_schedule));
+  }
+
   get waterPatch(): WaterPatchTableHandle {
     return new WaterPatchTableHandle(this.connection.clientCache.getOrCreateTable<WaterPatch>(REMOTE_MODULE.tables.water_patch));
   }
 
   get waterPatchCleanupSchedule(): WaterPatchCleanupScheduleTableHandle {
     return new WaterPatchCleanupScheduleTableHandle(this.connection.clientCache.getOrCreateTable<WaterPatchCleanupSchedule>(REMOTE_MODULE.tables.water_patch_cleanup_schedule));
+  }
+
+  get wildAnimal(): WildAnimalTableHandle {
+    return new WildAnimalTableHandle(this.connection.clientCache.getOrCreateTable<WildAnimal>(REMOTE_MODULE.tables.wild_animal));
+  }
+
+  get wildAnimalAiSchedule(): WildAnimalAiScheduleTableHandle {
+    return new WildAnimalAiScheduleTableHandle(this.connection.clientCache.getOrCreateTable<WildAnimalAiSchedule>(REMOTE_MODULE.tables.wild_animal_ai_schedule));
   }
 
   get woodenStorageBox(): WoodenStorageBoxTableHandle {

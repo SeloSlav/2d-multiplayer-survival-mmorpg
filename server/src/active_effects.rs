@@ -50,6 +50,7 @@ pub enum EffectType {
     Wet, // Cold damage multiplier when exposed to water/rain
     TreeCover, // Natural shelter and protection from trees
     WaterDrinking, // Visual effect for drinking water containers
+    Venom, // Damage over time from Cable Viper strikes
 }
 
 // Table defining food poisoning risks for different food items
@@ -150,7 +151,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover | EffectType::WaterDrinking => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::Venom | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover | EffectType::WaterDrinking => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -284,17 +285,21 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             log::trace!("[EffectTick] HealthRegen Post-Heal for Player {:?}: Health now {:.2}",
                                 effect.player_id, player_to_update.health);
                         }
-                        EffectType::Bleed | EffectType::Burn => {
+                        EffectType::Bleed | EffectType::Burn | EffectType::Venom => {
                             log::trace!("[EffectTick] {:?} Pre-Damage for Player {:?}: Health {:.2}, AmountThisTick {:.2}",
                                 effect.effect_type, effect.player_id, player_to_update.health, amount_this_tick);
                             
-                            // --- KNOCKED OUT PLAYERS ARE IMMUNE TO BLEED AND BURN DAMAGE ---
-                            if player_to_update.is_knocked_out && (effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::Burn) {
-                                // Knocked out players are completely immune to bleed and burn damage
+                            // --- KNOCKED OUT PLAYERS ARE IMMUNE TO BLEED, BURN, AND VENOM DAMAGE ---
+                            if player_to_update.is_knocked_out && (effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Venom) {
+                                // Knocked out players are completely immune to DOT damage
                                 amount_this_tick = 0.0; // No damage applied
                                 log::info!("[EffectTick] Knocked out player {:?} is immune to {:?} damage. No damage applied.",
                                     effect.player_id, effect.effect_type);
                             } else {
+                                // Special handling for Venom: fixed damage per tick like SeawaterPoisoning
+                                if effect.effect_type == EffectType::Venom {
+                                    amount_this_tick = 1.0; // Fixed 1 damage per tick for persistent venom
+                                }
                                 // Normal damage application for conscious players
                                 player_to_update.health = (player_to_update.health - amount_this_tick).clamp(MIN_STAT_VALUE, MAX_HEALTH_VALUE);
                             }
@@ -377,9 +382,9 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         player_effect_applied_this_iteration = true;
                     }
                     
-                    // For SeawaterPoisoning, we don't track amount_applied_so_far
-                    // SeawaterPoisoning: fixed 1 damage per tick, ends based on time only
-                    if effect.effect_type != EffectType::SeawaterPoisoning {
+                    // For SeawaterPoisoning and Venom, we don't track amount_applied_so_far
+                    // SeawaterPoisoning and Venom: fixed damage per tick, ends based on time only
+                    if effect.effect_type != EffectType::SeawaterPoisoning && effect.effect_type != EffectType::Venom {
                         current_effect_applied_so_far += amount_this_tick; // Increment amount applied *for this effect*
                     }
 
@@ -396,8 +401,8 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                 }
 
         // Check if effect should end based on amount or time
-        // For SeawaterPoisoning and Wet effects, only end based on time, not accumulated damage
-        if effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::Wet {
+        // For SeawaterPoisoning, Venom, and Wet effects, only end based on time, not accumulated damage
+        if effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::Venom || effect.effect_type == EffectType::Wet {
             if current_time >= effect.ends_at {
                 effect_ended = true;
             }
@@ -431,7 +436,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             // If health was reduced by a damaging effect, cancel any active HealthRegen effects for that player.
             // This check is now implicitly handled by player_ids_who_took_external_damage_this_tick below,
             // but we'll keep the direct health_was_reduced check for HealthRegen for clarity specific to it.
-            if health_was_reduced && (effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::FoodPoisoning) {
+            if health_was_reduced && (effect.effect_type == EffectType::Burn || effect.effect_type == EffectType::Bleed || effect.effect_type == EffectType::Venom || effect.effect_type == EffectType::SeawaterPoisoning || effect.effect_type == EffectType::FoodPoisoning) {
                 cancel_health_regen_effects(ctx, effect.player_id);
                 // Note: BandageBurst cancellation due to taking damage is handled after iterating all effects using player_ids_who_took_external_damage_this_tick
             }
@@ -1110,6 +1115,132 @@ pub fn apply_water_drinking_effect(
     Ok(())
 }
 
+/// Applies a venom effect to a player (damage over time from Cable Viper)
+pub fn apply_venom_effect(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    total_damage: f32,
+    duration_seconds: f32,
+    tick_interval_seconds: f32,
+) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    
+    // Check if player already has a venom effect - if so, stack it
+    let existing_venom_effects: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|e| e.player_id == player_id && e.effect_type == EffectType::Venom)
+        .collect();
+
+    if !existing_venom_effects.is_empty() {
+        // Stack venom effect by extending duration and adding damage
+        for existing_effect in existing_venom_effects {
+            let mut updated_effect = existing_effect.clone();
+            let duration_to_add = TimeDuration::from_micros((duration_seconds * 1_000_000.0) as i64);
+            updated_effect.ends_at = updated_effect.ends_at + duration_to_add;
+            let new_total_damage = updated_effect.total_amount.unwrap_or(0.0) + total_damage;
+            updated_effect.total_amount = Some(new_total_damage);
+            
+            ctx.db.active_consumable_effect().effect_id().update(updated_effect);
+            log::info!("Stacked venom effect {} for player {:?}: added {:.1}s duration, total damage now {:.1}", 
+                existing_effect.effect_id, player_id, duration_seconds, new_total_damage);
+            return Ok(());
+        }
+    }
+    
+    // Create new venom effect
+    let duration_micros = (duration_seconds * 1_000_000.0) as i64;
+    let tick_interval_micros = (tick_interval_seconds * 1_000_000.0) as u64;
+    
+    let venom_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id: 0, // Not from an item, from creature
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: current_time + TimeDuration::from_micros(duration_micros),
+        total_amount: Some(total_damage),
+        amount_applied_so_far: Some(0.0),
+        effect_type: EffectType::Venom,
+        tick_interval_micros,
+        next_tick_at: current_time + TimeDuration::from_micros(tick_interval_micros as i64),
+    };
+
+    match ctx.db.active_consumable_effect().try_insert(venom_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied venom effect {} to player {:?}: {:.1} damage over {:.1}s (every {:.1}s)", 
+                inserted_effect.effect_id, player_id, total_damage, duration_seconds, tick_interval_seconds);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply venom effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply venom effect".to_string())
+        }
+    }
+}
+
+/// Applies a bleeding effect to a player (damage over time from wolf attacks)
+pub fn apply_bleeding_effect(
+    ctx: &ReducerContext,
+    player_id: Identity,
+    total_damage: f32,
+    duration_seconds: f32,
+    tick_interval_seconds: f32,
+) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    
+    // Check if player already has a bleeding effect - if so, stack it
+    let existing_bleed_effects: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|e| e.player_id == player_id && e.effect_type == EffectType::Bleed)
+        .collect();
+
+    if !existing_bleed_effects.is_empty() {
+        // Stack bleeding effect by extending duration and adding damage
+        for existing_effect in existing_bleed_effects {
+            let mut updated_effect = existing_effect.clone();
+            let duration_to_add = TimeDuration::from_micros((duration_seconds * 1_000_000.0) as i64);
+            updated_effect.ends_at = updated_effect.ends_at + duration_to_add;
+            let new_total_damage = updated_effect.total_amount.unwrap_or(0.0) + total_damage;
+            updated_effect.total_amount = Some(new_total_damage);
+            
+            ctx.db.active_consumable_effect().effect_id().update(updated_effect);
+            log::info!("Stacked bleeding effect {} for player {:?}: added {:.1}s duration, total damage now {:.1}", 
+                existing_effect.effect_id, player_id, duration_seconds, new_total_damage);
+            return Ok(());
+        }
+    }
+    
+    // Create new bleeding effect
+    let duration_micros = (duration_seconds * 1_000_000.0) as i64;
+    let tick_interval_micros = (tick_interval_seconds * 1_000_000.0) as u64;
+    
+    let bleed_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id: 0, // Not from an item, from creature
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: current_time + TimeDuration::from_micros(duration_micros),
+        total_amount: Some(total_damage),
+        amount_applied_so_far: Some(0.0),
+        effect_type: EffectType::Bleed,
+        tick_interval_micros,
+        next_tick_at: current_time + TimeDuration::from_micros(tick_interval_micros as i64),
+    };
+
+    match ctx.db.active_consumable_effect().try_insert(bleed_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied bleeding effect {} to player {:?}: {:.1} damage over {:.1}s (every {:.1}s)", 
+                inserted_effect.effect_id, player_id, total_damage, duration_seconds, tick_interval_seconds);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply bleeding effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply bleeding effect".to_string())
+        }
+    }
+}
+
 pub fn apply_burn_effect(
     ctx: &ReducerContext, 
     player_id: Identity, 
@@ -1182,4 +1313,47 @@ pub fn apply_burn_effect(
             }
         }
     }
+}
+
+/// Cancels all active venom effects for a player (used when Anti-Venom is consumed)
+pub fn cancel_venom_effects(ctx: &ReducerContext, player_id: Identity) {
+    let effects_to_cancel: Vec<_> = ctx.db.active_consumable_effect().iter()
+        .filter(|e| e.player_id == player_id && e.effect_type == EffectType::Venom)
+        .collect();
+
+    for effect in effects_to_cancel {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect.effect_id);
+        log::info!("Cancelled venom effect {} for player {:?} (Anti-Venom consumed)", effect.effect_id, player_id);
+    }
+}
+
+/// Clear all active effects for a player who has died
+/// This includes all damage-over-time effects, healing effects, and status effects
+pub fn clear_all_effects_on_death(ctx: &ReducerContext, player_id: Identity) {
+    log::info!("[PlayerDeath] Clearing all active effects for deceased player {:?}", player_id);
+    
+    // Clear all damage-over-time effects
+    cancel_bleed_effects(ctx, player_id);
+    cancel_venom_effects(ctx, player_id);
+    
+    // Clear all healing effects  
+    cancel_health_regen_effects(ctx, player_id);
+    cancel_bandage_burst_effects(ctx, player_id);
+    
+    // Clear any other effects (burn, food poisoning, seawater poisoning, wet, etc.)
+    let mut effects_to_remove = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter() {
+        if effect.player_id == player_id {
+            effects_to_remove.push(effect.effect_id);
+            log::debug!("[PlayerDeath] Removing {:?} effect {} for deceased player {:?}", 
+                effect.effect_type, effect.effect_id, player_id);
+        }
+    }
+    
+    // Remove all found effects
+    for effect_id in effects_to_remove {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+    }
+    
+    log::info!("[PlayerDeath] Cleared all active effects for deceased player {:?}", player_id);
 }

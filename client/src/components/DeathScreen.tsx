@@ -30,6 +30,38 @@ interface DeathScreenProps {
   torchOnImage?: HTMLImageElement | null;
 }
 
+// Helper function to format death cause messages
+const getDeathCauseMessage = (deathCause: string): string => {
+  // Handle wild animal deaths
+  if (deathCause === 'Cinder Fox') {
+    return '🦊 Mauled by a Cinder Fox';
+  } else if (deathCause === 'Tundra Wolf') {
+    return '🐺 Killed by a Tundra Wolf';
+  } else if (deathCause === 'Cable Viper') {
+    return '🐍 Struck down by a Cable Viper';
+  }
+  
+  // Handle other death causes
+  switch (deathCause) {
+    case 'Environment':
+      return '💀 Died from environmental causes';
+    case 'Suicide':
+      return '⚰️ Took their own life';
+    case 'Starvation':
+      return '🍖 Starved to death';
+    case 'Dehydration':
+      return '💧 Died of thirst';
+    case 'Exposure':
+      return '🥶 Died from exposure';
+    case 'Bleeding':
+      return '🩸 Bled to death';
+    case 'Knocked Out':
+      return '💥 Died while unconscious';
+    default:
+      return `💀 Died from ${deathCause}`;
+  }
+};
+
 const DeathScreen: React.FC<DeathScreenProps> = ({
   onRespawnRandomly,
   onRespawnAtBag,
@@ -334,7 +366,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
               </p>
             ) : (
               <p style={styles.deathMessage}>
-                Died from {localPlayerDeathMarker.deathCause}
+                {getDeathCauseMessage(localPlayerDeathMarker.deathCause)}
               </p>
             )}
           </div>

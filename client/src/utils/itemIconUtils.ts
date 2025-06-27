@@ -92,6 +92,8 @@ import oldHardtackBiscuitsIcon from '../assets/items/old_hardtack_biscuits.png';
 import expiredSovietChocolateIcon from '../assets/items/expired_soviet_chocolate.png';
 import mysteryCanIcon from '../assets/items/mystery_can.png';
 import waterJugIcon from '../assets/items/water_jug.png';
+import antiVenomIcon from '../assets/items/anti_venom.png';
+import cableViperGlandIcon from '../assets/items/cable_viper_gland.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -184,6 +186,8 @@ const iconMap: { [key: string]: string | undefined } = {
   'expired_soviet_chocolate.png': expiredSovietChocolateIcon,
   'mystery_can.png': mysteryCanIcon,
   'water_jug.png': waterJugIcon,
+  'anti_venom.png': antiVenomIcon,
+  'cable_viper_gland.png': cableViperGlandIcon,
 };
 
 // Export a function that provides the fallback logic

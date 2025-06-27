@@ -47,6 +47,8 @@ use crate::cloud::cloud_update_schedule as CloudUpdateScheduleTableTrait;
 use crate::grass::grass as GrassTableTrait;
 use crate::world_tile as WorldTileTableTrait; // Added for tile checking
 use crate::{TileType, WorldTile}; // Added for tile type checking
+use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // Added for wild animals
+use crate::wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern}; // Added for wild animal types
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -81,7 +83,7 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
 }
 
 /// Checks if position is in the central compound area where trees and stones should not spawn
-fn is_position_in_central_compound(pos_x: f32, pos_y: f32) -> bool {
+pub fn is_position_in_central_compound(pos_x: f32, pos_y: f32) -> bool {
     // Convert to tile coordinates
     let tile_x = (pos_x / crate::TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / crate::TILE_SIZE_PX as f32).floor() as i32;
@@ -129,7 +131,7 @@ fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bo
 /// Checks if the given world position is on a water tile (Sea)
 /// Returns true if the position is on water and resources should NOT spawn there
 /// NEW: Uses compressed chunk data for much better performance
-fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+pub fn is_position_on_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
     // Convert pixel position to tile coordinates
     let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
@@ -515,6 +517,87 @@ fn is_reed_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bo
     false
 }
 
+/// Checks if position is suitable for wild animal spawning based on species preferences
+/// Different animal species prefer different terrain types and locations
+pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, species: AnimalSpecies, tree_positions: &[(f32, f32)]) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    let world_tiles = ctx.db.world_tile();
+    let mut tile_type = TileType::Grass; // Default
+    
+    // Get the tile type at this position
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        tile_type = tile.tile_type;
+        break;
+    }
+    
+    // Block water tiles for all animals
+    if tile_type == TileType::Sea {
+        return false;
+    }
+    
+    match species {
+        AnimalSpecies::CinderFox => {
+            // RELAXED: Cinder Fox can spawn on almost any land tile - much more flexible
+            if !matches!(tile_type, TileType::Grass | TileType::Dirt | TileType::Beach | TileType::Sand | TileType::DirtRoad) {
+                return false;
+            }
+            
+            // REMOVED: Forest preference requirement - foxes can spawn anywhere suitable
+            true // Accept any suitable land tile
+        }
+        
+        AnimalSpecies::TundraWolf => {
+            // RELAXED: Tundra Wolf can spawn on any grassland or dirt - more flexible
+            if !matches!(tile_type, TileType::Grass | TileType::Dirt | TileType::DirtRoad) {
+                return false;
+            }
+            
+            // REMOVED: Open area preference requirement - wolves can spawn near trees too
+            true // Accept any suitable land tile
+        }
+        
+        AnimalSpecies::CableViper => {
+            // Cable Viper: Prefers beach tiles, dense forests, and dirt roads
+            // First check if on preferred terrain types
+            if matches!(tile_type, TileType::Beach | TileType::DirtRoad) {
+                return true; // Strongly prefer beach and dirt roads
+            }
+            
+            // Check for dense forest areas (near multiple trees)
+            if matches!(tile_type, TileType::Grass | TileType::Dirt) {
+                // Count nearby trees within forest detection radius
+                let forest_detection_radius_sq = 120.0 * 120.0; // 120 pixel radius for forest detection
+                let mut nearby_tree_count = 0;
+                
+                for &(tree_x, tree_y) in tree_positions {
+                    let dx = pos_x - tree_x;
+                    let dy = pos_y - tree_y;
+                    if dx * dx + dy * dy <= forest_detection_radius_sq {
+                        nearby_tree_count += 1;
+                        if nearby_tree_count >= 3 { // Dense forest = 3+ trees nearby
+                            return true; // Prefer dense forest areas
+                        }
+                    }
+                }
+                
+                // If not in dense forest, still allow spawning on grass/dirt but with lower preference
+                // This maintains flexibility while biasing toward preferred terrain
+                return true;
+            }
+            
+            // Allow sand tiles as secondary preference (desert/coastal areas)
+            if tile_type == TileType::Sand {
+                return true;
+            }
+            
+            false // Reject other terrain types
+        }
+    }
+}
+
 // --- Environment Seeding ---
 
 #[spacetimedb::reducer]
@@ -529,11 +612,12 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let reeds = ctx.db.reed();
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
+    let wild_animals = ctx.db.wild_animal();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 || wild_animals.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}). Grass spawning disabled. Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
+            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count(), wild_animals.iter().count()
         );
         return Ok(());
     }
@@ -569,6 +653,12 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
+    // Wild animal seeding parameters
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.03% of tiles (reduced from 0.1% to ~75 total animals for better balance)
+    const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
+    let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
+    let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
+
     // DISABLED: Grass seeding parameters for performance optimization
     // let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
     // let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
@@ -591,6 +681,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
     log::info!("Target Reeds: {}, Max Attempts: {}", target_reed_count, max_reed_attempts);
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
+    log::info!("Target Wild Animals: {}, Max Attempts: {}", target_wild_animal_count, max_wild_animal_attempts);
     // DISABLED: Grass spawning log - grass spawning disabled for performance optimization
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
@@ -607,6 +698,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
     let mut spawned_reed_positions = Vec::<(f32, f32)>::new();
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_wild_animal_positions = Vec::<(f32, f32)>::new();
     // DISABLED: let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // Grass spawning disabled
 
     let mut spawned_tree_count = 0;
@@ -627,6 +719,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut reed_attempts = 0;
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
+    let mut spawned_wild_animal_count = 0;
+    let mut wild_animal_attempts = 0;
     // DISABLED: let mut spawned_grass_count = 0; // Grass spawning disabled
     // DISABLED: let mut grass_attempts = 0; // Grass spawning disabled
 
@@ -1035,6 +1129,173 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_reed_count, target_reed_count, reed_attempts
     );
 
+    // --- Seed Wild Animals ---
+    log::info!("Seeding Wild Animals...");
+    
+    // Define species distribution (weighted probabilities)
+    let species_weights = [
+        (AnimalSpecies::CinderFox, 50),    // 50% - Most common
+        (AnimalSpecies::TundraWolf, 30),   // 30% - Moderately common  
+        (AnimalSpecies::CableViper, 20),   // 20% - Least common
+    ];
+    let total_weight: u32 = species_weights.iter().map(|(_, weight)| weight).sum();
+    
+    // NEW: Chunk-based distribution system to prevent clustering (not to fill every chunk)
+    let total_chunks = WORLD_WIDTH_CHUNKS * WORLD_WIDTH_CHUNKS;
+    let max_animals_per_chunk = 1; // Hard limit: maximum 1 animal per chunk
+    
+    log::info!("Using chunk-based distribution: {} total chunks, max {} animal per chunk (target total: {})", 
+               total_chunks, max_animals_per_chunk, target_wild_animal_count);
+    
+    // Track animals spawned per chunk (used to prevent clustering, not to force filling)
+    let mut animals_per_chunk_map: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+    
+    while spawned_wild_animal_count < target_wild_animal_count && wild_animal_attempts < max_wild_animal_attempts {
+        wild_animal_attempts += 1;
+        
+        // Choose species using weighted random selection
+        let species_roll = rng.gen_range(0..total_weight);
+        let mut cumulative_weight = 0;
+        let mut chosen_species = AnimalSpecies::CinderFox;
+        
+        for &(species, weight) in &species_weights {
+            cumulative_weight += weight;
+            if species_roll < cumulative_weight {
+                chosen_species = species;
+                break;
+            }
+        }
+        
+        // CHANGED: Use simpler random positioning instead of noise-based clustering
+        let tile_x = rng.gen_range(min_tile_x..max_tile_x);
+        let tile_y = rng.gen_range(min_tile_y..max_tile_y);
+        let pos_x = (tile_x as f32 + 0.5) * TILE_SIZE_PX as f32;
+        let pos_y = (tile_y as f32 + 0.5) * TILE_SIZE_PX as f32;
+        
+        // Calculate which chunk this position would be in
+        let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+        let current_animals_in_chunk = animals_per_chunk_map.get(&chunk_idx).copied().unwrap_or(0);
+        
+        // Skip if this chunk already has enough animals (enforce distribution)
+        if current_animals_in_chunk >= max_animals_per_chunk {
+            continue;
+        }
+        
+        // Check if occupied
+        if occupied_tiles.contains(&(tile_x, tile_y)) {
+            continue;
+        }
+        
+        // Block spawning on water, in central compound, or unsuitable terrain for the species
+        if is_position_on_water(ctx, pos_x, pos_y) || 
+           is_position_in_central_compound(pos_x, pos_y) ||
+           !is_wild_animal_location_suitable(ctx, pos_x, pos_y, chosen_species, &spawned_tree_positions) {
+            continue;
+        }
+        
+        // INCREASED: Much larger minimum distances to prevent clustering
+        let min_animal_distance_sq = 150.0 * 150.0; // Increased from 60*60 to 150*150
+        let mut too_close_to_animal = false;
+        for &(other_x, other_y) in &spawned_wild_animal_positions {
+            let dx = pos_x - other_x;
+            let dy = pos_y - other_y;
+            if dx * dx + dy * dy < min_animal_distance_sq {
+                too_close_to_animal = true;
+                break;
+            }
+        }
+        if too_close_to_animal {
+            continue;
+        }
+        
+        // RELAXED: Distance checks from trees and stones (animals can be closer to environment)
+        let min_tree_distance_sq = 40.0 * 40.0; // Reduced from 80*80 to 40*40
+        let mut too_close_to_tree = false;
+        for &(tree_x, tree_y) in &spawned_tree_positions {
+            let dx = pos_x - tree_x;
+            let dy = pos_y - tree_y;
+            if dx * dx + dy * dy < min_tree_distance_sq {
+                too_close_to_tree = true;
+                break;
+            }
+        }
+        if too_close_to_tree {
+            continue;
+        }
+        
+        let min_stone_distance_sq = 60.0 * 60.0; // Reduced from 100*100 to 60*60
+        let mut too_close_to_stone = false;
+        for &(stone_x, stone_y) in &spawned_stone_positions {
+            let dx = pos_x - stone_x;
+            let dy = pos_y - stone_y;
+            if dx * dx + dy * dy < min_stone_distance_sq {
+                too_close_to_stone = true;
+                break;
+            }
+        }
+        if too_close_to_stone {
+            continue;
+        }
+        
+        // Generate initial patrol center (same as spawn location)
+        let patrol_center_x = pos_x;
+        let patrol_center_y = pos_y;
+        
+        // Set species-specific stats (balanced for bow combat: ~55-60 damage per bone arrow shot)
+        let (max_health, movement_speed, patrol_radius, perception_range, attack_damage) = match chosen_species {
+            AnimalSpecies::CinderFox => (80, 45.0, 96.0, 160.0, 12),     // 2 shots to kill, fast/skittish, moderate damage
+            AnimalSpecies::TundraWolf => (200, 25.0, 288.0, 400.0, 35),  // 4 shots to kill, slow/strong, high damage  
+            AnimalSpecies::CableViper => (120, 20.0, 32.0, 64.0, 25),    // 2-3 shots, very slow, venomous bite
+        };
+        
+        let new_animal = crate::wild_animal_npc::WildAnimal {
+            id: 0, // auto_inc
+            species: chosen_species,
+            pos_x,
+            pos_y,
+            direction_x: 0.0,
+            direction_y: 1.0,
+            state: AnimalState::Patrolling,
+            health: max_health as f32,
+            spawn_x: pos_x,
+            spawn_y: pos_y,
+            target_player_id: None,
+            last_attack_time: None,
+            state_change_time: ctx.timestamp,
+            hide_until: None,
+            investigation_x: None,
+            investigation_y: None,
+            patrol_phase: 0.0,
+            scent_ping_timer: 0,
+            movement_pattern: MovementPattern::Loop, // Default pattern
+            chunk_index: chunk_idx,
+            created_at: ctx.timestamp,
+            last_hit_time: None,
+        };
+
+        match ctx.db.wild_animal().try_insert(new_animal) {
+            Ok(inserted_animal) => {
+                occupied_tiles.insert((tile_x, tile_y));
+                spawned_wild_animal_positions.push((pos_x, pos_y));
+                spawned_wild_animal_count += 1;
+                
+                // Update chunk animal count
+                animals_per_chunk_map.insert(chunk_idx, current_animals_in_chunk + 1);
+                
+                log::info!("Spawned {:?} #{} at ({:.1}, {:.1}) in chunk {} [{}/{}]", 
+                          chosen_species, inserted_animal.id, pos_x, pos_y, chunk_idx, 
+                          current_animals_in_chunk + 1, max_animals_per_chunk);
+            }
+            Err(e) => {
+                log::warn!("Failed to insert wild animal (attempt {}): {}. Skipping this animal.", wild_animal_attempts, e);
+            }
+        }
+    }
+    log::info!(
+        "Finished seeding {} wild animals (target: {}, attempts: {}).",
+        spawned_wild_animal_count, target_wild_animal_count, wild_animal_attempts
+    );
+
     // --- DISABLED: Grass Seeding for Performance Optimization ---
     // Grass spawning has been completely disabled to prevent creation of thousands
     // of grass entities that could cause server performance issues and rubber-banding.
@@ -1169,7 +1430,12 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // --- End Schedule initial cloud update ---
 
 
-    log::info!("Environment seeding complete.");
+    log::info!(
+        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}",
+        spawned_tree_count, spawned_stone_count, spawned_mushroom_count, spawned_corn_count, 
+        spawned_potato_count, spawned_hemp_count, spawned_pumpkin_count, spawned_reed_count, 
+        spawned_cloud_count, spawned_wild_animal_count
+    );
     Ok(())
 }
 
@@ -1290,5 +1556,10 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
     // If they were to drift or change, a similar `check_and_respawn_resource!` or a dedicated
     // scheduled reducer would be needed here or in `cloud.rs`.
 
+    // --- NEW: Wild Animal Population Maintenance ---
+    // Maintain minimum animal population levels with gradual respawn (like Rust game)
+    crate::wild_animal_npc::respawn::maintain_wild_animal_population(ctx)?;
+
     Ok(())
 }
+

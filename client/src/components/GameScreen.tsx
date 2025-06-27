@@ -71,6 +71,8 @@ import {
     FishingSession,
     PlantedSeed as SpacetimeDBPlantedSeed,
     PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
+    WildAnimal as SpacetimeDBWildAnimal,
+    ViperSpittle as SpacetimeDBViperSpittle,
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -118,6 +120,8 @@ interface GameScreenProps {
     plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
     worldTiles: Map<string, any>;
     minimapCache: SpacetimeDBMinimapCache | null;
+    wildAnimals: Map<string, SpacetimeDBWildAnimal>;
+    viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -249,6 +253,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         plantedSeeds,
         worldTiles,
         minimapCache,
+        wildAnimals,
+        viperSpittles,
         inventoryItems, itemDefinitions, worldState, activeEquipments, recipes, craftingQueueItems,
         messages,
         activeConnections,
@@ -767,6 +773,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 playerCorpses={playerCorpses}
                 stashes={stashes}
                 plantedSeeds={plantedSeeds}
+                wildAnimals={wildAnimals}
+                viperSpittles={viperSpittles}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}

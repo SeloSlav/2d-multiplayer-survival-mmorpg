@@ -3,7 +3,8 @@ import * as SpacetimeDB from '../generated';
 import {
     DbConnection,
     RangedWeaponStats as SpacetimeDBRangedWeaponStats,
-    Projectile as SpacetimeDBProjectile
+    Projectile as SpacetimeDBProjectile,
+    ViperSpittle as SpacetimeDBViperSpittle
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { getChunkIndicesForViewport, getChunkIndicesForViewportWithBuffer } from '../utils/chunkUtils';
@@ -132,6 +133,8 @@ export interface SpacetimeTableStates {
     continuousSounds: Map<string, SpacetimeDB.ContinuousSound>;
     localPlayerIdentity: Identity | null;
     playerDrinkingCooldowns: Map<string, SpacetimeDB.PlayerDrinkingCooldown>;
+    wildAnimals: Map<string, SpacetimeDB.WildAnimal>;
+    viperSpittles: Map<string, SpacetimeDBViperSpittle>;
 }   
 
 // Define the props the hook accepts
@@ -195,6 +198,8 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
     const [soundEvents, setSoundEvents] = useState<Map<string, SpacetimeDB.SoundEvent>>(() => new Map());
     const [continuousSounds, setContinuousSounds] = useState<Map<string, SpacetimeDB.ContinuousSound>>(() => new Map());
     const [playerDrinkingCooldowns, setPlayerDrinkingCooldowns] = useState<Map<string, SpacetimeDB.PlayerDrinkingCooldown>>(() => new Map());
+    const [wildAnimals, setWildAnimals] = useState<Map<string, SpacetimeDB.WildAnimal>>(() => new Map());
+    const [viperSpittles, setViperSpittles] = useState<Map<string, SpacetimeDBViperSpittle>>(() => new Map());
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -405,7 +410,8 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                                 `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`
+                                `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
                             ];
                             newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
@@ -477,6 +483,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                             newHandlesForChunk.push(timedSubscribe('DroppedItem', `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('RainCollector', `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('WildAnimal', `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1090,6 +1097,27 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                 setWaterPatches(prev => { const newMap = new Map(prev); newMap.delete(waterPatch.id.toString()); return newMap; });
             };
 
+            // Wild Animal handlers
+            const handleWildAnimalInsert = (ctx: any, animal: SpacetimeDB.WildAnimal) => {
+                setWildAnimals(prev => new Map(prev).set(animal.id.toString(), animal));
+            };
+            const handleWildAnimalUpdate = (ctx: any, oldAnimal: SpacetimeDB.WildAnimal, newAnimal: SpacetimeDB.WildAnimal) => {
+                setWildAnimals(prev => new Map(prev).set(newAnimal.id.toString(), newAnimal));
+            };
+            const handleWildAnimalDelete = (ctx: any, animal: SpacetimeDB.WildAnimal) => {
+                setWildAnimals(prev => { const newMap = new Map(prev); newMap.delete(animal.id.toString()); return newMap; });
+            };
+
+            const handleViperSpittleInsert = (ctx: any, spittle: SpacetimeDBViperSpittle) => {
+                setViperSpittles(prev => new Map(prev).set(spittle.id.toString(), spittle));
+            };
+            const handleViperSpittleUpdate = (ctx: any, oldSpittle: SpacetimeDBViperSpittle, newSpittle: SpacetimeDBViperSpittle) => {
+                setViperSpittles(prev => new Map(prev).set(newSpittle.id.toString(), newSpittle));
+            };
+            const handleViperSpittleDelete = (ctx: any, spittle: SpacetimeDBViperSpittle) => {
+                setViperSpittles(prev => { const newMap = new Map(prev); newMap.delete(spittle.id.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1209,6 +1237,16 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             connection.db.waterPatch.onUpdate(handleWaterPatchUpdate);
             connection.db.waterPatch.onDelete(handleWaterPatchDelete);
 
+            // Register WildAnimal callbacks - ADDED
+            connection.db.wildAnimal.onInsert(handleWildAnimalInsert);
+            connection.db.wildAnimal.onUpdate(handleWildAnimalUpdate);
+            connection.db.wildAnimal.onDelete(handleWildAnimalDelete);
+
+            // Register ViperSpittle callbacks - ADDED
+            connection.db.viperSpittle.onInsert(handleViperSpittleInsert);
+            connection.db.viperSpittle.onUpdate(handleViperSpittleUpdate);
+            connection.db.viperSpittle.onDelete(handleViperSpittleDelete);
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1293,6 +1331,10 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[PLAYER_DRINKING_COOLDOWN Sub Error]:", err))
                     .subscribe('SELECT * FROM player_drinking_cooldown'),
+                 // ADDED ViperSpittle subscription for viper projectiles
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[VIPER_SPITTLE Sub Error]:", err))
+                    .subscribe('SELECT * FROM viper_spittle'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1349,7 +1391,8 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                                     `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
 
@@ -1481,6 +1524,8 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                  setSoundEvents(new Map());
                  setContinuousSounds(new Map());
                  setPlayerDrinkingCooldowns(new Map());
+                 setWildAnimals(new Map());
+                 setViperSpittles(new Map());
              }
         };
 
@@ -1533,5 +1578,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
         continuousSounds,
         localPlayerIdentity, // Add this to the return
         playerDrinkingCooldowns,
+        wildAnimals,
+        viperSpittles,
     };
 }; 

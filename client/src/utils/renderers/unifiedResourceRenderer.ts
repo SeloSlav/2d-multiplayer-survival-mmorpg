@@ -116,13 +116,6 @@ export function renderPotato(
   onlyDrawShadow?: boolean,
   skipDrawingShadow?: boolean
 ) {
-  // console.log('[DEBUG] renderPotato called:', { 
-  //   id: potato.id, 
-  //   posX: potato.posX, 
-  //   posY: potato.posY, 
-  //   onlyDrawShadow, 
-  //   skipDrawingShadow 
-  // });
   renderHarvestableResourceWithType(ctx, potato, 'potato', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
 }
 

@@ -144,6 +144,10 @@ pub fn process_knocked_out_recovery(ctx: &ReducerContext, args: KnockedOutRecove
         player.death_timestamp = Some(ctx.timestamp);
         player.health = 0.0;
 
+        // Clear all active effects on death (bleed, venom, burns, healing, etc.)
+        crate::active_effects::clear_all_effects_on_death(ctx, player_id);
+        log::info!("[KnockedOutDeath] Cleared all active effects for dying player {:?}", player_id);
+
         // Clear active item
         match crate::active_equipment::clear_active_item_reducer(ctx, player.identity) {
             Ok(_) => log::info!("[KnockedOutDeath] Active item cleared for dying player {}", player.identity),

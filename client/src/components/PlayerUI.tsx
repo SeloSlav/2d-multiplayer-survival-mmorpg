@@ -669,7 +669,18 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             name: 'Bleeding',
                             emoji: '🩸',
                             type: 'negative' as const,
-                            description: 'Losing health over time',
+                            description: 'Losing blood from wounds.',
+                            duration: bufferedRemainingTime
+                        };
+                        break;
+                    case 'Venom':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'venom',
+                            name: 'Venom',
+                            emoji: '🐍',
+                            type: 'negative' as const,
+                            description: 'Deadly toxins coursing through your veins.',
                             duration: bufferedRemainingTime
                         };
                         break;

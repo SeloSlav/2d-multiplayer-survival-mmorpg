@@ -55,7 +55,7 @@ pub fn calculate_slide_collision(
     };
 
     let mut grid = spatial_grid::SpatialGrid::new();
-    grid.populate_from_world(&ctx.db);
+    grid.populate_from_world(&ctx.db, ctx.timestamp);
     let nearby_entities = grid.get_entities_in_range(final_x, final_y);
 
     for entity in &nearby_entities {
@@ -475,7 +475,7 @@ pub fn resolve_push_out_collision(
     
     let mut grid = spatial_grid::SpatialGrid::new();
     // Populate grid once before iterations, assuming entities don't move during resolution
-    grid.populate_from_world(&ctx.db);
+    grid.populate_from_world(&ctx.db, ctx.timestamp);
 
     for _iter in 0..resolution_iterations {
         let mut overlap_found_in_iter = false;

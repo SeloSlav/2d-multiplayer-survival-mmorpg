@@ -22,7 +22,9 @@ import {
     Shelter as SpacetimeDBShelter,
     PlayerDodgeRollState as SpacetimeDBPlayerDodgeRollState,
     PlantedSeed as SpacetimeDBPlantedSeed,
-    RainCollector as SpacetimeDBRainCollector
+    RainCollector as SpacetimeDBRainCollector,
+    WildAnimal as SpacetimeDBWildAnimal,
+    ViperSpittle as SpacetimeDBViperSpittle
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { gameConfig } from '../../config/gameConfig';
@@ -46,6 +48,10 @@ import { renderSleepingBag } from './sleepingBagRenderingUtils';
 import { renderShelter } from './shelterRenderingUtils';
 // Import rain collector renderer
 import { renderRainCollector } from './rainCollectorRenderingUtils';
+// Import wild animal renderer
+import { renderWildAnimal } from './wildAnimalRenderingUtils';
+// Import viper spittle renderer
+import { renderViperSpittle } from './viperSpittleRenderingUtils';
 // Import player corpse renderer
 import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
 // Import grass renderer
@@ -592,6 +598,23 @@ export const renderYSortedEntities = ({
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, rainCollector.posX, rainCollector.posY, 96 + 20, 128 + 20, cycleProgress, outlineColor);
             }
+        } else if (type === 'wild_animal') {
+            const wildAnimal = entity as SpacetimeDBWildAnimal;
+            renderWildAnimal({
+                ctx,
+                animal: wildAnimal,
+                nowMs,
+                cycleProgress,
+                animationFrame,
+                localPlayerPosition: localPlayerPosition || { x: 0, y: 0 },
+            });
+        } else if (type === 'viper_spittle') {
+            const viperSpittle = entity as SpacetimeDBViperSpittle;
+            renderViperSpittle({
+                ctx,
+                spittle: viperSpittle,
+                currentTimeMs: nowMs,
+            });
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -649,6 +672,10 @@ export const renderYSortedEntities = ({
             // Planted seeds are fully rendered in the first pass - no second pass needed
         } else if (type === 'rain_collector') {
             // Rain collectors are fully rendered in the first pass - no second pass needed
+        } else if (type === 'wild_animal') {
+            // Wild animals are rendered separately in GameCanvas - no second pass needed
+        } else if (type === 'viper_spittle') {
+            // Viper spittle is rendered separately in GameCanvas - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

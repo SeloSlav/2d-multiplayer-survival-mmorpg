@@ -16,6 +16,7 @@ import {
     SleepingBag as SpacetimeDBSleepingBag,
     Shelter as SpacetimeDBShelter,
     RainCollector as SpacetimeDBRainCollector,
+
     DbConnection,
     InventoryItem as SpacetimeDBInventoryItem,
     ItemDefinition as SpacetimeDBItemDefinition,
@@ -47,6 +48,8 @@ const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; //
 // NEW: Water drinking interaction distance - close proximity required
 const PLAYER_WATER_DRINKING_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Same as server-side distance
 
+
+
 // NEW: Tile size constant for water detection
 const TILE_SIZE = 48;
 
@@ -69,6 +72,7 @@ interface UseInteractionFinderProps {
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
     players: Map<string, SpacetimeDBPlayer>;
     shelters: Map<string, SpacetimeDBShelter>;
+
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     connection: DbConnection | null; // NEW: Connection for water tile access
@@ -99,6 +103,7 @@ interface UseInteractionFinderResult {
     closestInteractableSleepingBagId: number | null;
     closestInteractableKnockedOutPlayerId: string | null;
     closestInteractableWaterPosition: { x: number; y: number } | null;
+
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -198,6 +203,7 @@ export function useInteractionFinder({
     sleepingBags,
     players,
     shelters,
+
     reeds,
     inventoryItems,
     itemDefinitions,
@@ -223,6 +229,7 @@ export function useInteractionFinder({
     const [closestInteractableSleepingBagId, setClosestInteractableSleepingBagId] = useState<number | null>(null);
     const [closestInteractableKnockedOutPlayerId, setClosestInteractableKnockedOutPlayerId] = useState<string | null>(null);
     const [closestInteractableWaterPosition, setClosestInteractableWaterPosition] = useState<{ x: number; y: number } | null>(null);
+
 
     // Calculate closest interactables using useMemo for efficiency
     const interactionResult = useMemo<UseInteractionFinderResult>(() => {
@@ -827,6 +834,7 @@ export function useInteractionFinder({
             closestInteractableSleepingBagId: closestSleepingBagId,
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
             closestInteractableWaterPosition: closestWaterPosition,
+
         };
     // Recalculate when player position or interactable maps change
     }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
@@ -908,6 +916,7 @@ export function useInteractionFinder({
         closestInteractableSleepingBagId,
         closestInteractableKnockedOutPlayerId,
         closestInteractableWaterPosition,
+
     };
 }
 
