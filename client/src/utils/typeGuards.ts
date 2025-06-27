@@ -270,4 +270,17 @@ export function isAnimalCorpse(entity: any): entity is SpacetimeDBAnimalCorpse {
            typeof entity.isBurning === 'undefined' && // Not a Campfire
            typeof entity.ownerIdentity === 'undefined' && // Not a PlayerCorpse or Stash
            typeof entity.state === 'undefined'; // Not a WildAnimal (has state)
+}
+
+// Type guard for knocked out players
+export function isKnockedOutPlayer(entity: any): entity is SpacetimeDBPlayer {
+    return entity && 
+           typeof entity.identity !== 'undefined' && 
+           typeof entity.positionX === 'number' && 
+           typeof entity.positionY === 'number' &&
+           entity.isKnockedOut === true && 
+           entity.isDead !== true && // Not dead, just knocked out
+           // Ensure it's actually a player
+           typeof entity.username === 'string' &&
+           typeof entity.direction === 'string';
 } 

@@ -428,6 +428,18 @@ export const renderYSortedEntities = ({
               //     renderGhostTrail(ctx, playerId, heroImg, playerForRendering);
               // }
            }
+
+           // Draw outline for knocked out players if they're the closest interactable target
+           if (playerForRendering.isKnockedOut && !playerForRendering.isDead) {
+               const isTheClosestTarget = closestInteractableTarget?.type === 'knocked_out_player' && 
+                                        closestInteractableTarget?.id === playerId;
+               
+               if (isTheClosestTarget) {
+                   const outlineColor = getInteractionOutlineColor('revive');
+                   // Draw oval outline around knocked out player (lying down)
+                   drawInteractionOutline(ctx, playerForRendering.positionX, playerForRendering.positionY, 80, 48, cycleProgress, outlineColor);
+               }
+           }
         } else if (type === 'tree') {
             // Render tree with its shadow in the normal order (shadow first, then tree)
             renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false, localPlayerPosition);

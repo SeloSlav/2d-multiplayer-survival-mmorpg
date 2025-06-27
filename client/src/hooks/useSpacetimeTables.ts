@@ -917,9 +917,9 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             
             // --- Grass Subscriptions (DISABLED for Performance) ---
             // Grass subscriptions cause massive lag due to spatial churn - use procedural rendering instead
-            const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
-            const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
-            const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
+            // const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
+            // const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
+            // const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
 
             // --- KnockedOutStatus Subscriptions ---
             const handleKnockedOutStatusInsert = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
@@ -1175,9 +1175,9 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             connection.db.cloud.onDelete(handleCloudDelete);
 
             // Register Grass callbacks - DISABLED for performance
-            connection.db.grass.onInsert(handleGrassInsert);
-            connection.db.grass.onUpdate(handleGrassUpdate);
-            connection.db.grass.onDelete(handleGrassDelete);
+            // connection.db.grass.onInsert(handleGrassInsert);
+            // connection.db.grass.onUpdate(handleGrassUpdate);
+            // connection.db.grass.onDelete(handleGrassDelete);
 
             // Register KnockedOutStatus callbacks
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
