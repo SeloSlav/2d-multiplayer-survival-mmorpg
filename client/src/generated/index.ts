@@ -54,6 +54,8 @@ import { CheckPlantGrowth } from "./check_plant_growth_reducer.ts";
 export { CheckPlantGrowth };
 import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
+import { CleanupExpiredAnimalCorpses } from "./cleanup_expired_animal_corpses_reducer.ts";
+export { CleanupExpiredAnimalCorpses };
 import { CleanupExpiredWaterPatches } from "./cleanup_expired_water_patches_reducer.ts";
 export { CleanupExpiredWaterPatches };
 import { CleanupOldSoundEvents } from "./cleanup_old_sound_events_reducer.ts";
@@ -368,6 +370,8 @@ import { ActiveConsumableEffectTableHandle } from "./active_consumable_effect_ta
 export { ActiveConsumableEffectTableHandle };
 import { ActiveEquipmentTableHandle } from "./active_equipment_table.ts";
 export { ActiveEquipmentTableHandle };
+import { AnimalCorpseTableHandle } from "./animal_corpse_table.ts";
+export { AnimalCorpseTableHandle };
 import { ArrowBreakEventTableHandle } from "./arrow_break_event_table.ts";
 export { ArrowBreakEventTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
@@ -514,6 +518,8 @@ import { ActiveConsumableEffect } from "./active_consumable_effect_type.ts";
 export { ActiveConsumableEffect };
 import { ActiveEquipment } from "./active_equipment_type.ts";
 export { ActiveEquipment };
+import { AnimalCorpse } from "./animal_corpse_type.ts";
+export { AnimalCorpse };
 import { AnimalSpecies } from "./animal_species_type.ts";
 export { AnimalSpecies };
 import { AnimalState } from "./animal_state_type.ts";
@@ -725,6 +731,11 @@ const REMOTE_MODULE = {
       tableName: "active_equipment",
       rowType: ActiveEquipment.getTypeScriptAlgebraicType(),
       primaryKey: "playerIdentity",
+    },
+    animal_corpse: {
+      tableName: "animal_corpse",
+      rowType: AnimalCorpse.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     arrow_break_event: {
       tableName: "arrow_break_event",
@@ -1116,6 +1127,10 @@ const REMOTE_MODULE = {
     check_resource_respawns: {
       reducerName: "check_resource_respawns",
       argsType: CheckResourceRespawns.getTypeScriptAlgebraicType(),
+    },
+    cleanup_expired_animal_corpses: {
+      reducerName: "cleanup_expired_animal_corpses",
+      argsType: CleanupExpiredAnimalCorpses.getTypeScriptAlgebraicType(),
     },
     cleanup_expired_water_patches: {
       reducerName: "cleanup_expired_water_patches",
@@ -1767,6 +1782,7 @@ export type Reducer = never
 | { name: "CheckFinishedCrafting", args: CheckFinishedCrafting }
 | { name: "CheckPlantGrowth", args: CheckPlantGrowth }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
+| { name: "CleanupExpiredAnimalCorpses", args: CleanupExpiredAnimalCorpses }
 | { name: "CleanupExpiredWaterPatches", args: CleanupExpiredWaterPatches }
 | { name: "CleanupOldSoundEvents", args: CleanupOldSoundEvents }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
@@ -2087,6 +2103,18 @@ export class RemoteReducers {
 
   removeOnCheckResourceRespawns(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("check_resource_respawns", callback);
+  }
+
+  cleanupExpiredAnimalCorpses() {
+    this.connection.callReducer("cleanup_expired_animal_corpses", new Uint8Array(0), this.setCallReducerFlags.cleanupExpiredAnimalCorpsesFlags);
+  }
+
+  onCleanupExpiredAnimalCorpses(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("cleanup_expired_animal_corpses", callback);
+  }
+
+  removeOnCleanupExpiredAnimalCorpses(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("cleanup_expired_animal_corpses", callback);
   }
 
   cleanupExpiredWaterPatches(args: WaterPatchCleanupSchedule) {
@@ -4499,6 +4527,11 @@ export class SetReducerFlags {
     this.checkResourceRespawnsFlags = flags;
   }
 
+  cleanupExpiredAnimalCorpsesFlags: CallReducerFlags = 'FullUpdate';
+  cleanupExpiredAnimalCorpses(flags: CallReducerFlags) {
+    this.cleanupExpiredAnimalCorpsesFlags = flags;
+  }
+
   cleanupExpiredWaterPatchesFlags: CallReducerFlags = 'FullUpdate';
   cleanupExpiredWaterPatches(flags: CallReducerFlags) {
     this.cleanupExpiredWaterPatchesFlags = flags;
@@ -5269,6 +5302,10 @@ export class RemoteTables {
 
   get activeEquipment(): ActiveEquipmentTableHandle {
     return new ActiveEquipmentTableHandle(this.connection.clientCache.getOrCreateTable<ActiveEquipment>(REMOTE_MODULE.tables.active_equipment));
+  }
+
+  get animalCorpse(): AnimalCorpseTableHandle {
+    return new AnimalCorpseTableHandle(this.connection.clientCache.getOrCreateTable<AnimalCorpse>(REMOTE_MODULE.tables.animal_corpse));
   }
 
   get arrowBreakEvent(): ArrowBreakEventTableHandle {

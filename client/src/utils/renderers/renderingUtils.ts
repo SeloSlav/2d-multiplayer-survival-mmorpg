@@ -24,7 +24,8 @@ import {
     PlantedSeed as SpacetimeDBPlantedSeed,
     RainCollector as SpacetimeDBRainCollector,
     WildAnimal as SpacetimeDBWildAnimal,
-    ViperSpittle as SpacetimeDBViperSpittle
+    ViperSpittle as SpacetimeDBViperSpittle,
+    AnimalCorpse as SpacetimeDBAnimalCorpse
 } from '../../generated';
 import { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/player_corpse_type';
 import { gameConfig } from '../../config/gameConfig';
@@ -52,6 +53,8 @@ import { renderRainCollector } from './rainCollectorRenderingUtils';
 import { renderWildAnimal } from './wildAnimalRenderingUtils';
 // Import viper spittle renderer
 import { renderViperSpittle } from './viperSpittleRenderingUtils';
+// Import animal corpse renderer
+import { renderAnimalCorpse } from './animalCorpseRenderingUtils';
 // Import player corpse renderer
 import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
 // Import grass renderer
@@ -213,9 +216,6 @@ export const renderYSortedEntities = ({
     closestInteractableTarget,
     shelterClippingData,
 }: RenderYSortedEntitiesProps) => {
-    // Clean up old projectile tracking data periodically (every 5 seconds)
-    // Note: cleanupOldProjectileTracking function not available in this scope
-
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
     // Other entities (players, boxes, etc.) render as normal.
     ySortedEntities.forEach(({ type, entity }) => {
@@ -615,6 +615,9 @@ export const renderYSortedEntities = ({
                 spittle: viperSpittle,
                 currentTimeMs: nowMs,
             });
+        } else if (type === 'animal_corpse') {
+            const animalCorpse = entity as SpacetimeDBAnimalCorpse;
+            renderAnimalCorpse(ctx, animalCorpse, nowMs);
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -676,6 +679,8 @@ export const renderYSortedEntities = ({
             // Wild animals are rendered separately in GameCanvas - no second pass needed
         } else if (type === 'viper_spittle') {
             // Viper spittle is rendered separately in GameCanvas - no second pass needed
+        } else if (type === 'animal_corpse') {
+            // Animal corpses are fully rendered in the first pass - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

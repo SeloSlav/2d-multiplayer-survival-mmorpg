@@ -180,6 +180,7 @@ function AppContent() {
       playerDrinkingCooldowns, // <<< ADD playerDrinkingCooldowns HERE
       wildAnimals, // <<< ADD wildAnimals HERE
       viperSpittles, // <<< ADD viperSpittles HERE
+      animalCorpses, // <<< ADD animalCorpses HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -779,6 +780,7 @@ function AppContent() {
                             minimapCache={minimapCache}
                             wildAnimals={wildAnimals}
                             viperSpittles={viperSpittles}
+                            animalCorpses={animalCorpses}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

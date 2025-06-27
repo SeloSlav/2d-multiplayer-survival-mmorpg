@@ -844,8 +844,20 @@ pub fn damage_wild_animal(
         }
         
         if animal.health <= 0.0 {
+            // Create animal corpse before deleting the animal
+            if let Err(e) = super::animal_corpse::create_animal_corpse(
+                ctx,
+                animal.species,
+                animal.id,
+                animal.pos_x,
+                animal.pos_y,
+                ctx.timestamp,
+            ) {
+                log::error!("Failed to create animal corpse for {} (species: {:?}): {}", animal.id, animal.species, e);
+            }
+            
             ctx.db.wild_animal().id().delete(&animal_id);
-            log::info!("Wild animal {} killed by player {}", animal_id, attacker_id);
+            log::info!("Wild animal {} killed by player {} - corpse created", animal_id, attacker_id);
         } else {
             // Handle species-specific damage response
             let behavior = animal.species.get_behavior();

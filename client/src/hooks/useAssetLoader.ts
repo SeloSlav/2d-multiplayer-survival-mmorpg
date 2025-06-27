@@ -12,6 +12,11 @@ import burlapSackUrl from '../assets/items/burlap_sack.png';
 import deathMarkerUrl from '../assets/items/death_marker.png';
 import shelterSpritePath from '../assets/doodads/shelter_b.png';
 
+// Import animal images for corpse rendering
+import cinderFoxImg from '../assets/cinder_fox.png';
+import tundraWolfImg from '../assets/tundra_wolf.png';
+import cableViperImg from '../assets/cable_viper.png';
+
 // Import cloud image paths
 import cloud1Texture from '../assets/environment/clouds/cloud1.png';
 import cloud2Texture from '../assets/environment/clouds/cloud2.png';
@@ -49,7 +54,7 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 6 + 5 + 1; // hero images + clouds + shelter
+    const totalStaticAssets = 6 + 5 + 1 + 3; // hero images + clouds + shelter + animal corpse images
     
     // Count total item icons to preload
     const itemIconEntries = Object.entries(itemIcons).filter(([key, iconPath]) => iconPath);
@@ -113,6 +118,33 @@ export function useAssetLoader(): AssetLoaderResult {
       checkLoadingComplete();
     };
     shelterImg.src = shelterSpritePath;
+
+    // Preload animal corpse images using ImageManager
+    console.log('[useAssetLoader] Preloading animal corpse images via ImageManager...');
+    const animalImages = [
+      { name: 'cinder_fox', src: cinderFoxImg },
+      { name: 'tundra_wolf', src: tundraWolfImg },
+      { name: 'cable_viper', src: cableViperImg }
+    ];
+    
+    animalImages.forEach(({ name, src }) => {
+      // Preload with ImageManager for in-game access
+      imageManager.preloadImage(src);
+      
+      // Also count towards our loading completion
+      const img = new Image();
+      img.onload = () => {
+        console.log(`[useAssetLoader] Successfully preloaded animal image: ${name}`);
+        loadedCount++;
+        checkLoadingComplete();
+      };
+      img.onerror = () => {
+        console.error(`Failed to preload animal image: ${name} -> ${src}`);
+        loadedCount++;
+        checkLoadingComplete();
+      };
+      img.src = src;
+    });
 
     // Preload ALL item icons using ImageManager - this blocks completion until done
     console.log('[useAssetLoader] Preloading item icons via ImageManager...');

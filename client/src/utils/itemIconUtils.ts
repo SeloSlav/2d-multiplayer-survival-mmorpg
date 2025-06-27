@@ -94,6 +94,23 @@ import mysteryCanIcon from '../assets/items/mystery_can.png';
 import waterJugIcon from '../assets/items/water_jug.png';
 import antiVenomIcon from '../assets/items/anti_venom.png';
 import cableViperGlandIcon from '../assets/items/cable_viper_gland.png';
+import foxSkullIcon from '../assets/items/fox_skull.png';
+import wolfSkullIcon from '../assets/items/wolf_skull.png';
+import viperSkullIcon from '../assets/items/viper_skull.png';
+import rawWolfMeatIcon from '../assets/items/wolf_meat.png';
+import cookedWolfMeatIcon from '../assets/items/cooked_wolf_meat.png';
+import burntWolffMeatIcon from '../assets/items/burnt_wolf_meat.png';
+import rawFoxMeatIcon from '../assets/items/fox_meat.png';
+import coookedFoxMeatIcon from '../assets/items/cooked_fox_meat.png';
+import burntFoxMeatIcon from '../assets/items/burnt_fox_meat.png';
+import rawViperMeatlIcon from '../assets/items/viper_meat.png';
+import cookedViperMeatIcon from '../assets/items/cooked_viper_meat.png';
+import burntViperMeatIcon from '../assets/items/burnt_viper_meat.png';
+import foxFurIcon from '../assets/items/fox_fur.png';
+import wolfPeltIcon from '../assets/items/wolf_pelt.png';
+import viperScaleIcon from '../assets/items/viper_scale.png';
+import wolfFurIcon from '../assets/items/wolf_fur.png';
+
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -188,6 +205,22 @@ const iconMap: { [key: string]: string | undefined } = {
   'water_jug.png': waterJugIcon,
   'anti_venom.png': antiVenomIcon,
   'cable_viper_gland.png': cableViperGlandIcon,
+  'wolf_meat.png': rawWolfMeatIcon,
+  'cooked_wolf_meat.png': cookedWolfMeatIcon,
+  'burnt_wolf_meat.png': burntWolffMeatIcon,
+  'fox_meat.png': rawFoxMeatIcon,
+  'cooked_fox_meat.png': coookedFoxMeatIcon,
+  'burnt_fox_meat.png': burntFoxMeatIcon,
+  'viper_meat.png': rawViperMeatlIcon,
+  'cooked_viper_meat.png': cookedViperMeatIcon,
+  'burnt_viper_meat.png': burntViperMeatIcon,
+  'fox_skull.png': foxSkullIcon,
+  'wolf_skull.png': wolfSkullIcon,
+  'viper_skull.png': viperSkullIcon,
+  'fox_fur.png': foxFurIcon,
+  'wolf_pelt.png': wolfPeltIcon,
+  'viper_scale.png': viperScaleIcon,
+  'wolf_fur.png': wolfFurIcon,
 };
 
 // Export a function that provides the fallback logic

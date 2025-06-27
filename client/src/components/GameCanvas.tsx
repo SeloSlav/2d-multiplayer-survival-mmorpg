@@ -36,6 +36,7 @@ import {
   PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
   WildAnimal as SpacetimeDBWildAnimal,
   ViperSpittle as SpacetimeDBViperSpittle,
+  AnimalCorpse as SpacetimeDBAnimalCorpse,
 } from '../generated';
 
 // --- Core Hooks ---
@@ -85,6 +86,7 @@ import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
+import { renderAnimalCorpse, preloadAnimalCorpseImages } from '../utils/renderers/animalCorpseRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
@@ -163,7 +165,8 @@ interface GameCanvasProps {
   plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
   playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // Add player drinking cooldowns
   wildAnimals: Map<string, SpacetimeDBWildAnimal>;
-  viperSpittles: Map<string, SpacetimeDBViperSpittle>; // Add viper spittles
+    viperSpittles: Map<string, SpacetimeDBViperSpittle>;
+    animalCorpses: Map<string, SpacetimeDBAnimalCorpse>; // Add viper spittles
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -229,6 +232,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   playerDrinkingCooldowns,
   wildAnimals,
   viperSpittles,
+  animalCorpses,
   setMusicPanelVisible,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
@@ -481,6 +485,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleWildAnimalsMap,
     visibleViperSpittles,
     visibleViperSpittlesMap,
+    visibleAnimalCorpses,
+    visibleAnimalCorpsesMap,
   } = useEntityFiltering(
     players,
     trees,
@@ -510,6 +516,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     rainCollectors,
     wildAnimals,
     viperSpittles,
+    animalCorpses,
   );
 
   // --- UI State ---
@@ -612,6 +619,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Preload wild animal images
   useEffect(() => {
     preloadWildAnimalImages();
+    preloadAnimalCorpseImages();
   }, []);
 
   // Use arrow break effects hook

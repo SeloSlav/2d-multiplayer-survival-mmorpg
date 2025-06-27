@@ -197,6 +197,7 @@ use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // <<< ADDED: I
 use crate::wild_animal_npc::wild_animal_ai_schedule as WildAnimalAiScheduleTableTrait; // <<< ADDED: Import WildAnimalAiSchedule table trait
 use crate::wild_animal_npc::viper::viper_spittle as ViperSpittleTableTrait; // <<< ADDED: Import ViperSpittle table trait
 use crate::wild_animal_npc::viper::viper_spittle_update_schedule as ViperSpittleUpdateScheduleTableTrait; // <<< ADDED: Import ViperSpittleUpdateSchedule table trait
+use crate::wild_animal_npc::animal_corpse as AnimalCorpseTableTrait; // <<< ADDED: Import AnimalCorpse table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;

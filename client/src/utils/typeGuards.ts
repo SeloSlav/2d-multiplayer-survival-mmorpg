@@ -17,7 +17,8 @@ import {
   Grass as SpacetimeDBGrass,
   Shelter, // ADDED Shelter type
   RainCollector as SpacetimeDBRainCollector, // ADDED RainCollector type
-  WildAnimal as SpacetimeDBWildAnimal // ADDED WildAnimal type
+  WildAnimal as SpacetimeDBWildAnimal, // ADDED WildAnimal type
+  AnimalCorpse as SpacetimeDBAnimalCorpse // ADDED AnimalCorpse type
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
@@ -247,4 +248,26 @@ export function isWildAnimal(entity: any): entity is SpacetimeDBWildAnimal {
            typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
            typeof entity.isBurning === 'undefined' && // Not a Campfire
            typeof entity.ownerIdentity === 'undefined'; // Not a PlayerCorpse or Stash
+}
+
+// Type guard for AnimalCorpse
+export function isAnimalCorpse(entity: any): entity is SpacetimeDBAnimalCorpse {
+    return entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' &&
+           typeof entity.animalSpecies === 'object' && // AnimalSpecies enum
+           typeof entity.animalId === 'number' && // Original animal ID
+           typeof entity.health === 'number' &&
+           typeof entity.maxHealth === 'number' &&
+           typeof entity.deathTime !== 'undefined' &&
+           typeof entity.despawnAt !== 'undefined' &&
+           // Ensure it doesn't match other types
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.placedBy === 'undefined' && // Not a placed item
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           typeof entity.ownerIdentity === 'undefined' && // Not a PlayerCorpse or Stash
+           typeof entity.state === 'undefined'; // Not a WildAnimal (has state)
 } 

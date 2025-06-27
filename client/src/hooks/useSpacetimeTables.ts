@@ -135,6 +135,7 @@ export interface SpacetimeTableStates {
     playerDrinkingCooldowns: Map<string, SpacetimeDB.PlayerDrinkingCooldown>;
     wildAnimals: Map<string, SpacetimeDB.WildAnimal>;
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
+    animalCorpses: Map<string, SpacetimeDB.AnimalCorpse>;
 }   
 
 // Define the props the hook accepts
@@ -200,6 +201,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
     const [playerDrinkingCooldowns, setPlayerDrinkingCooldowns] = useState<Map<string, SpacetimeDB.PlayerDrinkingCooldown>>(() => new Map());
     const [wildAnimals, setWildAnimals] = useState<Map<string, SpacetimeDB.WildAnimal>>(() => new Map());
     const [viperSpittles, setViperSpittles] = useState<Map<string, SpacetimeDBViperSpittle>>(() => new Map());
+    const [animalCorpses, setAnimalCorpses] = useState<Map<string, SpacetimeDB.AnimalCorpse>>(() => new Map());
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -484,6 +486,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                             newHandlesForChunk.push(timedSubscribe('RainCollector', `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WildAnimal', `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('AnimalCorpse', `SELECT * FROM animal_corpse WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1118,6 +1121,16 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                 setViperSpittles(prev => { const newMap = new Map(prev); newMap.delete(spittle.id.toString()); return newMap; });
             };
 
+            const handleAnimalCorpseInsert = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
+            };
+            const handleAnimalCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.AnimalCorpse, newCorpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
+            };
+            const handleAnimalCorpseDelete = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
+            };
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1246,6 +1259,10 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             connection.db.viperSpittle.onInsert(handleViperSpittleInsert);
             connection.db.viperSpittle.onUpdate(handleViperSpittleUpdate);
             connection.db.viperSpittle.onDelete(handleViperSpittleDelete);
+
+            connection.db.animalCorpse.onInsert(handleAnimalCorpseInsert);
+            connection.db.animalCorpse.onUpdate(handleAnimalCorpseUpdate);
+            connection.db.animalCorpse.onDelete(handleAnimalCorpseDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -1392,7 +1409,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM animal_corpse WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
 
@@ -1526,6 +1543,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                  setPlayerDrinkingCooldowns(new Map());
                  setWildAnimals(new Map());
                  setViperSpittles(new Map());
+                 setAnimalCorpses(new Map());
              }
         };
 
@@ -1580,5 +1598,6 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
         playerDrinkingCooldowns,
         wildAnimals,
         viperSpittles,
+        animalCorpses,
     };
 }; 

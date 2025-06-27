@@ -6,6 +6,7 @@ pub mod fox;
 pub mod wolf;
 pub mod viper;
 pub mod respawn;
+pub mod animal_corpse;
 
 // Re-export core types and functionality
 pub use core::*;
@@ -13,4 +14,7 @@ pub use core::*;
 // Re-export species-specific traits
 pub use fox::FoxBehavior;
 pub use wolf::WolfBehavior;
-pub use viper::ViperBehavior; 
+pub use viper::ViperBehavior;
+
+// Re-export animal corpse functionality
+pub use animal_corpse::*; 

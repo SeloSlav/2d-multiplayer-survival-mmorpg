@@ -73,6 +73,8 @@ use crate::sound_events; // Import sound events module
 use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN_COLLECTOR_COLLISION_Y_OFFSET, rain_collector as RainCollectorTableTrait};
 // Import wild animal types
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
+// Import animal corpse types
+use crate::wild_animal_npc::animal_corpse::{AnimalCorpse, ANIMAL_CORPSE_COLLISION_Y_OFFSET, animal_corpse as AnimalCorpseTableTrait};
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -97,6 +99,7 @@ pub enum TargetId {
     Shelter(u32),
     RainCollector(u32), // ADDED: Rain collector target
     WildAnimal(u64), // ADDED: Wild animal target
+    AnimalCorpse(u32), // ADDED: Animal corpse target
 }
 
 /// Represents a potential target within attack range
@@ -643,6 +646,53 @@ pub fn find_targets_in_cone(
         }
     }
     
+    // Check animal corpses
+    for animal_corpse in ctx.db.animal_corpse().iter() {
+        // Skip corpses that are already depleted
+        if animal_corpse.health == 0 {
+            continue;
+        }
+        
+        let dx = animal_corpse.pos_x - player.position_x;
+        let target_y = animal_corpse.pos_y - ANIMAL_CORPSE_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+        
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                // Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for animal corpses
+                    player.position_x,
+                    player.position_y,
+                    animal_corpse.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack AnimalCorpse {}: line of sight blocked by shelter",
+                        player.identity, animal_corpse.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
+                targets.push(Target {
+                    target_type: TargetType::AnimalCorpse,
+                    id: TargetId::AnimalCorpse(animal_corpse.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+    
     // Check Shelters - delegate to shelter module
     crate::shelter::add_shelter_targets_to_cone(ctx, player, attack_range, half_attack_angle_rad, forward_x, forward_y, &mut targets);
     
@@ -789,6 +839,13 @@ pub fn calculate_damage_and_yield(
         // Player corpses always take a fixed amount of damage to ensure consistent hits to destroy.
         // Yield is handled separately in damage_player_corpse.
         return (25.0, 0, "".to_string());
+    }
+
+    // NEW: Handle AnimalCorpse target type for fixed damage
+    if target_type == TargetType::AnimalCorpse {
+        // Animal corpses always take a fixed amount of damage to ensure consistent hits to destroy.
+        // Yield is handled separately in damage_animal_corpse.
+        return (20.0, 0, "".to_string());
     }
 
     // Fallback for non-primary targets (or if primary_target_type is None)
@@ -2077,6 +2134,13 @@ pub fn process_attack(
                 return Err("Target wild animal not found".to_string());
             }
         },
+        TargetId::AnimalCorpse(animal_corpse_id) => {
+            if let Some(animal_corpse) = ctx.db.animal_corpse().id().find(animal_corpse_id) {
+                (animal_corpse.pos_x, animal_corpse.pos_y - ANIMAL_CORPSE_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target animal corpse not found".to_string());
+            }
+        },
     };
 
     // Get attacker position
@@ -2168,6 +2232,9 @@ pub fn process_attack(
                     resource_granted: None,
                 })
         },
+        TargetId::AnimalCorpse(animal_corpse_id) => {
+            damage_animal_corpse(ctx, attacker_id, *animal_corpse_id, damage, item_def, timestamp, rng)
+        },
     }
 }
 
@@ -2249,6 +2316,161 @@ fn resolve_knockback_collision(
 }
 
 // REMOVED: damage_grass function - grass collision detection removed for performance
+
+/// Applies damage to an animal corpse, yields resources, and handles destruction.
+pub fn damage_animal_corpse(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    animal_corpse_id: u32,
+    damage: f32,
+    item_def: &ItemDefinition,
+    timestamp: Timestamp,
+    rng: &mut impl Rng,
+) -> Result<AttackResult, String> {
+    let mut animal_corpse_table = ctx.db.animal_corpse();
+    let mut animal_corpse = animal_corpse_table.id().find(&animal_corpse_id)
+        .ok_or_else(|| format!("Target animal corpse {} disappeared", animal_corpse_id))?;
+
+    if animal_corpse.health == 0 {
+        log::warn!("[DamageAnimalCorpse] Animal corpse {} already has 0 health. No action taken.", animal_corpse_id);
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::AnimalCorpse), resource_granted: None });
+    }
+
+    let old_health = animal_corpse.health;
+    animal_corpse.health = animal_corpse.health.saturating_sub(damage as u32);
+    animal_corpse.last_hit_time = Some(timestamp);
+    animal_corpse.last_hit_by = Some(attacker_id);
+
+    log::info!(
+        "Player {:?} hit AnimalCorpse {} for {:.1} damage. Health: {} -> {}",
+        attacker_id, animal_corpse_id, damage, old_health, animal_corpse.health
+    );
+
+    // Play weapon-specific hit sounds
+    play_weapon_hit_sound(ctx, item_def, animal_corpse.pos_x, animal_corpse.pos_y, attacker_id);
+
+    let mut resources_granted: Vec<(String, u32)> = Vec::new();
+
+    // Get animal-specific loot chances
+    let (base_fat_chance, base_cloth_chance, base_bone_chance, base_meat_chance) = 
+        crate::wild_animal_npc::animal_corpse::get_animal_loot_chances(animal_corpse.animal_species);
+
+    // Determine tool effectiveness
+    const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
+    const BONE_CLUB_MULTIPLIER: f64 = 3.0;
+    const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
+    const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1;
+
+    let effectiveness_multiplier = match item_def.name.as_str() {
+        "Bone Knife" => BONE_KNIFE_MULTIPLIER,
+        "Bone Club" => BONE_CLUB_MULTIPLIER,
+        _ => {
+            if item_def.primary_target_type == Some(TargetType::AnimalCorpse) {
+                PRIMARY_CORPSE_TOOL_MULTIPLIER
+            } else {
+                NON_PRIMARY_ITEM_MULTIPLIER
+            }
+        }
+    };
+
+    // Calculate actual chances based on tool effectiveness
+    let actual_fat_chance = (base_fat_chance * effectiveness_multiplier).clamp(0.0, base_fat_chance);
+    let actual_cloth_chance = (base_cloth_chance * effectiveness_multiplier).clamp(0.0, base_cloth_chance);
+    let actual_bone_chance = (base_bone_chance * effectiveness_multiplier).clamp(0.0, base_bone_chance);
+    let actual_meat_chance = (base_meat_chance * effectiveness_multiplier).clamp(0.0, base_meat_chance);
+
+    // Determine quantity based on tool
+    let quantity_per_hit = match item_def.name.as_str() {
+        "Bone Knife" => rng.gen_range(3..=5),
+        "Bone Club" => rng.gen_range(2..=4),
+        _ => {
+            if item_def.primary_target_type == Some(TargetType::AnimalCorpse) && item_def.category == ItemCategory::Tool {
+                rng.gen_range(1..=2)
+            } else if item_def.category == ItemCategory::Tool {
+                1
+            } else {
+                1
+            }
+        }
+    };
+
+    // Grant resources based on RNG and animal type
+    if animal_corpse.health > 0 && rng.gen_bool(actual_fat_chance) {
+        match grant_resource(ctx, attacker_id, "Animal Fat", quantity_per_hit) {
+            Ok(_) => resources_granted.push(("Animal Fat".to_string(), quantity_per_hit)),
+            Err(e) => log::error!("Failed to grant Animal Fat: {}", e),
+        }
+    }
+
+    if animal_corpse.health > 0 && rng.gen_bool(actual_cloth_chance) {
+        let cloth_type = match animal_corpse.animal_species {
+            crate::wild_animal_npc::AnimalSpecies::CinderFox => "Fox Fur",
+            crate::wild_animal_npc::AnimalSpecies::TundraWolf => "Wolf Pelt",
+            crate::wild_animal_npc::AnimalSpecies::CableViper => "Viper Scale",
+        };
+        match grant_resource(ctx, attacker_id, cloth_type, quantity_per_hit) {
+            Ok(_) => resources_granted.push((cloth_type.to_string(), quantity_per_hit)),
+            Err(e) => log::error!("Failed to grant {}: {}", cloth_type, e),
+        }
+    }
+
+    if animal_corpse.health > 0 && rng.gen_bool(actual_bone_chance) {
+        match grant_resource(ctx, attacker_id, "Animal Bone", quantity_per_hit) {
+            Ok(_) => resources_granted.push(("Animal Bone".to_string(), quantity_per_hit)),
+            Err(e) => log::error!("Failed to grant Animal Bone: {}", e),
+        }
+    }
+
+    if animal_corpse.health > 0 && rng.gen_bool(actual_meat_chance) {
+        let meat_type = crate::wild_animal_npc::animal_corpse::get_animal_meat_type(animal_corpse.animal_species);
+        match grant_resource(ctx, attacker_id, meat_type, quantity_per_hit) {
+            Ok(_) => resources_granted.push((meat_type.to_string(), quantity_per_hit)),
+            Err(e) => log::error!("Failed to grant {}: {}", meat_type, e),
+        }
+    }
+
+    if animal_corpse.health == 0 {
+        log::info!("[DamageAnimalCorpse:{}] Animal corpse depleted by Player {:?} using item {} (category {:?}, multiplier {:.1})", 
+                 animal_corpse_id, attacker_id, item_def.name, item_def.category, effectiveness_multiplier);
+        
+        // Always grant 1 skull when corpse is depleted, regardless of tool used (like player corpses)
+        let skull_type = match animal_corpse.animal_species {
+            crate::wild_animal_npc::AnimalSpecies::CinderFox => "Fox Skull",
+            crate::wild_animal_npc::AnimalSpecies::TundraWolf => "Wolf Skull",
+            crate::wild_animal_npc::AnimalSpecies::CableViper => "Viper Skull",
+        };
+        
+        match grant_resource(ctx, attacker_id, skull_type, 1) {
+            Ok(_) => {
+                resources_granted.push((skull_type.to_string(), 1));
+                log::info!(
+                    "[DamageAnimalCorpse:{}] Granted 1 {} to Player {:?} (corpse depleted).",
+                    animal_corpse_id, skull_type, attacker_id
+                );
+            }
+            Err(e) => log::error!(
+                "[DamageAnimalCorpse:{}] Failed to grant {} to Player {:?}: {}",
+                animal_corpse_id, skull_type, attacker_id, e
+            ),
+        }
+        
+        // Delete the corpse entity
+        animal_corpse_table.id().delete(&animal_corpse_id);
+        log::info!("[DamageAnimalCorpse] AnimalCorpse {} entity deleted after being depleted.", animal_corpse_id);
+    } else {
+        // Corpse still has health, just update it
+        animal_corpse_table.id().update(animal_corpse);
+    }
+
+    // Return first resource granted or empty result
+    let granted_summary = resources_granted.first().cloned();
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::AnimalCorpse),
+        resource_granted: granted_summary,
+    })
+}
 
 /// Applies damage to a rain collector and handles destruction/item scattering
 pub fn damage_rain_collector(
