@@ -531,7 +531,7 @@ export function useEntityFiltering(
       const notDespawned = currentTime < despawnTimeMs; // Check if current time is before despawn time
       return inView && notDespawned;
     }) : [];
-    console.log(`🦴 [ANIMAL CORPSE FILTERING] Total corpses: ${animalCorpses?.size || 0}, Visible after filtering: ${result.length}, IDs: [${result.map(c => c.id).join(', ')}]`);
+    // console.log(`🦴 [ANIMAL CORPSE FILTERING] Total corpses: ${animalCorpses?.size || 0}, Visible after filtering: ${result.length}, IDs: [${result.map(c => c.id).join(', ')}]`);
     return result;
   }, [animalCorpses, isEntityInView, viewBounds, currentTime]);
 

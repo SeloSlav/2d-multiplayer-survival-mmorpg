@@ -183,8 +183,8 @@ export const useSpacetimeTables = ({
     const [playerCorpses, setPlayerCorpses] = useState<Map<string, SpacetimeDB.PlayerCorpse>>(() => new Map());
     const [stashes, setStashes] = useState<Map<string, SpacetimeDB.Stash>>(() => new Map());
     const [rainCollectors, setRainCollectors] = useState<Map<string, SpacetimeDB.RainCollector>>(() => new Map());
-const [waterPatches, setWaterPatches] = useState<Map<string, SpacetimeDB.WaterPatch>>(() => new Map());
-const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
+    const [waterPatches, setWaterPatches] = useState<Map<string, SpacetimeDB.WaterPatch>>(() => new Map());
+    const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<string, SpacetimeDB.ActiveConsumableEffect>>(() => new Map());
     const [clouds, setClouds] = useState<Map<string, SpacetimeDB.Cloud>>(() => new Map());
     const [grass, setGrass] = useState<Map<string, SpacetimeDB.Grass>>(() => new Map()); // DISABLED: Always empty for performance
     const [knockedOutStatus, setKnockedOutStatus] = useState<Map<string, SpacetimeDB.KnockedOutStatus>>(() => new Map());
@@ -917,9 +917,9 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             
             // --- Grass Subscriptions (DISABLED for Performance) ---
             // Grass subscriptions cause massive lag due to spatial churn - use procedural rendering instead
-            // const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
-            // const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
-            // const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
+            const handleGrassInsert = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(item.id.toString(), item));
+            const handleGrassUpdate = (ctx: any, oldItem: SpacetimeDB.Grass, newItem: SpacetimeDB.Grass) => setGrass(prev => new Map(prev).set(newItem.id.toString(), newItem));
+            const handleGrassDelete = (ctx: any, item: SpacetimeDB.Grass) => setGrass(prev => { const newMap = new Map(prev); newMap.delete(item.id.toString()); return newMap; });
 
             // --- KnockedOutStatus Subscriptions ---
             const handleKnockedOutStatusInsert = (ctx: any, status: SpacetimeDB.KnockedOutStatus) => {
@@ -1116,19 +1116,19 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             const handleViperSpittleUpdate = (ctx: any, oldSpittle: SpacetimeDBViperSpittle, newSpittle: SpacetimeDBViperSpittle) => {
                 setViperSpittles(prev => new Map(prev).set(newSpittle.id.toString(), newSpittle));
             };
-            const handleViperSpittleDelete = (ctx: any, spittle: SpacetimeDBViperSpittle) => {
-                setViperSpittles(prev => { const newMap = new Map(prev); newMap.delete(spittle.id.toString()); return newMap; });
-            };
+                          const handleViperSpittleDelete = (ctx: any, spittle: SpacetimeDBViperSpittle) => {
+                  setViperSpittles(prev => { const newMap = new Map(prev); newMap.delete(spittle.id.toString()); return newMap; });
+              };
 
-            const handleAnimalCorpseInsert = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
-                setAnimalCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
-            };
-            const handleAnimalCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.AnimalCorpse, newCorpse: SpacetimeDB.AnimalCorpse) => {
-                setAnimalCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
-            };
-            const handleAnimalCorpseDelete = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
-                setAnimalCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
-            };
+              const handleAnimalCorpseInsert = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                  setAnimalCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
+              };
+              const handleAnimalCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.AnimalCorpse, newCorpse: SpacetimeDB.AnimalCorpse) => {
+                  setAnimalCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
+              };
+              const handleAnimalCorpseDelete = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                  setAnimalCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
+              };
 
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
@@ -1175,9 +1175,9 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             connection.db.cloud.onDelete(handleCloudDelete);
 
             // Register Grass callbacks - DISABLED for performance
-            // connection.db.grass.onInsert(handleGrassInsert);
-            // connection.db.grass.onUpdate(handleGrassUpdate);
-            // connection.db.grass.onDelete(handleGrassDelete);
+            connection.db.grass.onInsert(handleGrassInsert);
+            connection.db.grass.onUpdate(handleGrassUpdate);
+            connection.db.grass.onDelete(handleGrassDelete);
 
             // Register KnockedOutStatus callbacks
             connection.db.knockedOutStatus.onInsert(handleKnockedOutStatusInsert);
@@ -1254,14 +1254,15 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
             connection.db.wildAnimal.onUpdate(handleWildAnimalUpdate);
             connection.db.wildAnimal.onDelete(handleWildAnimalDelete);
 
-            // Register ViperSpittle callbacks - ADDED
-            connection.db.viperSpittle.onInsert(handleViperSpittleInsert);
-            connection.db.viperSpittle.onUpdate(handleViperSpittleUpdate);
-            connection.db.viperSpittle.onDelete(handleViperSpittleDelete);
+                          // Register ViperSpittle callbacks - ADDED
+              connection.db.viperSpittle.onInsert(handleViperSpittleInsert);
+              connection.db.viperSpittle.onUpdate(handleViperSpittleUpdate);
+              connection.db.viperSpittle.onDelete(handleViperSpittleDelete);
 
-            connection.db.animalCorpse.onInsert(handleAnimalCorpseInsert);
-            connection.db.animalCorpse.onUpdate(handleAnimalCorpseUpdate);
-            connection.db.animalCorpse.onDelete(handleAnimalCorpseDelete);
+              // Register AnimalCorpse callbacks - NON-SPATIAL
+              connection.db.animalCorpse.onInsert(handleAnimalCorpseInsert);
+              connection.db.animalCorpse.onUpdate(handleAnimalCorpseUpdate);
+              connection.db.animalCorpse.onDelete(handleAnimalCorpseDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -1347,14 +1348,14 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[PLAYER_DRINKING_COOLDOWN Sub Error]:", err))
                     .subscribe('SELECT * FROM player_drinking_cooldown'),
-                 // ADDED ViperSpittle subscription for viper projectiles
-                 connection.subscriptionBuilder()
-                    .onError((err) => console.error("[VIPER_SPITTLE Sub Error]:", err))
-                    .subscribe('SELECT * FROM viper_spittle'),
-                 // ADDED AnimalCorpse subscription (non-spatial like player corpses)
-                 connection.subscriptionBuilder()
-                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial ANIMAL_CORPSE subscription error:", err))
-                    .subscribe('SELECT * FROM animal_corpse'),
+                                   // ADDED ViperSpittle subscription for viper projectiles
+                  connection.subscriptionBuilder()
+                     .onError((err) => console.error("[VIPER_SPITTLE Sub Error]:", err))
+                     .subscribe('SELECT * FROM viper_spittle'),
+                  // ADDED AnimalCorpse subscription - NON-SPATIAL
+                  connection.subscriptionBuilder()
+                     .onError((err) => console.error("[ANIMAL_CORPSE Sub Error]:", err))
+                     .subscribe('SELECT * FROM animal_corpse'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1598,9 +1599,9 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
         soundEvents,
         continuousSounds,
         localPlayerIdentity, // Add this to the return
-        playerDrinkingCooldowns,
-        wildAnimals,
-        viperSpittles,
-        animalCorpses,
-    };
+                  playerDrinkingCooldowns,
+          wildAnimals,
+          viperSpittles,
+          animalCorpses,
+      };
 }; 

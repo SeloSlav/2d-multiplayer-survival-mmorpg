@@ -429,16 +429,14 @@ export const renderYSortedEntities = ({
               // }
            }
 
-           // Draw outline for knocked out players if they're the closest interactable target
-           if (playerForRendering.isKnockedOut && !playerForRendering.isDead) {
-               const isTheClosestTarget = closestInteractableTarget?.type === 'knocked_out_player' && 
-                                        closestInteractableTarget?.id === playerId;
-               
-               if (isTheClosestTarget) {
-                   const outlineColor = getInteractionOutlineColor('revive');
-                   // Draw oval outline around knocked out player (lying down)
-                   drawInteractionOutline(ctx, playerForRendering.positionX, playerForRendering.positionY, 80, 48, cycleProgress, outlineColor);
-               }
+           // Check if this knocked out player is the closest interactable target
+           const isTheClosestKnockedOutTarget = closestInteractableTarget?.type === 'knocked_out_player' && closestInteractableTarget?.id === playerId;
+
+           // Draw outline for knocked out players who are the closest interactable target
+           if (isTheClosestKnockedOutTarget && playerForRendering.isKnockedOut && !playerForRendering.isDead) {
+               const outlineColor = getInteractionOutlineColor('revive');
+               // Use an oval outline that's wider than tall to represent a lying down player
+               drawCircularInteractionOutline(ctx, playerForRendering.positionX, playerForRendering.positionY, 40, cycleProgress, outlineColor);
            }
         } else if (type === 'tree') {
             // Render tree with its shadow in the normal order (shadow first, then tree)

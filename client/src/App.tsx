@@ -180,7 +180,7 @@ function AppContent() {
       playerDrinkingCooldowns, // <<< ADD playerDrinkingCooldowns HERE
       wildAnimals, // <<< ADD wildAnimals HERE
       viperSpittles, // <<< ADD viperSpittles HERE
-      animalCorpses, // <<< ADD animalCorpses HERE
+      animalCorpses, // <<< ADD animalCorpses HERE (NON-SPATIAL)
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
