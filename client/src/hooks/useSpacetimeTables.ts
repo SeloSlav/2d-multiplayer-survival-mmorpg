@@ -403,7 +403,7 @@ export const useSpacetimeTables = ({
                             };
 
                             // 🎯 BATCH 1: Resource & Structure Tables (Most Common)
-                                                         const resourceQueries = [
+                            const resourceQueries = [
                                 `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`,

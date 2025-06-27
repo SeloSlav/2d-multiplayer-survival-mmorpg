@@ -159,7 +159,7 @@ impl AnimalBehavior for CinderFoxBehavior {
                     ).sqrt();
                     
                     // CORNERED ANIMAL OVERRIDE: If player gets too close, attack regardless of health
-                    const CORNERED_DISTANCE: f32 = 90.0; // ~3 tiles - very close
+                    const CORNERED_DISTANCE: f32 = 180.0; // ~6 tiles - doubled range for earlier aggression
                     
                     if distance_to_player <= CORNERED_DISTANCE {
                         // Too close! Fox feels cornered and attacks even healthy players
@@ -224,7 +224,7 @@ impl AnimalBehavior for CinderFoxBehavior {
                         player.position_x, player.position_y
                     ).sqrt();
                     
-                    const CORNERED_DISTANCE: f32 = 90.0; // Same distance as patrol
+                    const CORNERED_DISTANCE: f32 = 180.0; // Same distance as patrol (doubled)
                     
                     if distance_to_player <= CORNERED_DISTANCE {
                         // Player got too close while fleeing - turn and fight!

@@ -588,7 +588,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let grasses = ctx.db.grass();
     let wild_animals = ctx.db.wild_animal();
 
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 || wild_animals.iter().count() > 0 {
+    // Check if core environment is already seeded (exclude wild_animals since they can dynamically respawn)
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
             "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
             trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count(), wild_animals.iter().count()
