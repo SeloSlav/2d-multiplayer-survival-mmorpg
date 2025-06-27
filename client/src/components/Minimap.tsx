@@ -904,7 +904,7 @@ export function drawMinimapOntoCanvas({
               const imageWidth = size;
               const imageHeight = size;
               
-              console.log('[Minimap] Drawing pin image at world coordinates - Screen pos:', x, y);
+              // console.log('[Minimap] Drawing pin image at world coordinates - Screen pos:', x, y);
               ctx.drawImage(
                   pinMarkerImage,
                   x - imageWidth / 2,   // Center horizontally

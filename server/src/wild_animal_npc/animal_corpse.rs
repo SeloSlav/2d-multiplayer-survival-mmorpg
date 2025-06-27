@@ -96,6 +96,10 @@ pub fn create_animal_corpse(
     );
 
     let new_corpse = AnimalCorpse::new(animal_species, animal_id, pos_x, pos_y, death_time);
+    log::info!(
+        "🦴 [SERVER] Animal corpse created with chunk_index: {}, despawn_at: {:?}",
+        new_corpse.chunk_index, new_corpse.despawn_at
+    );
 
     let inserted_corpse = match ctx.db.animal_corpse().try_insert(new_corpse) {
         Ok(corpse) => corpse,
@@ -106,8 +110,8 @@ pub fn create_animal_corpse(
     };
 
     log::info!(
-        "Successfully created animal corpse with ID {} for {:?} (original ID: {})",
-        inserted_corpse.id, animal_species, animal_id
+        "🦴 [SERVER] Successfully inserted animal corpse with ID {} for {:?} (original ID: {}) at chunk {}",
+        inserted_corpse.id, animal_species, animal_id, inserted_corpse.chunk_index
     );
 
     Ok(inserted_corpse.id)

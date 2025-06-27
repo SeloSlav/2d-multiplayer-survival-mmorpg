@@ -628,7 +628,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
     // Wild animal seeding parameters
-    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.06% of tiles
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0005; // 0.06% of tiles
     const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;

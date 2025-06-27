@@ -219,11 +219,47 @@ impl AnimalBehavior for TundraWolfBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) {
-        // Sprint to den (30m away from spawn)
-        let den_angle = rng.gen::<f32>() * 2.0 * PI;
-        let den_x = animal.spawn_x + 900.0 * den_angle.cos(); // 30m = 900px
-        let den_y = animal.spawn_y + 900.0 * den_angle.sin();
-        move_towards_target(ctx, animal, den_x, den_y, stats.sprint_speed, dt);
+        // Store previous position to detect if stuck
+        let prev_x = animal.pos_x;
+        let prev_y = animal.pos_y;
+        
+        // Pick a random direction to flee (don't return to spawn)
+        if animal.investigation_x.is_none() || animal.investigation_y.is_none() {
+            let flee_angle = rng.gen::<f32>() * 2.0 * PI;
+            let flee_distance = 400.0 + (rng.gen::<f32>() * 300.0); // 8-14m flee
+            animal.investigation_x = Some(animal.pos_x + flee_distance * flee_angle.cos());
+            animal.investigation_y = Some(animal.pos_y + flee_distance * flee_angle.sin());
+        }
+        
+        if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
+            move_towards_target(ctx, animal, target_x, target_y, stats.sprint_speed, dt);
+            
+            // Check if stuck on water or obstacle
+            let movement_threshold = 8.0;
+            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+            
+            if distance_moved < movement_threshold {
+                // Stuck! Pick new flee direction
+                let new_angle = rng.gen::<f32>() * 2.0 * PI;
+                let flee_distance = 400.0;
+                animal.investigation_x = Some(animal.pos_x + flee_distance * new_angle.cos());
+                animal.investigation_y = Some(animal.pos_y + flee_distance * new_angle.sin());
+                log::debug!("Tundra Wolf {} stuck while fleeing - picking new direction", animal.id);
+            }
+            
+            // Check if reached flee destination or fled long enough
+            let distance_to_target = get_distance_squared(animal.pos_x, animal.pos_y, target_x, target_y).sqrt();
+            let time_fleeing = current_time.to_micros_since_unix_epoch() - animal.state_change_time.to_micros_since_unix_epoch();
+            
+            if distance_to_target <= 80.0 || time_fleeing > 4_000_000 { // 4 seconds max flee
+                animal.state = AnimalState::Patrolling;
+                animal.target_player_id = None;
+                animal.investigation_x = None;
+                animal.investigation_y = None;
+                animal.state_change_time = current_time;
+                log::debug!("Tundra Wolf {} finished fleeing - continuing patrol", animal.id);
+            }
+        }
     }
 
     fn execute_patrol_logic(
@@ -234,8 +270,12 @@ impl AnimalBehavior for TundraWolfBehavior {
         dt: f32,
         rng: &mut impl Rng,
     ) {
+        // Store previous position to detect if stuck
+        let prev_x = animal.pos_x;
+        let prev_y = animal.pos_y;
+        
         // Random wandering with pauses
-        if rng.gen::<f32>() < 0.1 { // 10% chance to change direction
+        if rng.gen::<f32>() < 0.12 { // 12% chance to change direction
             let angle = rng.gen::<f32>() * 2.0 * PI;
             animal.direction_x = angle.cos();
             animal.direction_y = angle.sin();
@@ -244,10 +284,8 @@ impl AnimalBehavior for TundraWolfBehavior {
         let target_x = animal.pos_x + animal.direction_x * stats.movement_speed * dt;
         let target_y = animal.pos_y + animal.direction_y * stats.movement_speed * dt;
         
-        // Keep within patrol radius and avoid water and shelters
-        let spawn_distance_sq = get_distance_squared(target_x, target_y, animal.spawn_x, animal.spawn_y);
-        if spawn_distance_sq <= (stats.patrol_radius * stats.patrol_radius) && 
-           !is_water_tile(ctx, target_x, target_y) && 
+        // Avoid water and shelters (removed spawn radius restriction)
+        if !is_water_tile(ctx, target_x, target_y) && 
            !super::core::is_position_in_shelter(ctx, target_x, target_y) {
             
             let mut final_x = target_x;
@@ -262,8 +300,20 @@ impl AnimalBehavior for TundraWolfBehavior {
             
             animal.pos_x = final_x;
             animal.pos_y = final_y;
-        } else if is_water_tile(ctx, target_x, target_y) {
-            // If we hit water, pick a new random direction away from water
+            
+            // Check if stuck (water detection)
+            let movement_threshold = 5.0;
+            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+            
+            if distance_moved < movement_threshold {
+                // Stuck! Pick new random direction
+                let new_angle = rng.gen::<f32>() * 2.0 * PI;
+                animal.direction_x = new_angle.cos();
+                animal.direction_y = new_angle.sin();
+                log::debug!("Tundra Wolf {} stuck during patrol - changing direction", animal.id);
+            }
+        } else {
+            // If target position is blocked, pick a new random direction
             let angle = rng.gen::<f32>() * 2.0 * PI;
             animal.direction_x = angle.cos();
             animal.direction_y = angle.sin();

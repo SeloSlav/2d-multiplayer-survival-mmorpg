@@ -526,10 +526,12 @@ export function useEntityFiltering(
   const visibleAnimalCorpses = useMemo(() => {
     const result = animalCorpses ? Array.from(animalCorpses.values()).filter(e => {
       const inView = isEntityInView(e, viewBounds, currentTime);
-      const despawnTime = Number(e.despawnAt.__timestamp_micros_since_unix_epoch__);
-      const notDespawned = currentTime < despawnTime; // Check if current time is before despawn time
+      // Convert microseconds to milliseconds for proper comparison
+      const despawnTimeMs = Number(e.despawnAt.__timestamp_micros_since_unix_epoch__ / 1000n);
+      const notDespawned = currentTime < despawnTimeMs; // Check if current time is before despawn time
       return inView && notDespawned;
     }) : [];
+    console.log(`🦴 [ANIMAL CORPSE FILTERING] Total corpses: ${animalCorpses?.size || 0}, Visible after filtering: ${result.length}, IDs: [${result.map(c => c.id).join(', ')}]`);
     return result;
   }, [animalCorpses, isEntityInView, viewBounds, currentTime]);
 

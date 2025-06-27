@@ -28,7 +28,7 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
 
     // 2. Validate item ownership and type
     match item_def.name.as_str() {
-        "Animal Bone" | "Human Skull" => {
+        "Animal Bone" | "Human Skull" | "Fox Skull" | "Wolf Skull" | "Viper Skull" => {
             // Validate ownership through location
             match &item_to_crush.location {
                 crate::models::ItemLocation::Inventory(data) if data.owner_id == sender_id => (),
@@ -37,7 +37,7 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
                 _ => return Err("Item must be in your inventory, hotbar, or equipped to crush.".to_string()),
             }
         },
-        _ => return Err(format!("Cannot crush item '{}'. Only Animal Bones and Human Skulls can be crushed.", item_def.name)),
+        _ => return Err(format!("Cannot crush item '{}'. Only bones and skulls can be crushed.", item_def.name)),
     }
 
     // 3. Calculate number of fragments to create
@@ -46,7 +46,7 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
             // Use gen_range for a more idiomatic way to generate random numbers
             ctx.rng().gen_range(MIN_FRAGMENTS_PER_BONE..=MAX_FRAGMENTS_PER_BONE)
         },
-        "Human Skull" => FRAGMENTS_PER_SKULL,
+        "Human Skull" | "Fox Skull" | "Wolf Skull" | "Viper Skull" => FRAGMENTS_PER_SKULL,
         _ => unreachable!(), // We already validated the item type
     };
 

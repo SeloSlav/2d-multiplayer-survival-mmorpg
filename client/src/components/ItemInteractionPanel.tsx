@@ -84,7 +84,11 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
 
         // Check if item is crushable (specific items only)
         const itemName = def.name;
-        if (itemName === "Animal Bone" || itemName === "Human Skull") {
+        if (itemName === "Animal Bone" || 
+            itemName === "Human Skull" || 
+            itemName === "Fox Skull" || 
+            itemName === "Wolf Skull" || 
+            itemName === "Viper Skull") {
             actions.push({
                 label: 'Crush',
                 action: 'crush',

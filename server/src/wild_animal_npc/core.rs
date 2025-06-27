@@ -844,6 +844,9 @@ pub fn damage_wild_animal(
         }
         
         if animal.health <= 0.0 {
+            log::info!("🦴 [ANIMAL DEATH] Animal {} (species: {:?}) died at ({:.1}, {:.1}) - attempting to create corpse", 
+                      animal.id, animal.species, animal.pos_x, animal.pos_y);
+            
             // Create animal corpse before deleting the animal
             if let Err(e) = super::animal_corpse::create_animal_corpse(
                 ctx,
@@ -853,7 +856,9 @@ pub fn damage_wild_animal(
                 animal.pos_y,
                 ctx.timestamp,
             ) {
-                log::error!("Failed to create animal corpse for {} (species: {:?}): {}", animal.id, animal.species, e);
+                log::error!("🦴 [ERROR] Failed to create animal corpse for {} (species: {:?}): {}", animal.id, animal.species, e);
+            } else {
+                log::info!("🦴 [SUCCESS] Animal corpse creation call completed successfully for animal {}", animal.id);
             }
             
             ctx.db.wild_animal().id().delete(&animal_id);

@@ -2,9 +2,9 @@ import { AnimalCorpse as SpacetimeDBAnimalCorpse } from '../../generated';
 import { imageManager } from './imageManager';
 
 // Import animal images directly from assets
-import cinderFoxImg from '@/assets/cinder_fox.png';
-import tundraWolfImg from '@/assets/tundra_wolf.png';
-import cableViperImg from '@/assets/cable_viper.png';
+import cinderFoxImg from '../../assets/cinder_fox.png';
+import tundraWolfImg from '../../assets/tundra_wolf.png';
+import cableViperImg from '../../assets/cable_viper.png';
 
 // Animal corpse dimensions and rendering constants
 export const ANIMAL_CORPSE_HEIGHT = 96; // Height for interaction indicators
@@ -12,14 +12,14 @@ export const ANIMAL_CORPSE_COLLISION_RADIUS = 16; // From server-side constant
 
 // Preload animal corpse images using imageManager
 export const preloadAnimalCorpseImages = () => {
-  console.log('[AnimalCorpse] Preloading animal corpse images with imageManager...');
+  // console.log('[AnimalCorpse] Preloading animal corpse images with imageManager...');
   
   // Preload using imageManager for consistency with other assets
   imageManager.preloadImage(cinderFoxImg);
   imageManager.preloadImage(tundraWolfImg);
   imageManager.preloadImage(cableViperImg);
   
-  console.log('[AnimalCorpse] Animal corpse images queued for preloading');
+  // console.log('[AnimalCorpse] Animal corpse images queued for preloading');
 };
 
 /**
@@ -30,6 +30,8 @@ export const renderAnimalCorpse = (
   corpse: SpacetimeDBAnimalCorpse,
   currentTime: number
 ) => {
+  // console.log(`🦴 [ANIMAL CORPSE RENDER] Rendering corpse ${corpse.id} at (${corpse.posX}, ${corpse.posY}) species: ${corpse.animalSpecies.tag}`);
+  
   // Canvas is already translated, so we use world coordinates directly
   const screenX = corpse.posX;
   const screenY = corpse.posY;
@@ -50,14 +52,19 @@ export const renderAnimalCorpse = (
       imageSrc = cinderFoxImg; // fallback
   }
   
+  // console.log(`[AnimalCorpse] Looking for image: ${imageSrc}`);
   const img = imageManager.getImage(imageSrc);
   
   if (!img) {
+    // console.log(`[AnimalCorpse] Image not loaded, rendering fallback rectangle at (${screenX}, ${screenY})`);
     // Fallback: render a simple rectangle if image not loaded
     ctx.fillStyle = '#8B4513'; // Brown color for corpse
     ctx.fillRect(screenX - 48, screenY - 48, 96, 96);
+    // console.log(`[AnimalCorpse] Drew fallback rectangle for corpse ${corpse.id}`);
     return;
-  }
+    }
+  
+  // console.log(`[AnimalCorpse] Image loaded successfully, proceeding with sprite render`);
 
   ctx.save();
 
@@ -85,6 +92,7 @@ export const renderAnimalCorpse = (
   ctx.drawImage(img, -imgWidth / 2, -imgHeight / 2, imgWidth, imgHeight);
 
   ctx.restore();
+  // console.log(`[AnimalCorpse] Completed rendering corpse ${corpse.id}`);
 };
 
 // Export for use in interaction system

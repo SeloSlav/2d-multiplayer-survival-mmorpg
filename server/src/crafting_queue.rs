@@ -15,6 +15,7 @@ use crate::items::{InventoryItem, ItemDefinition};
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::Player;
 use crate::player as PlayerTableTrait;
+use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
 use crate::dropped_item; // For dropping items
 use crate::models::ItemLocation; // Corrected import
 use crate::player_inventory::{find_first_empty_player_slot, get_player_item};
@@ -403,8 +404,19 @@ pub fn cancel_crafting_item(ctx: &ReducerContext, queue_item_id: u64) -> Result<
 }
 
 /// Helper function to clear the crafting queue for a player and refund resources.
-/// Called on player death/disconnect.
+/// Called on player death/disconnect. When called for death, resources are added to the player corpse.
 pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
+    clear_player_crafting_queue_with_corpse_refund(ctx, player_id, false);
+}
+
+/// Helper function to clear the crafting queue for a player and refund resources to their corpse.
+/// Called specifically on player death to add crafting materials to the player corpse.
+pub fn clear_player_crafting_queue_on_death(ctx: &ReducerContext, player_id: Identity) {
+    clear_player_crafting_queue_with_corpse_refund(ctx, player_id, true);
+}
+
+/// Internal function that handles crafting queue clearing with optional corpse refund.
+fn clear_player_crafting_queue_with_corpse_refund(ctx: &ReducerContext, player_id: Identity, refund_to_corpse: bool) {
     let queue_table = ctx.db.crafting_queue_item();
     let recipe_table = ctx.db.recipe();
     let player_table = ctx.db.player();
@@ -412,7 +424,7 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
     let mut items_to_remove: Vec<u64> = Vec::new();
     let mut resources_to_refund: Vec<(u64, u32)> = Vec::new(); // (item_def_id, quantity)
 
-    log::info!("[Clear Queue] Clearing crafting queue for player {:?}...", player_id);
+    log::info!("[Clear Queue] Clearing crafting queue for player {:?} (refund_to_corpse: {})...", player_id, refund_to_corpse);
 
     // Find all queue items for the player
     for item in queue_table.iter().filter(|q| q.player_identity == player_id) {
@@ -432,24 +444,134 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
         return; // Nothing to do
     }
 
+    let items_to_remove_count = items_to_remove.len();
+    
     // Delete queue items first
     for queue_id in items_to_remove {
         queue_table.queue_item_id().delete(queue_id);
     }
-    log::info!("[Clear Queue] Deleted {} items from queue for player {:?}. Refunding resources...", resources_to_refund.len(), player_id);
+    log::info!("[Clear Queue] Deleted {} items from queue for player {:?}. Refunding {} resources...", 
+             items_to_remove_count, player_id, resources_to_refund.len());
 
-    // Refund Resources (attempt to add to inventory, drop if full)
+    // Refund Resources
+    if refund_to_corpse {
+        // Player died - add materials to their corpse
+        refund_crafting_materials_to_corpse(ctx, player_id, resources_to_refund);
+    } else {
+        // Normal queue clear (disconnect, etc.) - try inventory first, then drop
+        refund_crafting_materials_to_inventory_or_drop(ctx, player_id, resources_to_refund);
+    }
+
+    // The following item deletion logic might be too aggressive as it deletes ALL items
+    // in the player's inventory/hotbar upon respawn/queue clear, not just those
+    // that *would have been* consumed. This was part of the original flawed logic.
+    // For now, we preserve it but log a warning.
+    // TODO: Revisit this logic. It should ideally only remove items that were part of recipes
+    // in the cleared queue if precise refund isn't possible or if this is intended as a penalty.
+    if !refund_to_corpse {
+        let mut items_to_delete = Vec::new();
+
+        for item in inventory_table.iter() {
+            match &item.location {
+                ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) if *owner_id == player_id => {
+                    items_to_delete.push(item.instance_id);
+                }
+                ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) if *owner_id == player_id => {
+                    items_to_delete.push(item.instance_id);
+                }
+                _ => {}
+            }
+        }
+
+        if !items_to_delete.is_empty() {
+            for instance_id in items_to_delete {
+                // Fetch the item to log its location, or remove location from log
+                let item_location_str = inventory_table.instance_id().find(instance_id)
+                    .map_or("Unknown (deleted)".to_string(), |item_found| format!("{:?}", item_found.location));
+
+                log::warn!("[CraftingQueueClear] Deleting item instance {} for player {:?} from inventory due to queue clear (respawn path). Original Loc: {}",
+                    instance_id, player_id, item_location_str);
+                inventory_table.instance_id().delete(instance_id);
+            }
+        }
+    }
+}
+
+/// Attempts to refund crafting materials to the player's corpse.
+/// If the corpse is full, materials are dropped at the corpse location.
+fn refund_crafting_materials_to_corpse(ctx: &ReducerContext, player_id: Identity, resources_to_refund: Vec<(u64, u32)>) {
+    let player_corpse_table = ctx.db.player_corpse();
+    let item_def_table = ctx.db.item_definition();
+    
+    // Find the player's corpse
+    let player_corpse_opt = player_corpse_table.iter()
+        .find(|corpse| corpse.player_identity == player_id);
+    
+    if let Some(mut player_corpse) = player_corpse_opt {
+        log::info!("[Crafting Death Refund] Found player corpse for {:?}. Adding {} material types to corpse.", 
+                 player_id, resources_to_refund.len());
+        
+        let mut items_added_to_corpse = 0;
+        let mut items_dropped_near_corpse = 0;
+        
+        for (item_def_id, quantity) in resources_to_refund {
+            if quantity == 0 { continue; }
+            
+            let item_name = item_def_table.id().find(item_def_id)
+                .map_or_else(|| format!("ID {}", item_def_id), |def| def.name.clone());
+            
+            // Try to add to corpse using the container management system
+            match crate::player_corpse::try_add_item_to_corpse_inventory(ctx, &mut player_corpse, item_def_id, quantity) {
+                Ok(_) => {
+                    items_added_to_corpse += 1;
+                    log::info!("[Crafting Death Refund] Added {} {} to player corpse for {:?}", 
+                             quantity, item_name, player_id);
+                }
+                Err(_) => {
+                    // Corpse is full, drop the materials at the corpse location
+                    items_dropped_near_corpse += 1;
+                    if let Err(drop_err) = crate::dropped_item::create_dropped_item_entity_with_data(ctx, item_def_id, quantity, player_corpse.pos_x, player_corpse.pos_y, None) {
+                        log::error!("[Crafting Death Refund] Failed to drop crafting material {} {} at corpse location for {:?}: {}", 
+                                  quantity, item_name, player_id, drop_err);
+                    } else {
+                        log::info!("[Crafting Death Refund] Corpse full, dropped {} {} at corpse location for {:?}", 
+                                 quantity, item_name, player_id);
+                    }
+                }
+            }
+        }
+        
+        // Update the corpse in the database if items were added
+        if items_added_to_corpse > 0 {
+            player_corpse_table.id().update(player_corpse);
+        }
+        
+        log::info!("[Crafting Death Refund] Completed for player {:?}: {} items added to corpse, {} items dropped near corpse", 
+                 player_id, items_added_to_corpse, items_dropped_near_corpse);
+    } else {
+        log::error!("[Crafting Death Refund] No player corpse found for {:?}. This should not happen during death! Materials will be lost.", player_id);
+        // If no corpse is found during death, this is an error condition - materials are lost
+        // This should never happen since create_player_corpse is called before this function
+    }
+}
+
+/// Attempts to refund crafting materials to the player's inventory, dropping if full.
+fn refund_crafting_materials_to_inventory_or_drop(ctx: &ReducerContext, player_id: Identity, resources_to_refund: Vec<(u64, u32)>) {
+    let player_table = ctx.db.player();
+    let item_def_table = ctx.db.item_definition();
     let player_opt = player_table.identity().find(&player_id);
     let mut refund_failed_and_dropped = false;
 
     for (def_id, quantity) in resources_to_refund {
+        if quantity == 0 { continue; }
+        
         match crate::items::add_item_to_player_inventory(ctx, player_id, def_id, quantity) {
             Ok(_) => { /* Successfully refunded */ }
             Err(_) => {
                 // Inventory full or other error, try to drop
                 if let Some(ref player) = player_opt { // Use ref player to borrow instead of move
-                    let (drop_x, drop_y) = dropped_item::calculate_drop_position(&player);
-                    if let Err(drop_err) = dropped_item::create_dropped_item_entity(ctx, def_id, quantity, drop_x, drop_y) {
+                    let (drop_x, drop_y) = crate::dropped_item::calculate_drop_position(&player);
+                    if let Err(drop_err) = crate::dropped_item::create_dropped_item_entity(ctx, def_id, quantity, drop_x, drop_y) {
                         log::error!("[Clear Queue] Failed to add AND drop refunded item {} (qty {}) for player {:?}: {}", def_id, quantity, player_id, drop_err);
                     } else {
                         refund_failed_and_dropped = true;
@@ -465,38 +587,6 @@ pub fn clear_player_crafting_queue(ctx: &ReducerContext, player_id: Identity) {
          log::warn!("[Clear Queue] Refund complete for player {:?}, but some resources were dropped.", player_id);
     } else {
          log::info!("[Clear Queue] Refund complete for player {:?}.", player_id);
-    }
-
-    // The following item deletion logic might be too aggressive as it deletes ALL items
-    // in the player's inventory/hotbar upon respawn/queue clear, not just those
-    // that *would have been* consumed. This was part of the original flawed logic.
-    // For now, we preserve it but log a warning.
-    // TODO: Revisit this logic. It should ideally only remove items that were part of recipes
-    // in the cleared queue if precise refund isn't possible or if this is intended as a penalty.
-    let mut items_to_delete = Vec::new();
-
-    for item in inventory_table.iter() {
-        match &item.location {
-            ItemLocation::Inventory(crate::models::InventoryLocationData { owner_id, .. }) if *owner_id == player_id => {
-                items_to_delete.push(item.instance_id);
-            }
-            ItemLocation::Hotbar(crate::models::HotbarLocationData { owner_id, .. }) if *owner_id == player_id => {
-                items_to_delete.push(item.instance_id);
-            }
-            _ => {}
-        }
-    }
-
-    if !items_to_delete.is_empty() {
-        for instance_id in items_to_delete {
-            // Fetch the item to log its location, or remove location from log
-            let item_location_str = inventory_table.instance_id().find(instance_id)
-                .map_or("Unknown (deleted)".to_string(), |item_found| format!("{:?}", item_found.location));
-
-            log::warn!("[CraftingQueueClear] Deleting item instance {} for player {:?} from inventory due to queue clear (respawn path). Original Loc: {}",
-                instance_id, player_id, item_location_str);
-            inventory_table.instance_id().delete(instance_id);
-        }
     }
 }
 

@@ -31,7 +31,6 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stone Hatchet", 1, Some(2u8), None),
         ("Stone Pickaxe", 1, Some(3u8), None),
         ("Primitive Reed Fishing Rod", 1, Some(4u8), None),
-        ("Flashlight", 1, Some(5u8), None),
 
         // Starting materials in Inventory (Slots 0-23)
         ("Sleeping Bag", 1, None, Some(0u16)),
@@ -39,21 +38,9 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Camp Fire", 1, None, Some(2u16)),
         ("Wooden Arrow", 15, None, Some(3u16)),
         ("Hollow Reed Arrow", 10, None, Some(4u16)),
-        ("Shelter", 1, None, Some(5u16)),
-        ("Torch", 1, None, Some(6u16)),
-        ("Reed Bellows", 1, None, Some(7u16)),
-        ("Reed Rain Collector", 1, None, Some(8u16)),
-        ("Reed Water Bottle", 1, None, Some(9u16)),
-        ("Plastic Water Jug", 1, None, Some(10u16)),
-        ("Bone Club", 1, None, Some(11u16)),
-        ("Bone Knife", 1, None, Some(12u16)),
-        ("Wooden Spear", 1, None, Some(13u16)),
-        ("Rock", 1, None, Some(14u16)),
-        ("Combat Ladle", 1, None, Some(15u16)),
-        ("Metal Fragments", 2000, None, Some(16u16)),
-        ("Stone", 2000, None, Some(17u16)),
-        ("Wood", 2000, None, Some(18u16)),
-        ("Anti-Venom", 2, None, Some(19u16)), // For testing venom system
+        ("Torch", 1, None, Some(5u16)),
+        ("Reed Water Bottle", 1, None, Some(6u16)),
+        ("Bone Knife", 1, None, Some(7u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

@@ -486,7 +486,6 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                             newHandlesForChunk.push(timedSubscribe('RainCollector', `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WildAnimal', `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`));
-                            newHandlesForChunk.push(timedSubscribe('AnimalCorpse', `SELECT * FROM animal_corpse WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1352,6 +1351,10 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[VIPER_SPITTLE Sub Error]:", err))
                     .subscribe('SELECT * FROM viper_spittle'),
+                 // ADDED AnimalCorpse subscription (non-spatial like player corpses)
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial ANIMAL_CORPSE subscription error:", err))
+                    .subscribe('SELECT * FROM animal_corpse'),
             ];
             // console.log("[useSpacetimeTables] currentInitialSubs content:", currentInitialSubs); // ADDED LOG
             nonSpatialHandlesRef.current = currentInitialSubs;
@@ -1409,7 +1412,7 @@ const [activeConsumableEffects, setActiveConsumableEffects] = useState<Map<strin
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM animal_corpse WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
 

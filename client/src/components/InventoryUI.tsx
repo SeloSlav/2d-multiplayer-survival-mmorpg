@@ -56,6 +56,8 @@ import { formatStatDisplay } from '../utils/formatUtils';
 import ItemInteractionPanel from './ItemInteractionPanel';
 // Import water container helpers
 import { isWaterContainer, getWaterContent, formatWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
+// Import arrow damage calculation helpers
+import { getArrowDamageTooltip } from '../utils/arrowDamageCalculations';
 
 // --- Type Definitions ---
 // Define props for InventoryUI component
@@ -280,8 +282,15 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 }
             }
 
-            // Weapon Stats (PvP) - could be combined or separate
-            if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+            // Weapon Stats (PvP) - handle ammunition differently
+            if (def.category.tag === 'Ammunition') {
+                // For ammunition, show effective damage with common weapons
+                const arrowDamageTooltip = getArrowDamageTooltip(def);
+                if (arrowDamageTooltip) {
+                    stats.push({ label: 'Effective Damage', value: arrowDamageTooltip });
+                }
+            } else if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+                // For non-ammunition items, show raw damage values
                 const min = def.pvpDamageMin ?? 0;
                 const max = def.pvpDamageMax ?? min;
                 stats.push({ label: 'Damage', value: max > min ? `${min}-${max}` : `${min}` });
@@ -558,8 +567,15 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 }
             }
             
-            // Weapon Stats (PvP Damage)
-            if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+            // Weapon Stats (PvP Damage) - handle ammunition differently
+            if (def.category.tag === 'Ammunition') {
+                // For ammunition, show effective damage with common weapons
+                const arrowDamageTooltip = getArrowDamageTooltip(def);
+                if (arrowDamageTooltip) {
+                    stats.push({ label: 'Effective Damage', value: arrowDamageTooltip });
+                }
+            } else if (def.pvpDamageMin !== undefined || def.pvpDamageMax !== undefined) {
+                // For non-ammunition items, show raw damage values
                 const min = def.pvpDamageMin ?? 0;
                 const max = def.pvpDamageMax ?? min;
                 stats.push({ label: 'PvP Damage', value: max > min ? `${min}-${max}` : `${min}` });

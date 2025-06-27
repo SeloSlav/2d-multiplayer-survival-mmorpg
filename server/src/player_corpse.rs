@@ -258,6 +258,77 @@ impl PlayerCorpse {
     }
 }
 
+/// Attempts to add an item to the player corpse inventory.
+/// This function creates a new InventoryItem and tries to place it in the corpse.
+/// Returns Ok(()) if successful, Err if the corpse is full or other error occurs.
+pub fn try_add_item_to_corpse_inventory(
+    ctx: &ReducerContext,
+    corpse: &mut PlayerCorpse,
+    item_def_id: u64,
+    quantity: u32,
+) -> Result<(), String> {
+    let inventory_table = ctx.db.inventory_item();
+    let item_def_table = ctx.db.item_definition();
+    
+    // Get item definition for validation
+    let item_def = item_def_table.id().find(item_def_id)
+        .ok_or_else(|| format!("Item definition {} not found", item_def_id))?;
+    
+    // Check if we can stack with existing items first
+    if item_def.is_stackable {
+        for slot_idx in 0..corpse.num_slots() as u8 {
+            if let Some(existing_instance_id) = corpse.get_slot_instance_id(slot_idx) {
+                if let Some(mut existing_item) = inventory_table.instance_id().find(existing_instance_id) {
+                    if existing_item.item_def_id == item_def_id && existing_item.quantity < item_def.stack_size {
+                        // Can stack here
+                        let space_available = item_def.stack_size - existing_item.quantity;
+                        let quantity_to_add = std::cmp::min(quantity, space_available);
+                        existing_item.quantity += quantity_to_add;
+                        inventory_table.instance_id().update(existing_item);
+                        
+                        log::info!("[CorpseAddItem] Stacked {} items (def {}) into corpse slot {}", 
+                                 quantity_to_add, item_def_id, slot_idx);
+                        
+                        // If we couldn't fit everything, we'll need to continue with remaining quantity
+                        if quantity_to_add < quantity {
+                            return try_add_item_to_corpse_inventory(ctx, corpse, item_def_id, quantity - quantity_to_add);
+                        } else {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Need to create a new item instance - find empty slot
+    let empty_slot = corpse.find_first_empty_slot()
+        .ok_or_else(|| "Corpse is full".to_string())?;
+    
+    // Create new inventory item
+    let new_item = InventoryItem {
+        instance_id: 0, // Auto-increment
+        item_def_id,
+        quantity,
+        location: ItemLocation::Container(crate::models::ContainerLocationData {
+            container_id: corpse.get_container_id(),
+            container_type: corpse.get_container_type(),
+            slot_index: empty_slot,
+        }),
+        item_data: None,
+    };
+    
+    let inserted_item = inventory_table.insert(new_item);
+    
+    // Update corpse slot
+    corpse.set_slot(empty_slot, Some(inserted_item.instance_id), Some(item_def_id));
+    
+    log::info!("[CorpseAddItem] Added {} items (def {}) to corpse slot {} as new instance {}", 
+             quantity, item_def_id, empty_slot, inserted_item.instance_id);
+    
+    Ok(())
+}
+
 /******************************************************************************
  *                         DESPAWN SCHEDULING                             *
  ******************************************************************************/
@@ -681,6 +752,9 @@ pub fn create_player_corpse(ctx: &ReducerContext, dead_player_id: Identity, deat
         Ok(_) => log::info!("[PlayerDeath] Active item cleared for player {}", dead_player_id),
         Err(e) => log::error!("[PlayerDeath] Failed to clear active item for player {}: {}", dead_player_id, e),
     }
+
+    // Clear crafting queue and refund materials to corpse
+    crate::crafting_queue::clear_player_crafting_queue_on_death(ctx, dead_player_id);
 
     // The transfer_inventory_to_corpse function should handle un-equipping armor and moving it.
     // So, explicit calls to clear_all_equipped_armor_from_player are likely redundant here.
