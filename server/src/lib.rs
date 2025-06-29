@@ -22,8 +22,6 @@ mod lantern;
 mod active_equipment;
 // Declare the player_inventory module
 mod player_inventory;
-// Declare the mushroom module
-mod mushroom;
 // Declare the consumables module
 mod consumables;
 mod utils; // Declare utils module
@@ -42,16 +40,12 @@ mod player_pin; // ADD: Player pin module for minimap
 pub mod combat; // Add the new combat module
 mod repair; // ADD: Repair module for structure repair functionality
 mod collectible_resources; // Add the new collectible resources system
-mod corn; // Add the new corn resource module
-mod potato; // Add the new potato resource module
+mod harvestable_resource; // NEW: Unified harvestable resource system
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module
 mod models; // <<< ADDED
 mod cooking; // <<< ADDED: For generic cooking logic
-mod hemp; // Added for Hemp resource
-mod reed; // Added for Reed resource
 mod stash; // Added Stash module
-pub mod pumpkin;
 mod planted_seeds; // Added for farming system with planted seeds
 pub mod active_effects; // Added for timed consumable effects
 mod cloud; // Add the new cloud module
@@ -117,6 +111,9 @@ pub use wild_animal_npc::{spawn_wild_animal, damage_wild_animal, process_wild_an
 // ADD: Re-export barrel reducers
 pub use barrel::attack_barrel;
 
+// ADD: Re-export unified harvestable resource reducer
+pub use harvestable_resource::interact_with_harvestable_resource;
+
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;
 
@@ -171,8 +168,7 @@ use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::lantern::lantern as LanternTableTrait;
-use crate::corn::corn as CornTableTrait;
-use crate::potato::potato as PotatoTableTrait;
+use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;
 use crate::items::inventory_item as InventoryItemTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
@@ -181,8 +177,6 @@ use crate::dropped_item::dropped_item_despawn_schedule as DroppedItemDespawnSche
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::chat::message as MessageTableTrait; // Import the trait for Message table
 use crate::sleeping_bag::sleeping_bag as SleepingBagTableTrait; // ADD Sleeping Bag trait import
-use crate::hemp::hemp as HempTableTrait; // Added for Hemp resource
-use crate::reed::reed as ReedTableTrait; // Added for Reed resource
 use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrait; // <<< UPDATED: Import StatThresholdsConfig table trait
 use crate::grass::grass as GrassTableTrait; // <<< ADDED: Import Grass table trait
 use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<< ADDED: Import KnockedOutStatus table trait

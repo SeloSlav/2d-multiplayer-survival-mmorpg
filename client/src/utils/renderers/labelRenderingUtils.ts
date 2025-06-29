@@ -1,30 +1,19 @@
 import {
-    Mushroom as SpacetimeDBMushroom,
+    HarvestableResource as SpacetimeDBHarvestableResource,
     Campfire as SpacetimeDBCampfire,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     ItemDefinition as SpacetimeDBItemDefinition,
-    Corn as SpacetimeDBCorn,
-    Potato as SpacetimeDBPotato,
-    Hemp as SpacetimeDBHemp,
-    Reed as SpacetimeDBReed,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
     Player as SpacetimeDBPlayer,
-    Pumpkin as SpacetimeDBPumpkin,
     RainCollector as SpacetimeDBRainCollector
 } from '../../generated';
 
 // Import visual heights from useInteractionFinder.ts
-import {
-    MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION,
-    CORN_VISUAL_HEIGHT_FOR_INTERACTION,
-    POTATO_VISUAL_HEIGHT_FOR_INTERACTION,
-    HEMP_VISUAL_HEIGHT_FOR_INTERACTION,
-    REED_VISUAL_HEIGHT_FOR_INTERACTION,
-    PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION
-} from '../../hooks/useInteractionFinder';
+// Define visual heights locally for label positioning
+// Using unified approach - individual resource heights no longer needed
 
 import { CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './campfireRenderingUtils';
 import { BOX_HEIGHT } from './woodenStorageBoxRenderingUtils';
@@ -40,7 +29,7 @@ const RAIN_COLLECTOR_HEIGHT = 128; // Doubled from 64
 
 // Define the single target type for labels
 interface InteractableTarget {
-    type: 'mushroom' | 'corn' | 'potato' | 'pumpkin' | 'hemp' | 'reed' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water' | 'rain_collector';
+    type: 'harvestable_resource' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water' | 'rain_collector';
     id: bigint | number | string;
     position: { x: number; y: number };
     distance: number;
@@ -49,12 +38,7 @@ interface InteractableTarget {
 
 interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
-    mushrooms: Map<string, SpacetimeDBMushroom>;
-    corns: Map<string, SpacetimeDBCorn>;
-    potatoes: Map<string, SpacetimeDBPotato>;
-    pumpkins: Map<string, SpacetimeDBPumpkin>;
-    hemps: Map<string, SpacetimeDBHemp>;
-    reeds: Map<string, SpacetimeDBReed>;
+    harvestableResources: Map<string, any>; // Unified harvestable resources
     campfires: Map<string, SpacetimeDBCampfire>;
     lanterns: Map<string, any>; // Add lanterns parameter
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -65,15 +49,10 @@ interface RenderLabelsParams {
     rainCollectors: Map<string, SpacetimeDBRainCollector>;
     players: Map<string, SpacetimeDBPlayer>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
-    // NEW: Single unified target
+    // Single unified target - replaces individual harvestable resource IDs
     closestInteractableTarget: InteractableTarget | null;
-    // Legacy params kept for backward compatibility but not used
-    closestInteractableMushroomId?: bigint | null;
-    closestInteractableCornId?: bigint | null;
-    closestInteractablePotatoId?: bigint | null;
-    closestInteractablePumpkinId?: bigint | null;
-    closestInteractableHempId?: bigint | null;
-    closestInteractableReedId?: bigint | null;
+    // Individual entity IDs for consistency and backward compatibility
+    closestInteractableHarvestableResourceId?: bigint | null;
     closestInteractableCampfireId?: number | null;
     closestInteractableDroppedItemId?: bigint | null;
     closestInteractableBoxId?: number | null;
@@ -121,6 +100,10 @@ function drawSOVAOverlayBackground(
     const bgY = y - bgHeight / 2 - textHeight / 4; // Adjust for text baseline
     
     ctx.save();
+    
+    // Ensure we start with clean state
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
     
     // 1. Draw outer glow effect
     ctx.shadowColor = SOVA_GLOW_COLOR;
@@ -215,12 +198,6 @@ function renderStyledInteractionLabel(
  */
 export function renderInteractionLabels({
     ctx,
-    mushrooms,
-    corns,
-    potatoes,
-    pumpkins,
-    hemps,
-    reeds,
     campfires,
     lanterns,
     droppedItems,
@@ -250,64 +227,12 @@ export function renderInteractionLabels({
 
     // Render label based on the single closest target type
     switch (closestInteractableTarget.type) {
-        case 'mushroom': {
-            const mushroom = mushrooms.get(closestInteractableTarget.id.toString());
-            if (mushroom) {
-                const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = mushroom.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
-            break;
-        }
-        case 'corn': {
-            const corn = corns.get(closestInteractableTarget.id.toString());
-            if (corn) {
-                const visualCenterY = corn.posY - (CORN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = corn.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
-            break;
-        }
-        case 'potato': {
-            const potato = potatoes.get(closestInteractableTarget.id.toString());
-            if (potato) {
-                const visualCenterY = potato.posY - (POTATO_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = potato.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
-            break;
-        }
-        case 'pumpkin': {
-            const pumpkin = pumpkins.get(closestInteractableTarget.id.toString());
-            if (pumpkin) {
-                const visualCenterY = pumpkin.posY - (PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = pumpkin.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
-            break;
-        }
-        case 'hemp': {
-            const hemp = hemps.get(closestInteractableTarget.id.toString());
-            if (hemp) {
-                const visualCenterY = hemp.posY - (HEMP_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = hemp.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
-            break;
-        }
-        case 'reed': {
-            const reed = reeds.get(closestInteractableTarget.id.toString());
-            if (reed) {
-                const visualCenterY = reed.posY - (REED_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                textX = reed.posX;
-                textY = visualCenterY - 30;
-                renderStyledInteractionLabel(ctx, text, textX, textY);
-            }
+        case 'harvestable_resource': {
+            // For unified harvestable resources, use a standard height
+            const STANDARD_RESOURCE_HEIGHT = 64;
+            textX = closestInteractableTarget.position.x;
+            textY = closestInteractableTarget.position.y - (STANDARD_RESOURCE_HEIGHT / 2) - 30;
+            renderStyledInteractionLabel(ctx, text, textX, textY);
             break;
         }
         case 'dropped_item': {
@@ -362,10 +287,8 @@ export function renderInteractionLabels({
         case 'stash': {
             const stash = stashes.get(closestInteractableTarget.id.toString());
             if (stash) {
-                const STASH_HEIGHT = 40;
                 textX = stash.posX;
-                // Position label at the top of the visual center area (same as outline positioning)
-                textY = stash.posY - (STASH_HEIGHT / 2) - 30; // Visual center minus half outline height minus label offset
+                textY = stash.posY - 45; // Moved down from -65 to -45
                 renderStyledInteractionLabel(ctx, text, textX, textY);
             }
             break;

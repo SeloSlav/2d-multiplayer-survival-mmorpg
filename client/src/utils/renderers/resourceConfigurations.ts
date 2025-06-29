@@ -1,6 +1,7 @@
 // Resource Configuration System for Harvestable Resources
 import { GroundEntityConfig } from './genericGroundRenderer';
-import { HarvestableResource, ResourceType, TypedHarvestableResource } from '../../types/resourceTypes';
+import { HarvestableResource } from '../../generated';
+import { ResourceType, getResourceType } from '../../types/resourceTypes';
 import { drawDynamicGroundShadow } from './shadowUtils';
 
 // Import all resource images
@@ -46,7 +47,7 @@ export interface ResourceConfig {
 
 // Configuration for each resource type
 export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
-  corn: {
+  Corn: {
     imageSource: cornImageSource,
     targetWidth: 64,
     shadowConfig: {
@@ -61,7 +62,7 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     // No animation config - corn is now static
   },
   
-  hemp: {
+  Hemp: {
     imageSource: hempImageSource,
     targetWidth: 68,
     shadowConfig: {
@@ -76,7 +77,7 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     // No animation config - hemp is now static
   },
   
-  mushroom: {
+  Mushroom: {
     imageSource: mushroomImageSource,
     targetWidth: 56,
     shadowConfig: {
@@ -91,7 +92,7 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     // No animation config - mushroom is now static
   },
   
-  potato: {
+  Potato: {
     imageSource: potatoImageSource,
     targetWidth: 60,
     shadowConfig: {
@@ -106,7 +107,7 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     // No animation config - potato is now static
   },
   
-  pumpkin: {
+  Pumpkin: {
     imageSource: pumpkinImageSource,
     targetWidth: 64,
     shadowConfig: {
@@ -121,7 +122,7 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
     // No animation config - pumpkins are static
   },
   
-  reed: {
+  Reed: {
     imageSource: reedImageSource,
     targetWidth: 58,
     shadowConfig: {
@@ -143,12 +144,12 @@ export function getResourceConfig(resourceType: ResourceType): ResourceConfig {
 }
 
 // Helper function to get configuration from entity
-export function getResourceConfigFromEntity(entity: TypedHarvestableResource): ResourceConfig {
-  return getResourceConfig(entity.__resourceType);
+export function getResourceConfigFromEntity(entity: HarvestableResource): ResourceConfig {
+  return getResourceConfig(getResourceType(entity));
 }
 
 // Create GroundEntityConfig for a specific resource type
-export function createResourceGroundConfig(resourceType: ResourceType): GroundEntityConfig<TypedHarvestableResource> {
+export function createResourceGroundConfig(resourceType: ResourceType): GroundEntityConfig<HarvestableResource> {
   const config = getResourceConfig(resourceType);
   
   return {

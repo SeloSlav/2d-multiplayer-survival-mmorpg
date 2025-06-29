@@ -21,6 +21,19 @@ import {
     isTargetValid
 } from '../types/interactions';
 import { hasWaterContent, getWaterContent, getWaterCapacity, isWaterContainer } from '../utils/waterContainerHelpers';
+import { 
+    isCampfire,
+    isHarvestableResource,
+    isDroppedItem,
+    isWoodenStorageBox,
+    isStash,
+    isPlayerCorpse,
+    isSleepingBag,
+    isKnockedOutPlayer,
+    isRainCollector,
+    isLantern,
+    isBarrel
+} from '../utils/typeGuards';
 
 // Ensure HOLD_INTERACTION_DURATION_MS is defined locally if not already present
 // If it was already defined (e.g., as `const HOLD_INTERACTION_DURATION_MS = 250;`), this won't change it.
@@ -46,7 +59,7 @@ interface InputHandlerProps {
     // UNIFIED INTERACTION TARGET - replaces all individual closestInteractable* props
     closestInteractableTarget: InteractableTarget | null;
     
-    // Keep only essential maps that contain entity details needed for validation
+    // Essential entity maps for validation and data lookup
     woodenStorageBoxes: Map<string, WoodenStorageBox>;
     stashes: Map<string, Stash>;
     players: Map<string, Player>;
@@ -60,6 +73,8 @@ interface InputHandlerProps {
     isSearchingCraftRecipes?: boolean;
     isFishing: boolean;
     setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
+
+   
 }
 
 // --- Hook Return Value Interface ---
@@ -726,34 +741,9 @@ export const useInputHandler = ({
                             // Handle immediate tap actions (harvest/pickup)
                             if (isTapInteraction(currentTarget)) {
                                 switch (currentTarget.type) {
-                                    case 'mushroom':
-                                        console.log('[E-Tap ACTION] Harvesting mushroom:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithMushroom(currentTarget.id as bigint);
-                                        tapActionTaken = true;
-                                        break;
-                                    case 'corn':
-                                        console.log('[E-Tap ACTION] Harvesting corn:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithCorn(currentTarget.id as bigint);
-                                        tapActionTaken = true;
-                                        break;
-                                    case 'potato':
-                                        console.log('[E-Tap ACTION] Harvesting potato:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithPotato(currentTarget.id as bigint);
-                                        tapActionTaken = true;
-                                        break;
-                                    case 'pumpkin':
-                                        console.log('[E-Tap ACTION] Harvesting pumpkin:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithPumpkin(currentTarget.id as bigint);
-                                        tapActionTaken = true;
-                                        break;
-                                    case 'hemp':
-                                        console.log('[E-Tap ACTION] Harvesting hemp:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithHemp(currentTarget.id as bigint);
-                                        tapActionTaken = true;
-                                        break;
-                                    case 'reed':
-                                        console.log('[E-Tap ACTION] Harvesting reed:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithReed(currentTarget.id as bigint);
+                                    case 'harvestable_resource':
+                                        console.log('[E-Tap ACTION] Harvesting resource:', currentTarget.id);
+                                        connectionRef.current.reducers.interactWithHarvestableResource(currentTarget.id as bigint);
                                         tapActionTaken = true;
                                         break;
                                     case 'dropped_item':
@@ -902,11 +892,6 @@ export const useInputHandler = ({
                         // 3. Bandage: Prevent left-click swing (already handled by right-click)
                         else if (equippedItemDef.name === "Bandage") {
                             // console.log("[InputHandler MOUSEDOWN] Bandage equipped. Left-click does nothing. Use Right-Click.");
-                            return;
-                        }
-                        // 4. Selo Olive Oil: Prevent left-click swing (only right-click allowed)
-                        else if (equippedItemDef.name === "Selo Olive Oil") {
-                            // console.log("[InputHandler MOUSEDOWN] Selo Olive Oil equipped. Left-click does nothing. Use Right-Click.");
                             return;
                         }
                                                 // 5. Water Containers: Prevent left-click pouring while on water, only allow crop watering

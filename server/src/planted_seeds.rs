@@ -18,12 +18,7 @@ use rand::Rng;
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::player as PlayerTableTrait;
 use crate::environment::calculate_chunk_index;
-use crate::mushroom::mushroom as MushroomTableTrait;
-use crate::hemp::hemp as HempTableTrait;
-use crate::corn::corn as CornTableTrait;
-use crate::potato::potato as PotatoTableTrait;
-use crate::reed::reed as ReedTableTrait;
-use crate::pumpkin::pumpkin as PumpkinTableTrait;
+use crate::harvestable_resource::{harvestable_resource as HarvestableResourceTableTrait, PlantType};
 use crate::world_state::{world_state as WorldStateTableTrait, WeatherType, TimeOfDay};
 use crate::cloud::cloud as CloudTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
@@ -69,7 +64,7 @@ pub struct PlantedSeedGrowthSchedule {
 struct GrowthConfig {
     min_growth_time_secs: u64,
     max_growth_time_secs: u64,
-    target_resource_name: &'static str,
+    plant_type: PlantType, // Changed from target_resource_name to plant_type
 }
 
 /// Get growth configuration for a seed type
@@ -78,32 +73,32 @@ fn get_growth_config(seed_type: &str) -> Option<GrowthConfig> {
         "Mushroom Spores" => Some(GrowthConfig {
             min_growth_time_secs: 300,  // 5 minutes
             max_growth_time_secs: 600,  // 10 minutes
-            target_resource_name: "Mushroom",
+            plant_type: PlantType::Mushroom,
         }),
         "Hemp Seeds" => Some(GrowthConfig {
             min_growth_time_secs: 480,  // 8 minutes
             max_growth_time_secs: 900,  // 15 minutes
-            target_resource_name: "Plant Fiber",
+            plant_type: PlantType::Hemp,
         }),
         "Corn Seeds" => Some(GrowthConfig {
             min_growth_time_secs: 900,  // 15 minutes
             max_growth_time_secs: 1500, // 25 minutes
-            target_resource_name: "Corn",
+            plant_type: PlantType::Corn,
         }),
         "Seed Potato" => Some(GrowthConfig {
-            min_growth_time_secs: 720,  // 12 minutes
-            max_growth_time_secs: 1200, // 20 minutes
-            target_resource_name: "Potato",
+            min_growth_time_secs: 1200, // 20 minutes
+            max_growth_time_secs: 1800, // 30 minutes
+            plant_type: PlantType::Potato,
+        }),
+        "Pumpkin Seeds" => Some(GrowthConfig {
+            min_growth_time_secs: 1500, // 25 minutes
+            max_growth_time_secs: 2400, // 40 minutes
+            plant_type: PlantType::Pumpkin,
         }),
         "Reed Rhizome" => Some(GrowthConfig {
             min_growth_time_secs: 600,  // 10 minutes
-            max_growth_time_secs: 1080, // 18 minutes
-            target_resource_name: "Common Reed Stalk",
-        }),
-        "Pumpkin Seeds" => Some(GrowthConfig {
-            min_growth_time_secs: 1200, // 20 minutes
-            max_growth_time_secs: 2100, // 35 minutes
-            target_resource_name: "Pumpkin",
+            max_growth_time_secs: 1200, // 20 minutes
+            plant_type: PlantType::Reed,
         }),
         _ => None,
     }
@@ -689,75 +684,28 @@ fn grow_plant_to_resource(ctx: &ReducerContext, plant: &PlantedSeed) -> Result<(
     let growth_config = get_growth_config(&plant.seed_type)
         .ok_or_else(|| format!("Unknown seed type: {}", plant.seed_type))?;
     
-    // Create the appropriate harvestable resource based on seed type
-    match plant.seed_type.as_str() {
-        "Mushroom Spores" => {
-            let mushroom = crate::mushroom::Mushroom {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.mushroom().insert(mushroom);
+    // Create the harvestable resource using the unified system
+    let harvestable_resource = crate::harvestable_resource::create_harvestable_resource(
+        growth_config.plant_type, // No need to clone since PlantType now implements Copy
+        plant.pos_x,
+        plant.pos_y,
+        plant.chunk_index
+    );
+    
+    match ctx.db.harvestable_resource().try_insert(harvestable_resource) {
+        Ok(inserted_resource) => {
+            log::info!(
+                "Successfully grew {:?} from {} at ({:.1}, {:.1}), ID: {}",
+                growth_config.plant_type, plant.seed_type, plant.pos_x, plant.pos_y, inserted_resource.id
+            );
+            Ok(())
         }
-        "Hemp Seeds" => {
-            let hemp = crate::hemp::Hemp {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.hemp().insert(hemp);
-        }
-        "Corn Seeds" => {
-            let corn = crate::corn::Corn {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.corn().insert(corn);
-        }
-        "Seed Potato" => {
-            let potato = crate::potato::Potato {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.potato().insert(potato);
-        }
-        "Reed Rhizome" => {
-            let reed = crate::reed::Reed {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.reed().insert(reed);
-        }
-        "Pumpkin Seeds" => {
-            let pumpkin = crate::pumpkin::Pumpkin {
-                id: 0, // Auto-inc
-                pos_x: plant.pos_x,
-                pos_y: plant.pos_y,
-                chunk_index: plant.chunk_index,
-                respawn_at: None, // Ready to harvest immediately
-            };
-            ctx.db.pumpkin().insert(pumpkin);
-        }
-        _ => {
-            return Err(format!("Unknown seed type for growth: {}", plant.seed_type));
+        Err(e) => {
+            log::error!(
+                "Failed to insert grown {:?} from {}: {}",
+                growth_config.plant_type, plant.seed_type, e
+            );
+            Err(format!("Failed to create harvestable resource: {}", e))
         }
     }
-    
-    log::info!("Planted {} (ID: {}) has grown into {} at ({:.1}, {:.1})", 
-              plant.seed_type, plant.id, growth_config.target_resource_name, plant.pos_x, plant.pos_y);
-    
-    Ok(())
 } 

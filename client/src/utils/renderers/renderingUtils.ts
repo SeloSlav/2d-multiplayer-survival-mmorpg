@@ -12,11 +12,7 @@ import {
     DroppedItem as SpacetimeDBDroppedItem,
     Campfire as SpacetimeDBCampfire,
     ActiveConsumableEffect,
-    Corn as SpacetimeDBCorn,
-    Hemp as SpacetimeDBHemp,
-    Mushroom as SpacetimeDBMushroom,
-    Potato as SpacetimeDBPotato,
-    Pumpkin as SpacetimeDBPumpkin,
+    HarvestableResource as SpacetimeDBHarvestableResource,
     Grass as SpacetimeDBGrass,
     Projectile as SpacetimeDBProjectile,
     Shelter as SpacetimeDBShelter,
@@ -37,8 +33,8 @@ import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
-// Import unified resource renderer instead of individual ones
-import { renderCorn, renderHemp, renderMushroom, renderPotato, renderPumpkin, renderReed } from './unifiedResourceRenderer';
+// Import unified resource renderer - these functions now work with HarvestableResource
+import { renderHarvestableResource } from './unifiedResourceRenderer';
 // Import planted seed renderer (will be activated once client bindings are generated)
 import { renderPlantedSeed } from './plantedSeedRenderingUtils';
 import { renderCampfire } from './campfireRenderingUtils';
@@ -159,14 +155,9 @@ interface RenderYSortedEntitiesProps {
     closestInteractableBoxId?: number | null;
     closestInteractableStashId?: number | null;
     closestInteractableSleepingBagId?: number | null;
-    closestInteractableMushroomId?: bigint | null;
-    closestInteractableCornId?: bigint | null;
-    closestInteractablePotatoId?: bigint | null;
-    closestInteractablePumpkinId?: bigint | null;
-    closestInteractableHempId?: bigint | null;
-    closestInteractableReedId?: bigint | null;
+    closestInteractableHarvestableResourceId?: bigint | null;
     closestInteractableDroppedItemId?: bigint | null;
-    // New unified single target system
+    // New unified single target system (replaces individual resource IDs)
     closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null;
     // NEW: Shelter clipping data for shadow rendering
     shelterClippingData?: Array<{posX: number, posY: number, isDestroyed: boolean}>;
@@ -208,13 +199,9 @@ export const renderYSortedEntities = ({
     closestInteractableBoxId,
     closestInteractableStashId,
     closestInteractableSleepingBagId,
-    closestInteractableMushroomId,
-    closestInteractableCornId,
-    closestInteractablePotatoId,
-    closestInteractablePumpkinId,
-    closestInteractableHempId,
-    closestInteractableReedId,
+    closestInteractableHarvestableResourceId,
     closestInteractableDroppedItemId,
+    // Unified target system (replaces individual resource IDs)
     closestInteractableTarget,
     shelterClippingData,
 }: RenderYSortedEntitiesProps) => {
@@ -349,12 +336,18 @@ export const renderYSortedEntities = ({
                ? localPlayerIsCrouching 
                : playerForRendering.isCrouching;
            
+           // console.log(`[DEBUG] Player ${playerId} image selection - effectiveIsCrouching:`, effectiveIsCrouching, 'isOnWater:', playerForRendering.isOnWater, 'isCurrentlyJumping:', isCurrentlyJumping);
+           // console.log(`[DEBUG] Image refs available - heroImageRef:`, !!heroImageRef.current, 'heroWaterImageRef:', !!heroWaterImageRef.current, 'heroCrouchImageRef:', !!heroCrouchImageRef.current);
+           
            if (effectiveIsCrouching) {
                heroImg = heroCrouchImageRef.current; // Use crouch sprite when crouching
+              // console.log(`[DEBUG] Using crouch sprite for ${playerId}:`, !!heroImg);
            } else if (playerForRendering.isOnWater && !isCurrentlyJumping) {
                heroImg = heroWaterImageRef.current; // Use water sprite when on water (but not jumping)
+              // console.log(`[DEBUG] Using water sprite for ${playerId}:`, !!heroImg);
            } else {
                heroImg = heroImageRef.current; // Use normal sprite otherwise
+              // console.log(`[DEBUG] Using normal sprite for ${playerId}:`, !!heroImg);
            }
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
 
@@ -389,7 +382,10 @@ export const renderYSortedEntities = ({
               if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
               }
+              
+              // console.log(`[DEBUG] Rendering player ${playerId} - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
+                // console.log(`[DEBUG] Calling renderPlayer for ${playerId}`);
                 renderPlayer(
                         ctx, playerForRendering, heroImg, isOnline, 
                         isPlayerMoving, 
@@ -403,14 +399,18 @@ export const renderYSortedEntities = ({
                   false, // isCorpse
                   cycleProgress // cycleProgress
                 );
+              } else {
+                console.log(`[DEBUG] heroImg is null for player ${playerId} - cannot render`);
               }
             } else { // This covers 'down' or 'right'
                 // For DOWN or RIGHT, item should be rendered ABOVE the player
+              // console.log(`[DEBUG] Rendering player ${playerId} (down/right) - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
+                // console.log(`[DEBUG] Calling renderPlayer for ${playerId} (down/right)`);
                 renderPlayer(
-                        ctx, playerForRendering, heroImg, isOnline, 
-                        isPlayerMoving, 
-                        currentlyHovered,
+                    ctx, playerForRendering, heroImg, isOnline, 
+                    isPlayerMoving, 
+                    currentlyHovered,
                   animationFrame, 
                   nowMs, 
                   jumpOffset,
@@ -420,6 +420,8 @@ export const renderYSortedEntities = ({
                   false, // isCorpse
                   cycleProgress // cycleProgress
                 );
+              } else {
+                console.log(`[DEBUG] heroImg is null for player ${playerId} (down/right) - cannot render`);
               }
               if (canRenderItem && equipment) {
                     renderEquippedItem(ctx, playerForRendering, equipment, itemDef!, itemDefinitions, itemImg!, nowMs, jumpOffset, itemImagesRef.current, activeConsumableEffects, localPlayerId);
@@ -461,15 +463,13 @@ export const renderYSortedEntities = ({
             } else {
                 // console.warn('[renderYSortedEntities] Shelter image not available for shelter:', shelter.id); // DEBUG LOG
             }
-        } else if (type === 'corn') {
-            const corn = entity as SpacetimeDBCorn;
-            renderCorn(ctx, corn, nowMs, cycleProgress);
-        } else if (type === 'hemp') {
-            const hemp = entity as SpacetimeDBHemp;
-            renderHemp(ctx, hemp, nowMs, cycleProgress);
-        } else if (type === 'reed') {
-            const reed = entity as any;
-            renderReed(ctx, reed, nowMs, cycleProgress);
+        } else if (type === 'harvestable_resource') {
+            const resource = entity as SpacetimeDBHarvestableResource;
+            
+            // Use unified renderer that handles all plant types internally
+            renderHarvestableResource(ctx, resource, nowMs, cycleProgress);
+            
+            // Note: Green circle outline removed - interaction indicators now handled by cyberpunk "E" labels only
         } else if (type === 'campfire') {
             const campfire = entity as SpacetimeDBCampfire;
             const isTheClosestTarget = closestInteractableTarget?.type === 'campfire' && closestInteractableTarget?.id === campfire.id;
@@ -495,25 +495,18 @@ export const renderYSortedEntities = ({
             const droppedItem = entity as SpacetimeDBDroppedItem;
             const itemDef = itemDefinitions.get(droppedItem.itemDefId.toString());
             renderDroppedItem({ ctx, item: droppedItem, itemDef, nowMs, cycleProgress });
-        } else if (type === 'mushroom') {
-            const mushroom = entity as SpacetimeDBMushroom;
-            renderMushroom(ctx, mushroom, nowMs, cycleProgress);
-        } else if (type === 'potato') {
-            const potato = entity as SpacetimeDBPotato;
-            renderPotato(ctx, potato, nowMs, cycleProgress);
-        } else if (type === 'pumpkin') {
-            const pumpkin = entity as SpacetimeDBPumpkin;
-            renderPumpkin(ctx, pumpkin, nowMs, cycleProgress);
         } else if (type === 'stash') {
             const stash = entity as SpacetimeDBStash;
             const isTheClosestTarget = closestInteractableTarget?.type === 'stash' && closestInteractableTarget?.id === stash.id;
+            
+            // Always render the stash (will show nothing if hidden, but that's okay)
             renderStash(ctx, stash, nowMs, cycleProgress);
             
-            // Draw outline only if this is THE closest interactable target
+            // Draw outline if this is the closest target, even if stash is hidden
+            // This allows players to see where hidden stashes are when close enough
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
-                // Use circular outline for stashes since they're small and round
-                drawCircularInteractionOutline(ctx, stash.posX, stash.posY, 24, cycleProgress, outlineColor);
+                drawInteractionOutline(ctx, stash.posX, stash.posY - 24, 48, 48, cycleProgress, outlineColor);
             }
         } else if (type === 'wooden_storage_box') {
             // Render box normally, its applyStandardDropShadow will handle the shadow
@@ -661,24 +654,14 @@ export const renderYSortedEntities = ({
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
-        } else if (type === 'corn') {
-            // Corn is fully rendered in the first pass - no second pass needed
-        } else if (type === 'hemp') {
-            // Hemp is fully rendered in the first pass - no second pass needed
-        } else if (type === 'reed') {
-            // Reed is fully rendered in the first pass - no second pass needed
+        } else if (type === 'harvestable_resource') {
+            // Harvestable resources are fully rendered in the first pass - no second pass needed
         } else if (type === 'campfire') {
             // Campfires handle their own shadows, no separate pass needed here generally
         } else if (type === 'lantern') {
             // Lanterns are fully rendered in the first pass - no second pass needed
         } else if (type === 'dropped_item') {
             // Dropped items handle their own shadows
-        } else if (type === 'mushroom') {
-            // Mushrooms are fully rendered in the first pass - no second pass needed
-        } else if (type === 'potato') {
-            // Potatoes are fully rendered in the first pass - no second pass needed
-        } else if (type === 'pumpkin') {
-            // Pumpkins are fully rendered in the first pass - no second pass needed
         } else if (type === 'stash') {
             // Stashes handle their own shadows within their main render function
         } else if (type === 'wooden_storage_box') {
@@ -712,4 +695,3 @@ export const renderYSortedEntities = ({
         }
     });
 };
-

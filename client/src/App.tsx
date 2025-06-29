@@ -151,7 +151,8 @@ function AppContent() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, clouds, stones, campfires, lanterns, mushrooms, corns, potatoes, pumpkins, hemps, reeds,
+      players, trees, clouds, stones, campfires, lanterns,
+      harvestableResources,
       itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
       woodenStorageBoxes, recipes, craftingQueueItems, localPlayerRegistered,
@@ -765,12 +766,7 @@ function AppContent() {
                             stones={stones}
                             campfires={campfires}
                             lanterns={lanterns}
-                            mushrooms={mushrooms}
-                            hemps={hemps}
-                            reeds={reeds}
-                            corns={corns}
-                            potatoes={potatoes}
-                            pumpkins={pumpkins}
+                            harvestableResources={harvestableResources}
                             droppedItems={droppedItems}
                             woodenStorageBoxes={woodenStorageBoxes}
                             sleepingBags={sleepingBags}
@@ -856,4 +852,3 @@ function App() {
     );
 }
 export default App;
-

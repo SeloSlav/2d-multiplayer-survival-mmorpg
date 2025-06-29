@@ -132,20 +132,10 @@ import { InitViperSpittleSystem } from "./init_viper_spittle_system_reducer.ts";
 export { InitViperSpittleSystem };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
-import { InteractWithCorn } from "./interact_with_corn_reducer.ts";
-export { InteractWithCorn };
-import { InteractWithHemp } from "./interact_with_hemp_reducer.ts";
-export { InteractWithHemp };
+import { InteractWithHarvestableResource } from "./interact_with_harvestable_resource_reducer.ts";
+export { InteractWithHarvestableResource };
 import { InteractWithLantern } from "./interact_with_lantern_reducer.ts";
 export { InteractWithLantern };
-import { InteractWithMushroom } from "./interact_with_mushroom_reducer.ts";
-export { InteractWithMushroom };
-import { InteractWithPotato } from "./interact_with_potato_reducer.ts";
-export { InteractWithPotato };
-import { InteractWithPumpkin } from "./interact_with_pumpkin_reducer.ts";
-export { InteractWithPumpkin };
-import { InteractWithReed } from "./interact_with_reed_reducer.ts";
-export { InteractWithReed };
 import { InteractWithSleepingBag } from "./interact_with_sleeping_bag_reducer.ts";
 export { InteractWithSleepingBag };
 import { InteractWithStorageBox } from "./interact_with_storage_box_reducer.ts";
@@ -396,8 +386,6 @@ import { CloudUpdateScheduleTableHandle } from "./cloud_update_schedule_table.ts
 export { CloudUpdateScheduleTableHandle };
 import { ContinuousSoundTableHandle } from "./continuous_sound_table.ts";
 export { ContinuousSoundTableHandle };
-import { CornTableHandle } from "./corn_table.ts";
-export { CornTableHandle };
 import { CraftingFinishScheduleTableHandle } from "./crafting_finish_schedule_table.ts";
 export { CraftingFinishScheduleTableHandle };
 import { CraftingQueueItemTableHandle } from "./crafting_queue_item_table.ts";
@@ -418,8 +406,8 @@ import { GrassTableHandle } from "./grass_table.ts";
 export { GrassTableHandle };
 import { GrassRespawnScheduleTableHandle } from "./grass_respawn_schedule_table.ts";
 export { GrassRespawnScheduleTableHandle };
-import { HempTableHandle } from "./hemp_table.ts";
-export { HempTableHandle };
+import { HarvestableResourceTableHandle } from "./harvestable_resource_table.ts";
+export { HarvestableResourceTableHandle };
 import { InventoryItemTableHandle } from "./inventory_item_table.ts";
 export { InventoryItemTableHandle };
 import { ItemDefinitionTableHandle } from "./item_definition_table.ts";
@@ -436,8 +424,6 @@ import { MessageTableHandle } from "./message_table.ts";
 export { MessageTableHandle };
 import { MinimapCacheTableHandle } from "./minimap_cache_table.ts";
 export { MinimapCacheTableHandle };
-import { MushroomTableHandle } from "./mushroom_table.ts";
-export { MushroomTableHandle };
 import { PlantedSeedTableHandle } from "./planted_seed_table.ts";
 export { PlantedSeedTableHandle };
 import { PlantedSeedGrowthScheduleTableHandle } from "./planted_seed_growth_schedule_table.ts";
@@ -460,8 +446,6 @@ import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
-import { PotatoTableHandle } from "./potato_table.ts";
-export { PotatoTableHandle };
 import { PrivateMessageTableHandle } from "./private_message_table.ts";
 export { PrivateMessageTableHandle };
 import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
@@ -470,16 +454,12 @@ import { ProjectileTableHandle } from "./projectile_table.ts";
 export { ProjectileTableHandle };
 import { ProjectileUpdateScheduleTableHandle } from "./projectile_update_schedule_table.ts";
 export { ProjectileUpdateScheduleTableHandle };
-import { PumpkinTableHandle } from "./pumpkin_table.ts";
-export { PumpkinTableHandle };
 import { RainCollectorTableHandle } from "./rain_collector_table.ts";
 export { RainCollectorTableHandle };
 import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
-import { ReedTableHandle } from "./reed_table.ts";
-export { ReedTableHandle };
 import { ShelterTableHandle } from "./shelter_table.ts";
 export { ShelterTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
@@ -562,8 +542,6 @@ import { ContinuousSound } from "./continuous_sound_type.ts";
 export { ContinuousSound };
 import { CookingProgress } from "./cooking_progress_type.ts";
 export { CookingProgress };
-import { Corn } from "./corn_type.ts";
-export { Corn };
 import { CostIngredient } from "./cost_ingredient_type.ts";
 export { CostIngredient };
 import { CraftingFinishSchedule } from "./crafting_finish_schedule_type.ts";
@@ -598,8 +576,8 @@ import { GrassRespawnData } from "./grass_respawn_data_type.ts";
 export { GrassRespawnData };
 import { GrassRespawnSchedule } from "./grass_respawn_schedule_type.ts";
 export { GrassRespawnSchedule };
-import { Hemp } from "./hemp_type.ts";
-export { Hemp };
+import { HarvestableResource } from "./harvestable_resource_type.ts";
+export { HarvestableResource };
 import { HotbarLocationData } from "./hotbar_location_data_type.ts";
 export { HotbarLocationData };
 import { InventoryItem } from "./inventory_item_type.ts";
@@ -626,8 +604,8 @@ import { MinimapCache } from "./minimap_cache_type.ts";
 export { MinimapCache };
 import { MovementPattern } from "./movement_pattern_type.ts";
 export { MovementPattern };
-import { Mushroom } from "./mushroom_type.ts";
-export { Mushroom };
+import { PlantType } from "./plant_type_type.ts";
+export { PlantType };
 import { PlantedSeed } from "./planted_seed_type.ts";
 export { PlantedSeed };
 import { PlantedSeedGrowthSchedule } from "./planted_seed_growth_schedule_type.ts";
@@ -650,8 +628,6 @@ import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
 export { PlayerStatSchedule };
-import { Potato } from "./potato_type.ts";
-export { Potato };
 import { PrivateMessage } from "./private_message_type.ts";
 export { PrivateMessage };
 import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
@@ -660,8 +636,6 @@ import { Projectile } from "./projectile_type.ts";
 export { Projectile };
 import { ProjectileUpdateSchedule } from "./projectile_update_schedule_type.ts";
 export { ProjectileUpdateSchedule };
-import { Pumpkin } from "./pumpkin_type.ts";
-export { Pumpkin };
 import { RainCollector } from "./rain_collector_type.ts";
 export { RainCollector };
 import { RangedWeaponStats } from "./ranged_weapon_stats_type.ts";
@@ -670,8 +644,6 @@ import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
-import { Reed } from "./reed_type.ts";
-export { Reed };
 import { Season } from "./season_type.ts";
 export { Season };
 import { Shelter } from "./shelter_type.ts";
@@ -799,11 +771,6 @@ const REMOTE_MODULE = {
       rowType: ContinuousSound.getTypeScriptAlgebraicType(),
       primaryKey: "objectId",
     },
-    corn: {
-      tableName: "corn",
-      rowType: Corn.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
-    },
     crafting_finish_schedule: {
       tableName: "crafting_finish_schedule",
       rowType: CraftingFinishSchedule.getTypeScriptAlgebraicType(),
@@ -854,9 +821,9 @@ const REMOTE_MODULE = {
       rowType: GrassRespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "scheduleId",
     },
-    hemp: {
-      tableName: "hemp",
-      rowType: Hemp.getTypeScriptAlgebraicType(),
+    harvestable_resource: {
+      tableName: "harvestable_resource",
+      rowType: HarvestableResource.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     inventory_item: {
@@ -897,11 +864,6 @@ const REMOTE_MODULE = {
     minimap_cache: {
       tableName: "minimap_cache",
       rowType: MinimapCache.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
-    },
-    mushroom: {
-      tableName: "mushroom",
-      rowType: Mushroom.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     planted_seed: {
@@ -959,11 +921,6 @@ const REMOTE_MODULE = {
       rowType: PlayerStatSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
-    potato: {
-      tableName: "potato",
-      rowType: Potato.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
-    },
     private_message: {
       tableName: "private_message",
       rowType: PrivateMessage.getTypeScriptAlgebraicType(),
@@ -984,11 +941,6 @@ const REMOTE_MODULE = {
       rowType: ProjectileUpdateSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
-    pumpkin: {
-      tableName: "pumpkin",
-      rowType: Pumpkin.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
-    },
     rain_collector: {
       tableName: "rain_collector",
       rowType: RainCollector.getTypeScriptAlgebraicType(),
@@ -1003,11 +955,6 @@ const REMOTE_MODULE = {
       tableName: "recipe",
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
-    },
-    reed: {
-      tableName: "reed",
-      rowType: Reed.getTypeScriptAlgebraicType(),
-      primaryKey: "id",
     },
     shelter: {
       tableName: "shelter",
@@ -1306,33 +1253,13 @@ const REMOTE_MODULE = {
       reducerName: "interact_with_campfire",
       argsType: InteractWithCampfire.getTypeScriptAlgebraicType(),
     },
-    interact_with_corn: {
-      reducerName: "interact_with_corn",
-      argsType: InteractWithCorn.getTypeScriptAlgebraicType(),
-    },
-    interact_with_hemp: {
-      reducerName: "interact_with_hemp",
-      argsType: InteractWithHemp.getTypeScriptAlgebraicType(),
+    interact_with_harvestable_resource: {
+      reducerName: "interact_with_harvestable_resource",
+      argsType: InteractWithHarvestableResource.getTypeScriptAlgebraicType(),
     },
     interact_with_lantern: {
       reducerName: "interact_with_lantern",
       argsType: InteractWithLantern.getTypeScriptAlgebraicType(),
-    },
-    interact_with_mushroom: {
-      reducerName: "interact_with_mushroom",
-      argsType: InteractWithMushroom.getTypeScriptAlgebraicType(),
-    },
-    interact_with_potato: {
-      reducerName: "interact_with_potato",
-      argsType: InteractWithPotato.getTypeScriptAlgebraicType(),
-    },
-    interact_with_pumpkin: {
-      reducerName: "interact_with_pumpkin",
-      argsType: InteractWithPumpkin.getTypeScriptAlgebraicType(),
-    },
-    interact_with_reed: {
-      reducerName: "interact_with_reed",
-      argsType: InteractWithReed.getTypeScriptAlgebraicType(),
     },
     interact_with_sleeping_bag: {
       reducerName: "interact_with_sleeping_bag",
@@ -1851,13 +1778,8 @@ export type Reducer = never
 | { name: "InitProjectileSystem", args: InitProjectileSystem }
 | { name: "InitViperSpittleSystem", args: InitViperSpittleSystem }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
-| { name: "InteractWithCorn", args: InteractWithCorn }
-| { name: "InteractWithHemp", args: InteractWithHemp }
+| { name: "InteractWithHarvestableResource", args: InteractWithHarvestableResource }
 | { name: "InteractWithLantern", args: InteractWithLantern }
-| { name: "InteractWithMushroom", args: InteractWithMushroom }
-| { name: "InteractWithPotato", args: InteractWithPotato }
-| { name: "InteractWithPumpkin", args: InteractWithPumpkin }
-| { name: "InteractWithReed", args: InteractWithReed }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
 | { name: "InteractWithStorageBox", args: InteractWithStorageBox }
 | { name: "Jump", args: Jump }
@@ -2713,36 +2635,20 @@ export class RemoteReducers {
     this.connection.offReducer("interact_with_campfire", callback);
   }
 
-  interactWithCorn(cornId: bigint) {
-    const __args = { cornId };
+  interactWithHarvestableResource(resourceId: bigint) {
+    const __args = { resourceId };
     let __writer = new BinaryWriter(1024);
-    InteractWithCorn.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    InteractWithHarvestableResource.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_corn", __argsBuffer, this.setCallReducerFlags.interactWithCornFlags);
+    this.connection.callReducer("interact_with_harvestable_resource", __argsBuffer, this.setCallReducerFlags.interactWithHarvestableResourceFlags);
   }
 
-  onInteractWithCorn(callback: (ctx: ReducerEventContext, cornId: bigint) => void) {
-    this.connection.onReducer("interact_with_corn", callback);
+  onInteractWithHarvestableResource(callback: (ctx: ReducerEventContext, resourceId: bigint) => void) {
+    this.connection.onReducer("interact_with_harvestable_resource", callback);
   }
 
-  removeOnInteractWithCorn(callback: (ctx: ReducerEventContext, cornId: bigint) => void) {
-    this.connection.offReducer("interact_with_corn", callback);
-  }
-
-  interactWithHemp(hempId: bigint) {
-    const __args = { hempId };
-    let __writer = new BinaryWriter(1024);
-    InteractWithHemp.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_hemp", __argsBuffer, this.setCallReducerFlags.interactWithHempFlags);
-  }
-
-  onInteractWithHemp(callback: (ctx: ReducerEventContext, hempId: bigint) => void) {
-    this.connection.onReducer("interact_with_hemp", callback);
-  }
-
-  removeOnInteractWithHemp(callback: (ctx: ReducerEventContext, hempId: bigint) => void) {
-    this.connection.offReducer("interact_with_hemp", callback);
+  removeOnInteractWithHarvestableResource(callback: (ctx: ReducerEventContext, resourceId: bigint) => void) {
+    this.connection.offReducer("interact_with_harvestable_resource", callback);
   }
 
   interactWithLantern(lanternId: number) {
@@ -2759,70 +2665,6 @@ export class RemoteReducers {
 
   removeOnInteractWithLantern(callback: (ctx: ReducerEventContext, lanternId: number) => void) {
     this.connection.offReducer("interact_with_lantern", callback);
-  }
-
-  interactWithMushroom(mushroomId: bigint) {
-    const __args = { mushroomId };
-    let __writer = new BinaryWriter(1024);
-    InteractWithMushroom.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_mushroom", __argsBuffer, this.setCallReducerFlags.interactWithMushroomFlags);
-  }
-
-  onInteractWithMushroom(callback: (ctx: ReducerEventContext, mushroomId: bigint) => void) {
-    this.connection.onReducer("interact_with_mushroom", callback);
-  }
-
-  removeOnInteractWithMushroom(callback: (ctx: ReducerEventContext, mushroomId: bigint) => void) {
-    this.connection.offReducer("interact_with_mushroom", callback);
-  }
-
-  interactWithPotato(potatoId: bigint) {
-    const __args = { potatoId };
-    let __writer = new BinaryWriter(1024);
-    InteractWithPotato.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_potato", __argsBuffer, this.setCallReducerFlags.interactWithPotatoFlags);
-  }
-
-  onInteractWithPotato(callback: (ctx: ReducerEventContext, potatoId: bigint) => void) {
-    this.connection.onReducer("interact_with_potato", callback);
-  }
-
-  removeOnInteractWithPotato(callback: (ctx: ReducerEventContext, potatoId: bigint) => void) {
-    this.connection.offReducer("interact_with_potato", callback);
-  }
-
-  interactWithPumpkin(pumpkinId: bigint) {
-    const __args = { pumpkinId };
-    let __writer = new BinaryWriter(1024);
-    InteractWithPumpkin.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_pumpkin", __argsBuffer, this.setCallReducerFlags.interactWithPumpkinFlags);
-  }
-
-  onInteractWithPumpkin(callback: (ctx: ReducerEventContext, pumpkinId: bigint) => void) {
-    this.connection.onReducer("interact_with_pumpkin", callback);
-  }
-
-  removeOnInteractWithPumpkin(callback: (ctx: ReducerEventContext, pumpkinId: bigint) => void) {
-    this.connection.offReducer("interact_with_pumpkin", callback);
-  }
-
-  interactWithReed(reedId: bigint) {
-    const __args = { reedId };
-    let __writer = new BinaryWriter(1024);
-    InteractWithReed.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("interact_with_reed", __argsBuffer, this.setCallReducerFlags.interactWithReedFlags);
-  }
-
-  onInteractWithReed(callback: (ctx: ReducerEventContext, reedId: bigint) => void) {
-    this.connection.onReducer("interact_with_reed", callback);
-  }
-
-  removeOnInteractWithReed(callback: (ctx: ReducerEventContext, reedId: bigint) => void) {
-    this.connection.offReducer("interact_with_reed", callback);
   }
 
   interactWithSleepingBag(bagId: number) {
@@ -4776,39 +4618,14 @@ export class SetReducerFlags {
     this.interactWithCampfireFlags = flags;
   }
 
-  interactWithCornFlags: CallReducerFlags = 'FullUpdate';
-  interactWithCorn(flags: CallReducerFlags) {
-    this.interactWithCornFlags = flags;
-  }
-
-  interactWithHempFlags: CallReducerFlags = 'FullUpdate';
-  interactWithHemp(flags: CallReducerFlags) {
-    this.interactWithHempFlags = flags;
+  interactWithHarvestableResourceFlags: CallReducerFlags = 'FullUpdate';
+  interactWithHarvestableResource(flags: CallReducerFlags) {
+    this.interactWithHarvestableResourceFlags = flags;
   }
 
   interactWithLanternFlags: CallReducerFlags = 'FullUpdate';
   interactWithLantern(flags: CallReducerFlags) {
     this.interactWithLanternFlags = flags;
-  }
-
-  interactWithMushroomFlags: CallReducerFlags = 'FullUpdate';
-  interactWithMushroom(flags: CallReducerFlags) {
-    this.interactWithMushroomFlags = flags;
-  }
-
-  interactWithPotatoFlags: CallReducerFlags = 'FullUpdate';
-  interactWithPotato(flags: CallReducerFlags) {
-    this.interactWithPotatoFlags = flags;
-  }
-
-  interactWithPumpkinFlags: CallReducerFlags = 'FullUpdate';
-  interactWithPumpkin(flags: CallReducerFlags) {
-    this.interactWithPumpkinFlags = flags;
-  }
-
-  interactWithReedFlags: CallReducerFlags = 'FullUpdate';
-  interactWithReed(flags: CallReducerFlags) {
-    this.interactWithReedFlags = flags;
   }
 
   interactWithSleepingBagFlags: CallReducerFlags = 'FullUpdate';
@@ -5422,10 +5239,6 @@ export class RemoteTables {
     return new ContinuousSoundTableHandle(this.connection.clientCache.getOrCreateTable<ContinuousSound>(REMOTE_MODULE.tables.continuous_sound));
   }
 
-  get corn(): CornTableHandle {
-    return new CornTableHandle(this.connection.clientCache.getOrCreateTable<Corn>(REMOTE_MODULE.tables.corn));
-  }
-
   get craftingFinishSchedule(): CraftingFinishScheduleTableHandle {
     return new CraftingFinishScheduleTableHandle(this.connection.clientCache.getOrCreateTable<CraftingFinishSchedule>(REMOTE_MODULE.tables.crafting_finish_schedule));
   }
@@ -5466,8 +5279,8 @@ export class RemoteTables {
     return new GrassRespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<GrassRespawnSchedule>(REMOTE_MODULE.tables.grass_respawn_schedule));
   }
 
-  get hemp(): HempTableHandle {
-    return new HempTableHandle(this.connection.clientCache.getOrCreateTable<Hemp>(REMOTE_MODULE.tables.hemp));
+  get harvestableResource(): HarvestableResourceTableHandle {
+    return new HarvestableResourceTableHandle(this.connection.clientCache.getOrCreateTable<HarvestableResource>(REMOTE_MODULE.tables.harvestable_resource));
   }
 
   get inventoryItem(): InventoryItemTableHandle {
@@ -5500,10 +5313,6 @@ export class RemoteTables {
 
   get minimapCache(): MinimapCacheTableHandle {
     return new MinimapCacheTableHandle(this.connection.clientCache.getOrCreateTable<MinimapCache>(REMOTE_MODULE.tables.minimap_cache));
-  }
-
-  get mushroom(): MushroomTableHandle {
-    return new MushroomTableHandle(this.connection.clientCache.getOrCreateTable<Mushroom>(REMOTE_MODULE.tables.mushroom));
   }
 
   get plantedSeed(): PlantedSeedTableHandle {
@@ -5550,10 +5359,6 @@ export class RemoteTables {
     return new PlayerStatScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStatSchedule>(REMOTE_MODULE.tables.player_stat_schedule));
   }
 
-  get potato(): PotatoTableHandle {
-    return new PotatoTableHandle(this.connection.clientCache.getOrCreateTable<Potato>(REMOTE_MODULE.tables.potato));
-  }
-
   get privateMessage(): PrivateMessageTableHandle {
     return new PrivateMessageTableHandle(this.connection.clientCache.getOrCreateTable<PrivateMessage>(REMOTE_MODULE.tables.private_message));
   }
@@ -5570,10 +5375,6 @@ export class RemoteTables {
     return new ProjectileUpdateScheduleTableHandle(this.connection.clientCache.getOrCreateTable<ProjectileUpdateSchedule>(REMOTE_MODULE.tables.projectile_update_schedule));
   }
 
-  get pumpkin(): PumpkinTableHandle {
-    return new PumpkinTableHandle(this.connection.clientCache.getOrCreateTable<Pumpkin>(REMOTE_MODULE.tables.pumpkin));
-  }
-
   get rainCollector(): RainCollectorTableHandle {
     return new RainCollectorTableHandle(this.connection.clientCache.getOrCreateTable<RainCollector>(REMOTE_MODULE.tables.rain_collector));
   }
@@ -5584,10 +5385,6 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
-  }
-
-  get reed(): ReedTableHandle {
-    return new ReedTableHandle(this.connection.clientCache.getOrCreateTable<Reed>(REMOTE_MODULE.tables.reed));
   }
 
   get shelter(): ShelterTableHandle {

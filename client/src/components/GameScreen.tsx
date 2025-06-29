@@ -36,12 +36,7 @@ import {
     Stone as SpacetimeDBStone,
     Campfire as SpacetimeDBCampfire,
     Lantern as SpacetimeDBLantern,
-    Mushroom as SpacetimeDBMushroom,
-    Hemp as SpacetimeDBHemp,
-    Reed as SpacetimeDBReed,
-    Corn as SpacetimeDBCorn,
-    Potato as SpacetimeDBPotato,
-    Pumpkin as SpacetimeDBPumpkin,
+    HarvestableResource as SpacetimeDBHarvestableResource,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     InventoryItem as SpacetimeDBInventoryItem,
@@ -106,12 +101,7 @@ interface GameScreenProps {
     stones: Map<string, SpacetimeDBStone>;
     campfires: Map<string, SpacetimeDBCampfire>;
     lanterns: Map<string, SpacetimeDBLantern>;
-    mushrooms: Map<string, SpacetimeDBMushroom>;
-    hemps: Map<string, SpacetimeDBHemp>;
-    reeds: Map<string, SpacetimeDBReed>;
-    corns: Map<string, SpacetimeDBCorn>;
-    potatoes: Map<string, SpacetimeDBPotato>;
-    pumpkins: Map<string, SpacetimeDBPumpkin>;
+    harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     sleepingBags: Map<string, SpacetimeDBSleepingBag>;
@@ -251,7 +241,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, lanterns, mushrooms, corns, potatoes, pumpkins, hemps, reeds, droppedItems, woodenStorageBoxes, sleepingBags,
+        players, trees, stones, campfires, lanterns, harvestableResources, droppedItems, woodenStorageBoxes, sleepingBags,
         playerPins, playerCorpses, stashes,
         shelters,
         plantedSeeds,
@@ -765,12 +755,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 clouds={clouds}
                 stones={stones}
                 campfires={campfires}
-                mushrooms={mushrooms}
-                hemps={hemps}
-                reeds={reeds}
-                corns={corns}
-                potatoes={potatoes}
-                pumpkins={pumpkins}
+                harvestableResources={harvestableResources}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
                 sleepingBags={sleepingBags}

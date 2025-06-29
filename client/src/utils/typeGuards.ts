@@ -3,14 +3,8 @@ import {
   Tree as SpacetimeDBTree,
   Stone as SpacetimeDBStone,
   Campfire as SpacetimeDBCampfire,
-  Mushroom as SpacetimeDBMushroom,
   DroppedItem as SpacetimeDBDroppedItem,
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
-  Corn as SpacetimeDBCorn,
-  Potato as SpacetimeDBPotato,
-  Pumpkin as SpacetimeDBPumpkin,
-  Hemp as SpacetimeDBHemp,
-  Reed as SpacetimeDBReed,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
@@ -19,9 +13,28 @@ import {
   RainCollector as SpacetimeDBRainCollector, // ADDED RainCollector type
   WildAnimal as SpacetimeDBWildAnimal, // ADDED WildAnimal type
   AnimalCorpse as SpacetimeDBAnimalCorpse, // ADDED AnimalCorpse type
-  Barrel as SpacetimeDBBarrel // ADDED Barrel type
+  Barrel as SpacetimeDBBarrel, // ADDED Barrel type
+  Player,
+  Tree,
+  Stone,
+  Campfire,
+  Lantern,
+  PlantedSeed,
+  DroppedItem,
+  Cloud,
+  HarvestableResource,
+  WoodenStorageBox,
+  SleepingBag,
+  PlayerCorpse,
+  Stash,
+  Grass,
+  RainCollector,
+  WildAnimal,
+  AnimalCorpse,
+  Barrel
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
+import { isHarvestableResource, isCorn, isHemp, isMushroom, isPotato, isPumpkin, isReed } from '../types/resourceTypes';
 
 // Type guard for Player
 export function isPlayer(entity: any): entity is SpacetimeDBPlayer {
@@ -29,152 +42,80 @@ export function isPlayer(entity: any): entity is SpacetimeDBPlayer {
 }
 
 // Type guard for Tree
-export function isTree(entity: any): entity is SpacetimeDBTree {
-  return entity && typeof entity.treeType !== 'undefined' && typeof entity.posX === 'number'; // Added position check
+export function isTree(entity: any): entity is Tree {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 
 // Type guard for Stone
-export function isStone(entity: any): entity is SpacetimeDBStone {
-  return entity && typeof entity.health === 'number' &&
-         typeof entity.posX === 'number' && typeof entity.posY === 'number' &&
-         // Ensure it doesn't match other types with similar fields
-         typeof entity.identity === 'undefined' && typeof entity.treeType === 'undefined' &&
-         typeof entity.placedBy === 'undefined' && typeof entity.itemDefId === 'undefined';
+export function isStone(entity: any): entity is Stone {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 
 // Type guard for Campfire
-export function isCampfire(entity: any): entity is SpacetimeDBCampfire {
-    return entity && typeof entity.placedBy !== 'undefined' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.isBurning === 'boolean'; // Added isBurning check
+export function isCampfire(entity: any): entity is Campfire {       
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         typeof entity.fuel === 'number';
 }
 
-// Type guard for Mushroom
-export function isMushroom(entity: any): entity is SpacetimeDBMushroom {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' && 
-           // Ensure it doesn't match others
-           typeof entity.identity === 'undefined' && 
-           typeof entity.treeType === 'undefined' &&
-           typeof entity.health === 'undefined' && 
-           typeof entity.placedBy === 'undefined' &&
-           typeof entity.itemDefId === 'undefined'
-           ;
-
-    return result;
+// Type guard for Lantern
+export function isLantern(entity: any): entity is Lantern {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         typeof entity.isBurning === 'boolean' &&
+         typeof entity.fuelInstanceId0 !== 'undefined'; // Check for lantern-specific fuel properties
 }
 
-// Type guard for Potato
-export function isPotato(entity: any): entity is SpacetimeDBPotato {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' && 
-           // Ensure it doesn't match others
-           typeof entity.identity === 'undefined' && 
-           typeof entity.treeType === 'undefined' &&
-           typeof entity.health === 'undefined' && 
-           typeof entity.placedBy === 'undefined' &&
-           typeof entity.itemDefId === 'undefined'
-           ;
-
-    return result;
-}
-
-// Type guard for Corn
-export function isCorn(entity: any): entity is SpacetimeDBCorn {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' && 
-           // Ensure it doesn't match others
-           typeof entity.identity === 'undefined' && 
-           typeof entity.treeType === 'undefined' &&
-           typeof entity.health === 'undefined' && 
-           typeof entity.placedBy === 'undefined' &&
-           typeof entity.itemDefId === 'undefined'
-           ;
-    
-    return result;
-}
-
-// Type guard for Pumpkin
-export function isPumpkin(entity: any): entity is SpacetimeDBPumpkin {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' &&
-           typeof entity.chunk_index === 'number' &&
-           (entity.respawn_at === null || entity.respawn_at instanceof Date || typeof entity.respawn_at === 'undefined') &&
-           typeof entity.growth_stage === 'undefined'
-           ;
-
-    return result;
-}
-
-// Type guard for Hemp
-export function isHemp(entity: any): entity is SpacetimeDBHemp {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' && 
-           // Ensure it doesn't match other resource types or entities
-           typeof entity.identity === 'undefined' && // Not a Player
-           typeof entity.treeType === 'undefined' && // Not a Tree
-           typeof entity.health === 'undefined' && // Not a Stone (or other entities with health like Player)
-           typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, or SleepingBag
-           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
-           typeof entity.isBurning === 'undefined' && // Not a Campfire
-           // Differentiate from Corn/Mushroom by checking a non-existent unique field or by ensuring it IS hemp via a marker if added later
-           // For now, relying on the specific structure and absence of other markers.
-           // If Corn and Mushroom have a field that Hemp doesn't, that could be used.
-           // This guard might need refinement if Hemp becomes structurally identical to Corn/Mushroom
-           // without a specific type marker from the backend (like __entityType when mapped in client state).
-           true; // Placeholder for further differentiation if needed
-    
-    return result;
-}
-
-// Type guard for Reed
-export function isReed(entity: any): entity is SpacetimeDBReed {
-    const result = entity && 
-           typeof entity.posX === 'number' && 
-           typeof entity.posY === 'number' && 
-           typeof entity.id !== 'undefined' && 
-           // Ensure it doesn't match other resource types or entities
-           typeof entity.identity === 'undefined' && // Not a Player
-           typeof entity.treeType === 'undefined' && // Not a Tree
-           typeof entity.health === 'undefined' && // Not a Stone (or other entities with health like Player)
-           typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, or SleepingBag
-           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
-           typeof entity.isBurning === 'undefined' && // Not a Campfire
-           // Similar differentiation logic as Hemp
-           true; // Placeholder for further differentiation if needed
-    
-    return result;
+// Type guard for PlantedSeed
+export function isPlantedSeed(entity: any): entity is PlantedSeed {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         typeof entity.seedType === 'string' &&
+         entity.plantedAt instanceof Date;
 }
 
 // Type guard for WoodenStorageBox
-export function isWoodenStorageBox(entity: any): entity is SpacetimeDBWoodenStorageBox {
-  return entity && typeof entity.posX === 'number' &&
+export function isWoodenStorageBox(entity: any): entity is WoodenStorageBox {
+  return entity && 
+         typeof entity.posX === 'number' &&
          typeof entity.posY === 'number' &&
-         typeof entity.placedBy !== 'undefined' && // Check if placedBy exists
-         typeof entity.isBurning === 'undefined'; // Differentiate from Campfire
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number';
 }
 
 // Type guard for DroppedItem
-export function isDroppedItem(entity: any): entity is SpacetimeDBDroppedItem {
-    return entity && typeof entity.posX === 'number' && typeof entity.posY === 'number' &&
-           typeof entity.itemDefId !== 'undefined' && // Check for itemDefId
-           // Ensure it doesn't match others
-           typeof entity.identity === 'undefined' &&
-           typeof entity.treeType === 'undefined' &&
-           typeof entity.health === 'undefined' &&
-           typeof entity.placedBy === 'undefined';
+export function isDroppedItem(entity: any): entity is DroppedItem {
+    return entity && 
+           typeof entity.posX === 'number' &&
+           typeof entity.posY === 'number' &&
+           typeof entity.id !== 'undefined' &&
+           typeof entity.chunkIndex === 'number' &&
+           typeof entity.itemName === 'string' &&
+           typeof entity.quantity === 'number' &&
+           entity.droppedAt instanceof Date;
 }
 
 // Type guard for SleepingBag
-export function isSleepingBag(entity: any): entity is SpacetimeDBSleepingBag {
+export function isSleepingBag(entity: any): entity is SleepingBag {
   return entity && 
          typeof entity.posX === 'number' &&
          typeof entity.posY === 'number' &&
@@ -184,38 +125,50 @@ export function isSleepingBag(entity: any): entity is SpacetimeDBSleepingBag {
 }
 
 // Type guard for PlayerCorpse
-export function isPlayerCorpse(entity: any): entity is SpacetimeDBPlayerCorpse {
-    return entity && typeof entity.ownerIdentity === 'object' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.despawnAt === 'bigint';
+export function isPlayerCorpse(entity: any): entity is PlayerCorpse {
+    return entity && 
+           typeof entity.posX === 'number' &&
+           typeof entity.posY === 'number' &&
+           typeof entity.id !== 'undefined' &&
+           typeof entity.chunkIndex === 'number' &&
+           typeof entity.playerName === 'string' &&
+           entity.deathTime instanceof Date;
 }
 
-export function isStash(entity: any): entity is SpacetimeDBStash {
+export function isStash(entity: any): entity is Stash {
     // Check for properties unique to Stash or common identifiable ones
     // For example, `isHidden` and `ownerIdentity` might be good indicators.
     return entity && typeof entity.ownerIdentity === 'object' && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.isHidden === 'boolean';
 }
 
 // Type guard for Grass
-export function isGrass(entity: any): entity is SpacetimeDBGrass | InterpolatedGrassData {
+export function isGrass(entity: any): entity is Grass {
   return entity && 
-         typeof entity.id !== 'undefined' && // originalId for Interpolated, id for SpacetimeDBGrass (assuming it's a bigint or number)
-         (typeof entity.posX === 'number' || typeof entity.serverPosX === 'number') &&
-         (typeof entity.posY === 'number' || typeof entity.serverPosY === 'number') &&
-         typeof entity.health === 'number' &&
-         typeof entity.appearanceType !== 'undefined' && 
-         typeof entity.swayOffsetSeed === 'number' && 
-         // Ensure it doesn't conflict with other types by checking for absence of their unique fields
-         typeof entity.identity === 'undefined' && // Not a Player
-         typeof entity.treeType === 'undefined' && // Not a Tree
-         typeof entity.placedBy === 'undefined' && // Not a Campfire, Box, Stash, SleepingBag
-         typeof entity.itemDefId === 'undefined'; // Not a DroppedItem
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.chunkIndex === 'number' &&
+         (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 
 export function isShelter(entity: any): entity is Shelter {
-    return entity && typeof entity === 'object' && 'placedBy' in entity && 'maxHealth' in entity && !('treeType' in entity) && !('isBurning' in entity) && !('itemDefId' in entity);
+    return entity && typeof entity.posX === 'number' && typeof entity.posY === 'number' && typeof entity.id !== 'undefined' && typeof entity.chunkIndex === 'number' && typeof entity.structureType === 'string';
+}
+
+// Type guard for Cloud
+export function isCloud(entity: any): entity is Cloud {
+  return entity && 
+         typeof entity.posX === 'number' &&
+         typeof entity.posY === 'number' &&
+         typeof entity.id !== 'undefined' &&
+         typeof entity.speed === 'number' &&
+         typeof entity.direction === 'number' &&
+         typeof entity.shapeType === 'number' &&
+         typeof entity.opacity === 'number';
 }
 
 // Type guard for RainCollector
-export function isRainCollector(entity: any): entity is SpacetimeDBRainCollector {
+export function isRainCollector(entity: any): entity is RainCollector {
     return entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
@@ -232,27 +185,19 @@ export function isRainCollector(entity: any): entity is SpacetimeDBRainCollector
 }
 
 // Type guard for WildAnimal
-export function isWildAnimal(entity: any): entity is SpacetimeDBWildAnimal {
+export function isWildAnimal(entity: any): entity is WildAnimal {
     return entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
            typeof entity.id !== 'undefined' &&
-           typeof entity.species === 'object' && // AnimalSpecies enum
-           typeof entity.state === 'object' && // AnimalState enum
+           typeof entity.chunkIndex === 'number' &&
+           typeof entity.species === 'number' &&
            typeof entity.health === 'number' &&
-           typeof entity.maxHealth === 'number' &&
-           typeof entity.lastAiUpdateAt !== 'undefined' &&
-           // Ensure it doesn't match other types
-           typeof entity.identity === 'undefined' && // Not a Player
-           typeof entity.treeType === 'undefined' && // Not a Tree
-           typeof entity.placedBy === 'undefined' && // Not a placed item
-           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
-           typeof entity.isBurning === 'undefined' && // Not a Campfire
-           typeof entity.ownerIdentity === 'undefined'; // Not a PlayerCorpse or Stash
+           (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 
 // Type guard for AnimalCorpse
-export function isAnimalCorpse(entity: any): entity is SpacetimeDBAnimalCorpse {
+export function isAnimalCorpse(entity: any): entity is AnimalCorpse {
     return entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
@@ -274,7 +219,7 @@ export function isAnimalCorpse(entity: any): entity is SpacetimeDBAnimalCorpse {
 }
 
 // Type guard for knocked out players
-export function isKnockedOutPlayer(entity: any): entity is SpacetimeDBPlayer {
+export function isKnockedOutPlayer(entity: any): entity is Player {
     return entity && 
            typeof entity.identity !== 'undefined' && 
            typeof entity.positionX === 'number' && 
@@ -287,7 +232,7 @@ export function isKnockedOutPlayer(entity: any): entity is SpacetimeDBPlayer {
 }
 
 // Type guard for Barrel
-export function isBarrel(entity: any): entity is SpacetimeDBBarrel {
+export function isBarrel(entity: any): entity is Barrel {
     return entity && 
            typeof entity.posX === 'number' && 
            typeof entity.posY === 'number' && 
@@ -305,4 +250,61 @@ export function isBarrel(entity: any): entity is SpacetimeDBBarrel {
            typeof entity.ownerIdentity === 'undefined' && // Not a PlayerCorpse or Stash
            typeof entity.species === 'undefined' && // Not a WildAnimal
            typeof entity.animalSpecies === 'undefined'; // Not an AnimalCorpse
+}
+
+// Re-export harvestable resource type guards from resourceTypes
+export { 
+  isHarvestableResource, 
+};
+
+// Master type guard for all interactable entities
+export function isInteractableEntity(entity: any): boolean {
+  return isPlayer(entity) || 
+         isTree(entity) || 
+         isStone(entity) || 
+         isHarvestableResource(entity) ||
+         isWoodenStorageBox(entity) || 
+         isCampfire(entity) || 
+         isLantern(entity) || 
+         isPlantedSeed(entity) || 
+         isDroppedItem(entity) || 
+         isShelter(entity) || 
+         isGrass(entity) || 
+         isWildAnimal(entity) || 
+         isPlayerCorpse(entity);
+}
+
+// Helper function to get entity type string
+export function getEntityTypeString(entity: any): string {
+  if (isPlayer(entity)) return 'player';
+  if (isTree(entity)) return 'tree';
+  if (isStone(entity)) return 'stone';
+  
+  // Check harvestable resources (unified system)
+  if (isHarvestableResource(entity)) {
+    // Return specific resource type based on resourceType field
+    if (isCorn(entity)) return 'corn';
+    if (isHemp(entity)) return 'hemp';
+    if (isMushroom(entity)) return 'mushroom';
+    if (isPotato(entity)) return 'potato';
+    if (isPumpkin(entity)) return 'pumpkin';
+    if (isReed(entity)) return 'reed';
+    // Fallback to generic harvestable resource
+    return 'harvestable_resource';
+  }
+  
+  if (isWoodenStorageBox(entity)) return 'wooden_storage_box';
+  if (isCampfire(entity)) return 'campfire';
+  if (isLantern(entity)) return 'lantern';
+  if (isPlantedSeed(entity)) return 'planted_seed';
+  if (isDroppedItem(entity)) return 'dropped_item';
+  if (isShelter(entity)) return 'shelter';
+  if (isGrass(entity)) return 'grass';
+  if (isCloud(entity)) return 'cloud';
+  if (isWildAnimal(entity)) return 'wild_animal';
+  if (isPlayerCorpse(entity)) return 'player_corpse';
+  if (isBarrel(entity)) return 'barrel';
+  if (isAnimalCorpse(entity)) return 'animal_corpse';
+  
+  return 'unknown';
 } 

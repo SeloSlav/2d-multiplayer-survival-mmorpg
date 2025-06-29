@@ -31,12 +31,7 @@ export interface InteractableTarget {
 
 // All possible interaction target types (matches useInteractionFinder types)
 export type InteractionTargetType = 
-    | 'mushroom' 
-    | 'corn' 
-    | 'potato' 
-    | 'pumpkin' 
-    | 'hemp' 
-    | 'reed'
+    | 'harvestable_resource'  // Unified for all plants (mushroom, corn, potato, pumpkin, hemp, reed)
     | 'campfire' 
     | 'lantern'
     | 'dropped_item' 
@@ -65,36 +60,11 @@ export interface InteractionConfig {
 
 // Configuration mapping for all interaction types
 export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfig> = {
-    // Immediate harvest actions (TAP)
-    mushroom: {
+    // Unified harvestable resource actions (TAP)
+    harvestable_resource: {
         behavior: InteractionBehavior.TAP,
         priority: 100,
-        actionType: 'harvest_mushroom'
-    },
-    corn: {
-        behavior: InteractionBehavior.TAP,
-        priority: 100,
-        actionType: 'harvest_corn'
-    },
-    potato: {
-        behavior: InteractionBehavior.TAP,
-        priority: 100,
-        actionType: 'harvest_potato'
-    },
-    pumpkin: {
-        behavior: InteractionBehavior.TAP,
-        priority: 100,
-        actionType: 'harvest_pumpkin'
-    },
-    hemp: {
-        behavior: InteractionBehavior.TAP,
-        priority: 100,
-        actionType: 'harvest_hemp'
-    },
-    reed: {
-        behavior: InteractionBehavior.TAP,
-        priority: 100,
-        actionType: 'harvest_reed'
+        actionType: 'harvest_resource'
     },
     dropped_item: {
         behavior: InteractionBehavior.TAP,
@@ -313,12 +283,7 @@ export function isTargetValid(target: InteractableTarget): boolean {
     switch (target.type) {
         case 'knocked_out_player':
             return target.data?.isKnockedOut === true && target.data?.isDead !== true;
-        case 'mushroom':
-        case 'corn':
-        case 'potato':
-        case 'pumpkin':
-        case 'hemp':
-        case 'reed':
+        case 'harvestable_resource':
             return target.data?.respawnAt === null || target.data?.respawnAt === undefined;
         default:
             return true;

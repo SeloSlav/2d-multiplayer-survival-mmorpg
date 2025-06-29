@@ -26,7 +26,7 @@ use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
-use crate::mushroom::mushroom as MushroomTableTrait;
+use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::dropped_item::dropped_item as DroppedItemTableTrait;
 use crate::shelter::shelter as ShelterTableTrait; // RE-ENABLE ShelterTableTrait import
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // ADDED PlayerCorpse table trait
@@ -58,7 +58,7 @@ pub enum EntityType {
     Stone(u64),
     Campfire(u32),
     WoodenStorageBox(u32),
-    Mushroom(u32),
+    HarvestableResource(u64), // Changed from Mushroom to HarvestableResource
     DroppedItem(u64),
     Shelter(u32), // RE-ENABLE Shelter from EntityType
     PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
@@ -165,7 +165,7 @@ impl SpatialGrid {
     // Helper function to populate the grid with all world entities
     pub fn populate_from_world<DB: PlayerTableTrait + TreeTableTrait + StoneTableTrait 
                                   + CampfireTableTrait + WoodenStorageBoxTableTrait 
-                                  + MushroomTableTrait + DroppedItemTableTrait
+                                  + HarvestableResourceTableTrait + DroppedItemTableTrait
                                   + ShelterTableTrait 
                                   + PlayerCorpseTableTrait
                                   + RainCollectorTableTrait
@@ -204,9 +204,11 @@ impl SpatialGrid {
             self.add_entity(EntityType::WoodenStorageBox(box_instance.id as u32), box_instance.pos_x, box_instance.pos_y);
         }
         
-        // Add mushrooms
-        for mushroom in db.mushroom().iter() {
-            self.add_entity(EntityType::Mushroom(mushroom.id as u32), mushroom.pos_x, mushroom.pos_y);
+        // Add harvestable resources (unified system including mushrooms)
+        for resource in db.harvestable_resource().iter() {
+            if resource.respawn_at.is_none() { // Only add if not respawning
+                self.add_entity(EntityType::HarvestableResource(resource.id), resource.pos_x, resource.pos_y);
+            }
         }
         
         // Add dropped items

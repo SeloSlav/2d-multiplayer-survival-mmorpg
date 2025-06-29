@@ -21,24 +21,14 @@ use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TILE_SIZE_PX, WORLD_WIDTH_TILES, WO
 // Import resource modules
 use crate::tree;
 use crate::stone;
-use crate::mushroom;
-use crate::corn;
-use crate::potato;
-use crate::hemp;
-use crate::pumpkin;
-use crate::reed;
+use crate::harvestable_resource;
 use crate::cloud;
 use crate::grass;
 
 // Import table traits needed for ctx.db access
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
-use crate::mushroom::mushroom as MushroomTableTrait;
-use crate::corn::corn as CornTableTrait;
-use crate::potato::potato as PotatoTableTrait;
-use crate::pumpkin::pumpkin as PumpkinTableTrait;
-use crate::hemp::hemp as HempTableTrait;
-use crate::reed::reed as ReedTableTrait;
+use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::items::ItemDefinition;
 use crate::cloud::{Cloud, CloudShapeType, CloudUpdateSchedule};
 use crate::utils::*;
@@ -295,231 +285,6 @@ fn is_position_in_lake_area(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> boo
     water_density >= lake_water_density_threshold
 }
 
-// --- NEW: Helper functions for location-specific spawning ---
-
-/// Checks if position is suitable for mushroom spawning (forested grass tiles)
-/// Mushrooms prefer areas with grass tiles that are near trees (forest-like areas)
-fn is_mushroom_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)]) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    // Check if position is on grass tile
-    let world_tiles = ctx.db.world_tile();
-    let mut is_grass = false;
-    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-        is_grass = tile.tile_type == TileType::Grass;
-        break;
-    }
-    
-    if !is_grass {
-        return false;
-    }
-    
-    // Check if near trees (within forested areas)
-    let forest_check_distance_sq = 150.0 * 150.0; // Within 150 pixels of trees for forest feel
-    for &(tree_x, tree_y) in tree_positions {
-        let dx = pos_x - tree_x;
-        let dy = pos_y - tree_y;
-        if dx * dx + dy * dy <= forest_check_distance_sq {
-            return true; // Near trees, good for mushrooms
-        }
-    }
-    
-    false // Not in forested area
-}
-
-/// Checks if position is suitable for hemp spawning (open plains - grass, dirt)
-/// Hemp prefers open areas away from trees and stones
-fn is_hemp_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)], stone_positions: &[(f32, f32)]) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    // Check if position is on grass or dirt tile
-    let world_tiles = ctx.db.world_tile();
-    let mut suitable_tile = false;
-    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-        suitable_tile = matches!(tile.tile_type, TileType::Grass | TileType::Dirt);
-        break;
-    }
-    
-    if !suitable_tile {
-        return false;
-    }
-    
-    // Check if NOT too close to trees (open plains requirement)
-    let min_tree_distance_sq = 100.0 * 100.0; // Stay 100 pixels away from trees
-    for &(tree_x, tree_y) in tree_positions {
-        let dx = pos_x - tree_x;
-        let dy = pos_y - tree_y;
-        if dx * dx + dy * dy < min_tree_distance_sq {
-            return false; // Too close to trees, not open plains
-        }
-    }
-    
-    // Check if NOT too close to stones
-    let min_stone_distance_sq = 80.0 * 80.0; // Stay 80 pixels away from stones
-    for &(stone_x, stone_y) in stone_positions {
-        let dx = pos_x - stone_x;
-        let dy = pos_y - stone_y;
-        if dx * dx + dy * dy < min_stone_distance_sq {
-            return false; // Too close to stones, not open plains
-        }
-    }
-    
-    true
-}
-
-/// Checks if position is suitable for corn spawning (near water/sand tiles)
-/// Corn prefers areas close to water sources or sandy areas
-fn is_corn_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    // Check surrounding area for water or sand within reasonable distance
-    let search_radius = 3; // Check 3 tiles in each direction
-    let world_tiles = ctx.db.world_tile();
-    
-    for dy in -search_radius..=search_radius {
-        for dx in -search_radius..=search_radius {
-            let check_x = tile_x + dx;
-            let check_y = tile_y + dy;
-            
-            // Check if this nearby tile is water, beach, or sand
-            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
-                if matches!(tile.tile_type, TileType::Sea | TileType::Beach | TileType::Sand) {
-                    return true; // Found water/sand nearby
-                }
-            }
-        }
-    }
-    
-    false // No water/sand nearby
-}
-
-/// Checks if position is suitable for potato spawning (dirt roads, clearings)
-/// Potatoes prefer dirt roads and open cleared areas
-fn is_potato_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, tree_positions: &[(f32, f32)]) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    let world_tiles = ctx.db.world_tile();
-    
-    // First check: Is this on a dirt road? (preferred)
-    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-        if tile.tile_type == TileType::DirtRoad {
-            return true; // Perfect for potatoes
-        }
-    }
-    
-    // Second check: Is this in a clearing? (open dirt or grass areas away from trees)
-    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-        if matches!(tile.tile_type, TileType::Dirt | TileType::Grass) {
-            // Check if it's a clearing (away from trees)
-            let clearing_distance_sq = 80.0 * 80.0; // 80 pixels away from trees for clearing
-            let mut is_clearing = true;
-            
-            for &(tree_x, tree_y) in tree_positions {
-                let dx = pos_x - tree_x;
-                let dy = pos_y - tree_y;
-                if dx * dx + dy * dy < clearing_distance_sq {
-                    is_clearing = false;
-                    break;
-                }
-            }
-            
-            return is_clearing;
-        }
-    }
-    
-    false
-}
-
-/// Checks if position is suitable for pumpkin spawning (riversides, ruins/coastal)
-/// Pumpkins prefer coastal areas, beach regions, and areas near water
-fn is_pumpkin_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    let world_tiles = ctx.db.world_tile();
-    
-    // Check if directly on beach/sand (coastal areas)
-    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-        if matches!(tile.tile_type, TileType::Beach | TileType::Sand) {
-            return true; // Perfect coastal location
-        }
-    }
-    
-    // Check if very close to water (riverside)
-    let search_radius = 2; // Check 2 tiles in each direction for water proximity
-    for dy in -search_radius..=search_radius {
-        for dx in -search_radius..=search_radius {
-            let check_x = tile_x + dx;
-            let check_y = tile_y + dy;
-            
-            // Check if this nearby tile is water
-            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
-                if tile.tile_type == TileType::Sea {
-                    // Make sure we're on a reasonable tile ourselves (not water)
-                    for own_tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-                        if matches!(own_tile.tile_type, TileType::Grass | TileType::Dirt | TileType::Beach) {
-                            return true; // Near water and on good tile
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    false
-}
-
-/// Checks if position is suitable for reed spawning (along inland water sources)
-/// Reeds prefer to grow near inland water (rivers/lakes) but not ocean water
-fn is_reed_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
-    // Convert pixel position to tile coordinates
-    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
-    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
-    
-    // Check if position is near inland water (increased from 1 to 2 tiles for better spawn rates)
-    let search_radius = 2; // Check 2 tiles in each direction (allows reeds slightly further from water)
-    let world_tiles = ctx.db.world_tile();
-    
-    for dy in -search_radius..=search_radius {
-        for dx in -search_radius..=search_radius {
-            let check_x = tile_x + dx;
-            let check_y = tile_y + dy;
-            
-            // Skip if out of bounds
-            if check_x < 0 || check_y < 0 || 
-               check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
-                continue;
-            }
-            
-            // Check if this nearby tile is water
-            for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
-                if tile.tile_type == TileType::Sea {
-                    // Check if it's inland water (not ocean)
-                    if is_tile_inland_water(ctx, check_x, check_y) {
-                        // Make sure our own position is on a suitable tile (grass, dirt, or beach)
-                        for own_tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
-                            if matches!(own_tile.tile_type, TileType::Grass | TileType::Dirt | TileType::Beach) {
-                                return true; // Adjacent to inland water and on good tile
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    false
-}
-
 /// Checks if position is suitable for wild animal spawning based on species preferences
 /// Different animal species prefer different terrain types and locations
 pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, species: AnimalSpecies, tree_positions: &[(f32, f32)]) -> bool {
@@ -574,32 +339,196 @@ pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y:
     }
 }
 
+// --- NEW: Generic spawn location validation system ---
+
+/// Generic spawn location validator that handles all plant spawn conditions
+/// This eliminates code duplication from individual plant validation functions
+pub fn validate_spawn_location(
+    ctx: &ReducerContext,
+    pos_x: f32,
+    pos_y: f32,
+    spawn_condition: &harvestable_resource::SpawnCondition,
+    tree_positions: &[(f32, f32)],
+    stone_positions: &[(f32, f32)]
+) -> bool {
+    // Convert pixel position to tile coordinates (shared logic)
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    let world_tiles = ctx.db.world_tile();
+    
+    // Get current tile type
+    let current_tile_type = {
+        let mut tile_type = None;
+        for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+            tile_type = Some(tile.tile_type);
+            break;
+        }
+        tile_type
+    };
+    
+    match spawn_condition {
+        harvestable_resource::SpawnCondition::Forest => {
+            // Mushrooms: Must be on grass + near trees (within 150px)
+            if !matches!(current_tile_type, Some(TileType::Grass)) {
+                return false;
+            }
+            
+            let forest_distance_sq = 150.0 * 150.0;
+            for &(tree_x, tree_y) in tree_positions {
+                let dx = pos_x - tree_x;
+                let dy = pos_y - tree_y;
+                if dx * dx + dy * dy <= forest_distance_sq {
+                    return true;
+                }
+            }
+            false
+        }
+        
+        harvestable_resource::SpawnCondition::Plains => {
+            // Hemp: Must be on grass/dirt + away from trees (>100px) + away from stones (>80px)
+            if !matches!(current_tile_type, Some(TileType::Grass | TileType::Dirt)) {
+                return false;
+            }
+            
+            // Check distance from trees
+            let min_tree_distance_sq = 100.0 * 100.0;
+            for &(tree_x, tree_y) in tree_positions {
+                let dx = pos_x - tree_x;
+                let dy = pos_y - tree_y;
+                if dx * dx + dy * dy < min_tree_distance_sq {
+                    return false;
+                }
+            }
+            
+            // Check distance from stones
+            let min_stone_distance_sq = 80.0 * 80.0;
+            for &(stone_x, stone_y) in stone_positions {
+                let dx = pos_x - stone_x;
+                let dy = pos_y - stone_y;
+                if dx * dx + dy * dy < min_stone_distance_sq {
+                    return false;
+                }
+            }
+            
+            true
+        }
+        
+        harvestable_resource::SpawnCondition::NearWater => {
+            // Corn: Must have water/beach/sand nearby (within 3 tiles)
+            let search_radius = 3;
+            
+            for dy in -search_radius..=search_radius {
+                for dx in -search_radius..=search_radius {
+                    let check_x = tile_x + dx;
+                    let check_y = tile_y + dy;
+                    
+                    for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                        if matches!(tile.tile_type, TileType::Sea | TileType::Beach | TileType::Sand) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            false
+        }
+        
+        harvestable_resource::SpawnCondition::Clearings => {
+            // Potato: Must be on dirt road OR (grass/dirt + away from trees >80px)
+            if matches!(current_tile_type, Some(TileType::DirtRoad)) {
+                return true; // Perfect for potatoes
+            }
+            
+            if matches!(current_tile_type, Some(TileType::Dirt | TileType::Grass)) {
+                // Check if it's a clearing (away from trees)
+                let clearing_distance_sq = 80.0 * 80.0;
+                for &(tree_x, tree_y) in tree_positions {
+                    let dx = pos_x - tree_x;
+                    let dy = pos_y - tree_y;
+                    if dx * dx + dy * dy < clearing_distance_sq {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            false
+        }
+        
+        harvestable_resource::SpawnCondition::Coastal => {
+            // Pumpkin: Must be on beach/sand OR (grass/dirt/beach + near water within 2 tiles)
+            if matches!(current_tile_type, Some(TileType::Beach | TileType::Sand)) {
+                return true;
+            }
+            
+            // Check if very close to water (riverside)
+            let search_radius = 2;
+            for dy in -search_radius..=search_radius {
+                for dx in -search_radius..=search_radius {
+                    let check_x = tile_x + dx;
+                    let check_y = tile_y + dy;
+                    
+                    for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                        if tile.tile_type == TileType::Sea {
+                            // Make sure we're on a reasonable tile ourselves
+                            if matches!(current_tile_type, Some(TileType::Grass | TileType::Dirt | TileType::Beach)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
+        
+        harvestable_resource::SpawnCondition::InlandWater => {
+            // Reed: Must be near inland water (within 2 tiles) + not ocean water
+            let search_radius = 2;
+            
+            for dy in -search_radius..=search_radius {
+                for dx in -search_radius..=search_radius {
+                    let check_x = tile_x + dx;
+                    let check_y = tile_y + dy;
+                    
+                    // Skip if out of bounds
+                    if check_x < 0 || check_y < 0 || 
+                       check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
+                        continue;
+                    }
+                    
+                    for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                        if tile.tile_type == TileType::Sea && is_tile_inland_water(ctx, check_x, check_y) {
+                            return true;
+                        }
+                        break;
+                    }
+                }
+            }
+            false
+        }
+    }
+}
+
 // --- Environment Seeding ---
 
 #[spacetimedb::reducer]
 pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let trees = ctx.db.tree();
     let stones = ctx.db.stone();
-    let mushrooms = ctx.db.mushroom();
-    let corns = ctx.db.corn();
-    let potatoes = ctx.db.potato();
-    let pumpkins = ctx.db.pumpkin();
-    let hemps = ctx.db.hemp();
-    let reeds = ctx.db.reed();
+    let harvestable_resources = ctx.db.harvestable_resource();
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
     let wild_animals = ctx.db.wild_animal();
 
     // Check if core environment is already seeded (exclude wild_animals since they can dynamically respawn)
-    if trees.iter().count() > 0 || stones.iter().count() > 0 || mushrooms.iter().count() > 0 || corns.iter().count() > 0 || potatoes.iter().count() > 0 || pumpkins.iter().count() > 0 || hemps.iter().count() > 0 || reeds.iter().count() > 0 || clouds.iter().count() > 0 {
+    if trees.iter().count() > 0 || stones.iter().count() > 0 || harvestable_resources.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
-            trees.iter().count(), stones.iter().count(), mushrooms.iter().count(), corns.iter().count(), potatoes.iter().count(), hemps.iter().count(), pumpkins.iter().count(), reeds.iter().count(), clouds.iter().count(), wild_animals.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Harvestable Resources: {}, Clouds: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
+            trees.iter().count(), stones.iter().count(), harvestable_resources.iter().count(), clouds.iter().count(), wild_animals.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, mushrooms, corn, pumpkins, hemp, reeds, clouds) - grass disabled for performance..." );
+    log::info!("Seeding environment (trees, stones, unified harvestable resources, clouds) - grass disabled for performance..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -611,18 +540,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_tree_attempts = target_tree_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_stone_count = (total_tiles as f32 * crate::stone::STONE_DENSITY_PERCENT) as u32;
     let max_stone_attempts = target_stone_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
-    let target_mushroom_count = (total_tiles as f32 * crate::mushroom::MUSHROOM_DENSITY_PERCENT) as u32;
-    let max_mushroom_attempts = target_mushroom_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
-    let target_corn_count = (total_tiles as f32 * crate::corn::CORN_DENSITY_PERCENT) as u32;
-    let max_corn_attempts = target_corn_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
-    let target_potato_count = (total_tiles as f32 * crate::potato::POTATO_DENSITY_PERCENT) as u32;
-    let max_potato_attempts = target_potato_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
-    let target_pumpkin_count = (total_tiles as f32 * crate::pumpkin::PUMPKIN_DENSITY_PERCENT) as u32;
-    let max_pumpkin_attempts = target_pumpkin_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
-    let target_hemp_count = (total_tiles as f32 * crate::hemp::HEMP_DENSITY_PERCENT) as u32;
-    let max_hemp_attempts = target_hemp_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
-    let target_reed_count = (total_tiles as f32 * crate::reed::REED_DENSITY_PERCENT) as u32;
-    let max_reed_attempts = target_reed_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+    
+    // Calculate targets for harvestable resources from the unified configuration (includes mushrooms)
+    let mut plant_targets = std::collections::HashMap::new();
+    let mut plant_attempts = std::collections::HashMap::new();
+    for (plant_type, config) in harvestable_resource::PLANT_CONFIGS.iter() {
+        let target_count = (total_tiles as f32 * config.density_percent) as u32;
+        let max_attempts = target_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+        plant_targets.insert(plant_type.clone(), target_count);
+        plant_attempts.insert(plant_type.clone(), max_attempts);
+    }
 
     // Cloud seeding parameters
     const CLOUD_DENSITY_PERCENT: f32 = 0.005; // Example: 0.5% of tiles might have a cloud center
@@ -651,12 +578,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
 
     log::info!("Target Trees: {}, Max Attempts: {}", target_tree_count, max_tree_attempts);
     log::info!("Target Stones: {}, Max Attempts: {}", target_stone_count, max_stone_attempts);
-    log::info!("Target Mushrooms: {}, Max Attempts: {}", target_mushroom_count, max_mushroom_attempts);
-    log::info!("Target Corns: {}, Max Attempts: {}", target_corn_count, max_corn_attempts);
-    log::info!("Target Potatoes: {}, Max Attempts: {}", target_potato_count, max_potato_attempts);
-    log::info!("Target Hemps: {}, Max Attempts: {}", target_hemp_count, max_hemp_attempts);
-    log::info!("Target Pumpkins: {}, Max Attempts: {}", target_pumpkin_count, max_pumpkin_attempts);
-    log::info!("Target Reeds: {}, Max Attempts: {}", target_reed_count, max_reed_attempts);
+    
+    // Log harvestable resource targets
+    for (plant_type, target_count) in &plant_targets {
+        let max_attempts = plant_attempts.get(plant_type).unwrap_or(&0);
+        log::info!("Target {:?}: {}, Max Attempts: {}", plant_type, target_count, max_attempts);
+    }
+    
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
     log::info!("Target Wild Animals: {}, Max Attempts: {}", target_wild_animal_count, max_wild_animal_attempts);
     // DISABLED: Grass spawning log - grass spawning disabled for performance optimization
@@ -668,12 +596,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut occupied_tiles = HashSet::<(u32, u32)>::new();
     let mut spawned_tree_positions = Vec::<(f32, f32)>::new();
     let mut spawned_stone_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_mushroom_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_corn_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_potato_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_pumpkin_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_hemp_positions = Vec::<(f32, f32)>::new();
-    let mut spawned_reed_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_harvestable_positions = Vec::<(f32, f32)>::new(); // Unified for all plants
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
     let mut spawned_wild_animal_positions = Vec::<(f32, f32)>::new();
     // DISABLED: let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // Grass spawning disabled
@@ -682,18 +605,15 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut tree_attempts = 0;
     let mut spawned_stone_count = 0;
     let mut stone_attempts = 0;
-    let mut spawned_mushroom_count = 0;
-    let mut mushroom_attempts = 0;
-    let mut spawned_corn_count = 0;
-    let mut corn_attempts = 0;
-    let mut spawned_potato_count = 0;
-    let mut potato_attempts = 0;
-    let mut spawned_hemp_count = 0;
-    let mut hemp_attempts = 0;
-    let mut spawned_pumpkin_count = 0;
-    let mut pumpkin_attempts = 0;
-    let mut spawned_reed_count = 0;
-    let mut reed_attempts = 0;
+    
+    // Unified tracking for harvestable resources
+    let mut plant_spawned_counts = std::collections::HashMap::new();
+    let mut plant_attempt_counts = std::collections::HashMap::new();
+    for plant_type in harvestable_resource::PLANT_CONFIGS.keys() {
+        plant_spawned_counts.insert(plant_type.clone(), 0u32);
+        plant_attempt_counts.insert(plant_type.clone(), 0u32);
+    }
+    
     let mut spawned_cloud_count = 0;
     let mut cloud_attempts = 0;
     let mut spawned_wild_animal_count = 0;
@@ -820,291 +740,68 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_stone_count, target_stone_count, stone_attempts
     );
 
-    // --- Seed Mushrooms --- Use helper function ---
-    log::info!("Seeding Mushrooms...");
-    let mushroom_noise_threshold = 0.65; // Specific threshold for mushrooms
-    while spawned_mushroom_count < target_mushroom_count && mushroom_attempts < max_mushroom_attempts {
-        mushroom_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_mushroom_positions,
-            &spawned_tree_positions,
-            &spawned_stone_positions,
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
-            mushroom_noise_threshold,
-            crate::mushroom::MIN_MUSHROOM_DISTANCE_SQ,
-            crate::mushroom::MIN_MUSHROOM_TREE_DISTANCE_SQ,
-            crate::mushroom::MIN_MUSHROOM_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                // Calculate chunk index for the mushroom
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                crate::mushroom::Mushroom {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx, // Set the chunk index
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for mushrooms
-                is_position_on_water(ctx, pos_x, pos_y) || 
-                !is_mushroom_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions)
-            },
-            mushrooms,
-        ) {
-            Ok(true) => spawned_mushroom_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
+    // --- Seed Harvestable Resources (Unified System) ---
+    log::info!("Seeding Harvestable Resources using unified system...");
+    
+    for (plant_type, config) in harvestable_resource::PLANT_CONFIGS.iter() {
+        let target_count = *plant_targets.get(plant_type).unwrap_or(&0);
+        let max_attempts = *plant_attempts.get(plant_type).unwrap_or(&0);
+        let mut spawned_count = 0;
+        let mut attempts = 0;
+        
+        log::info!("Seeding {:?}... (target: {}, max attempts: {})", plant_type, target_count, max_attempts);
+        
+        while spawned_count < target_count && attempts < max_attempts {
+            attempts += 1;
+            
+            match attempt_single_spawn(
+                &mut rng,
+                &mut occupied_tiles,
+                &mut spawned_harvestable_positions,
+                &spawned_tree_positions,
+                &spawned_stone_positions,
+                min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+                &fbm,
+                crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
+                config.noise_threshold as f64,
+                config.min_distance_sq,
+                config.min_tree_distance_sq,
+                config.min_stone_distance_sq,
+                |pos_x, pos_y, _extra: ()| {
+                    let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                    harvestable_resource::create_harvestable_resource(
+                        plant_type.clone(),
+                        pos_x,
+                        pos_y,
+                        chunk_idx
+                    )
+                },
+                (),
+                |pos_x, pos_y| {
+                    is_position_on_water(ctx, pos_x, pos_y) || 
+                    !validate_spawn_location(
+                        ctx, pos_x, pos_y, 
+                        &harvestable_resource::PLANT_CONFIGS.get(plant_type).unwrap().spawn_condition,
+                        &spawned_tree_positions, &spawned_stone_positions
+                    )
+                },
+                harvestable_resources,
+            ) {
+                Ok(true) => spawned_count += 1,
+                Ok(false) => { /* Condition not met, continue */ }
+                Err(_) => { /* Error already logged in helper, continue */ }
+            }
         }
+        
+        // Update tracking
+        plant_spawned_counts.insert(plant_type.clone(), spawned_count);
+        plant_attempt_counts.insert(plant_type.clone(), attempts);
+        
+        log::info!(
+            "Finished seeding {} {:?} plants (target: {}, attempts: {}).",
+            spawned_count, plant_type, target_count, attempts
+        );
     }
-    log::info!(
-        "Finished seeding {} mushrooms (target: {}, attempts: {}).",
-        spawned_mushroom_count, target_mushroom_count, mushroom_attempts
-    );
-
-    // --- Seed Corn --- Use helper function ---
-    log::info!("Seeding Corn...");
-    let corn_noise_threshold = 0.70; // Specific threshold for corn
-    while spawned_corn_count < target_corn_count && corn_attempts < max_corn_attempts {
-        corn_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_corn_positions,
-            &spawned_tree_positions,
-            &spawned_stone_positions,
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
-            corn_noise_threshold,
-            crate::corn::MIN_CORN_DISTANCE_SQ,
-            crate::corn::MIN_CORN_TREE_DISTANCE_SQ,
-            crate::corn::MIN_CORN_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                // Calculate chunk index for the corn
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                crate::corn::Corn {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx, // Set the chunk index
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for corn
-                is_position_on_water(ctx, pos_x, pos_y) || 
-                !is_corn_location_suitable(ctx, pos_x, pos_y)
-            },
-            corns,
-        ) {
-            Ok(true) => spawned_corn_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} corn plants (target: {}, attempts: {}).",
-        spawned_corn_count, target_corn_count, corn_attempts
-    );
-
-    // --- Seed Potatoes --- Use helper function ---
-    log::info!("Seeding Potatoes...");
-    let potato_noise_threshold = 0.65; // Lowered from 0.72 to match mushrooms
-    while spawned_potato_count < target_potato_count && potato_attempts < max_potato_attempts {
-        potato_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_potato_positions,
-            &spawned_tree_positions,
-            &spawned_stone_positions,
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
-            potato_noise_threshold,
-            crate::potato::MIN_POTATO_DISTANCE_SQ,
-            crate::potato::MIN_POTATO_TREE_DISTANCE_SQ,
-            crate::potato::MIN_POTATO_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                // Calculate chunk index for the potato
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                crate::potato::Potato {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx, // Set the chunk index
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for potatoes
-                is_position_on_water(ctx, pos_x, pos_y) || 
-                !is_potato_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions)
-            },
-            potatoes,
-        ) {
-            Ok(true) => spawned_potato_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} potatoes (target: {}, attempts: {}).",
-        spawned_potato_count, target_potato_count, potato_attempts
-    );
-
-    // --- Seed Pumpkins --- Use helper function ---
-    log::info!("Seeding Pumpkins...");
-    let pumpkin_noise_threshold = 0.67; // Lowered from 0.75 to be more reasonable
-    while spawned_pumpkin_count < target_pumpkin_count && pumpkin_attempts < max_pumpkin_attempts {
-        pumpkin_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_pumpkin_positions,
-            &spawned_tree_positions,
-            &spawned_stone_positions,
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
-            pumpkin_noise_threshold,
-            crate::pumpkin::MIN_PUMPKIN_DISTANCE_SQ,
-            crate::pumpkin::MIN_PUMPKIN_TREE_DISTANCE_SQ,
-            crate::pumpkin::MIN_PUMPKIN_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                // Calculate chunk index for the pumpkin
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                crate::pumpkin::Pumpkin {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx,
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for pumpkins
-                is_position_on_water(ctx, pos_x, pos_y) || 
-                !is_pumpkin_location_suitable(ctx, pos_x, pos_y)
-            },
-            pumpkins,
-        ) {
-            Ok(true) => spawned_pumpkin_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} pumpkins (target: {}, attempts: {}).",
-        spawned_pumpkin_count, target_pumpkin_count, pumpkin_attempts
-    );
-
-    // --- Seed Hemp --- Use helper function ---
-    log::info!("Seeding Hemp...");
-    let hemp_noise_threshold = 0.68; // Specific threshold for hemp (adjust as needed)
-    while spawned_hemp_count < target_hemp_count && hemp_attempts < max_hemp_attempts {
-        hemp_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_hemp_positions, 
-            &spawned_tree_positions,    
-            &spawned_stone_positions,   // Consider corn positions too if they are dense
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY, 
-            hemp_noise_threshold,          
-            crate::hemp::MIN_HEMP_DISTANCE_SQ,
-            crate::hemp::MIN_HEMP_TREE_DISTANCE_SQ,
-            crate::hemp::MIN_HEMP_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                crate::hemp::Hemp {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx,
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for hemp
-                is_position_on_water(ctx, pos_x, pos_y) || 
-                !is_hemp_location_suitable(ctx, pos_x, pos_y, &spawned_tree_positions, &spawned_stone_positions)
-            },
-            hemps, 
-        ) {
-            Ok(true) => spawned_hemp_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} hemps (target: {}, attempts: {}).",
-        spawned_hemp_count, target_hemp_count, hemp_attempts
-    );
-
-    // --- Seed Reeds --- Use helper function ---
-    log::info!("Seeding Reeds...");
-    let reed_noise_threshold = 0.58; // Lowered threshold for reeds (easier to spawn near water)
-    while spawned_reed_count < target_reed_count && reed_attempts < max_reed_attempts {
-        reed_attempts += 1;
-        match attempt_single_spawn(
-            &mut rng,
-            &mut occupied_tiles,
-            &mut spawned_reed_positions,
-            &spawned_tree_positions,
-            &spawned_stone_positions,
-            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
-            &fbm,
-            crate::tree::TREE_SPAWN_NOISE_FREQUENCY,
-            reed_noise_threshold,
-            crate::reed::MIN_REED_DISTANCE_SQ,
-            crate::reed::MIN_REED_TREE_DISTANCE_SQ,
-            crate::reed::MIN_REED_STONE_DISTANCE_SQ,
-            |pos_x, pos_y, _extra: ()| {
-                // Calculate chunk index for the reed
-                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
-                
-                crate::reed::Reed {
-                    id: 0,
-                    pos_x,
-                    pos_y,
-                    chunk_index: chunk_idx,
-                    respawn_at: None,
-                }
-            },
-            (),
-            |pos_x, pos_y| {
-                // UPDATED: Combined water and location check for reeds
-                // Note: Reeds want to be NEAR water, not ON water, so we use the inverse
-                !is_reed_location_suitable(ctx, pos_x, pos_y)
-            },
-            reeds,
-        ) {
-            Ok(true) => spawned_reed_count += 1,
-            Ok(false) => { /* Condition not met, continue */ }
-            Err(_) => { /* Error already logged in helper, continue */ }
-        }
-    }
-    log::info!(
-        "Finished seeding {} reeds (target: {}, attempts: {}).",
-        spawned_reed_count, target_reed_count, reed_attempts
-    );
 
     // --- Seed Wild Animals ---
     log::info!("Seeding Wild Animals...");
@@ -1166,7 +863,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         // Block spawning on water, in central compound, or unsuitable terrain for the species
         if is_position_on_water(ctx, pos_x, pos_y) || 
            is_position_in_central_compound(pos_x, pos_y) ||
-           !is_wild_animal_location_suitable(ctx, pos_x, pos_y, chosen_species, &spawned_tree_positions) {
+           !validate_spawn_location(ctx, pos_x, pos_y, &harvestable_resource::SpawnCondition::Forest, &[], &[]) {
             continue;
         }
         
@@ -1435,10 +1132,18 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         }
     }
 
+    // Generate summary for harvestable resources
+    let mut harvestable_summary = String::new();
+    for (plant_type, count) in &plant_spawned_counts {
+        if !harvestable_summary.is_empty() {
+            harvestable_summary.push_str(", ");
+        }
+        harvestable_summary.push_str(&format!("{:?}: {}", plant_type, count));
+    }
+    
     log::info!(
-        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}, Barrels: {}",
-        spawned_tree_count, spawned_stone_count, spawned_mushroom_count, spawned_corn_count, 
-        spawned_potato_count, spawned_hemp_count, spawned_pumpkin_count, spawned_reed_count, 
+        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Harvestable Resources: [{}], Clouds: {}, Wild Animals: {}, Barrels: {}",
+        spawned_tree_count, spawned_stone_count, harvestable_summary,
         spawned_cloud_count, spawned_wild_animal_count, ctx.db.barrel().iter().count()
     );
     Ok(())
@@ -1482,75 +1187,15 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         }
     );
 
-    // Respawn Mushrooms
+    // Respawn Harvestable Resources (Unified System)
     check_and_respawn_resource!(
         ctx,
-        mushroom,
-        crate::mushroom::Mushroom,
-        "Mushroom",
-        |_m: &crate::mushroom::Mushroom| true, // Filter: Always check mushrooms if respawn_at is set (handled internally by macro)
-        |m: &mut crate::mushroom::Mushroom| {
-            m.respawn_at = None;
-        }
-    );
-
-    // Respawn Corn
-    check_and_respawn_resource!(
-        ctx,
-        corn,
-        crate::corn::Corn,
-        "Corn",
-        |_c: &crate::corn::Corn| true, // Filter: Always check corn if respawn_at is set (handled internally by macro)
-        |c: &mut crate::corn::Corn| {
-            c.respawn_at = None;
-        }
-    );
-
-    // Respawn Potatoes
-    check_and_respawn_resource!(
-        ctx,
-        potato,
-        crate::potato::Potato,
-        "Potato",
-        |_p: &crate::potato::Potato| true, // Filter: Always check potatoes if respawn_at is set (handled internally by macro)
-        |p: &mut crate::potato::Potato| {
-            p.respawn_at = None;
-        }
-    );
-
-    // Respawn Pumpkins
-    check_and_respawn_resource!(
-        ctx,
-        pumpkin,
-        crate::pumpkin::Pumpkin,
-        "Pumpkin",
-        |_p: &crate::pumpkin::Pumpkin| true, // Filter: Always check pumpkins if respawn_at is set (handled internally by macro)
-        |p: &mut crate::pumpkin::Pumpkin| {
-            p.respawn_at = None;
-        }
-    );
-
-    // Respawn Hemp
-    check_and_respawn_resource!(
-        ctx,
-        hemp, // Table symbol
-        crate::hemp::Hemp, // Entity type
-        "Hemp", // Name for logging
-        |_h: &crate::hemp::Hemp| true, // Filter: Always check if respawn_at is set
-        |h: &mut crate::hemp::Hemp| {
+        harvestable_resource,
+        crate::harvestable_resource::HarvestableResource,
+        "HarvestableResource",
+        |_h: &crate::harvestable_resource::HarvestableResource| true, // Filter: Always check if respawn_at is set
+        |h: &mut crate::harvestable_resource::HarvestableResource| {
             h.respawn_at = None;
-        }
-    );
-
-    // Respawn Reeds
-    check_and_respawn_resource!(
-        ctx,
-        reed, // Table symbol
-        crate::reed::Reed, // Entity type
-        "Reed", // Name for logging
-        |_r: &crate::reed::Reed| true, // Filter: Always check if respawn_at is set
-        |r: &mut crate::reed::Reed| {
-            r.respawn_at = None;
         }
     );
 

@@ -30,23 +30,25 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-import { Potato } from "./potato_type";
+import { HarvestableResource } from "./harvestable_resource_type";
+import { PlantType as __PlantType } from "./plant_type_type";
+
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**
- * Table handle for the table `potato`.
+ * Table handle for the table `harvestable_resource`.
  *
- * Obtain a handle from the [`potato`] property on [`RemoteTables`],
- * like `ctx.db.potato`.
+ * Obtain a handle from the [`harvestableResource`] property on [`RemoteTables`],
+ * like `ctx.db.harvestableResource`.
  *
  * Users are encouraged not to explicitly reference this type,
  * but to directly chain method calls,
- * like `ctx.db.potato.on_insert(...)`.
+ * like `ctx.db.harvestableResource.on_insert(...)`.
  */
-export class PotatoTableHandle {
-  tableCache: TableCache<Potato>;
+export class HarvestableResourceTableHandle {
+  tableCache: TableCache<HarvestableResource>;
 
-  constructor(tableCache: TableCache<Potato>) {
+  constructor(tableCache: TableCache<HarvestableResource>) {
     this.tableCache = tableCache;
   }
 
@@ -54,24 +56,24 @@ export class PotatoTableHandle {
     return this.tableCache.count();
   }
 
-  iter(): Iterable<Potato> {
+  iter(): Iterable<HarvestableResource> {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `id` unique index on the table `potato`,
+   * Access to the `id` unique index on the table `harvestable_resource`,
    * which allows point queries on the field of the same name
-   * via the [`PotatoIdUnique.find`] method.
+   * via the [`HarvestableResourceIdUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.potato.id().find(...)`.
+   * like `ctx.db.harvestableResource.id().find(...)`.
    *
-   * Get a handle on the `id` unique index on the table `potato`.
+   * Get a handle on the `id` unique index on the table `harvestable_resource`.
    */
   id = {
     // Find the subscribed row whose `id` column value is equal to `col_val`,
     // if such a row is present in the client cache.
-    find: (col_val: bigint): Potato | undefined => {
+    find: (col_val: bigint): HarvestableResource | undefined => {
       for (let row of this.tableCache.iter()) {
         if (deepEqual(row.id, col_val)) {
           return row;
@@ -80,27 +82,27 @@ export class PotatoTableHandle {
     },
   };
 
-  onInsert = (cb: (ctx: EventContext, row: Potato) => void) => {
+  onInsert = (cb: (ctx: EventContext, row: HarvestableResource) => void) => {
     return this.tableCache.onInsert(cb);
   }
 
-  removeOnInsert = (cb: (ctx: EventContext, row: Potato) => void) => {
+  removeOnInsert = (cb: (ctx: EventContext, row: HarvestableResource) => void) => {
     return this.tableCache.removeOnInsert(cb);
   }
 
-  onDelete = (cb: (ctx: EventContext, row: Potato) => void) => {
+  onDelete = (cb: (ctx: EventContext, row: HarvestableResource) => void) => {
     return this.tableCache.onDelete(cb);
   }
 
-  removeOnDelete = (cb: (ctx: EventContext, row: Potato) => void) => {
+  removeOnDelete = (cb: (ctx: EventContext, row: HarvestableResource) => void) => {
     return this.tableCache.removeOnDelete(cb);
   }
 
   // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: Potato, newRow: Potato) => void) => {
+  onUpdate = (cb: (ctx: EventContext, oldRow: HarvestableResource, newRow: HarvestableResource) => void) => {
     return this.tableCache.onUpdate(cb);
   }
 
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: Potato, newRow: Potato) => void) => {
+  removeOnUpdate = (cb: (ctx: EventContext, onRow: HarvestableResource, newRow: HarvestableResource) => void) => {
     return this.tableCache.removeOnUpdate(cb);
   }}

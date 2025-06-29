@@ -24,10 +24,7 @@ use crate::models::TargetType; // Import TargetType directly from models
 // Import resource modules for cleanup
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
-use crate::mushroom::mushroom as MushroomTableTrait;
-use crate::corn::corn as CornTableTrait;
-use crate::pumpkin::pumpkin as PumpkinTableTrait;
-use crate::hemp::hemp as HempTableTrait;
+use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::grass::grass as GrassTableTrait;
 use crate::grass::grass_respawn_schedule as GrassRespawnScheduleTableTrait;
 
@@ -818,75 +815,22 @@ fn clear_resources_in_shelter_footprint(ctx: &ReducerContext, shelter_x: f32, sh
         resources_cleared += 1;
     }
     
-    // Clear Mushrooms
-    let mushrooms_to_remove: Vec<u64> = ctx.db.mushroom().iter()
-        .filter(|mushroom| {
-            let inside = mushroom.pos_x >= aabb_left && mushroom.pos_x <= aabb_right && 
-                        mushroom.pos_y >= aabb_top && mushroom.pos_y <= aabb_bottom;
+    // Clear Harvestable Resources (including mushrooms in unified system)
+    let harvestable_to_remove: Vec<u64> = ctx.db.harvestable_resource().iter()
+        .filter(|resource| {
+            let inside = resource.pos_x >= aabb_left && resource.pos_x <= aabb_right && 
+                        resource.pos_y >= aabb_top && resource.pos_y <= aabb_bottom;
             if inside {
-                log::debug!("[ShelterCleanup] Removing Mushroom {} at ({:.1}, {:.1})", mushroom.id, mushroom.pos_x, mushroom.pos_y);
+                log::debug!("[ShelterCleanup] Removing {:?} {} at ({:.1}, {:.1})", 
+                           resource.plant_type, resource.id, resource.pos_x, resource.pos_y);
             }
             inside
         })
-        .map(|mushroom| mushroom.id)
+        .map(|resource| resource.id)
         .collect();
     
-    for mushroom_id in mushrooms_to_remove {
-        ctx.db.mushroom().id().delete(mushroom_id);
-        resources_cleared += 1;
-    }
-    
-    // Clear Corn
-    let corn_to_remove: Vec<u64> = ctx.db.corn().iter()
-        .filter(|corn| {
-            let inside = corn.pos_x >= aabb_left && corn.pos_x <= aabb_right && 
-                        corn.pos_y >= aabb_top && corn.pos_y <= aabb_bottom;
-            if inside {
-                log::debug!("[ShelterCleanup] Removing Corn {} at ({:.1}, {:.1})", corn.id, corn.pos_x, corn.pos_y);
-            }
-            inside
-        })
-        .map(|corn| corn.id)
-        .collect();
-    
-    for corn_id in corn_to_remove {
-        ctx.db.corn().id().delete(corn_id);
-        resources_cleared += 1;
-    }
-    
-    // Clear Pumpkins
-    let pumpkins_to_remove: Vec<u64> = ctx.db.pumpkin().iter()
-        .filter(|pumpkin| {
-            let inside = pumpkin.pos_x >= aabb_left && pumpkin.pos_x <= aabb_right && 
-                        pumpkin.pos_y >= aabb_top && pumpkin.pos_y <= aabb_bottom;
-            if inside {
-                log::debug!("[ShelterCleanup] Removing Pumpkin {} at ({:.1}, {:.1})", pumpkin.id, pumpkin.pos_x, pumpkin.pos_y);
-            }
-            inside
-        })
-        .map(|pumpkin| pumpkin.id)
-        .collect();
-    
-    for pumpkin_id in pumpkins_to_remove {
-        ctx.db.pumpkin().id().delete(pumpkin_id);
-        resources_cleared += 1;
-    }
-    
-    // Clear Hemp
-    let hemp_to_remove: Vec<u64> = ctx.db.hemp().iter()
-        .filter(|hemp| {
-            let inside = hemp.pos_x >= aabb_left && hemp.pos_x <= aabb_right && 
-                        hemp.pos_y >= aabb_top && hemp.pos_y <= aabb_bottom;
-            if inside {
-                log::debug!("[ShelterCleanup] Removing Hemp {} at ({:.1}, {:.1})", hemp.id, hemp.pos_x, hemp.pos_y);
-            }
-            inside
-        })
-        .map(|hemp| hemp.id)
-        .collect();
-    
-    for hemp_id in hemp_to_remove {
-        ctx.db.hemp().id().delete(hemp_id);
+    for resource_id in harvestable_to_remove {
+        ctx.db.harvestable_resource().id().delete(resource_id);
         resources_cleared += 1;
     }
     

@@ -891,7 +891,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             {/* Right Pane: Always shows External Container if interacting */}
             <div className={styles.rightPane}> {/* Ensure rightPane class exists if needed */}
                 {(() => {
-                    console.log('[InventoryUI Render] Right pane decision - interactionTarget:', interactionTarget);
+                    // console.log('[InventoryUI Render] Right pane decision - interactionTarget:', interactionTarget);
                     return interactionTarget ? (
                         // If interacting, show the external container
                         <ExternalContainerUI

@@ -30,8 +30,11 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-export type Mushroom = {
+import { PlantType as __PlantType } from "./plant_type_type";
+
+export type HarvestableResource = {
   id: bigint,
+  plantType: __PlantType,
   posX: number,
   posY: number,
   chunkIndex: number,
@@ -41,7 +44,7 @@ export type Mushroom = {
 /**
  * A namespace for generated helper functions.
  */
-export namespace Mushroom {
+export namespace HarvestableResource {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -49,6 +52,7 @@ export namespace Mushroom {
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
       new ProductTypeElement("id", AlgebraicType.createU64Type()),
+      new ProductTypeElement("plantType", __PlantType.getTypeScriptAlgebraicType()),
       new ProductTypeElement("posX", AlgebraicType.createF32Type()),
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
@@ -56,12 +60,12 @@ export namespace Mushroom {
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: Mushroom): void {
-    Mushroom.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: HarvestableResource): void {
+    HarvestableResource.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): Mushroom {
-    return Mushroom.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): HarvestableResource {
+    return HarvestableResource.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

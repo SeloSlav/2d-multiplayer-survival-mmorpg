@@ -80,23 +80,8 @@ export function useTargetInteractionManager({
         if (!connection || !target || !config) return;
 
         switch (target.type) {
-            case 'mushroom':
-                connection.reducers.interactWithMushroom(BigInt(target.id as bigint));
-                break;
-            case 'corn':
-                connection.reducers.interactWithCorn(BigInt(target.id as bigint));
-                break;
-            case 'potato':
-                connection.reducers.interactWithPotato(BigInt(target.id as bigint));
-                break;
-            case 'pumpkin':
-                connection.reducers.interactWithPumpkin(BigInt(target.id as bigint));
-                break;
-            case 'hemp':
-                connection.reducers.interactWithHemp(BigInt(target.id as bigint));
-                break;
-            case 'reed':
-                connection.reducers.interactWithReed(BigInt(target.id as bigint));
+            case 'harvestable_resource':
+                connection.reducers.interactWithHarvestableResource(BigInt(target.id as bigint));
                 break;
             case 'dropped_item':
                 connection.reducers.pickupDroppedItem(BigInt(target.id as bigint));

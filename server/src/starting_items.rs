@@ -41,6 +41,20 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Torch", 1, None, Some(5u16)),
         ("Reed Water Bottle", 1, None, Some(6u16)),
         ("Bone Knife", 1, None, Some(7u16)),
+        ("Shelter", 1, None, Some(8u16)),
+        ("Lantern", 1, None, Some(9u16)),
+        ("Stash", 1, None, Some(10u16)),
+        ("Reed Rain Collector", 1, None, Some(11u16)),
+        ("Tallow", 50, None, Some(12u16)),
+        ("Camp Fire", 1, None, Some(13u16)),
+        ("Camp Fire", 1, None, Some(14u16)),
+        ("Camp Fire", 1, None, Some(15u16)),
+        ("Camp Fire", 1, None, Some(16u16)),
+        ("Camp Fire", 1, None, Some(17u16)),
+        ("Camp Fire", 1, None, Some(18u16)),
+        ("Camp Fire", 1, None, Some(19u16)),
+        ("Camp Fire", 1, None, Some(20u16)),
+        ("Camp Fire", 1, None, Some(21u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

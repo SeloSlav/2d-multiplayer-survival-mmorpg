@@ -31,30 +31,30 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type InteractWithMushroom = {
-  mushroomId: bigint,
+export type InteractWithHarvestableResource = {
+  resourceId: bigint,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace InteractWithMushroom {
+export namespace InteractWithHarvestableResource {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("mushroomId", AlgebraicType.createU64Type()),
+      new ProductTypeElement("resourceId", AlgebraicType.createU64Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: InteractWithMushroom): void {
-    InteractWithMushroom.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: InteractWithHarvestableResource): void {
+    InteractWithHarvestableResource.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): InteractWithMushroom {
-    return InteractWithMushroom.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): InteractWithHarvestableResource {
+    return InteractWithHarvestableResource.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

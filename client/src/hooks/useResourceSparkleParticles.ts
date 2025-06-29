@@ -1,11 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
-    Mushroom as SpacetimeDBMushroom,
-    Corn as SpacetimeDBCorn,
-    Potato as SpacetimeDBPotato,
-    Pumpkin as SpacetimeDBPumpkin,
-    Hemp as SpacetimeDBHemp,
-    Reed as SpacetimeDBReed,
+    HarvestableResource as SpacetimeDBHarvestableResource,
 } from '../generated';
 import { Particle } from './useCampfireParticles'; // Reuse Particle type
 
@@ -41,21 +36,11 @@ const RESOURCE_VISUAL_ADJUSTMENTS = {
 };
 
 interface UseResourceSparkleParticlesProps {
-    mushrooms: Map<string, SpacetimeDBMushroom>;
-    corns: Map<string, SpacetimeDBCorn>;
-    potatoes: Map<string, SpacetimeDBPotato>;
-    pumpkins: Map<string, SpacetimeDBPumpkin>;
-    hemps: Map<string, SpacetimeDBHemp>;
-    reeds: Map<string, SpacetimeDBReed>;
+    harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
 }
 
 export function useResourceSparkleParticles({
-    mushrooms,
-    corns,
-    potatoes,
-    pumpkins,
-    hemps,
-    reeds,
+    harvestableResources,
 }: UseResourceSparkleParticlesProps): Particle[] {
     const particlesRef = useRef<Particle[]>([]);
     const emissionAccumulatorRef = useRef<Map<string, number>>(new Map());
@@ -111,23 +96,21 @@ export function useResourceSparkleParticles({
 
             const newGeneratedParticles: Particle[] = [];
 
-            // Helper function to generate sparkles for a resource type
-            const generateSparklesForResource = (
-                resources: Map<string, any>,
-                resourceType: keyof typeof RESOURCE_HEIGHTS,
-                prefix: string
-            ) => {
-                if (!resources) return;
-
-                resources.forEach((resource, resourceId) => {
+            // Generate sparkles for unified harvestable resources
+            if (harvestableResources) {
+                harvestableResources.forEach((resource, resourceId) => {
                     // Only generate sparkles for harvestable resources (not respawning)
                     if (resource.respawnAt !== null && resource.respawnAt !== undefined) {
                         // Reset accumulator for respawning resources
-                        emissionAccumulatorRef.current.set(`${prefix}_${resourceId}`, 0);
+                        emissionAccumulatorRef.current.set(`harvestable_${resourceId}`, 0);
                         return;
                     }
 
-                    let acc = emissionAccumulatorRef.current.get(`${prefix}_${resourceId}`) || 0;
+                    // Get the plant type to determine resource height and visual adjustments
+                    const plantType = resource.plantType?.tag?.toLowerCase() as keyof typeof RESOURCE_HEIGHTS;
+                    if (!plantType || !RESOURCE_HEIGHTS[plantType]) return;
+
+                    let acc = emissionAccumulatorRef.current.get(`harvestable_${resourceId}`) || 0;
                     acc += SPARKLES_PER_RESOURCE_FRAME * deltaTimeFactor;
 
                     while (acc >= 1) {
@@ -135,15 +118,15 @@ export function useResourceSparkleParticles({
                         const lifetime = SPARKLE_PARTICLE_LIFETIME_MIN + Math.random() * (SPARKLE_PARTICLE_LIFETIME_MAX - SPARKLE_PARTICLE_LIFETIME_MIN);
                         
                         // Calculate sparkle emission position at the bottom of the resource
-                        const resourceHeight = RESOURCE_HEIGHTS[resourceType];
-                        const visualAdjustment = RESOURCE_VISUAL_ADJUSTMENTS[resourceType];
+                        const resourceHeight = RESOURCE_HEIGHTS[plantType];
+                        const visualAdjustment = RESOURCE_VISUAL_ADJUSTMENTS[plantType];
                         
                         // Start sparkles from the base/bottom area of the resource
                         const sparkleStartX = resource.posX + (Math.random() - 0.5) * (resourceHeight * 0.6); // Width spread
                         const sparkleStartY = resource.posY - (visualAdjustment * 0.3) + (Math.random() - 0.5) * 8; // Near bottom with slight variation
 
                         newGeneratedParticles.push({
-                            id: `sparkle_${prefix}_${resourceId}_${now}_${Math.random()}`,
+                            id: `sparkle_harvestable_${resourceId}_${now}_${Math.random()}`,
                             type: 'fire', // Reuse fire type for rendering
                             x: sparkleStartX,
                             y: sparkleStartY,
@@ -157,17 +140,9 @@ export function useResourceSparkleParticles({
                             alpha: 1.0,
                         });
                     }
-                    emissionAccumulatorRef.current.set(`${prefix}_${resourceId}`, acc);
+                    emissionAccumulatorRef.current.set(`harvestable_${resourceId}`, acc);
                 });
-            };
-
-            // Generate sparkles for each resource type
-            generateSparklesForResource(mushrooms, 'mushroom', 'mushroom');
-            generateSparklesForResource(corns, 'corn', 'corn');
-            generateSparklesForResource(potatoes, 'potato', 'potato');
-            generateSparklesForResource(pumpkins, 'pumpkin', 'pumpkin');
-            generateSparklesForResource(hemps, 'hemp', 'hemp');
-            generateSparklesForResource(reeds, 'reed', 'reed');
+            }
 
             // Add newly generated particles
             if (newGeneratedParticles.length > 0) {
@@ -189,7 +164,7 @@ export function useResourceSparkleParticles({
                 cancelAnimationFrame(animationFrameRef.current);
             }
         };
-    }, [mushrooms, corns, potatoes, pumpkins, hemps, reeds]);
+    }, [harvestableResources]);
 
     return particlesRef.current;
 } 

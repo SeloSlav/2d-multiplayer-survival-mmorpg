@@ -1,17 +1,18 @@
-// Unified Resource Renderer - Consolidates all harvestable resource rendering
-import { 
-  HarvestableResource, 
-  ResourceType, 
-  TypedHarvestableResource,
-  addResourceTypeMarker
-} from '../../types/resourceTypes';
+// Unified Resource Renderer - Uses server-side PlantType enum
+import { HarvestableResource } from '../../generated';
+import { ResourceType, getResourceType } from '../../types/resourceTypes';
 import { 
   createResourceGroundConfig, 
-  getResourceConfig,
   RESOURCE_CONFIGS 
 } from './resourceConfigurations';
 import { renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager';
+
+// Helper function to get resource type from server's plantType.tag
+function getResourceTypeFromPlantType(entity: HarvestableResource): ResourceType {
+  // Use the existing helper from resourceTypes.ts that handles the server's plantType
+  return getResourceType(entity);
+}
 
 // Preload all resource images
 Object.values(RESOURCE_CONFIGS).forEach(config => {
@@ -38,108 +39,42 @@ export function renderHarvestableResource(
   onlyDrawShadow?: boolean,
   skipDrawingShadow?: boolean
 ) {
-  // Since all resource types have identical structures, we need to determine
-  // the type from the calling context. For now, we'll throw an error to indicate
-  // that the type-specific functions should be used instead.
-  throw new Error('renderHarvestableResource requires explicit resource type. Use renderCorn, renderHemp, renderMushroom, or renderPumpkin instead.');
+  try {
+    // Get the resource type from the server's plantType.tag
+    const resourceType = getResourceTypeFromPlantType(entity);
+    
+    // Get the appropriate configuration
+    const groundConfig = getCachedGroundConfig(resourceType);
+    
+    // Render using the generic ground renderer
+    renderConfiguredGroundEntity({
+      ctx,
+      entity,
+      config: groundConfig,
+      nowMs,
+      entityPosX: entity.posX,
+      entityPosY: entity.posY,
+      cycleProgress,
+      onlyDrawShadow,
+      skipDrawingShadow
+    });
+    
+  } catch (error) {
+    console.error('[HARVESTABLE_RESOURCE_ERROR] Failed to render harvestable resource:', {
+      error: error instanceof Error ? error.message : String(error),
+      entity: entity,
+      entityId: entity.id,
+      plantType: entity.plantType
+    });
+    
+    // Fallback: render a simple placeholder to prevent total rendering failure
+    ctx.fillStyle = 'red';
+    ctx.fillRect(entity.posX - 8, entity.posY - 8, 16, 16);
+    ctx.fillStyle = 'white';
+    ctx.fillText('?', entity.posX - 4, entity.posY + 4);
+  }
 }
 
-// Enhanced rendering function that accepts explicit resource type
-export function renderHarvestableResourceWithType(
-  ctx: CanvasRenderingContext2D,
-  entity: HarvestableResource,
-  resourceType: ResourceType,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  // Add type marker to the entity
-  const typedEntity = addResourceTypeMarker(entity, resourceType);
-  
-  // Get the appropriate configuration
-  const groundConfig = getCachedGroundConfig(resourceType);
-  
-  // Render using the generic ground renderer
-  renderConfiguredGroundEntity({
-    ctx,
-    entity: typedEntity,
-    config: groundConfig,
-    nowMs,
-    entityPosX: entity.posX,
-    entityPosY: entity.posY,
-    cycleProgress,
-    onlyDrawShadow,
-    skipDrawingShadow
-  });
-}
-
-// Type-specific convenience functions for backward compatibility
-export function renderCorn(
-  ctx: CanvasRenderingContext2D,
-  corn: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, corn, 'corn', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
-
-export function renderHemp(
-  ctx: CanvasRenderingContext2D,
-  hemp: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, hemp, 'hemp', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
-
-export function renderMushroom(
-  ctx: CanvasRenderingContext2D,
-  mushroom: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, mushroom, 'mushroom', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
-
-export function renderPotato(
-  ctx: CanvasRenderingContext2D,
-  potato: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, potato, 'potato', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
-
-export function renderPumpkin(
-  ctx: CanvasRenderingContext2D,
-  pumpkin: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, pumpkin, 'pumpkin', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
-
-export function renderReed(
-  ctx: CanvasRenderingContext2D,
-  reed: HarvestableResource,
-  nowMs: number,
-  cycleProgress: number,
-  onlyDrawShadow?: boolean,
-  skipDrawingShadow?: boolean
-) {
-  renderHarvestableResourceWithType(ctx, reed, 'reed', nowMs, cycleProgress, onlyDrawShadow, skipDrawingShadow);
-}
 
 // Export the main function as default
-export default renderHarvestableResourceWithType; 
+export default renderHarvestableResource; 

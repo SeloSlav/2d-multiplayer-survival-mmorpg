@@ -5,7 +5,6 @@ import {
   Stone as SpacetimeDBStone,
   Campfire as SpacetimeDBCampfire,
   Lantern as SpacetimeDBLantern,
-  Mushroom as SpacetimeDBMushroom,
   WorldState as SpacetimeDBWorldState,
   ActiveEquipment as SpacetimeDBActiveEquipment,
   InventoryItem as SpacetimeDBInventoryItem,
@@ -14,10 +13,6 @@ import {
   WoodenStorageBox as SpacetimeDBWoodenStorageBox,
   PlayerPin as SpacetimeDBPlayerPin,
   ActiveConnection,
-  Corn as SpacetimeDBCorn,
-  Pumpkin as SpacetimeDBPumpkin,
-  Hemp as SpacetimeDBHemp,
-  Reed as SpacetimeDBReed,
   SleepingBag as SpacetimeDBSleepingBag,
   PlayerCorpse as SpacetimeDBPlayerCorpse,
   Stash as SpacetimeDBStash,
@@ -29,7 +24,6 @@ import {
   Projectile as SpacetimeDBProjectile,
   DeathMarker as SpacetimeDBDeathMarker,
   Shelter as SpacetimeDBShelter,
-  Potato as SpacetimeDBPotato,
   MinimapCache as SpacetimeDBMinimapCache,
   FishingSession,
   PlantedSeed as SpacetimeDBPlantedSeed,
@@ -38,6 +32,7 @@ import {
   ViperSpittle as SpacetimeDBViperSpittle,
   AnimalCorpse as SpacetimeDBAnimalCorpse,
   Barrel as SpacetimeDBBarrel,
+  HarvestableResource as SpacetimeDBHarvestableResource,
 } from '../generated';
 
 // --- Core Hooks ---
@@ -119,12 +114,7 @@ interface GameCanvasProps {
   stones: Map<string, SpacetimeDBStone>;
   campfires: Map<string, SpacetimeDBCampfire>;
   lanterns: Map<string, SpacetimeDBLantern>;
-  mushrooms: Map<string, SpacetimeDBMushroom>;
-  corns: Map<string, SpacetimeDBCorn>;
-  potatoes: Map<string, SpacetimeDBPotato>;
-  pumpkins: Map<string, SpacetimeDBPumpkin>;
-  hemps: Map<string, SpacetimeDBHemp>;
-  reeds: Map<string, SpacetimeDBReed>;
+  harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
   woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
   sleepingBags: Map<string, SpacetimeDBSleepingBag>;
@@ -186,12 +176,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   stones,
   campfires,
   lanterns,
-  mushrooms,
-  corns,
-  potatoes,
-  pumpkins,
-  hemps,
-  reeds,
+  harvestableResources,
   droppedItems,
   woodenStorageBoxes,
   sleepingBags,
@@ -261,14 +246,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- Core Game State Hooks ---
   const localPlayer = useMemo(() => {
-    if (!localPlayerId) return undefined;
-    return players.get(localPlayerId);
-  }, [players, localPlayerId]);
+    if (!localPlayerId) {
+      // console.log('[GameCanvas DEBUG] localPlayerId is falsy:', localPlayerId);
+      return undefined;
+    }
+    const player = players.get(localPlayerId);
+    // console.log('[GameCanvas DEBUG] localPlayerId:', localPlayerId, 'found player:', !!player, 'players.size:', players.size);
+    if (player) {
+      // console.log('[GameCanvas DEBUG] player position:', player.positionX, player.positionY);
+      // console.log('[GameCanvas DEBUG] predicted position:', predictedPosition);
+    } else {
+      // console.log('[GameCanvas DEBUG] Player not found in players map. Available player IDs:', Array.from(players.keys()));
+    }
+    return player;
+  }, [players, localPlayerId, predictedPosition]);
 
   // Initialize remote player interpolation
   const remotePlayerInterpolation = useRemotePlayerInterpolation();
 
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer, predictedPosition);
+  // console.log('[GameCanvas DEBUG] Camera offsets:', cameraOffsetX, cameraOffsetY, 'canvas size:', canvasSize);
+  
   const { heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const doodadImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
@@ -315,7 +313,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     import('../assets/ui/marker.png').then((module) => {
       const pinImg = new Image();
       pinImg.onload = () => {
-        console.log('[GameCanvas] Pin marker image loaded successfully');
+        // console.log('[GameCanvas] Pin marker image loaded successfully');
         setPinMarkerImg(pinImg);
       };
       pinImg.onerror = () => console.error('Failed to load pin marker image');
@@ -326,7 +324,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     import('../assets/ui/warmth.png').then((module) => {
       const warmthImg = new Image();
       warmthImg.onload = () => {
-        console.log('[GameCanvas] Campfire warmth image loaded successfully');
+        // console.log('[GameCanvas] Campfire warmth image loaded successfully');
         setCampfireWarmthImg(warmthImg);
       };
       warmthImg.onerror = () => console.error('Failed to load campfire warmth image');
@@ -337,7 +335,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     import('../assets/items/torch_on.png').then((module) => {
       const torchImg = new Image();
       torchImg.onload = () => {
-        console.log('[GameCanvas] Torch image loaded successfully');
+        // console.log('[GameCanvas] Torch image loaded successfully');
         setTorchOnImg(torchImg);
       };
       torchImg.onerror = () => console.error('Failed to load torch image');
@@ -380,11 +378,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     closestInteractableWaterPosition,
   } = useInteractionFinder({
     localPlayer,
-    mushrooms,
-    corns,
-    potatoes,
-    pumpkins,
-    hemps,
     campfires,
     droppedItems,
     woodenStorageBoxes,
@@ -393,14 +386,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     sleepingBags,
     players,
     shelters,
-    reeds,
     connection,
     lanterns,
     inventoryItems,
     itemDefinitions,
     playerDrinkingCooldowns,
     rainCollectors,
+    harvestableResources,
   });
+
+  // Derive closestInteractableHarvestableResourceId from unified target for backward compatibility
+  const closestInteractableHarvestableResourceId = useMemo(() => {
+    if (closestInteractableTarget && closestInteractableTarget.type === 'harvestable_resource') {
+      return closestInteractableTarget.id as bigint;
+    }
+    return null;
+  }, [closestInteractableTarget]);
 
 
 
@@ -423,15 +424,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     placementInfo,
     placementActions,
     worldMousePos,
-    
     // UNIFIED INTERACTION TARGET - single source of truth
     closestInteractableTarget,
-    
     // Essential entity maps for validation and data lookup
     woodenStorageBoxes,
     stashes,
     players,
-    
     onSetInteractingWith: onSetInteractingWith,
     isMinimapOpen,
     setIsMinimapOpen,
@@ -441,6 +439,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isSearchingCraftRecipes,
     isFishing,
     setMusicPanelVisible,
+    // Individual entity IDs for consistency and backward compatibility
   });
 
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
@@ -454,23 +453,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- Use Entity Filtering Hook ---
   const {
     visibleSleepingBags,
-    visibleMushrooms,
-    visibleCorns,
-    visiblePotatoes,
-    visiblePumpkins,
-    visibleHemps,
+    visibleHarvestableResources,
     visibleDroppedItems,
     visibleCampfires,
-    visibleMushroomsMap,
+    visibleHarvestableResourcesMap,
     visibleCampfiresMap,
     visibleLanternsMap,
     visibleDroppedItemsMap,
     visibleBoxesMap,
-    visibleCornsMap,
-    visiblePotatoesMap,
-    visiblePumpkinsMap,
-    visibleHempsMap,
-    visibleReedsMap,
     visiblePlayerCorpses,
     visibleStashes,
     visiblePlayerCorpsesMap,
@@ -498,12 +488,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     stones,
     campfires,
     lanterns,
-    mushrooms,
-    corns,
-    potatoes,
-    pumpkins,
-    hemps,
-    reeds,
+    harvestableResources,
     droppedItems,
     woodenStorageBoxes,
     sleepingBags,
@@ -662,12 +647,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Resource sparkle particle effects - shows sparkles on harvestable resources (viewport-culled)
   const resourceSparkleParticles = useResourceSparkleParticles({
-    mushrooms: visibleMushroomsMap,
-    corns: visibleCornsMap,
-    potatoes: visiblePotatoesMap,
-    pumpkins: visiblePumpkinsMap,
-    hemps: visibleHempsMap,
-    reeds: visibleReedsMap,
+    harvestableResources: visibleHarvestableResourcesMap,
   });
 
   // Simple particle renderer function
@@ -777,6 +757,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     setShelterClippingData(shelterClippingData);
     
     // Pass the necessary viewport parameters to the optimized background renderer
+    // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
     // --- Render Water Overlay After Terrain ---
@@ -864,6 +845,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- Render Y-Sorted Entities --- (Keep this logic)
     // CORRECTED: Call renderYSortedEntities once, not in a loop
+    // console.log('[GameCanvas DEBUG] Rendering Y-sorted entities. Count:', ySortedEntities.length, 'Local player:', !!localPlayer);
+    if (localPlayer) {
+      // console.log('[GameCanvas DEBUG] Player world position:', localPlayer.positionX, localPlayer.positionY);
+      // console.log('[GameCanvas DEBUG] Camera should center player at screen center (', canvasSize.width/2, canvasSize.height/2, ')');
+    }
+    // console.log('[GameCanvas DEBUG] Y-sorted entity types:', ySortedEntities.map(e => e.type));
     renderYSortedEntities({
       ctx,
       ySortedEntities,
@@ -897,13 +884,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       closestInteractableBoxId,
       closestInteractableStashId,
       closestInteractableSleepingBagId,
-      closestInteractableMushroomId,
-      closestInteractableCornId,
-      closestInteractablePotatoId,
-      closestInteractablePumpkinId,
-      closestInteractableHempId,
-      closestInteractableReedId,
+      closestInteractableHarvestableResourceId,
       closestInteractableDroppedItemId,
+      
       closestInteractableTarget,
       // Pass shelter clipping data for shadow rendering
       shelterClippingData,
@@ -937,12 +920,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     renderInteractionLabels({
       ctx,
-      mushrooms: visibleMushroomsMap,
-      corns: visibleCornsMap,
-      potatoes: visiblePotatoesMap,
-      pumpkins: visiblePumpkinsMap,
-      hemps: visibleHempsMap,
-      reeds: visibleReedsMap,
+      harvestableResources: visibleHarvestableResourcesMap,
       campfires: visibleCampfiresMap,
       droppedItems: visibleDroppedItemsMap,
       woodenStorageBoxes: visibleBoxesMap,
@@ -1157,8 +1135,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   }, [
     // Dependencies
-    visibleMushrooms, visibleCorns, visiblePumpkins, visibleDroppedItems, visibleCampfires, visibleSleepingBags,
-    ySortedEntities, visibleMushroomsMap, visibleCornsMap, visiblePumpkinsMap, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
+    visibleHarvestableResources,
+    visibleHarvestableResourcesMap,
+    visibleDroppedItems, visibleCampfires, visibleSleepingBags,
+    ySortedEntities, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
     players, itemDefinitions, inventoryItems, trees, stones,
     worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
     itemImagesRef, heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
@@ -1191,7 +1171,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     shelterImageRef.current,
     minimapCache,
     worldTiles,
-    visibleMushroomsMap, visibleCornsMap, visiblePotatoesMap, visiblePumpkinsMap, visibleHempsMap, visibleReedsMap, // Viewport-culled resource maps for sparkles
+    visibleHarvestableResourcesMap,
+     // Viewport-culled resource maps for sparkles
   ]);
 
   const gameLoopCallback = useCallback((frameInfo: FrameInfo) => {

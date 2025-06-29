@@ -93,12 +93,7 @@ export interface SpacetimeTableStates {
     stones: Map<string, SpacetimeDB.Stone>;
     campfires: Map<string, SpacetimeDB.Campfire>;
     lanterns: Map<string, SpacetimeDB.Lantern>;
-    mushrooms: Map<string, SpacetimeDB.Mushroom>;
-    corns: Map<string, SpacetimeDB.Corn>;
-    potatoes: Map<string, SpacetimeDB.Potato>;
-    pumpkins: Map<string, SpacetimeDB.Pumpkin>;
-    hemps: Map<string, SpacetimeDB.Hemp>;
-    reeds: Map<string, SpacetimeDB.Reed>;
+    harvestableResources: Map<string, SpacetimeDB.HarvestableResource>;
     itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
     inventoryItems: Map<string, SpacetimeDB.InventoryItem>;
     worldState: SpacetimeDB.WorldState | null;
@@ -161,12 +156,7 @@ export const useSpacetimeTables = ({
     const [stones, setStones] = useState<Map<string, SpacetimeDB.Stone>>(() => new Map());
     const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
     const [lanterns, setLanterns] = useState<Map<string, SpacetimeDB.Lantern>>(() => new Map());
-    const [mushrooms, setMushrooms] = useState<Map<string, SpacetimeDB.Mushroom>>(() => new Map());
-    const [corns, setCorns] = useState<Map<string, SpacetimeDB.Corn>>(() => new Map());
-    const [potatoes, setPotatoes] = useState<Map<string, SpacetimeDB.Potato>>(() => new Map());
-    const [pumpkins, setPumpkins] = useState<Map<string, SpacetimeDB.Pumpkin>>(() => new Map());
-    const [hemps, setHemps] = useState<Map<string, SpacetimeDB.Hemp>>(() => new Map());
-    const [reeds, setReeds] = useState<Map<string, SpacetimeDB.Reed>>(() => new Map());
+    const [harvestableResources, setHarvestableResources] = useState<Map<string, SpacetimeDB.HarvestableResource>>(() => new Map());
     const [plantedSeeds, setPlantedSeeds] = useState<Map<string, SpacetimeDB.PlantedSeed>>(() => new Map());
     const [itemDefinitions, setItemDefinitions] = useState<Map<string, SpacetimeDB.ItemDefinition>>(() => new Map());
     const [inventoryItems, setInventoryItems] = useState<Map<string, SpacetimeDB.InventoryItem>>(() => new Map());
@@ -408,7 +398,7 @@ export const useSpacetimeTables = ({
                             const resourceQueries = [
                                 `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
@@ -416,20 +406,10 @@ export const useSpacetimeTables = ({
                                 `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`
-                            ];
-                            newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
-
-                            // 🎯 BATCH 2: Farming Tables
-                            const farmingQueries = [
-                                `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM reed WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`
                             ];
-                            newHandlesForChunk.push(timedBatchedSubscribe('Farming', farmingQueries));
+                            newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
                             // 🎯 BATCH 3: Environmental (Optional Tables)
                             const environmentalQueries = [];
@@ -710,81 +690,21 @@ export const useSpacetimeTables = ({
                 setActiveEquipments(prev => { const newMap = new Map(prev); newMap.delete(equip.playerIdentity.toHexString()); return newMap; });
             };
             
-            // --- Mushroom Subscriptions ---
-            const handleMushroomInsert = (ctx: any, mushroom: SpacetimeDB.Mushroom) => setMushrooms(prev => new Map(prev).set(mushroom.id.toString(), mushroom));
-            const handleMushroomUpdate = (ctx: any, oldMushroom: SpacetimeDB.Mushroom, newMushroom: SpacetimeDB.Mushroom) => {
-                const changed = oldMushroom.posX !== newMushroom.posX ||
-                                oldMushroom.posY !== newMushroom.posY ||
-                                oldMushroom.respawnAt !== newMushroom.respawnAt;
+            // --- Unified Harvestable Resource Subscriptions ---
+            const handleHarvestableResourceInsert = (ctx: any, resource: SpacetimeDB.HarvestableResource) => {
+                setHarvestableResources(prev => new Map(prev).set(resource.id.toString(), resource));
+            };
+            const handleHarvestableResourceUpdate = (ctx: any, oldResource: SpacetimeDB.HarvestableResource, newResource: SpacetimeDB.HarvestableResource) => {
+                const changed = oldResource.posX !== newResource.posX ||
+                                oldResource.posY !== newResource.posY ||
+                                oldResource.respawnAt !== newResource.respawnAt;
                 if (changed) {
-                    setMushrooms(prev => new Map(prev).set(newMushroom.id.toString(), newMushroom));
+                    setHarvestableResources(prev => new Map(prev).set(newResource.id.toString(), newResource));
                 }
             };
-            const handleMushroomDelete = (ctx: any, mushroom: SpacetimeDB.Mushroom) => setMushrooms(prev => { const newMap = new Map(prev); newMap.delete(mushroom.id.toString()); return newMap; });
-
-            // --- Corn Subscriptions ---
-            const handleCornInsert = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => new Map(prev).set(corn.id.toString(), corn));
-            const handleCornUpdate = (ctx: any, oldCorn: SpacetimeDB.Corn, newCorn: SpacetimeDB.Corn) => {
-                const changed = oldCorn.posX !== newCorn.posX ||
-                                oldCorn.posY !== newCorn.posY ||
-                                oldCorn.respawnAt !== newCorn.respawnAt;
-                if (changed) {
-                    setCorns(prev => new Map(prev).set(newCorn.id.toString(), newCorn));
-                }
+            const handleHarvestableResourceDelete = (ctx: any, resource: SpacetimeDB.HarvestableResource) => {
+                setHarvestableResources(prev => { const newMap = new Map(prev); newMap.delete(resource.id.toString()); return newMap; });
             };
-            const handleCornDelete = (ctx: any, corn: SpacetimeDB.Corn) => setCorns(prev => { const newMap = new Map(prev); newMap.delete(corn.id.toString()); return newMap; });
-            
-            // --- Potato Subscriptions ---
-            const handlePotatoInsert = (ctx: any, potato: SpacetimeDB.Potato) => {
-                setPotatoes(prev => new Map(prev).set(potato.id.toString(), potato));
-            };
-            const handlePotatoUpdate = (ctx: any, oldPotato: SpacetimeDB.Potato, newPotato: SpacetimeDB.Potato) => {
-                const changed = oldPotato.posX !== newPotato.posX ||
-                                oldPotato.posY !== newPotato.posY ||
-                                oldPotato.respawnAt !== newPotato.respawnAt;
-                if (changed) {
-                    setPotatoes(prev => new Map(prev).set(newPotato.id.toString(), newPotato));
-                }
-            };
-            const handlePotatoDelete = (ctx: any, potato: SpacetimeDB.Potato) => {
-                setPotatoes(prev => { const newMap = new Map(prev); newMap.delete(potato.id.toString()); return newMap; });
-            };
-            
-            // --- Pumpkin Subscriptions ---
-            const handlePumpkinInsert = (ctx: any, pumpkin: SpacetimeDB.Pumpkin) => setPumpkins(prev => new Map(prev).set(pumpkin.id.toString(), pumpkin));
-            const handlePumpkinUpdate = (ctx: any, oldPumpkin: SpacetimeDB.Pumpkin, newPumpkin: SpacetimeDB.Pumpkin) => {
-                const changed = oldPumpkin.posX !== newPumpkin.posX ||
-                                oldPumpkin.posY !== newPumpkin.posY ||
-                                oldPumpkin.respawnAt !== newPumpkin.respawnAt;
-                if (changed) {
-                    setPumpkins(prev => new Map(prev).set(newPumpkin.id.toString(), newPumpkin));
-                }
-            };
-            const handlePumpkinDelete = (ctx: any, pumpkin: SpacetimeDB.Pumpkin) => setPumpkins(prev => { const newMap = new Map(prev); newMap.delete(pumpkin.id.toString()); return newMap; });
-
-            // --- Hemp Subscriptions ---
-            const handleHempInsert = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => new Map(prev).set(hemp.id.toString(), hemp));
-            const handleHempUpdate = (ctx: any, oldHemp: SpacetimeDB.Hemp, newHemp: SpacetimeDB.Hemp) => {
-                const changed = oldHemp.posX !== newHemp.posX ||
-                                oldHemp.posY !== newHemp.posY ||
-                                oldHemp.respawnAt !== newHemp.respawnAt;
-                if (changed) {
-                    setHemps(prev => new Map(prev).set(newHemp.id.toString(), newHemp));
-                }
-            };
-            const handleHempDelete = (ctx: any, hemp: SpacetimeDB.Hemp) => setHemps(prev => { const newMap = new Map(prev); newMap.delete(hemp.id.toString()); return newMap; });
-
-            // --- Reed Subscriptions ---
-            const handleReedInsert = (ctx: any, reed: SpacetimeDB.Reed) => setReeds(prev => new Map(prev).set(reed.id.toString(), reed));
-            const handleReedUpdate = (ctx: any, oldReed: SpacetimeDB.Reed, newReed: SpacetimeDB.Reed) => {
-                const changed = oldReed.posX !== newReed.posX ||
-                                oldReed.posY !== newReed.posY ||
-                                oldReed.respawnAt !== newReed.respawnAt;
-                if (changed) {
-                    setReeds(prev => new Map(prev).set(newReed.id.toString(), newReed));
-                }
-            };
-            const handleReedDelete = (ctx: any, reed: SpacetimeDB.Reed) => setReeds(prev => { const newMap = new Map(prev); newMap.delete(reed.id.toString()); return newMap; });
             
             // --- Planted Seed Subscriptions ---
             const handlePlantedSeedInsert = (ctx: any, seed: SpacetimeDB.PlantedSeed) => setPlantedSeeds(prev => new Map(prev).set(seed.id.toString(), seed));
@@ -1151,12 +1071,7 @@ export const useSpacetimeTables = ({
             connection.db.inventoryItem.onInsert(handleInventoryInsert); connection.db.inventoryItem.onUpdate(handleInventoryUpdate); connection.db.inventoryItem.onDelete(handleInventoryDelete);
             connection.db.worldState.onInsert(handleWorldStateInsert); connection.db.worldState.onUpdate(handleWorldStateUpdate); connection.db.worldState.onDelete(handleWorldStateDelete);
             connection.db.activeEquipment.onInsert(handleActiveEquipmentInsert); connection.db.activeEquipment.onUpdate(handleActiveEquipmentUpdate); connection.db.activeEquipment.onDelete(handleActiveEquipmentDelete);
-            connection.db.mushroom.onInsert(handleMushroomInsert); connection.db.mushroom.onUpdate(handleMushroomUpdate); connection.db.mushroom.onDelete(handleMushroomDelete);
-            connection.db.corn.onInsert(handleCornInsert); connection.db.corn.onUpdate(handleCornUpdate); connection.db.corn.onDelete(handleCornDelete);
-            connection.db.potato.onInsert(handlePotatoInsert); connection.db.potato.onUpdate(handlePotatoUpdate); connection.db.potato.onDelete(handlePotatoDelete);
-            connection.db.pumpkin.onInsert(handlePumpkinInsert); connection.db.pumpkin.onUpdate(handlePumpkinUpdate); connection.db.pumpkin.onDelete(handlePumpkinDelete);
-            connection.db.hemp.onInsert(handleHempInsert); connection.db.hemp.onUpdate(handleHempUpdate); connection.db.hemp.onDelete(handleHempDelete);
-            connection.db.reed.onInsert(handleReedInsert); connection.db.reed.onUpdate(handleReedUpdate); connection.db.reed.onDelete(handleReedDelete);
+            connection.db.harvestableResource.onInsert(handleHarvestableResourceInsert); connection.db.harvestableResource.onUpdate(handleHarvestableResourceUpdate); connection.db.harvestableResource.onDelete(handleHarvestableResourceDelete);
             connection.db.plantedSeed.onInsert(handlePlantedSeedInsert); connection.db.plantedSeed.onUpdate(handlePlantedSeedUpdate); connection.db.plantedSeed.onDelete(handlePlantedSeedDelete);
             connection.db.droppedItem.onInsert(handleDroppedItemInsert); connection.db.droppedItem.onUpdate(handleDroppedItemUpdate); connection.db.droppedItem.onDelete(handleDroppedItemDelete);
             connection.db.woodenStorageBox.onInsert(handleWoodenStorageBoxInsert); connection.db.woodenStorageBox.onUpdate(handleWoodenStorageBoxUpdate); connection.db.woodenStorageBox.onDelete(handleWoodenStorageBoxDelete);
@@ -1425,20 +1340,13 @@ export const useSpacetimeTables = ({
                             if (ENABLE_BATCHED_SUBSCRIPTIONS) {
                                  const resourceQueries = [
                                     `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM mushroom WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
-
-                                const farmingQueries = [
-                                    `SELECT * FROM corn WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM potato WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM pumpkin WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM hemp WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM reed WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`
-                                ];
-                                newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Farming Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(farmingQueries));
                                 
                                 const environmentalQueries = [];
                                 if (ENABLE_CLOUDS) environmentalQueries.push(`SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`);
@@ -1531,7 +1439,8 @@ export const useSpacetimeTables = ({
                  setLocalPlayerRegistered(false);
                  // Reset table states
                  setPlayers(new Map()); setTrees(new Map()); setStones(new Map()); setCampfires(new Map()); setLanterns(new Map());
-                 setMushrooms(new Map()); setCorns(new Map()); setPotatoes(new Map()); setReeds(new Map()); setItemDefinitions(new Map()); setRecipes(new Map());
+                 setHarvestableResources(new Map());
+                 setItemDefinitions(new Map()); setRecipes(new Map());
                  setInventoryItems(new Map()); setWorldState(null); setActiveEquipments(new Map());
                  setDroppedItems(new Map()); setWoodenStorageBoxes(new Map()); setCraftingQueueItems(new Map());
                  setMessages(new Map());
@@ -1576,12 +1485,7 @@ export const useSpacetimeTables = ({
         stones,
         campfires,
         lanterns,
-        mushrooms,
-        corns,
-        potatoes,
-        pumpkins,
-        hemps,
-        reeds,
+        harvestableResources,
         itemDefinitions,
         inventoryItems,
         worldState,
@@ -1615,10 +1519,10 @@ export const useSpacetimeTables = ({
         soundEvents,
         continuousSounds,
         localPlayerIdentity, // Add this to the return
-                  playerDrinkingCooldowns,
-          wildAnimals,
-          viperSpittles,
-          animalCorpses,
-          barrels, // ADDED barrels
+        playerDrinkingCooldowns,
+        wildAnimals,
+        viperSpittles,
+        animalCorpses,
+        barrels, // ADDED barrels
       };
 }; 

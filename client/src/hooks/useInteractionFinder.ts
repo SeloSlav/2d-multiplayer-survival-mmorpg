@@ -1,16 +1,11 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
     Player as SpacetimeDBPlayer,
-    Mushroom as SpacetimeDBMushroom,
-    Pumpkin as SpacetimeDBPumpkin,
-    Potato as SpacetimeDBPotato,
     Campfire as SpacetimeDBCampfire,
     Lantern as SpacetimeDBLantern,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
-    Corn as SpacetimeDBCorn,
-    Hemp as SpacetimeDBHemp,
-    Reed as SpacetimeDBReed,
+    HarvestableResource as SpacetimeDBHarvestableResource,
     PlayerCorpse as SpacetimeDBPlayerCorpse,
     Stash as SpacetimeDBStash,
     SleepingBag as SpacetimeDBSleepingBag,
@@ -55,12 +50,7 @@ const TILE_SIZE = 48;
 // Define the hook's input props
 interface UseInteractionFinderProps {
     localPlayer: SpacetimeDBPlayer | null | undefined;
-    mushrooms: Map<string, SpacetimeDBMushroom>;
-    corns: Map<string, SpacetimeDBCorn>;
-    potatoes: Map<string, SpacetimeDBPotato>;
-    pumpkins: Map<string, SpacetimeDBPumpkin>;
-    hemps: Map<string, SpacetimeDBHemp>;
-    reeds: Map<string, SpacetimeDBReed>;
+    harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
     campfires: Map<string, SpacetimeDBCampfire>;
     lanterns: Map<string, SpacetimeDBLantern>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -186,11 +176,6 @@ function canPlayerInteractWithObjectInShelter(
  */
 export function useInteractionFinder({
     localPlayer,
-    mushrooms,
-    corns,
-    potatoes,
-    pumpkins,
-    hemps,
     campfires,
     lanterns,
     droppedItems,
@@ -201,8 +186,7 @@ export function useInteractionFinder({
     sleepingBags,
     players,
     shelters,
-
-    reeds,
+    harvestableResources,
     inventoryItems,
     itemDefinitions,
     connection,
@@ -297,93 +281,95 @@ export function useInteractionFinder({
             const playerX = localPlayer.positionX;
             const playerY = localPlayer.positionY;
 
-            // Find closest mushroom
-            if (mushrooms) {
-                mushrooms.forEach((mushroom) => {
-                    if (mushroom.respawnAt !== null && mushroom.respawnAt !== undefined) return;
-                    const visualCenterY = mushroom.posY - (MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2);
-                    const dx = playerX - mushroom.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestMushroomDistSq) {
-                        closestMushroomDistSq = distSq;
-                        closestMushroomId = mushroom.id;
-                    }
-                });
-            }
-
-            // Find closest corn
-            if (corns) {
-                corns.forEach((corn) => {
-                    if (corn.respawnAt !== null && corn.respawnAt !== undefined) return;
-                    const visualCenterY = corn.posY - (96 / 2);
-                    const dx = playerX - corn.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestCornDistSq) {
-                        closestCornDistSq = distSq;
-                        closestCornId = corn.id;
-                    }
-                });
-            }
-
-            // Find closest potato
-            if (potatoes) {
-                potatoes.forEach((potato) => {
-                    if (potato.respawnAt !== null && potato.respawnAt !== undefined) return;
-                    const visualCenterY = potato.posY - (32 / 2);
-                    const dx = playerX - potato.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestPotatoDistSq) {
-                        closestPotatoDistSq = distSq;
-                        closestPotatoId = potato.id;
-                    }
-                });
-            }
-
-            // Find closest pumpkin
-            if (pumpkins) {
-                pumpkins.forEach((pumpkin) => {
-                    if (pumpkin.respawnAt !== null && pumpkin.respawnAt !== undefined) return;
-                    const visualCenterY = pumpkin.posY - (64 / 2);
-                    const dx = playerX - pumpkin.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestPumpkinDistSq) {
-                        closestPumpkinDistSq = distSq;
-                        closestPumpkinId = pumpkin.id;
-                    }
-                });
-            }
-
-            // Find closest hemp
-            if (hemps) {
-                hemps.forEach((hemp) => {
-                    if (hemp.respawnAt !== null && hemp.respawnAt !== undefined) return;
-                    const visualCenterY = hemp.posY - (88 / 2);
-                    const dx = playerX - hemp.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestHempDistSq) {
-                        closestHempDistSq = distSq;
-                        closestHempId = hemp.id;
-                    }
-                });
-            }
-
-            // Find closest reed
-            if (reeds) {
-                reeds.forEach((reed) => {
-                    if (reed.respawnAt !== null && reed.respawnAt !== undefined) return;
-                    const visualCenterY = reed.posY - (76 / 2);
-                    const dx = playerX - reed.posX;
-                    const dy = playerY - visualCenterY;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < closestReedDistSq) {
-                        closestReedDistSq = distSq;
-                        closestReedId = reed.id;
-                    }
+            // Find closest harvestable resources (unified system)
+            if (harvestableResources) {
+                harvestableResources.forEach((resource) => {
+                    if (resource.respawnAt !== null && resource.respawnAt !== undefined) return;
+                    
+                    // Determine resource type and properties based on plant type
+                    const plantType = resource.plantType?.tag;
+                    if (!plantType) return;
+                    
+                                         let visualHeight: number;
+                     let interactionDistSq: number;
+                     
+                     switch (plantType) {
+                         case 'Mushroom':
+                             visualHeight = MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         case 'Corn':
+                             visualHeight = CORN_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         case 'Potato':
+                             visualHeight = POTATO_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         case 'Pumpkin':
+                             visualHeight = PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         case 'Hemp':
+                             visualHeight = HEMP_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         case 'Reed':
+                             visualHeight = REED_VISUAL_HEIGHT_FOR_INTERACTION;
+                             interactionDistSq = PLAYER_REED_INTERACTION_DISTANCE_SQUARED;
+                             break;
+                         default:
+                             // Unknown plant type, skip
+                             return;
+                     }
+                     
+                     // Calculate distance to resource
+                     const visualCenterY = resource.posY - (visualHeight / 2);
+                     const dx = playerX - resource.posX;
+                     const dy = playerY - visualCenterY;
+                     const distSq = dx * dx + dy * dy;
+                     
+                     // Check if this resource is closer than the current closest of its type
+                     if (distSq < interactionDistSq) {
+                         switch (plantType) {
+                             case 'Mushroom':
+                                 if (distSq < closestMushroomDistSq) {
+                                     closestMushroomDistSq = distSq;
+                                     closestMushroomId = resource.id;
+                                 }
+                                 break;
+                             case 'Corn':
+                                 if (distSq < closestCornDistSq) {
+                                     closestCornDistSq = distSq;
+                                     closestCornId = resource.id;
+                                 }
+                                 break;
+                             case 'Potato':
+                                 if (distSq < closestPotatoDistSq) {
+                                     closestPotatoDistSq = distSq;
+                                     closestPotatoId = resource.id;
+                                 }
+                                 break;
+                             case 'Pumpkin':
+                                 if (distSq < closestPumpkinDistSq) {
+                                     closestPumpkinDistSq = distSq;
+                                     closestPumpkinId = resource.id;
+                                 }
+                                 break;
+                             case 'Hemp':
+                                 if (distSq < closestHempDistSq) {
+                                     closestHempDistSq = distSq;
+                                     closestHempId = resource.id;
+                                 }
+                                 break;
+                             case 'Reed':
+                                 if (distSq < closestReedDistSq) {
+                                     closestReedDistSq = distSq;
+                                     closestReedId = resource.id;
+                                 }
+                                 break;
+                         }
+                     }
                 });
             }
 
@@ -648,53 +634,32 @@ export function useInteractionFinder({
             // After all searches, determine the single closest target across all types
             const candidates: InteractableTarget[] = [];
 
-            if (closestMushroomId) {
-                candidates.push({
-                    type: 'mushroom',
-                    id: closestMushroomId,
-                    position: { x: 0, y: 0 }, // Will be filled from entity data
-                    distance: Math.sqrt(closestMushroomDistSq)
-                });
-            }
-            if (closestCornId) {
-                candidates.push({
-                    type: 'corn',
-                    id: closestCornId,
-                    position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestCornDistSq)
-                });
-            }
-            if (closestPotatoId) {
-                candidates.push({
-                    type: 'potato',
-                    id: closestPotatoId,
-                    position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestPotatoDistSq)
-                });
-            }
-            if (closestPumpkinId) {
-                candidates.push({
-                    type: 'pumpkin',
-                    id: closestPumpkinId,
-                    position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestPumpkinDistSq)
-                });
-            }
-            if (closestHempId) {
-                candidates.push({
-                    type: 'hemp',
-                    id: closestHempId,
-                    position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestHempDistSq)
-                });
-            }
-            if (closestReedId) {
-                candidates.push({
-                    type: 'reed',
-                    id: closestReedId,
-                    position: { x: 0, y: 0 },
-                    distance: Math.sqrt(closestReedDistSq)
-                });
+            // Find the single closest harvestable resource across all plant types
+            const harvestableResourceCandidates = [
+                { id: closestMushroomId, distSq: closestMushroomDistSq },
+                { id: closestCornId, distSq: closestCornDistSq },
+                { id: closestPotatoId, distSq: closestPotatoDistSq },
+                { id: closestPumpkinId, distSq: closestPumpkinDistSq },
+                { id: closestHempId, distSq: closestHempDistSq },
+                { id: closestReedId, distSq: closestReedDistSq }
+            ].filter(candidate => candidate.id !== null);
+
+            if (harvestableResourceCandidates.length > 0) {
+                // Find the closest harvestable resource among all plant types
+                const closestHarvestable = harvestableResourceCandidates.reduce((closest, candidate) => 
+                    candidate.distSq < closest.distSq ? candidate : closest
+                );
+                
+                // Get the actual harvestable resource from the map to access its position
+                const harvestableResource = harvestableResources?.get(String(closestHarvestable.id!));
+                if (harvestableResource) {
+                    candidates.push({
+                        type: 'harvestable_resource',
+                        id: closestHarvestable.id!,
+                        position: { x: harvestableResource.posX, y: harvestableResource.posY },
+                        distance: Math.sqrt(closestHarvestable.distSq)
+                    });
+                }
             }
             if (closestCampfireId) {
                 candidates.push({
@@ -834,7 +799,7 @@ export function useInteractionFinder({
             closestInteractableWaterPosition: closestWaterPosition,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
+    }, [localPlayer, harvestableResources, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
 
     // Effect to update state based on memoized results
     useEffect(() => {
