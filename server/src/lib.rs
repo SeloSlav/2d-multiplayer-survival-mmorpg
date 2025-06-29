@@ -40,6 +40,7 @@ mod player_pin; // ADD: Player pin module for minimap
 pub mod combat; // Add the new combat module
 mod repair; // ADD: Repair module for structure repair functionality
 mod collectible_resources; // Add the new collectible resources system
+mod plants_database; // NEW: Plant configuration database
 mod harvestable_resource; // NEW: Unified harvestable resource system
 mod sleeping_bag; // ADD Sleeping Bag module
 mod player_corpse; // <<< ADDED: Declare Player Corpse module

@@ -304,13 +304,13 @@ pub fn damage_barrel(
         }
         
         // Emit destruction sound
-        crate::sound_events::emit_stone_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
+        crate::sound_events::emit_barrel_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
     } else {
         // Barrel damaged but not destroyed
         log::info!("[BarrelDamage] Barrel {} damaged, health: {:.1}", barrel_id, barrel.health);
         
         // Emit hit sound
-        crate::sound_events::emit_melee_hit_blunt_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
+        crate::sound_events::emit_barrel_hit_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
     }
     
     // Update the barrel
@@ -384,13 +384,13 @@ pub fn attack_barrel(ctx: &ReducerContext, barrel_id: u64) -> Result<(), String>
             log::error!("[AttackBarrel] Failed to generate loot for barrel {}: {}", barrel_id, e);
         }
         
-        // Emit destruction sound - using StoneDestroyed as closest match
-        crate::sound_events::emit_stone_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, sender_id);
+        // Emit destruction sound
+        crate::sound_events::emit_barrel_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, sender_id);
     } else {
         log::info!("[AttackBarrel] Barrel {} damaged, health: {:.1}", barrel_id, barrel.health);
         
-        // Emit hit sound - using MeleeHitBlunt as closest match
-        crate::sound_events::emit_melee_hit_blunt_sound(ctx, barrel.pos_x, barrel.pos_y, sender_id);
+        // Emit hit sound
+        crate::sound_events::emit_barrel_hit_sound(ctx, barrel.pos_x, barrel.pos_y, sender_id);
     }
     
     // Update the barrel

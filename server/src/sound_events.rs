@@ -38,6 +38,8 @@ pub enum SoundType {
     ShootCrossbow,  // shoot_crossbow.mp3 (1 variation - when crossbow is fired)
     Bandaging,      // bandaging.mp3 (1 variation - when player starts bandaging, stops if interrupted)
     StopBandaging,  // Special signal to stop bandaging sound
+    BarrelHit,      // barrel_hit.mp3 (1 variation - when barrels are hit but not destroyed)
+    BarrelDestroyed, // barrel_destroyed.mp3 (1 variation - when barrels are destroyed)
     // Add more as needed - extensible system
 }
 
@@ -77,6 +79,8 @@ impl SoundType {
             SoundType::ShootCrossbow => "shoot_crossbow",
             SoundType::Bandaging => "bandaging",
             SoundType::StopBandaging => "stop_bandaging",
+            SoundType::BarrelHit => "barrel_hit",
+            SoundType::BarrelDestroyed => "barrel_destroyed",
         }
     }
 
@@ -115,6 +119,8 @@ impl SoundType {
             SoundType::ShootCrossbow => 1,
             SoundType::Bandaging => 1,
             SoundType::StopBandaging => 1,
+            SoundType::BarrelHit => 1,
+            SoundType::BarrelDestroyed => 1,
         }
     }
 
@@ -486,6 +492,16 @@ pub fn emit_bandaging_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player
 /// Stop bandaging sound (when bandaging is interrupted)
 pub fn stop_bandaging_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     let _ = emit_sound_at_position_with_distance(ctx, SoundType::StopBandaging, pos_x, pos_y, 0.0, 300.0, player_id);
+}
+
+/// Emit a barrel hit sound (when barrels are hit but not destroyed)
+pub fn emit_barrel_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::BarrelHit, pos_x, pos_y, 1.0, 600.0, player_id);
+}
+
+/// Emit a barrel destroyed sound (when barrels are completely destroyed)
+pub fn emit_barrel_destroyed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::BarrelDestroyed, pos_x, pos_y, 1.3, 700.0, player_id);
 }
 
 /// Emit a global sound that plays to all clients at full volume regardless of position

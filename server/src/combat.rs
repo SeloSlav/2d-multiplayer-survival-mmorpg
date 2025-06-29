@@ -970,7 +970,7 @@ pub fn damage_tree(
            attacker_id, tree_id, damage, old_health, tree.health, tree.resource_remaining);
     
     // Sound logic: Always play chop sound, plus special sounds for dramatic moments
-    const CREAKING_THRESHOLD: u32 = 100; // Greater than max stone hatchet damage (80)
+    const CREAKING_THRESHOLD: u32 = 240; // About 3 stone hatchet hits remaining (80 * 3 = 240)
     
     // Tree is destroyed when either health reaches 0 OR resources are depleted
     let tree_destroyed = tree.health == 0 || tree.resource_remaining == 0;
@@ -981,8 +981,8 @@ pub fn damage_tree(
         sound_events::emit_tree_falling_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
         // Set health to 0 to ensure it's marked as destroyed
         tree.health = 0;
-    } else if tree.health <= CREAKING_THRESHOLD && old_health > CREAKING_THRESHOLD {
-        // Tree just crossed the threshold - play both chop and creaking sound
+    } else if tree.health <= CREAKING_THRESHOLD {
+        // Tree is in critical condition - play both chop and creaking sound for every hit
         sound_events::emit_tree_chop_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
         sound_events::emit_tree_creaking_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
     } else {

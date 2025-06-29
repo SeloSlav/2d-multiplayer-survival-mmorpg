@@ -22,6 +22,7 @@ use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TILE_SIZE_PX, WORLD_WIDTH_TILES, WO
 use crate::tree;
 use crate::stone;
 use crate::harvestable_resource;
+use crate::plants_database; // Import plant database
 use crate::cloud;
 use crate::grass;
 
@@ -347,7 +348,7 @@ pub fn validate_spawn_location(
     ctx: &ReducerContext,
     pos_x: f32,
     pos_y: f32,
-    spawn_condition: &harvestable_resource::SpawnCondition,
+    spawn_condition: &plants_database::SpawnCondition,
     tree_positions: &[(f32, f32)],
     stone_positions: &[(f32, f32)]
 ) -> bool {
@@ -367,7 +368,7 @@ pub fn validate_spawn_location(
     };
     
     match spawn_condition {
-        harvestable_resource::SpawnCondition::Forest => {
+        plants_database::SpawnCondition::Forest => {
             // Mushrooms: Must be on grass + near trees (within 150px)
             if !matches!(current_tile_type, Some(TileType::Grass)) {
                 return false;
@@ -384,7 +385,7 @@ pub fn validate_spawn_location(
             false
         }
         
-        harvestable_resource::SpawnCondition::Plains => {
+        plants_database::SpawnCondition::Plains => {
             // Hemp: Must be on grass/dirt + away from trees (>100px) + away from stones (>80px)
             if !matches!(current_tile_type, Some(TileType::Grass | TileType::Dirt)) {
                 return false;
@@ -413,7 +414,7 @@ pub fn validate_spawn_location(
             true
         }
         
-        harvestable_resource::SpawnCondition::NearWater => {
+        plants_database::SpawnCondition::NearWater => {
             // Corn: Must have water/beach/sand nearby (within 3 tiles)
             let search_radius = 3;
             
@@ -432,7 +433,7 @@ pub fn validate_spawn_location(
             false
         }
         
-        harvestable_resource::SpawnCondition::Clearings => {
+        plants_database::SpawnCondition::Clearings => {
             // Potato: Must be on dirt road OR (grass/dirt + away from trees >80px)
             if matches!(current_tile_type, Some(TileType::DirtRoad)) {
                 return true; // Perfect for potatoes
@@ -454,7 +455,7 @@ pub fn validate_spawn_location(
             false
         }
         
-        harvestable_resource::SpawnCondition::Coastal => {
+        plants_database::SpawnCondition::Coastal => {
             // Pumpkin: Must be on beach/sand OR (grass/dirt/beach + near water within 2 tiles)
             if matches!(current_tile_type, Some(TileType::Beach | TileType::Sand)) {
                 return true;
@@ -480,7 +481,7 @@ pub fn validate_spawn_location(
             false
         }
         
-        harvestable_resource::SpawnCondition::InlandWater => {
+        plants_database::SpawnCondition::InlandWater => {
             // Reed: Must be near inland water (within 2 tiles) + not ocean water
             let search_radius = 2;
             
@@ -544,7 +545,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // Calculate targets for harvestable resources from the unified configuration (includes mushrooms)
     let mut plant_targets = std::collections::HashMap::new();
     let mut plant_attempts = std::collections::HashMap::new();
-    for (plant_type, config) in harvestable_resource::PLANT_CONFIGS.iter() {
+    for (plant_type, config) in plants_database::PLANT_CONFIGS.iter() {
         let target_count = (total_tiles as f32 * config.density_percent) as u32;
         let max_attempts = target_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
         plant_targets.insert(plant_type.clone(), target_count);
@@ -609,7 +610,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // Unified tracking for harvestable resources
     let mut plant_spawned_counts = std::collections::HashMap::new();
     let mut plant_attempt_counts = std::collections::HashMap::new();
-    for plant_type in harvestable_resource::PLANT_CONFIGS.keys() {
+    for plant_type in plants_database::PLANT_CONFIGS.keys() {
         plant_spawned_counts.insert(plant_type.clone(), 0u32);
         plant_attempt_counts.insert(plant_type.clone(), 0u32);
     }
@@ -743,7 +744,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // --- Seed Harvestable Resources (Unified System) ---
     log::info!("Seeding Harvestable Resources using unified system...");
     
-    for (plant_type, config) in harvestable_resource::PLANT_CONFIGS.iter() {
+    for (plant_type, config) in plants_database::PLANT_CONFIGS.iter() {
         let target_count = *plant_targets.get(plant_type).unwrap_or(&0);
         let max_attempts = *plant_attempts.get(plant_type).unwrap_or(&0);
         let mut spawned_count = 0;
@@ -781,7 +782,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                     is_position_on_water(ctx, pos_x, pos_y) || 
                     !validate_spawn_location(
                         ctx, pos_x, pos_y, 
-                        &harvestable_resource::PLANT_CONFIGS.get(plant_type).unwrap().spawn_condition,
+                        &plants_database::PLANT_CONFIGS.get(plant_type).unwrap().spawn_condition,
                         &spawned_tree_positions, &spawned_stone_positions
                     )
                 },
@@ -863,7 +864,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         // Block spawning on water, in central compound, or unsuitable terrain for the species
         if is_position_on_water(ctx, pos_x, pos_y) || 
            is_position_in_central_compound(pos_x, pos_y) ||
-           !validate_spawn_location(ctx, pos_x, pos_y, &harvestable_resource::SpawnCondition::Forest, &[], &[]) {
+           !validate_spawn_location(ctx, pos_x, pos_y, &plants_database::SpawnCondition::Forest, &[], &[]) {
             continue;
         }
         

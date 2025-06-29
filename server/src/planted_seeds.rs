@@ -18,7 +18,8 @@ use rand::Rng;
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::player as PlayerTableTrait;
 use crate::environment::calculate_chunk_index;
-use crate::harvestable_resource::{harvestable_resource as HarvestableResourceTableTrait, PlantType};
+use crate::harvestable_resource::{harvestable_resource as HarvestableResourceTableTrait};
+use crate::plants_database::PlantType;
 use crate::world_state::{world_state as WorldStateTableTrait, WeatherType, TimeOfDay};
 use crate::cloud::cloud as CloudTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
@@ -39,6 +40,7 @@ pub struct PlantedSeed {
     pub pos_y: f32,
     pub chunk_index: u32,
     pub seed_type: String,        // "Seed Potato", "Corn Seeds", etc.
+    pub plant_type: PlantType,    // What plant this will become when mature
     pub planted_at: Timestamp,    // When it was planted
     pub will_mature_at: Timestamp, // When it becomes harvestable (dynamically updated)
     pub planted_by: Identity,     // Who planted it
@@ -532,6 +534,7 @@ pub fn plant_seed(
         pos_y: plant_pos_y,
         chunk_index,
         seed_type: item_def.name.clone(),
+        plant_type: growth_config.plant_type, // Store the target plant type directly
         planted_at: ctx.timestamp,
         will_mature_at: maturity_time, // Initial estimate, will be updated dynamically
         planted_by: player_id,
