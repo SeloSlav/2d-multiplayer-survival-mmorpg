@@ -924,6 +924,9 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             inventoryItems={inventoryItems}
                             connection={connection}
                             onCraftingSearchFocusChange={onCraftingSearchFocusChange}
+                            onItemMouseEnter={handleItemMouseEnter}
+                            onItemMouseLeave={handleItemMouseLeave}
+                            onItemMouseMove={handleItemMouseMove}
                         />
                     );
                 })()}

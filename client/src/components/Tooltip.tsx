@@ -25,15 +25,21 @@ const Tooltip: React.FC<TooltipProps> = ({ content, visible, position }) => {
     return null;
   }
 
+  // Check if this is a simple tooltip (only name, no other content)
+  const isSimple = (!content.category || content.category.trim() === '') && 
+                   (!content.description || content.description.trim() === '') && 
+                   (!content.stats || content.stats.length === 0);
+
   // Offset the tooltip slightly from the cursor
   const tooltipStyle = {
     left: `${position.x + 5}px`,
     top: `${position.y + 5}px`,
+    ...(isSimple && { width: 'auto', minWidth: 'auto' }), // Use auto width for simple tooltips
   };
 
   return (
     <div className={styles.tooltipContainer} style={tooltipStyle}>
-      <div className={`${styles.tooltipName} ${content.rarity ? styles[content.rarity.toLowerCase()] : ''}`}>
+      <div className={`${styles.tooltipName} ${content.rarity ? styles[content.rarity.toLowerCase()] : ''} ${isSimple ? styles.simple : ''}`}>
         {content.name}
       </div>
       {content.category && <div className={styles.tooltipCategory}>{content.category}</div>}

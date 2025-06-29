@@ -28,6 +28,12 @@
   text-align: center;
 }
 
+.tooltipName.simple {
+  border-bottom: none; /* Remove separator line for simple tooltips */
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
 /* Rarity-based name colors - add more as needed */
 .tooltipName.common { color: #ffffff; } /* White for common */
 .tooltipName.uncommon { color: #5cb85c; } /* Green for uncommon */
