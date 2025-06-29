@@ -34,7 +34,7 @@ import {
   Barrel
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
-import { isHarvestableResource, isCorn, isHemp, isMushroom, isPotato, isPumpkin, isReed } from '../types/resourceTypes';
+import { isHarvestableResource } from '../types/resourceTypes';
 
 // Type guard for Player
 export function isPlayer(entity: any): entity is SpacetimeDBPlayer {
@@ -282,14 +282,6 @@ export function getEntityTypeString(entity: any): string {
   
   // Check harvestable resources (unified system)
   if (isHarvestableResource(entity)) {
-    // Return specific resource type based on resourceType field
-    if (isCorn(entity)) return 'corn';
-    if (isHemp(entity)) return 'hemp';
-    if (isMushroom(entity)) return 'mushroom';
-    if (isPotato(entity)) return 'potato';
-    if (isPumpkin(entity)) return 'pumpkin';
-    if (isReed(entity)) return 'reed';
-    // Fallback to generic harvestable resource
     return 'harvestable_resource';
   }
   

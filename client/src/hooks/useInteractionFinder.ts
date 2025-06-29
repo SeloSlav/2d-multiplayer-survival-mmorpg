@@ -29,13 +29,11 @@ import {
 } from '../utils/renderers/lanternRenderingUtils';
 import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../utils/renderers/playerCorpseRenderingUtils';
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
+import { getResourceConfig } from '../utils/renderers/resourceConfigurations';
+import type { ResourceType } from '../types/resourceTypes';
 
-// Define the constant for food item interactions (larger radius for easier pickup)
-const PLAYER_CORN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
-const PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
-const PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
-const PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
-const PLAYER_REED_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
+// Generic harvestable resource interaction distance
+const PLAYER_HARVESTABLE_RESOURCE_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 const PLAYER_SLEEPING_BAG_INTERACTION_DISTANCE_SQUARED = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
 const PLAYER_KNOCKED_OUT_REVIVE_INTERACTION_DISTANCE_SQUARED = 128.0 * 128.0; // Doubled distance for easier revive access
 
@@ -74,13 +72,8 @@ interface UseInteractionFinderResult {
     // Single closest target across all types
     closestInteractableTarget: InteractableTarget | null;
     
-    // Legacy individual IDs for backward compatibility (will be phased out)
-    closestInteractableMushroomId: bigint | null;
-    closestInteractableCornId: bigint | null;
-    closestInteractablePotatoId: bigint | null;
-    closestInteractablePumpkinId: bigint | null;
-    closestInteractableHempId: bigint | null;
-    closestInteractableReedId: bigint | null;
+    // Generic harvestable resource ID (replaces all individual resource types)
+    closestInteractableHarvestableResourceId: bigint | null;
     closestInteractableCampfireId: number | null;
     closestInteractableLanternId: number | null;
     closestInteractableDroppedItemId: bigint | null;
@@ -100,21 +93,12 @@ const NUM_BOX_SLOTS = 18;
 const INTERACTION_CHECK_INTERVAL = 100; // ms
 
 // --- Locally Defined Interaction Distance Constants (formerly in gameConfig.ts) ---
-export const PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
 // PLAYER_BOX_INTERACTION_DISTANCE_SQUARED is now imported from woodenStorageBoxRenderingUtils
 export const PLAYER_DROPPED_ITEM_INTERACTION_DISTANCE_SQUARED = 100.0 * 100.0;
 // PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED is now imported from playerCorpseRenderingUtils
 export const PLAYER_STASH_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0;
 export const PLAYER_STASH_SURFACE_INTERACTION_DISTANCE_SQUARED = 32.0 * 32.0;
 export const PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0;
-
-// --- Locally Defined Visual Heights for Interaction (formerly in gameConfig.ts) ---
-export const MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION = 64;
-export const CORN_VISUAL_HEIGHT_FOR_INTERACTION = 96;
-export const POTATO_VISUAL_HEIGHT_FOR_INTERACTION = 32;
-export const HEMP_VISUAL_HEIGHT_FOR_INTERACTION = 88;
-export const REED_VISUAL_HEIGHT_FOR_INTERACTION = 76;
-export const PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION = 64;
 
 // --- Shelter Access Control Constants ---
 const SHELTER_COLLISION_WIDTH = 300.0;
@@ -194,12 +178,7 @@ export function useInteractionFinder({
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
-    const [closestInteractableMushroomId, setClosestInteractableMushroomId] = useState<bigint | null>(null);
-    const [closestInteractableCornId, setClosestInteractableCornId] = useState<bigint | null>(null);
-    const [closestInteractablePotatoId, setClosestInteractablePotatoId] = useState<bigint | null>(null);
-    const [closestInteractablePumpkinId, setClosestInteractablePumpkinId] = useState<bigint | null>(null);
-    const [closestInteractableHempId, setClosestInteractableHempId] = useState<bigint | null>(null);
-    const [closestInteractableReedId, setClosestInteractableReedId] = useState<bigint | null>(null);
+    const [closestInteractableHarvestableResourceId, setClosestInteractableHarvestableResourceId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
     const [closestInteractableLanternId, setClosestInteractableLanternId] = useState<number | null>(null);
     const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
@@ -219,24 +198,9 @@ export function useInteractionFinder({
         let closestTarget: InteractableTarget | null = null;
         let closestTargetDistSq = Infinity;
 
-        // Legacy individual variables for backward compatibility
-        let closestMushroomId: bigint | null = null;
-        let closestMushroomDistSq = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
-
-        let closestCornId: bigint | null = null;
-        let closestCornDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
-
-        let closestPotatoId: bigint | null = null;
-        let closestPotatoDistSq = PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED;
-
-        let closestPumpkinId: bigint | null = null;
-        let closestPumpkinDistSq = PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED;
-
-        let closestHempId: bigint | null = null;
-        let closestHempDistSq = PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED;
-
-        let closestReedId: bigint | null = null;
-        let closestReedDistSq = PLAYER_REED_INTERACTION_DISTANCE_SQUARED;
+        // Generic harvestable resource tracking
+        let closestHarvestableResourceId: bigint | null = null;
+        let closestHarvestableResourceDistSq = PLAYER_HARVESTABLE_RESOURCE_INTERACTION_DISTANCE_SQUARED;
 
         let closestCampfireId: number | null = null;
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
@@ -281,95 +245,36 @@ export function useInteractionFinder({
             const playerX = localPlayer.positionX;
             const playerY = localPlayer.positionY;
 
-            // Find closest harvestable resources (unified system)
+            // Find closest harvestable resource (generic unified system)
             if (harvestableResources) {
                 harvestableResources.forEach((resource) => {
                     if (resource.respawnAt !== null && resource.respawnAt !== undefined) return;
                     
-                    // Determine resource type and properties based on plant type
-                    const plantType = resource.plantType?.tag;
+                    // Get resource type and configuration
+                    const plantType = resource.plantType?.tag as ResourceType;
                     if (!plantType) return;
                     
-                                         let visualHeight: number;
-                     let interactionDistSq: number;
-                     
-                     switch (plantType) {
-                         case 'Mushroom':
-                             visualHeight = MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_MUSHROOM_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         case 'Corn':
-                             visualHeight = CORN_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_CORN_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         case 'Potato':
-                             visualHeight = POTATO_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_POTATO_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         case 'Pumpkin':
-                             visualHeight = PUMPKIN_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_PUMPKIN_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         case 'Hemp':
-                             visualHeight = HEMP_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_HEMP_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         case 'Reed':
-                             visualHeight = REED_VISUAL_HEIGHT_FOR_INTERACTION;
-                             interactionDistSq = PLAYER_REED_INTERACTION_DISTANCE_SQUARED;
-                             break;
-                         default:
-                             // Unknown plant type, skip
-                             return;
-                     }
-                     
-                     // Calculate distance to resource
-                     const visualCenterY = resource.posY - (visualHeight / 2);
-                     const dx = playerX - resource.posX;
-                     const dy = playerY - visualCenterY;
-                     const distSq = dx * dx + dy * dy;
-                     
-                     // Check if this resource is closer than the current closest of its type
-                     if (distSq < interactionDistSq) {
-                         switch (plantType) {
-                             case 'Mushroom':
-                                 if (distSq < closestMushroomDistSq) {
-                                     closestMushroomDistSq = distSq;
-                                     closestMushroomId = resource.id;
-                                 }
-                                 break;
-                             case 'Corn':
-                                 if (distSq < closestCornDistSq) {
-                                     closestCornDistSq = distSq;
-                                     closestCornId = resource.id;
-                                 }
-                                 break;
-                             case 'Potato':
-                                 if (distSq < closestPotatoDistSq) {
-                                     closestPotatoDistSq = distSq;
-                                     closestPotatoId = resource.id;
-                                 }
-                                 break;
-                             case 'Pumpkin':
-                                 if (distSq < closestPumpkinDistSq) {
-                                     closestPumpkinDistSq = distSq;
-                                     closestPumpkinId = resource.id;
-                                 }
-                                 break;
-                             case 'Hemp':
-                                 if (distSq < closestHempDistSq) {
-                                     closestHempDistSq = distSq;
-                                     closestHempId = resource.id;
-                                 }
-                                 break;
-                             case 'Reed':
-                                 if (distSq < closestReedDistSq) {
-                                     closestReedDistSq = distSq;
-                                     closestReedId = resource.id;
-                                 }
-                                 break;
-                         }
-                     }
+                    try {
+                        const config = getResourceConfig(plantType);
+                        
+                        // Use target width as a proxy for visual height (can be refined later)
+                        const visualHeight = config.targetWidth;
+                        const visualCenterY = resource.posY - (visualHeight / 2);
+                        
+                        // Calculate distance to resource
+                        const dx = playerX - resource.posX;
+                        const dy = playerY - visualCenterY;
+                        const distSq = dx * dx + dy * dy;
+                        
+                        // Check if this is the closest harvestable resource
+                        if (distSq < closestHarvestableResourceDistSq) {
+                            closestHarvestableResourceDistSq = distSq;
+                            closestHarvestableResourceId = resource.id;
+                        }
+                    } catch (error) {
+                        // Unknown plant type, skip
+                        return;
+                    }
                 });
             }
 
@@ -634,30 +539,15 @@ export function useInteractionFinder({
             // After all searches, determine the single closest target across all types
             const candidates: InteractableTarget[] = [];
 
-            // Find the single closest harvestable resource across all plant types
-            const harvestableResourceCandidates = [
-                { id: closestMushroomId, distSq: closestMushroomDistSq },
-                { id: closestCornId, distSq: closestCornDistSq },
-                { id: closestPotatoId, distSq: closestPotatoDistSq },
-                { id: closestPumpkinId, distSq: closestPumpkinDistSq },
-                { id: closestHempId, distSq: closestHempDistSq },
-                { id: closestReedId, distSq: closestReedDistSq }
-            ].filter(candidate => candidate.id !== null);
-
-            if (harvestableResourceCandidates.length > 0) {
-                // Find the closest harvestable resource among all plant types
-                const closestHarvestable = harvestableResourceCandidates.reduce((closest, candidate) => 
-                    candidate.distSq < closest.distSq ? candidate : closest
-                );
-                
-                // Get the actual harvestable resource from the map to access its position
-                const harvestableResource = harvestableResources?.get(String(closestHarvestable.id!));
+            // Add closest harvestable resource to candidates if one was found
+            if (closestHarvestableResourceId) {
+                const harvestableResource = harvestableResources?.get(String(closestHarvestableResourceId));
                 if (harvestableResource) {
                     candidates.push({
                         type: 'harvestable_resource',
-                        id: closestHarvestable.id!,
+                        id: closestHarvestableResourceId,
                         position: { x: harvestableResource.posX, y: harvestableResource.posY },
-                        distance: Math.sqrt(closestHarvestable.distSq)
+                        distance: Math.sqrt(closestHarvestableResourceDistSq)
                     });
                 }
             }
@@ -780,12 +670,7 @@ export function useInteractionFinder({
 
         return {
             closestInteractableTarget: closestTarget,
-            closestInteractableMushroomId: closestMushroomId,
-            closestInteractableCornId: closestCornId,
-            closestInteractablePotatoId: closestPotatoId,
-            closestInteractablePumpkinId: closestPumpkinId,
-            closestInteractableHempId: closestHempId,
-            closestInteractableReedId: closestReedId,
+            closestInteractableHarvestableResourceId: closestHarvestableResourceId,
             closestInteractableCampfireId: closestCampfireId,
             closestInteractableLanternId: closestLanternId,
             closestInteractableDroppedItemId: closestDroppedItemId,
@@ -804,23 +689,8 @@ export function useInteractionFinder({
     // Effect to update state based on memoized results
     useEffect(() => {
         // Update state only if changed, comparing to current state
-        if (interactionResult.closestInteractableMushroomId !== closestInteractableMushroomId) {
-            setClosestInteractableMushroomId(interactionResult.closestInteractableMushroomId);
-        }
-        if (interactionResult.closestInteractableCornId !== closestInteractableCornId) {
-            setClosestInteractableCornId(interactionResult.closestInteractableCornId);
-        }
-        if (interactionResult.closestInteractablePotatoId !== closestInteractablePotatoId) {
-            setClosestInteractablePotatoId(interactionResult.closestInteractablePotatoId);
-        }
-        if (interactionResult.closestInteractablePumpkinId !== closestInteractablePumpkinId) {
-            setClosestInteractablePumpkinId(interactionResult.closestInteractablePumpkinId);
-        }
-        if (interactionResult.closestInteractableHempId !== closestInteractableHempId) {
-            setClosestInteractableHempId(interactionResult.closestInteractableHempId);
-        }
-        if (interactionResult.closestInteractableReedId !== closestInteractableReedId) {
-            setClosestInteractableReedId(interactionResult.closestInteractableReedId);
+        if (interactionResult.closestInteractableHarvestableResourceId !== closestInteractableHarvestableResourceId) {
+            setClosestInteractableHarvestableResourceId(interactionResult.closestInteractableHarvestableResourceId);
         }
         if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
             setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
@@ -861,12 +731,7 @@ export function useInteractionFinder({
 
     return {
         closestInteractableTarget: interactionResult.closestInteractableTarget,
-        closestInteractableMushroomId,
-        closestInteractableCornId,
-        closestInteractablePotatoId,
-        closestInteractablePumpkinId,
-        closestInteractableHempId,
-        closestInteractableReedId,
+        closestInteractableHarvestableResourceId,
         closestInteractableCampfireId,
         closestInteractableLanternId,
         closestInteractableDroppedItemId,

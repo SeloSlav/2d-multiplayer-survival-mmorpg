@@ -27,6 +27,7 @@ import {
   MinimapCache as SpacetimeDBMinimapCache,
   FishingSession,
   PlantedSeed as SpacetimeDBPlantedSeed,
+  PlantType as SpacetimeDBPlantType,
   PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
   WildAnimal as SpacetimeDBWildAnimal,
   ViperSpittle as SpacetimeDBViperSpittle,
@@ -361,12 +362,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const {
     closestInteractableTarget,
-    closestInteractableMushroomId,
-    closestInteractableCornId,
-    closestInteractablePotatoId,
-    closestInteractablePumpkinId,
-    closestInteractableHempId,
-    closestInteractableReedId,
+    closestInteractableHarvestableResourceId,
     closestInteractableCampfireId,
     closestInteractableDroppedItemId,
     closestInteractableBoxId,
@@ -394,16 +390,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     rainCollectors,
     harvestableResources,
   });
-
-  // Derive closestInteractableHarvestableResourceId from unified target for backward compatibility
-  const closestInteractableHarvestableResourceId = useMemo(() => {
-    if (closestInteractableTarget && closestInteractableTarget.type === 'harvestable_resource') {
-      return closestInteractableTarget.id as bigint;
-    }
-    return null;
-  }, [closestInteractableTarget]);
-
-
 
   // --- Action Input Handler ---
   const {
@@ -1144,7 +1130,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     itemImagesRef, heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
     canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
-    closestInteractableMushroomId, closestInteractableCornId, closestInteractablePotatoId, closestInteractablePumpkinId, closestInteractableHempId,
+    closestInteractableHarvestableResourceId,
     closestInteractableCampfireId, closestInteractableDroppedItemId, closestInteractableBoxId, isClosestInteractableBoxEmpty,
     closestInteractableWaterPosition,
     holdInteractionProgress, hoveredPlayerIds, handlePlayerHover, messages,

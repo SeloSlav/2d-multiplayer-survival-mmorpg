@@ -30,12 +30,15 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
+import { PlantType as __PlantType } from "./plant_type_type";
+
 export type PlantedSeed = {
   id: bigint,
   posX: number,
   posY: number,
   chunkIndex: number,
   seedType: string,
+  plantType: __PlantType,
   plantedAt: Timestamp,
   willMatureAt: Timestamp,
   plantedBy: Identity,
@@ -59,6 +62,7 @@ export namespace PlantedSeed {
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("seedType", AlgebraicType.createStringType()),
+      new ProductTypeElement("plantType", __PlantType.getTypeScriptAlgebraicType()),
       new ProductTypeElement("plantedAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("willMatureAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("plantedBy", AlgebraicType.createIdentityType()),

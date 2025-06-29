@@ -116,6 +116,7 @@ import sovietBayonetIcon from '../assets/items/soviet_bayonet.png';
 import navalCutlassIcon from '../assets/items/naval_cutlass.png';
 import engineersMaulIcon from '../assets/items/engineers_maul.png';
 import militaryCrowbarIcon from '../assets/items/military_crowbar.png';
+import scrapBatteriesIcon from '../assets/items/scrap_batteries.png';   
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -232,6 +233,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'naval_cutlass.png': navalCutlassIcon,
   'engineers_maul.png': engineersMaulIcon,
   'military_crowbar.png': militaryCrowbarIcon,
+  'scrap_batteries.png': scrapBatteriesIcon,
 };
 
 // Export a function that provides the fallback logic

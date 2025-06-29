@@ -1,8 +1,8 @@
 import { Tree } from '../../generated'; // Import generated types
-import aleppoPineImage from '../../assets/doodads/aleppo_pine_b.png';
-import mannaAshImage from '../../assets/doodads/manna_ash_b.png';
-import downyOakImage from '../../assets/doodads/downy_oak_b.png';
-import stonePineImage from '../../assets/doodads/stone_pine_b.png'; // New import for stone pine
+import aleppoPineImage from '../../assets/doodads/siberian_birch_b.png';
+import mannaAshImage from '../../assets/doodads/mountain_hemlock_b.png';
+import downyOakImage from '../../assets/doodads/sitka_spruce_b.png';
+import stonePineImage from '../../assets/doodads/sitka_alder_b.png'; // New import for stone pine
 // import treeOakImage from '../assets/doodads/tree.png'; // REMOVED
 // import treeStumpImage from '../assets/doodads/tree_stump.png'; // REMOVED
 import { drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Import shadow utils
@@ -168,15 +168,20 @@ export function renderTree(
 ) {
     // Check if player is behind this tree's foliage area
     // Tree base is at tree.posY, but the visual tree extends upward significantly
-    // We need to check if player is behind the upper portion of the tree (foliage area)
-    const treeVisualHeight = TARGET_TREE_WIDTH_PX * 0.8; // Approximate tree height based on width
-    const treeFoliageTop = tree.posY - treeVisualHeight; // Top of the tree foliage
-    const treeFoliageBottom = tree.posY - (treeVisualHeight * 0.4); // Bottom 40% is trunk area
+    // We need to check if player is behind ANY portion of the tree image
+    
+    // First get the actual tree image dimensions to calculate the real tree bounds
+    const imageSource = treeConfig.getImageSource(tree);
+    const image = imageSource ? imageManager.getImage(imageSource) : null;
+    const actualTreeHeight = image ? (image.naturalHeight * (TARGET_TREE_WIDTH_PX / image.naturalWidth)) : (TARGET_TREE_WIDTH_PX * 0.8);
+    
+    const treeImageTop = tree.posY - actualTreeHeight; // Actual top of the tree image
+    const treeImageBottom = tree.posY; // Tree base position
     
     const shouldApplyTransparency = localPlayerPosition && 
-                                   localPlayerPosition.y > treeFoliageTop && // Player is below the top of foliage
-                                   localPlayerPosition.y < treeFoliageBottom && // Player is above the trunk area
-                                   Math.abs(localPlayerPosition.x - tree.posX) < 120; // Within tree width
+                                   localPlayerPosition.y >= treeImageTop && // Player is below the actual top of tree image
+                                   localPlayerPosition.y <= treeImageBottom && // Player is above the tree base
+                                   Math.abs(localPlayerPosition.x - tree.posX) < (TARGET_TREE_WIDTH_PX * 0.6); // Within reasonable tree width
 
     // Apply transparency by modifying canvas global alpha if needed
     if (shouldApplyTransparency && !onlyDrawShadow) {
@@ -200,7 +205,7 @@ export function renderTree(
     }
 }
 
-// Helper function to render tree with partial transparency
+// Helper function to render tree with partial transparency using a smooth opacity gradient
 function renderTreeWithPartialTransparency(
     ctx: CanvasRenderingContext2D,
     tree: Tree,
@@ -237,24 +242,47 @@ function renderTreeWithPartialTransparency(
     const finalX = position.drawX + effects.offsetX;
     const finalY = position.drawY + effects.offsetY;
 
-    // Define split point (where transparency begins - top 35% of tree becomes transparent)
-    const splitRatio = 0.65; // Bottom 65% stays opaque, top 35% becomes transparent
-    const splitY = finalY + (dimensions.height * splitRatio);
+    // Define transparency gradient zones
+    const gradientStartRatio = 0.8; // Start fading at 80% of tree height (only bottom 20% stays opaque)
+    const gradientEndRatio = 0.1;   // Maximum transparency at 10% from top
+    const gradientStartY = finalY + (dimensions.height * gradientStartRatio);
+    const gradientEndY = finalY + (dimensions.height * gradientEndRatio);
 
-    // Render bottom part (trunk and lower foliage) - fully opaque
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(finalX, splitY, dimensions.width, dimensions.height * (1 - splitRatio));
-    ctx.clip();
-    ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
-    ctx.restore();
+    // Render tree in horizontal slices with varying opacity for smooth gradient
+    const numSlices = 20; // More slices = smoother gradient
+    const sliceHeight = dimensions.height / numSlices;
 
-    // Render top part (upper foliage) - less aggressive transparency
     ctx.save();
-    ctx.globalAlpha = 0.6; // 60% opacity for top part (less aggressive than 30%)
-    ctx.beginPath();
-    ctx.rect(finalX, finalY, dimensions.width, dimensions.height * splitRatio);
-    ctx.clip();
-    ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
+
+    for (let i = 0; i < numSlices; i++) {
+        const sliceY = finalY + (i * sliceHeight);
+        const sliceCenterY = sliceY + (sliceHeight / 2);
+        
+        // Calculate opacity based on position in the gradient zone
+        let opacity = 1.0; // Default fully opaque
+        
+        if (sliceCenterY <= gradientStartY && sliceCenterY >= gradientEndY) {
+            // We're in the gradient zone - calculate smooth opacity transition
+            const gradientProgress = (gradientStartY - sliceCenterY) / (gradientStartY - gradientEndY);
+            // Use a smooth curve for more natural transition
+            const easedProgress = 1 - Math.pow(1 - gradientProgress, 2); // Ease-out curve
+            opacity = 1.0 - (easedProgress * 0.6); // Maximum 60% transparency at top
+        } else if (sliceCenterY < gradientEndY) {
+            // Above gradient zone - maximum transparency
+            opacity = 0.4; // 60% transparent
+        }
+        // Below gradient zone stays fully opaque (opacity = 1.0)
+
+        ctx.globalAlpha = opacity;
+        
+        // Clip to current slice and draw
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(finalX, sliceY, dimensions.width, sliceHeight);
+        ctx.clip();
+        ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
+        ctx.restore();
+    }
+
     ctx.restore();
 }

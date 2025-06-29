@@ -1,12 +1,6 @@
-import { PlantedSeed } from '../../generated';
-
-// Import all the plant images we need from doodads folder
-import potatoImg from '../../assets/doodads/potato.png';
-import cornImg from '../../assets/doodads/corn_stalk.png';
-import mushroomImg from '../../assets/doodads/mushroom.png';
-import hempImg from '../../assets/doodads/hemp.png';
-import reedStalkImg from '../../assets/doodads/reed_stalk.png';
-import pumpkinImg from '../../assets/doodads/pumpkin.png';
+import { PlantedSeed, PlantType } from '../../generated';
+import { RESOURCE_IMAGE_SOURCES } from './resourceImageConfigs';
+import type { ResourceType } from '../../types/resourceTypes';
 
 /**
  * Type alias for the actual generated PlantedSeed type
@@ -14,38 +8,43 @@ import pumpkinImg from '../../assets/doodads/pumpkin.png';
 export type PlantedSeedData = PlantedSeed;
 
 /**
+ * Convert server PlantType to client ResourceType
+ * Uses existing resource image sources as validation - NO manual typing!
+ */
+function convertPlantTypeToResourceType(plantType: PlantType): ResourceType | null {
+    // If the plant type tag exists in our resource image sources, it's a valid ResourceType
+    const plantTypeTag = plantType.tag;
+    return (plantTypeTag in RESOURCE_IMAGE_SOURCES) ? plantTypeTag as ResourceType : null;
+}
+
+/**
  * Cached plant images
  */
 const plantImages: { [key: string]: HTMLImageElement } = {};
 
 /**
- * Initialize plant images
+ * Initialize plant images using the existing resource image system
+ * Load images for all available resource types that plants can become
  */
 function initializePlantImages() {
     if (Object.keys(plantImages).length === 0) {
-        const imageMap = {
-            'Seed Potato': potatoImg,
-            'Corn Seeds': cornImg,
-            'Mushroom Spores': mushroomImg,
-            'Hemp Seeds': hempImg,
-            'Reed Rhizome': reedStalkImg,
-            'Pumpkin Seeds': pumpkinImg,
-        };
-
-        for (const [seedType, imageSrc] of Object.entries(imageMap)) {
+        // Initialize images for all resource types in the system
+        Object.keys(RESOURCE_IMAGE_SOURCES).forEach(resourceType => {
+            const imageSrc = RESOURCE_IMAGE_SOURCES[resourceType as ResourceType];
             const img = new Image();
             img.src = imageSrc;
-            plantImages[seedType] = img;
-        }
+            plantImages[resourceType] = img; // Store by resource type, not seed type
+        });
     }
 }
 
 /**
- * Get the target plant image for a seed type
+ * Get the target plant image for a planted seed using server's plant type
  */
-function getPlantImage(seedType: string): HTMLImageElement | null {
+function getPlantImage(plantedSeed: PlantedSeedData): HTMLImageElement | null {
     initializePlantImages();
-    return plantImages[seedType] || null;
+    const resourceType = convertPlantTypeToResourceType(plantedSeed.plantType);
+    return resourceType ? plantImages[resourceType] || null : null;
 }
 
 /**
@@ -84,13 +83,13 @@ export function renderPlantedSeed(
     cycleProgress: number,
     plantedSeedImage?: HTMLImageElement | null
 ): void {
-    const { posX, posY, seedType } = plantedSeed;
+    const { posX, posY } = plantedSeed;
     const growthProgress = getGrowthProgress(plantedSeed);
     const finalSize = 48;
     
     // Determine which image to show based on growth progress
     const shouldShowPlant = growthProgress >= 0.25;
-    const imageToShow = shouldShowPlant ? getPlantImage(seedType) : plantedSeedImage;
+    const imageToShow = shouldShowPlant ? getPlantImage(plantedSeed) : plantedSeedImage;
     const currentSize = shouldShowPlant ? calculatePlantSize(growthProgress, finalSize) : finalSize;
     
     if (!imageToShow || !imageToShow.complete) {

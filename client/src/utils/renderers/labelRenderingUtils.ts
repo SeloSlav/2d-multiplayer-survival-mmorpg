@@ -18,9 +18,6 @@ import {
 import { CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './campfireRenderingUtils';
 import { BOX_HEIGHT } from './woodenStorageBoxRenderingUtils';
 
-// Import resource configuration helper to get proper interaction labels
-import { getResourceInteractionLabel } from './resourceConfigurations';
-
 // Define Sleeping Bag dimensions locally for label positioning
 const SLEEPING_BAG_HEIGHT = 64;
 

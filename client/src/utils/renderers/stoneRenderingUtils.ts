@@ -1,5 +1,5 @@
 import { Stone } from '../../generated'; // Import generated Stone type
-import stoneImage from '../../assets/doodads/stone.png'; // Direct import
+import stoneImage from '../../assets/doodads/stone_b.png'; // Direct import
 import { drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Import shadow utils
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer';
 import { imageManager } from './imageManager';

@@ -56,6 +56,8 @@ const SOUND_DEFINITIONS = {
     shoot_crossbow: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 850 }, // Crossbow firing
     bandaging: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 300 }, // Bandaging (5-second duration, non-looping)
     stop_bandaging: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.0, maxDistance: 300 }, // Stop bandaging sound
+    barrel_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 600 }, // Barrel hit sound
+    barrel_destroyed: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 700 }, // Barrel destroyed sound
     // UI/Item interaction sounds - immediate (no server sync needed)
     crush_bones: { strategy: SoundStrategy.IMMEDIATE, volume: 1.2 }, // Local client sound
 } as const;
@@ -218,6 +220,8 @@ const PRELOAD_SOUNDS = [
     'shoot_bow.mp3',                                        // 1 shoot bow variation
     'shoot_crossbow.mp3',                                    // 1 shoot crossbow variation
     'bandaging.mp3',                                        // 1 bandaging variation
+    'barrel_hit.mp3',                                       // 1 barrel hit variation
+    'barrel_destroyed.mp3',                                 // 1 barrel destroyed variation
 ] as const;
 
 // Enhanced audio loading with error handling and performance monitoring
@@ -427,6 +431,10 @@ const playLocalSound = async (
                 variationCount = 1; // bandaging.mp3
             } else if (soundType === 'stop_bandaging') {
                 variationCount = 1; // stop_bandaging.mp3
+            } else if (soundType === 'barrel_hit') {
+                variationCount = 1; // barrel_hit.mp3
+            } else if (soundType === 'barrel_destroyed') {
+                variationCount = 1; // barrel_destroyed.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);
@@ -484,8 +492,19 @@ export const playImmediateSound = (soundType: SoundType, volume: number = 1): vo
 const activeLoopingSounds = new Map<string, HTMLAudioElement>();
 const soundCleanupTimeouts = new Map<string, number>();
 
+// 🎵 SEAMLESS LOOPING SYSTEM - Overlapping Audio Instances
+const activeSeamlessLoopingSounds = new Map<string, {
+    primary: HTMLAudioElement;
+    secondary: HTMLAudioElement;
+    isPrimaryActive: boolean;
+    nextSwapTime: number;
+    volume: number;
+    pitchVariation: number;
+}>();
+
 // Enhanced cleanup function for looping sounds
 const cleanupLoopingSound = (objectId: string, reason: string = "cleanup") => {
+    // Clean up traditional looping sound
     const audio = activeLoopingSounds.get(objectId);
     if (audio) {
         try {
@@ -511,12 +530,161 @@ const cleanupLoopingSound = (objectId: string, reason: string = "cleanup") => {
         // console.log(`🔊 Cleaned up looping sound for object ${objectId} (${reason})`);
     }
     
+    // Clean up seamless looping sound
+    const seamlessSound = activeSeamlessLoopingSounds.get(objectId);
+    if (seamlessSound) {
+        try {
+            // Clean up both primary and secondary audio instances
+            [seamlessSound.primary, seamlessSound.secondary].forEach(audio => {
+                (audio as any)._isBeingCleaned = true;
+                audio.pause();
+                audio.currentTime = 0;
+                audio.src = '';
+                audio.load();
+            });
+        } catch (e) {
+            if (e instanceof Error && !e.message.includes('load') && !e.message.includes('src')) {
+                console.warn(`🔊 Unexpected error during seamless audio cleanup for ${objectId}:`, e);
+            }
+        }
+        activeSeamlessLoopingSounds.delete(objectId);
+        // console.log(`🔊 Cleaned up seamless looping sound for object ${objectId} (${reason})`);
+    }
+    
     // Clear any pending cleanup timeout
     const timeout = soundCleanupTimeouts.get(objectId);
     if (timeout) {
         window.clearTimeout(timeout);
         soundCleanupTimeouts.delete(objectId);
     }
+};
+
+// 🎵 Create seamless looping audio system
+const createSeamlessLoopingSound = async (
+    objectId: string, 
+    filename: string, 
+    volume: number,
+    pitchVariation: number
+): Promise<boolean> => {
+    try {
+        const audio1 = await getAudio(filename);
+        const audio2 = await getAudio(filename);
+        
+        const primary = audio1.cloneNode() as HTMLAudioElement;
+        const secondary = audio2.cloneNode() as HTMLAudioElement;
+        
+        // Configure both instances
+        [primary, secondary].forEach(audio => {
+            audio.loop = false; // We'll handle looping manually
+            audio.volume = Math.min(1.0, Math.max(0.0, volume));
+            audio.playbackRate = pitchVariation;
+        });
+        
+        // Get audio duration for overlap timing
+        const duration = primary.duration || 10; // fallback to 10 seconds
+        const overlapTime = Math.min(1, duration * 0.1); // 10% overlap, max 1 second
+        const nextSwapTime = Date.now() + (duration - overlapTime) * 1000;
+        
+        // Store the seamless sound configuration
+        activeSeamlessLoopingSounds.set(objectId, {
+            primary,
+            secondary,
+            isPrimaryActive: true,
+            nextSwapTime,
+            volume,
+            pitchVariation
+        });
+        
+        // Start with primary audio
+        await primary.play();
+        // console.log(`🎵 Started seamless looping sound: ${filename} for object ${objectId} (duration: ${duration}s, overlap: ${overlapTime}s)`);
+        
+        // Set up error handlers
+        [primary, secondary].forEach((audio, index) => {
+            const handleError = (e: Event) => {
+                if (!(audio as any)._isBeingCleaned) {
+                    console.warn(`🔊 Seamless audio error for object ${objectId} (${index === 0 ? 'primary' : 'secondary'}):`, e);
+                    cleanupLoopingSound(objectId, "seamless audio error");
+                }
+            };
+            audio.addEventListener('error', handleError, { once: true });
+        });
+        
+        return true;
+    } catch (error) {
+        console.warn(`🎵 Failed to create seamless looping sound for object ${objectId}: ${filename}`, error);
+        return false;
+    }
+};
+
+// 🎵 Update seamless looping sounds (handle overlapping)
+const updateSeamlessLoopingSounds = (masterVolume: number, environmentalVolume: number) => {
+    const now = Date.now();
+    
+    activeSeamlessLoopingSounds.forEach((seamlessSound, objectId) => {
+        const { primary, secondary, isPrimaryActive, nextSwapTime, volume, pitchVariation } = seamlessSound;
+        
+        // Check if it's time to start the overlap
+        if (now >= nextSwapTime) {
+            const currentAudio = isPrimaryActive ? primary : secondary;
+            const nextAudio = isPrimaryActive ? secondary : primary;
+            
+            try {
+                // Start the next audio with slight volume and pitch variation for naturalness
+                const volumeVariation = 0.95 + Math.random() * 0.1; // 0.95 to 1.05
+                const newPitchVariation = pitchVariation * (0.98 + Math.random() * 0.04); // Slight pitch variation
+                
+                nextAudio.volume = Math.min(1.0, volume * volumeVariation);
+                nextAudio.playbackRate = newPitchVariation;
+                nextAudio.currentTime = 0;
+                nextAudio.play();
+                
+                // Schedule the fade-out of the current audio and swap
+                const fadeOutTime = 500; // 500ms fade out
+                const fadeSteps = 20;
+                const fadeInterval = fadeOutTime / fadeSteps;
+                const initialVolume = currentAudio.volume;
+                
+                let fadeStep = 0;
+                const fadeOut = setInterval(() => {
+                    fadeStep++;
+                    const newVolume = initialVolume * (1 - fadeStep / fadeSteps);
+                    currentAudio.volume = Math.max(0, newVolume);
+                    
+                    if (fadeStep >= fadeSteps) {
+                        clearInterval(fadeOut);
+                        currentAudio.pause();
+                        currentAudio.currentTime = 0;
+                        
+                        // Swap active audio
+                        seamlessSound.isPrimaryActive = !isPrimaryActive;
+                        
+                        // Schedule next swap
+                        const duration = nextAudio.duration || 10;
+                        const overlapTime = Math.min(1, duration * 0.1);
+                        seamlessSound.nextSwapTime = now + (duration - overlapTime) * 1000;
+                    }
+                }, fadeInterval);
+                
+                // console.log(`🎵 Seamless swap for object ${objectId}: ${isPrimaryActive ? 'primary→secondary' : 'secondary→primary'}`);
+                
+            } catch (error) {
+                console.warn(`🎵 Error during seamless swap for object ${objectId}:`, error);
+                cleanupLoopingSound(objectId, "seamless swap error");
+            }
+        }
+    });
+};
+
+// 🎵 Determine which sounds should use seamless looping
+const shouldUseSeamlessLooping = (filename: string): boolean => {
+    const seamlessFilenames = [
+        'campfire_looping.mp3',
+        'lantern_looping.mp3',
+        'rain_normal.mp3',
+        'rain_heavy_storm.mp3'
+    ];
+    return seamlessFilenames.includes(filename);
 };
 
 // Main sound system hook
@@ -711,11 +879,80 @@ export const useSoundSystem = ({
 
             // Check if we're already playing this sound OR if it's being created
             const existingSound = activeLoopingSounds.get(objectId);
+            const existingSeamlessSound = activeSeamlessLoopingSounds.get(objectId);
             const isBeingCreated = pendingSoundCreationRef.current.has(objectId);
             
             if (isBeingCreated) {
                 // console.log(`🔊 Sound ${objectId} is already being created, skipping`);
                 return;
+            }
+            
+            if (existingSeamlessSound) {
+                // Update seamless sound volume and position
+                // console.log(`🎵 Updating existing seamless sound for object ${objectId}`);
+                
+                // Special handling for global sounds (infinite distance)
+                if (continuousSound.maxDistance === Infinity || !isFinite(continuousSound.maxDistance) || continuousSound.maxDistance >= 1e30) {
+                    const isEnvironmental = continuousSound.filename.includes('rain') || 
+                                           continuousSound.filename.includes('wind') || 
+                                           continuousSound.filename.includes('storm');
+                    
+                    const volumeMultiplier = isEnvironmental ? environmentalVolume : masterVolume;
+                    const globalVolume = continuousSound.volume * volumeMultiplier;
+                    
+                    // Update volume for both audio instances
+                    existingSeamlessSound.primary.volume = Math.min(1.0, globalVolume);
+                    existingSeamlessSound.secondary.volume = Math.min(1.0, globalVolume);
+                    existingSeamlessSound.volume = globalVolume;
+                    
+                    return; // Done processing this global seamless sound
+                }
+                
+                // Update volume based on distance for existing seamless sound
+                const distance = calculateDistance(
+                    continuousSound.posX,
+                    continuousSound.posY,
+                    localPlayerPosition.x,
+                    localPlayerPosition.y
+                );
+                
+                if (!isFinite(distance) || distance > 10000) {
+                    console.warn(`🔊 Invalid distance ${distance} for seamless object ${objectId} - stopping sound`);
+                    cleanupLoopingSound(objectId, "invalid distance");
+                    return;
+                }
+                
+                const volume = calculateSpatialVolume(
+                    distance,
+                    continuousSound.volume,
+                    continuousSound.maxDistance
+                ) * masterVolume;
+
+                existingSeamlessSound.volume = volume;
+                
+                if (volume <= 0.01) {
+                    // Too far away, pause both sounds
+                    if (!existingSeamlessSound.primary.paused) {
+                        existingSeamlessSound.primary.pause();
+                    }
+                    if (!existingSeamlessSound.secondary.paused) {
+                        existingSeamlessSound.secondary.pause();
+                    }
+                } else {
+                    // Update volume and ensure the active sound is playing
+                    const activeAudio = existingSeamlessSound.isPrimaryActive ? 
+                                       existingSeamlessSound.primary : existingSeamlessSound.secondary;
+                    
+                    existingSeamlessSound.primary.volume = Math.min(1.0, volume);
+                    existingSeamlessSound.secondary.volume = Math.min(1.0, volume);
+                    
+                    if (activeAudio.paused) {
+                        activeAudio.play().catch(err => {
+                            console.warn(`🎵 Failed to resume seamless sound for object ${objectId}:`, err);
+                        });
+                    }
+                }
+                return; // Done processing this seamless sound
             }
             
             if (existingSound) {
@@ -856,47 +1093,70 @@ export const useSoundSystem = ({
                         return;
                     }
 
-                    const audio = await getAudio(continuousSound.filename);
-                    const audioClone = audio.cloneNode() as HTMLAudioElement;
+                    // 🎵 Choose between seamless looping and traditional looping
+                    let useSeamlessLooping = shouldUseSeamlessLooping(continuousSound.filename);
+                    let audioClone: HTMLAudioElement | null = null;
                     
-                    // Configure for looping
-                    audioClone.loop = true;
-                    audioClone.volume = Math.min(1.0, Math.max(0.0, volume)); // Use the properly clamped volume
-                    audioClone.currentTime = 0;
+                    if (useSeamlessLooping) {
+                        // Use seamless looping system for smooth continuous sounds
+                        const pitchVariation = 0.95 + Math.random() * 0.1; // Tighter pitch range for seamless sounds
+                        const success = await createSeamlessLoopingSound(objectId, continuousSound.filename, volume, pitchVariation);
+                        
+                        if (success) {
+                            // console.log(`🎵 Successfully started seamless looping sound: ${continuousSound.filename} for object ${objectId}`);
+                        } else {
+                            console.warn(`🎵 Failed to start seamless looping, falling back to traditional loop for ${objectId}`);
+                            // Fall back to traditional looping
+                            useSeamlessLooping = false;
+                        }
+                    }
                     
-                    // Add random pitch variation for variety
-                    const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
-                    audioClone.playbackRate = pitchVariation;
+                    if (!useSeamlessLooping) {
+                        // Use traditional looping for other sounds
+                        const audio = await getAudio(continuousSound.filename);
+                        audioClone = audio.cloneNode() as HTMLAudioElement;
+                        
+                        // Configure for looping
+                        audioClone.loop = true;
+                        audioClone.volume = Math.min(1.0, Math.max(0.0, volume)); // Use the properly clamped volume
+                        audioClone.currentTime = 0;
+                        
+                        // Add random pitch variation for variety
+                        const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
+                        audioClone.playbackRate = pitchVariation;
+                        
+                        // Store the active sound BEFORE playing to prevent race conditions
+                        activeLoopingSounds.set(objectId, audioClone);
+                        
+                        // Start playing
+                        await audioClone.play();
+                        // console.log(`🔊 Successfully started traditional looping sound: ${continuousSound.filename} for object ${objectId}`);
+                    }
                     
-                    // Store the active sound BEFORE playing to prevent race conditions
-                    activeLoopingSounds.set(objectId, audioClone);
-                    
-                    // Clear pending creation flag
+                    // Clear pending creation flag (for both types)
                     pendingSoundCreationRef.current.delete(objectId);
                     
-                    // Start playing
-                    await audioClone.play();
-                    // console.log(`🔊 Successfully started looping sound: ${continuousSound.filename} for object ${objectId}`);
-                    
-                    // Enhanced cleanup event handlers
-                    const handleAudioEnd = () => {
-                        // console.log(`🔊 Looping sound ended unexpectedly for object ${objectId}`);
-                        cleanupLoopingSound(objectId, "audio ended unexpectedly");
-                    };
-                    
-                    const handleAudioError = (e: Event) => {
-                        // Check if this audio is being cleaned up - if so, ignore the error
-                        if ((audioClone as any)._isBeingCleaned) {
-                            return; // Ignore cleanup-related errors
-                        }
+                    // Enhanced cleanup event handlers for traditional looping only
+                    if (audioClone) {
+                        const handleAudioEnd = () => {
+                            // console.log(`🔊 Looping sound ended unexpectedly for object ${objectId}`);
+                            cleanupLoopingSound(objectId, "audio ended unexpectedly");
+                        };
                         
-                        // Only log genuine audio errors, not cleanup-related ones
-                        console.warn(`🔊 Audio error for object ${objectId} (genuine error):`, e);
-                        cleanupLoopingSound(objectId, "audio error");
-                    };
-                    
-                    audioClone.addEventListener('ended', handleAudioEnd, { once: true });
-                    audioClone.addEventListener('error', handleAudioError, { once: true });
+                        const handleAudioError = (e: Event) => {
+                            // Check if this audio is being cleaned up - if so, ignore the error
+                            if ((audioClone as any)._isBeingCleaned) {
+                                return; // Ignore cleanup-related errors
+                            }
+                            
+                            // Only log genuine audio errors, not cleanup-related ones
+                            console.warn(`🔊 Audio error for object ${objectId} (genuine error):`, e);
+                            cleanupLoopingSound(objectId, "audio error");
+                        };
+                        
+                        audioClone.addEventListener('ended', handleAudioEnd, { once: true });
+                        audioClone.addEventListener('error', handleAudioError, { once: true });
+                    }
                     
                     // Set up a safety timeout to prevent eternal sounds (cleanup after 30 seconds of no updates)
                     const safetyTimeout = window.setTimeout(() => {
@@ -923,8 +1183,18 @@ export const useSoundSystem = ({
                 cleanupLoopingSound(objectId, "removed/inactive object");
             }
         }
+        
+        // Stop seamless sounds for objects that are no longer active
+        for (const [objectId] of activeSeamlessLoopingSounds.entries()) {
+            if (!currentActiveSounds.has(objectId)) {
+                cleanupLoopingSound(objectId, "removed/inactive seamless object");
+            }
+        }
 
-        // console.log(`🔊 Active looping sounds: ${activeLoopingSounds.size}, Current active objects: ${currentActiveSounds.size}`);
+        // 🎵 Update seamless looping sounds (handle overlapping and volume changes)
+        updateSeamlessLoopingSounds(masterVolume, environmentalVolume);
+
+        // console.log(`🔊 Active looping sounds: ${activeLoopingSounds.size}, Active seamless sounds: ${activeSeamlessLoopingSounds.size}, Current active objects: ${currentActiveSounds.size}`);
 
     }, [continuousSounds, localPlayerPosition, localPlayerIdentity, masterVolume, environmentalVolume]);
     
@@ -1033,6 +1303,7 @@ export const useSoundSystem = ({
         cachedSoundsCount: audioCache['cache'].size,
         activeSoundsCount: activeSounds.size,
         activeLoopingSoundsCount: activeLoopingSounds.size,
+        activeSeamlessLoopingSoundsCount: activeSeamlessLoopingSounds.size,
         soundDefinitions: SOUND_DEFINITIONS,
         debugContinuousSounds, // Expose for debugging
     };

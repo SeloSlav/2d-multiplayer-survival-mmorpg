@@ -15,25 +15,9 @@ const SPARKLE_PARTICLE_SIZE_MAX = 3;
 const SPARKLE_PARTICLE_COLORS = ["#FFD700", "#FFEB3B", "#FFF59D", "#FFFFFF", "#E1F5FE"]; // Gold, yellow, light yellow, white, light cyan
 const SPARKLES_PER_RESOURCE_FRAME = 0.15; // Lower emission rate for subtle effect
 
-// Resource heights for bottom positioning (where sparkles should start)
-const RESOURCE_HEIGHTS = {
-    mushroom: 32,
-    corn: 96,
-    potato: 32, 
-    pumpkin: 48,
-    hemp: 64,
-    reed: 76,
-};
-
-// Resource visual height adjustments (for interaction centers)
-const RESOURCE_VISUAL_ADJUSTMENTS = {
-    mushroom: 16, // MUSHROOM_VISUAL_HEIGHT_FOR_INTERACTION / 2
-    corn: 48,     // corn visual height / 2
-    potato: 16,   // potato visual height / 2  
-    pumpkin: 24,  // pumpkin visual height / 2
-    hemp: 32,     // hemp visual height / 2
-    reed: 38,     // reed visual height / 2
-};
+// Import resource configuration system to get heights dynamically
+import { getResourceConfig } from '../utils/renderers/resourceConfigurations';
+import { getResourceType } from '../types/resourceTypes';
 
 interface UseResourceSparkleParticlesProps {
     harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
@@ -106,24 +90,25 @@ export function useResourceSparkleParticles({
                         return;
                     }
 
-                    // Get the plant type to determine resource height and visual adjustments
-                    const plantType = resource.plantType?.tag?.toLowerCase() as keyof typeof RESOURCE_HEIGHTS;
-                    if (!plantType || !RESOURCE_HEIGHTS[plantType]) return;
-
-                    let acc = emissionAccumulatorRef.current.get(`harvestable_${resourceId}`) || 0;
-                    acc += SPARKLES_PER_RESOURCE_FRAME * deltaTimeFactor;
-
-                    while (acc >= 1) {
-                        acc -= 1;
-                        const lifetime = SPARKLE_PARTICLE_LIFETIME_MIN + Math.random() * (SPARKLE_PARTICLE_LIFETIME_MAX - SPARKLE_PARTICLE_LIFETIME_MIN);
+                    // Get resource configuration dynamically
+                    try {
+                        const resourceType = getResourceType(resource);
+                        const config = getResourceConfig(resourceType);
                         
-                        // Calculate sparkle emission position at the bottom of the resource
-                        const resourceHeight = RESOURCE_HEIGHTS[plantType];
-                        const visualAdjustment = RESOURCE_VISUAL_ADJUSTMENTS[plantType];
-                        
-                        // Start sparkles from the base/bottom area of the resource
-                        const sparkleStartX = resource.posX + (Math.random() - 0.5) * (resourceHeight * 0.6); // Width spread
-                        const sparkleStartY = resource.posY - (visualAdjustment * 0.3) + (Math.random() - 0.5) * 8; // Near bottom with slight variation
+                        let acc = emissionAccumulatorRef.current.get(`harvestable_${resourceId}`) || 0;
+                        acc += SPARKLES_PER_RESOURCE_FRAME * deltaTimeFactor;
+
+                        while (acc >= 1) {
+                            acc -= 1;
+                            const lifetime = SPARKLE_PARTICLE_LIFETIME_MIN + Math.random() * (SPARKLE_PARTICLE_LIFETIME_MAX - SPARKLE_PARTICLE_LIFETIME_MIN);
+                            
+                            // Use targetWidth as a proxy for resource height (can be refined later)
+                            const resourceHeight = config.targetWidth;
+                            const visualAdjustment = resourceHeight / 2;
+                            
+                            // Start sparkles from the base/bottom area of the resource
+                            const sparkleStartX = resource.posX + (Math.random() - 0.5) * (resourceHeight * 0.6); // Width spread
+                            const sparkleStartY = resource.posY - (visualAdjustment * 0.3) + (Math.random() - 0.5) * 8; // Near bottom with slight variation
 
                         newGeneratedParticles.push({
                             id: `sparkle_harvestable_${resourceId}_${now}_${Math.random()}`,
@@ -139,8 +124,12 @@ export function useResourceSparkleParticles({
                             color: SPARKLE_PARTICLE_COLORS[Math.floor(Math.random() * SPARKLE_PARTICLE_COLORS.length)],
                             alpha: 1.0,
                         });
+                        }
+                        emissionAccumulatorRef.current.set(`harvestable_${resourceId}`, acc);
+                    } catch (error) {
+                        // Skip resources with unknown types
+                        return;
                     }
-                    emissionAccumulatorRef.current.set(`harvestable_${resourceId}`, acc);
                 });
             }
 

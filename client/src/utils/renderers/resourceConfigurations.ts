@@ -3,14 +3,7 @@ import { GroundEntityConfig } from './genericGroundRenderer';
 import { HarvestableResource } from '../../generated';
 import { ResourceType, getResourceType } from '../../types/resourceTypes';
 import { drawDynamicGroundShadow } from './shadowUtils';
-
-// Import all resource images
-import cornImageSource from '../../assets/doodads/corn_stalk.png';
-import hempImageSource from '../../assets/doodads/hemp.png';
-import mushroomImageSource from '../../assets/doodads/mushroom.png';
-import potatoImageSource from '../../assets/doodads/potato.png';
-import pumpkinImageSource from '../../assets/doodads/pumpkin.png';
-import reedImageSource from '../../assets/doodads/reed_stalk.png';
+import { RESOURCE_IMAGE_SOURCES } from './resourceImageConfigs';
 
 // Resource-specific configuration interface
 export interface ResourceConfig {
@@ -27,13 +20,6 @@ export interface ResourceConfig {
     opacity?: number;
   };
   
-  // Interaction properties
-  interactionLabel: string;
-  harvestAmount: {
-    min: number;
-    max: number;
-  };
-  
   // Rendering properties
   fallbackColor: string;
   
@@ -45,98 +31,60 @@ export interface ResourceConfig {
   };
 }
 
-// Configuration for each resource type
-export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = {
-  Corn: {
-    imageSource: cornImageSource,
-    targetWidth: 64,
-    shadowConfig: {
-      maxStretchFactor: 1.8,
-      shadowBlur: 8,
-      pivotYOffset: 0.15,
-      opacity: 0.4
-    },
-    interactionLabel: "Press E to Harvest Corn",
-    harvestAmount: { min: 1, max: 3 },
-    fallbackColor: '#FFD700'
-    // No animation config - corn is now static
+// Default configuration that most resources will use
+const DEFAULT_RESOURCE_CONFIG: Omit<ResourceConfig, 'imageSource'> = {
+  targetWidth: 48,
+  shadowConfig: {
+    maxStretchFactor: 1.7,
+    shadowBlur: 8,
+    pivotYOffset: 0.15,
+    opacity: 0.4
   },
-  
-  Hemp: {
-    imageSource: hempImageSource,
-    targetWidth: 68,
-    shadowConfig: {
-      maxStretchFactor: 2.0,
-      shadowBlur: 10,
-      pivotYOffset: 0.12,
-      opacity: 0.35
-    },
-    interactionLabel: "Press E to Harvest Hemp",
-    harvestAmount: { min: 2, max: 4 },
-    fallbackColor: '#228B22'
-    // No animation config - hemp is now static
-  },
-  
-  Mushroom: {
-    imageSource: mushroomImageSource,
-    targetWidth: 56,
-    shadowConfig: {
-      maxStretchFactor: 1.5,
-      shadowBlur: 6,
-      pivotYOffset: 0.2,
-      opacity: 0.5
-    },
-    interactionLabel: "Press E to Pick Mushroom",
-    harvestAmount: { min: 1, max: 2 },
-    fallbackColor: '#8B4513'
-    // No animation config - mushroom is now static
-  },
-  
-  Potato: {
-    imageSource: potatoImageSource,
-    targetWidth: 60,
-    shadowConfig: {
-      maxStretchFactor: 1.7,
-      shadowBlur: 8,
-      pivotYOffset: 0.16,
-      opacity: 0.42
-    },
-    interactionLabel: "Press E to Harvest Potato",
-    harvestAmount: { min: 1, max: 3 },
-    fallbackColor: '#8B7355'
-    // No animation config - potato is now static
-  },
-  
-  Pumpkin: {
-    imageSource: pumpkinImageSource,
-    targetWidth: 64,
-    shadowConfig: {
-      maxStretchFactor: 1.6,
-      shadowBlur: 12,
-      pivotYOffset: 0.18,
-      opacity: 0.45
-    },
-    interactionLabel: "Press E to Harvest Pumpkin",
-    harvestAmount: { min: 1, max: 1 },
-    fallbackColor: '#FF8C00'
-    // No animation config - pumpkins are static
-  },
-  
-  Reed: {
-    imageSource: reedImageSource,
-    targetWidth: 58,
-    shadowConfig: {
-      maxStretchFactor: 2.2,
-      shadowBlur: 7,
-      pivotYOffset: 0.10,
-      opacity: 0.3
-    },
-    interactionLabel: "Press E to Harvest Reed Stalks",
-    harvestAmount: { min: 2, max: 4 },
-    fallbackColor: '#9ACD32'
-    // No animation config - reeds are static
-  }
+  fallbackColor: '#8B7355'
 };
+
+// Automatically generate configurations for all available resources
+export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = Object.keys(RESOURCE_IMAGE_SOURCES).reduce((configs, resourceType) => {
+  configs[resourceType as ResourceType] = {
+    ...DEFAULT_RESOURCE_CONFIG,
+    imageSource: RESOURCE_IMAGE_SOURCES[resourceType as ResourceType]
+  };
+  return configs;
+}, {} as Record<ResourceType, ResourceConfig>);
+
+// Override specific resource configurations
+RESOURCE_CONFIGS.BeachLymeGrass = {
+  ...RESOURCE_CONFIGS.BeachLymeGrass,
+  targetWidth: 120 // Double the default size (60 -> 120)
+};
+
+RESOURCE_CONFIGS.Potato = {
+  ...RESOURCE_CONFIGS.Potato,
+  targetWidth: 90
+};
+
+RESOURCE_CONFIGS.Hemp = {
+  ...RESOURCE_CONFIGS.Hemp,
+  targetWidth: 90
+};
+
+RESOURCE_CONFIGS.Corn = {
+  ...RESOURCE_CONFIGS.Corn,
+  targetWidth: 90
+};
+
+RESOURCE_CONFIGS.Pumpkin = {
+  ...RESOURCE_CONFIGS.Pumpkin,
+  targetWidth: 90
+};
+
+RESOURCE_CONFIGS.Reed = {
+  ...RESOURCE_CONFIGS.Reed,
+  targetWidth: 90
+};
+
+
+
 
 // Helper function to get configuration for a resource
 export function getResourceConfig(resourceType: ResourceType): ResourceConfig {
@@ -217,14 +165,4 @@ export function createResourceGroundConfig(resourceType: ResourceType): GroundEn
 }
 
 // Interaction distance constants (shared across all resources)
-export const RESOURCE_INTERACTION_DISTANCE_SQUARED = 3600; // 60px squared
-
-// Helper to get interaction label for a resource
-export function getResourceInteractionLabel(resourceType: ResourceType): string {
-  return getResourceConfig(resourceType).interactionLabel;
-}
-
-// Helper to get harvest amount range for a resource
-export function getResourceHarvestAmount(resourceType: ResourceType): { min: number; max: number } {
-  return getResourceConfig(resourceType).harvestAmount;
-} 
+export const RESOURCE_INTERACTION_DISTANCE_SQUARED = 3600; // 60px squared 

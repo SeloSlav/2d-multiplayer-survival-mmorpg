@@ -31,6 +31,8 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 import { PlantedSeed } from "./planted_seed_type";
+import { PlantType as __PlantType } from "./plant_type_type";
+
 import { EventContext, Reducer, RemoteReducers, RemoteTables } from ".";
 
 /**

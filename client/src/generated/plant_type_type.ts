@@ -41,6 +41,7 @@ export namespace PlantType {
   export type Potato = { tag: "Potato" };
   export type Pumpkin = { tag: "Pumpkin" };
   export type Reed = { tag: "Reed" };
+  export type BeachLymeGrass = { tag: "BeachLymeGrass" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -54,6 +55,7 @@ export namespace PlantType {
   export const Potato = { tag: "Potato" };
   export const Pumpkin = { tag: "Pumpkin" };
   export const Reed = { tag: "Reed" };
+  export const BeachLymeGrass = { tag: "BeachLymeGrass" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -63,6 +65,7 @@ export namespace PlantType {
       new SumTypeVariant("Potato", AlgebraicType.createProductType([])),
       new SumTypeVariant("Pumpkin", AlgebraicType.createProductType([])),
       new SumTypeVariant("Reed", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BeachLymeGrass", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -77,7 +80,7 @@ export namespace PlantType {
 }
 
 // The tagged union or sum type for the algebraic type `PlantType`.
-export type PlantType = PlantType.Corn | PlantType.Hemp | PlantType.Mushroom | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed;
+export type PlantType = PlantType.Corn | PlantType.Hemp | PlantType.Mushroom | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass;
 
 export default PlantType;
 

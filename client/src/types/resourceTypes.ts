@@ -2,32 +2,10 @@
 import { HarvestableResource } from '../generated';
 
 // Resource type discriminator based on the PlantType enum from the server
-export type ResourceType = 'Corn' | 'Hemp' | 'Mushroom' | 'Potato' | 'Pumpkin' | 'Reed';
+export type ResourceType = 'Corn' | 'Hemp' | 'Mushroom' | 'Potato' | 'Pumpkin' | 'Reed' | 'BeachLymeGrass';
 
-// Type guards for each resource type based on plantType
-export function isCorn(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Corn';
-}
-
-export function isHemp(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Hemp';
-}
-
-export function isMushroom(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Mushroom';
-}
-
-export function isPotato(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Potato';
-}
-
-export function isPumpkin(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Pumpkin';
-}
-
-export function isReed(entity: any): entity is HarvestableResource {
-  return isHarvestableResource(entity) && entity.plantType?.tag === 'Reed';
-}
+// NOTE: Individual type guards removed as they were not being used
+// The unified system uses getResourceType(entity) which extracts from entity.plantType?.tag directly
 
 // Master type guard for any harvestable resource
 export function isHarvestableResource(entity: any): entity is HarvestableResource {
@@ -38,7 +16,7 @@ export function isHarvestableResource(entity: any): entity is HarvestableResourc
          typeof entity.chunkIndex === 'number' &&
          entity.plantType &&
          typeof entity.plantType.tag === 'string' &&
-         ['Corn', 'Hemp', 'Mushroom', 'Potato', 'Pumpkin', 'Reed'].includes(entity.plantType.tag) &&
+         ['Corn', 'Hemp', 'Mushroom', 'Potato', 'Pumpkin', 'Reed', 'BeachLymeGrass'].includes(entity.plantType.tag) &&
          (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 

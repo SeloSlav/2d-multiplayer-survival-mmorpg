@@ -482,27 +482,14 @@ pub fn validate_spawn_location(
         }
         
         plants_database::SpawnCondition::InlandWater => {
-            // Reed: Must be near inland water (within 2 tiles) + not ocean water
-            let search_radius = 2;
-            
-            for dy in -search_radius..=search_radius {
-                for dx in -search_radius..=search_radius {
-                    let check_x = tile_x + dx;
-                    let check_y = tile_y + dy;
-                    
-                    // Skip if out of bounds
-                    if check_x < 0 || check_y < 0 || 
-                       check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
-                        continue;
-                    }
-                    
-                    for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
-                        if tile.tile_type == TileType::Sea && is_tile_inland_water(ctx, check_x, check_y) {
-                            return true;
-                        }
-                        break;
-                    }
+            // Reed: Must spawn DIRECTLY IN inland water tiles (not on edges)
+            // Check if the spawn position itself is an inland water tile
+            for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+                // Must be a water tile (Sea type) AND inland water (not ocean)
+                if tile.tile_type == TileType::Sea && is_tile_inland_water(ctx, tile_x, tile_y) {
+                    return true;
                 }
+                break;
             }
             false
         }
@@ -779,10 +766,21 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 },
                 (),
                 |pos_x, pos_y| {
-                    is_position_on_water(ctx, pos_x, pos_y) || 
-                    !validate_spawn_location(
+                    // Special case for reeds: allow them to spawn in water (they need inland water)
+                    let config = plants_database::PLANT_CONFIGS.get(plant_type).unwrap();
+                    let allow_water_spawn = matches!(config.spawn_condition, plants_database::SpawnCondition::InlandWater);
+                    
+                    let water_blocked = if allow_water_spawn {
+                        // For reeds: only block if it's NOT inland water (i.e., block ocean water and land)
+                        !is_position_on_inland_water(ctx, pos_x, pos_y)
+                    } else {
+                        // For all other plants: block any water tiles
+                        is_position_on_water(ctx, pos_x, pos_y)
+                    };
+                    
+                    water_blocked || !validate_spawn_location(
                         ctx, pos_x, pos_y, 
-                        &plants_database::PLANT_CONFIGS.get(plant_type).unwrap().spawn_condition,
+                        &config.spawn_condition,
                         &spawned_tree_positions, &spawned_stone_positions
                     )
                 },

@@ -67,6 +67,8 @@ export namespace SoundType {
   export type ShootCrossbow = { tag: "ShootCrossbow" };
   export type Bandaging = { tag: "Bandaging" };
   export type StopBandaging = { tag: "StopBandaging" };
+  export type BarrelHit = { tag: "BarrelHit" };
+  export type BarrelDestroyed = { tag: "BarrelDestroyed" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -106,6 +108,8 @@ export namespace SoundType {
   export const ShootCrossbow = { tag: "ShootCrossbow" };
   export const Bandaging = { tag: "Bandaging" };
   export const StopBandaging = { tag: "StopBandaging" };
+  export const BarrelHit = { tag: "BarrelHit" };
+  export const BarrelDestroyed = { tag: "BarrelDestroyed" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -141,6 +145,8 @@ export namespace SoundType {
       new SumTypeVariant("ShootCrossbow", AlgebraicType.createProductType([])),
       new SumTypeVariant("Bandaging", AlgebraicType.createProductType([])),
       new SumTypeVariant("StopBandaging", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BarrelHit", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BarrelDestroyed", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -155,7 +161,7 @@ export namespace SoundType {
 }
 
 // The tagged union or sum type for the algebraic type `SoundType`.
-export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain | SoundType.NormalRain | SoundType.DrinkingWater | SoundType.ThrowingUp | SoundType.EatingFood | SoundType.WateringCrops | SoundType.FillingContainer | SoundType.MeleeHitSharp | SoundType.SpearHit | SoundType.TorchHit | SoundType.TorchHitLit | SoundType.LightTorch | SoundType.ExtinguishTorch | SoundType.MeleeHitBlunt | SoundType.WeaponSwing | SoundType.ArrowHit | SoundType.ShootBow | SoundType.ShootCrossbow | SoundType.Bandaging | SoundType.StopBandaging;
+export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain | SoundType.NormalRain | SoundType.DrinkingWater | SoundType.ThrowingUp | SoundType.EatingFood | SoundType.WateringCrops | SoundType.FillingContainer | SoundType.MeleeHitSharp | SoundType.SpearHit | SoundType.TorchHit | SoundType.TorchHitLit | SoundType.LightTorch | SoundType.ExtinguishTorch | SoundType.MeleeHitBlunt | SoundType.WeaponSwing | SoundType.ArrowHit | SoundType.ShootBow | SoundType.ShootCrossbow | SoundType.Bandaging | SoundType.StopBandaging | SoundType.BarrelHit | SoundType.BarrelDestroyed;
 
 export default SoundType;
 
