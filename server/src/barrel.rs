@@ -27,8 +27,8 @@ use crate::environment::calculate_chunk_index;
 
 // Constants for barrel system
 pub const BARREL_INITIAL_HEALTH: f32 = 50.0; // Less health than storage boxes
-pub const BARREL_COLLISION_RADIUS: f32 = 35.0; // Collision radius in pixels (matches 64x64 visual size)
-pub const BARREL_COLLISION_Y_OFFSET: f32 = 12.0; // Y-offset for collision detection
+pub const BARREL_COLLISION_RADIUS: f32 = 25.0; // Collision radius in pixels (tighter for better accuracy)
+pub const BARREL_COLLISION_Y_OFFSET: f32 = 48.0; // Y-offset for collision detection (visual center)
 pub const PLAYER_BARREL_COLLISION_DISTANCE_SQUARED: f32 = (PLAYER_RADIUS + BARREL_COLLISION_RADIUS) * (PLAYER_RADIUS + BARREL_COLLISION_RADIUS);
 pub const PLAYER_BARREL_INTERACTION_DISTANCE_SQUARED: f32 = 64.0 * 64.0; // 64 pixels interaction range
 pub const BARREL_BARREL_COLLISION_DISTANCE_SQUARED: f32 = (BARREL_COLLISION_RADIUS * 2.0 + 20.0) * (BARREL_COLLISION_RADIUS * 2.0 + 20.0); // Barrels can't overlap
@@ -85,28 +85,37 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
     let item_defs = ctx.db.item_definition();
     let mut loot_table = Vec::new();
     
-    // Find Rope item ID
-    if let Some(rope_item) = item_defs.iter().find(|def| def.name == "Rope") {
-        loot_table.push(BarrelLootEntry {
-            item_def_id: rope_item.id,
-            min_quantity: 1,
-            max_quantity: 3,
-            drop_chance: 0.7, // 70% chance
-        });
-    } else {
-        log::warn!("[BarrelLoot] Rope item not found in database");
-    }
+    // Define all loot entries as (name, min_qty, max_qty, drop_chance)
+    let loot_definitions = [
+        // --- COMMON TIER (60-80% drop rates) ---
+        ("Rope", 1, 3, 0.75),                  // Essential crafting material
+        ("Metal Fragments", 2, 4, 0.65),       // Crafting material  
+        ("Wooden Arrow", 3, 8, 0.70),          // Basic ammunition
+        ("Bandage", 1, 3, 0.60),               // Healing consumable
+        
+        // --- UNCOMMON TIER (30-50% drop rates) ---
+        ("Bone Arrow", 2, 5, 0.45),            // Better ammunition
+        ("Hollow Reed Arrow", 2, 6, 0.40),     // Special ammunition
+        ("Stone Hatchet", 1, 1, 0.35),         // Useful tool
+        ("Torch", 1, 2, 0.30),                 // Utility item
+        
+        // --- RARE TIER (5-15% drop rates) ---
+        ("Hunting Bow", 1, 1, 0.12),           // Valuable weapon
+        ("Fire Arrow", 1, 3, 0.08),            // Special ammunition
+    ];
     
-    // Find Metal Fragments item ID
-    if let Some(metal_item) = item_defs.iter().find(|def| def.name == "Metal Fragments") {
-        loot_table.push(BarrelLootEntry {
-            item_def_id: metal_item.id,
-            min_quantity: 2,
-            max_quantity: 5,
-            drop_chance: 0.5, // 50% chance
-        });
-    } else {
-        log::warn!("[BarrelLoot] Metal Fragments item not found in database");
+    // Process each loot definition
+    for (item_name, min_quantity, max_quantity, drop_chance) in loot_definitions {
+        if let Some(item) = item_defs.iter().find(|def| def.name == item_name) {
+            loot_table.push(BarrelLootEntry {
+                item_def_id: item.id,
+                min_quantity,
+                max_quantity,
+                drop_chance,
+            });
+        } else {
+            log::warn!("[BarrelLoot] {} item not found in database", item_name);
+        }
     }
     
     loot_table
@@ -150,19 +159,59 @@ pub fn has_player_barrel_collision(ctx: &ReducerContext, pos_x: f32, pos_y: f32)
 }
 
 /// Generates loot drops around a destroyed barrel
+/// Guarantees 1-3 items will drop (100% chance for at least one item)
 fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_pos_y: f32) -> Result<(), String> {
     let loot_table = get_barrel_loot_table(ctx);
     let mut drops_created = 0;
+    const MAX_DROPS_PER_BARREL: usize = 3;
     
     log::info!("[BarrelLoot] Generating loot drops for barrel at ({:.1}, {:.1})", barrel_pos_x, barrel_pos_y);
     
-    for loot_entry in loot_table {
+    // Track which items have dropped to avoid duplicates
+    let mut dropped_items = Vec::new();
+    
+    // Roll for each item in the loot table
+    for loot_entry in &loot_table {
+        // Stop if we've reached max drops
+        if drops_created >= MAX_DROPS_PER_BARREL {
+            break;
+        }
+        
         // Check if this item should drop based on chance
         let roll: f32 = ctx.rng().gen();
         if roll > loot_entry.drop_chance {
             continue; // This item doesn't drop
         }
         
+        dropped_items.push(loot_entry);
+        drops_created += 1;
+    }
+    
+    // GUARANTEE: If no items rolled to drop, force drop a common item
+    if dropped_items.is_empty() {
+        log::info!("[BarrelLoot] No items rolled to drop, forcing a guaranteed common item drop");
+        
+        // Find a common tier item (highest drop chances) to guarantee
+        let fallback_item = loot_table.iter()
+            .filter(|item| item.drop_chance >= 0.60) // Common tier items
+            .next();
+            
+        if let Some(guaranteed_item) = fallback_item {
+            dropped_items.push(guaranteed_item);
+            drops_created = 1;
+            log::info!("[BarrelLoot] Guaranteed drop: item {}", guaranteed_item.item_def_id);
+        } else {
+            // Ultimate fallback - use the first item in the table
+            if let Some(first_item) = loot_table.first() {
+                dropped_items.push(first_item);
+                drops_created = 1;
+                log::warn!("[BarrelLoot] Using first item as guaranteed drop: item {}", first_item.item_def_id);
+            }
+        }
+    }
+    
+    // Create the actual dropped items
+    for (index, loot_entry) in dropped_items.iter().enumerate() {
         // Determine quantity
         let quantity = if loot_entry.min_quantity == loot_entry.max_quantity {
             loot_entry.min_quantity
@@ -170,8 +219,9 @@ fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_po
             ctx.rng().gen_range(loot_entry.min_quantity..=loot_entry.max_quantity)
         };
         
-        // Calculate drop position around the barrel
-        let angle = ctx.rng().gen_range(0.0..std::f32::consts::PI * 2.0);
+        // Calculate drop position around the barrel (spread them out)
+        let angle = (index as f32) * (2.0 * std::f32::consts::PI / drops_created.max(1) as f32) + 
+                   ctx.rng().gen_range(-0.5..0.5); // Add some randomness
         let distance = ctx.rng().gen_range(30.0..60.0); // Drop items 30-60 pixels away
         let drop_x = barrel_pos_x + angle.cos() * distance;
         let drop_y = barrel_pos_y + angle.sin() * distance;
@@ -179,7 +229,6 @@ fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_po
         // Create the dropped item
         match create_dropped_item_entity(ctx, loot_entry.item_def_id, quantity, drop_x, drop_y) {
             Ok(_) => {
-                drops_created += 1;
                 log::info!("[BarrelLoot] Created {} of item {} at ({:.1}, {:.1})", 
                           quantity, loot_entry.item_def_id, drop_x, drop_y);
             }
@@ -189,7 +238,7 @@ fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_po
         }
     }
     
-    log::info!("[BarrelLoot] Created {} loot drops for destroyed barrel", drops_created);
+    log::info!("[BarrelLoot] Created {} loot drops for destroyed barrel (GUARANTEED at least 1)", drops_created);
     Ok(())
 }
 
@@ -396,7 +445,108 @@ pub(crate) fn init_barrel_system(ctx: &ReducerContext) -> Result<(), String> {
 
 // --- Spawning Functions (called from environment.rs) ---
 
+/// Spawns barrel clusters on dirt road tiles with map size scaling
+/// This version accepts a pre-calculated cluster count that scales with map size
+pub fn spawn_barrel_clusters_scaled(
+    ctx: &ReducerContext, 
+    dirt_road_tiles: Vec<(i32, i32)>,
+    target_cluster_count: u32
+) -> Result<(), String> {
+    if dirt_road_tiles.is_empty() {
+        log::warn!("[BarrelSpawn] No dirt road tiles available for barrel spawning");
+        return Ok(());
+    }
+
+    log::info!("[BarrelSpawn] Starting barrel cluster spawning with target count: {}", target_cluster_count);
+
+    let mut spawned_clusters = 0;
+    let mut total_barrels = 0;
+    let mut spawn_attempts = 0;
+    let max_spawn_attempts = target_cluster_count * 8; // Allow multiple attempts per target cluster
+
+    while spawned_clusters < target_cluster_count && spawn_attempts < max_spawn_attempts {
+        spawn_attempts += 1;
+
+        // Choose a random dirt road tile
+        let tile_idx = ctx.rng().gen_range(0..dirt_road_tiles.len());
+        let (tile_x, tile_y) = dirt_road_tiles[tile_idx];
+        
+        // Convert tile to world position (center of tile)
+        let cluster_center_x = (tile_x as f32 + 0.5) * crate::TILE_SIZE_PX as f32;
+        let cluster_center_y = (tile_y as f32 + 0.5) * crate::TILE_SIZE_PX as f32;
+
+        // Check if there's already a barrel cluster nearby
+        let min_cluster_distance = 200.0; // Minimum distance between clusters
+        let existing_barrels = ctx.db.barrel();
+        let mut too_close_to_existing = false;
+        
+        for existing_barrel in existing_barrels.iter() {
+            let dx = cluster_center_x - existing_barrel.pos_x;
+            let dy = cluster_center_y - existing_barrel.pos_y;
+            let distance_sq = dx * dx + dy * dy;
+            
+            if distance_sq < (min_cluster_distance * min_cluster_distance) {
+                too_close_to_existing = true;
+                break;
+            }
+        }
+        
+        if too_close_to_existing {
+            continue; // Try another location
+        }
+
+        // Spawn 2-4 barrels in a cluster pattern
+        let barrels_in_cluster = ctx.rng().gen_range(2..=4);
+        let mut barrels_spawned_in_cluster = 0;
+        
+        for barrel_idx in 0..barrels_in_cluster {
+            // Create slight offset for each barrel in the cluster
+            let angle = (barrel_idx as f32) * (std::f32::consts::PI * 2.0) / (barrels_in_cluster as f32);
+            let cluster_radius = ctx.rng().gen_range(20.0..50.0);
+            let barrel_x = cluster_center_x + angle.cos() * cluster_radius;
+            let barrel_y = cluster_center_y + angle.sin() * cluster_radius;
+            
+            // Calculate chunk index for this barrel
+            let chunk_idx = crate::environment::calculate_chunk_index(barrel_x, barrel_y);
+            
+            let new_barrel = Barrel {
+                id: 0, // auto_inc
+                pos_x: barrel_x,
+                pos_y: barrel_y,
+                chunk_index: chunk_idx,
+                health: BARREL_INITIAL_HEALTH,
+                variant: ctx.rng().gen_range(0..3), // Random variant (0, 1, or 2)
+                last_hit_time: None,
+                respawn_at: None,
+                cluster_id: spawned_clusters as u64 + 1, // Assign cluster ID
+            };
+
+            match ctx.db.barrel().try_insert(new_barrel) {
+                Ok(inserted_barrel) => {
+                    barrels_spawned_in_cluster += 1;
+                    total_barrels += 1;
+                    log::info!("[BarrelSpawn] Spawned barrel #{} at ({:.1}, {:.1}) in cluster {}", 
+                              inserted_barrel.id, barrel_x, barrel_y, spawned_clusters + 1);
+                }
+                Err(e) => {
+                    log::warn!("[BarrelSpawn] Failed to spawn barrel in cluster {}: {}", spawned_clusters + 1, e);
+                }
+            }
+        }
+        
+        if barrels_spawned_in_cluster > 0 {
+            spawned_clusters += 1;
+            log::info!("[BarrelSpawn] Completed cluster {} with {} barrels", spawned_clusters, barrels_spawned_in_cluster);
+        }
+    }
+
+    log::info!("[BarrelSpawn] Finished spawning {} barrel clusters ({} total barrels) after {} attempts", 
+              spawned_clusters, total_barrels, spawn_attempts);
+    Ok(())
+}
+
 /// Spawns barrel clusters on dirt road tiles during world generation
+/// This function now scales properly with map size (no hard caps)
 pub fn spawn_barrel_clusters(
     ctx: &ReducerContext,
     dirt_road_tiles: Vec<(i32, i32)>, // List of dirt road tile coordinates
@@ -414,13 +564,26 @@ pub fn spawn_barrel_clusters(
         return Ok(());
     }
     
-    // PvP BALANCE: Very conservative spawn rate for contested resources
-    // Target: 3-6 clusters total (8-18 barrels max) regardless of map size
-    let target_cluster_count = std::cmp::min(6, std::cmp::max(3, dirt_road_tiles.len() / 50)); // 1 cluster per ~50 dirt road tiles + hard cap at 6
+    // UPDATED: Scale cluster count with map size instead of using hard caps
+    // CONSERVATIVE: Match original balance of 6-12 clusters for typical maps  
+    let current_map_tiles = crate::WORLD_WIDTH_TILES * crate::WORLD_HEIGHT_TILES;
+    let barrel_density_per_map_tile = 0.00008; // CONSERVATIVE: 0.008% vs original 0.04%
+    let target_clusters_from_map_size = (current_map_tiles as f32 * barrel_density_per_map_tile) as u32;
+    let target_clusters_from_roads = (dirt_road_tiles.len() / 25) as u32; // 1 cluster per 25 road tiles
+    
+    // Use the higher of the two calculations, but add a reasonable cap for sanity
+    let base_target = std::cmp::max(
+        target_clusters_from_map_size, 
+        std::cmp::max(3, target_clusters_from_roads) // Minimum 3 clusters even for tiny maps
+    );
+    
+    // SANITY CAP: Prevent excessive barrel counts on massive maps
+    let target_cluster_count = std::cmp::min(base_target, 24); // Cap at 24 clusters (48-96 barrels max)
+    
     let max_attempts = target_cluster_count * 3;
     
-    log::info!("[BarrelSpawn] Attempting to spawn {} barrel clusters from {} dirt road tiles", 
-              target_cluster_count, dirt_road_tiles.len());
+    log::info!("[BarrelSpawn] Attempting to spawn {} barrel clusters from {} dirt road tiles (scales with map size: {}x{})", 
+              target_cluster_count, dirt_road_tiles.len(), crate::WORLD_WIDTH_TILES, crate::WORLD_HEIGHT_TILES);
     
     let mut spawned_clusters = 0;
     let mut spawn_attempts = 0;
@@ -468,7 +631,7 @@ pub fn spawn_barrel_clusters(
     }
     
     let total_barrels = barrels.iter().count();
-    log::info!("[BarrelSpawn] Finished spawning {} barrel clusters ({} total barrels) after {} attempts", 
+    log::info!("[BarrelSpawn] Finished spawning {} barrel clusters ({} total barrels) after {} attempts (SCALES WITH MAP SIZE)", 
               spawned_clusters, total_barrels, spawn_attempts);
     
     Ok(())

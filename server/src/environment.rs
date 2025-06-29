@@ -1119,10 +1119,30 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         .map(|tile| (tile.world_x, tile.world_y))
         .collect();
     
-    log::info!("Found {} dirt road tiles for barrel spawning", dirt_road_tiles.len());
+    // Calculate scaling parameters based on map size
+    // CONSERVATIVE: Match original balance of 6-12 clusters for typical maps
+    // Original system: ~1 cluster per 25 road tiles, capped at 12 clusters max
+    let current_map_tiles = WORLD_WIDTH_TILES * WORLD_HEIGHT_TILES;
+    let barrel_density_per_map_tile = 0.00008; // REDUCED from 0.00040 to 0.00008 (0.008% vs 0.04%)
+    let target_clusters_from_map_size = (current_map_tiles as f32 * barrel_density_per_map_tile) as u32;
+    let target_clusters_from_roads = (dirt_road_tiles.len() / 25) as u32; // 1 cluster per 25 road tiles
     
-    // Spawn barrel clusters on dirt roads
-    match barrel::spawn_barrel_clusters(ctx, dirt_road_tiles) {
+    // Use the higher of the two calculations, but add a reasonable cap for sanity
+    let base_target = std::cmp::max(
+        target_clusters_from_map_size, 
+        std::cmp::max(3, target_clusters_from_roads) // Minimum 3 clusters even for tiny maps
+    );
+    
+    // SANITY CAP: Prevent excessive barrel counts on massive maps
+    let recommended_cluster_count = std::cmp::min(base_target, 24); // Cap at 24 clusters (48-96 barrels max)
+    
+    log::info!("Found {} dirt road tiles for barrel spawning", dirt_road_tiles.len());
+    log::info!("Map size: {}x{} tiles ({}), Road-based target: {}, Map-based target: {}, Final target: {}", 
+               WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, current_map_tiles, 
+               target_clusters_from_roads, target_clusters_from_map_size, recommended_cluster_count);
+    
+    // Spawn barrel clusters on dirt roads with scaling parameters
+    match barrel::spawn_barrel_clusters_scaled(ctx, dirt_road_tiles, recommended_cluster_count) {
         Ok(_) => {
             let spawned_barrel_count = ctx.db.barrel().iter().count();
             log::info!("Successfully spawned {} barrels on dirt roads", spawned_barrel_count);

@@ -1,5 +1,7 @@
 import { Barrel } from '../../generated'; // Import generated type
-import barrelImage from '../../assets/doodads/barrel.png'; // Direct import
+import barrelImage from '../../assets/doodads/barrel.png'; // Variant 0
+import barrel2Image from '../../assets/doodads/barrel2.png'; // Variant 1 
+import barrel3Image from '../../assets/doodads/barrel3.png'; // Variant 2
 import { applyStandardDropShadow, drawDynamicGroundShadow, calculateShakeOffsets } from './shadowUtils'; // Added import
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { imageManager } from './imageManager'; // Import image manager
@@ -15,6 +17,13 @@ const HEALTH_BAR_HEIGHT = 5;
 const HEALTH_BAR_Y_OFFSET = 6; // Adjust offset for barrel image centering
 const HEALTH_BAR_VISIBLE_DURATION_MS = 3000; // Same as storage boxes
 
+// --- Barrel Variant Images Array ---
+const BARREL_VARIANT_IMAGES = [
+    barrelImage,    // Variant 0 (default)
+    barrel2Image,   // Variant 1  
+    barrel3Image,   // Variant 2
+];
+
 // --- Client-side animation tracking for barrel shakes ---
 const clientBarrelShakeStartTimes = new Map<string, number>(); // barrelId -> client timestamp when shake started
 const lastKnownServerBarrelShakeTimes = new Map<string, number>();
@@ -25,7 +34,10 @@ const barrelConfig: GroundEntityConfig<Barrel> = {
         if (entity.respawnAt) {
             return null; // Don't render if respawning (destroyed)
         }
-        return barrelImage;
+        
+        // Select barrel variant based on entity.variant field
+        const variantIndex = (entity.variant ?? 0) % BARREL_VARIANT_IMAGES.length;
+        return BARREL_VARIANT_IMAGES[variantIndex];
     },
 
     getTargetDimensions: (img, _entity) => ({
@@ -140,8 +152,10 @@ const barrelConfig: GroundEntityConfig<Barrel> = {
     fallbackColor: '#8B4513', // Saddle brown for wooden barrel
 };
 
-// Preload using imported URL
-imageManager.preloadImage(barrelImage);
+// Preload all barrel variant images
+BARREL_VARIANT_IMAGES.forEach(barrelImg => {
+    imageManager.preloadImage(barrelImg);
+});
 
 // --- Rendering Function (Refactored) ---
 export function renderBarrel(

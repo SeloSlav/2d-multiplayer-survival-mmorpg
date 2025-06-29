@@ -538,8 +538,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         
         if (inventoryPanelRef.current) {
             const panelRect = inventoryPanelRef.current.getBoundingClientRect();
-            // Position tooltip to the left to prevent cutoff in external containers
-            const relativeX = Math.max(50, event.clientX - panelRect.left - 200); // Offset left by 200px, minimum 50px from edge
+            // Position tooltip further to the left to avoid interfering with looting in external containers
+            const relativeX = Math.max(30, event.clientX - panelRect.left - 300); // Offset left by 300px, minimum 30px from edge
             const relativeY = event.clientY - panelRect.top;
 
             const stats: TooltipStats[] = [];
@@ -578,7 +578,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 // For non-ammunition items, show raw damage values
                 const min = def.pvpDamageMin ?? 0;
                 const max = def.pvpDamageMax ?? min;
-                stats.push({ label: 'PvP Damage', value: max > min ? `${min}-${max}` : `${min}` });
+                stats.push({ label: 'Damage', value: max > min ? `${min}-${max}` : `${min}` });
             }
             if (def.bleedDamagePerTick !== undefined && def.bleedDamagePerTick > 0 && def.bleedDurationSeconds !== undefined) {
                 stats.push({ label: 'Bleed', value: `${def.bleedDamagePerTick}/tick for ${def.bleedDurationSeconds}s` });
@@ -645,8 +645,8 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     const handleExternalItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
         if (inventoryPanelRef.current && tooltipVisible) {
             const panelRect = inventoryPanelRef.current.getBoundingClientRect();
-            // Position tooltip to the left to prevent cutoff in external containers
-            const relativeX = Math.max(50, event.clientX - panelRect.left - 200); // Offset left by 200px, minimum 50px from edge
+            // Position tooltip further to the left to avoid interfering with looting in external containers
+            const relativeX = Math.max(30, event.clientX - panelRect.left - 330); // Offset left by 300px, minimum 30px from edge
             const relativeY = event.clientY - panelRect.top;
             setTooltipPosition({ x: relativeX, y: relativeY });
         }

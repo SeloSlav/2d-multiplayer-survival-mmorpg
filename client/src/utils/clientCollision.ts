@@ -14,7 +14,7 @@ const COLLISION_RADII = {
   RAIN_COLLECTOR: 30, // Increased to match server-side for easier targeting
   PLAYER: PLAYER_RADIUS,
   WILD_ANIMAL: 40, // Add wild animal collision radius
-      BARREL: 35, // Barrel collision radius matching server-side (72x72 visual size)
+  BARREL: 25, // Smaller barrel collision radius for better accuracy
 } as const;
 
 // Collision offsets for sprite positioning - align with visual sprite base
@@ -25,7 +25,7 @@ const COLLISION_OFFSETS = {
   RAIN_COLLECTOR: { x: 0, y: 0 }, // Pushed down to align with visual base
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
   WILD_ANIMAL: { x: 0, y: 0 }, // No offset needed for animals
-  BARREL: { x: 0, y: -12 }, // Barrel collision Y-offset matching server-side
+  BARREL: { x: 0, y: -48 }, // Barrel collision at visual center (matches server)
 } as const;
 
 // Shelter AABB dimensions
