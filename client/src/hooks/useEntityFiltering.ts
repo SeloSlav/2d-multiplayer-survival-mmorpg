@@ -512,7 +512,7 @@ export function useEntityFiltering(
   );
 
   const visibleWildAnimals = useMemo(() => 
-    wildAnimals ? Array.from(wildAnimals.values()).filter(e => e.state.tag !== 'Burrowed' && isEntityInView(e, viewBounds, currentTime))
+    wildAnimals ? Array.from(wildAnimals.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
     : [],
     [wildAnimals, isEntityInView, viewBounds, currentTime]
   );

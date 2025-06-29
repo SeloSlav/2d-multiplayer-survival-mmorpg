@@ -28,43 +28,22 @@ use super::core::{
 pub struct TundraWolfBehavior;
 
 pub trait WolfBehavior {
-    fn enter_hiding_state(
-        animal: &mut WildAnimal,
-        stats: &AnimalStats,
-        current_time: Timestamp,
-        rng: &mut impl Rng,
-    );
-}
-
-impl WolfBehavior for TundraWolfBehavior {
-    fn enter_hiding_state(
-        animal: &mut WildAnimal,
-        stats: &AnimalStats,
-        current_time: Timestamp,
-        _rng: &mut impl Rng,
-    ) {
-        // Wolves rest briefly but don't burrow like vipers
-        animal.state = AnimalState::Hiding;
-        animal.hide_until = Some(Timestamp::from_micros_since_unix_epoch(
-            current_time.to_micros_since_unix_epoch() + (stats.hide_duration_ms as i64 * 1000)
-        ));
-        log::debug!("Tundra Wolf {} entering brief rest state", animal.id);
-    }
+    // Removed hiding behavior - wolves no longer hide
 }
 
 impl AnimalBehavior for TundraWolfBehavior {
     fn get_stats(&self) -> AnimalStats {
         AnimalStats {
-            max_health: 200.0, // 4 bow shots to kill (like Rust)
+            max_health: 200.0, // 4 bow shots to kill
             attack_damage: 25.0, // Reduced from 40.0 - still dangerous but not one-shot
             attack_range: 72.0, // INCREASED from 48.0 - larger melee range for more reliable attacks
             attack_speed_ms: 800, // REDUCED from 1000ms - faster, more aggressive attacks
-            movement_speed: 200.0, // Faster base movement for pursuit
-            sprint_speed: 350.0, // REDUCED from 850.0 - still faster than player sprint (800) but not teleporting
+            movement_speed: 400.0, // Patrol speed - slower than player walk but threatening
+            sprint_speed: 750.0, // FAST: Slightly slower than player sprint (800) - requires sprinting to escape
             perception_range: 800.0, // Excellent hunter vision (increased)
             perception_angle_degrees: 200.0, // Wider hunter awareness
             patrol_radius: 540.0, // 18m wander
-            chase_trigger_range: 600.0, // Long chase range - persistent hunters
+            chase_trigger_range: 750.0, // INCREASED: Very persistent hunters - long chase range
             flee_trigger_health_percent: 0.0, // Wolves never flee - they fight to the death (0% = never flee)
             hide_duration_ms: 0, // Wolves don't hide
         }
@@ -150,8 +129,8 @@ impl AnimalBehavior for TundraWolfBehavior {
                             target_player.position_x, target_player.position_y
                         );
                         
-                        // Check if should stop chasing (wolves are persistent)
-                        if distance_sq > (stats.chase_trigger_range * 1.5).powi(2) {
+                        // Check if should stop chasing (wolves are VERY persistent)
+                        if distance_sq > (stats.chase_trigger_range * 1.8).powi(2) {
                             animal.state = AnimalState::Patrolling;
                             animal.target_player_id = None;
                             animal.state_change_time = current_time;
@@ -197,8 +176,13 @@ impl AnimalBehavior for TundraWolfBehavior {
                         );
                         
                         if distance_to_flee_target < 100.0 {
-                            // Reached flee destination or close enough
-                            Self::enter_hiding_state(animal, stats, current_time, rng);
+                            // Reached flee destination or close enough - return to patrol
+                            animal.state = AnimalState::Patrolling;
+                            animal.target_player_id = None;
+                            animal.investigation_x = None;
+                            animal.investigation_y = None;
+                            animal.state_change_time = current_time;
+                            log::debug!("Tundra Wolf {} finished fleeing - returning to patrol", animal.id);
                         }
                     }
                 }

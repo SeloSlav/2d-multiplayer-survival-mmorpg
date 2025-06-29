@@ -95,9 +95,10 @@ export function renderWildAnimal({
     animationFrame = 0,
     localPlayerPosition
 }: WildAnimalRenderProps) {
-    // Skip rendering if animal is burrowed
-    if (animal.state.tag === 'Burrowed') {
-        return;
+    // REMOVED: No more burrowing state checks - all animals should always be visible
+    // Debug log for any problematic states
+    if (animal.state.tag === 'Burrowed' || animal.state.tag === 'Hiding') {
+        console.error(`🐛 [INVISIBLE BUG] Animal ${animal.id} has deprecated state: ${animal.state.tag} - this should not happen!`);
     }
 
     const animalId = animal.id.toString();
@@ -241,14 +242,26 @@ export function renderWildAnimal({
     const renderX = renderPosX - props.width / 2 + shakeX; // Apply shake to X (using interpolated position)
     const renderY = renderPosY - props.height / 2 + shakeY; // Apply shake to Y (using interpolated position)
 
-    // Apply alpha for hiding animals (vipers only, foxes no longer hide)
-    const alpha = (animal.state.tag === 'Hiding') ? 0.6 : 1.0;
+    // No animals hide anymore - always fully visible
+    const alpha = 1.0;
+    
+    // Debug logging for wolves specifically to track invisibility issues
+    if (animal.species.tag === 'TundraWolf' && Math.random() < 0.02) { // Log 2% of wolf renders
+        console.log(`🐺 [WOLF DEBUG] Rendering wolf ${animal.id} at (${renderPosX.toFixed(1)}, ${renderPosY.toFixed(1)}) - state: ${animal.state.tag}, alpha: ${alpha}, visible: true`);
+    }
     
     ctx.save();
     ctx.globalAlpha = alpha;
+    
+    // Apply horizontal flipping based on facing direction
+    const shouldFlip = animal.facingDirection === "right";
+    if (shouldFlip) {
+        ctx.scale(-1, 1); // Flip horizontally
+        ctx.translate(-renderPosX * 2, 0); // Adjust position after flipping
+    }
 
-    // Render shadow (if not hiding)
-    if (animal.state.tag !== 'Hiding') {
+    // Render shadow (always render shadows - no animals hide)
+    {
         ctx.save();
         if (useImageFallback) {
             // For fallback circles, create a simple shadow ellipse
@@ -340,6 +353,11 @@ export function renderWildAnimal({
     }
 
     ctx.restore();
+    
+    // Debug log successful render completion for wolves (to verify they're actually being rendered)
+    if (animal.species.tag === 'TundraWolf' && Math.random() < 0.01) { // Log 1% of wolf render completions
+        console.log(`🐺 [WOLF RENDER COMPLETE] Successfully rendered wolf ${animal.id} - health: ${animal.health}, state: ${animal.state.tag}`);
+    }
 }
 
 // Preload wild animal images using imageManager

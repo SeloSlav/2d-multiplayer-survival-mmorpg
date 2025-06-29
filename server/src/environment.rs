@@ -1234,6 +1234,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             pos_y,
             direction_x: 0.0,
             direction_y: 1.0,
+            facing_direction: "left".to_string(), // Default facing direction
             state: AnimalState::Patrolling,
             health: max_health as f32,
             spawn_x: pos_x,

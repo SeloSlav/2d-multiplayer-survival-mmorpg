@@ -106,6 +106,7 @@ pub struct WildAnimal {
     pub pos_y: f32,
     pub direction_x: f32, // Normalized direction vector
     pub direction_y: f32,
+    pub facing_direction: String, // "left" or "right" for sprite mirroring
     pub state: AnimalState,
     pub health: f32,
     pub spawn_x: f32, // Original spawn position for patrolling
@@ -372,15 +373,7 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
     let animals: Vec<WildAnimal> = ctx.db.wild_animal().iter().collect();
     
     for mut animal in animals {
-        if let Some(hide_until) = animal.hide_until {
-            if current_time < hide_until {
-                continue; // Skip hidden/burrowed animals
-            } else {
-                // End hiding state
-                animal.hide_until = None;
-                animal.state = AnimalState::Patrolling;
-            }
-        }
+        // No hiding logic - all animals are always active
 
         let behavior = animal.species.get_behavior();
         let stats = behavior.get_stats();
@@ -675,6 +668,12 @@ pub fn move_towards_target(ctx: &ReducerContext, animal: &mut WildAnimal, target
         
         animal.direction_x = dx / distance;
         animal.direction_y = dy / distance;
+        
+        // Update facing direction based on horizontal movement
+        // Only change facing direction if there's significant horizontal movement
+        if dx.abs() > 0.1 {
+            animal.facing_direction = if dx > 0.0 { "right".to_string() } else { "left".to_string() };
+        }
     }
 }
 
@@ -787,6 +786,7 @@ pub fn spawn_wild_animal(
         pos_y,
         direction_x: 1.0,
         direction_y: 0.0,
+        facing_direction: "left".to_string(), // Default facing direction (matches current sprites)
         state: AnimalState::Patrolling,
         health: stats.max_health,
         spawn_x: pos_x,

@@ -146,9 +146,19 @@ impl ViperBehavior for CableViperBehavior {
         if let Some(equipment) = ctx.db.active_equipment().player_identity().find(&player_id) {
             if let Some(item_def_id) = equipment.equipped_item_def_id {
                 if let Some(item_def) = ctx.db.item_definition().id().find(item_def_id) {
-                    return item_def.name == "Hunting Bow" || item_def.name == "Crossbow";
+                    let has_ranged = item_def.name == "Hunting Bow" || item_def.name == "Crossbow";
+                    if has_ranged {
+                        log::debug!("Player {:?} has ranged weapon: {}", player_id, item_def.name);
+                    }
+                    return has_ranged;
+                } else {
+                    log::debug!("Player {:?} has equipped item but no definition found for ID {}", player_id, item_def_id);
                 }
+            } else {
+                log::debug!("Player {:?} has equipment but no equipped item", player_id);
             }
+        } else {
+            log::debug!("Player {:?} has no equipment entry", player_id);
         }
         false
     }
@@ -158,7 +168,7 @@ impl AnimalBehavior for CableViperBehavior {
     fn get_stats(&self) -> AnimalStats {
         AnimalStats {
             max_health: 200.0, // 2-3 bow shots to kill
-            attack_damage: 30.0, // Higher venom damage
+            attack_damage: 22.0, // Balanced melee damage (venom provides additional DOT)
             attack_range: 120.0, // Longer strike range - 4m dash
             attack_speed_ms: 1500, // Slower but devastating strikes
             movement_speed: 60.0,  // Very slow movement (ambush predator)
@@ -224,10 +234,14 @@ impl AnimalBehavior for CableViperBehavior {
                     );
                     let distance = distance_sq.sqrt();
                     
-                    // NEW: Check if player has ranged weapon for spittle combat
+                    // Check if player has ranged weapon for spittle combat
                     let player_has_ranged = Self::player_has_ranged_weapon(ctx, player.identity);
                     
-                    if player_has_ranged && distance <= 350.0 && distance > 120.0 {
+                    log::debug!("Cable Viper {} evaluating player at {:.1}px - ranged weapon: {}", 
+                               animal.id, distance, player_has_ranged);
+                    
+                    // IMPROVED: Better distance bounds and priority for spittle combat
+                    if player_has_ranged && distance <= 350.0 && distance >= 125.0 {
                         // Player has ranged weapon and is in spittle range but not melee range
                         animal.state = AnimalState::Investigating; // Use investigating state for spittle combat
                         animal.target_player_id = Some(player.identity);
@@ -240,7 +254,7 @@ impl AnimalBehavior for CableViperBehavior {
                         animal.investigation_x = Some(animal.pos_x + strafe_distance * strafe_angle.cos());
                         animal.investigation_y = Some(animal.pos_y + strafe_distance * strafe_angle.sin());
                         
-                        log::info!("Cable Viper {} detected ranged weapon - entering spittle combat mode", animal.id);
+                        log::info!("Cable Viper {} detected ranged weapon at {:.1}px - entering spittle combat mode", animal.id, distance);
                     } else if distance <= stats.attack_range {
                         // Close enough to strike - transition to chasing for melee attack
                         animal.state = AnimalState::Chasing;
@@ -278,13 +292,13 @@ impl AnimalBehavior for CableViperBehavior {
                             animal.investigation_y = None;
                             animal.state_change_time = current_time;
                             log::debug!("Cable Viper {} ending spittle combat - player too far", animal.id);
-                        } else if distance <= 120.0 {
+                        } else if distance < 125.0 {
                             // Player got too close - switch to melee
                             animal.state = AnimalState::Chasing;
                             animal.investigation_x = None;
                             animal.investigation_y = None;
                             animal.state_change_time = current_time;
-                            log::debug!("Cable Viper {} switching to melee - player too close", animal.id);
+                            log::debug!("Cable Viper {} switching to melee - player too close at {:.1}px", animal.id, distance);
                         } else {
                             // AGGRESSIVE: Fire spittle much more frequently against bow users
                             let spittle_interval = if player_has_ranged { 800_000 } else { 2_000_000 }; // 0.8s vs 2s
@@ -339,14 +353,32 @@ impl AnimalBehavior for CableViperBehavior {
                             animal.pos_x, animal.pos_y,
                             target_player.position_x, target_player.position_y
                         );
+                        let distance = distance_sq.sqrt();
                         
-                        // Core system handles attacks when in range - just check if should stop chasing
-                        if distance_sq > (stats.chase_trigger_range * 1.2).powi(2) {
+                        // IMPROVED: Re-evaluate for spittle combat while chasing
+                        let player_has_ranged = Self::player_has_ranged_weapon(ctx, target_player.identity);
+                        
+                        if player_has_ranged && distance >= 125.0 && distance <= 350.0 {
+                            // Player has ranged weapon and is in spittle range - switch to spittle mode
+                            animal.state = AnimalState::Investigating;
+                            animal.state_change_time = current_time;
+                            
+                            // Set investigation position for strafing
+                            let angle_to_player = (target_player.position_y - animal.pos_y).atan2(target_player.position_x - animal.pos_x);
+                            let strafe_angle = angle_to_player + PI / 2.0;
+                            let strafe_distance = 100.0;
+                            animal.investigation_x = Some(animal.pos_x + strafe_distance * strafe_angle.cos());
+                            animal.investigation_y = Some(animal.pos_y + strafe_distance * strafe_angle.sin());
+                            
+                            log::info!("Cable Viper {} switching from chase to spittle mode at {:.1}px", animal.id, distance);
+                        } else if distance_sq > (stats.chase_trigger_range * 1.2).powi(2) {
+                            // Player moved too far - return to patrol
                             animal.state = AnimalState::Patrolling;
                             animal.target_player_id = None;
                             animal.state_change_time = current_time;
                             log::debug!("Cable Viper {} returning to ambush position - player out of range", animal.id);
                         }
+                        // Otherwise continue chasing (core system handles attacks when in range)
                     } else {
                         // Target lost
                         animal.state = AnimalState::Patrolling;
