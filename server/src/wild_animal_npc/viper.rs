@@ -177,7 +177,7 @@ impl AnimalBehavior for CableViperBehavior {
             perception_angle_degrees: 360.0, // Vibration sensing
             patrol_radius: 60.0, // 2m figure-eight
             chase_trigger_range: 350.0, // ENHANCED: Extended range for spittle combat
-            flee_trigger_health_percent: 0.7, // Flees when injured (70%)
+            flee_trigger_health_percent: 0.1, // Only flees when critically wounded (10%)
             hide_duration_ms: 0, // REMOVED: No more burrowing behavior
         }
     }
