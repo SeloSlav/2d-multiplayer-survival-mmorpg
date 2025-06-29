@@ -98,6 +98,7 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
         ("Bone Arrow", 2, 5, 0.45),            // Better ammunition
         ("Hollow Reed Arrow", 2, 6, 0.40),     // Special ammunition
         ("Stone Hatchet", 1, 1, 0.35),         // Useful tool
+        ("AK74 Bayonet", 1, 1, 0.18),          // Fast military melee weapon
         ("Torch", 1, 1, 0.30),                 // Utility item
         ("Reed Water Bottle", 1, 2, 0.35),     // Water container
         ("Tin of Sprats in Oil", 1, 2, 0.40),  // Quality preserved food
@@ -106,7 +107,9 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
         // --- RARE TIER (10-25% drop rates) ---
         ("Hunting Bow", 1, 1, 0.10),           // Ranged weapon
         ("Fire Arrow", 1, 3, 0.15),            // Special ammunition
-        ("Machete", 1, 1, 0.12),               // Sharp melee weapon
+        ("Bush Knife", 1, 1, 0.12),            // Military clearing blade
+        ("Naval Cutlass", 1, 1, 0.08),         // Rare ceremonial naval weapon
+        ("Engineers Maul", 1, 1, 0.10),        // Military engineering tool
         ("Tin Can", 1, 2, 0.20),               // Metal source
         ("Fermented Cabbage Jar", 1, 2, 0.20), // Specialty preserved food
         ("Expired Soviet Chocolate", 1, 1, 0.18), // Morale boost treat
@@ -115,6 +118,7 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
         ("Anti-Venom", 1, 1, 0.15),            // Moved from ultra-rare to rare
         
         // --- ULTRA-RARE TIER (1-5% drop rates) ---
+        ("Military Crowbar", 1, 1, 0.05),      // Highest damage weapon in game
         ("Scrap Batteries", 1, 2, 0.03),       // Ultra-rare electronics material
     ];
     

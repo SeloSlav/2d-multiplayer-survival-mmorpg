@@ -1358,7 +1358,8 @@ pub fn throw_item(ctx: &ReducerContext, target_world_x: f32, target_world_y: f32
             let throwable_names = [
                 "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
                 "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
-                "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook"
+                "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook",
+                "Naval Cutlass", "AK74 Bayonet", "Bush Knife", "Engineers Maul", "Military Crowbar"
             ];
             
             throwable_names.contains(&item_def.name.as_str()) ||

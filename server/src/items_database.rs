@@ -3,26 +3,26 @@ use crate::models::{EquipmentSlotType, TargetType};
 
 pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
     let initial_items = vec![
-        // --- MACHETE (ADVANCED WEAPON) ---
+        // --- BUSH KNIFE (ADVANCED WEAPON/TOOL) ---
         ItemDefinition {
             id: 0,
-            name: "Machete".to_string(),
-            description: "A heavy-duty cutting tool that doubles as a formidable weapon. Can be thrown with devastating effect.".to_string(),
-            category: ItemCategory::Weapon,
+            name: "Bush Knife".to_string(),
+            description: "A heavy-duty clearing blade used for cutting brush and light timber around military installations. Versatile in combat and useful for woodcutting, though less efficient than a proper hatchet.".to_string(),
+            category: ItemCategory::Tool, // Changed from Weapon to Tool since it can gather wood
             icon_asset_name: "machete.png".to_string(),
             is_stackable: false,
             stack_size: 1,
             is_equippable: true,
             equipment_slot_type: None,
             fuel_burn_duration_secs: None,
-            primary_target_damage_min: None,
-            primary_target_damage_max: None,
-            primary_target_yield_min: None,
-            primary_target_yield_max: None,
-            primary_target_type: None,
-            primary_yield_resource_name: None,
-            pvp_damage_min: Some(42),
-            pvp_damage_max: Some(42),
+            primary_target_damage_min: Some(30), // 50% of Stone Hatchet damage (60)
+            primary_target_damage_max: Some(40), // 50% of Stone Hatchet damage (80)
+            primary_target_yield_min: Some(9), // Adjusted for 0.6s speed to maintain 50% overall wood rate
+            primary_target_yield_max: Some(14), // Adjusted for 0.6s speed to maintain 50% overall wood rate
+            primary_target_type: Some(TargetType::Tree), // Can cut trees like hatchets
+            primary_yield_resource_name: Some("Wood".to_string()), // Grants wood when cutting trees
+            pvp_damage_min: Some(35), // Reduced from 42 to balance fast attack speed
+            pvp_damage_max: Some(35), // Reduced from 42 to balance fast attack speed
             crafting_cost: Some(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
                 CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 30 },
@@ -43,7 +43,157 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             damage_resistance: None,
             warmth_bonus: None,
             respawn_time_seconds: Some(900), // 15 minutes - advanced weapon
-            attack_interval_secs: Some(1.1),
+            attack_interval_secs: Some(0.6), // FASTEST melee weapon - changed from 1.1 to 0.6
+        },
+
+        // --- SOVIET MILITARY WEAPONS (BARREL LOOT) ---
+        ItemDefinition {
+            id: 0,
+            name: "Naval Cutlass".to_string(),
+            description: "A ceremonial naval sword from the old Soviet Pacific Fleet. Tarnished but still deadly sharp. Slower strikes but devastating damage.".to_string(),
+            category: ItemCategory::Weapon,
+            icon_asset_name: "naval_cutlass.png".to_string(),
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: true,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: Some(48), // Highest melee damage
+            pvp_damage_max: Some(52), // Highest melee damage
+            crafting_cost: None, // Not craftable - barrel loot only
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: None,
+            consumable_hunger_satiated: None,
+            consumable_thirst_quenched: None,
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: Some(3.0), // Standard bleed damage
+            bleed_duration_seconds: Some(12.0), // Longer bleed duration (specialty)
+            bleed_tick_interval_seconds: Some(1.0),
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: None, // Found in barrels, not spawned naturally
+            attack_interval_secs: Some(1.0), // Slower, deliberate strikes
+        },
+        ItemDefinition {
+            id: 0,
+            name: "AK74 Bayonet".to_string(),
+            description: "A detached bayonet from an AK-74 rifle. Compact, balanced, and brutally effective in close combat. Lightning-fast strikes with vicious bleeding.".to_string(),
+            category: ItemCategory::Weapon,
+            icon_asset_name: "soviet_bayonet.png".to_string(),
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: true,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: Some(30), // Lower per-hit damage
+            pvp_damage_max: Some(34), // Lower per-hit damage
+            crafting_cost: None, // Not craftable - barrel loot only
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: None,
+            consumable_hunger_satiated: None,
+            consumable_thirst_quenched: None,
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: Some(4.0), // High bleed damage
+            bleed_duration_seconds: Some(12.0), // Long bleed duration
+            bleed_tick_interval_seconds: Some(1.0),
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: None, // Found in barrels, not spawned naturally
+            attack_interval_secs: Some(0.55), // FASTEST weapon - even faster than Machete
+        },
+        ItemDefinition {
+            id: 0,
+            name: "Engineers Maul".to_string(),
+            description: "A heavy demolition hammer used by Soviet military engineers. Built for breaking through concrete and steel, it's devastatingly effective in combat.".to_string(),
+            category: ItemCategory::Weapon,
+            icon_asset_name: "engineers_maul.png".to_string(),
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: true,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: Some(40), // High damage, between Machete and Naval Cutlass
+            pvp_damage_max: Some(45), // High damage, between Machete and Naval Cutlass
+            crafting_cost: None, // Not craftable - barrel loot only
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: None,
+            consumable_hunger_satiated: None,
+            consumable_thirst_quenched: None,
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: Some(2.5), // Moderate bleed damage
+            bleed_duration_seconds: Some(10.0), // Standard bleed duration
+            bleed_tick_interval_seconds: Some(1.0),
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: None, // Found in barrels, not spawned naturally
+            attack_interval_secs: Some(0.85), // Slow but powerful strikes
+        },
+        ItemDefinition {
+            id: 0,
+            name: "Military Crowbar".to_string(),
+            description: "A heavy-duty crowbar from Soviet military engineering corps. Built for breaching and demolition, it delivers devastating blows in combat.".to_string(),
+            category: ItemCategory::Weapon,
+            icon_asset_name: "military_crowbar.png".to_string(),
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: true,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: Some(55), // HIGHEST damage in game
+            pvp_damage_max: Some(60), // HIGHEST damage in game
+            crafting_cost: None, // Not craftable - barrel loot only
+            crafting_output_quantity: None,
+            crafting_time_secs: None,
+            consumable_health_gain: None,
+            consumable_hunger_satiated: None,
+            consumable_thirst_quenched: None,
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: Some(1.5), // Lower bleed (it's blunt force trauma)
+            bleed_duration_seconds: Some(8.0), // Shorter bleed duration
+            bleed_tick_interval_seconds: Some(1.0),
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: None, // Found in barrels, not spawned naturally
+            attack_interval_secs: Some(1.2), // SLOWEST weapon - devastating but slow
         },
 
         // --- BASE RESOURCES ---
@@ -3344,9 +3494,11 @@ pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
             primary_yield_resource_name: None,
             pvp_damage_min: None,
             pvp_damage_max: None,
-            crafting_cost: None, // Found item, not craftable for now
-            crafting_output_quantity: None,
-            crafting_time_secs: None,
+            crafting_cost: Some(vec![
+                CostIngredient { item_name: "Cable Viper Gland".to_string(), quantity: 1 },
+            ]),
+            crafting_output_quantity: Some(1),
+            crafting_time_secs: Some(12),
             consumable_health_gain: Some(10.0), // Small health boost when curing venom
             consumable_hunger_satiated: None,
             consumable_thirst_quenched: None,

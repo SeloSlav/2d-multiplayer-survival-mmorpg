@@ -112,6 +112,10 @@ import viperScaleIcon from '../assets/items/viper_scale.png';
 import wolfFurIcon from '../assets/items/wolf_fur.png';
 import foxPeltIcon from '../assets/items/fox_pelt.png';
 import macheteIcon from '../assets/items/machete.png';
+import sovietBayonetIcon from '../assets/items/soviet_bayonet.png';
+import navalCutlassIcon from '../assets/items/naval_cutlass.png';
+import engineersMaulIcon from '../assets/items/engineers_maul.png';
+import militaryCrowbarIcon from '../assets/items/military_crowbar.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
 // Use a Proxy or a function to handle fallbacks gracefully
@@ -224,6 +228,10 @@ const iconMap: { [key: string]: string | undefined } = {
   'wolf_fur.png': wolfFurIcon,
   'fox_pelt.png': foxPeltIcon,
   'machete.png': macheteIcon,
+  'soviet_bayonet.png': sovietBayonetIcon,
+  'naval_cutlass.png': navalCutlassIcon,
+  'engineers_maul.png': engineersMaulIcon,
+  'military_crowbar.png': militaryCrowbarIcon,
 };
 
 // Export a function that provides the fallback logic

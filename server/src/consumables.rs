@@ -84,8 +84,14 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     // Call the centralized helper function
     apply_item_effects_and_consume(ctx, sender_id, &item_def, item_instance_id, &mut player_to_update)?;
 
-    // Emit eating food sound
-    emit_eating_food_sound(ctx, player_to_update.position_x, player_to_update.position_y, sender_id);
+    // Emit appropriate sound based on item type
+    if item_def.name == "Anti-Venom" {
+        // Anti-Venom is a liquid serum, so use drinking sound
+        emit_drinking_water_sound(ctx, player_to_update.position_x, player_to_update.position_y, sender_id);
+    } else {
+        // Default to eating sound for solid consumables
+        emit_eating_food_sound(ctx, player_to_update.position_x, player_to_update.position_y, sender_id);
+    }
 
     // Update player table after effects are applied and item consumed
     players_table.identity().update(player_to_update);
