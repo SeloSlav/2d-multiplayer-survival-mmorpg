@@ -48,8 +48,8 @@ const HUNGER_DRAIN_PER_SECOND: f32 = 250.0 / (3.0 * 60.0 * 60.0);
 // Thirst drains from 250 to 0 in 2 hours
 const THIRST_DRAIN_PER_SECOND: f32 = 250.0 / (2.0 * 60.0 * 60.0);
 // Make stat constants pub(crate) as well for consistency, although not strictly needed if only used here
-pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 2.5;
-pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 2.0;
+pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 8.0; // Increased from 2.5 - should drain noticeably while sprinting
+pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 3.0; // Increased from 2.0 - faster recovery when not sprinting
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_THIRST: f32 = 0.5;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_HUNGER: f32 = 0.4;
 pub(crate) const HEALTH_LOSS_MULTIPLIER_AT_ZERO: f32 = 2.0;

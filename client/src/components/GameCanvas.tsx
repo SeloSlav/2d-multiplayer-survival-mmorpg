@@ -37,6 +37,7 @@ import {
   WildAnimal as SpacetimeDBWildAnimal,
   ViperSpittle as SpacetimeDBViperSpittle,
   AnimalCorpse as SpacetimeDBAnimalCorpse,
+  Barrel as SpacetimeDBBarrel,
 } from '../generated';
 
 // --- Core Hooks ---
@@ -167,6 +168,7 @@ interface GameCanvasProps {
   wildAnimals: Map<string, SpacetimeDBWildAnimal>;
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDBAnimalCorpse>; // Add viper spittles
+  barrels: Map<string, SpacetimeDBBarrel>; // Add barrels
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -233,6 +235,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   wildAnimals,
   viperSpittles,
   animalCorpses,
+  barrels,
   setMusicPanelVisible,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
@@ -487,6 +490,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleViperSpittlesMap,
     visibleAnimalCorpses,
     visibleAnimalCorpsesMap,
+    visibleBarrels,
+    visibleBarrelsMap,
   } = useEntityFiltering(
     players,
     trees,
@@ -517,6 +522,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     wildAnimals,
     viperSpittles,
     animalCorpses,
+    barrels,
   );
 
   // --- UI State ---
@@ -1342,6 +1348,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       players: validPlayers,
       trees: validTrees,
       stones: validStones,
+      barrels: barrels instanceof Map ? barrels : new Map(),
       campfires: validCampfires,
       sleepingBags: validSleepingBags,
       localPlayer,
@@ -1430,6 +1437,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           players={players}
           trees={trees}
           stones={stones}
+          barrels={barrels}
           campfires={campfires}
           playerPin={localPlayerPin}
           sleepingBagImage={itemImagesRef.current?.get('sleeping_bag.png')}

@@ -16,7 +16,6 @@ import {
     SleepingBag as SpacetimeDBSleepingBag,
     Shelter as SpacetimeDBShelter,
     RainCollector as SpacetimeDBRainCollector,
-
     DbConnection,
     InventoryItem as SpacetimeDBInventoryItem,
     ItemDefinition as SpacetimeDBItemDefinition,
@@ -103,7 +102,6 @@ interface UseInteractionFinderResult {
     closestInteractableSleepingBagId: number | null;
     closestInteractableKnockedOutPlayerId: string | null;
     closestInteractableWaterPosition: { x: number; y: number } | null;
-
 }
 
 // Constants for box slots (should match server if possible, or keep fixed)
@@ -834,7 +832,6 @@ export function useInteractionFinder({
             closestInteractableSleepingBagId: closestSleepingBagId,
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
             closestInteractableWaterPosition: closestWaterPosition,
-
         };
     // Recalculate when player position or interactable maps change
     }, [localPlayer, mushrooms, corns, potatoes, pumpkins, hemps, reeds, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
@@ -916,7 +913,6 @@ export function useInteractionFinder({
         closestInteractableSleepingBagId,
         closestInteractableKnockedOutPlayerId,
         closestInteractableWaterPosition,
-
     };
 }
 

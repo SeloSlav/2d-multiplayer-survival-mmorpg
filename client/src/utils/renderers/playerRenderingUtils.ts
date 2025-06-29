@@ -210,25 +210,38 @@ export const renderPlayer = (
   let hitEffectElapsed = 0;
   
   if (serverLastHitTimePropMicros > 0n) {
-    if (!hitState || serverLastHitTimePropMicros > hitState.lastProcessedHitTime) {
+    // --- IMPROVED: Use threshold-based comparison to prevent spurious re-detections ---
+    const DETECTION_THRESHOLD_MICROS = 1000n; // 1ms threshold to account for minor server timing variations
+    const isNewHit = !hitState || 
+                    (serverLastHitTimePropMicros > hitState.lastProcessedHitTime && 
+                     (serverLastHitTimePropMicros - hitState.lastProcessedHitTime) > DETECTION_THRESHOLD_MICROS);
+    
+    if (isNewHit) {
       // NEW HIT DETECTED! Set up effect timing based on client time
+      const oldHitTime = hitState?.lastProcessedHitTime || 0n;
       hitState = {
         lastProcessedHitTime: serverLastHitTimePropMicros,
         clientDetectionTime: nowMs,
         effectStartTime: nowMs
       };
       playerHitStates.set(playerHexId, hitState);
-      console.log(`🎯 [COMBAT] Hit detected for player ${playerHexId} at client time ${nowMs}`);
+      console.log(`🎯 [COMBAT] Hit detected for player ${playerHexId} at client time ${nowMs} (server: ${serverLastHitTimePropMicros}, old: ${oldHitTime}, diff: ${serverLastHitTimePropMicros - oldHitTime})`);
     }
     
     // Calculate effect timing based on when WE detected the hit
     if (hitState) {
       hitEffectElapsed = nowMs - hitState.effectStartTime;
       isCurrentlyHit = hitEffectElapsed < (PLAYER_SHAKE_DURATION_MS + COMBAT_EFFECT_LATENCY_BUFFER_MS);
+      
+      // --- DEBUGGING: Log potential infinite loops ---
+      if (hitEffectElapsed < 5 && !isNewHit) {
+        console.log(`🎯 [DEBUG] Potential infinite hit loop for player ${playerHexId}: elapsed=${hitEffectElapsed.toFixed(1)}ms, server=${serverLastHitTimePropMicros}, stored=${hitState.lastProcessedHitTime}, diff=${serverLastHitTimePropMicros - hitState.lastProcessedHitTime}`);
+      }
     }
   } else {
     // No hit time from server - clear hit state
     if (hitState) {
+      console.log(`🎯 [COMBAT] Clearing hit state for player ${playerHexId} (server hit time is 0)`);
       playerHitStates.delete(playerHexId);
     }
   }
@@ -397,6 +410,17 @@ export const renderPlayer = (
     // --- DEBUG: Log shake effect for troubleshooting ---
     if (effectiveHitElapsed < 50) { // Only log within first 50ms to avoid spam
       console.log(`🎯 [SHAKE] Player ${playerHexId} shaking: elapsed=${effectiveHitElapsed.toFixed(1)}ms, isCurrentlyHit=${isCurrentlyHit}, shakeAmount=${shakeAmount}`);
+    }
+  }
+  
+  // --- SAFETY: Force clear hit states that have been active too long ---
+  if (hitState && isCurrentlyHit) {
+    const MAX_HIT_EFFECT_DURATION_MS = 2000; // 2 seconds maximum
+    const totalHitDuration = nowMs - hitState.clientDetectionTime;
+    if (totalHitDuration > MAX_HIT_EFFECT_DURATION_MS) {
+      console.log(`🎯 [SAFETY] Force clearing stuck hit state for player ${playerHexId} after ${totalHitDuration}ms`);
+      playerHitStates.delete(playerHexId);
+      isCurrentlyHit = false;
     }
   }
 

@@ -36,6 +36,8 @@ import { AddFuelToCampfire } from "./add_fuel_to_campfire_reducer.ts";
 export { AddFuelToCampfire };
 import { AddFuelToLantern } from "./add_fuel_to_lantern_reducer.ts";
 export { AddFuelToLantern };
+import { AttackBarrel } from "./attack_barrel_reducer.ts";
+export { AttackBarrel };
 import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
 export { AutoRemoveFuelFromCampfire };
 import { AutoRemoveFuelFromLantern } from "./auto_remove_fuel_from_lantern_reducer.ts";
@@ -254,6 +256,8 @@ import { RegisterPlayer } from "./register_player_reducer.ts";
 export { RegisterPlayer };
 import { RespawnAtSleepingBag } from "./respawn_at_sleeping_bag_reducer.ts";
 export { RespawnAtSleepingBag };
+import { RespawnDestroyedBarrels } from "./respawn_destroyed_barrels_reducer.ts";
+export { RespawnDestroyedBarrels };
 import { RespawnRandomly } from "./respawn_randomly_reducer.ts";
 export { RespawnRandomly };
 import { ReviveKnockedOutPlayer } from "./revive_knocked_out_player_reducer.ts";
@@ -374,6 +378,10 @@ import { AnimalCorpseTableHandle } from "./animal_corpse_table.ts";
 export { AnimalCorpseTableHandle };
 import { ArrowBreakEventTableHandle } from "./arrow_break_event_table.ts";
 export { ArrowBreakEventTableHandle };
+import { BarrelTableHandle } from "./barrel_table.ts";
+export { BarrelTableHandle };
+import { BarrelRespawnScheduleTableHandle } from "./barrel_respawn_schedule_table.ts";
+export { BarrelRespawnScheduleTableHandle };
 import { CampfireTableHandle } from "./campfire_table.ts";
 export { CampfireTableHandle };
 import { CampfireProcessingScheduleTableHandle } from "./campfire_processing_schedule_table.ts";
@@ -526,6 +534,10 @@ import { AnimalState } from "./animal_state_type.ts";
 export { AnimalState };
 import { ArrowBreakEvent } from "./arrow_break_event_type.ts";
 export { ArrowBreakEvent };
+import { Barrel } from "./barrel_type.ts";
+export { Barrel };
+import { BarrelRespawnSchedule } from "./barrel_respawn_schedule_type.ts";
+export { BarrelRespawnSchedule };
 import { Campfire } from "./campfire_type.ts";
 export { Campfire };
 import { CampfireProcessingSchedule } from "./campfire_processing_schedule_type.ts";
@@ -740,6 +752,16 @@ const REMOTE_MODULE = {
     arrow_break_event: {
       tableName: "arrow_break_event",
       rowType: ArrowBreakEvent.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    barrel: {
+      tableName: "barrel",
+      rowType: Barrel.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    barrel_respawn_schedule: {
+      tableName: "barrel_respawn_schedule",
+      rowType: BarrelRespawnSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
     },
     campfire: {
@@ -1091,6 +1113,10 @@ const REMOTE_MODULE = {
     add_fuel_to_lantern: {
       reducerName: "add_fuel_to_lantern",
       argsType: AddFuelToLantern.getTypeScriptAlgebraicType(),
+    },
+    attack_barrel: {
+      reducerName: "attack_barrel",
+      argsType: AttackBarrel.getTypeScriptAlgebraicType(),
     },
     auto_remove_fuel_from_campfire: {
       reducerName: "auto_remove_fuel_from_campfire",
@@ -1528,6 +1554,10 @@ const REMOTE_MODULE = {
       reducerName: "respawn_at_sleeping_bag",
       argsType: RespawnAtSleepingBag.getTypeScriptAlgebraicType(),
     },
+    respawn_destroyed_barrels: {
+      reducerName: "respawn_destroyed_barrels",
+      argsType: RespawnDestroyedBarrels.getTypeScriptAlgebraicType(),
+    },
     respawn_randomly: {
       reducerName: "respawn_randomly",
       argsType: RespawnRandomly.getTypeScriptAlgebraicType(),
@@ -1773,6 +1803,7 @@ const REMOTE_MODULE = {
 export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
 | { name: "AddFuelToLantern", args: AddFuelToLantern }
+| { name: "AttackBarrel", args: AttackBarrel }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
 | { name: "AutoRemoveFuelFromLantern", args: AutoRemoveFuelFromLantern }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
@@ -1882,6 +1913,7 @@ export type Reducer = never
 | { name: "RegenerateCompressedChunks", args: RegenerateCompressedChunks }
 | { name: "RegisterPlayer", args: RegisterPlayer }
 | { name: "RespawnAtSleepingBag", args: RespawnAtSleepingBag }
+| { name: "RespawnDestroyedBarrels", args: RespawnDestroyedBarrels }
 | { name: "RespawnRandomly", args: RespawnRandomly }
 | { name: "ReviveKnockedOutPlayer", args: ReviveKnockedOutPlayer }
 | { name: "ScheduleNextCampfireProcessing", args: ScheduleNextCampfireProcessing }
@@ -1971,6 +2003,22 @@ export class RemoteReducers {
 
   removeOnAddFuelToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("add_fuel_to_lantern", callback);
+  }
+
+  attackBarrel(barrelId: bigint) {
+    const __args = { barrelId };
+    let __writer = new BinaryWriter(1024);
+    AttackBarrel.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("attack_barrel", __argsBuffer, this.setCallReducerFlags.attackBarrelFlags);
+  }
+
+  onAttackBarrel(callback: (ctx: ReducerEventContext, barrelId: bigint) => void) {
+    this.connection.onReducer("attack_barrel", callback);
+  }
+
+  removeOnAttackBarrel(callback: (ctx: ReducerEventContext, barrelId: bigint) => void) {
+    this.connection.offReducer("attack_barrel", callback);
   }
 
   autoRemoveFuelFromCampfire(campfireId: number, sourceSlotIndex: number) {
@@ -3645,6 +3693,22 @@ export class RemoteReducers {
     this.connection.offReducer("respawn_at_sleeping_bag", callback);
   }
 
+  respawnDestroyedBarrels(schedule: BarrelRespawnSchedule) {
+    const __args = { schedule };
+    let __writer = new BinaryWriter(1024);
+    RespawnDestroyedBarrels.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("respawn_destroyed_barrels", __argsBuffer, this.setCallReducerFlags.respawnDestroyedBarrelsFlags);
+  }
+
+  onRespawnDestroyedBarrels(callback: (ctx: ReducerEventContext, schedule: BarrelRespawnSchedule) => void) {
+    this.connection.onReducer("respawn_destroyed_barrels", callback);
+  }
+
+  removeOnRespawnDestroyedBarrels(callback: (ctx: ReducerEventContext, schedule: BarrelRespawnSchedule) => void) {
+    this.connection.offReducer("respawn_destroyed_barrels", callback);
+  }
+
   respawnRandomly() {
     this.connection.callReducer("respawn_randomly", new Uint8Array(0), this.setCallReducerFlags.respawnRandomlyFlags);
   }
@@ -4482,6 +4546,11 @@ export class SetReducerFlags {
     this.addFuelToLanternFlags = flags;
   }
 
+  attackBarrelFlags: CallReducerFlags = 'FullUpdate';
+  attackBarrel(flags: CallReducerFlags) {
+    this.attackBarrelFlags = flags;
+  }
+
   autoRemoveFuelFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   autoRemoveFuelFromCampfire(flags: CallReducerFlags) {
     this.autoRemoveFuelFromCampfireFlags = flags;
@@ -5017,6 +5086,11 @@ export class SetReducerFlags {
     this.respawnAtSleepingBagFlags = flags;
   }
 
+  respawnDestroyedBarrelsFlags: CallReducerFlags = 'FullUpdate';
+  respawnDestroyedBarrels(flags: CallReducerFlags) {
+    this.respawnDestroyedBarrelsFlags = flags;
+  }
+
   respawnRandomlyFlags: CallReducerFlags = 'FullUpdate';
   respawnRandomly(flags: CallReducerFlags) {
     this.respawnRandomlyFlags = flags;
@@ -5310,6 +5384,14 @@ export class RemoteTables {
 
   get arrowBreakEvent(): ArrowBreakEventTableHandle {
     return new ArrowBreakEventTableHandle(this.connection.clientCache.getOrCreateTable<ArrowBreakEvent>(REMOTE_MODULE.tables.arrow_break_event));
+  }
+
+  get barrel(): BarrelTableHandle {
+    return new BarrelTableHandle(this.connection.clientCache.getOrCreateTable<Barrel>(REMOTE_MODULE.tables.barrel));
+  }
+
+  get barrelRespawnSchedule(): BarrelRespawnScheduleTableHandle {
+    return new BarrelRespawnScheduleTableHandle(this.connection.clientCache.getOrCreateTable<BarrelRespawnSchedule>(REMOTE_MODULE.tables.barrel_respawn_schedule));
   }
 
   get campfire(): CampfireTableHandle {

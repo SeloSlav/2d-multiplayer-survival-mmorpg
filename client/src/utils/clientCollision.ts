@@ -1,5 +1,5 @@
 // AAA-Quality Client-side Collision Detection System
-import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal } from '../generated';
+import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal, Barrel } from '../generated';
 
 // ===== CONFIGURATION CONSTANTS =====
 const WORLD_WIDTH_PX = 24000;
@@ -14,6 +14,7 @@ const COLLISION_RADII = {
   RAIN_COLLECTOR: 30, // Increased to match server-side for easier targeting
   PLAYER: PLAYER_RADIUS,
   WILD_ANIMAL: 40, // Add wild animal collision radius
+      BARREL: 35, // Barrel collision radius matching server-side (72x72 visual size)
 } as const;
 
 // Collision offsets for sprite positioning - align with visual sprite base
@@ -24,6 +25,7 @@ const COLLISION_OFFSETS = {
   RAIN_COLLECTOR: { x: 0, y: 0 }, // Pushed down to align with visual base
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
   WILD_ANIMAL: { x: 0, y: 0 }, // No offset needed for animals
+  BARREL: { x: 0, y: -12 }, // Barrel collision Y-offset matching server-side
 } as const;
 
 // Shelter AABB dimensions
@@ -51,6 +53,7 @@ export interface GameEntities {
   shelters: Map<string, Shelter>;
   players: Map<string, Player>;
   wildAnimals: Map<string, WildAnimal>; // Add wild animals
+  barrels: Map<string, Barrel>; // Add barrels
 }
 
 interface CollisionShape {
@@ -450,6 +453,19 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
       x: animal.posX + COLLISION_OFFSETS.WILD_ANIMAL.x,
       y: animal.posY + COLLISION_OFFSETS.WILD_ANIMAL.y,
       radius: COLLISION_RADII.WILD_ANIMAL
+    });
+  }
+  
+  // Add barrels
+  for (const [barrelId, barrel] of entities.barrels) {
+    if (barrel.health <= 0) continue; // Skip destroyed barrels
+    
+    shapes.push({
+      id: barrelId,
+      type: `barrel-${barrelId}`,
+      x: barrel.posX + COLLISION_OFFSETS.BARREL.x,
+      y: barrel.posY + COLLISION_OFFSETS.BARREL.y,
+      radius: COLLISION_RADII.BARREL
     });
   }
   

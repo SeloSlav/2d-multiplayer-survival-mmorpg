@@ -50,6 +50,8 @@ use crate::{TileType, WorldTile}; // Added for tile type checking
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // Added for wild animals
 use crate::wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern}; // Added for wild animal types
 use crate::wild_animal_npc::core::AnimalBehavior; // Added AnimalBehavior trait
+use crate::barrel; // Added barrel system for roadside loot
+use crate::barrel::barrel as BarrelTableTrait; // Added barrel table trait
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -629,7 +631,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
     // Wild animal seeding parameters
-    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0005; // 0.06% of tiles
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.03% of tiles
     const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
@@ -1410,11 +1412,34 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // --- End Schedule initial cloud update ---
 
 
+    // --- Seed Barrels on Dirt Roads ---
+    log::info!("Seeding Barrels on dirt roads...");
+    
+    // Collect all dirt road tiles from the world
+    let world_tiles = ctx.db.world_tile();
+    let dirt_road_tiles: Vec<(i32, i32)> = world_tiles.iter()
+        .filter(|tile| tile.tile_type == TileType::DirtRoad)
+        .map(|tile| (tile.world_x, tile.world_y))
+        .collect();
+    
+    log::info!("Found {} dirt road tiles for barrel spawning", dirt_road_tiles.len());
+    
+    // Spawn barrel clusters on dirt roads
+    match barrel::spawn_barrel_clusters(ctx, dirt_road_tiles) {
+        Ok(_) => {
+            let spawned_barrel_count = ctx.db.barrel().iter().count();
+            log::info!("Successfully spawned {} barrels on dirt roads", spawned_barrel_count);
+        }
+        Err(e) => {
+            log::error!("Failed to spawn barrels: {}", e);
+        }
+    }
+
     log::info!(
-        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}",
+        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Mushrooms: {}, Corns: {}, Potatoes: {}, Hemps: {}, Pumpkins: {}, Reeds: {}, Clouds: {}, Wild Animals: {}, Barrels: {}",
         spawned_tree_count, spawned_stone_count, spawned_mushroom_count, spawned_corn_count, 
         spawned_potato_count, spawned_hemp_count, spawned_pumpkin_count, spawned_reed_count, 
-        spawned_cloud_count, spawned_wild_animal_count
+        spawned_cloud_count, spawned_wild_animal_count, ctx.db.barrel().iter().count()
     );
     Ok(())
 }

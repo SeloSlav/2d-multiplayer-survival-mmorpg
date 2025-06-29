@@ -25,6 +25,7 @@ import {
   WildAnimal as SpacetimeDBWildAnimal,
   ViperSpittle as SpacetimeDBViperSpittle,
   AnimalCorpse as SpacetimeDBAnimalCorpse,
+  Barrel as SpacetimeDBBarrel, // ADDED Barrel type
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
 } from '../generated';
 import {
@@ -41,7 +42,8 @@ import {
   isShelter, // ADDED Shelter type guard import (will be created in typeGuards.ts)
   isRainCollector, // ADDED RainCollector type guard import
   isWildAnimal, // ADDED WildAnimal type guard import
-  isAnimalCorpse // ADDED AnimalCorpse type guard import
+  isAnimalCorpse, // ADDED AnimalCorpse type guard import
+  isBarrel // ADDED Barrel type guard import
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
@@ -102,6 +104,8 @@ interface EntityFilteringResult {
   visibleViperSpittlesMap: Map<string, SpacetimeDBViperSpittle>; // ADDED
   visibleAnimalCorpses: SpacetimeDBAnimalCorpse[]; // ADDED
   visibleAnimalCorpsesMap: Map<string, SpacetimeDBAnimalCorpse>; // ADDED
+  visibleBarrels: SpacetimeDBBarrel[]; // ADDED
+  visibleBarrelsMap: Map<string, SpacetimeDBBarrel>; // ADDED
 }
 
 // Define a unified entity type for sorting
@@ -128,7 +132,8 @@ export type YSortedEntityType =
   | { type: 'rain_collector'; entity: SpacetimeDBRainCollector }
   | { type: 'wild_animal'; entity: SpacetimeDBWildAnimal }
   | { type: 'viper_spittle'; entity: SpacetimeDBViperSpittle }
-  | { type: 'animal_corpse'; entity: SpacetimeDBAnimalCorpse };
+  | { type: 'animal_corpse'; entity: SpacetimeDBAnimalCorpse }
+  | { type: 'barrel'; entity: SpacetimeDBBarrel };
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -159,7 +164,8 @@ export function useEntityFiltering(
   rainCollectors: Map<string, SpacetimeDBRainCollector>,
   wildAnimals: Map<string, SpacetimeDBWildAnimal>, // ADDED wildAnimals argument
   viperSpittles: Map<string, SpacetimeDBViperSpittle>, // ADDED viperSpittles argument
-  animalCorpses: Map<string, SpacetimeDBAnimalCorpse> // ADDED animalCorpses argument
+  animalCorpses: Map<string, SpacetimeDBAnimalCorpse>, // ADDED animalCorpses argument
+  barrels: Map<string, SpacetimeDBBarrel> // ADDED barrels argument
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
@@ -311,6 +317,12 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 96; // Same size as wild animals
       height = 96;
+    } else if (isBarrel(entity)) {
+      // Handle barrels
+      x = entity.posX;
+      y = entity.posY;
+      width = 48; // Barrel width
+      height = 48; // Barrel height
     } else {
       return false; // Unknown entity type
     }
@@ -535,6 +547,13 @@ export function useEntityFiltering(
     return result;
   }, [animalCorpses, isEntityInView, viewBounds, currentTime]);
 
+  const visibleBarrels = useMemo(() => 
+    barrels ? Array.from(barrels.values()).filter(e => 
+      !e.respawnAt && isEntityInView(e, viewBounds, currentTime) // Don't show if respawning (destroyed)
+    ) : [],
+    [barrels, isEntityInView, viewBounds, currentTime]
+  );
+
   // Create maps from filtered arrays for easier lookup
   const visibleMushroomsMap = useMemo(() => 
     new Map(visibleMushrooms.map(m => [m.id.toString(), m])), 
@@ -648,6 +667,12 @@ export function useEntityFiltering(
     [visibleAnimalCorpses]
   );
 
+  // ADDED: Map for visible barrels
+  const visibleBarrelsMap = useMemo(() =>
+    new Map(visibleBarrels.map(b => [b.id.toString(), b])),
+    [visibleBarrels]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleSleepingBags,
@@ -680,6 +705,7 @@ export function useEntityFiltering(
       ...visibleWildAnimals.map(w => ({ type: 'wild_animal' as const, entity: w })),
       ...visibleViperSpittles.map(v => ({ type: 'viper_spittle' as const, entity: v })),
       ...visibleAnimalCorpses.map(a => ({ type: 'animal_corpse' as const, entity: a })),
+      ...visibleBarrels.map(b => ({ type: 'barrel' as const, entity: b })),
     ];
     
     // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
@@ -812,6 +838,13 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      // Handle barrels - sort by their base position like other ground objects
+      if (isBarrel(entity)) {
+        // Barrels are ground objects, sort by their base
+        sortY = entity.posY;
+        return sortY;
+      }
+
       // For other entities, use their standard posY if it exists, otherwise default or handle error.
       // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
       if ((entity as any).posY !== undefined) {
@@ -881,6 +914,7 @@ export function useEntityFiltering(
     visibleWildAnimals, // ADDED visibleWildAnimals to dependencies
     visibleViperSpittles, // ADDED visibleViperSpittles to dependencies
     visibleAnimalCorpses, // ADDED visibleAnimalCorpses to dependencies
+    visibleBarrels, // ADDED visibleBarrels to dependencies
   ]);
 
   return {
@@ -932,6 +966,8 @@ export function useEntityFiltering(
     visibleViperSpittles,
     visibleViperSpittlesMap,
     visibleAnimalCorpses,
-    visibleAnimalCorpsesMap
+    visibleAnimalCorpsesMap,
+    visibleBarrels,
+    visibleBarrelsMap
   };
 } 

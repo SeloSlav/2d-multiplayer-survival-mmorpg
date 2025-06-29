@@ -105,6 +105,7 @@ pub enum TargetType {
     // REMOVED: Grass - grass collision detection removed for performance
     Shelter, // ADDED Shelter TargetType
     RainCollector, // ADDED RainCollector TargetType
+    Barrel, // ADDED Barrel TargetType
 }
 
 // Enum to represent the type of an active consumable effect

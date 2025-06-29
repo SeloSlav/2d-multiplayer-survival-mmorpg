@@ -181,6 +181,7 @@ function AppContent() {
       wildAnimals, // <<< ADD wildAnimals HERE
       viperSpittles, // <<< ADD viperSpittles HERE
       animalCorpses, // <<< ADD animalCorpses HERE (NON-SPATIAL)
+      barrels, // <<< ADD barrels HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -213,7 +214,8 @@ function AppContent() {
             rainCollectors,
             shelters,
             players,
-            wildAnimals // Add wild animals to collision system
+            wildAnimals, // Add wild animals to collision system
+            barrels // Add barrels to collision system
         }
     });
 
@@ -781,6 +783,7 @@ function AppContent() {
                             wildAnimals={wildAnimals}
                             viperSpittles={viperSpittles}
                             animalCorpses={animalCorpses}
+                            barrels={barrels}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

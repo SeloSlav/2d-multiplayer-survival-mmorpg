@@ -57,6 +57,8 @@ import { renderViperSpittle } from './viperSpittleRenderingUtils';
 import { renderAnimalCorpse } from './animalCorpseRenderingUtils';
 // Import player corpse renderer
 import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
+// Import barrel renderer
+import { renderBarrel } from './barrelRenderingUtils';
 // Import grass renderer
 import { renderGrass } from './grassRenderingUtils';
 // Import dropped item renderer
@@ -628,6 +630,18 @@ export const renderYSortedEntities = ({
         } else if (type === 'animal_corpse') {
             const animalCorpse = entity as SpacetimeDBAnimalCorpse;
             renderAnimalCorpse(ctx, animalCorpse, nowMs);
+        } else if (type === 'barrel') {
+            const barrel = entity as any; // Use any for now, will be properly typed
+            // Check if this barrel is the closest interactable target  
+            const isTheClosestTarget = closestInteractableTarget?.type === 'barrel' && closestInteractableTarget?.id === barrel.id;
+            // Render barrel using imported function
+            renderBarrel(ctx, barrel, nowMs, cycleProgress);
+            
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
+                const outlineColor = getInteractionOutlineColor('open');
+                drawInteractionOutline(ctx, barrel.posX, barrel.posY - 24, 48, 48, cycleProgress, outlineColor);
+            }
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -691,6 +705,8 @@ export const renderYSortedEntities = ({
             // Viper spittle is rendered separately in GameCanvas - no second pass needed
         } else if (type === 'animal_corpse') {
             // Animal corpses are fully rendered in the first pass - no second pass needed
+        } else if (type === 'barrel') {
+            // Barrels are fully rendered in the first pass - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

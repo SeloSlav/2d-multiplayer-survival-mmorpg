@@ -666,6 +666,9 @@ pub fn move_towards_target(ctx: &ReducerContext, animal: &mut WildAnimal, target
         animal.pos_x = final_x;
         animal.pos_y = final_y;
         
+        // Update chunk_index when position changes (CRITICAL FIX for chunk boundary invisibility)
+        animal.chunk_index = crate::environment::calculate_chunk_index(final_x, final_y);
+        
         animal.direction_x = dx / distance;
         animal.direction_y = dy / distance;
         

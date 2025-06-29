@@ -1,5 +1,5 @@
 import { gameConfig } from '../config/gameConfig';
-import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, PlayerPin, SleepingBag as SpacetimeDBSleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated';
+import { Player as SpacetimeDBPlayer, Tree, Stone as SpacetimeDBStone, Barrel as SpacetimeDBBarrel, PlayerPin, SleepingBag as SpacetimeDBSleepingBag, Campfire as SpacetimeDBCampfire, PlayerCorpse as SpacetimeDBCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated';
 import { useRef, useCallback } from 'react';
 
 // --- Calculate Proportional Dimensions ---
@@ -34,6 +34,7 @@ const REMOTE_PLAYER_DOT_COLOR = '#00AAFF'; // Light blue for other players
 // Add colors for trees and rocks - UPDATED to be much darker and more visible
 const TREE_DOT_COLOR = '#37ff7a'; // Bright emerald green with excellent visibility
 const ROCK_DOT_COLOR = '#bbbbff'; // Light slate blue for rocks
+const BARREL_DOT_COLOR = '#ff4444'; // Bright red for barrels - high visibility
 const RESOURCE_ICON_OUTLINE_COLOR = '#000000'; // Black outline for resource icons
 const RESOURCE_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
 const CAMPFIRE_DOT_COLOR = '#FF6600'; // Bright orange for campfires and lit players
@@ -165,6 +166,7 @@ interface MinimapProps {
   players: Map<string, SpacetimeDBPlayer>; // Map of player identities to player data
   trees: Map<string, Tree>; // Map of tree identities/keys to tree data
   stones: Map<string, SpacetimeDBStone>; // Add stones
+  barrels: Map<string, SpacetimeDBBarrel>; // Add barrels
   campfires: Map<string, SpacetimeDBCampfire>; // Add campfires
   sleepingBags: Map<string, SpacetimeDBSleepingBag>; // Add sleeping bags
   localPlayer: SpacetimeDBPlayer | undefined; // Extracted local player
@@ -221,6 +223,7 @@ export function drawMinimapOntoCanvas({
   players,
   trees,
   stones,
+  barrels,
   campfires,
   sleepingBags,
   localPlayer, // Destructure localPlayer
@@ -555,6 +558,9 @@ export function drawMinimapOntoCanvas({
 
   // --- Draw Trees ---
   trees.forEach(tree => {
+    // Only show trees that aren't destroyed or respawning
+    if (tree.health <= 0 || tree.respawnAt !== undefined) return;
+    
     const screenCoords = worldToMinimap(tree.posX, tree.posY);
     if (screenCoords) {
       const iconSize = ENTITY_DOT_SIZE * 2; // Make trees slightly larger for visibility
@@ -585,6 +591,9 @@ export function drawMinimapOntoCanvas({
 
   // --- Draw Stones ---
   stones.forEach(stone => { // Use stones prop (type SpacetimeDBStone)
+    // Only show stones that aren't destroyed or respawning
+    if (stone.health <= 0 || stone.respawnAt !== undefined) return;
+    
     const screenCoords = worldToMinimap(stone.posX, stone.posY);
     if (screenCoords) {
       const iconSize = ENTITY_DOT_SIZE * 2; // Make stones slightly larger for visibility
@@ -603,6 +612,36 @@ export function drawMinimapOntoCanvas({
       // Fill with stone color
       ctx.fillStyle = ROCK_DOT_COLOR;
       ctx.fillRect(x - halfSize, y - halfSize, iconSize, iconSize);
+      
+      ctx.restore();
+    }
+  });
+
+  // --- Draw Barrels ---
+  barrels.forEach(barrel => {
+    // Only show barrels that aren't destroyed (health > 0)
+    if (barrel.health <= 0) return;
+    
+    const screenCoords = worldToMinimap(barrel.posX, barrel.posY);
+    if (screenCoords) {
+      const iconSize = ENTITY_DOT_SIZE * 2; // Make barrels slightly larger for visibility
+      const radius = iconSize / 2;
+      const x = screenCoords.x;
+      const y = screenCoords.y;
+      
+      // Draw circular barrel icon (●)
+      ctx.save();
+      
+      // Draw black outline first
+      ctx.strokeStyle = RESOURCE_ICON_OUTLINE_COLOR;
+      ctx.lineWidth = RESOURCE_ICON_OUTLINE_WIDTH;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Fill with barrel color
+      ctx.fillStyle = BARREL_DOT_COLOR;
+      ctx.fill();
       
       ctx.restore();
     }

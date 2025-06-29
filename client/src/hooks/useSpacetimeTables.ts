@@ -136,6 +136,7 @@ export interface SpacetimeTableStates {
     wildAnimals: Map<string, SpacetimeDB.WildAnimal>;
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDB.AnimalCorpse>;
+    barrels: Map<string, SpacetimeDB.Barrel>; // ADDED barrels
 }   
 
 // Define the props the hook accepts
@@ -202,6 +203,7 @@ export const useSpacetimeTables = ({
     const [wildAnimals, setWildAnimals] = useState<Map<string, SpacetimeDB.WildAnimal>>(() => new Map());
     const [viperSpittles, setViperSpittles] = useState<Map<string, SpacetimeDBViperSpittle>>(() => new Map());
     const [animalCorpses, setAnimalCorpses] = useState<Map<string, SpacetimeDB.AnimalCorpse>>(() => new Map());
+    const [barrels, setBarrels] = useState<Map<string, SpacetimeDB.Barrel>>(() => new Map()); // ADDED barrels
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -413,7 +415,8 @@ export const useSpacetimeTables = ({
                                 `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`
+                                `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`
                             ];
                             newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
@@ -486,6 +489,7 @@ export const useSpacetimeTables = ({
                             newHandlesForChunk.push(timedSubscribe('RainCollector', `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WildAnimal', `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('Barrel', `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1120,15 +1124,22 @@ export const useSpacetimeTables = ({
                   setViperSpittles(prev => { const newMap = new Map(prev); newMap.delete(spittle.id.toString()); return newMap; });
               };
 
-              const handleAnimalCorpseInsert = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
-                  setAnimalCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
-              };
-              const handleAnimalCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.AnimalCorpse, newCorpse: SpacetimeDB.AnimalCorpse) => {
-                  setAnimalCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
-              };
-              const handleAnimalCorpseDelete = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
-                  setAnimalCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
-              };
+                          const handleAnimalCorpseInsert = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => new Map(prev).set(corpse.id.toString(), corpse));
+            };
+            const handleAnimalCorpseUpdate = (ctx: any, oldCorpse: SpacetimeDB.AnimalCorpse, newCorpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => new Map(prev).set(newCorpse.id.toString(), newCorpse));
+            };
+            const handleAnimalCorpseDelete = (ctx: any, corpse: SpacetimeDB.AnimalCorpse) => {
+                setAnimalCorpses(prev => { const newMap = new Map(prev); newMap.delete(corpse.id.toString()); return newMap; });
+            };
+
+            // Barrel handlers
+            const handleBarrelInsert = (ctx: any, barrel: SpacetimeDB.Barrel) => setBarrels(prev => new Map(prev).set(barrel.id.toString(), barrel));
+            const handleBarrelUpdate = (ctx: any, oldBarrel: SpacetimeDB.Barrel, newBarrel: SpacetimeDB.Barrel) => {
+                setBarrels(prev => new Map(prev).set(newBarrel.id.toString(), newBarrel));
+            };
+            const handleBarrelDelete = (ctx: any, barrel: SpacetimeDB.Barrel) => setBarrels(prev => { const newMap = new Map(prev); newMap.delete(barrel.id.toString()); return newMap; });
 
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
@@ -1259,10 +1270,15 @@ export const useSpacetimeTables = ({
               connection.db.viperSpittle.onUpdate(handleViperSpittleUpdate);
               connection.db.viperSpittle.onDelete(handleViperSpittleDelete);
 
-              // Register AnimalCorpse callbacks - NON-SPATIAL
-              connection.db.animalCorpse.onInsert(handleAnimalCorpseInsert);
-              connection.db.animalCorpse.onUpdate(handleAnimalCorpseUpdate);
-              connection.db.animalCorpse.onDelete(handleAnimalCorpseDelete);
+                          // Register AnimalCorpse callbacks - NON-SPATIAL
+            connection.db.animalCorpse.onInsert(handleAnimalCorpseInsert);
+            connection.db.animalCorpse.onUpdate(handleAnimalCorpseUpdate);
+            connection.db.animalCorpse.onDelete(handleAnimalCorpseDelete);
+
+            // Register Barrel callbacks - SPATIAL
+            connection.db.barrel.onInsert(handleBarrelInsert);
+            connection.db.barrel.onUpdate(handleBarrelUpdate);
+            connection.db.barrel.onDelete(handleBarrelDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -1603,5 +1619,6 @@ export const useSpacetimeTables = ({
           wildAnimals,
           viperSpittles,
           animalCorpses,
+          barrels, // ADDED barrels
       };
 }; 

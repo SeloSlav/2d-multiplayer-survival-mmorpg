@@ -33,16 +33,13 @@ interface AnimalMovementState {
 
 const animalMovementStates = new Map<string, AnimalMovementState>();
 
-// Interpolation settings
-const ANIMAL_INTERPOLATION_SPEED = 0.15; // How fast to interpolate (0.1 = slow, 0.5 = fast)
-const MAX_INTERPOLATION_DISTANCE = 100; // Don't interpolate if animal teleported more than this
+// Interpolation settings - UPDATED for high-speed animals (750-800 px/s)
+const ANIMAL_INTERPOLATION_SPEED = 0.35; // Faster interpolation for high-speed movement
+const MAX_INTERPOLATION_DISTANCE = 200; // Higher threshold - animals can move 93px in 125ms at 750px/s
 
 // --- Reusable Offscreen Canvas for Tinting ---
 const offscreenCanvas = document.createElement('canvas');
 const offscreenCtx = offscreenCanvas.getContext('2d');
-if (!offscreenCtx) {
-    console.error("Failed to get 2D context from offscreen canvas for wild animal rendering.");
-}
 
 // Re-export for convenience
 export type WildAnimal = SpacetimeDB.WildAnimal;
@@ -68,7 +65,6 @@ function getAnimalImageName(species: AnimalSpecies): string {
         case 'CableViper':
             return 'cable_viper.png';
         default:
-            console.warn(`Unknown animal species: ${(species as any).tag}, using cinder_fox as fallback`);
             return 'cinder_fox.png';
     }
 }
@@ -96,10 +92,6 @@ export function renderWildAnimal({
     localPlayerPosition
 }: WildAnimalRenderProps) {
     // REMOVED: No more burrowing state checks - all animals should always be visible
-    // Debug log for any problematic states
-    if (animal.state.tag === 'Burrowed' || animal.state.tag === 'Hiding') {
-        console.error(`🐛 [INVISIBLE BUG] Animal ${animal.id} has deprecated state: ${animal.state.tag} - this should not happen!`);
-    }
 
     const animalId = animal.id.toString();
     
@@ -126,7 +118,7 @@ export function renderWildAnimal({
         const dy = animal.posY - movementState.lastServerY;
         const distanceMoved = Math.sqrt(dx * dx + dy * dy);
         
-        if (distanceMoved > 1.0) { // Only update if animal moved more than 1 pixel
+        if (distanceMoved > 2.0) { // Only update if animal moved more than 2 pixels (reduced sensitivity for high-speed animals)
             // Check for teleportation (too far to interpolate)
             if (distanceMoved > MAX_INTERPOLATION_DISTANCE) {
                 // Teleportation detected - snap to new position
@@ -142,22 +134,26 @@ export function renderWildAnimal({
             movementState.lastUpdateTime = nowMs;
         }
         
-        // Use simple interpolation for smooth movement
-        if (localPlayerPosition) {
-            // Simple interpolation without collision prediction
-            const lerpX = movementState.interpolatedX + (movementState.targetX - movementState.interpolatedX) * ANIMAL_INTERPOLATION_SPEED;
-            const lerpY = movementState.interpolatedY + (movementState.targetY - movementState.interpolatedY) * ANIMAL_INTERPOLATION_SPEED;
-            
-            movementState.interpolatedX = lerpX;
-            movementState.interpolatedY = lerpY;
-        } else {
-            // Fallback to simple interpolation
-            const lerpX = movementState.interpolatedX + (movementState.targetX - movementState.interpolatedX) * ANIMAL_INTERPOLATION_SPEED;
-            const lerpY = movementState.interpolatedY + (movementState.targetY - movementState.interpolatedY) * ANIMAL_INTERPOLATION_SPEED;
-            
-            movementState.interpolatedX = lerpX;
-            movementState.interpolatedY = lerpY;
+        // Dynamic interpolation speed based on movement distance (auto-scales to any speed)
+        const distanceToTarget = Math.sqrt(
+            (movementState.targetX - movementState.interpolatedX) ** 2 + 
+            (movementState.targetY - movementState.interpolatedY) ** 2
+        );
+        
+        // Auto-adaptive speed based on how far behind we are (works for any animal speed)
+        let adaptiveSpeed = ANIMAL_INTERPOLATION_SPEED;
+        if (distanceToTarget > 40) { // Large gap = much faster catchup
+            adaptiveSpeed = 0.6;
+        } else if (distanceToTarget > 15) { // Medium gap = faster catchup  
+            adaptiveSpeed = 0.45;
         }
+        
+        // Use adaptive interpolation for smooth movement
+        const lerpX = movementState.interpolatedX + (movementState.targetX - movementState.interpolatedX) * adaptiveSpeed;
+        const lerpY = movementState.interpolatedY + (movementState.targetY - movementState.interpolatedY) * adaptiveSpeed;
+        
+        movementState.interpolatedX = lerpX;
+        movementState.interpolatedY = lerpY;
         
         // Use interpolated position for rendering
         renderPosX = movementState.interpolatedX;
@@ -179,7 +175,6 @@ export function renderWildAnimal({
                 effectStartTime: nowMs
             };
             animalHitStates.set(animalId, hitState);
-            console.log(`🎯 [COMBAT] Hit detected for wild animal ${animalId} at client time ${nowMs}`);
         }
         
         // Calculate effect timing based on when WE detected the hit
@@ -208,11 +203,6 @@ export function renderWildAnimal({
     if (animal.health > 0 && effectiveHitElapsed < ANIMAL_SHAKE_DURATION_MS) {
         shakeX = (Math.random() - 0.5) * 2 * ANIMAL_SHAKE_AMOUNT_PX;
         shakeY = (Math.random() - 0.5) * 2 * ANIMAL_SHAKE_AMOUNT_PX;
-        
-        // Debug log for troubleshooting
-        if (effectiveHitElapsed < 50) { // Only log within first 50ms to avoid spam
-            console.log(`🎯 [SHAKE] Wild animal ${animalId} shaking: elapsed=${effectiveHitElapsed.toFixed(1)}ms, isCurrentlyHit=${isCurrentlyHit}`);
-        }
     }
 
     // --- Flash Logic ---
@@ -220,11 +210,6 @@ export function renderWildAnimal({
 
     const imageName = getAnimalImageName(animal.species);
     const animalImage = imageManager.getImage(`/npcs/${imageName}`);
-    
-    // Debug logging for troubleshooting species rendering
-    if (Math.random() < 0.01) { // Log 1% of renders to avoid spam
-        console.log(`🦊 [ANIMAL RENDER] Rendering ${animal.species.tag} (ID: ${animalId}) with image: ${imageName}, loaded: ${animalImage?.complete}`);
-    }
     
     // Get fallback color for each species
     const getFallbackColor = (species: AnimalSpecies): string => {
@@ -244,11 +229,6 @@ export function renderWildAnimal({
 
     // No animals hide anymore - always fully visible
     const alpha = 1.0;
-    
-    // Debug logging for wolves specifically to track invisibility issues
-    if (animal.species.tag === 'TundraWolf' && Math.random() < 0.02) { // Log 2% of wolf renders
-        console.log(`🐺 [WOLF DEBUG] Rendering wolf ${animal.id} at (${renderPosX.toFixed(1)}, ${renderPosY.toFixed(1)}) - state: ${animal.state.tag}, alpha: ${alpha}, visible: true`);
-    }
     
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -353,11 +333,6 @@ export function renderWildAnimal({
     }
 
     ctx.restore();
-    
-    // Debug log successful render completion for wolves (to verify they're actually being rendered)
-    if (animal.species.tag === 'TundraWolf' && Math.random() < 0.01) { // Log 1% of wolf render completions
-        console.log(`🐺 [WOLF RENDER COMPLETE] Successfully rendered wolf ${animal.id} - health: ${animal.health}, state: ${animal.state.tag}`);
-    }
 }
 
 // Preload wild animal images using imageManager
@@ -367,8 +342,6 @@ export function preloadWildAnimalImages(): void {
     imagesToLoad.forEach(imageName => {
         imageManager.preloadImage(`/npcs/${imageName}`);
     });
-    
-    console.log('Preloading wild animal images:', imagesToLoad.map(name => `/npcs/${name}`));
 }
 
 // Helper function to check if coordinates are within animal bounds

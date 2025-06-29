@@ -75,6 +75,8 @@ use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 // Import animal corpse types
 use crate::wild_animal_npc::animal_corpse::{AnimalCorpse, ANIMAL_CORPSE_COLLISION_Y_OFFSET, animal_corpse as AnimalCorpseTableTrait};
+// Import barrel types
+use crate::barrel::{Barrel, BARREL_COLLISION_Y_OFFSET, barrel as BarrelTableTrait};
 // --- Game Balance Constants ---
 /// Time in milliseconds before a dead player can respawn
 pub const RESPAWN_TIME_MS: u64 = 5000; // 5 seconds
@@ -100,6 +102,7 @@ pub enum TargetId {
     RainCollector(u32), // ADDED: Rain collector target
     WildAnimal(u64), // ADDED: Wild animal target
     AnimalCorpse(u32), // ADDED: Animal corpse target
+    Barrel(u64), // ADDED: Barrel target
 }
 
 /// Represents a potential target within attack range
@@ -693,6 +696,53 @@ pub fn find_targets_in_cone(
         }
     }
     
+    // Check barrels
+    for barrel in ctx.db.barrel().iter() {
+        // Skip destroyed barrels
+        if barrel.health == 0.0 {
+            continue;
+        }
+        
+        let dx = barrel.pos_x - player.position_x;
+        let target_y = barrel.pos_y - BARREL_COLLISION_Y_OFFSET;
+        let dy = target_y - player.position_y;
+        let dist_sq = dx * dx + dy * dy;
+        
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                // Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for barrels
+                    player.position_x,
+                    player.position_y,
+                    barrel.pos_x,
+                    target_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack Barrel {}: line of sight blocked by shelter",
+                        player.identity, barrel.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
+                targets.push(Target {
+                    target_type: TargetType::Barrel,
+                    id: TargetId::Barrel(barrel.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
+    
     // Check Shelters - delegate to shelter module
     crate::shelter::add_shelter_targets_to_cone(ctx, player, attack_range, half_attack_angle_rad, forward_x, forward_y, &mut targets);
     
@@ -751,7 +801,8 @@ fn is_destructible_deployable(target_type: TargetType) -> bool {
         TargetType::SleepingBag | 
         TargetType::Stash |
         TargetType::Shelter |
-        TargetType::RainCollector
+        TargetType::RainCollector |
+        TargetType::Barrel // Includes barrels and other destructible deployables
     )
 }
 
@@ -2141,6 +2192,13 @@ pub fn process_attack(
                 return Err("Target animal corpse not found".to_string());
             }
         },
+        TargetId::Barrel(barrel_id) => {
+            if let Some(barrel) = ctx.db.barrel().id().find(barrel_id) {
+                (barrel.pos_x, barrel.pos_y - BARREL_COLLISION_Y_OFFSET, None)
+            } else {
+                return Err("Target barrel not found".to_string());
+            }
+        },
     };
 
     // Get attacker position
@@ -2234,6 +2292,14 @@ pub fn process_attack(
         },
         TargetId::AnimalCorpse(animal_corpse_id) => {
             damage_animal_corpse(ctx, attacker_id, *animal_corpse_id, damage, item_def, timestamp, rng)
+        },
+        TargetId::Barrel(barrel_id) => {
+            crate::barrel::damage_barrel(ctx, attacker_id, *barrel_id, damage, timestamp, rng)
+                .map(|_| AttackResult {
+                    hit: true,
+                    target_type: Some(TargetType::Barrel),
+                    resource_granted: None,
+                })
         },
     }
 }

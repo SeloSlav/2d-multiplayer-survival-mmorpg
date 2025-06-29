@@ -74,6 +74,7 @@ import {
     WildAnimal as SpacetimeDBWildAnimal,
     ViperSpittle as SpacetimeDBViperSpittle,
     AnimalCorpse as SpacetimeDBAnimalCorpse,
+    Barrel as SpacetimeDBBarrel, // ADDED Barrel import
 } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
@@ -124,6 +125,7 @@ interface GameScreenProps {
     wildAnimals: Map<string, SpacetimeDBWildAnimal>;
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDBAnimalCorpse>;
+    barrels: Map<string, SpacetimeDBBarrel>; // ADDED barrels
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -779,6 +781,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 wildAnimals={wildAnimals}
                 viperSpittles={viperSpittles}
                 animalCorpses={animalCorpses}
+                barrels={props.barrels}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}

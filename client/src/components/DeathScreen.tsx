@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated'; // Corrected import
+import { Player as SpacetimeDBPlayer, SleepingBag, Tree, Stone, Barrel, PlayerPin, Campfire, PlayerCorpse as SpacetimeDBPlayerCorpse, WorldState, DeathMarker as SpacetimeDBDeathMarker, MinimapCache } from '../generated'; // Corrected import
 import { drawMinimapOntoCanvas, MINIMAP_DIMENSIONS, worldToMinimapCoords, calculateMinimapViewport } from './Minimap'; // Import Minimap drawing and helpers
 import { gameConfig } from '../config/gameConfig'; // Import gameConfig
 
@@ -16,6 +16,7 @@ interface DeathScreenProps {
   players: Map<string, SpacetimeDBPlayer>;
   trees: Map<string, Tree>;
   stones: Map<string, Stone>;
+  barrels: Map<string, Barrel>;
   campfires: Map<string, Campfire>; // Use corrected type
   playerPin: PlayerPin | null;
   sleepingBagImage?: HTMLImageElement | null;
@@ -70,6 +71,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   players,
   trees,
   stones,
+  barrels,
   campfires,
   playerPin,
   sleepingBagImage,
@@ -197,6 +199,7 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
       players, // Pass all players for context if needed
       trees,
       stones,
+      barrels,
       campfires,
       sleepingBags: sleepingBagsStringKeys, // Use converted map with string keys
       localPlayer: undefined, // Explicitly pass undefined for localPlayer

@@ -18,7 +18,8 @@ import {
   Shelter, // ADDED Shelter type
   RainCollector as SpacetimeDBRainCollector, // ADDED RainCollector type
   WildAnimal as SpacetimeDBWildAnimal, // ADDED WildAnimal type
-  AnimalCorpse as SpacetimeDBAnimalCorpse // ADDED AnimalCorpse type
+  AnimalCorpse as SpacetimeDBAnimalCorpse, // ADDED AnimalCorpse type
+  Barrel as SpacetimeDBBarrel // ADDED Barrel type
 } from '../generated'; // Import necessary types
 import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
 
@@ -283,4 +284,25 @@ export function isKnockedOutPlayer(entity: any): entity is SpacetimeDBPlayer {
            // Ensure it's actually a player
            typeof entity.username === 'string' &&
            typeof entity.direction === 'string';
+}
+
+// Type guard for Barrel
+export function isBarrel(entity: any): entity is SpacetimeDBBarrel {
+    return entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' &&
+           typeof entity.health === 'number' &&
+           typeof entity.variant === 'number' && // Barrel variants (0, 1, 2)
+           typeof entity.clusterId === 'number' && // Barrel cluster ID
+           typeof entity.chunkIndex === 'number' &&
+           // Ensure it doesn't match other types
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree  
+           typeof entity.placedBy === 'undefined' && // Not a placed item
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           typeof entity.ownerIdentity === 'undefined' && // Not a PlayerCorpse or Stash
+           typeof entity.species === 'undefined' && // Not a WildAnimal
+           typeof entity.animalSpecies === 'undefined'; // Not an AnimalCorpse
 } 
