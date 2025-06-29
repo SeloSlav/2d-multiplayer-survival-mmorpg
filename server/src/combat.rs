@@ -1906,14 +1906,16 @@ pub fn damage_player_corpse(
     const BASE_CHANCE_FLESH: f64 = 0.30;
     const BASE_CHANCE_BONE: f64 = 0.20;
     // Multipliers for specific tools and general categories
-    const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
+    const BONE_KNIFE_MULTIPLIER: f64 = 8.0;
     const BONE_CLUB_MULTIPLIER: f64 = 3.0;
+    const MACHETE_MULTIPLIER: f64 = 7.0; // High effectiveness for sharp cutting tool
     const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
     const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1; // For non-primary items when harvesting corpses
 
     let effectiveness_multiplier = match item_def.name.as_str() {
         "Bone Knife" => BONE_KNIFE_MULTIPLIER,
         "Bone Club" => BONE_CLUB_MULTIPLIER,
+        "Machete" => MACHETE_MULTIPLIER,
         _ => {
             if item_def.primary_target_type == Some(TargetType::PlayerCorpse) {
                 PRIMARY_CORPSE_TOOL_MULTIPLIER
@@ -1936,6 +1938,7 @@ pub fn damage_player_corpse(
     let quantity_per_successful_hit = match item_def.name.as_str() {
         "Bone Knife" => rng.gen_range(3..=5),
         "Bone Club" => rng.gen_range(2..=4),
+        "Machete" => rng.gen_range(1..=3),
         _ => { // Default for other items
             if item_def.primary_target_type == Some(TargetType::PlayerCorpse) && item_def.category == ItemCategory::Tool {
                 rng.gen_range(1..=2) // Other primary tools for corpses
@@ -1980,6 +1983,7 @@ pub fn damage_player_corpse(
             let skulls_to_grant = match effectiveness_multiplier {
                 m if m == BONE_KNIFE_MULTIPLIER => 3, // Bone Knife
                 m if m == BONE_CLUB_MULTIPLIER => 2,  // Bone Club
+                m if m == MACHETE_MULTIPLIER => 1,  // Machete
                 // Includes PRIMARY_CORPSE_TOOL_MULTIPLIER (1.0) 
                 // and NON_PRIMARY_ITEM_MULTIPLIER (0.1) if it's a tool, resulting in 1 skull
                 _ => 1, 
@@ -2422,14 +2426,16 @@ pub fn damage_animal_corpse(
         crate::wild_animal_npc::animal_corpse::get_animal_loot_chances(animal_corpse.animal_species);
 
     // Determine tool effectiveness
-    const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
+    const BONE_KNIFE_MULTIPLIER: f64 = 8.0;
     const BONE_CLUB_MULTIPLIER: f64 = 3.0;
+    const MACHETE_MULTIPLIER: f64 = 7.0; // High effectiveness for sharp cutting tool
     const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
     const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1;
 
     let effectiveness_multiplier = match item_def.name.as_str() {
         "Bone Knife" => BONE_KNIFE_MULTIPLIER,
         "Bone Club" => BONE_CLUB_MULTIPLIER,
+        "Machete" => MACHETE_MULTIPLIER,
         _ => {
             if item_def.primary_target_type == Some(TargetType::AnimalCorpse) {
                 PRIMARY_CORPSE_TOOL_MULTIPLIER
@@ -2449,6 +2455,7 @@ pub fn damage_animal_corpse(
     let quantity_per_hit = match item_def.name.as_str() {
         "Bone Knife" => rng.gen_range(3..=5),
         "Bone Club" => rng.gen_range(2..=4),
+        "Machete" => rng.gen_range(1..=3),
         _ => {
             if item_def.primary_target_type == Some(TargetType::AnimalCorpse) && item_def.category == ItemCategory::Tool {
                 rng.gen_range(1..=2)
@@ -2518,6 +2525,23 @@ pub fn damage_animal_corpse(
                 "[DamageAnimalCorpse:{}] Failed to grant {} to Player {:?}: {}",
                 animal_corpse_id, skull_type, attacker_id, e
             ),
+        }
+        
+        // GUARANTEED: Cable Viper Gland drop for Cable Vipers (100% chance when corpse depleted)
+        if animal_corpse.animal_species == crate::wild_animal_npc::AnimalSpecies::CableViper {
+            match grant_resource(ctx, attacker_id, "Cable Viper Gland", 1) {
+                Ok(_) => {
+                    resources_granted.push(("Cable Viper Gland".to_string(), 1));
+                    log::info!(
+                        "[DamageAnimalCorpse:{}] Granted 1 Cable Viper Gland to Player {:?} (guaranteed viper drop).",
+                        animal_corpse_id, attacker_id
+                    );
+                }
+                Err(e) => log::error!(
+                    "[DamageAnimalCorpse:{}] Failed to grant Cable Viper Gland to Player {:?}: {}",
+                    animal_corpse_id, attacker_id, e
+                ),
+            }
         }
         
         // Delete the corpse entity
@@ -2623,7 +2647,7 @@ pub fn play_weapon_hit_sound(
     hit_pos_y: f32,
     attacker_id: Identity,
 ) {
-    if item_def.name == "Stone Hatchet" || item_def.name == "Stone Pickaxe" {
+    if item_def.name == "Stone Hatchet" || item_def.name == "Stone Pickaxe" || item_def.name == "Machete" {
         sound_events::emit_melee_hit_sharp_sound(ctx, hit_pos_x, hit_pos_y, attacker_id);
         log::debug!("Emitted melee_hit_sharp sound for {} hitting target", item_def.name);
     } else if item_def.name == "Wooden Spear" || item_def.name == "Stone Spear" || item_def.name == "Bone Knife" || item_def.name == "Bone Gaff Hook" {

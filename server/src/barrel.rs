@@ -85,23 +85,37 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
     let item_defs = ctx.db.item_definition();
     let mut loot_table = Vec::new();
     
-    // Define all loot entries as (name, min_qty, max_qty, drop_chance)
+    // Define all loot entries as (name, min_qty, max_qty, drop_chance)  
     let loot_definitions = [
         // --- COMMON TIER (60-80% drop rates) ---
         ("Rope", 1, 3, 0.75),                  // Essential crafting material
         ("Metal Fragments", 2, 4, 0.65),       // Crafting material  
         ("Wooden Arrow", 3, 8, 0.70),          // Basic ammunition
         ("Bandage", 1, 3, 0.60),               // Healing consumable
+        ("Tallow", 2, 5, 0.65),                // High-calorie consumable
         
         // --- UNCOMMON TIER (30-50% drop rates) ---
         ("Bone Arrow", 2, 5, 0.45),            // Better ammunition
         ("Hollow Reed Arrow", 2, 6, 0.40),     // Special ammunition
         ("Stone Hatchet", 1, 1, 0.35),         // Useful tool
-        ("Torch", 1, 2, 0.30),                 // Utility item
+        ("Torch", 1, 1, 0.30),                 // Utility item
+        ("Reed Water Bottle", 1, 2, 0.35),     // Water container
+        ("Tin of Sprats in Oil", 1, 2, 0.40),  // Quality preserved food
+        ("Wood", 25, 50, 0.45),                  // Basic crafting material
         
-        // --- RARE TIER (5-15% drop rates) ---
-        ("Hunting Bow", 1, 1, 0.12),           // Valuable weapon
-        ("Fire Arrow", 1, 3, 0.08),            // Special ammunition
+        // --- RARE TIER (10-25% drop rates) ---
+        ("Hunting Bow", 1, 1, 0.10),           // Ranged weapon
+        ("Fire Arrow", 1, 3, 0.15),            // Special ammunition
+        ("Machete", 1, 1, 0.12),               // Sharp melee weapon
+        ("Tin Can", 1, 2, 0.20),               // Metal source
+        ("Fermented Cabbage Jar", 1, 2, 0.20), // Specialty preserved food
+        ("Expired Soviet Chocolate", 1, 1, 0.18), // Morale boost treat
+        ("Mystery Can (Label Missing)", 1, 1, 0.15), // Mysterious find
+        ("Plastic Water Jug", 1, 1, 0.12),     // Large water storage
+        ("Anti-Venom", 1, 1, 0.15),            // Moved from ultra-rare to rare
+        
+        // --- ULTRA-RARE TIER (1-5% drop rates) ---
+        ("Scrap Batteries", 1, 2, 0.03),       // Ultra-rare electronics material
     ];
     
     // Process each loot definition

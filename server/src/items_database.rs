@@ -3,6 +3,49 @@ use crate::models::{EquipmentSlotType, TargetType};
 
 pub fn get_initial_item_definitions() -> Vec<ItemDefinition> {
     let initial_items = vec![
+        // --- MACHETE (ADVANCED WEAPON) ---
+        ItemDefinition {
+            id: 0,
+            name: "Machete".to_string(),
+            description: "A heavy-duty cutting tool that doubles as a formidable weapon. Can be thrown with devastating effect.".to_string(),
+            category: ItemCategory::Weapon,
+            icon_asset_name: "machete.png".to_string(),
+            is_stackable: false,
+            stack_size: 1,
+            is_equippable: true,
+            equipment_slot_type: None,
+            fuel_burn_duration_secs: None,
+            primary_target_damage_min: None,
+            primary_target_damage_max: None,
+            primary_target_yield_min: None,
+            primary_target_yield_max: None,
+            primary_target_type: None,
+            primary_yield_resource_name: None,
+            pvp_damage_min: Some(42),
+            pvp_damage_max: Some(42),
+            crafting_cost: Some(vec![
+                CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 30 },
+                CostIngredient { item_name: "Cloth".to_string(), quantity: 10 }, // For grip wrapping
+            ]),
+            crafting_output_quantity: Some(1),
+            crafting_time_secs: Some(45),
+            consumable_health_gain: None,
+            consumable_hunger_satiated: None,
+            consumable_thirst_quenched: None,
+            consumable_stamina_gain: None,
+            consumable_duration_secs: None,
+            bleed_damage_per_tick: Some(3.5),
+            bleed_duration_seconds: Some(10.0),
+            bleed_tick_interval_seconds: Some(1.0),
+            cook_time_secs: None,
+            cooked_item_def_name: None,
+            damage_resistance: None,
+            warmth_bonus: None,
+            respawn_time_seconds: Some(900), // 15 minutes - advanced weapon
+            attack_interval_secs: Some(1.1),
+        },
+
         // --- BASE RESOURCES ---
         ItemDefinition {
             id: 0,

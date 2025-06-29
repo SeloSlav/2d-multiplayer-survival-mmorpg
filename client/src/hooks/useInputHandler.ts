@@ -1471,7 +1471,8 @@ export const useInputHandler = ({
         const throwableNames = [
             "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
             "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
-            "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook"
+            "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook",
+            "Machete"
         ];
 
         const nameMatch = throwableNames.includes(itemDef.name);
