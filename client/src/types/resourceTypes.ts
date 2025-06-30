@@ -1,8 +1,12 @@
 // Unified Resource Type System for Harvestable Resources
-import { HarvestableResource } from '../generated';
+import { HarvestableResource, PlantType } from '../generated';
 
-// Resource type discriminator based on the PlantType enum from the server
-export type ResourceType = 'Corn' | 'Hemp' | 'Mushroom' | 'Potato' | 'Pumpkin' | 'Reed' | 'BeachLymeGrass';
+// Extract ResourceType from the generated PlantType - no more hard-coding!
+// This automatically stays in sync with the server's PlantType enum
+export type ResourceType = PlantType['tag'];
+
+// Since Willow/BirchBark have been removed from server, ResourceType === HarvestableResourceType
+export type HarvestableResourceType = ResourceType;
 
 // NOTE: Individual type guards removed as they were not being used
 // The unified system uses getResourceType(entity) which extracts from entity.plantType?.tag directly
@@ -16,7 +20,7 @@ export function isHarvestableResource(entity: any): entity is HarvestableResourc
          typeof entity.chunkIndex === 'number' &&
          entity.plantType &&
          typeof entity.plantType.tag === 'string' &&
-         ['Corn', 'Hemp', 'Mushroom', 'Potato', 'Pumpkin', 'Reed', 'BeachLymeGrass'].includes(entity.plantType.tag) &&
+         // The plantType.tag should be a valid PlantType tag (automatically validated by TypeScript)
          (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
 }
 

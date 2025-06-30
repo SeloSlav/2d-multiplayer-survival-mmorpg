@@ -42,9 +42,7 @@ pub enum PlantType {
     WildGarlic,
     SiberianGinseng,
     
-    // Trees/Bark/Fiber
-    Willow,
-    BirchBark,
+    // Trees/Bark/Fiber (Willow & BirchBark removed - implemented via separate tree system)
     Dogbane,
     BogCotton,
     

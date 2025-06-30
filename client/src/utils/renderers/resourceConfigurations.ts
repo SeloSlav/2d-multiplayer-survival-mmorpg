@@ -63,8 +63,8 @@ RESOURCE_CONFIGS.Potato = {
   targetWidth: 90
 };
 
-RESOURCE_CONFIGS.Hemp = {
-  ...RESOURCE_CONFIGS.Hemp,
+RESOURCE_CONFIGS.BorealNettle = {
+  ...RESOURCE_CONFIGS.BorealNettle,
   targetWidth: 90
 };
 
@@ -82,9 +82,6 @@ RESOURCE_CONFIGS.Reed = {
   ...RESOURCE_CONFIGS.Reed,
   targetWidth: 90
 };
-
-
-
 
 // Helper function to get configuration for a resource
 export function getResourceConfig(resourceType: ResourceType): ResourceConfig {
