@@ -1090,7 +1090,7 @@ fn count_nearby_group_members(ctx: &ReducerContext, animal: &WildAnimal) -> usiz
 }
 
 /// Find the closest fire source position for boundary calculation
-fn find_closest_fire_position(ctx: &ReducerContext, animal_x: f32, animal_y: f32) -> Option<(f32, f32)> {
+pub fn find_closest_fire_position(ctx: &ReducerContext, animal_x: f32, animal_y: f32) -> Option<(f32, f32)> {
     let mut closest_fire_pos: Option<(f32, f32)> = None;
     let mut closest_distance_sq = f32::MAX;
     
@@ -1156,6 +1156,40 @@ fn is_campfire_at_position(ctx: &ReducerContext, x: f32, y: f32) -> bool {
         // Check if position is very close to campfire (within 10px)
         if dx * dx + dy * dy <= 100.0 {
             return true;
+        }
+    }
+    false
+}
+
+// --- Anti-Exploit Functions (Fire Trap Escape) ---
+
+/// Detects if an animal is trapped by campfire and player has ranged weapon - the "animal farming" exploit
+pub fn is_animal_trapped_by_fire_and_ranged(ctx: &ReducerContext, animal: &WildAnimal, player: &Player) -> bool {
+    // Check if animal is near fire boundary (stuck due to fire fear)
+    if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+        let fire_distance = get_distance_squared(animal.pos_x, animal.pos_y, fire_x, fire_y).sqrt();
+        
+        // Check if animal is at fire boundary (180-220px from fire = trapped at edge)
+        const FIRE_FEAR_RADIUS: f32 = 200.0;
+        if fire_distance >= FIRE_FEAR_RADIUS * 0.9 && fire_distance <= FIRE_FEAR_RADIUS * 1.1 {
+            // Check if player has ranged weapon equipped
+            if has_ranged_weapon_equipped(ctx, player.identity) {
+                // Check if player is close enough to exploit (within 300px)
+                let player_distance = get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y).sqrt();
+                return player_distance <= 300.0;
+            }
+        }
+    }
+    false
+}
+
+/// Detects if a player has a ranged weapon (bow/crossbow) equipped
+pub fn has_ranged_weapon_equipped(ctx: &ReducerContext, player_id: Identity) -> bool {
+    if let Some(active_equipment) = ctx.db.active_equipment().player_identity().find(&player_id) {
+        if let Some(item_def_id) = active_equipment.equipped_item_def_id {
+            if let Some(item_def) = ctx.db.item_definition().id().find(item_def_id) {
+                return item_def.name == "Bow" || item_def.name == "Crossbow";
+            }
         }
     }
     false

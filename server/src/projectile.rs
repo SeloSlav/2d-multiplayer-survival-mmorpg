@@ -25,6 +25,7 @@ use crate::campfire::{Campfire, CAMPFIRE_COLLISION_RADIUS, CAMPFIRE_COLLISION_Y_
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 use crate::stash::{Stash, stash as StashTableTrait};
 use crate::sleeping_bag::{SleepingBag, SLEEPING_BAG_COLLISION_RADIUS, SLEEPING_BAG_COLLISION_Y_OFFSET, sleeping_bag as SleepingBagTableTrait};
+use crate::barrel::{Barrel, barrel as BarrelTableTrait};
 use crate::player_corpse::{PlayerCorpse, CORPSE_COLLISION_RADIUS, CORPSE_COLLISION_Y_OFFSET, player_corpse as PlayerCorpseTableTrait};
 
 // Import natural obstacle modules for collision detection
@@ -994,6 +995,57 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 }
                 
                 // Add projectile to dropped item system (with break chance) like shelters
+                missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                projectiles_to_delete.push(projectile.id);
+                hit_deployable_this_tick = true;
+                break;
+            }
+        }
+        
+        // Check barrel collisions
+        for barrel in ctx.db.barrel().iter() {
+            if barrel.health <= 0.0 {
+                continue; // Skip destroyed barrels
+            }
+            
+            // Use a more generous hit radius for projectiles and account for Y offset
+            const PROJECTILE_BARREL_HIT_RADIUS: f32 = 32.0; // Larger than collision radius (25.0)
+            const PROJECTILE_BARREL_Y_OFFSET: f32 = 48.0; // Same as collision Y offset for consistency
+            
+            let barrel_hit_y = barrel.pos_y - PROJECTILE_BARREL_Y_OFFSET;
+            
+            // Use line segment collision detection instead of just checking current position
+            if line_intersects_circle(prev_x, prev_y, current_x, current_y, barrel.pos_x, barrel_hit_y, PROJECTILE_BARREL_HIT_RADIUS) {
+                log::info!(
+                    "[ProjectileUpdate] Projectile {} from owner {:?} hit Barrel {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                    projectile.id, projectile.owner_id, barrel.id, prev_x, prev_y, current_x, current_y
+                );
+                
+                // Apply damage using existing barrel combat system
+                if let Some(weapon_item_def) = item_defs_table.id().find(projectile.item_def_id) {
+                    if let Some(ammo_item_def) = item_defs_table.id().find(projectile.ammo_def_id) {
+                        let final_damage = calculate_projectile_damage(&weapon_item_def, &ammo_item_def, &projectile, &mut rng);
+
+                        if final_damage > 0.0 {
+                            match crate::barrel::damage_barrel(ctx, projectile.owner_id, barrel.id, final_damage, current_time, &mut rng) {
+                                Ok(()) => {
+                                    log::info!(
+                                        "[ProjectileUpdate] Projectile {} dealt {:.1} damage to Barrel {}",
+                                        projectile.id, final_damage, barrel.id
+                                    );
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "[ProjectileUpdate] Error applying projectile damage to Barrel {}: {}",
+                                        barrel.id, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Add projectile to dropped item system (with break chance) like other hits
                 missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
                 projectiles_to_delete.push(projectile.id);
                 hit_deployable_this_tick = true;

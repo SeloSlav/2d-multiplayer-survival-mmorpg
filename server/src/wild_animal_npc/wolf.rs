@@ -102,6 +102,28 @@ impl AnimalBehavior for TundraWolfBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
+        // 🔥 FIRE TRAP ESCAPE LOGIC - Override normal behavior when trapped by campfire + ranged weapon
+        if let Some(player) = detected_player {
+            if super::core::is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
+                // Force flee even though wolves normally never flee
+                animal.state = AnimalState::Fleeing;
+                animal.target_player_id = None;
+                animal.state_change_time = current_time;
+                
+                // Set flee destination away from BOTH fire AND player
+                if let Some((fire_x, fire_y)) = super::core::find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+                    let flee_angle = calculate_escape_angle(animal.pos_x, animal.pos_y, fire_x, fire_y, player.position_x, player.position_y);
+                    let flee_distance = 600.0; // Flee far away (12+ tiles)
+                    animal.investigation_x = Some(animal.pos_x + flee_distance * flee_angle.cos());
+                    animal.investigation_y = Some(animal.pos_y + flee_distance * flee_angle.sin());
+                    
+                    log::info!("🔥 Tundra Wolf {} ESCAPING fire trap! Player {} with ranged weapon detected at campfire.", 
+                              animal.id, player.identity);
+                    return Ok(()); // Skip normal AI logic
+                }
+            }
+        }
+
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
@@ -337,4 +359,26 @@ impl AnimalBehavior for TundraWolfBehavior {
         
         Ok(())
     }
-} 
+}
+
+
+
+/// Calculates escape angle away from both fire source AND player position
+fn calculate_escape_angle(wolf_x: f32, wolf_y: f32, fire_x: f32, fire_y: f32, player_x: f32, player_y: f32) -> f32 {
+    // Vector away from fire
+    let away_from_fire_x = wolf_x - fire_x;
+    let away_from_fire_y = wolf_y - fire_y;
+    
+    // Vector away from player
+    let away_from_player_x = wolf_x - player_x;
+    let away_from_player_y = wolf_y - player_y;
+    
+    // Combine vectors (weighted more toward escaping fire)
+    let combined_x = away_from_fire_x * 0.7 + away_from_player_x * 0.3;
+    let combined_y = away_from_fire_y * 0.7 + away_from_player_y * 0.3;
+    
+    // Calculate angle
+    combined_y.atan2(combined_x)
+}
+
+ 

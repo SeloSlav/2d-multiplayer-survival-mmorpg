@@ -150,6 +150,21 @@ impl AnimalBehavior for CinderFoxBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
+        // 🔥 FIRE TRAP ESCAPE LOGIC - Override normal behavior when trapped by campfire + ranged weapon
+        if let Some(player) = detected_player {
+            if super::core::is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
+                // Force flee even though foxes might be attacking weak players
+                Self::set_fox_flee_destination(animal, player.position_x, player.position_y, rng);
+                animal.state = AnimalState::Fleeing;
+                animal.target_player_id = None;
+                animal.state_change_time = current_time;
+                
+                log::info!("🔥 Cinder Fox {} ESCAPING fire trap! Player {} with ranged weapon detected at campfire.", 
+                          animal.id, player.identity);
+                return Ok(()); // Skip normal AI logic
+            }
+        }
+
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
@@ -435,4 +450,6 @@ impl AnimalBehavior for CinderFoxBehavior {
         animal.state_change_time = current_time;
         Ok(())
     }
-} 
+}
+
+ 

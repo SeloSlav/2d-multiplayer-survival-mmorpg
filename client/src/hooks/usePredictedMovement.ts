@@ -162,10 +162,12 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       movementMonitor.logUpdate(0, false, true);
     }
 
-    // Track server facing direction updates
-    if (localPlayer.direction && localPlayer.direction !== lastFacingDirection.current) {
-      lastFacingDirection.current = localPlayer.direction;
-    }
+    // CLIENT IS AUTHORITATIVE FOR DIRECTION - No server override needed
+    // The server just echoes back our client-calculated direction with latency,
+    // which causes twitching in production. Client direction is already accurate.
+    // if (localPlayer.direction && localPlayer.direction !== lastFacingDirection.current) {
+    //   lastFacingDirection.current = localPlayer.direction;
+    // }
 
     serverPositionRef.current = newServerPos;
   }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.direction]);

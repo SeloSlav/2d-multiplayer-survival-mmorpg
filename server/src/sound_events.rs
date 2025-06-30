@@ -763,7 +763,7 @@ pub fn start_campfire_sound(ctx: &ReducerContext, campfire_id: u64, pos_x: f32, 
     let unique_id = create_unique_object_id("campfire", campfire_id);
     log::info!("🔥 STARTING CAMPFIRE SOUND for campfire {} (unique_id: {}) at ({:.1}, {:.1})", 
               campfire_id, unique_id, pos_x, pos_y);
-    if let Err(e) = start_continuous_sound(ctx, unique_id, SoundType::CampfireLooping, pos_x, pos_y, 0.6, 525.0) {
+    if let Err(e) = start_continuous_sound(ctx, unique_id, SoundType::CampfireLooping, pos_x, pos_y, 1.0, 525.0) {
         log::error!("Failed to start campfire sound: {}", e);
     }
 }

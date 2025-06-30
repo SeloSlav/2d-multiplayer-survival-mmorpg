@@ -34,7 +34,7 @@ const SOUND_DEFINITIONS = {
     eating_food: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.5, maxDistance: 600 }, // Eating food sound
     filling_container: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 700 },
     // Continuous/looping sounds - server managed
-    campfire_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.6, maxDistance: 525, isLooping: true },
+    campfire_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525, isLooping: true },
     lantern_looping: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 525, isLooping: true },
     // Repair sounds - server only (triggered by repair actions)
     repair: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 525 },
@@ -1103,7 +1103,9 @@ export const useSoundSystem = ({
                         const success = await createSeamlessLoopingSound(objectId, continuousSound.filename, volume, pitchVariation);
                         
                         if (success) {
-                            // console.log(`🎵 Successfully started seamless looping sound: ${continuousSound.filename} for object ${objectId}`);
+                            const soundTypeEmoji = continuousSound.filename.includes('campfire') ? '🔥' : 
+                                                  continuousSound.filename.includes('lantern') ? '🏮' : '🎵';
+                            console.log(`${soundTypeEmoji} Successfully started seamless looping sound: ${continuousSound.filename} for object ${objectId} at volume ${volume.toFixed(3)}`);
                         } else {
                             console.warn(`🎵 Failed to start seamless looping, falling back to traditional loop for ${objectId}`);
                             // Fall back to traditional looping
@@ -1130,7 +1132,9 @@ export const useSoundSystem = ({
                         
                         // Start playing
                         await audioClone.play();
-                        // console.log(`🔊 Successfully started traditional looping sound: ${continuousSound.filename} for object ${objectId}`);
+                        const soundTypeEmoji = continuousSound.filename.includes('campfire') ? '🔥' : 
+                                              continuousSound.filename.includes('lantern') ? '🏮' : '🔊';
+                        console.log(`${soundTypeEmoji} Successfully started traditional looping sound: ${continuousSound.filename} for object ${objectId} at volume ${volume.toFixed(3)}`);
                     }
                     
                     // Clear pending creation flag (for both types)
