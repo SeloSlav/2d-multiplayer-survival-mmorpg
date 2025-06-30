@@ -1,0 +1,1 @@
+for<'a> fn(&'a ReducerContext) -> Vec<PlantMetadata> {get_plant_metadata}

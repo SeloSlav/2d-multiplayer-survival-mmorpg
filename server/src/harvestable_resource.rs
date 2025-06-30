@@ -115,10 +115,12 @@ pub fn interact_with_harvestable_resource(ctx: &ReducerContext, resource_id: u64
     )?;
 
     // Try to grant seed drops after successful harvest
+    // Pass the plant entity name (not the yield item name) for proper seed mapping
+    let plant_entity_name = crate::plants_database::plant_type_to_entity_name(&resource.plant_type);
     crate::collectible_resources::try_grant_seed_drops(
         ctx,
         player_id,
-        &config.primary_yield.0,
+        plant_entity_name,
         &mut ctx.rng().clone(),
     )?;
 

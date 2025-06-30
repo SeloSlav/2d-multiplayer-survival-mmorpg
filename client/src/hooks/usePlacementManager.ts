@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { DbConnection } from '../generated'; // Import connection type
-import { ItemDefinition } from '../generated'; // Import ItemDefinition for type info
+import { DbConnection, ItemDefinition } from '../generated'; // Import connection type and ItemDefinition
 import { TILE_SIZE } from '../config/gameConfig';
+import { isSeedItemValid, requiresWaterPlacement } from '../utils/plantsUtils';
 
 // Minimum distance between planted seeds (in pixels)
 const MIN_SEED_DISTANCE = 20;
@@ -137,18 +137,18 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
     return false;
   }
 
-  // Special case: Reed Rhizomes require water near shore
-  if (placementInfo.itemName === 'Reed Rhizome') {
+  // Special case: Seeds that require water placement (like Reed Rhizome)
+  if (requiresWaterPlacement(placementInfo.itemName)) {
     return isReedRhizomePlacementBlocked(connection, worldX, worldY);
   }
 
   // List of items that cannot be placed on water
   const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector'];
   
-  // Other seeds (not Reed Rhizome) cannot be planted on water
-  const otherSeeds = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Pumpkin Seeds'];
+  // Seeds that don't require water (most seeds) cannot be planted on water
+  const isSeedButNotWaterSeed = isSeedItemValid(placementInfo.itemName) && !requiresWaterPlacement(placementInfo.itemName);
   
-  if (waterBlockedItems.includes(placementInfo.itemName) || otherSeeds.includes(placementInfo.itemName)) {
+  if (waterBlockedItems.includes(placementInfo.itemName) || isSeedButNotWaterSeed) {
     return isPositionOnWater(connection, worldX, worldY);
   }
   
@@ -207,8 +207,8 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
     if (!isPlacing || !placementInfo || !connection) return;
     
     // Only apply this logic to seeds
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
-    if (!seedItems.includes(placementInfo.itemName)) return;
+          // Dynamic seed detection using plant utils - no more hardcoding!
+      if (!isSeedItemValid(placementInfo.itemName)) return;
     
     // Check if the item still exists by directly examining the inventory
     let itemFound = false;
@@ -302,24 +302,19 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeRainCollector(placementInfo.instanceId, worldX, worldY);
           // Assume App.tsx will need a handleRainCollectorInsert callback to cancel placement on success
           break;
-                // Seed planting cases
-        case 'Mushroom Spores':
-        case 'Hemp Seeds':
-        case 'Corn Seeds':
-        case 'Seed Potato':
-        case 'Reed Rhizome':
-        case 'Pumpkin Seeds':
-          console.log(`[PlacementManager] Calling plantSeed reducer with instance ID: ${placementInfo.instanceId}`);
-          connection.reducers.plantSeed(placementInfo.instanceId, worldX, worldY);
-          // Note: Don't auto-cancel placement for seeds - let the system check if there are more seeds
-          // The placement will be cancelled externally when the stack is empty or user switches slots
-          break;
-        
         default:
-          console.error(`[PlacementManager] Unknown item type for placement: ${placementInfo.itemName}`);
-          setPlacementError(`Cannot place item: Unknown type '${placementInfo.itemName}'.`);
-          // Optionally call cancelPlacement here if placement is impossible?
-          // cancelPlacement(); 
+          // Check if it's a plantable seed using dynamic detection
+          if (isSeedItemValid(placementInfo.itemName)) {
+            console.log(`[PlacementManager] Calling plantSeed reducer with instance ID: ${placementInfo.instanceId}`);
+            connection.reducers.plantSeed(placementInfo.instanceId, worldX, worldY);
+            // Note: Don't auto-cancel placement for seeds - let the system check if there are more seeds
+            // The placement will be cancelled externally when the stack is empty or user switches slots
+          } else {
+            console.error(`[PlacementManager] Unknown item type for placement: ${placementInfo.itemName}`);
+            setPlacementError(`Cannot place item: Unknown type '${placementInfo.itemName}'.`);
+            // Optionally call cancelPlacement here if placement is impossible?
+            // cancelPlacement(); 
+          }
           break;
       }
     } catch (err: any) {
@@ -336,4 +331,4 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
   const placementActions: PlacementActions = { startPlacement, cancelPlacement, attemptPlacement };
 
   return [placementState, placementActions];
-}; 
+};

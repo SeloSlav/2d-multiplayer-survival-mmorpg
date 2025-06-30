@@ -11,7 +11,7 @@ import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroun
 import { imageManager } from './imageManager'; // Import image manager
 
 // Define constants for tree rendering
-const TARGET_TREE_WIDTH_PX = 480; // Target width on screen (doubled from 240, originally 160)
+const TARGET_TREE_WIDTH_PX = 480; // Target width on screen (base size for tallest tree - Sitka Spruce)
 const TREE_HEIGHT = 120;
 const SHAKE_DURATION_MS = 500;
 const SHAKE_INTENSITY_PX = 8;
@@ -59,18 +59,44 @@ const treeConfig: GroundEntityConfig<Tree> = {
         return downyOakImage; 
     },
 
-    getTargetDimensions: (img, _entity) => {
-        // Calculate scaling factor based on target width
-        const scaleFactor = TARGET_TREE_WIDTH_PX / img.naturalWidth;
+    getTargetDimensions: (img, entity) => {
+        // Get tree-specific width based on real-world tree heights
+        // Sitka Spruce (DownyOak) is the tallest at 480px, others scale down from there
+        let targetWidth = TARGET_TREE_WIDTH_PX; // Default size
+        
+        // Determine tree type and set appropriate size
+        const treeTypeTag = (typeof entity.treeType === 'object' && entity.treeType !== null && 'tag' in entity.treeType) 
+            ? (entity.treeType as any).tag 
+            : entity.treeType;
+            
+        switch (treeTypeTag) {
+            case 'DownyOak': // Sitka Spruce - TALLEST (reference height)
+                targetWidth = 480; // Full size (same as old uniform height)
+                break;
+            case 'MannaAsh': // Mountain Hemlock - MEDIUM
+                targetWidth = 400; // 17% shorter than Sitka Spruce
+                break;
+            case 'AleppoPine': // Siberian Birch - SHORTEST  
+                targetWidth = 320; // 33% shorter than Sitka Spruce
+                break;
+            case 'StonePine': // Sitka Alder - MEDIUM-SHORT
+                targetWidth = 360; // 25% shorter than Sitka Spruce
+                break;
+            default:
+                targetWidth = TARGET_TREE_WIDTH_PX; // Fallback to Sitka Spruce size
+        }
+        
+        // Calculate scaling factor based on tree-specific target width
+        const scaleFactor = targetWidth / img.naturalWidth;
         return {
-            width: TARGET_TREE_WIDTH_PX,
+            width: targetWidth,
             height: img.naturalHeight * scaleFactor,
         };
     },
 
-    calculateDrawPosition: (entity, _drawWidth, drawHeight) => ({
+    calculateDrawPosition: (entity, drawWidth, drawHeight) => ({
         // Top-left corner for image drawing, originating from entity's base Y
-        drawX: entity.posX - TARGET_TREE_WIDTH_PX / 2, 
+        drawX: entity.posX - drawWidth / 2, 
         drawY: entity.posY - drawHeight, 
     }),
 
@@ -173,15 +199,18 @@ export function renderTree(
     // First get the actual tree image dimensions to calculate the real tree bounds
     const imageSource = treeConfig.getImageSource(tree);
     const image = imageSource ? imageManager.getImage(imageSource) : null;
-    const actualTreeHeight = image ? (image.naturalHeight * (TARGET_TREE_WIDTH_PX / image.naturalWidth)) : (TARGET_TREE_WIDTH_PX * 0.8);
     
-    const treeImageTop = tree.posY - actualTreeHeight; // Actual top of the tree image
-    const treeImageBottom = tree.posY; // Tree base position
+    let shouldApplyTransparency = false;
     
-    const shouldApplyTransparency = localPlayerPosition && 
-                                   localPlayerPosition.y >= treeImageTop && // Player is below the actual top of tree image
-                                   localPlayerPosition.y <= treeImageBottom && // Player is above the tree base
-                                   Math.abs(localPlayerPosition.x - tree.posX) < (TARGET_TREE_WIDTH_PX * 0.6); // Within reasonable tree width
+    if (image && localPlayerPosition) {
+        const dimensions = treeConfig.getTargetDimensions(image, tree);
+        const treeImageTop = tree.posY - dimensions.height; // Actual top of the tree image
+        const treeImageBottom = tree.posY; // Tree base position
+        
+        shouldApplyTransparency = localPlayerPosition.y >= treeImageTop && // Player is below the actual top of tree image
+                                 localPlayerPosition.y <= treeImageBottom && // Player is above the tree base
+                                 Math.abs(localPlayerPosition.x - tree.posX) < (dimensions.width * 0.6); // Within reasonable tree width
+    }
 
     // Apply transparency by modifying canvas global alpha if needed
     if (shouldApplyTransparency && !onlyDrawShadow) {

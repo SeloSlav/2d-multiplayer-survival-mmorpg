@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ItemDefinition, InventoryItem, DbConnection, Campfire as SpacetimeDBCampfire, HotbarLocationData, EquipmentSlotType, Stash, Player, ActiveConsumableEffect, ActiveEquipment } from '../generated';
 import { Identity, Timestamp } from '@clockworklabs/spacetimedb-sdk';
 import { isWaterContainer, hasWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
+import { isPlantableSeed } from '../utils/plantsUtils';
 
 // Import Custom Components
 import DraggableItem from './DraggableItem';
@@ -686,8 +687,8 @@ const Hotbar: React.FC<HotbarProps> = ({
         isCurrentlySelected;
       
       // Special handling for seeds - keep placement active if we have more in the stack
-      const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
-      const isSeed = seedItems.includes(itemInSlot.definition.name);
+              // Dynamic seed list using plant utils - no more hardcoding!
+        const isSeed = isPlantableSeed(itemInSlot.definition);
       
       if (isAlreadyPlacingThisItem && isSeed && !isMouseWheelScroll) {
         // Already placing this seed type and clicking the same slot again - keep placement active

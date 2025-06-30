@@ -21,6 +21,7 @@ use rand::Rng;
 // Table trait imports for database access
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::player as PlayerTableTrait;
+use crate::plants_database::{PlantType, plant_type_to_entity_name, get_plant_type_by_entity_name, has_seed_drops, get_seed_type_for_plant};
 
 // --- Shared Interaction Constants ---
 /// Base interaction radius for collectible resources
@@ -185,108 +186,80 @@ pub trait RespawnableResource {
     fn set_respawn_at(&mut self, time: Option<Timestamp>);
 }
 
+
+
 // --- Seed Drop System ---
+// Now completely driven by plants_database.rs configuration
 
-/// Seed drop configuration for different resources
-struct SeedDropConfig {
-    seed_item_name: &'static str,
-    drop_chance: f32, // 0.0 to 1.0
-    min_seeds: u32,   // Minimum seeds to drop
-    max_seeds: u32,   // Maximum seeds to drop
-}
+/// Standard seed drop configuration (using plants_database.rs values)
+/// All plants now use the same drop pattern: 1-2 seeds with varying chances based on plant config
+const MIN_SEEDS_PER_DROP: u32 = 1;
+const MAX_SEEDS_PER_DROP: u32 = 2;
 
-/// Mapping of harvestable resources to their corresponding seed drops
-/// Balanced for sustainable farming with growth potential - expected seed return > 1.0
-fn get_seed_drop_config(resource_name: &str) -> Option<SeedDropConfig> {
-    match resource_name {
-        "Potato" => Some(SeedDropConfig {
-            seed_item_name: "Seed Potato",
-            drop_chance: 0.70, // 70% chance - Expected: 0.7 × 1.5 = 1.05 seeds
-            min_seeds: 1,      // 1-2 seeds per harvest
-            max_seeds: 2,
-        }),
-        "Corn" => Some(SeedDropConfig {
-            seed_item_name: "Corn Seeds", 
-            drop_chance: 0.65, // 65% chance - Expected: 0.65 × 1.5 = 0.975 seeds
-            min_seeds: 1,      // 1-2 seeds per harvest (slightly below 1.0 since corn is valuable food)
-            max_seeds: 2,
-        }),
-        "Pumpkin" => Some(SeedDropConfig {
-            seed_item_name: "Pumpkin Seeds",
-            drop_chance: 0.80, // 80% chance - Expected: 0.8 × 1.5 = 1.2 seeds
-            min_seeds: 1,      // 1-2 seeds per harvest (good growth due to long grow time)
-            max_seeds: 2,
-        }),
-        "Plant Fiber" => Some(SeedDropConfig { // Note: hemp primary yield is "Plant Fiber"
-            seed_item_name: "Hemp Seeds",
-            drop_chance: 0.75, // 75% chance - Expected: 0.75 × 1.5 = 1.125 seeds
-            min_seeds: 1,      // 1-2 seeds per harvest (essential for crafting)
-            max_seeds: 2,
-        }),
-        "Common Reed Stalk" => Some(SeedDropConfig {
-            seed_item_name: "Reed Rhizome",
-            drop_chance: 0.60, // 60% chance - Expected: 0.6 × 1.5 = 0.9 seeds
-            min_seeds: 1,      // 1-2 rhizomes per harvest (building material, slower growth)
-            max_seeds: 2,
-        }),
-        "Mushroom" => Some(SeedDropConfig {
-            seed_item_name: "Mushroom Spores",
-            drop_chance: 0.85, // 85% chance - Expected: 0.85 × 1.5 = 1.275 seeds
-            min_seeds: 1,      // 1-2 spores per harvest (basic food, fast growth, most sustainable)
-            max_seeds: 2,
-        }),
-        _ => None, // No seed drops for other resources
+/// Get seed drop configuration from the central plants database
+/// Returns Some if the plant has seeds configured, None otherwise
+fn get_seed_drop_config_from_database(plant_entity_name: &str) -> Option<(String, f32)> {
+    // Convert entity name back to PlantType
+    let plant_type = get_plant_type_by_entity_name(plant_entity_name)?;
+    
+    // Check if this plant type has seed drops configured
+    if !has_seed_drops(&plant_type) {
+        return None;
     }
+    
+    // Get seed type and drop chance from the central database
+    let seed_type = get_seed_type_for_plant(&plant_type)?.to_string();
+    let drop_chance = crate::plants_database::get_plant_config(&plant_type)?.seed_drop_chance;
+    
+    Some((seed_type, drop_chance))
 }
 
-/// Attempts to grant seed drops to a player based on the harvested resource
+/// Attempts to grant seed drops to a player based on the harvested plant entity
 ///
 /// This function is called after successful resource collection to potentially
 /// give the player seeds that can be planted to grow more of that resource.
+/// Pass the actual PLANT ENTITY NAME (not the yield item name).
+/// Now uses centralized plants_database.rs configuration.
 pub fn try_grant_seed_drops(
     ctx: &ReducerContext,
     player_id: Identity,
-    harvested_resource_name: &str,
+    plant_entity_name: &str,
     rng: &mut impl Rng,
 ) -> Result<(), String> {
-    // Check if this resource has seed drops configured
-    let seed_config = match get_seed_drop_config(harvested_resource_name) {
+    // Check if this plant entity has seed drops configured (from central database)
+    let (seed_type, drop_chance) = match get_seed_drop_config_from_database(plant_entity_name) {
         Some(config) => config,
         None => {
-            // No seed drops for this resource, that's fine
+            // No seed drops for this plant entity, that's fine
             return Ok(());
         }
     };
 
-    // Roll for seed drop chance
-    if rng.gen::<f32>() < seed_config.drop_chance {
+    // Roll for seed drop chance (now from plants_database.rs)
+    if rng.gen::<f32>() < drop_chance {
         let item_defs = ctx.db.item_definition();
         
         // Find the seed item definition
         let seed_item_def = item_defs.iter()
-            .find(|def| def.name == seed_config.seed_item_name)
-            .ok_or_else(|| format!("Seed item definition '{}' not found", seed_config.seed_item_name))?;
+            .find(|def| def.name == seed_type)
+            .ok_or_else(|| format!("Seed item definition '{}' not found", seed_type))?;
 
-        // Calculate how many seeds to give (between min and max)
-        let seed_amount = if seed_config.min_seeds >= seed_config.max_seeds {
-            seed_config.min_seeds // If min >= max, give min amount
-        } else {
-            rng.gen_range(seed_config.min_seeds..=seed_config.max_seeds)
-        };
+        // Calculate how many seeds to give (standard 1-2 range for all plants)
+        let seed_amount = rng.gen_range(MIN_SEEDS_PER_DROP..=MAX_SEEDS_PER_DROP);
 
         // Give seeds to the player (or drop near player if inventory full)
         match crate::dropped_item::try_give_item_to_player(ctx, player_id, seed_item_def.id, seed_amount) {
             Ok(added_to_inventory) => {
                 if added_to_inventory {
                     log::info!("Player {:?} received {} seed drop(s): {} (added to inventory) from harvesting {}.", 
-                              player_id, seed_amount, seed_config.seed_item_name, harvested_resource_name);
+                              player_id, seed_amount, seed_type, plant_entity_name);
                 } else {
                     log::info!("Player {:?} received {} seed drop(s): {} (dropped near player - inventory full) from harvesting {}.", 
-                              player_id, seed_amount, seed_config.seed_item_name, harvested_resource_name);
+                              player_id, seed_amount, seed_type, plant_entity_name);
                 }
             }
             Err(e) => {
-                log::error!("Failed to give {} seed drop(s) {} to player {:?}: {}", seed_amount, seed_config.seed_item_name, player_id, e);
+                log::error!("Failed to give {} seed drop(s) {} to player {:?}: {}", seed_amount, seed_type, player_id, e);
                 // Don't return error - seed drop failure shouldn't stop main harvest
             }
         }

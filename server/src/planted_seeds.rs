@@ -61,49 +61,20 @@ pub struct PlantedSeedGrowthSchedule {
 }
 
 // --- Growth Configuration ---
+// Now using centralized plants_database.rs configuration
 
-/// Growth time configuration for different seed types
-struct GrowthConfig {
-    min_growth_time_secs: u64,
-    max_growth_time_secs: u64,
-    plant_type: PlantType, // Changed from target_resource_name to plant_type
-}
-
-/// Get growth configuration for a seed type
-fn get_growth_config(seed_type: &str) -> Option<GrowthConfig> {
-    match seed_type {
-        "Mushroom Spores" => Some(GrowthConfig {
-            min_growth_time_secs: 300,  // 5 minutes
-            max_growth_time_secs: 600,  // 10 minutes
-            plant_type: PlantType::Mushroom,
-        }),
-        "Hemp Seeds" => Some(GrowthConfig {
-            min_growth_time_secs: 480,  // 8 minutes
-            max_growth_time_secs: 900,  // 15 minutes
-            plant_type: PlantType::Hemp,
-        }),
-        "Corn Seeds" => Some(GrowthConfig {
-            min_growth_time_secs: 900,  // 15 minutes
-            max_growth_time_secs: 1500, // 25 minutes
-            plant_type: PlantType::Corn,
-        }),
-        "Seed Potato" => Some(GrowthConfig {
-            min_growth_time_secs: 1200, // 20 minutes
-            max_growth_time_secs: 1800, // 30 minutes
-            plant_type: PlantType::Potato,
-        }),
-        "Pumpkin Seeds" => Some(GrowthConfig {
-            min_growth_time_secs: 1500, // 25 minutes
-            max_growth_time_secs: 2400, // 40 minutes
-            plant_type: PlantType::Pumpkin,
-        }),
-        "Reed Rhizome" => Some(GrowthConfig {
-            min_growth_time_secs: 600,  // 10 minutes
-            max_growth_time_secs: 1200, // 20 minutes
-            plant_type: PlantType::Reed,
-        }),
-        _ => None,
-    }
+/// Get growth configuration for a seed type from the central plants database
+fn get_growth_config_from_database(seed_type: &str) -> Option<(u64, u64, PlantType)> {
+    // Convert seed type to plant type using centralized metadata provider
+    let plant_type = crate::metadata_providers::get_plant_type_from_seed_name(seed_type)?;
+    
+    // Get the plant config from the central database
+    let config = crate::plants_database::get_plant_config(&plant_type)?;
+    
+    // Return (min_growth_time_secs, max_growth_time_secs, plant_type)
+    // Growth time comes from the central database's min/max_respawn_time_secs
+    // For planted seeds, we use the respawn times as base growth times
+    Some((config.min_respawn_time_secs, config.max_respawn_time_secs, plant_type))
 }
 
 // --- Constants ---
@@ -499,8 +470,8 @@ pub fn plant_seed(
     
     log::info!("PLANT_SEED: Item definition found: {}", item_def.name);
     
-    // Verify it's a plantable seed
-    let growth_config = get_growth_config(&item_def.name)
+    // Verify it's a plantable seed (using centralized database)
+    let (min_growth_time_secs, max_growth_time_secs, plant_type) = get_growth_config_from_database(&item_def.name)
         .ok_or_else(|| {
             log::error!("PLANT_SEED: '{}' is not a plantable seed", item_def.name);
             format!("'{}' is not a plantable seed", item_def.name)
@@ -514,11 +485,11 @@ pub fn plant_seed(
         }
     }
     
-    // Calculate growth time
-    let growth_time_secs = if growth_config.min_growth_time_secs >= growth_config.max_growth_time_secs {
-        growth_config.min_growth_time_secs
+    // Calculate growth time (using centralized database values)
+    let growth_time_secs = if min_growth_time_secs >= max_growth_time_secs {
+        min_growth_time_secs
     } else {
-        ctx.rng().gen_range(growth_config.min_growth_time_secs..=growth_config.max_growth_time_secs)
+        ctx.rng().gen_range(min_growth_time_secs..=max_growth_time_secs)
     };
     
     let maturity_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(growth_time_secs));
@@ -534,7 +505,7 @@ pub fn plant_seed(
         pos_y: plant_pos_y,
         chunk_index,
         seed_type: item_def.name.clone(),
-        plant_type: growth_config.plant_type, // Store the target plant type directly
+        plant_type: plant_type, // Store the target plant type from centralized database
         planted_at: ctx.timestamp,
         will_mature_at: maturity_time, // Initial estimate, will be updated dynamically
         planted_by: player_id,
@@ -684,12 +655,12 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
 
 /// Converts a planted seed into its corresponding harvestable resource
 fn grow_plant_to_resource(ctx: &ReducerContext, plant: &PlantedSeed) -> Result<(), String> {
-    let growth_config = get_growth_config(&plant.seed_type)
-        .ok_or_else(|| format!("Unknown seed type: {}", plant.seed_type))?;
+    // Plant type is now stored directly in the planted seed (from centralized database)
+    let plant_type = plant.plant_type;
     
     // Create the harvestable resource using the unified system
     let harvestable_resource = crate::harvestable_resource::create_harvestable_resource(
-        growth_config.plant_type, // No need to clone since PlantType now implements Copy
+        plant_type, // No need to clone since PlantType now implements Copy
         plant.pos_x,
         plant.pos_y,
         plant.chunk_index
@@ -699,14 +670,14 @@ fn grow_plant_to_resource(ctx: &ReducerContext, plant: &PlantedSeed) -> Result<(
         Ok(inserted_resource) => {
             log::info!(
                 "Successfully grew {:?} from {} at ({:.1}, {:.1}), ID: {}",
-                growth_config.plant_type, plant.seed_type, plant.pos_x, plant.pos_y, inserted_resource.id
+                plant_type, plant.seed_type, plant.pos_x, plant.pos_y, inserted_resource.id
             );
             Ok(())
         }
         Err(e) => {
             log::error!(
                 "Failed to insert grown {:?} from {}: {}",
-                growth_config.plant_type, plant.seed_type, e
+                plant_type, plant.seed_type, e
             );
             Err(format!("Failed to create harvestable resource: {}", e))
         }

@@ -7,6 +7,7 @@ import { STASH_WIDTH, STASH_HEIGHT } from './stashRenderingUtils';
 import { SHELTER_RENDER_WIDTH, SHELTER_RENDER_HEIGHT } from './shelterRenderingUtils';
 import { TILE_SIZE } from '../../config/gameConfig';
 import { DbConnection } from '../../generated';
+import { isSeedItemValid, requiresWaterPlacement } from '../plantsUtils';
 
 // Import interaction distance constants
 const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // From useInteractionFinder.ts
@@ -137,18 +138,18 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
         return false;
     }
 
-    // Special case: Reed Rhizomes require water near shore
-    if (placementInfo.itemName === 'Reed Rhizome') {
+    // Special case: Seeds that require water placement (like Reed Rhizome)
+    if (requiresWaterPlacement(placementInfo.itemName)) {
         return isReedRhizomePlacementBlocked(connection, worldX, worldY);
     }
 
     // List of items that cannot be placed on water
     const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter'];
     
-    // Other seeds (not Reed Rhizome) cannot be planted on water
-    const otherSeeds = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Pumpkin Seeds'];
+    // Seeds that don't require water (most seeds) cannot be planted on water
+    const isSeedButNotWaterSeed = isSeedItemValid(placementInfo.itemName) && !requiresWaterPlacement(placementInfo.itemName);
     
-    if (waterBlockedItems.includes(placementInfo.itemName) || otherSeeds.includes(placementInfo.itemName)) {
+    if (waterBlockedItems.includes(placementInfo.itemName) || isSeedButNotWaterSeed) {
         return isPositionOnWater(connection, worldX, worldY);
     }
     
@@ -224,8 +225,8 @@ export function renderPlacementPreview({
     let previewImg: HTMLImageElement | undefined;
     
     // Check if this is a seed placement
-    const seedItems = ['Mushroom Spores', 'Hemp Seeds', 'Corn Seeds', 'Seed Potato', 'Reed Rhizome', 'Pumpkin Seeds'];
-    const isSeedPlacement = seedItems.includes(placementInfo.itemName);
+          // Dynamic seed detection using plant utils - no more hardcoding!
+      const isSeedPlacement = isSeedItemValid(placementInfo.itemName);
     
     if (isSeedPlacement) {
         // For seeds, use the planted_seed.png from doodads folder

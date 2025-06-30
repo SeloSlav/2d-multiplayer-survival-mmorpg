@@ -148,10 +148,11 @@ pub fn interact_with_mushroom(ctx: &ReducerContext, mushroom_id: u64) -> Result<
     )?;
 
     // Try to grant seed drops after successful harvest
+    // Pass the plant entity name (not the yield item name) for proper seed mapping
     crate::collectible_resources::try_grant_seed_drops(
         ctx,
         sender_id,
-        MUSHROOM_PRIMARY_YIELD_ITEM_NAME,
+        "Mushroom", // Plant entity name (same as yield in this case, but conceptually correct)
         &mut ctx.rng().clone(),
     )?;
 

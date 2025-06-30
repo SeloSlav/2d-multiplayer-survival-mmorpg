@@ -1,0 +1,1 @@
+for<'a> fn(&'a ReducerContext) -> Vec<ItemDefinitionInfo> {get_item_definitions_list}

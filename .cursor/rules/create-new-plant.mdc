@@ -1,0 +1,210 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Creating New Plants and Seeds
+
+A comprehensive guide for adding new plantable crops to the 2D multiplayer survival game.
+
+## Overview
+
+After eliminating hardcoded plant names throughout the codebase, adding new plants is now **dramatically simplified**. The system is fully data-driven, requiring updates to only 2-3 files instead of 7+ files.
+
+## Quick Process Summary
+
+1. **Add enum variant** to `PlantType` in `server/src/plants_database.rs`
+2. **Add configuration** to `PLANT_CONFIGS` in the same file  
+3. **Add items** to `server/src/items_database.rs` (if they don't exist)
+4. **Build and deploy** - everything else works automatically!
+
+## Detailed Steps
+
+### 1. Define the Plant Type
+
+In `server/src/plants_database.rs`, add your new plant to the `PlantType` enum:
+
+```rust
+#[derive(SpacetimeType, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlantType {
+    Corn,
+    Hemp,
+    Mushroom,
+    Potato,
+    Pumpkin,
+    Reed,
+    BeachLymeGrass,
+    Wheat,        // ✅ Add your new plant here
+    Sunflower,    // ✅ Add multiple plants as needed
+}
+```
+
+### 2. Configure Plant Behavior
+
+Add a configuration block to the `PLANT_CONFIGS` HashMap in `server/src/plants_database.rs`:
+
+```rust
+configs.insert(PlantType::Wheat, PlantConfig {
+    // Identity - what the harvestable resource is called
+    entity_name: "Wheat".to_string(),
+    
+    // World Generation
+    density_percent: 0.001,                    // How often it spawns in the world
+    min_distance_sq: 35.0 * 35.0,            // Minimum distance between plants
+    min_tree_distance_sq: 15.0 * 15.0,       // Distance from trees
+    min_stone_distance_sq: 20.0 * 20.0,      // Distance from stones
+    noise_threshold: 0.65,                    // Noise map threshold for spawning
+    spawn_condition: SpawnCondition::Plains,   // Where it spawns (see spawn conditions below)
+    
+    // Harvesting Yields
+    primary_yield: ("Wheat".to_string(), 2, 3),  // Item name + min/max amount
+    secondary_yield: Some(("Plant Fiber".to_string(), 1, 2, 0.60)), // Optional secondary drop (item, min, max, chance)
+    
+    // Seeds and Planting
+    seed_type: "Wheat Seeds".to_string(),      // What seed plants this
+    seed_drop_chance: 0.15,                   // 15% chance to drop seeds when harvested
+    
+    // Respawn/Growth Timing
+    min_respawn_time_secs: 800,               // 13 minutes minimum
+    max_respawn_time_secs: 1200,              // 20 minutes maximum
+});
+```
+
+### 3. Add Items to Database
+
+In `server/src/items_database.rs`, ensure both the harvestable item and seed exist:
+
+```rust
+// Add the harvestable crop
+item_id += 1;
+items.insert(item_id, ItemDefinition {
+    name: "Wheat".to_string(),
+    description: "Golden grain stalks, perfect for making bread.".to_string(),
+    category: ItemCategory::Consumable,
+    max_stack_size: 64,
+    // ... other properties
+});
+
+// Add the plantable seeds  
+item_id += 1;
+items.insert(item_id, ItemDefinition {
+    name: "Wheat Seeds".to_string(),
+    description: "Plant these to grow wheat crops.".to_string(),
+    category: ItemCategory::Placeable,
+    max_stack_size: 64,
+    // ... other properties
+});
+```
+
+### 4. Build and Deploy
+
+```bash
+# Build server
+cd server
+spacetime build --project-path .
+spacetime publish --project-path . your-database-name
+
+# Generate client bindings  
+cd ../client
+spacetime generate --lang typescript --out-dir src/generated --project-path ../server
+
+# Build client
+npm run build
+```
+
+## Spawn Conditions
+
+Choose the appropriate spawn condition for your plant:
+
+- **`SpawnCondition::Forest`** - Near trees (mushrooms)
+- **`SpawnCondition::Plains`** - Open areas away from trees/stones (hemp, wheat)
+- **`SpawnCondition::NearWater`** - Close to water/sand tiles (corn)
+- **`SpawnCondition::Clearings`** - Dirt roads, clearings (potato)
+- **`SpawnCondition::Coastal`** - Beach, riverside areas (pumpkin)
+- **`SpawnCondition::InlandWater`** - Along inland water sources (reed)
+
+## Configuration Guidelines
+
+### Density and Spacing
+- **`density_percent`**: 0.0005-0.003 (lower = rarer)
+- **`min_distance_sq`**: 25²-45² pixels (spread out plants)
+- **Tree/stone distances**: Adjust based on spawn condition
+
+### Yields and Economy  
+- **Primary yield**: Main resource (1-4 items typically)
+- **Secondary yield**: Optional bonus (fiber, etc.)
+- **Seed drop chance**: 0.10-0.25 (10-25% is balanced)
+
+### Timing Balance
+- **Fast crops**: 300-900 seconds (5-15 minutes) 
+- **Medium crops**: 900-1800 seconds (15-30 minutes)
+- **Slow crops**: 1800-3600 seconds (30-60 minutes)
+
+## What Happens Automatically
+
+Once you add the configuration, **all systems automatically work**:
+
+✅ **Planting System**: Seeds are detected as plantable  
+✅ **Growth System**: Uses your timing configuration  
+✅ **Harvesting**: Drops configured items and seeds  
+✅ **World Generation**: Spawns according to your rules  
+✅ **Client UI**: Seeds appear in plantable items  
+✅ **Placement System**: Handles seed placement logic  
+
+## Example: Adding Sunflower
+
+```rust
+// 1. Add to enum
+pub enum PlantType {
+    // ... existing plants
+    Sunflower,
+}
+
+// 2. Add configuration
+configs.insert(PlantType::Sunflower, PlantConfig {
+    entity_name: "Sunflower".to_string(),
+    density_percent: 0.0008,
+    min_distance_sq: 40.0 * 40.0,
+    min_tree_distance_sq: 25.0 * 25.0, 
+    min_stone_distance_sq: 30.0 * 30.0,
+    noise_threshold: 0.70,
+    primary_yield: ("Sunflower".to_string(), 1, 1),
+    secondary_yield: Some(("Sunflower Oil".to_string(), 1, 2, 0.30)),
+    seed_type: "Sunflower Seeds".to_string(),
+    seed_drop_chance: 0.18,
+    min_respawn_time_secs: 1200, // 20 minutes
+    max_respawn_time_secs: 1800, // 30 minutes  
+    spawn_condition: SpawnCondition::Plains,
+});
+```
+
+## Troubleshooting
+
+### Plant not spawning in world?
+- Check `density_percent` (higher = more spawns)
+- Verify `spawn_condition` matches intended biome
+- Adjust `noise_threshold` (lower = more areas qualify)
+
+### Seeds not plantable?
+- Ensure `seed_type` matches item name exactly
+- Verify seed has `ItemCategory::Placeable` 
+- Check that `seed_drop_chance > 0.0`
+
+### Growth too slow/fast?
+- Adjust `min_respawn_time_secs` and `max_respawn_time_secs`
+- Remember: values are in seconds
+
+## Best Practices
+
+1. **Test incrementally**: Add one plant at a time
+2. **Balance economy**: Consider existing crop timings  
+3. **Unique names**: Avoid conflicts with existing items
+4. **Logical placement**: Match spawn conditions to plant type
+5. **Reasonable yields**: Don't break game balance
+6. **Asset preparation**: Create plant sprites before adding
+
+## Legacy Note
+
+This simplified system replaced the previous approach that required updating 7+ files with hardcoded plant names. The new data-driven approach eliminates maintenance overhead and reduces bugs.
+
+
