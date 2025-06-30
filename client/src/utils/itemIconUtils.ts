@@ -110,9 +110,6 @@ import burlapBackpackIcon from '../assets/items/burlap_backpack.png';
 // Food, medicine, and edible items
 
 // Basic crops
-import cornIcon from '../assets/items/corn.png';
-import cookedCornIcon from '../assets/items/cooked_corn.png';
-import burntCornIcon from '../assets/items/burnt_corn.png';
 import pumpkinIcon from '../assets/items/pumpkin.png';
 import cookedPumpkinIcon from '../assets/items/cooked_pumpkin.png';
 import burntPumpkinIcon from '../assets/items/burnt_pumpkin.png';
@@ -120,21 +117,11 @@ import potatoIcon from '../assets/items/potato.png';
 import cookedPotatoIcon from '../assets/items/cooked_potato.png';
 import burntPotatoIcon from '../assets/items/burnt_potato.png';
 
-// Grains
-import rawWheatIcon from '../assets/items/raw_wheat.png';
-
 // Vegetables
 import carrotIcon from '../assets/items/carrot.png';
-import tomatoIcon from '../assets/items/tomato.png';
-import cabbageIcon from '../assets/items/cabbage.png';
-import radishIcon from '../assets/items/radish.png';
 import beetsIcon from '../assets/items/beets.png';
-import onionIcon from '../assets/items/onion.png';
-import garlicIcon from '../assets/items/garlic.png';
-import parsnipIcon from '../assets/items/parsnip.png';
 import horseradishIcon from '../assets/items/horseradish.png';
 import salsifyIcon from '../assets/items/salsify.png';
-import turnipIcon from '../assets/items/turnip.png';
 
 // Mushrooms
 import flyAgaricIcon from '../assets/items/fly_agaric.png';
@@ -153,12 +140,23 @@ import mintCuttingsIcon from '../assets/items/mint_cuttings.png';
 import valerianIcon from '../assets/items/valerian.png';
 import valerianLeavesIcon from '../assets/items/valerian_leaves.png';
 import mugwortIcon from '../assets/items/mugwort.png';
-import fennelIcon from '../assets/items/fennel.png';
-import fennelFrondsIcon from '../assets/items/fennel_fronds.png';
-import dillIcon from '../assets/items/dill.png';
+
 import bearGarlicIcon from '../assets/items/bear_garlic.png';
 import siberianGinsengIcon from '../assets/items/siberian_ginseng.png';
 import nettleLeavesIcon from '../assets/items/nettle_leaves.png';
+
+// Arctic/Subarctic plants (botanically accurate for Aleutian Islands)
+import scurvyGrassIcon from '../assets/items/scurvy_grass.png';
+import crowberriesIcon from '../assets/items/crowberries.png';
+import seaPlantainIcon from '../assets/items/sea_plantain.png';
+import glasswortIcon from '../assets/items/glasswort.png';
+
+// Toxic/Medicinal plants (some grow in harsh northern climates)
+import mandrakeIcon from '../assets/items/mandrake.png';
+import belladonnaIcon from '../assets/items/belladonna.png';
+import henbaneIcon from '../assets/items/henbane.png';
+import daturaIcon from '../assets/items/datura.png';
+import wolfsbaneIcon from '../assets/items/wolfsbane.png';
 
 // Fiber plants
 import bogCottonIcon from '../assets/items/bog_cotton.png';
@@ -167,6 +165,14 @@ import dogbaneFiberIcon from '../assets/items/dogbane.png';
 // Other plants
 import sunflowerIcon from '../assets/items/sunflower.png';
 import sunflowerSeedsIcon from '../assets/items/sunflower_seeds.png';
+
+// Berries (subarctic/boreal region berries)
+import lingonberriesIcon from '../assets/items/lingonberries.png';
+import cloudberriesIcon from '../assets/items/cloudberries.png';
+import bilberriesIcon from '../assets/items/bilberries.png';
+import wildStrawberriesIcon from '../assets/items/wild_strawberries.png';
+import rowanberriesIcon from '../assets/items/rowanberries.png';
+import cranberriesIcon from '../assets/items/cranberries.png';
 
 // Animal meat
 import rawHumanFleshIcon from '../assets/items/human_meat.png';
@@ -202,26 +208,42 @@ import mysteryCanIcon from '../assets/items/mystery_can.png';
 // All plantable items
 
 import seedPotatoIcon from '../assets/items/seed_potato.png';
-import cornSeedsIcon from '../assets/items/corn_seeds.png';
 import hempSeedsIcon from '../assets/items/hemp_seeds.png';
 import pumpkinSeedsIcon from '../assets/items/pumpkin_seeds.png';
 import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
 import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
 import flaxSeedsIcon from '../assets/items/flax_seeds.png';
-import parsnipSeedsIcon from '../assets/items/parnsip_seeds.png';
 import bearGarlicBulbsIcon from '../assets/items/bear_garlic_bulbs.png';
-import turnipSeedsIcon from '../assets/items/turnip_seeds.png';
-import radishSeedsIcon from '../assets/items/radish_seeds.png';
 import yarrowSeedsIcon from '../assets/items/yarrow_seeds.png';
 import mugwortSeedsIcon from '../assets/items/mugwort_seeds.png';
 import valerianSeedsIcon from '../assets/items/valerian_seeds.png';
-import fennelSeedsIcon from '../assets/items/fennel_seeds.png';
-import wheatSeedsIcon from '../assets/items/wheat_seeds.png';
+
 import nettleSeedsIcon from '../assets/items/nettle_seeds.png';
 import carrotSeedsIcon from '../assets/items/carrot_seeds.png';
 import chamomileSeedsIcon from '../assets/items/chamomile_seeds.png';
 import chicorySeedsIcon from '../assets/items/chicory_seeds.png';
 import salsifySeedsIcon from '../assets/items/salsify_seeds.png';
+
+// Arctic/Subarctic plant seeds
+import scurvyGrassSeedsIcon from '../assets/items/scurvy_grass_seeds.png';
+import crowberrySeedsIcon from '../assets/items/crowberry_seeds.png';
+import seaPlantainSeedsIcon from '../assets/items/sea_plantain_seeds.png';
+import glasswortSeedsIcon from '../assets/items/glasswort_seeds.png';
+
+// Berry seeds (subarctic/boreal region berries)
+import lingonberrySeedsIcon from '../assets/items/lingonberry_seeds.png';
+import cloudberrySeedsIcon from '../assets/items/cloudberry_seeds.png';
+import bilberrySeedsIcon from '../assets/items/bilberry_seeds.png';
+import wildStrawberrySeedsIcon from '../assets/items/wild_strawberry_seeds.png';
+import rowanberrySeedsIcon from '../assets/items/rowanberry_seeds.png';
+import cranberrySeedsIcon from '../assets/items/cranberry_seeds.png';
+
+// Toxic/Medicinal plant seeds (placeholder imports for future assets)
+import mandrakeSeedsIcon from '../assets/items/mandrake_seeds.png';
+import belladonnaSeedsIcon from '../assets/items/belladonna_seeds.png';
+import henbaneSeedsIcon from '../assets/items/henbane_seeds.png';
+import daturaSeedsIcon from '../assets/items/datura_seeds.png';
+import wolfsbaneSeedsIcon from '../assets/items/wolfsbane_seeds.png';
 
 // === PLACEABLES ===
 // Structures, containers, and deployable items
@@ -338,31 +360,17 @@ const iconMap: { [key: string]: string | undefined } = {
 
   // === CONSUMABLES ===
   // Basic crops
-  'corn.png': cornIcon,
-  'cooked_corn.png': cookedCornIcon,
-  'burnt_corn.png': burntCornIcon,
   'pumpkin.png': pumpkinIcon,
   'cooked_pumpkin.png': cookedPumpkinIcon,
   'burnt_pumpkin.png': burntPumpkinIcon,
   'potato.png': potatoIcon,
   'cooked_potato.png': cookedPotatoIcon,
   'burnt_potato.png': burntPotatoIcon,
-  
-  // Grains
-  'raw_wheat.png': rawWheatIcon,
-  
   // Vegetables
   'carrot.png': carrotIcon,
-  'tomato.png': tomatoIcon,
-  'cabbage.png': cabbageIcon,
-  'radish.png': radishIcon,
   'beets.png': beetsIcon,
-  'onion.png': onionIcon,
-  'garlic.png': garlicIcon,
-  'parsnip.png': parsnipIcon,
   'horseradish.png': horseradishIcon,
   'salsify.png': salsifyIcon,
-  'turnip.png': turnipIcon,
   
   // Mushrooms
   'fly_agaric.png': flyAgaricIcon,
@@ -390,12 +398,22 @@ const iconMap: { [key: string]: string | undefined } = {
   'valerian.png': valerianIcon,
   'valerian_leaves.png': valerianLeavesIcon,
   'mugwort.png': mugwortIcon,
-  'fennel.png': fennelIcon,
-  'fennel_fronds.png': fennelFrondsIcon,
-  'dill.png': dillIcon,
   'bear_garlic.png': bearGarlicIcon,
   'siberian_ginseng.png': siberianGinsengIcon,
   'nettle_leaves.png': nettleLeavesIcon,
+  
+  // Arctic/Subarctic plants (botanically accurate for Aleutian Islands)
+  'scurvy_grass.png': scurvyGrassIcon,
+  'crowberries.png': crowberriesIcon,
+  'sea_plantain.png': seaPlantainIcon,
+  'glasswort.png': glasswortIcon,
+  
+  // Toxic/Medicinal plants (some grow in harsh northern climates)
+  'mandrake.png': mandrakeIcon,
+  'belladonna.png': belladonnaIcon,
+  'henbane.png': henbaneIcon,
+  'datura.png': daturaIcon,
+  'wolfsbane.png': wolfsbaneIcon,
   
   // Fiber plants
   'bog_cotton.png': bogCottonIcon,
@@ -404,6 +422,14 @@ const iconMap: { [key: string]: string | undefined } = {
   // Other plants
   'sunflower.png': sunflowerIcon,
   'sunflower_seeds.png': sunflowerSeedsIcon,
+  
+  // Berries (subarctic/boreal region berries)
+  'lingonberries.png': lingonberriesIcon,
+  'cloudberries.png': cloudberriesIcon,
+  'bilberries.png': bilberriesIcon,
+  'wild_strawberries.png': wildStrawberriesIcon,
+  'rowanberries.png': rowanberriesIcon,
+  'cranberries.png': cranberriesIcon,
   
   // Animal meat
   'human_meat.png': rawHumanFleshIcon,
@@ -437,25 +463,40 @@ const iconMap: { [key: string]: string | undefined } = {
 
   // === SEEDS ===
   'seed_potato.png': seedPotatoIcon,
-  'corn_seeds.png': cornSeedsIcon,
   'hemp_seeds.png': hempSeedsIcon,
   'pumpkin_seeds.png': pumpkinSeedsIcon,
   'reed_rhizome.png': reedRhizomeIcon,
   'flax_seeds.png': flaxSeedsIcon,
-  'parsnip_seeds.png': parsnipSeedsIcon,
   'bear_garlic_bulbs.png': bearGarlicBulbsIcon,
-  'turnip_seeds.png': turnipSeedsIcon,
-  'radish_seeds.png': radishSeedsIcon,
   'yarrow_seeds.png': yarrowSeedsIcon,
   'mugwort_seeds.png': mugwortSeedsIcon,
   'valerian_seeds.png': valerianSeedsIcon,
-  'fennel_seeds.png': fennelSeedsIcon,
-  'wheat_seeds.png': wheatSeedsIcon,
   'nettle_seeds.png': nettleSeedsIcon,
   'carrot_seeds.png': carrotSeedsIcon,
   'chamomile_seeds.png': chamomileSeedsIcon,
   'chicory_seeds.png': chicorySeedsIcon,
   'salsify_seeds.png': salsifySeedsIcon,
+  
+  // Arctic/Subarctic plant seeds
+  'scurvy_grass_seeds.png': scurvyGrassSeedsIcon,
+  'crowberry_seeds.png': crowberrySeedsIcon,
+  'sea_plantain_seeds.png': seaPlantainSeedsIcon,
+  'glasswort_seeds.png': glasswortSeedsIcon,
+  
+  // Berry seeds (subarctic/boreal region berries)
+  'lingonberry_seeds.png': lingonberrySeedsIcon,
+  'cloudberry_seeds.png': cloudberrySeedsIcon,
+  'bilberry_seeds.png': bilberrySeedsIcon,
+  'wild_strawberry_seeds.png': wildStrawberrySeedsIcon,
+  'rowanberry_seeds.png': rowanberrySeedsIcon,
+  'cranberry_seeds.png': cranberrySeedsIcon,
+  
+  // Toxic/Medicinal plant seeds (will work once you create the assets)
+  'mandrake_seeds.png': mandrakeSeedsIcon,
+  'belladonna_seeds.png': belladonnaSeedsIcon,
+  'henbane_seeds.png': henbaneSeedsIcon,
+  'datura_seeds.png': daturaSeedsIcon,
+  'wolfsbane_seeds.png': wolfsbaneSeedsIcon,
 
   // === PLACEABLES ===
   'campfire.png': campFireIcon,

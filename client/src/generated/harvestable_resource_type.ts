@@ -39,6 +39,7 @@ export type HarvestableResource = {
   posY: number,
   chunkIndex: number,
   respawnAt: Timestamp | undefined,
+  isPlayerPlanted: boolean,
 };
 
 /**
@@ -57,6 +58,7 @@ export namespace HarvestableResource {
       new ProductTypeElement("posY", AlgebraicType.createF32Type()),
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("respawnAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("isPlayerPlanted", AlgebraicType.createBoolType()),
     ]);
   }
 

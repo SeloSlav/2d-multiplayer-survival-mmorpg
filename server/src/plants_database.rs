@@ -7,46 +7,39 @@ use crate::world_state::Season;
 
 #[derive(SpacetimeType, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlantType {
-    // Existing plants (Hemp replaced with BorealNettle, Mushroom removed - use specific types)
-    Corn,
-    BorealNettle, // Replaces Hemp
-    Potato,
-    Pumpkin,
-    Reed,
-    BeachLymeGrass,
+    // === BASIC CROPS (Cold-hardy varieties that could survive short Aleutian growing season) ===
+    BorealNettle, // Fiber plant - cold hardy
+    Potato,       // Cold-hardy variety - historically grown in northern climates
+    Pumpkin,      // Some cold-hardy varieties exist
+    Reed,         // Wetland grass
+    BeachLymeGrass, // Native coastal grass
     
-    // Vegetables
-    Wheat,
-    Carrot,
-    Tomato,
-    Cabbage,
-    Radish,
-    Beets,
-    Buckwheat,
-    Turnip,
-    Onion,
-    Garlic,
-    Parsnip,
-    Horseradish,
+    // === VEGETABLES & ROOT CROPS (Cold-hardy varieties) ===
+    Carrot,       // Cold-hardy root crop
+    Beets,        // Cold-hardy root crop
+    Horseradish,  // Extremely cold-hardy perennial - single best root crop for Aleutian Islands
     
-    // Herbs & Medicinal Plants
-    Chicory,
-    Yarrow,
-    Chamomile,
-    Mint,
-    Valerian,
-    Mugwort,
-    Fennel,
-    Dill,
-    Flax,
-    BearGarlic,
-    SiberianGinseng,
+    // === HERBS & MEDICINAL PLANTS (Arctic/Subarctic species) ===
+    Chicory,      // Cold-hardy perennial herb
+    Yarrow,       // Native to cold climates, medicinal
+    Chamomile,    // Some cold-hardy varieties
+    Mint,         // Cold-hardy perennial
+    Valerian,     // Cold-climate medicinal plant
+    Mugwort,      // Hardy perennial, grows in harsh conditions
+    BearGarlic,   // Wild cold-climate relative of garlic
+    SiberianGinseng, // Cold-climate adaptogen
+    Dogbane,      // Fiber plant, cold-hardy
+    BogCotton,    // Native wetland plant
+    Flax,         // Cold-hardy fiber crop
+    Salsify,      // Cold-hardy root vegetable
     
-    // Trees/Bark/Fiber (Willow & BirchBark removed - implemented via separate tree system)
-    Dogbane,
-    BogCotton,
+    // === NEW: ARCTIC/SUBARCTIC PLANTS (Botanically accurate for Aleutian Islands) ===
+    ScurvyGrass,  // Cochlearia - Arctic vitamin C source, grows year-round
+    Crowberry,    // Empetrum - Low-growing subarctic berry, persists in winter
+    SeaPlantain,  // Plantago maritima - Maritime plant, leaves available year-round
+    Glasswort,    // Salicornia - Salt-tolerant maritime succulent
     
-    // Mushrooms
+    // === MUSHROOMS (Can grow in cold, humid maritime conditions) ===
     Chanterelle,
     Porcini,
     FlyAgaric,
@@ -54,24 +47,23 @@ pub enum PlantType {
     DeadlyWebcap,
     DestroyingAngel,
     
-    // Berries & Nuts
-    Lingonberries,
-    Cloudberries,
-    Bilberries,
-    WildStrawberries,
-    RowanBerries,
-    Cranberries,
+    // === BERRIES (Native to subarctic/boreal regions) ===
+    Lingonberries,    // Native to subarctic
+    Cloudberries,     // Native to subarctic bogs
+    Bilberries,       // Cold-climate blueberry relative
+    WildStrawberries, // Cold-hardy wild variety
+    RowanBerries,     // Mountain ash - cold-hardy tree berries
+    Cranberries,      // Bog plant, cold-hardy
     
-    // Toxic/Medicinal
+    // === TOXIC/MEDICINAL (Some grow in harsh northern climates) ===
     Mandrake,
     Belladonna,
     Henbane,
     Datura,
     Wolfsbane,
     
-    // Other
-    Sunflowers,
-    Salsify,
+    // === OTHER ===
+    Sunflowers, // Some cold-hardy varieties exist
 }
 
 // --- Plant Configuration System ---
@@ -96,7 +88,7 @@ pub struct PlantConfig {
     pub seed_type: String,
     pub seed_drop_chance: f32,
     
-    // Respawn timing
+    // Respawn timing (base values - modified by seasonal multiplier for wild plants)
     pub min_respawn_time_secs: u64,
     pub max_respawn_time_secs: u64,
     
@@ -123,21 +115,22 @@ lazy_static! {
     pub static ref PLANT_CONFIGS: HashMap<PlantType, PlantConfig> = {
         let mut configs = HashMap::new();
         
-        configs.insert(PlantType::Corn, PlantConfig {
-            entity_name: "Corn".to_string(),
-            density_percent: 0.0008,
-            min_distance_sq: 40.0 * 40.0,
-            min_tree_distance_sq: 20.0 * 20.0,
-            min_stone_distance_sq: 25.0 * 25.0,
-            noise_threshold: 0.70,
-            primary_yield: ("Corn".to_string(), 1, 2),
-            secondary_yield: Some(("Plant Fiber".to_string(), 2, 4, 0.90)),
-            seed_type: "Corn Seeds".to_string(),
-            seed_drop_chance: 0.85, // 85% chance - essential food crop must be sustainable
-            min_respawn_time_secs: 900,  // 15 minutes
-            max_respawn_time_secs: 1500, // 25 minutes
-            spawn_condition: SpawnCondition::NearWater,
-            growing_seasons: vec![Season::Spring, Season::Summer], // Warm weather crop
+        // === NEW ARCTIC/SUBARCTIC PLANTS ===
+        configs.insert(PlantType::ScurvyGrass, PlantConfig {
+            entity_name: "Scurvy Grass".to_string(),
+            density_percent: 0.0015,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.60,
+            primary_yield: ("Scurvy Grass".to_string(), 1, 3),
+            secondary_yield: None,
+            seed_type: "Scurvy Grass Seeds".to_string(),
+            seed_drop_chance: 0.60, // 60% chance - important vitamin C source
+            min_respawn_time_secs: 480,  // 8 minutes
+            max_respawn_time_secs: 720,  // 12 minutes
+            spawn_condition: SpawnCondition::Coastal, // Grows near shores
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Year-round Arctic plant
         });
         
         configs.insert(PlantType::BorealNettle, PlantConfig {
@@ -185,7 +178,7 @@ lazy_static! {
             primary_yield: ("Pumpkin".to_string(), 1, 1),
             secondary_yield: Some(("Plant Fiber".to_string(), 3, 5, 0.85)),
             seed_type: "Pumpkin Seeds".to_string(),
-            seed_drop_chance: 0.20,
+            seed_drop_chance: 0.70, // Increased from 0.20 for farming sustainability
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Coastal,
@@ -202,7 +195,7 @@ lazy_static! {
             primary_yield: ("Common Reed Stalk".to_string(), 2, 4),
             secondary_yield: Some(("Plant Fiber".to_string(), 1, 3, 0.75)),
             seed_type: "Reed Rhizome".to_string(),
-            seed_drop_chance: 0.14,
+            seed_drop_chance: 0.65, // Increased from 0.14 for farming sustainability
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::InlandWater,
@@ -226,23 +219,24 @@ lazy_static! {
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely hardy coastal grass
         });
         
-        // === VEGETABLES ===
-        configs.insert(PlantType::Wheat, PlantConfig {
-            entity_name: "Wheat".to_string(),
-            density_percent: 0.0008,
-            min_distance_sq: 35.0 * 35.0,
-            min_tree_distance_sq: 25.0 * 25.0,
-            min_stone_distance_sq: 20.0 * 20.0,
-            noise_threshold: 0.68,
-            primary_yield: ("Raw Wheat".to_string(), 2, 4),
-            secondary_yield: Some(("Plant Fiber".to_string(), 1, 3, 0.60)),
-            seed_type: "Wheat Seeds".to_string(),
-            seed_drop_chance: 0.80, // 80% chance - essential food crop must be sustainable
+        configs.insert(PlantType::Crowberry, PlantConfig {
+            entity_name: "Crowberry".to_string(),
+            density_percent: 0.0012,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.62,
+            primary_yield: ("Crowberry".to_string(), 3, 6),
+            secondary_yield: None,
+            seed_type: "Crowberry Seeds".to_string(),
+            seed_drop_chance: 0.60, // Increased from 0.45 for farming sustainability
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
-            spawn_condition: SpawnCondition::Plains,
-            growing_seasons: vec![Season::Spring, Season::Summer],
+            spawn_condition: SpawnCondition::Plains, // Low-growing shrub on open ground
+            growing_seasons: vec![Season::Summer, Season::Autumn, Season::Winter], // Berries persist into winter
         });
+        
+        // === VEGETABLES ===
         
         configs.insert(PlantType::Carrot, PlantConfig {
             entity_name: "Carrot".to_string(),
@@ -261,55 +255,38 @@ lazy_static! {
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::Tomato, PlantConfig {
-            entity_name: "Tomato".to_string(),
-            density_percent: 0.0005,
-            min_distance_sq: 35.0 * 35.0,
-            min_tree_distance_sq: 18.0 * 18.0,
-            min_stone_distance_sq: 22.0 * 22.0,
-            noise_threshold: 0.67,
-            primary_yield: ("Tomato".to_string(), 2, 4),
-            secondary_yield: Some(("Tomato Seeds".to_string(), 3, 6, 0.90)),
-            seed_type: "Tomato Seeds".to_string(),
-            seed_drop_chance: 0.18,
-            min_respawn_time_secs: 1000, // 16 minutes
-            max_respawn_time_secs: 1600, // 26 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Summer],
-        });
-        
-        configs.insert(PlantType::Cabbage, PlantConfig {
-            entity_name: "Cabbage".to_string(),
-            density_percent: 0.0004,
-            min_distance_sq: 40.0 * 40.0,
-            min_tree_distance_sq: 25.0 * 25.0,
-            min_stone_distance_sq: 20.0 * 20.0,
-            noise_threshold: 0.69,
-            primary_yield: ("Cabbage".to_string(), 1, 2),
-            secondary_yield: None,
-            seed_type: "Cabbage Seeds".to_string(),
-            seed_drop_chance: 0.70, // 70% chance - food crop must be sustainable
-            min_respawn_time_secs: 1200, // 20 minutes
-            max_respawn_time_secs: 2000, // 33 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Summer],
-        });
-        
-        configs.insert(PlantType::Radish, PlantConfig {
-            entity_name: "Radish".to_string(),
-            density_percent: 0.0012,
-            min_distance_sq: 25.0 * 25.0,
+        configs.insert(PlantType::SeaPlantain, PlantConfig {
+            entity_name: "Sea Plantain".to_string(),
+            density_percent: 0.0018,
+            min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 18.0 * 18.0,
-            noise_threshold: 0.62,
-            primary_yield: ("Radish".to_string(), 1, 2),
+            noise_threshold: 0.58,
+            primary_yield: ("Sea Plantain".to_string(), 2, 4),
             secondary_yield: None,
-            seed_type: "Radish Seeds".to_string(),
-            seed_drop_chance: 0.16,
-            min_respawn_time_secs: 300,  // 5 minutes (fast growing)
-            max_respawn_time_secs: 600,  // 10 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Spring],
+            seed_type: "Sea Plantain Seeds".to_string(),
+            seed_drop_chance: 0.55, // 55% chance - maritime plant
+            min_respawn_time_secs: 600,  // 10 minutes
+            max_respawn_time_secs: 900,  // 15 minutes
+            spawn_condition: SpawnCondition::Coastal, // Maritime plant grows near shores
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Year-round leaves
+        });
+        
+        configs.insert(PlantType::Glasswort, PlantConfig {
+            entity_name: "Glasswort".to_string(),
+            density_percent: 0.0014,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 15.0 * 15.0,
+            noise_threshold: 0.62,
+            primary_yield: ("Glasswort".to_string(), 2, 5),
+            secondary_yield: None,
+            seed_type: "Glasswort Seeds".to_string(),
+            seed_drop_chance: 0.50, // 50% chance - salt-tolerant succulent
+            min_respawn_time_secs: 800,  // 13 minutes
+            max_respawn_time_secs: 1200, // 20 minutes
+            spawn_condition: SpawnCondition::Coastal, // Salt-tolerant, grows in maritime areas
+            growing_seasons: vec![Season::Summer, Season::Autumn], // Warm season succulent
         });
         
         configs.insert(PlantType::Beets, PlantConfig {
@@ -322,96 +299,11 @@ lazy_static! {
             primary_yield: ("Beets".to_string(), 1, 2),
             secondary_yield: None,
             seed_type: "Beet Seeds".to_string(),
-            seed_drop_chance: 0.15,
+            seed_drop_chance: 0.70, // Increased from 0.15 for farming sustainability
             min_respawn_time_secs: 1000, // 16 minutes
             max_respawn_time_secs: 1400, // 23 minutes
             spawn_condition: SpawnCondition::Clearings,
             growing_seasons: vec![Season::Summer, Season::Autumn],
-        });
-        
-        configs.insert(PlantType::Buckwheat, PlantConfig {
-            entity_name: "Buckwheat".to_string(),
-            density_percent: 0.0009,
-            min_distance_sq: 30.0 * 30.0,
-            min_tree_distance_sq: 22.0 * 22.0,
-            min_stone_distance_sq: 20.0 * 20.0,
-            noise_threshold: 0.65,
-            primary_yield: ("Buckwheat".to_string(), 2, 3),
-            secondary_yield: Some(("Plant Fiber".to_string(), 1, 2, 0.60)),
-            seed_type: "Buckwheat Seeds".to_string(),
-            seed_drop_chance: 0.14,
-            min_respawn_time_secs: 900,  // 15 minutes
-            max_respawn_time_secs: 1300, // 21 minutes
-            spawn_condition: SpawnCondition::Plains,
-            growing_seasons: vec![Season::Summer, Season::Autumn],
-        });
-        
-        configs.insert(PlantType::Turnip, PlantConfig {
-            entity_name: "Turnip".to_string(),
-            density_percent: 0.0008,
-            min_distance_sq: 30.0 * 30.0,
-            min_tree_distance_sq: 18.0 * 18.0,
-            min_stone_distance_sq: 22.0 * 22.0,
-            noise_threshold: 0.64,
-            primary_yield: ("Turnip".to_string(), 1, 2),
-            secondary_yield: None,
-            seed_type: "Turnip Seeds".to_string(),
-            seed_drop_chance: 0.15,
-            min_respawn_time_secs: 800,  // 13 minutes
-            max_respawn_time_secs: 1200, // 20 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
-        });
-        
-        configs.insert(PlantType::Onion, PlantConfig {
-            entity_name: "Onion".to_string(),
-            density_percent: 0.0006,
-            min_distance_sq: 28.0 * 28.0,
-            min_tree_distance_sq: 20.0 * 20.0,
-            min_stone_distance_sq: 25.0 * 25.0,
-            noise_threshold: 0.67,
-            primary_yield: ("Onion".to_string(), 1, 3),
-            secondary_yield: None,
-            seed_type: "Onion Sets".to_string(),
-            seed_drop_chance: 0.12,
-            min_respawn_time_secs: 1400, // 23 minutes
-            max_respawn_time_secs: 2000, // 33 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Summer, Season::Autumn],
-        });
-        
-        configs.insert(PlantType::Garlic, PlantConfig {
-            entity_name: "Garlic".to_string(),
-            density_percent: 0.0005,
-            min_distance_sq: 35.0 * 35.0,
-            min_tree_distance_sq: 25.0 * 25.0,
-            min_stone_distance_sq: 30.0 * 30.0,
-            noise_threshold: 0.69,
-            primary_yield: ("Garlic".to_string(), 1, 2),
-            secondary_yield: None,
-            seed_type: "Garlic Cloves".to_string(),
-            seed_drop_chance: 0.10,
-            min_respawn_time_secs: 1800, // 30 minutes
-            max_respawn_time_secs: 2400, // 40 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Summer, Season::Autumn],
-        });
-        
-        configs.insert(PlantType::Parsnip, PlantConfig {
-            entity_name: "Parsnip".to_string(),
-            density_percent: 0.0004,
-            min_distance_sq: 35.0 * 35.0,
-            min_tree_distance_sq: 20.0 * 20.0,
-            min_stone_distance_sq: 25.0 * 25.0,
-            noise_threshold: 0.68,
-            primary_yield: ("Parsnip".to_string(), 1, 2),
-            secondary_yield: None,
-            seed_type: "Parsnip Seeds".to_string(),
-            seed_drop_chance: 0.13,
-            min_respawn_time_secs: 1200, // 20 minutes
-            max_respawn_time_secs: 1800, // 30 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
         });
         
         configs.insert(PlantType::Horseradish, PlantConfig {
@@ -424,7 +316,7 @@ lazy_static! {
             primary_yield: ("Horseradish Root".to_string(), 1, 1),
             secondary_yield: None,
             seed_type: "Horseradish Root".to_string(),
-            seed_drop_chance: 0.08,
+            seed_drop_chance: 0.55, // Increased from 0.08 for farming sustainability - important cold-hardy food crop
             min_respawn_time_secs: 2000, // 33 minutes
             max_respawn_time_secs: 3000, // 50 minutes
             spawn_condition: SpawnCondition::NearWater,
@@ -442,7 +334,7 @@ lazy_static! {
             primary_yield: ("Chicory".to_string(), 2, 4),
             secondary_yield: None,
             seed_type: "Chicory Seeds".to_string(),
-            seed_drop_chance: 0.14,
+            seed_drop_chance: 0.55, // Increased from 0.14 for farming sustainability
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 1000, // 16 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -459,7 +351,7 @@ lazy_static! {
             primary_yield: ("Yarrow".to_string(), 1, 3),
             secondary_yield: None,
             seed_type: "Yarrow Seeds".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.55, // Increased from 0.12 for farming sustainability
             min_respawn_time_secs: 800,  // 13 minutes
             max_respawn_time_secs: 1200, // 20 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -476,7 +368,7 @@ lazy_static! {
             primary_yield: ("Chamomile".to_string(), 2, 4),
             secondary_yield: None,
             seed_type: "Chamomile Seeds".to_string(),
-            seed_drop_chance: 0.15,
+            seed_drop_chance: 0.60, // Increased from 0.15 for farming sustainability
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -527,45 +419,11 @@ lazy_static! {
             primary_yield: ("Mugwort".to_string(), 2, 4),
             secondary_yield: None,
             seed_type: "Mugwort Seeds".to_string(),
-            seed_drop_chance: 0.13,
+            seed_drop_chance: 0.55, // Increased from 0.13 for farming sustainability
             min_respawn_time_secs: 700,  // 11 minutes
             max_respawn_time_secs: 1100, // 18 minutes
             spawn_condition: SpawnCondition::Plains,
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely invasive - dried stalks persist year-round
-        });
-        
-        configs.insert(PlantType::Fennel, PlantConfig {
-            entity_name: "Fennel".to_string(),
-            density_percent: 0.0009,
-            min_distance_sq: 28.0 * 28.0,
-            min_tree_distance_sq: 20.0 * 20.0,
-            min_stone_distance_sq: 25.0 * 25.0,
-            noise_threshold: 0.64,
-            primary_yield: ("Fennel Root".to_string(), 2, 3),
-            secondary_yield: Some(("Fennel Fronds".to_string(), 1, 3, 0.80)),
-            seed_type: "Fennel Seeds".to_string(),
-            seed_drop_chance: 0.16,
-            min_respawn_time_secs: 900,  // 15 minutes
-            max_respawn_time_secs: 1400, // 23 minutes
-            spawn_condition: SpawnCondition::Plains,
-            growing_seasons: vec![Season::Spring, Season::Summer],
-        });
-        
-        configs.insert(PlantType::Dill, PlantConfig {
-            entity_name: "Dill".to_string(),
-            density_percent: 0.0014,
-            min_distance_sq: 20.0 * 20.0,
-            min_tree_distance_sq: 15.0 * 15.0,
-            min_stone_distance_sq: 18.0 * 18.0,
-            noise_threshold: 0.59,
-            primary_yield: ("Dill".to_string(), 2, 4),
-            secondary_yield: Some(("Dill Seeds".to_string(), 1, 2, 0.70)),
-            seed_type: "Dill Seeds".to_string(),
-            seed_drop_chance: 0.14,
-            min_respawn_time_secs: 500,  // 8 minutes
-            max_respawn_time_secs: 800,  // 13 minutes
-            spawn_condition: SpawnCondition::Clearings,
-            growing_seasons: vec![Season::Summer],
         });
         
         configs.insert(PlantType::Flax, PlantConfig {
@@ -578,7 +436,7 @@ lazy_static! {
             primary_yield: ("Plant Fiber".to_string(), 25, 30), // Balanced between Nettle (40-50) and Beach Lyme (15)
             secondary_yield: None,
             seed_type: "Flax Seeds".to_string(),
-            seed_drop_chance: 0.18,
+            seed_drop_chance: 0.65, // Increased from 0.18 for farming sustainability
             min_respawn_time_secs: 800,  // 13 minutes - between Nettle (10-15) and Beach Lyme (8-12)
             max_respawn_time_secs: 1200, // 20 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -609,10 +467,10 @@ lazy_static! {
             min_tree_distance_sq: 40.0 * 40.0,
             min_stone_distance_sq: 35.0 * 35.0,
             noise_threshold: 0.75,
-            primary_yield: ("Siberian Ginseng Root".to_string(), 1, 1),
+            primary_yield: ("Siberian Ginseng".to_string(), 1, 1),
             secondary_yield: Some(("Ginseng Leaves".to_string(), 1, 2, 0.60)),
             seed_type: "Ginseng Seeds".to_string(),
-            seed_drop_chance: 0.40, // 40% chance - rare but still farmable
+            seed_drop_chance: 0.50, // Increased from 0.40 - just at sustainability threshold for rare plant
             min_respawn_time_secs: 3600, // 60 minutes (very rare)
             max_respawn_time_secs: 5400, // 90 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -630,7 +488,7 @@ lazy_static! {
             primary_yield: ("Dogbane Fiber".to_string(), 2, 4),
             secondary_yield: None,
             seed_type: "Dogbane Seeds".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.60, // Increased from 0.12 for farming sustainability
             min_respawn_time_secs: 1000, // 16 minutes
             max_respawn_time_secs: 1500, // 25 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -647,7 +505,7 @@ lazy_static! {
             primary_yield: ("Cotton Fibers".to_string(), 3, 5),
             secondary_yield: None,
             seed_type: "Bog Cotton Seeds".to_string(),
-            seed_drop_chance: 0.10,
+            seed_drop_chance: 0.55, // Increased from 0.10 for farming sustainability
             min_respawn_time_secs: 800,  // 13 minutes
             max_respawn_time_secs: 1200, // 20 minutes
             spawn_condition: SpawnCondition::InlandWater,
@@ -682,7 +540,7 @@ lazy_static! {
             primary_yield: ("Porcini".to_string(), 1, 1),
             secondary_yield: None,
             seed_type: "Porcini Spores".to_string(),
-            seed_drop_chance: 0.45, // 45% chance - rare mushroom but farmable
+            seed_drop_chance: 0.55, // Increased from 0.45 for farming sustainability 
             min_respawn_time_secs: 1500, // 25 minutes
             max_respawn_time_secs: 2200, // 36 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -716,7 +574,7 @@ lazy_static! {
             primary_yield: ("Shaggy Ink Cap".to_string(), 1, 2),
             secondary_yield: None,
             seed_type: "Shaggy Ink Cap Spores".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.55, // Increased from 0.12 for farming sustainability - edible mushroom
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 1000, // 16 minutes
             spawn_condition: SpawnCondition::Clearings,
@@ -768,7 +626,7 @@ lazy_static! {
             primary_yield: ("Lingonberries".to_string(), 3, 6),
             secondary_yield: None,
             seed_type: "Lingonberry Seeds".to_string(),
-            seed_drop_chance: 0.08,
+            seed_drop_chance: 0.55, // Increased from 0.08 for farming sustainability
             min_respawn_time_secs: 1800, // 30 minutes
             max_respawn_time_secs: 2600, // 43 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -802,7 +660,7 @@ lazy_static! {
             primary_yield: ("Bilberries".to_string(), 4, 8),
             secondary_yield: None,
             seed_type: "Bilberry Seeds".to_string(),
-            seed_drop_chance: 0.10,
+            seed_drop_chance: 0.60, // Increased from 0.10 for farming sustainability
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -819,7 +677,7 @@ lazy_static! {
             primary_yield: ("Wild Strawberries".to_string(), 2, 5),
             secondary_yield: None,
             seed_type: "Wild Strawberry Seeds".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.65, // Increased from 0.12 for farming sustainability
             min_respawn_time_secs: 800,  // 13 minutes
             max_respawn_time_secs: 1300, // 21 minutes
             spawn_condition: SpawnCondition::Clearings,
@@ -957,7 +815,7 @@ lazy_static! {
             primary_yield: ("Sunflower".to_string(), 1, 2),
             secondary_yield: None, // Seeds come from seed drop system
             seed_type: "Sunflower Seeds".to_string(),
-            seed_drop_chance: 0.30, // Higher chance since seeds are the main harvest
+            seed_drop_chance: 0.75, // Increased from 0.30 - seeds are main harvest so should be sustainable
             min_respawn_time_secs: 2000, // 33 minutes
             max_respawn_time_secs: 3000, // 50 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -974,7 +832,7 @@ lazy_static! {
             primary_yield: ("Salsify Root".to_string(), 1, 2),
             secondary_yield: None,
             seed_type: "Salsify Seeds".to_string(),
-            seed_drop_chance: 0.11,
+            seed_drop_chance: 0.60, // Increased from 0.11 for farming sustainability
             min_respawn_time_secs: 1400, // 23 minutes
             max_respawn_time_secs: 2000, // 33 minutes
             spawn_condition: SpawnCondition::Plains,

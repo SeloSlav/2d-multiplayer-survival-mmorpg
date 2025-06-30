@@ -19,9 +19,12 @@ use crate::sound_events;
 const FUEL_ITEM_CONSUME_PER_SECOND: f32 = 0.2; // e.g., 1 wood every 5 seconds
 
 // --- Constants ---
-const DAY_DURATION_SECONDS: f32 = 900.0; // 15 minutes (was 45 seconds for debug)
-const NIGHT_DURATION_SECONDS: f32 = 300.0;  // 5 minutes (was 15 seconds for debug)
-const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 20 minutes total
+const DAY_DURATION_SECONDS: f32 = 3600.0; // 60 minutes  
+const NIGHT_DURATION_SECONDS: f32 = 900.0;  // 15 minutes
+const FULL_CYCLE_DURATION_SECONDS: f32 = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS; // 75 minutes total
+
+// Season duration constants for plant respawn calculations
+pub const SEASON_DURATION_HOURS: f32 = 90.0 * 24.0; // 90 days per season * 24 hours per day = 2160 hours
 
 // Full moon occurs roughly every 3 cycles (adjust as needed)
 const FULL_MOON_CYCLE_INTERVAL: u32 = 3;
@@ -341,17 +344,17 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
         }
 
         // Determine the new TimeOfDay based on new_progress
-        // Day is now 0.0 to 0.75, Night is 0.75 to 1.0
+        // Day is now 0.0 to 0.8 (60min), Night is 0.8 to 1.0 (15min)
         let new_time_of_day = match new_progress {
-            p if p < 0.04 => TimeOfDay::Dawn,     // Orange (0.0 - 0.04)
-            p if p < 0.08 => TimeOfDay::TwilightMorning, // Purple (0.04 - 0.08)
-            p if p < 0.30 => TimeOfDay::Morning,   // Yellow (0.08 - 0.30)
-            p if p < 0.45 => TimeOfDay::Noon,      // Bright Yellow (0.30 - 0.45)
-            p if p < 0.67 => TimeOfDay::Afternoon, // Yellow (0.45 - 0.67)
-            p if p < 0.71 => TimeOfDay::Dusk,      // Orange (0.67 - 0.71)
-            p if p < 0.75 => TimeOfDay::TwilightEvening, // Purple (0.71 - 0.75)
-            p if p < 0.90 => TimeOfDay::Night,     // Dark Blue (0.75 - 0.90)
-            _             => TimeOfDay::Midnight, // Very Dark Blue/Black (0.90 - 1.0), also default
+            p if p < 0.05 => TimeOfDay::Dawn,     // Orange (0.0 - 0.05) - 3.75min
+            p if p < 0.12 => TimeOfDay::TwilightMorning, // Purple (0.05 - 0.12) - 5.25min LONGER
+            p if p < 0.35 => TimeOfDay::Morning,   // Yellow (0.12 - 0.35) - 17.25min
+            p if p < 0.55 => TimeOfDay::Noon,      // Bright Yellow (0.35 - 0.55) - 15min
+            p if p < 0.72 => TimeOfDay::Afternoon, // Yellow (0.55 - 0.72) - 12.75min
+            p if p < 0.76 => TimeOfDay::Dusk,      // Orange (0.72 - 0.76) - 3min
+            p if p < 0.80 => TimeOfDay::TwilightEvening, // Purple (0.76 - 0.80) - 3min LONGER
+            p if p < 0.92 => TimeOfDay::Night,     // Dark Blue (0.80 - 0.92) - 9min
+            _             => TimeOfDay::Midnight, // Very Dark Blue/Black (0.92 - 1.0) - 6min, also default
         };
 
         // Assign the calculated new values to the world_state object
@@ -934,7 +937,8 @@ fn spawn_seasonal_plant_batch(ctx: &ReducerContext, season: &Season, batch_size:
                     *plant_type,
                     pos_x,
                     pos_y,
-                    chunk_idx
+                    chunk_idx,
+                    false // Mark as wild plant (not player-planted)
                 )
             },
             (),

@@ -690,7 +690,8 @@ fn grow_plant_to_resource(ctx: &ReducerContext, plant: &PlantedSeed) -> Result<(
         plant_type, // No need to clone since PlantType now implements Copy
         plant.pos_x,
         plant.pos_y,
-        plant.chunk_index
+        plant.chunk_index,
+        true // Mark as player-planted to avoid seasonal respawn multiplier
     );
     
     match ctx.db.harvestable_resource().try_insert(harvestable_resource) {

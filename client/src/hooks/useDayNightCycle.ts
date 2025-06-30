@@ -41,7 +41,7 @@ export const baseKeyframes: Record<number, ColorPoint> = {
 const TORCH_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.8; // Slightly smaller than campfire
 const TORCH_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.7; // Added for torch flicker
 
-// Define RGB colors for overlay tints - NEW KEYFRAME APPROACH
+// Define RGB colors for overlay tints - UPDATED FOR 75-MINUTE CYCLE (60min day + 15min night)
 interface ColorAlphaKeyframe {
   progress: number;
   rgb: [number, number, number];
@@ -52,48 +52,49 @@ interface ColorAlphaKeyframe {
 const DAY_COLOR_CONFIG = { rgb: [0, 0, 0] as [number, number, number], alpha: 0.0 }; // Color doesn't matter when alpha is 0
 
 const REGULAR_CYCLE_KEYFRAMES: ColorAlphaKeyframe[] = [
-  // Midnight to Pre-Dawn (smooth transitions for 20-minute cycle)
+  // Midnight to Pre-Dawn (75-minute cycle: 60min day + 15min night)
   { progress: 0.0,  rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Deepest Midnight
   { progress: 0.02, rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Late Midnight
 
-  // Dawn (Server: 0.0 - 0.04, gradual transitions)
+  // Dawn (Server: 0.0 - 0.05, gradual transitions)
   { progress: 0.025, rgb: [30, 25, 65],    alpha: 0.85 },   // Faint Blues/Purples emerge
   { progress: 0.035, rgb: [50, 40, 80],    alpha: 0.78 },   // Darker Purples becoming more visible
   { progress: 0.045, rgb: [90, 60, 100],   alpha: 0.65 },   // Purples lighten, hint of pink
 
-  // Twilight Morning (Server: 0.04 - 0.08, gradual transitions)
-  { progress: 0.055, rgb: [160, 80, 90],   alpha: 0.50 },   // Pinks and Muted Oranges appear
-  { progress: 0.065, rgb: [220, 110, 70],  alpha: 0.35 },   // Oranges strengthen
-  { progress: 0.075, rgb: [255, 140, 60],  alpha: 0.20 },   // Brighter Oranges, lower alpha
+  // Twilight Morning (Server: 0.05 - 0.12, LONGER gradual transitions)
+  { progress: 0.06, rgb: [120, 70, 90],   alpha: 0.55 },   // Early morning purples
+  { progress: 0.08, rgb: [160, 80, 90],   alpha: 0.50 },   // Pinks and Muted Oranges appear
+  { progress: 0.10, rgb: [220, 110, 70],  alpha: 0.35 },   // Oranges strengthen
+  { progress: 0.115, rgb: [255, 140, 60],  alpha: 0.20 },   // Brighter Oranges, lower alpha
 
-  // Morning - Transition to Clear Day (Server: 0.08 - 0.30)
-  { progress: 0.09, rgb: [255, 170, 80],  alpha: 0.10 },   // Sunrise Peak
-  { progress: 0.12, rgb: [255, 190, 100], alpha: 0.05 },   // Lingering soft yellow/orange glow
-  { progress: 0.15, ...DAY_COLOR_CONFIG },                // Morning fully clear
+  // Morning - Transition to Clear Day (Server: 0.12 - 0.35)
+  { progress: 0.125, rgb: [255, 170, 80],  alpha: 0.10 },   // Sunrise Peak
+  { progress: 0.15, rgb: [255, 190, 100], alpha: 0.05 },   // Lingering soft yellow/orange glow
+  { progress: 0.18, ...DAY_COLOR_CONFIG },                // Morning fully clear
   
-  // Day/Noon/Afternoon clear (75% of cycle = 0.15 to 0.75)
-  { progress: 0.30, ...DAY_COLOR_CONFIG }, // Morning clear
-  { progress: 0.45, ...DAY_COLOR_CONFIG }, // Noon clear 
-  { progress: 0.67, ...DAY_COLOR_CONFIG }, // Afternoon clear
+  // Day/Noon/Afternoon clear (80% of cycle = 0.18 to 0.72)
+  { progress: 0.35, ...DAY_COLOR_CONFIG }, // Morning clear
+  { progress: 0.55, ...DAY_COLOR_CONFIG }, // Noon clear 
+  { progress: 0.70, ...DAY_COLOR_CONFIG }, // Afternoon clear
 
-  // Dusk (Server: 0.67 - 0.71, gradual transitions)
-  { progress: 0.675, rgb: [255, 190, 110], alpha: 0.05 },   // Late Afternoon hint of warmth
-  { progress: 0.685, rgb: [255, 160, 70],  alpha: 0.15 },   // Sunset approaching
-  { progress: 0.695, rgb: [240, 120, 50],  alpha: 0.30 },   // Golden Hour
-  { progress: 0.705, rgb: [200, 80, 60],   alpha: 0.50 },   // Sunset Peak
+  // Dusk (Server: 0.72 - 0.76, gradual transitions)
+  { progress: 0.72, rgb: [255, 190, 110], alpha: 0.05 },   // Late Afternoon hint of warmth
+  { progress: 0.735, rgb: [255, 160, 70],  alpha: 0.15 },   // Sunset approaching
+  { progress: 0.75, rgb: [240, 120, 50],  alpha: 0.30 },   // Golden Hour
+  { progress: 0.76, rgb: [200, 80, 60],   alpha: 0.50 },   // Sunset Peak
 
-  // Twilight Evening (Server: 0.71 - 0.75, gradual transitions)
-  { progress: 0.72, rgb: [150, 70, 100],  alpha: 0.65 },   // Civil Dusk
-  { progress: 0.735, rgb: [80, 50, 90],    alpha: 0.80 },   // Nautical Dusk
-  { progress: 0.75, rgb: [5, 5, 10],      alpha: 0.96 },   // Astronomical Dusk
+  // Twilight Evening (Server: 0.76 - 0.80, LONGER gradual transitions)
+  { progress: 0.77, rgb: [150, 70, 100],  alpha: 0.65 },   // Civil Dusk
+  { progress: 0.785, rgb: [80, 50, 90],    alpha: 0.80 },   // Nautical Dusk
+  { progress: 0.80, rgb: [5, 5, 10],      alpha: 0.96 },   // Astronomical Dusk
 
-  // Night to Midnight (Server: 0.75 - 1.0, 25% of cycle)
-  { progress: 0.85, rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Early Night
+  // Night to Midnight (Server: 0.80 - 1.0, 20% of cycle)
+  { progress: 0.92, rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Early Night
   { progress: 1.0,  rgb: [defaultPeakMidnightColor.r, defaultPeakMidnightColor.g, defaultPeakMidnightColor.b],    alpha: defaultPeakMidnightColor.a },   // Deepest Midnight
 ];
 
 const FULL_MOON_NIGHT_KEYFRAMES: ColorAlphaKeyframe[] = [
-  // Midnight to Pre-Dawn (Full Moon, smooth transitions)
+  // Midnight to Pre-Dawn (Full Moon, 75-minute cycle: 60min day + 15min night)
   { progress: 0.0,  rgb: [130, 150, 190], alpha: 0.40 },   // Lighter Midnight
   { progress: 0.02, rgb: [135, 155, 195], alpha: 0.38 },   // Late Midnight
 
@@ -102,34 +103,35 @@ const FULL_MOON_NIGHT_KEYFRAMES: ColorAlphaKeyframe[] = [
   { progress: 0.035, rgb: [170, 165, 180], alpha: 0.25 },   // Purplish silver
   { progress: 0.045, rgb: [190, 170, 170], alpha: 0.18 },   // More silver, hint of warmth
 
-  // Twilight Morning (Full Moon, gradual transitions)
-  { progress: 0.055, rgb: [210, 180, 160], alpha: 0.12 },   // Pale Pinks/Muted Oranges appear
-  { progress: 0.065, rgb: [230, 190, 150], alpha: 0.08 },   // Soft Oranges strengthen
-  { progress: 0.075, rgb: [250, 200, 140], alpha: 0.04 },   // Brighter Pale Oranges
+  // Twilight Morning (Full Moon, LONGER gradual transitions)
+  { progress: 0.06, rgb: [200, 175, 165], alpha: 0.15 },   // Early morning silver-pink
+  { progress: 0.08, rgb: [210, 180, 160], alpha: 0.12 },   // Pale Pinks/Muted Oranges appear
+  { progress: 0.10, rgb: [230, 190, 150], alpha: 0.08 },   // Soft Oranges strengthen
+  { progress: 0.115, rgb: [250, 200, 140], alpha: 0.04 },   // Brighter Pale Oranges
 
   // Morning - Transition to Clear Day (Full Moon)
-  { progress: 0.09, rgb: [255, 215, 150], alpha: 0.02 },   // Sunrise Peak
-  { progress: 0.12, rgb: [255, 225, 170], alpha: 0.01 },   // Lingering soft glow
-  { progress: 0.15, ...DAY_COLOR_CONFIG },                // Morning fully clear
+  { progress: 0.125, rgb: [255, 215, 150], alpha: 0.02 },   // Sunrise Peak
+  { progress: 0.15, rgb: [255, 225, 170], alpha: 0.01 },   // Lingering soft glow
+  { progress: 0.18, ...DAY_COLOR_CONFIG },                // Morning fully clear
 
-  // Day/Afternoon (Same as regular, 75% of cycle)
-  { progress: 0.30, ...DAY_COLOR_CONFIG },
-  { progress: 0.45, ...DAY_COLOR_CONFIG },
-  { progress: 0.67, ...DAY_COLOR_CONFIG },
+  // Day/Afternoon (Same as regular, 80% of cycle)
+  { progress: 0.35, ...DAY_COLOR_CONFIG },
+  { progress: 0.55, ...DAY_COLOR_CONFIG },
+  { progress: 0.70, ...DAY_COLOR_CONFIG },
 
   // Dusk (Full Moon, gradual transitions)
-  { progress: 0.675, rgb: [255, 215, 160], alpha: 0.01 },   // Late Afternoon hint of warmth
-  { progress: 0.685, rgb: [250, 190, 130], alpha: 0.06 },   // Sunset approaching
-  { progress: 0.695, rgb: [230, 160, 110], alpha: 0.12 },   // Muted Golden Hour
-  { progress: 0.705, rgb: [200, 140, 120], alpha: 0.20 },   // Sunset Peak
+  { progress: 0.72, rgb: [255, 215, 160], alpha: 0.01 },   // Late Afternoon hint of warmth
+  { progress: 0.735, rgb: [250, 190, 130], alpha: 0.06 },   // Sunset approaching
+  { progress: 0.75, rgb: [230, 160, 110], alpha: 0.12 },   // Muted Golden Hour
+  { progress: 0.76, rgb: [200, 140, 120], alpha: 0.20 },   // Sunset Peak
 
-  // Twilight Evening (Full Moon, gradual transitions)
-  { progress: 0.72, rgb: [170, 150, 180], alpha: 0.28 },   // Civil Dusk
-  { progress: 0.735, rgb: [150, 150, 190], alpha: 0.35 },   // Nautical Dusk
-  { progress: 0.75, rgb: [140, 150, 190], alpha: 0.38 },   // Astronomical Dusk
+  // Twilight Evening (Full Moon, LONGER gradual transitions)
+  { progress: 0.77, rgb: [170, 150, 180], alpha: 0.28 },   // Civil Dusk
+  { progress: 0.785, rgb: [150, 150, 190], alpha: 0.35 },   // Nautical Dusk
+  { progress: 0.80, rgb: [140, 150, 190], alpha: 0.38 },   // Astronomical Dusk
 
-  // Night to Midnight (Full Moon, 25% of cycle)
-  { progress: 0.85, rgb: [135, 155, 195], alpha: 0.39 },   // Early Night
+  // Night to Midnight (Full Moon, 20% of cycle)
+  { progress: 0.92, rgb: [135, 155, 195], alpha: 0.39 },   // Early Night
   { progress: 1.0,  rgb: [130, 150, 190], alpha: 0.40 },   // Lighter Midnight
 ];
 
@@ -143,8 +145,8 @@ function calculateOverlayRgbaString(
     const isCurrentlyFullMoon = worldState?.isFullMoon ?? false;
     const currentCycleCount = worldState?.cycleCount ?? 0;
 
-    const GRACE_PERIOD_END_PROGRESS = 0.04; // Adjusted for 20-minute cycle (was 0.05)
-    const REGULAR_DAWN_PEAK_PROGRESS = REGULAR_CYCLE_KEYFRAMES.find(kf => kf.progress === 0.09)?.progress ?? 0.09; // Updated to match new keyframes
+    const GRACE_PERIOD_END_PROGRESS = 0.05; // Dawn period ends at 0.05 in new 75-minute cycle
+    const REGULAR_DAWN_PEAK_PROGRESS = REGULAR_CYCLE_KEYFRAMES.find(kf => kf.progress === 0.125)?.progress ?? 0.125; // Updated to match new sunrise peak
 
     // --- Special Transition 1: Full Moon cycle STARTS, but PREVIOUS was Regular (or first cycle) ---
     const prevCycleWasRegularOrDefault = currentCycleCount === 0 || ((currentCycleCount - 1) % SERVER_FULL_MOON_INTERVAL !== 0);

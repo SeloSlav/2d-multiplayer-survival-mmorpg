@@ -57,30 +57,6 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
             .consumable(-3.0, 1.0, 0.0) // health, hunger, thirst
             .build(),
 
-        // Fennel Seeds - Aromatic culinary seeds
-        ItemBuilder::new("Fennel Seeds", "Aromatic seeds with a licorice-like flavor. Can be planted to grow fennel plants or used as seasoning.", ItemCategory::Placeable)
-            .icon("fennel_seeds.png")
-            .stackable(40)
-            .respawn_time(540) // 9 minutes
-            .consumable(1.0, 3.0, 2.0) // health, hunger, thirst
-            .build(),
-
-        // Toasted Fennel Seeds - Enhanced aromatic properties
-        ItemBuilder::new("Toasted Fennel Seeds", "Toasted fennel seeds with intensified aroma and flavor. Cannot be planted.", ItemCategory::Consumable)
-            .icon("toasted_fennel_seeds.png")
-            .stackable(40)
-            .respawn_time(0)
-            .consumable(3.0, 6.0, 3.0) // health, hunger, thirst
-            .build(),
-
-        // Burnt Fennel Seeds - Bitter and unpalatable
-        ItemBuilder::new("Burnt Fennel Seeds", "Burnt fennel seeds that are bitter and unpalatable. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_fennel_seeds.png")
-            .stackable(40)
-            .respawn_time(0)
-            .consumable(-1.0, 0.5, 0.0) // health, hunger, thirst
-            .build(),
-
         // Flax Seeds - High in omega fatty acids
         ItemBuilder::new("Flax Seeds", "Tiny seeds rich in healthy oils. Can be planted to grow flax plants or eaten for nutrition.", ItemCategory::Placeable)
             .icon("flax_seeds.png")
@@ -107,31 +83,7 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
 
         // === GRAIN SEEDS ===
 
-        // Wheat Seeds - Basic grain crop
-        ItemBuilder::new("Wheat Seeds", "Common grain seeds for growing wheat. Can be planted or eaten in emergencies.", ItemCategory::Placeable)
-            .icon("wheat_seeds.png")
-            .stackable(50)
-            .respawn_time(600) // 10 minutes
-            .consumable(0.0, 2.0, -1.0) // health, hunger, thirst
-            .build(),
-
-        // Buckwheat Seeds - Nutritious grain alternative
-        ItemBuilder::new("Buckwheat Seeds", "Nutritious grain seeds for growing buckwheat. Can be planted or eaten for basic nutrition.", ItemCategory::Placeable)
-            .icon("buckwheat_seeds.png")
-            .stackable(50)
-            .respawn_time(600)
-            .consumable(1.0, 3.0, -1.0) // health, hunger, thirst
-            .build(),
-
         // === VEGETABLE SEEDS ===
-
-        // Tomato Seeds - Small emergency food
-        ItemBuilder::new("Tomato Seeds", "Tiny seeds from tomatoes. Can be planted to grow tomato plants or eaten in desperation.", ItemCategory::Placeable)
-            .icon("tomato_seeds.png")
-            .stackable(80)
-            .respawn_time(480) // 8 minutes
-            .consumable(0.0, 0.5, 0.5) // health, hunger, thirst
-            .build(),
 
         // Carrot Seeds - Minimal nutrition
         ItemBuilder::new("Carrot Seeds", "Tiny carrot seeds. Can be planted to grow carrots or eaten for minimal nutrition.", ItemCategory::Placeable)
@@ -149,87 +101,10 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
             .consumable(0.0, 0.5, 0.0) // health, hunger, thirst
             .build(),
 
-        // Radish Seeds - Slightly spicy
-        ItemBuilder::new("Radish Seeds", "Peppery radish seeds. Can be planted to grow radishes or eaten for a spicy kick.", ItemCategory::Placeable)
-            .icon("radish_seeds.png")
-            .stackable(80)
-            .respawn_time(360) // 6 minutes - quick growing
-            .consumable(0.5, 0.5, 1.0) // health, hunger, thirst
-            .build(),
-
-        // Cabbage Seeds - Mild nutrition
-        ItemBuilder::new("Cabbage Seeds", "Small cabbage seeds. Can be planted to grow cabbage or eaten for minimal nutrition.", ItemCategory::Placeable)
-            .icon("cabbage_seeds.png")
-            .stackable(80)
-            .respawn_time(480)
-            .consumable(0.0, 0.5, 0.0) // health, hunger, thirst
-            .build(),
-
-        // Turnip Seeds - Root crop seeds
-        ItemBuilder::new("Turnip Seeds", "Seeds for growing turnips. Can be planted or eaten for basic nutrition.", ItemCategory::Placeable)
-            .icon("turnip_seeds.png")
-            .stackable(80)
-            .respawn_time(420)
-            .consumable(0.0, 1.0, 0.0) // health, hunger, thirst
-            .build(),
-
-        // Onion Seeds - Pungent flavor
-        ItemBuilder::new("Onion Seeds", "Pungent onion seeds. Can be planted to grow onions or eaten for their strong flavor.", ItemCategory::Placeable)
-            .icon("onion_seeds.png")
-            .stackable(80)
-            .respawn_time(540)
-            .consumable(1.0, 0.5, -1.0) // health, hunger, thirst
-            .build(),
 
         // === ADDITIONAL VEGETABLE SEEDS ===
 
-        // Onion Sets - Onion planting bulbs
-        ItemBuilder::new("Onion Sets", "Small onion bulbs for planting. Can be eaten but have a strong, pungent flavor.", ItemCategory::Placeable)
-            .icon("onion_sets.png")
-            .stackable(60)
-            .respawn_time(540) // 9 minutes
-            .consumable(1.0, 0.5, -1.5) // health, hunger, thirst - strong antibacterial but harsh
-            .build(),
 
-        // Burnt Onion Sets - Charred onion bulbs
-        ItemBuilder::new("Burnt Onion Sets", "Charred onion sets that are bitter and acrid. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_onion_sets.png")
-            .stackable(60)
-            .respawn_time(0)
-            .consumable(-2.0, 0.0, -1.0) // health, hunger, thirst
-            .build(),
-
-        // Garlic Cloves - Garlic planting material
-        ItemBuilder::new("Garlic Cloves", "Individual garlic cloves for planting. Can be eaten raw but very pungent.", ItemCategory::Placeable)
-            .icon("garlic_cloves.png")
-            .stackable(40)
-            .respawn_time(900) // 15 minutes
-            .consumable(2.0, 1.0, -2.0) // health, hunger, thirst - strong medicinal properties
-            .build(),
-
-        // Burnt Garlic Cloves - Charred garlic
-        ItemBuilder::new("Burnt Garlic Cloves", "Charred garlic cloves that are bitter and unpalatable. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_garlic_cloves.png")
-            .stackable(40)
-            .respawn_time(0)
-            .consumable(-1.0, 0.0, -1.0) // health, hunger, thirst
-            .build(),
-
-        // Parsnip Seeds - Root vegetable seeds
-        ItemBuilder::new("Parsnip Seeds", "Seeds for growing parsnips. Can be eaten in emergencies for minimal nutrition.", ItemCategory::Placeable)
-            .icon("parsnip_seeds.png")
-            .stackable(80)
-            .respawn_time(420) // 7 minutes
-            .consumable(0.0, 0.5, 0.0) // health, hunger, thirst
-            .build(),
-
-        // Burnt Parsnip Seeds - Charred parsnip seeds
-        ItemBuilder::new("Burnt Parsnip Seeds", "Charred parsnip seeds. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_parsnip_seeds.png")
-            .stackable(80)
-            .respawn_time(0)
-            .consumable(-1.0, 0.0, -0.5) // health, hunger, thirst
-            .build(),
 
         // Chicory Seeds - Bitter herb seeds
         ItemBuilder::new("Chicory Seeds", "Seeds for growing chicory. Can be eaten but are quite bitter.", ItemCategory::Placeable)
@@ -327,22 +202,6 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
             .stackable(60)
             .respawn_time(0)
             .consumable(-1.0, 0.0, -1.0) // health, hunger, thirst
-            .build(),
-
-        // Dill Seeds - Culinary herb seeds
-        ItemBuilder::new("Dill Seeds", "Seeds for growing dill. Can be eaten and have a mild, pleasant flavor.", ItemCategory::Placeable)
-            .icon("dill_seeds.png")
-            .stackable(70)
-            .respawn_time(300) // 5 minutes
-            .consumable(0.5, 1.0, 1.0) // health, hunger, thirst - pleasant taste
-            .build(),
-
-        // Burnt Dill Seeds - Charred dill seeds
-        ItemBuilder::new("Burnt Dill Seeds", "Charred dill seeds that have lost their pleasant flavor. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_dill_seeds.png")
-            .stackable(70)
-            .respawn_time(0)
-            .consumable(-1.0, 0.0, -0.5) // health, hunger, thirst
             .build(),
 
         // Ginseng Seeds - Rare medicinal seeds
@@ -757,6 +616,40 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
             .stackable(15)
             .respawn_time(720) // 12 minutes
             .consumable(-3.0, -5.0, -5.0) // health, hunger, thirst
+            .build(),
+
+        // === ARCTIC/SUBARCTIC PLANT SEEDS (Botanically accurate for Aleutian Islands) ===
+
+        // Scurvy Grass Seeds - Arctic vitamin C source
+        ItemBuilder::new("Scurvy Grass Seeds", "Seeds for growing scurvy grass. Can be eaten but have a peppery, bitter taste. Rich in vitamin C.", ItemCategory::Placeable)
+            .icon("scurvy_grass_seeds.png")
+            .stackable(60)
+            .respawn_time(300) // 5 minutes - hardy, fast-growing
+            .consumable(1.0, 0.5, 0.5) // health, hunger, thirst - vitamin C boost
+            .build(),
+
+        // Crowberry Seeds - Hardy subarctic berries
+        ItemBuilder::new("Crowberry Seeds", "Seeds for growing crowberry plants. Can be eaten but are very small and tart.", ItemCategory::Placeable)
+            .icon("crowberry_seeds.png")
+            .stackable(80)
+            .respawn_time(1200) // 20 minutes - slow-growing perennial
+            .consumable(0.5, 0.5, 1.0) // health, hunger, thirst - small but refreshing
+            .build(),
+
+        // Sea Plantain Seeds - Maritime plant seeds
+        ItemBuilder::new("Sea Plantain Seeds", "Seeds for growing sea plantain. Can be eaten but have a salty, slightly bitter taste.", ItemCategory::Placeable)
+            .icon("sea_plantain_seeds.png")
+            .stackable(70)
+            .respawn_time(600) // 10 minutes - salt-tolerant
+            .consumable(0.5, 1.0, -1.0) // health, hunger, thirst - salty
+            .build(),
+
+        // Glasswort Seeds - Salt-tolerant succulent seeds
+        ItemBuilder::new("Glasswort Seeds", "Seeds for growing glasswort. Can be eaten but are very salty and crunchy.", ItemCategory::Placeable)
+            .icon("glasswort_seeds.png")
+            .stackable(50)
+            .respawn_time(720) // 12 minutes - specialized coastal plant
+            .consumable(1.0, 1.0, -2.0) // health, hunger, thirst - very salty
             .build(),
     ]
 }

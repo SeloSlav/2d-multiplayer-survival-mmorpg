@@ -43,6 +43,7 @@ use crate::wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern}; // Ad
 use crate::wild_animal_npc::core::AnimalBehavior; // Added AnimalBehavior trait
 use crate::barrel; // Added barrel system for roadside loot
 use crate::barrel::barrel as BarrelTableTrait; // Added barrel table trait
+use crate::world_state::world_state as WorldStateTableTrait; // Added for seasonal respawn system
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -74,6 +75,73 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
     
     // Calculate 1D chunk index (row-major ordering)
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
+}
+
+// --- Seasonal Wild Plant Respawn System ---
+
+/// Calculate how far through the current season we are (0.0 = start, 1.0 = end)
+/// Returns a value between 0.0 and 1.0 representing season progress
+pub fn get_current_season_progress(ctx: &ReducerContext) -> Result<f32, String> {
+    let world_state = ctx.db.world_state().iter().next().ok_or_else(|| {
+        "WorldState singleton not found".to_string()
+    })?;
+    let season_duration_hours = crate::world_state::SEASON_DURATION_HOURS;
+    
+    // Calculate how many hours have passed since season start
+    let season_start_day = match world_state.current_season {
+        crate::world_state::Season::Spring => 1,
+        crate::world_state::Season::Summer => 91,
+        crate::world_state::Season::Autumn => 181,
+        crate::world_state::Season::Winter => 271,
+    };
+    let days_into_season = world_state.day_of_year.saturating_sub(season_start_day - 1);
+    let hours_since_season_start = days_into_season as f32 * 24.0;
+    
+    // Calculate progress as a fraction (0.0 to 1.0)
+    let progress = hours_since_season_start / season_duration_hours;
+    
+    // Clamp to valid range (should always be 0.0-1.0, but safety first)
+    Ok(progress.max(0.0).min(1.0))
+}
+
+/// Calculate the seasonal multiplier for wild plant respawn times
+/// Uses an exponential curve that starts at 1.0x and increases to MAX_MULTIPLIER by season end
+/// This creates scarcity pressure that encourages early collection and farming
+pub fn calculate_seasonal_respawn_multiplier(season_progress: f32) -> f32 {
+    // Configuration for the exponential curve
+    const MAX_MULTIPLIER: f32 = 5.0; // At season end, respawn takes 5x longer
+    const CURVE_STEEPNESS: f32 = 2.5; // Controls how quickly the curve accelerates
+    
+    // Exponential curve: starts near 1.0, accelerates towards MAX_MULTIPLIER
+    // Formula: 1.0 + (MAX_MULTIPLIER - 1.0) * progress^CURVE_STEEPNESS
+    let normalized_progress = season_progress.max(0.0).min(1.0);
+    let exponential_factor = normalized_progress.powf(CURVE_STEEPNESS);
+    let multiplier = 1.0 + (MAX_MULTIPLIER - 1.0) * exponential_factor;
+    
+    multiplier
+}
+
+/// Apply seasonal respawn multiplier to base respawn seconds for wild plants
+/// This function should be called when calculating respawn times for wild harvestable resources
+pub fn apply_seasonal_respawn_multiplier(ctx: &ReducerContext, base_respawn_secs: u64) -> u64 {
+    match get_current_season_progress(ctx) {
+        Ok(progress) => {
+            let multiplier = calculate_seasonal_respawn_multiplier(progress);
+            let modified_respawn_secs = (base_respawn_secs as f32 * multiplier) as u64;
+            
+            // Log for debugging (only occasionally to avoid spam)
+            if ctx.rng().gen_range(0..100) < 5 { // 5% chance to log
+                log::info!("🌱 Seasonal respawn: {:.1}% through season, {:.1}x multiplier, {}s base → {}s actual", 
+                          progress * 100.0, multiplier, base_respawn_secs, modified_respawn_secs);
+            }
+            
+            modified_respawn_secs
+        }
+        Err(e) => {
+            log::warn!("Failed to get season progress for respawn multiplier: {}, using base time", e);
+            base_respawn_secs
+        }
+    }
 }
 
 /// Checks if position is in the central compound area where trees and stones should not spawn
@@ -775,7 +843,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                         plant_type.clone(),
                         pos_x,
                         pos_y,
-                        chunk_idx
+                        chunk_idx,
+                        false // Mark as wild plant (not player-planted)
                     )
                 },
                 (),

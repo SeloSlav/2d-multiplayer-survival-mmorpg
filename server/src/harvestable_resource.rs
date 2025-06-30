@@ -31,6 +31,7 @@ pub struct HarvestableResource {
     #[index(btree)]
     pub chunk_index: u32,
     pub respawn_at: Option<Timestamp>,
+    pub is_player_planted: bool, // NEW: Track if this is a farmed crop vs wild plant
 }
 
 // Implement RespawnableResource trait for HarvestableResource
@@ -87,6 +88,8 @@ pub fn interact_with_harvestable_resource(ctx: &ReducerContext, resource_id: u64
     };
 
     // Collect resource and schedule respawn
+    // NOTE: Seasonal respawn multiplier is automatically applied to wild plants in collect_resource_and_schedule_respawn
+    // This creates increasing scarcity as the season progresses, encouraging early collection and farming
     collect_resource_and_schedule_respawn(
         ctx,
         player_id,
@@ -111,7 +114,8 @@ pub fn interact_with_harvestable_resource(ctx: &ReducerContext, resource_id: u64
             }
         },
         config.min_respawn_time_secs,
-        config.max_respawn_time_secs
+        config.max_respawn_time_secs,
+        resource.is_player_planted // Pass whether this is a player-planted crop
     )?;
 
     // Try to grant seed drops after successful harvest
@@ -133,7 +137,8 @@ pub fn create_harvestable_resource(
     plant_type: PlantType,
     pos_x: f32,
     pos_y: f32,
-    chunk_index: u32
+    chunk_index: u32,
+    is_player_planted: bool
 ) -> HarvestableResource {
     HarvestableResource {
         id: 0, // auto_inc
@@ -142,6 +147,7 @@ pub fn create_harvestable_resource(
         pos_y,
         chunk_index,
         respawn_at: None,
+        is_player_planted, // Track whether this is a farmed crop or wild plant
     }
 }
 

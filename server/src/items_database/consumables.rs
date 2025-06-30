@@ -5,33 +5,6 @@ use super::builders::*;
 /// All consumable items in the game - food, medicine, and survival items
 pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
     vec![
-        // === CROPS & VEGETABLES ===
-        ItemBuilder::new("Corn", "Raw corn. A bit tough and not very satisfying.", ItemCategory::Consumable)
-            .icon("corn.png")
-            .stackable(20)
-            .consumable(4.0, 12.0, 8.0)
-            .cookable(25.0, "Cooked Corn")
-            .respawn_time(180)
-            .build(),
-
-        ItemBuilder::new("Cooked Corn", "Sweet and satisfying. A good source of energy.", ItemCategory::Consumable)
-            .icon("cooked_corn.png")
-            .stackable(20)
-            .consumable(18.0, 35.0, 20.0)
-            .stamina_gain(10.0)
-            .cookable(35.0, "Burnt Corn")
-            .respawn_time(240)
-            .build(),
-
-        ItemBuilder::new("Burnt Corn", "Charred and disappointing. Mostly carbon now, but can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_corn.png")
-            .stackable(20)
-            .consumable(-5.0, 5.0, -20.0)
-            .crafting_output(15, 0) // 15 charcoal output
-            .cookable(50.0, "Charcoal")
-            .respawn_time(60)
-            .build(),
-
         ItemBuilder::new("Pumpkin", "A large, raw pumpkin. Can be cooked.", ItemCategory::Consumable)
             .icon("pumpkin.png")
             .stackable(5)
@@ -110,83 +83,82 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(60)
             .build(),
 
-        ItemBuilder::new("Tomato", "A ripe, red tomato. Juicy and nutritious when eaten raw or cooked.", ItemCategory::Consumable)
-            .icon("tomato.png")
+        // === NEW ARCTIC/SUBARCTIC PLANTS ===
+        ItemBuilder::new("Scurvy Grass", "Arctic plant rich in vitamin C. Essential for preventing scurvy on long voyages. Grows year-round in coastal areas.", ItemCategory::Consumable)
+            .icon("scurvy_grass.png")
+            .stackable(20)
+            .consumable(15.0, 8.0, 5.0) // High health (vitamin C), low hunger/thirst
+            .stamina_gain(8.0)
+            .cookable(25.0, "Burnt Scurvy Grass")
+            .respawn_time(150)
+            .build(),
+
+        ItemBuilder::new("Burnt Scurvy Grass", "Overcooked scurvy grass. Vitamin C destroyed by heat, but still edible.", ItemCategory::Consumable)
+            .icon("burnt_scurvy_grass.png")
+            .stackable(20)
+            .consumable(2.0, 5.0, -2.0)
+            .crafting_output(8, 0)
+            .cookable(30.0, "Charcoal")
+            .respawn_time(40)
+            .build(),
+
+        ItemBuilder::new("Crowberry", "Small, dark berries from low-growing subarctic shrubs. Tart flavor with good nutrition.", ItemCategory::Consumable)
+            .icon("crowberry.png")
+            .stackable(25)
+            .consumable(8.0, 12.0, 10.0)
+            .stamina_gain(6.0)
+            .cookable(22.0, "Burnt Crowberry")
+            .respawn_time(180)
+            .build(),
+
+        ItemBuilder::new("Burnt Crowberry", "Overcooked crowberries. Dark and bitter, nutrients destroyed by heat.", ItemCategory::Consumable)
+            .icon("burnt_crowberry.png")
+            .stackable(25)
+            .consumable(-1.0, 3.0, -3.0)
+            .crafting_output(6, 0)
+            .cookable(25.0, "Charcoal")
+            .respawn_time(35)
+            .build(),
+
+        ItemBuilder::new("Sea Plantain", "Maritime plant with year-round edible leaves. Salty flavor from growing near the ocean.", ItemCategory::Consumable)
+            .icon("sea_plantain.png")
+            .stackable(18)
+            .consumable(6.0, 10.0, -5.0) // Negative thirst due to salt content
+            .stamina_gain(4.0)
+            .cookable(20.0, "Burnt Sea Plantain")
+            .respawn_time(140)
+            .build(),
+
+        ItemBuilder::new("Burnt Sea Plantain", "Charred sea plantain. Salt concentration increased by cooking, very thirsty-making.", ItemCategory::Consumable)
+            .icon("burnt_sea_plantain.png")
+            .stackable(18)
+            .consumable(1.0, 4.0, -10.0) // Very negative thirst
+            .crafting_output(5, 0)
+            .cookable(28.0, "Charcoal")
+            .respawn_time(30)
+            .build(),
+
+        ItemBuilder::new("Glasswort", "Salt-tolerant succulent with crunchy texture. Natural source of salt and minerals.", ItemCategory::Consumable)
+            .icon("glasswort.png")
             .stackable(15)
-            .consumable(10.0, 15.0, 8.0)
-            .cookable(35.0, "Cooked Tomato")
-            .respawn_time(200)
+            .consumable(4.0, 8.0, -8.0) // Good hunger, very negative thirst (salty)
+            .stamina_gain(5.0)
+            .cookable(30.0, "Burnt Glasswort")
+            .respawn_time(160)
             .build(),
 
-        ItemBuilder::new("Cooked Tomato", "Soft and flavorful cooked tomatoes. A versatile ingredient that provides good nutrition.", ItemCategory::Consumable)
-            .icon("cooked_tomato.png")
+        ItemBuilder::new("Burnt Glasswort", "Cooked glasswort. Concentrates the salt even more, making it very thirsty-making.", ItemCategory::Consumable)
+            .icon("burnt_glasswort.png")
             .stackable(15)
-            .consumable(25.0, 40.0, 20.0)
-            .stamina_gain(15.0)
-            .cookable(45.0, "Burnt Tomato")
-            .respawn_time(260)
+            .consumable(1.0, 5.0, -15.0) // Extremely negative thirst
+            .crafting_output(7, 0)
+            .cookable(35.0, "Charcoal")
+            .respawn_time(40)
             .build(),
 
-        ItemBuilder::new("Burnt Tomato", "Overcooked tomatoes that have turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_tomato.png")
-            .stackable(15)
-            .consumable(-3.0, 8.0, -10.0)
-            .crafting_output(12, 0)
-            .cookable(50.0, "Charcoal")
-            .respawn_time(80)
-            .build(),
 
-        ItemBuilder::new("Cabbage", "A fresh, crisp cabbage head. Nutritious and versatile for cooking.", ItemCategory::Consumable)
-            .icon("cabbage.png")
-            .stackable(10)
-            .consumable(8.0, 12.0, 5.0)
-            .cookable(40.0, "Cooked Cabbage")
-            .respawn_time(220)
-            .build(),
 
-        ItemBuilder::new("Cooked Cabbage", "Tender and flavorful cooked cabbage. A healthy side dish that provides good nutrition.", ItemCategory::Consumable)
-            .icon("cooked_cabbage.png")
-            .stackable(10)
-            .consumable(20.0, 30.0, 15.0)
-            .stamina_gain(10.0)
-            .cookable(50.0, "Burnt Cabbage")
-            .respawn_time(280)
-            .build(),
 
-        ItemBuilder::new("Burnt Cabbage", "Overcooked cabbage that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_cabbage.png")
-            .stackable(10)
-            .consumable(-2.0, 8.0, -8.0)
-            .crafting_output(12, 0)
-            .cookable(55.0, "Charcoal")
-            .respawn_time(90)
-            .build(),
-
-        ItemBuilder::new("Radish", "A crisp, peppery root vegetable. Fresh and nutritious when eaten raw.", ItemCategory::Consumable)
-            .icon("radish.png")
-            .stackable(15)
-            .consumable(10.0, 15.0, 8.0)
-            .cookable(35.0, "Cooked Radish")
-            .respawn_time(200)
-            .build(),
-
-        ItemBuilder::new("Cooked Radish", "Tender and flavorful cooked radish. A healthy side dish that provides good nutrition.", ItemCategory::Consumable)
-            .icon("cooked_radish.png")
-            .stackable(15)
-            .consumable(25.0, 40.0, 20.0)
-            .stamina_gain(15.0)
-            .cookable(45.0, "Burnt Radish")
-            .respawn_time(260)
-            .build(),
-
-        ItemBuilder::new("Burnt Radish", "Overcooked radish that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_radish.png")
-            .stackable(15)
-            .consumable(-3.0, 8.0, -10.0)
-            .crafting_output(12, 0)
-            .cookable(50.0, "Charcoal")
-            .respawn_time(80)
-            .build(),
 
         ItemBuilder::new("Beet", "A deep red root vegetable with a sweet, earthy flavor. Nutritious and can be eaten raw or cooked.", ItemCategory::Consumable)
             .icon("beet.png")
@@ -214,109 +186,11 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(100)
             .build(),
 
-        ItemBuilder::new("Turnip", "A round root vegetable with a mild, slightly peppery flavor. Can be eaten raw or cooked.", ItemCategory::Consumable)
-            .icon("turnip.png")
-            .stackable(15)
-            .consumable(8.0, 12.0, 6.0)
-            .cookable(35.0, "Cooked Turnip")
-            .respawn_time(200)
-            .build(),
 
-        ItemBuilder::new("Cooked Turnip", "Tender and flavorful cooked turnip. A healthy side dish that provides good nutrition.", ItemCategory::Consumable)
-            .icon("cooked_turnip.png")
-            .stackable(15)
-            .consumable(20.0, 35.0, 15.0)
-            .stamina_gain(12.0)
-            .cookable(45.0, "Burnt Turnip")
-            .respawn_time(260)
-            .build(),
 
-        ItemBuilder::new("Burnt Turnip", "Overcooked turnip that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_turnip.png")
-            .stackable(15)
-            .consumable(-3.0, 8.0, -10.0)
-            .crafting_output(12, 0)
-            .cookable(50.0, "Charcoal")
-            .respawn_time(80)
-            .build(),
 
-        ItemBuilder::new("Onion", "A pungent bulb vegetable with layers of papery skin. Adds flavor to dishes and can be eaten raw or cooked.", ItemCategory::Consumable)
-            .icon("onion.png")
-            .stackable(12)
-            .consumable(5.0, 8.0, 3.0)
-            .cookable(40.0, "Cooked Onion")
-            .respawn_time(220)
-            .build(),
 
-        ItemBuilder::new("Cooked Onion", "Sweet and tender cooked onion. A flavorful addition to meals that provides decent nutrition.", ItemCategory::Consumable)
-            .icon("cooked_onion.png")
-            .stackable(12)
-            .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
-            .cookable(50.0, "Burnt Onion")
-            .respawn_time(280)
-            .build(),
 
-        ItemBuilder::new("Burnt Onion", "Overcooked onion that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_onion.png")
-            .stackable(12)
-            .consumable(-2.0, 5.0, -8.0)
-            .crafting_output(12, 0)
-            .cookable(55.0, "Charcoal")
-            .respawn_time(90)
-            .build(),
-
-        ItemBuilder::new("Garlic", "A bulb of garlic with cloves that can be used as a spice or cooked into food. Adds flavor and can be eaten raw or cooked.", ItemCategory::Consumable)
-            .icon("garlic.png")
-            .stackable(12)
-            .consumable(5.0, 8.0, 3.0)
-            .cookable(40.0, "Cooked Garlic")
-            .respawn_time(220)
-            .build(),
-
-        ItemBuilder::new("Cooked Garlic", "Tender and flavorful cooked garlic. A flavorful addition to meals that provides decent nutrition.", ItemCategory::Consumable)
-            .icon("cooked_garlic.png")
-            .stackable(12)
-            .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
-            .cookable(50.0, "Burnt Garlic")
-            .respawn_time(280)
-            .build(),
-
-        ItemBuilder::new("Burnt Garlic", "Overcooked garlic that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_garlic.png")
-            .stackable(12)
-            .consumable(-2.0, 5.0, -8.0)
-            .crafting_output(12, 0)
-            .cookable(55.0, "Charcoal")
-            .respawn_time(90)
-            .build(),
-
-        ItemBuilder::new("Parsnip", "A root vegetable with a sweet, nutty flavor. Can be eaten raw or cooked for better nutrition.", ItemCategory::Consumable)
-            .icon("parsnip.png")
-            .stackable(12)
-            .consumable(5.0, 8.0, 3.0)
-            .cookable(40.0, "Cooked Parsnip")
-            .respawn_time(220)
-            .build(),
-
-        ItemBuilder::new("Cooked Parsnip", "Sweet and tender cooked parsnip. A flavorful addition to meals that provides decent nutrition.", ItemCategory::Consumable)
-            .icon("cooked_parsnip.png")
-            .stackable(12)
-            .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
-            .cookable(50.0, "Burnt Parsnip")
-            .respawn_time(280)
-            .build(),
-
-        ItemBuilder::new("Burnt Parsnip", "Overcooked parsnip that has turned black and bitter. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_parsnip.png")
-            .stackable(12)
-            .consumable(-2.0, 5.0, -8.0)
-            .crafting_output(12, 0)
-            .cookable(55.0, "Charcoal")
-            .respawn_time(90)
-            .build(),
 
         ItemBuilder::new("Horseradish", "A pungent root vegetable with a sharp, spicy flavor. Can be eaten raw or cooked for better nutrition.", ItemCategory::Consumable)
             .icon("horseradish.png")
@@ -547,54 +421,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(40)
             .build(),
 
-
-
-        ItemBuilder::new("Fennel Root", "Fresh fennel bulb with crisp texture and mild anise flavor. The whole plant is edible and nutritious.", ItemCategory::Consumable)
-            .icon("fennel.png")
-            .stackable(12)
-            .consumable(6.0, 12.0, 4.0)
-            .stamina_gain(8.0)
-            .cookable(35.0, "Cooked Fennel Root")
-            .respawn_time(200)
-            .build(),
-
-        ItemBuilder::new("Cooked Fennel Root", "Tender braised fennel with caramelized edges. Cooking sweetens the anise flavor and makes it more digestible.", ItemCategory::Consumable)
-            .icon("cooked_fennel.png")
-            .stackable(12)
-            .consumable(14.0, 22.0, 8.0)
-            .stamina_gain(16.0)
-            .cookable(25.0, "Burnt Fennel Root")
-            .build(),
-
-        ItemBuilder::new("Burnt Fennel Root", "Charred fennel bulb. Overcooked until bitter and unappetizing, but can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_fennel.png")
-            .stackable(12)
-            .consumable(-4.0, 3.0, -6.0)
-            .crafting_output(8, 0)
-            .cookable(48.0, "Charcoal")
-            .respawn_time(45)
-            .build(),
-
-        ItemBuilder::new("Dill", "Feathery herb with a distinctive flavor. Mildly nutritious and helps with digestion.", ItemCategory::Consumable)
-            .icon("dill.png")
-            .stackable(20)
-            .consumable(3.0, 6.0, 2.0)
-            .stamina_gain(4.0)
-            .cookable(28.0, "Burnt Dill")
-            .respawn_time(160)
-            .build(),
-
-        ItemBuilder::new("Burnt Dill", "Incinerated dill that crumbles at the touch. Can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_dill.png")
-            .stackable(20)
-            .consumable(-1.0, 1.0, -2.0)
-            .crafting_output(4, 0)
-            .cookable(42.0, "Charcoal")
-            .respawn_time(30)
-            .build(),
-
-
-
         ItemBuilder::new("Bear Garlic", "Wild garlic with a strong, pungent flavor. Provides good nutrition and natural antimicrobial properties.", ItemCategory::Consumable)
             .icon("bear_garlic.png")
             .stackable(16)
@@ -701,24 +527,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .crafting_output(5, 0)
             .cookable(30.0, "Charcoal")
             .respawn_time(35)
-            .build(),
-
-        ItemBuilder::new("Fennel Fronds", "Feathery leaves from fennel plants. Traditional tea herb with delicate anise flavor.", ItemCategory::Consumable)
-            .icon("fennel_fronds.png")
-            .stackable(25)
-            .consumable(3.0, 5.0, 4.0)
-            .stamina_gain(5.0)
-            .cookable(18.0, "Burnt Fennel Fronds")
-            .respawn_time(150)
-            .build(),
-
-        ItemBuilder::new("Burnt Fennel Fronds", "Overcooked fennel fronds. Delicate tea properties destroyed by excess heat.", ItemCategory::Consumable)
-            .icon("burnt_fennel_fronds.png")
-            .stackable(25)
-            .consumable(-1.0, 2.0, -2.0)
-            .crafting_output(4, 0)
-            .cookable(22.0, "Charcoal")
-            .respawn_time(30)
             .build(),
 
         ItemBuilder::new("Ginseng Leaves", "Leaves from rare Siberian ginseng plants. Traditional tea herb with mild adaptogenic properties.", ItemCategory::Consumable)

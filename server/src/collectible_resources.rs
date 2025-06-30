@@ -22,6 +22,7 @@ use rand::Rng;
 use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as ItemDefinitionTableTrait};
 use crate::player as PlayerTableTrait;
 use crate::plants_database::{PlantType, plant_type_to_entity_name, get_plant_type_by_entity_name, has_seed_drops, get_seed_type_for_plant};
+use crate::environment::apply_seasonal_respawn_multiplier;
 
 // --- Shared Interaction Constants ---
 /// Base interaction radius for collectible resources
@@ -81,7 +82,9 @@ pub fn collect_resource_and_schedule_respawn<F>(
     update_resource_fn: F,
     // NEW PARAMETERS for variable respawn times
     min_respawn_secs: u64,
-    max_respawn_secs: u64
+    max_respawn_secs: u64,
+    // NEW PARAMETER to differentiate wild vs player-planted
+    is_player_planted: bool
 ) -> Result<(), String> 
 where 
     F: FnOnce(Timestamp) -> Result<(), String>
@@ -144,10 +147,18 @@ where
     }
 
     // Calculate respawn time using new min/max parameters
-    let actual_respawn_secs = if min_respawn_secs >= max_respawn_secs {
+    let base_respawn_secs = if min_respawn_secs >= max_respawn_secs {
         min_respawn_secs // If min >= max, or if they are equal, use min
     } else {
         rng.gen_range(min_respawn_secs..=max_respawn_secs)
+    };
+    
+    // Apply seasonal multiplier ONLY to wild plants (not player-planted crops)
+    // This creates scarcity as season progresses while keeping farming sustainable
+    let actual_respawn_secs = if is_player_planted {
+        base_respawn_secs // No seasonal multiplier for player-planted crops
+    } else {
+        apply_seasonal_respawn_multiplier(ctx, base_respawn_secs) // Apply multiplier to wild plants
     };
     let respawn_time = ctx.timestamp + TimeDuration::from(Duration::from_secs(actual_respawn_secs));
     

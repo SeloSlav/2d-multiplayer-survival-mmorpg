@@ -4,23 +4,13 @@
 import type { HarvestableResourceType } from '../../types/resourceTypes';
 
 // Import existing resource images
-import cornImageSource from '../../assets/doodads/corn_stalk_b.png';
 import borealNettleImageSource from '../../assets/doodads/hemp_b.png'; // Reusing hemp image for BorealNettle
 import potatoImageSource from '../../assets/doodads/potato_b.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin_b.png';
 import reedImageSource from '../../assets/doodads/reed_stalk_b.png';
 import beachLymeGrassImageSource from '../../assets/doodads/beach_lyme_grass_b.png';
-import wheatImageSource from '../../assets/doodads/wheat.png';
-import carrotImageSource from '../../assets/doodads/carrot.png';
-import tomatoeImageSource from '../../assets/doodads/tomato.png';
-import cabbageImageSource from '../../assets/doodads/cabbage.png';
-import radishImageSource from '../../assets/doodads/radish.png';
+import carrotImageSource from '../../assets/doodads/carrot_b.png';
 import beetsImageSource from '../../assets/doodads/beet.png';
-import buckwheatImageSource from '../../assets/doodads/buckwheat.png';
-import turnipImageSource from '../../assets/doodads/turnip.png';
-import onionImageSource from '../../assets/doodads/onion.png';
-import garlicImageSource from '../../assets/doodads/garlic.png';
-import parsnipImageSource from '../../assets/doodads/parsnip.png';
 import horseradishImageSource from '../../assets/doodads/horseradish.png';
 import chicoryImageSource from '../../assets/doodads/chicory.png';
 import yarrowImageSource from '../../assets/doodads/yarrow.png';
@@ -28,104 +18,104 @@ import chamomileImageSource from '../../assets/doodads/chamomile.png';
 import mintImageSource from '../../assets/doodads/mint.png';
 import valerianImageSource from '../../assets/doodads/valerian.png';
 import mugwortImageSource from '../../assets/doodads/mugwort.png';
-import fennelImageSource from '../../assets/doodads/fennel.png';
-import dillImageSource from '../../assets/doodads/dill.png';
 import flaxImageSource from '../../assets/doodads/flax.png';
 import bearGarlicImageSource from '../../assets/doodads/bear_garlic.png';
 import siberianGinsengImageSource from '../../assets/doodads/siberian_ginseng.png';
 import dogbaneImageSource from '../../assets/doodads/dogbane.png';
 import bogCottonImageSource from '../../assets/doodads/bog_cotton.png';
+import salsifyImageSource from '../../assets/doodads/salsify.png';
+
+// NEW ARCTIC/SUBARCTIC PLANTS
+import scurvyGrassImageSource from '../../assets/doodads/scurvy_grass.png';
+import crowberriesImageSource from '../../assets/doodads/crowberries.png';
+import seaPlantainImageSource from '../../assets/doodads/sea_plantain.png';
+import glasswortImageSource from '../../assets/doodads/glasswort.png';
+
+// Mushrooms
 import chanterelleImageSource from '../../assets/doodads/chanterelle.png';
 import porciniImageSource from '../../assets/doodads/porcini.png';
 import flyAgaricImageSource from '../../assets/doodads/fly_agaric.png';
 import shaggyInkCapImageSource from '../../assets/doodads/shaggy_ink_cap.png';
 import deadlyWebcapImageSource from '../../assets/doodads/deadly_webcap.png';
 import destroyingAngelImageSource from '../../assets/doodads/destroying_angel.png';
+
+// Berries (botanically accurate for subarctic)
 import lingonberriesImageSource from '../../assets/doodads/lingonberries.png';
 import cloudberriesImageSource from '../../assets/doodads/cloudberries.png';
 import bilberriesImageSource from '../../assets/doodads/bilberries.png';
 import wildStrawberriesImageSource from '../../assets/doodads/wild_strawberries.png';
 import rowanBerriesImageSource from '../../assets/doodads/rowan_berries.png';
 import cranberriesImageSource from '../../assets/doodads/cranberries.png';
+
+// Toxic/Medicinal plants
 import mandrakeImageSource from '../../assets/doodads/mandrake.png';
 import belladonnaImageSource from '../../assets/doodads/belladonna.png';
 import henbaneImageSource from '../../assets/doodads/henbane.png';
 import daturaImageSource from '../../assets/doodads/datura.png';
 import wolfsbaneImageSource from '../../assets/doodads/wolfsbane.png';
+
+// Other
 import sunflowersImageSource from '../../assets/doodads/sunflower.png';
-import salsifyImageSource from '../../assets/doodads/salsify.png';
 
-// TODO: Add proper images for all new plant types to assets/doodads/
-// Currently using placeholders from existing images
-
-// Default fallback image for missing specific plant images
-const defaultPlantImageSource = beachLymeGrassImageSource; // Generic plant/grass image
-
-// Resource type to image source mapping
+// Resource type to image source mapping (BOTANICALLY ACCURATE FOR ALEUTIAN ISLANDS)
 export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
-  // Existing plants (Hemp -> BorealNettle, Mushroom removed)
-  Corn: cornImageSource,
+  // === BASIC CROPS (Cold-hardy varieties) ===
   BorealNettle: borealNettleImageSource,
   Potato: potatoImageSource,
   Pumpkin: pumpkinImageSource,
   Reed: reedImageSource,
   BeachLymeGrass: beachLymeGrassImageSource,
   
-  // Vegetables - TODO: Replace with proper vegetable images
-  Wheat: wheatImageSource, // Grain placeholder
-  Carrot: carrotImageSource, // Root vegetable placeholder
-  Tomato: tomatoeImageSource, // Round fruit placeholder
-  Cabbage: cabbageImageSource, // TODO: Add cabbage.png
-  Radish: radishImageSource, // Root vegetable placeholder
-  Beets: beetsImageSource, // Root vegetable placeholder
-  Buckwheat: buckwheatImageSource, // Grain placeholder
-  Turnip: turnipImageSource, // Root vegetable placeholder
-  Onion: onionImageSource, // Root vegetable placeholder
-  Garlic: garlicImageSource, // Root vegetable placeholder
-  Parsnip: parsnipImageSource, // Root vegetable placeholder
-  Horseradish: horseradishImageSource, // Root vegetable placeholder
+  // === COLD-HARDY ROOT CROPS ===
+  Carrot: carrotImageSource,
+  Beets: beetsImageSource,
+  Horseradish: horseradishImageSource,
   
-  // Herbs & Medicinal Plants - TODO: Replace with proper herb images
-  Chicory: chicoryImageSource, // TODO: Add chicory.png
-  Yarrow: yarrowImageSource, // TODO: Add yarrow.png
-  Chamomile: chamomileImageSource, // TODO: Add chamomile.png
-  Mint: mintImageSource, // TODO: Add mint.png
-  Valerian: valerianImageSource, // TODO: Add valerian.png
-  Mugwort: mugwortImageSource, // TODO: Add mugwort.png
-  Fennel: fennelImageSource, // TODO: Add fennel.png
-  Dill: dillImageSource, // TODO: Add dill.png
-  Flax: flaxImageSource, // Fiber plant placeholder
-  BearGarlic: bearGarlicImageSource, // TODO: Add wild_garlic.png
-  SiberianGinseng: siberianGinsengImageSource, // Root medicine placeholder
-  Dogbane: dogbaneImageSource, // Fiber plant placeholder
-  BogCotton: bogCottonImageSource, // TODO: Add bog_cotton.png
+  // === HERBS & MEDICINAL PLANTS (Arctic/Subarctic species) ===
+  Chicory: chicoryImageSource,
+  Yarrow: yarrowImageSource,
+  Chamomile: chamomileImageSource,
+  Mint: mintImageSource,
+  Valerian: valerianImageSource,
+  Mugwort: mugwortImageSource,
+  BearGarlic: bearGarlicImageSource,
+  SiberianGinseng: siberianGinsengImageSource,
+  Dogbane: dogbaneImageSource,
+  BogCotton: bogCottonImageSource,
+  Flax: flaxImageSource,
+  Salsify: salsifyImageSource,
   
-  // Mushrooms - TODO: Replace with proper mushroom images
-  Chanterelle: chanterelleImageSource, // TODO: Add chanterelle.png
-  Porcini: porciniImageSource, // TODO: Add porcini.png
-  FlyAgaric: flyAgaricImageSource, // TODO: Add fly_agaric.png
-  ShaggyInkCap: shaggyInkCapImageSource, // TODO: Add shaggy_ink_cap.png
-  DeadlyWebcap: deadlyWebcapImageSource, // TODO: Add deadly_webcap.png
-  DestroyingAngel: destroyingAngelImageSource, // TODO: Add destroying_angel.png
+  // === NEW: ARCTIC/SUBARCTIC PLANTS (Botanically accurate for Aleutian Islands) ===
+  ScurvyGrass: scurvyGrassImageSource,
+  Crowberry: crowberriesImageSource,
+  SeaPlantain: seaPlantainImageSource,
+  Glasswort: glasswortImageSource,
   
-  // Berries & Nuts - TODO: Replace with proper berry/nut images
-  Lingonberries: lingonberriesImageSource, // TODO: Add lingonberries.png
-  Cloudberries: cloudberriesImageSource, // TODO: Add cloudberries.png
-  Bilberries: bilberriesImageSource, // TODO: Add bilberries.png
-  WildStrawberries: wildStrawberriesImageSource, // TODO: Add wild_strawberries.png
-  RowanBerries: rowanBerriesImageSource, // TODO: Add rowan_berries.png
-  Cranberries: cranberriesImageSource, // TODO: Add cranberries.png
+  // === MUSHROOMS (Can grow in cold, humid maritime conditions) ===
+  Chanterelle: chanterelleImageSource,
+  Porcini: porciniImageSource,
+  FlyAgaric: flyAgaricImageSource,
+  ShaggyInkCap: shaggyInkCapImageSource,
+  DeadlyWebcap: deadlyWebcapImageSource,
+  DestroyingAngel: destroyingAngelImageSource,
   
-  // Toxic/Medicinal - TODO: Replace with proper toxic plant images
-  Mandrake: mandrakeImageSource, // TODO: Add mandrake.png
-  Belladonna: belladonnaImageSource, // TODO: Add belladonna.png
-  Henbane: henbaneImageSource, // TODO: Add henbane.png
-  Datura: daturaImageSource, // TODO: Add datura.png
-  Wolfsbane: wolfsbaneImageSource, // TODO: Add wolfsbane.png
+  // === BERRIES (Native to subarctic/boreal regions) ===
+  Lingonberries: lingonberriesImageSource,
+  Cloudberries: cloudberriesImageSource,
+  Bilberries: bilberriesImageSource,
+  WildStrawberries: wildStrawberriesImageSource,
+  RowanBerries: rowanBerriesImageSource,
+  Cranberries: cranberriesImageSource,
   
-  // Other - TODO: Replace with proper images
-  Sunflowers: sunflowersImageSource, // TODO: Add sunflowers.png
-  Salsify: salsifyImageSource // TODO: Add salsify.png
+  // === TOXIC/MEDICINAL ===
+  Mandrake: mandrakeImageSource,
+  Belladonna: belladonnaImageSource,
+  Henbane: henbaneImageSource,
+  Datura: daturaImageSource,
+  Wolfsbane: wolfsbaneImageSource,
+  
+  // === OTHER ===
+  Sunflowers: sunflowersImageSource
 };
 
 // Helper function to get image source for a resource type

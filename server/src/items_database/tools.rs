@@ -81,6 +81,7 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
         basic_tool("Stone Hatchet", "A simple hatchet for chopping wood.", 
                   TargetType::Tree, 60, 80, 25, 35, "Wood")
             .icon("wood_hatchet.png")
+            .pvp_damage(15, 20)
             .crafting_cost(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
                 CostIngredient { item_name: "Stone".to_string(), quantity: 100 },
@@ -108,7 +109,7 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
                   TargetType::Stone, 60, 120, 13, 22, "Stone")
             .icon("pick_axe.png")
             .equippable(None)
-
+            .pvp_damage(18, 25)
             .crafting_cost(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
                 CostIngredient { item_name: "Stone".to_string(), quantity: 100 },
