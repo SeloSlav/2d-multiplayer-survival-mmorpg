@@ -67,6 +67,9 @@ configs.insert(PlantType::Wheat, PlantConfig {
     // Respawn/Growth Timing
     min_respawn_time_secs: 800,               // 13 minutes minimum
     max_respawn_time_secs: 1200,              // 20 minutes maximum
+    
+    // Seasonal Growth
+    growing_seasons: vec![Season::Spring, Season::Summer], // When this plant can grow
 });
 ```
 
@@ -123,6 +126,22 @@ Choose the appropriate spawn condition for your plant:
 - **`SpawnCondition::Coastal`** - Beach, riverside areas (pumpkin)
 - **`SpawnCondition::InlandWater`** - Along inland water sources (reed)
 
+## Growing Seasons
+
+Choose which seasons your plant can grow in (plants are dormant in other seasons):
+
+- **`Season::Spring`** - Days 1-90 (March 20 - June 20)
+- **`Season::Summer`** - Days 91-180 (June 21 - September 20) 
+- **`Season::Autumn`** - Days 181-270 (September 21 - December 20)
+- **`Season::Winter`** - Days 271-360 (December 21 - March 19)
+
+**Examples:**
+- **Warm crops**: `vec![Season::Spring, Season::Summer]` (corn)
+- **Cool crops**: `vec![Season::Spring, Season::Autumn]` (potato)
+- **Extended season**: `vec![Season::Summer, Season::Autumn]` (pumpkin)
+- **Hardy water plants**: `vec![Season::Spring, Season::Summer, Season::Autumn]` (reed)
+- **Year-round resources**: `vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter]` (hemp, mushroom, beach lyme grass)
+
 ## Configuration Guidelines
 
 ### Density and Spacing
@@ -140,16 +159,23 @@ Choose the appropriate spawn condition for your plant:
 - **Medium crops**: 900-1800 seconds (15-30 minutes)
 - **Slow crops**: 1800-3600 seconds (30-60 minutes)
 
+### Seasonal Planning
+- **Year-round availability**: Mix plants with different growing seasons
+- **Seasonal balance**: Ensure each season has some growable plants
+- **Realistic ecology**: Match seasons to real-world growing patterns
+- **Gameplay variety**: Create seasonal farming strategies
+
 ## What Happens Automatically
 
 Once you add the configuration, **all systems automatically work**:
 
 ✅ **Planting System**: Seeds are detected as plantable  
-✅ **Growth System**: Uses your timing configuration  
+✅ **Growth System**: Uses your timing configuration and seasonal restrictions
 ✅ **Harvesting**: Drops configured items and seeds  
 ✅ **World Generation**: Spawns according to your rules  
 ✅ **Client UI**: Seeds appear in plantable items  
 ✅ **Placement System**: Handles seed placement logic  
+✅ **Seasonal Growth**: Plants automatically go dormant in wrong seasons  
 
 ## Example: Adding Sunflower
 
@@ -169,12 +195,13 @@ configs.insert(PlantType::Sunflower, PlantConfig {
     min_stone_distance_sq: 30.0 * 30.0,
     noise_threshold: 0.70,
     primary_yield: ("Sunflower".to_string(), 1, 1),
-    secondary_yield: Some(("Sunflower Oil".to_string(), 1, 2, 0.30)),
+    secondary_yield: Some(("Plant Fiber".to_string(), 1, 2, 0.30)),
     seed_type: "Sunflower Seeds".to_string(),
     seed_drop_chance: 0.18,
     min_respawn_time_secs: 1200, // 20 minutes
     max_respawn_time_secs: 1800, // 30 minutes  
     spawn_condition: SpawnCondition::Plains,
+    growing_seasons: vec![Season::Spring, Season::Summer], // Warm weather crop
 });
 ```
 
@@ -206,5 +233,15 @@ configs.insert(PlantType::Sunflower, PlantConfig {
 ## Legacy Note
 
 This simplified system replaced the previous approach that required updating 7+ files with hardcoded plant names. The new data-driven approach eliminates maintenance overhead and reduces bugs.
+
+
+
+
+
+
+
+
+
+
 
 

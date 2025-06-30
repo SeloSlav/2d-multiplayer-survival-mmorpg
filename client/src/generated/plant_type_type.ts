@@ -36,12 +36,58 @@ export namespace PlantType {
   // One type is generated per variant and will be used in the `value` field of
   // the tagged union.
   export type Corn = { tag: "Corn" };
-  export type Hemp = { tag: "Hemp" };
-  export type Mushroom = { tag: "Mushroom" };
+  export type BorealNettle = { tag: "BorealNettle" };
   export type Potato = { tag: "Potato" };
   export type Pumpkin = { tag: "Pumpkin" };
   export type Reed = { tag: "Reed" };
   export type BeachLymeGrass = { tag: "BeachLymeGrass" };
+  export type Wheat = { tag: "Wheat" };
+  export type Carrots = { tag: "Carrots" };
+  export type Tomatoes = { tag: "Tomatoes" };
+  export type Cabbage = { tag: "Cabbage" };
+  export type Radish = { tag: "Radish" };
+  export type Beets = { tag: "Beets" };
+  export type Buckwheat = { tag: "Buckwheat" };
+  export type Turnips = { tag: "Turnips" };
+  export type Onions = { tag: "Onions" };
+  export type Garlic = { tag: "Garlic" };
+  export type Parsnips = { tag: "Parsnips" };
+  export type Horseradish = { tag: "Horseradish" };
+  export type Chicory = { tag: "Chicory" };
+  export type Yarrow = { tag: "Yarrow" };
+  export type Chamomile = { tag: "Chamomile" };
+  export type Mint = { tag: "Mint" };
+  export type Valerian = { tag: "Valerian" };
+  export type Mugwort = { tag: "Mugwort" };
+  export type Fennel = { tag: "Fennel" };
+  export type Dill = { tag: "Dill" };
+  export type Flax = { tag: "Flax" };
+  export type WildGarlic = { tag: "WildGarlic" };
+  export type SiberianGinseng = { tag: "SiberianGinseng" };
+  export type Willow = { tag: "Willow" };
+  export type BirchBark = { tag: "BirchBark" };
+  export type Dogbane = { tag: "Dogbane" };
+  export type BogCotton = { tag: "BogCotton" };
+  export type Chanterelle = { tag: "Chanterelle" };
+  export type Porcini = { tag: "Porcini" };
+  export type FlyAgaric = { tag: "FlyAgaric" };
+  export type ShaggylnkCap = { tag: "ShaggylnkCap" };
+  export type DeadlyWebcap = { tag: "DeadlyWebcap" };
+  export type DestroyingAngel = { tag: "DestroyingAngel" };
+  export type Lingonberries = { tag: "Lingonberries" };
+  export type Cloudberries = { tag: "Cloudberries" };
+  export type Bilberries = { tag: "Bilberries" };
+  export type WildStrawberries = { tag: "WildStrawberries" };
+  export type RowanBerries = { tag: "RowanBerries" };
+  export type Cranberries = { tag: "Cranberries" };
+  export type Hazelnuts = { tag: "Hazelnuts" };
+  export type Mandrake = { tag: "Mandrake" };
+  export type Belladonna = { tag: "Belladonna" };
+  export type Henbane = { tag: "Henbane" };
+  export type Datura = { tag: "Datura" };
+  export type Wolfsbane = { tag: "Wolfsbane" };
+  export type Sunflowers = { tag: "Sunflowers" };
+  export type Salsify = { tag: "Salsify" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -50,22 +96,114 @@ export namespace PlantType {
   // assert!(foo.value === 42);
   // ```
   export const Corn = { tag: "Corn" };
-  export const Hemp = { tag: "Hemp" };
-  export const Mushroom = { tag: "Mushroom" };
+  export const BorealNettle = { tag: "BorealNettle" };
   export const Potato = { tag: "Potato" };
   export const Pumpkin = { tag: "Pumpkin" };
   export const Reed = { tag: "Reed" };
   export const BeachLymeGrass = { tag: "BeachLymeGrass" };
+  export const Wheat = { tag: "Wheat" };
+  export const Carrots = { tag: "Carrots" };
+  export const Tomatoes = { tag: "Tomatoes" };
+  export const Cabbage = { tag: "Cabbage" };
+  export const Radish = { tag: "Radish" };
+  export const Beets = { tag: "Beets" };
+  export const Buckwheat = { tag: "Buckwheat" };
+  export const Turnips = { tag: "Turnips" };
+  export const Onions = { tag: "Onions" };
+  export const Garlic = { tag: "Garlic" };
+  export const Parsnips = { tag: "Parsnips" };
+  export const Horseradish = { tag: "Horseradish" };
+  export const Chicory = { tag: "Chicory" };
+  export const Yarrow = { tag: "Yarrow" };
+  export const Chamomile = { tag: "Chamomile" };
+  export const Mint = { tag: "Mint" };
+  export const Valerian = { tag: "Valerian" };
+  export const Mugwort = { tag: "Mugwort" };
+  export const Fennel = { tag: "Fennel" };
+  export const Dill = { tag: "Dill" };
+  export const Flax = { tag: "Flax" };
+  export const WildGarlic = { tag: "WildGarlic" };
+  export const SiberianGinseng = { tag: "SiberianGinseng" };
+  export const Willow = { tag: "Willow" };
+  export const BirchBark = { tag: "BirchBark" };
+  export const Dogbane = { tag: "Dogbane" };
+  export const BogCotton = { tag: "BogCotton" };
+  export const Chanterelle = { tag: "Chanterelle" };
+  export const Porcini = { tag: "Porcini" };
+  export const FlyAgaric = { tag: "FlyAgaric" };
+  export const ShaggylnkCap = { tag: "ShaggylnkCap" };
+  export const DeadlyWebcap = { tag: "DeadlyWebcap" };
+  export const DestroyingAngel = { tag: "DestroyingAngel" };
+  export const Lingonberries = { tag: "Lingonberries" };
+  export const Cloudberries = { tag: "Cloudberries" };
+  export const Bilberries = { tag: "Bilberries" };
+  export const WildStrawberries = { tag: "WildStrawberries" };
+  export const RowanBerries = { tag: "RowanBerries" };
+  export const Cranberries = { tag: "Cranberries" };
+  export const Hazelnuts = { tag: "Hazelnuts" };
+  export const Mandrake = { tag: "Mandrake" };
+  export const Belladonna = { tag: "Belladonna" };
+  export const Henbane = { tag: "Henbane" };
+  export const Datura = { tag: "Datura" };
+  export const Wolfsbane = { tag: "Wolfsbane" };
+  export const Sunflowers = { tag: "Sunflowers" };
+  export const Salsify = { tag: "Salsify" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
       new SumTypeVariant("Corn", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Hemp", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Mushroom", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BorealNettle", AlgebraicType.createProductType([])),
       new SumTypeVariant("Potato", AlgebraicType.createProductType([])),
       new SumTypeVariant("Pumpkin", AlgebraicType.createProductType([])),
       new SumTypeVariant("Reed", AlgebraicType.createProductType([])),
       new SumTypeVariant("BeachLymeGrass", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Wheat", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Carrots", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Tomatoes", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Cabbage", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Radish", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Beets", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Buckwheat", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Turnips", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Onions", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Garlic", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Parsnips", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Horseradish", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Chicory", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Yarrow", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Chamomile", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Mint", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Valerian", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Mugwort", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Fennel", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Dill", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Flax", AlgebraicType.createProductType([])),
+      new SumTypeVariant("WildGarlic", AlgebraicType.createProductType([])),
+      new SumTypeVariant("SiberianGinseng", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Willow", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BirchBark", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Dogbane", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BogCotton", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Chanterelle", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Porcini", AlgebraicType.createProductType([])),
+      new SumTypeVariant("FlyAgaric", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ShaggylnkCap", AlgebraicType.createProductType([])),
+      new SumTypeVariant("DeadlyWebcap", AlgebraicType.createProductType([])),
+      new SumTypeVariant("DestroyingAngel", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Lingonberries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Cloudberries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Bilberries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("WildStrawberries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("RowanBerries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Cranberries", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Hazelnuts", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Mandrake", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Belladonna", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Henbane", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Datura", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Wolfsbane", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Sunflowers", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Salsify", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -80,7 +218,7 @@ export namespace PlantType {
 }
 
 // The tagged union or sum type for the algebraic type `PlantType`.
-export type PlantType = PlantType.Corn | PlantType.Hemp | PlantType.Mushroom | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass;
+export type PlantType = PlantType.Corn | PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Wheat | PlantType.Carrots | PlantType.Tomatoes | PlantType.Cabbage | PlantType.Radish | PlantType.Beets | PlantType.Buckwheat | PlantType.Turnips | PlantType.Onions | PlantType.Garlic | PlantType.Parsnips | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.Fennel | PlantType.Dill | PlantType.Flax | PlantType.WildGarlic | PlantType.SiberianGinseng | PlantType.Willow | PlantType.BirchBark | PlantType.Dogbane | PlantType.BogCotton | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggylnkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Hazelnuts | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.Salsify;
 
 export default PlantType;
 

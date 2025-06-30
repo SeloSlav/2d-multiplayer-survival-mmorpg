@@ -11,6 +11,8 @@ use crate::shelter::shelter as ShelterTableTrait;
 use crate::tree::tree as TreeTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;
 use crate::world_state::thunder_event as ThunderEventTableTrait;
+use crate::world_state::seasonal_plant_management_schedule as SeasonalPlantManagementScheduleTableTrait;
+use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::sound_events;
 
 // Define fuel consumption rate (items per second)
@@ -111,6 +113,18 @@ pub struct WorldState {
     // Thunder/Lightning fields
     pub last_thunder_time: Option<Timestamp>, // When thunder last occurred
     pub next_thunder_time: Option<Timestamp>, // When next thunder should occur
+}
+
+#[spacetimedb::table(name = seasonal_plant_management_schedule, scheduled(manage_seasonal_plants))]
+#[derive(Clone, Debug)]
+pub struct SeasonalPlantManagementSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub schedule_id: u64,
+    pub scheduled_at: spacetimedb::ScheduleAt,
+    pub transition_season: Season, // The season we're transitioning to
+    pub transition_progress: f32,  // 0.0 to 1.0 - how far through the transition we are
+    pub spawn_batch_size: u32,     // How many plants to spawn per batch
 }
 
 // Reducer to initialize the world state if it doesn't exist
@@ -308,6 +322,11 @@ pub fn tick_world_state(ctx: &ReducerContext, _timestamp: Timestamp) -> Result<(
                 if season != world_state.current_season {
                     log::info!("Season changed from {:?} to {:?} on day {} of year {}", 
                               world_state.current_season, season, next_day, world_state.year);
+                    
+                    // SEASONAL TRANSITION: Start gradual plant transition
+                    if let Err(e) = start_seasonal_plant_transition(ctx, &season) {
+                        log::error!("Failed to start seasonal plant transition: {}", e);
+                    }
                 }
                 (next_day, world_state.year, season)
             }
@@ -721,4 +740,226 @@ fn is_campfire_near_tree(ctx: &ReducerContext, campfire: &Campfire) -> bool {
     }
     
     false
+}
+
+/// Gets the current season from the world state singleton
+pub fn get_current_season(ctx: &ReducerContext) -> Result<Season, String> {
+    let world_state = ctx.db.world_state().iter().next()
+        .ok_or_else(|| "WorldState singleton not found".to_string())?;
+    Ok(world_state.current_season)
+}
+
+/// Starts a gradual seasonal plant transition when the season changes
+fn start_seasonal_plant_transition(ctx: &ReducerContext, new_season: &Season) -> Result<(), String> {
+    log::info!("🌱 Starting seasonal plant transition to {:?}", new_season);
+    
+    // Clear any existing seasonal transition schedules
+    for schedule in ctx.db.seasonal_plant_management_schedule().iter() {
+        ctx.db.seasonal_plant_management_schedule().schedule_id().delete(schedule.schedule_id);
+    }
+    
+    // Remove respawn timers from plants that can't grow in the new season
+    let removed_count = remove_non_seasonal_plant_respawns(ctx, new_season)?;
+    log::info!("🍂 Removed {} non-seasonal plant respawn timers", removed_count);
+    
+    // Calculate how many new plants we need to spawn for this season
+    let target_new_plants = calculate_seasonal_plant_targets(ctx, new_season)?;
+    log::info!("🌱 Planning to spawn {} new seasonal plants over time", target_new_plants);
+    
+    if target_new_plants > 0 {
+        // Schedule gradual spawning over 10 minutes (10 batches, 1 minute apart)
+        const TRANSITION_DURATION_MINUTES: u32 = 10;
+        const SPAWN_INTERVAL_SECONDS: u64 = 60;
+        let batch_size = (target_new_plants / TRANSITION_DURATION_MINUTES).max(1);
+        
+        for batch in 0..TRANSITION_DURATION_MINUTES {
+            let delay_seconds = (batch as u64) * SPAWN_INTERVAL_SECONDS;
+            let progress = (batch as f32) / (TRANSITION_DURATION_MINUTES as f32);
+            
+            match ctx.db.seasonal_plant_management_schedule().try_insert(SeasonalPlantManagementSchedule {
+                schedule_id: 0, // auto_inc
+                scheduled_at: spacetimedb::TimeDuration::from_micros((delay_seconds * 1_000_000) as i64).into(),
+                transition_season: new_season.clone(),
+                transition_progress: progress,
+                spawn_batch_size: batch_size,
+            }) {
+                Ok(_) => {
+                    log::info!("🕒 Scheduled plant spawn batch {} at +{}s (progress: {:.1}%)", 
+                              batch + 1, delay_seconds, progress * 100.0);
+                }
+                Err(e) => {
+                    log::error!("Failed to schedule plant spawn batch {}: {}", batch + 1, e);
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Scheduled reducer that gradually spawns new seasonal plants
+#[spacetimedb::reducer]
+pub fn manage_seasonal_plants(ctx: &ReducerContext, args: SeasonalPlantManagementSchedule) -> Result<(), String> {
+    // Security check
+    if ctx.sender != ctx.identity() {
+        return Err("Reducer manage_seasonal_plants may not be invoked by clients, only via scheduling.".into());
+    }
+    
+    log::info!("🌱 Managing seasonal plants: {:?} batch (progress: {:.1}%, batch size: {})", 
+              args.transition_season, args.transition_progress * 100.0, args.spawn_batch_size);
+    
+    // Spawn a batch of new seasonal plants
+    let spawned_count = spawn_seasonal_plant_batch(ctx, &args.transition_season, args.spawn_batch_size)?;
+    log::info!("🌿 Spawned {} new {:?} plants (batch progress: {:.1}%)", 
+              spawned_count, args.transition_season, args.transition_progress * 100.0);
+    
+    Ok(())
+}
+
+/// Removes respawn timers from plants that can't grow in the new season
+fn remove_non_seasonal_plant_respawns(ctx: &ReducerContext, new_season: &Season) -> Result<u32, String> {
+    let mut removed_count = 0;
+    
+    // Get all harvestable resources with respawn timers
+    for mut resource in ctx.db.harvestable_resource().iter() {
+        if resource.respawn_at.is_some() {
+            // Check if this plant can grow in the new season
+            if !crate::plants_database::can_grow_in_season(&resource.plant_type, new_season) {
+                // Remove the respawn timer - this plant won't come back until its season
+                resource.respawn_at = None;
+                ctx.db.harvestable_resource().id().update(resource);
+                removed_count += 1;
+            }
+        }
+    }
+    
+    Ok(removed_count)
+}
+
+/// Calculates how many new plants should be spawned for the new season
+fn calculate_seasonal_plant_targets(ctx: &ReducerContext, new_season: &Season) -> Result<u32, String> {
+    use crate::plants_database::{PLANT_CONFIGS, can_grow_in_season};
+    use crate::{WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES};
+    
+    let total_tiles = WORLD_WIDTH_TILES * WORLD_HEIGHT_TILES;
+    let mut target_new_plants = 0;
+    
+    // Calculate how many plants we should have for each plant type in this season
+    for (plant_type, config) in PLANT_CONFIGS.iter() {
+        if can_grow_in_season(plant_type, new_season) {
+            // Calculate expected count for this plant type
+            let expected_count = (total_tiles as f32 * config.density_percent) as u32;
+            
+            // Count how many we currently have (active + respawning)
+            let current_count = ctx.db.harvestable_resource().iter()
+                .filter(|r| r.plant_type == *plant_type)
+                .count() as u32;
+            
+            // Calculate how many more we need
+            if current_count < expected_count {
+                let needed = expected_count - current_count;
+                target_new_plants += needed;
+                log::debug!("🌱 {:?}: have {}, need {}, adding {}", 
+                           plant_type, current_count, expected_count, needed);
+            }
+        }
+    }
+    
+    Ok(target_new_plants)
+}
+
+/// Spawns a batch of new seasonal plants across the world
+fn spawn_seasonal_plant_batch(ctx: &ReducerContext, season: &Season, batch_size: u32) -> Result<u32, String> {
+    use crate::plants_database::{PLANT_CONFIGS, can_grow_in_season};
+    use crate::environment::{calculate_chunk_index, validate_spawn_location};
+    use crate::tree::tree as TreeTableTrait;
+    use crate::stone::stone as StoneTableTrait;
+    use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
+    use crate::utils::attempt_single_spawn;
+    use noise::{NoiseFn, Fbm, Perlin};
+    use rand::{Rng, SeedableRng};
+    use rand::rngs::StdRng;
+    use std::collections::HashSet;
+    
+    let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
+    let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
+    
+    // Get existing positions to avoid overlaps
+    let tree_positions: Vec<(f32, f32)> = ctx.db.tree().iter()
+        .map(|t| (t.pos_x, t.pos_y))
+        .collect();
+    let stone_positions: Vec<(f32, f32)> = ctx.db.stone().iter()
+        .map(|s| (s.pos_x, s.pos_y))
+        .collect();
+    let mut occupied_tiles = HashSet::<(u32, u32)>::new();
+    let mut spawned_positions = Vec::<(f32, f32)>::new();
+    
+    // Build a list of seasonal plants that can grow in this season
+    let seasonal_plants: Vec<_> = PLANT_CONFIGS.iter()
+        .filter(|(plant_type, _)| can_grow_in_season(plant_type, season))
+        .collect();
+    
+    if seasonal_plants.is_empty() {
+        return Ok(0);
+    }
+    
+    let mut spawned_count = 0;
+    let max_attempts = batch_size * 5; // Allow some failed attempts
+    
+    for attempt in 0..max_attempts {
+        if spawned_count >= batch_size {
+            break;
+        }
+        
+        // Randomly select a plant type for this season
+        let (plant_type, config) = seasonal_plants[rng.gen_range(0..seasonal_plants.len())];
+        
+        // Use the same spawning logic as the initial seeding
+        match crate::utils::attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_positions,
+            &tree_positions,
+            &stone_positions,
+            5, crate::WORLD_WIDTH_TILES - 5, 5, crate::WORLD_HEIGHT_TILES - 5, // Spawn bounds
+            &fbm,
+            0.1, // noise frequency
+            config.noise_threshold as f64,
+            config.min_distance_sq,
+            config.min_tree_distance_sq,
+            config.min_stone_distance_sq,
+            |pos_x, pos_y, _extra: ()| {
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                crate::harvestable_resource::create_harvestable_resource(
+                    *plant_type,
+                    pos_x,
+                    pos_y,
+                    chunk_idx
+                )
+            },
+            (),
+            |pos_x, pos_y| {
+                // Block water for most plants, allow inland water for reeds
+                let allow_water_spawn = matches!(config.spawn_condition, crate::plants_database::SpawnCondition::InlandWater);
+                let water_blocked = if allow_water_spawn {
+                    !crate::environment::is_position_on_inland_water(ctx, pos_x, pos_y)
+                } else {
+                    crate::environment::is_position_on_water(ctx, pos_x, pos_y)
+                };
+                
+                water_blocked || !validate_spawn_location(
+                    ctx, pos_x, pos_y, 
+                    &config.spawn_condition,
+                    &tree_positions, &stone_positions
+                )
+            },
+            ctx.db.harvestable_resource(),
+        ) {
+            Ok(true) => spawned_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    
+    Ok(spawned_count)
 } 

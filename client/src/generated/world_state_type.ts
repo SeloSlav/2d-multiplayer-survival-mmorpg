@@ -30,8 +30,8 @@ import {
   Timestamp,
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
-import { TimeOfDay as __TimeOfDay } from "./time_of_day_type";
 import { Season as __Season } from "./season_type";
+import { TimeOfDay as __TimeOfDay } from "./time_of_day_type";
 import { WeatherType as __WeatherType } from "./weather_type_type";
 
 export type WorldState = {

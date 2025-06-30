@@ -529,14 +529,28 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_stone_count = (total_tiles as f32 * crate::stone::STONE_DENSITY_PERCENT) as u32;
     let max_stone_attempts = target_stone_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
     
-    // Calculate targets for harvestable resources from the unified configuration (includes mushrooms)
+    // SEASONAL SEEDING: Calculate targets for harvestable resources based on current season
+    let current_season = crate::world_state::get_current_season(ctx)
+        .unwrap_or_else(|_| {
+            log::warn!("Failed to get current season, defaulting to Spring for initial seeding");
+            crate::world_state::Season::Spring
+        });
+    
+    log::info!("🌱 Seeding plants for season: {:?}", current_season);
+    
     let mut plant_targets = std::collections::HashMap::new();
     let mut plant_attempts = std::collections::HashMap::new();
     for (plant_type, config) in plants_database::PLANT_CONFIGS.iter() {
-        let target_count = (total_tiles as f32 * config.density_percent) as u32;
-        let max_attempts = target_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
-        plant_targets.insert(plant_type.clone(), target_count);
-        plant_attempts.insert(plant_type.clone(), max_attempts);
+        // SEASONAL CHECK: Only seed plants that can grow in the current season
+        if plants_database::can_grow_in_season(plant_type, &current_season) {
+            let target_count = (total_tiles as f32 * config.density_percent) as u32;
+            let max_attempts = target_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+            plant_targets.insert(plant_type.clone(), target_count);
+            plant_attempts.insert(plant_type.clone(), max_attempts);
+            log::debug!("🌿 {:?} can grow in {:?}: target {} plants", plant_type, current_season, target_count);
+        } else {
+            log::debug!("🚫 {:?} cannot grow in {:?}, skipping", plant_type, current_season);
+        }
     }
 
     // Cloud seeding parameters
@@ -1206,13 +1220,22 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         }
     );
 
-    // Respawn Harvestable Resources (Unified System)
+    // Respawn Harvestable Resources (Unified System) with Seasonal Filtering
+    let current_season = crate::world_state::get_current_season(ctx)
+        .unwrap_or_else(|e| {
+            log::warn!("Failed to get current season for respawn check: {}, defaulting to Spring", e);
+            crate::world_state::Season::Spring
+        });
+    
     check_and_respawn_resource!(
         ctx,
         harvestable_resource,
         crate::harvestable_resource::HarvestableResource,
         "HarvestableResource",
-        |_h: &crate::harvestable_resource::HarvestableResource| true, // Filter: Always check if respawn_at is set
+        |h: &crate::harvestable_resource::HarvestableResource| {
+            // SEASONAL CHECK: Only allow respawn if plant can grow in current season
+            plants_database::can_grow_in_season(&h.plant_type, &current_season)
+        },
         |h: &mut crate::harvestable_resource::HarvestableResource| {
             h.respawn_at = None;
         }

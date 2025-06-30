@@ -146,6 +146,8 @@ import { LightLantern } from "./light_lantern_reducer.ts";
 export { LightLantern };
 import { LoadRangedWeapon } from "./load_ranged_weapon_reducer.ts";
 export { LoadRangedWeapon };
+import { ManageSeasonalPlants } from "./manage_seasonal_plants_reducer.ts";
+export { ManageSeasonalPlants };
 import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reducer.ts";
 export { MoveFuelItemToPlayerSlot };
 import { MoveFuelWithinCampfire } from "./move_fuel_within_campfire_reducer.ts";
@@ -460,6 +462,8 @@ import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
+import { SeasonalPlantManagementScheduleTableHandle } from "./seasonal_plant_management_schedule_table.ts";
+export { SeasonalPlantManagementScheduleTableHandle };
 import { ShelterTableHandle } from "./shelter_table.ts";
 export { ShelterTableHandle };
 import { SleepingBagTableHandle } from "./sleeping_bag_table.ts";
@@ -646,6 +650,8 @@ import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
 import { Season } from "./season_type.ts";
 export { Season };
+import { SeasonalPlantManagementSchedule } from "./seasonal_plant_management_schedule_type.ts";
+export { SeasonalPlantManagementSchedule };
 import { Shelter } from "./shelter_type.ts";
 export { Shelter };
 import { SleepingBag } from "./sleeping_bag_type.ts";
@@ -955,6 +961,11 @@ const REMOTE_MODULE = {
       tableName: "recipe",
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
+    },
+    seasonal_plant_management_schedule: {
+      tableName: "seasonal_plant_management_schedule",
+      rowType: SeasonalPlantManagementSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "scheduleId",
     },
     shelter: {
       tableName: "shelter",
@@ -1280,6 +1291,10 @@ const REMOTE_MODULE = {
     load_ranged_weapon: {
       reducerName: "load_ranged_weapon",
       argsType: LoadRangedWeapon.getTypeScriptAlgebraicType(),
+    },
+    manage_seasonal_plants: {
+      reducerName: "manage_seasonal_plants",
+      argsType: ManageSeasonalPlants.getTypeScriptAlgebraicType(),
     },
     move_fuel_item_to_player_slot: {
       reducerName: "move_fuel_item_to_player_slot",
@@ -1785,6 +1800,7 @@ export type Reducer = never
 | { name: "Jump", args: Jump }
 | { name: "LightLantern", args: LightLantern }
 | { name: "LoadRangedWeapon", args: LoadRangedWeapon }
+| { name: "ManageSeasonalPlants", args: ManageSeasonalPlants }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
 | { name: "MoveFuelWithinLantern", args: MoveFuelWithinLantern }
@@ -2737,6 +2753,22 @@ export class RemoteReducers {
 
   removeOnLoadRangedWeapon(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("load_ranged_weapon", callback);
+  }
+
+  manageSeasonalPlants(args: SeasonalPlantManagementSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    ManageSeasonalPlants.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("manage_seasonal_plants", __argsBuffer, this.setCallReducerFlags.manageSeasonalPlantsFlags);
+  }
+
+  onManageSeasonalPlants(callback: (ctx: ReducerEventContext, args: SeasonalPlantManagementSchedule) => void) {
+    this.connection.onReducer("manage_seasonal_plants", callback);
+  }
+
+  removeOnManageSeasonalPlants(callback: (ctx: ReducerEventContext, args: SeasonalPlantManagementSchedule) => void) {
+    this.connection.offReducer("manage_seasonal_plants", callback);
   }
 
   moveFuelItemToPlayerSlot(campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
@@ -4653,6 +4685,11 @@ export class SetReducerFlags {
     this.loadRangedWeaponFlags = flags;
   }
 
+  manageSeasonalPlantsFlags: CallReducerFlags = 'FullUpdate';
+  manageSeasonalPlants(flags: CallReducerFlags) {
+    this.manageSeasonalPlantsFlags = flags;
+  }
+
   moveFuelItemToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
   moveFuelItemToPlayerSlot(flags: CallReducerFlags) {
     this.moveFuelItemToPlayerSlotFlags = flags;
@@ -5385,6 +5422,10 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
+  }
+
+  get seasonalPlantManagementSchedule(): SeasonalPlantManagementScheduleTableHandle {
+    return new SeasonalPlantManagementScheduleTableHandle(this.connection.clientCache.getOrCreateTable<SeasonalPlantManagementSchedule>(REMOTE_MODULE.tables.seasonal_plant_management_schedule));
   }
 
   get shelter(): ShelterTableHandle {

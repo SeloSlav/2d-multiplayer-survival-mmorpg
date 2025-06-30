@@ -7,13 +7,74 @@ use crate::world_state::Season;
 
 #[derive(SpacetimeType, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlantType {
+    // Existing plants (Hemp replaced with BorealNettle, Mushroom removed - use specific types)
     Corn,
-    Hemp,
-    Mushroom,
+    BorealNettle, // Replaces Hemp
     Potato,
     Pumpkin,
     Reed,
     BeachLymeGrass,
+    
+    // Vegetables
+    Wheat,
+    Carrots,
+    Tomatoes,
+    Cabbage,
+    Radish,
+    Beets,
+    Buckwheat,
+    Turnips,
+    Onions,
+    Garlic,
+    Parsnips,
+    Horseradish,
+    
+    // Herbs & Medicinal Plants
+    Chicory,
+    Yarrow,
+    Chamomile,
+    Mint,
+    Valerian,
+    Mugwort,
+    Fennel,
+    Dill,
+    Flax,
+    WildGarlic,
+    SiberianGinseng,
+    
+    // Trees/Bark/Fiber
+    Willow,
+    BirchBark,
+    Dogbane,
+    BogCotton,
+    
+    // Mushrooms
+    Chanterelle,
+    Porcini,
+    FlyAgaric,
+    ShaggylnkCap,
+    DeadlyWebcap,
+    DestroyingAngel,
+    
+    // Berries & Nuts
+    Lingonberries,
+    Cloudberries,
+    Bilberries,
+    WildStrawberries,
+    RowanBerries,
+    Cranberries,
+    Hazelnuts,
+    
+    // Toxic/Medicinal
+    Mandrake,
+    Belladonna,
+    Henbane,
+    Datura,
+    Wolfsbane,
+    
+    // Other
+    Sunflowers,
+    Salsify,
 }
 
 // --- Plant Configuration System ---
@@ -82,40 +143,24 @@ lazy_static! {
             growing_seasons: vec![Season::Spring, Season::Summer], // Warm weather crop
         });
         
-        configs.insert(PlantType::Hemp, PlantConfig {
-            entity_name: "Hemp".to_string(),
+        configs.insert(PlantType::BorealNettle, PlantConfig {
+            entity_name: "Boreal Nettle".to_string(),
             density_percent: 0.00133,
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.68,
-            primary_yield: ("Plant Fiber".to_string(), 50, 50),
-            secondary_yield: None,
-            seed_type: "Hemp Seeds".to_string(),
+            primary_yield: ("Plant Fiber".to_string(), 40, 50),
+            secondary_yield: Some(("Nettle Leaves".to_string(), 1, 3, 0.80)),
+            seed_type: "Nettle Seeds".to_string(),
             seed_drop_chance: 0.12,
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::Plains,
-            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Hardy year-round fiber crop
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely hardy - dried stalks and roots available year-round
         });
         
-        configs.insert(PlantType::Mushroom, PlantConfig {
-            entity_name: "Mushroom".to_string(),
-            density_percent: 0.0015,
-            min_distance_sq: 30.0 * 30.0,
-            min_tree_distance_sq: 25.0 * 25.0,
-            min_stone_distance_sq: 30.0 * 30.0,
-            noise_threshold: 0.65,
-            primary_yield: ("Mushroom".to_string(), 1, 1),
-            secondary_yield: None,
-            seed_type: "Mushroom Spores".to_string(),
-            seed_drop_chance: 0.10,
-            min_respawn_time_secs: 300,  // 5 minutes
-            max_respawn_time_secs: 600,  // 10 minutes
-            spawn_condition: SpawnCondition::Forest,
-            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Forest conditions year-round
-        });
-        
+
         configs.insert(PlantType::Potato, PlantConfig {
             entity_name: "Potato".to_string(),
             density_percent: 0.0006,
@@ -184,6 +229,778 @@ lazy_static! {
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely hardy coastal grass
         });
         
+        // === VEGETABLES ===
+        configs.insert(PlantType::Wheat, PlantConfig {
+            entity_name: "Wheat".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.68,
+            primary_yield: ("Wheat".to_string(), 2, 4),
+            secondary_yield: Some(("Wheat Straw".to_string(), 1, 2, 0.70)),
+            seed_type: "Wheat Seeds".to_string(),
+            seed_drop_chance: 0.16,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 1800, // 30 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer],
+        });
+        
+        configs.insert(PlantType::Carrots, PlantConfig {
+            entity_name: "Carrots".to_string(),
+            density_percent: 0.0006,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.66,
+            primary_yield: ("Carrots".to_string(), 1, 3),
+            secondary_yield: Some(("Carrot Greens".to_string(), 1, 2, 0.85)),
+            seed_type: "Carrot Seeds".to_string(),
+            seed_drop_chance: 0.14,
+            min_respawn_time_secs: 900,  // 15 minutes
+            max_respawn_time_secs: 1500, // 25 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Tomatoes, PlantConfig {
+            entity_name: "Tomatoes".to_string(),
+            density_percent: 0.0005,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 18.0 * 18.0,
+            min_stone_distance_sq: 22.0 * 22.0,
+            noise_threshold: 0.67,
+            primary_yield: ("Tomatoes".to_string(), 2, 4),
+            secondary_yield: Some(("Tomato Seeds".to_string(), 3, 6, 0.90)),
+            seed_type: "Tomato Seeds".to_string(),
+            seed_drop_chance: 0.18,
+            min_respawn_time_secs: 1000, // 16 minutes
+            max_respawn_time_secs: 1600, // 26 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::Cabbage, PlantConfig {
+            entity_name: "Cabbage".to_string(),
+            density_percent: 0.0004,
+            min_distance_sq: 40.0 * 40.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.69,
+            primary_yield: ("Cabbage".to_string(), 1, 2),
+            secondary_yield: Some(("Cabbage Leaves".to_string(), 2, 4, 0.75)),
+            seed_type: "Cabbage Seeds".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 2000, // 33 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::Radish, PlantConfig {
+            entity_name: "Radish".to_string(),
+            density_percent: 0.0012,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 18.0 * 18.0,
+            noise_threshold: 0.62,
+            primary_yield: ("Radish".to_string(), 1, 2),
+            secondary_yield: Some(("Radish Greens".to_string(), 1, 3, 0.80)),
+            seed_type: "Radish Seeds".to_string(),
+            seed_drop_chance: 0.16,
+            min_respawn_time_secs: 300,  // 5 minutes (fast growing)
+            max_respawn_time_secs: 600,  // 10 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring],
+        });
+        
+        configs.insert(PlantType::Beets, PlantConfig {
+            entity_name: "Beets".to_string(),
+            density_percent: 0.0007,
+            min_distance_sq: 32.0 * 32.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.66,
+            primary_yield: ("Beets".to_string(), 1, 2),
+            secondary_yield: Some(("Beet Greens".to_string(), 2, 3, 0.85)),
+            seed_type: "Beet Seeds".to_string(),
+            seed_drop_chance: 0.15,
+            min_respawn_time_secs: 1000, // 16 minutes
+            max_respawn_time_secs: 1400, // 23 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Buckwheat, PlantConfig {
+            entity_name: "Buckwheat".to_string(),
+            density_percent: 0.0009,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 22.0 * 22.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.65,
+            primary_yield: ("Buckwheat".to_string(), 2, 3),
+            secondary_yield: Some(("Plant Fiber".to_string(), 1, 2, 0.60)),
+            seed_type: "Buckwheat Seeds".to_string(),
+            seed_drop_chance: 0.14,
+            min_respawn_time_secs: 900,  // 15 minutes
+            max_respawn_time_secs: 1300, // 21 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Turnips, PlantConfig {
+            entity_name: "Turnips".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 18.0 * 18.0,
+            min_stone_distance_sq: 22.0 * 22.0,
+            noise_threshold: 0.64,
+            primary_yield: ("Turnips".to_string(), 1, 2),
+            secondary_yield: Some(("Turnip Greens".to_string(), 1, 3, 0.80)),
+            seed_type: "Turnip Seeds".to_string(),
+            seed_drop_chance: 0.15,
+            min_respawn_time_secs: 800,  // 13 minutes
+            max_respawn_time_secs: 1200, // 20 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Onions, PlantConfig {
+            entity_name: "Onions".to_string(),
+            density_percent: 0.0006,
+            min_distance_sq: 28.0 * 28.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.67,
+            primary_yield: ("Onions".to_string(), 1, 3),
+            secondary_yield: Some(("Onion Greens".to_string(), 1, 2, 0.70)),
+            seed_type: "Onion Sets".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 1400, // 23 minutes
+            max_respawn_time_secs: 2000, // 33 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Garlic, PlantConfig {
+            entity_name: "Garlic".to_string(),
+            density_percent: 0.0005,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 30.0 * 30.0,
+            noise_threshold: 0.69,
+            primary_yield: ("Garlic".to_string(), 1, 2),
+            secondary_yield: Some(("Garlic Scapes".to_string(), 1, 1, 0.60)),
+            seed_type: "Garlic Cloves".to_string(),
+            seed_drop_chance: 0.10,
+            min_respawn_time_secs: 1800, // 30 minutes
+            max_respawn_time_secs: 2400, // 40 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Parsnips, PlantConfig {
+            entity_name: "Parsnips".to_string(),
+            density_percent: 0.0004,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.68,
+            primary_yield: ("Parsnips".to_string(), 1, 2),
+            secondary_yield: Some(("Parsnip Greens".to_string(), 1, 2, 0.75)),
+            seed_type: "Parsnip Seeds".to_string(),
+            seed_drop_chance: 0.13,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 1800, // 30 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Horseradish, PlantConfig {
+            entity_name: "Horseradish".to_string(),
+            density_percent: 0.0003,
+            min_distance_sq: 40.0 * 40.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 30.0 * 30.0,
+            noise_threshold: 0.70,
+            primary_yield: ("Horseradish Root".to_string(), 1, 1),
+            secondary_yield: Some(("Horseradish Leaves".to_string(), 2, 3, 0.80)),
+            seed_type: "Horseradish Root".to_string(),
+            seed_drop_chance: 0.08,
+            min_respawn_time_secs: 2000, // 33 minutes
+            max_respawn_time_secs: 3000, // 50 minutes
+            spawn_condition: SpawnCondition::NearWater,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        // === HERBS & MEDICINAL PLANTS ===
+        configs.insert(PlantType::Chicory, PlantConfig {
+            entity_name: "Chicory".to_string(),
+            density_percent: 0.0010,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.62,
+            primary_yield: ("Chicory Leaves".to_string(), 2, 4),
+            secondary_yield: Some(("Chicory Root".to_string(), 1, 1, 0.60)),
+            seed_type: "Chicory Seeds".to_string(),
+            seed_drop_chance: 0.14,
+            min_respawn_time_secs: 600,  // 10 minutes
+            max_respawn_time_secs: 1000, // 16 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Deep taproot survives year-round - roots sweeter after frost
+        });
+        
+        configs.insert(PlantType::Yarrow, PlantConfig {
+            entity_name: "Yarrow".to_string(),
+            density_percent: 0.0015,
+            min_distance_sq: 20.0 * 20.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 18.0 * 18.0,
+            noise_threshold: 0.60,
+            primary_yield: ("Yarrow".to_string(), 1, 3),
+            secondary_yield: None,
+            seed_type: "Yarrow Seeds".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 800,  // 13 minutes
+            max_respawn_time_secs: 1200, // 20 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Persistent dried stalks and roots year-round
+        });
+        
+        configs.insert(PlantType::Chamomile, PlantConfig {
+            entity_name: "Chamomile".to_string(),
+            density_percent: 0.0012,
+            min_distance_sq: 22.0 * 22.0,
+            min_tree_distance_sq: 18.0 * 18.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.63,
+            primary_yield: ("Chamomile Flowers".to_string(), 2, 4),
+            secondary_yield: Some(("Chamomile Leaves".to_string(), 1, 2, 0.70)),
+            seed_type: "Chamomile Seeds".to_string(),
+            seed_drop_chance: 0.15,
+            min_respawn_time_secs: 600,  // 10 minutes
+            max_respawn_time_secs: 900,  // 15 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer],
+        });
+        
+        configs.insert(PlantType::Mint, PlantConfig {
+            entity_name: "Mint".to_string(),
+            density_percent: 0.0020,
+            min_distance_sq: 18.0 * 18.0,
+            min_tree_distance_sq: 12.0 * 12.0,
+            min_stone_distance_sq: 15.0 * 15.0,
+            noise_threshold: 0.58,
+            primary_yield: ("Mint Leaves".to_string(), 3, 5),
+            secondary_yield: None,
+            seed_type: "Mint Cuttings".to_string(),
+            seed_drop_chance: 0.10,
+            min_respawn_time_secs: 400,  // 6 minutes (fast spreading)
+            max_respawn_time_secs: 700,  // 11 minutes
+            spawn_condition: SpawnCondition::NearWater,
+            growing_seasons: vec![Season::Spring, Season::Summer],
+        });
+        
+        configs.insert(PlantType::Valerian, PlantConfig {
+            entity_name: "Valerian".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.66,
+            primary_yield: ("Valerian Root".to_string(), 1, 2),
+            secondary_yield: Some(("Valerian Leaves".to_string(), 2, 3, 0.75)),
+            seed_type: "Valerian Seeds".to_string(),
+            seed_drop_chance: 0.11,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 1800, // 30 minutes
+            spawn_condition: SpawnCondition::NearWater,
+            growing_seasons: vec![Season::Spring, Season::Summer],
+        });
+        
+        configs.insert(PlantType::Mugwort, PlantConfig {
+            entity_name: "Mugwort".to_string(),
+            density_percent: 0.0013,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 18.0 * 18.0,
+            min_stone_distance_sq: 22.0 * 22.0,
+            noise_threshold: 0.61,
+            primary_yield: ("Mugwort".to_string(), 2, 4),
+            secondary_yield: None,
+            seed_type: "Mugwort Seeds".to_string(),
+            seed_drop_chance: 0.13,
+            min_respawn_time_secs: 700,  // 11 minutes
+            max_respawn_time_secs: 1100, // 18 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely invasive - dried stalks persist year-round
+        });
+        
+        configs.insert(PlantType::Fennel, PlantConfig {
+            entity_name: "Fennel".to_string(),
+            density_percent: 0.0009,
+            min_distance_sq: 28.0 * 28.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.64,
+            primary_yield: ("Fennel Seeds".to_string(), 2, 3),
+            secondary_yield: Some(("Fennel Fronds".to_string(), 1, 3, 0.80)),
+            seed_type: "Fennel Seeds".to_string(),
+            seed_drop_chance: 0.16,
+            min_respawn_time_secs: 900,  // 15 minutes
+            max_respawn_time_secs: 1400, // 23 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer],
+        });
+        
+        configs.insert(PlantType::Dill, PlantConfig {
+            entity_name: "Dill".to_string(),
+            density_percent: 0.0014,
+            min_distance_sq: 20.0 * 20.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 18.0 * 18.0,
+            noise_threshold: 0.59,
+            primary_yield: ("Dill".to_string(), 2, 4),
+            secondary_yield: Some(("Dill Seeds".to_string(), 1, 2, 0.70)),
+            seed_type: "Dill Seeds".to_string(),
+            seed_drop_chance: 0.14,
+            min_respawn_time_secs: 500,  // 8 minutes
+            max_respawn_time_secs: 800,  // 13 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::Flax, PlantConfig {
+            entity_name: "Flax".to_string(),
+            density_percent: 0.0007,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 30.0 * 30.0,
+            noise_threshold: 0.68,
+            primary_yield: ("Flax Fibers".to_string(), 3, 5),
+            secondary_yield: Some(("Flax Seeds".to_string(), 2, 4, 0.85)),
+            seed_type: "Flax Seeds".to_string(),
+            seed_drop_chance: 0.18,
+            min_respawn_time_secs: 1500, // 25 minutes
+            max_respawn_time_secs: 2200, // 36 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::WildGarlic, PlantConfig {
+            entity_name: "Wild Garlic".to_string(),
+            density_percent: 0.0016,
+            min_distance_sq: 20.0 * 20.0,
+            min_tree_distance_sq: 10.0 * 10.0,
+            min_stone_distance_sq: 15.0 * 15.0,
+            noise_threshold: 0.58,
+            primary_yield: ("Wild Garlic".to_string(), 2, 4),
+            secondary_yield: None,
+            seed_type: "Wild Garlic Bulbs".to_string(),
+            seed_drop_chance: 0.08,
+            min_respawn_time_secs: 600,  // 10 minutes
+            max_respawn_time_secs: 900,  // 15 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Underground bulbs survive winter - dried leaves too
+        });
+        
+        configs.insert(PlantType::SiberianGinseng, PlantConfig {
+            entity_name: "Siberian Ginseng".to_string(),
+            density_percent: 0.0002,
+            min_distance_sq: 50.0 * 50.0,
+            min_tree_distance_sq: 40.0 * 40.0,
+            min_stone_distance_sq: 35.0 * 35.0,
+            noise_threshold: 0.75,
+            primary_yield: ("Siberian Ginseng Root".to_string(), 1, 1),
+            secondary_yield: Some(("Ginseng Leaves".to_string(), 1, 2, 0.60)),
+            seed_type: "Ginseng Seeds".to_string(),
+            seed_drop_chance: 0.05,
+            min_respawn_time_secs: 3600, // 60 minutes (very rare)
+            max_respawn_time_secs: 5400, // 90 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Siberian hardiness - roots harvestable year-round
+        });
+        
+        // === TREES/BARK/FIBER ===
+        configs.insert(PlantType::Dogbane, PlantConfig {
+            entity_name: "Dogbane".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.66,
+            primary_yield: ("Dogbane Fiber".to_string(), 2, 4),
+            secondary_yield: Some(("Dogbane Leaves".to_string(), 1, 3, 0.70)),
+            seed_type: "Dogbane Seeds".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 1000, // 16 minutes
+            max_respawn_time_secs: 1500, // 25 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::BogCotton, PlantConfig {
+            entity_name: "Bog Cotton".to_string(),
+            density_percent: 0.0012,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.60,
+            primary_yield: ("Cotton Fibers".to_string(), 3, 5),
+            secondary_yield: None,
+            seed_type: "Bog Cotton Seeds".to_string(),
+            seed_drop_chance: 0.10,
+            min_respawn_time_secs: 800,  // 13 minutes
+            max_respawn_time_secs: 1200, // 20 minutes
+            spawn_condition: SpawnCondition::InlandWater,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        // === MUSHROOMS ===
+        configs.insert(PlantType::Chanterelle, PlantConfig {
+            entity_name: "Chanterelle".to_string(),
+            density_percent: 0.0006,
+            min_distance_sq: 40.0 * 40.0,
+            min_tree_distance_sq: 30.0 * 30.0,
+            min_stone_distance_sq: 35.0 * 35.0,
+            noise_threshold: 0.72,
+            primary_yield: ("Chanterelle".to_string(), 1, 2),
+            secondary_yield: None,
+            seed_type: "Chanterelle Spores".to_string(),
+            seed_drop_chance: 0.08,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 1800, // 30 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Porcini, PlantConfig {
+            entity_name: "Porcini".to_string(),
+            density_percent: 0.0004,
+            min_distance_sq: 45.0 * 45.0,
+            min_tree_distance_sq: 35.0 * 35.0,
+            min_stone_distance_sq: 40.0 * 40.0,
+            noise_threshold: 0.74,
+            primary_yield: ("Porcini".to_string(), 1, 1),
+            secondary_yield: None,
+            seed_type: "Porcini Spores".to_string(),
+            seed_drop_chance: 0.06,
+            min_respawn_time_secs: 1500, // 25 minutes
+            max_respawn_time_secs: 2200, // 36 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::FlyAgaric, PlantConfig {
+            entity_name: "Fly Agaric".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 30.0 * 30.0,
+            noise_threshold: 0.70,
+            primary_yield: ("Fly Agaric".to_string(), 1, 1),
+            secondary_yield: None,
+            seed_type: "Fly Agaric Spores".to_string(),
+            seed_drop_chance: 0.10,
+            min_respawn_time_secs: 1000, // 16 minutes
+            max_respawn_time_secs: 1600, // 26 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::ShaggylnkCap, PlantConfig {
+            entity_name: "Shaggy Ink Cap".to_string(),
+            density_percent: 0.0010,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.65,
+            primary_yield: ("Shaggy Ink Cap".to_string(), 1, 2),
+            secondary_yield: None,
+            seed_type: "Shaggy Ink Cap Spores".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 600,  // 10 minutes
+            max_respawn_time_secs: 1000, // 16 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::DeadlyWebcap, PlantConfig {
+            entity_name: "Deadly Webcap".to_string(),
+            density_percent: 0.0002,
+            min_distance_sq: 60.0 * 60.0,
+            min_tree_distance_sq: 50.0 * 50.0,
+            min_stone_distance_sq: 45.0 * 45.0,
+            noise_threshold: 0.78,
+            primary_yield: ("Deadly Webcap".to_string(), 1, 1),
+            secondary_yield: None,
+            seed_type: "Deadly Webcap Spores".to_string(),
+            seed_drop_chance: 0.05,
+            min_respawn_time_secs: 2400, // 40 minutes
+            max_respawn_time_secs: 3600, // 60 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::DestroyingAngel, PlantConfig {
+            entity_name: "Destroying Angel".to_string(),
+            density_percent: 0.0001,
+            min_distance_sq: 70.0 * 70.0,
+            min_tree_distance_sq: 60.0 * 60.0,
+            min_stone_distance_sq: 50.0 * 50.0,
+            noise_threshold: 0.80,
+            primary_yield: ("Destroying Angel".to_string(), 1, 1),
+            secondary_yield: None,
+            seed_type: "Destroying Angel Spores".to_string(),
+            seed_drop_chance: 0.03,
+            min_respawn_time_secs: 3600, // 60 minutes
+            max_respawn_time_secs: 5400, // 90 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        // === BERRIES & NUTS ===
+        configs.insert(PlantType::Lingonberries, PlantConfig {
+            entity_name: "Lingonberries".to_string(),
+            density_percent: 0.0012,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.64,
+            primary_yield: ("Lingonberries".to_string(), 3, 6),
+            secondary_yield: None,
+            seed_type: "Lingonberry Seeds".to_string(),
+            seed_drop_chance: 0.08,
+            min_respawn_time_secs: 1800, // 30 minutes
+            max_respawn_time_secs: 2600, // 43 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Cloudberries, PlantConfig {
+            entity_name: "Cloudberries".to_string(),
+            density_percent: 0.0008,
+            min_distance_sq: 40.0 * 40.0,
+            min_tree_distance_sq: 30.0 * 30.0,
+            min_stone_distance_sq: 35.0 * 35.0,
+            noise_threshold: 0.70,
+            primary_yield: ("Cloudberries".to_string(), 2, 4),
+            secondary_yield: None,
+            seed_type: "Cloudberry Seeds".to_string(),
+            seed_drop_chance: 0.06,
+            min_respawn_time_secs: 2000, // 33 minutes
+            max_respawn_time_secs: 3000, // 50 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Bilberries, PlantConfig {
+            entity_name: "Bilberries".to_string(),
+            density_percent: 0.0015,
+            min_distance_sq: 25.0 * 25.0,
+            min_tree_distance_sq: 15.0 * 15.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.62,
+            primary_yield: ("Bilberries".to_string(), 4, 8),
+            secondary_yield: None,
+            seed_type: "Bilberry Seeds".to_string(),
+            seed_drop_chance: 0.10,
+            min_respawn_time_secs: 1200, // 20 minutes
+            max_respawn_time_secs: 1800, // 30 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::WildStrawberries, PlantConfig {
+            entity_name: "Wild Strawberries".to_string(),
+            density_percent: 0.0018,
+            min_distance_sq: 20.0 * 20.0,
+            min_tree_distance_sq: 12.0 * 12.0,
+            min_stone_distance_sq: 15.0 * 15.0,
+            noise_threshold: 0.58,
+            primary_yield: ("Wild Strawberries".to_string(), 2, 5),
+            secondary_yield: None,
+            seed_type: "Wild Strawberry Seeds".to_string(),
+            seed_drop_chance: 0.12,
+            min_respawn_time_secs: 800,  // 13 minutes
+            max_respawn_time_secs: 1300, // 21 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Summer],
+        });
+        
+        configs.insert(PlantType::RowanBerries, PlantConfig {
+            entity_name: "Rowan Berries".to_string(),
+            density_percent: 0.0006,
+            min_distance_sq: 50.0 * 50.0,
+            min_tree_distance_sq: 40.0 * 40.0,
+            min_stone_distance_sq: 35.0 * 35.0,
+            noise_threshold: 0.72,
+            primary_yield: ("Rowan Berries".to_string(), 5, 10),
+            secondary_yield: None,
+            seed_type: "Rowan Seeds".to_string(),
+            seed_drop_chance: 0.05,
+            min_respawn_time_secs: 2400, // 40 minutes
+            max_respawn_time_secs: 3600, // 60 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer, Season::Autumn, Season::Winter],
+        });
+        
+        configs.insert(PlantType::Cranberries, PlantConfig {
+            entity_name: "Cranberries".to_string(),
+            density_percent: 0.0010,
+            min_distance_sq: 35.0 * 35.0,
+            min_tree_distance_sq: 25.0 * 25.0,
+            min_stone_distance_sq: 20.0 * 20.0,
+            noise_threshold: 0.67,
+            primary_yield: ("Cranberries".to_string(), 3, 7),
+            secondary_yield: None,
+            seed_type: "Cranberry Seeds".to_string(),
+            seed_drop_chance: 0.07,
+            min_respawn_time_secs: 1600, // 26 minutes
+            max_respawn_time_secs: 2400, // 40 minutes
+            spawn_condition: SpawnCondition::InlandWater,
+            growing_seasons: vec![Season::Autumn, Season::Winter],
+        });
+        
+        configs.insert(PlantType::Hazelnuts, PlantConfig {
+            entity_name: "Hazelnuts".to_string(),
+            density_percent: 0.0005,
+            min_distance_sq: 45.0 * 45.0,
+            min_tree_distance_sq: 35.0 * 35.0,
+            min_stone_distance_sq: 30.0 * 30.0,
+            noise_threshold: 0.71,
+            primary_yield: ("Hazelnuts".to_string(), 3, 8),
+            secondary_yield: Some(("Hazel Twigs".to_string(), 2, 4, 0.60)),
+            seed_type: "Hazelnut Seeds".to_string(),
+            seed_drop_chance: 0.04,
+            min_respawn_time_secs: 2800, // 46 minutes
+            max_respawn_time_secs: 4200, // 70 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Summer, Season::Autumn],
+        });
+        
+        // === TOXIC/MEDICINAL ===
+        configs.insert(PlantType::Mandrake, PlantConfig {
+            entity_name: "Mandrake".to_string(),
+            density_percent: 0.0001,
+            min_distance_sq: 80.0 * 80.0,
+            min_tree_distance_sq: 70.0 * 70.0,
+            min_stone_distance_sq: 60.0 * 60.0,
+            noise_threshold: 0.82,
+            primary_yield: ("Mandrake Root".to_string(), 1, 1),
+            secondary_yield: Some(("Mandrake Leaves".to_string(), 1, 2, 0.50)),
+            seed_type: "Mandrake Seeds".to_string(),
+            seed_drop_chance: 0.02,
+            min_respawn_time_secs: 5400, // 90 minutes
+            max_respawn_time_secs: 7200, // 120 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Belladonna, PlantConfig {
+            entity_name: "Belladonna".to_string(),
+            density_percent: 0.0002,
+            min_distance_sq: 60.0 * 60.0,
+            min_tree_distance_sq: 50.0 * 50.0,
+            min_stone_distance_sq: 45.0 * 45.0,
+            noise_threshold: 0.78,
+            primary_yield: ("Belladonna Berries".to_string(), 1, 3),
+            secondary_yield: Some(("Belladonna Leaves".to_string(), 1, 2, 0.70)),
+            seed_type: "Belladonna Seeds".to_string(),
+            seed_drop_chance: 0.04,
+            min_respawn_time_secs: 3000, // 50 minutes
+            max_respawn_time_secs: 4500, // 75 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Henbane, PlantConfig {
+            entity_name: "Henbane".to_string(),
+            density_percent: 0.0003,
+            min_distance_sq: 50.0 * 50.0,
+            min_tree_distance_sq: 40.0 * 40.0,
+            min_stone_distance_sq: 35.0 * 35.0,
+            noise_threshold: 0.76,
+            primary_yield: ("Henbane Seeds".to_string(), 2, 4),
+            secondary_yield: Some(("Henbane Leaves".to_string(), 1, 3, 0.80)),
+            seed_type: "Henbane Seeds".to_string(),
+            seed_drop_chance: 0.06,
+            min_respawn_time_secs: 2400, // 40 minutes
+            max_respawn_time_secs: 3600, // 60 minutes
+            spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Datura, PlantConfig {
+            entity_name: "Datura".to_string(),
+            density_percent: 0.0002,
+            min_distance_sq: 55.0 * 55.0,
+            min_tree_distance_sq: 45.0 * 45.0,
+            min_stone_distance_sq: 40.0 * 40.0,
+            noise_threshold: 0.77,
+            primary_yield: ("Datura Seeds".to_string(), 3, 6),
+            secondary_yield: Some(("Datura Leaves".to_string(), 1, 2, 0.75)),
+            seed_type: "Datura Seeds".to_string(),
+            seed_drop_chance: 0.08,
+            min_respawn_time_secs: 2700, // 45 minutes
+            max_respawn_time_secs: 4000, // 66 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        configs.insert(PlantType::Wolfsbane, PlantConfig {
+            entity_name: "Wolfsbane".to_string(),
+            density_percent: 0.0001,
+            min_distance_sq: 70.0 * 70.0,
+            min_tree_distance_sq: 60.0 * 60.0,
+            min_stone_distance_sq: 50.0 * 50.0,
+            noise_threshold: 0.80,
+            primary_yield: ("Wolfsbane Root".to_string(), 1, 1),
+            secondary_yield: Some(("Wolfsbane Flowers".to_string(), 1, 2, 0.60)),
+            seed_type: "Wolfsbane Seeds".to_string(),
+            seed_drop_chance: 0.03,
+            min_respawn_time_secs: 4500, // 75 minutes
+            max_respawn_time_secs: 6300, // 105 minutes
+            spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
+        // === OTHER ===
+        configs.insert(PlantType::Sunflowers, PlantConfig {
+            entity_name: "Sunflowers".to_string(),
+            density_percent: 0.0004,
+            min_distance_sq: 40.0 * 40.0,
+            min_tree_distance_sq: 30.0 * 30.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.69,
+            primary_yield: ("Sunflower Seeds".to_string(), 10, 20),
+            secondary_yield: Some(("Sunflower Oil".to_string(), 1, 2, 0.40)),
+            seed_type: "Sunflower Seeds".to_string(),
+            seed_drop_chance: 0.20,
+            min_respawn_time_secs: 2000, // 33 minutes
+            max_respawn_time_secs: 3000, // 50 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Tall dried stalks persist all winter
+        });
+        
+        configs.insert(PlantType::Salsify, PlantConfig {
+            entity_name: "Salsify".to_string(),
+            density_percent: 0.0006,
+            min_distance_sq: 30.0 * 30.0,
+            min_tree_distance_sq: 20.0 * 20.0,
+            min_stone_distance_sq: 25.0 * 25.0,
+            noise_threshold: 0.65,
+            primary_yield: ("Salsify Root".to_string(), 1, 2),
+            secondary_yield: Some(("Salsify Greens".to_string(), 2, 3, 0.75)),
+            seed_type: "Salsify Seeds".to_string(),
+            seed_drop_chance: 0.11,
+            min_respawn_time_secs: 1400, // 23 minutes
+            max_respawn_time_secs: 2000, // 33 minutes
+            spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Autumn],
+        });
+        
         configs
     };
 }
@@ -249,4 +1066,12 @@ pub fn can_grow_in_season(plant_type: &PlantType, season: &Season) -> bool {
     PLANT_CONFIGS.get(plant_type)
         .map(|config| config.growing_seasons.contains(season))
         .unwrap_or(false)
+}
+
+// Helper function to get plants that can grow in a specific season
+pub fn get_seasonal_plants(season: &Season) -> Vec<(PlantType, &PlantConfig)> {
+    PLANT_CONFIGS.iter()
+        .filter(|(plant_type, _)| can_grow_in_season(plant_type, season))
+        .map(|(plant_type, config)| (*plant_type, config))
+        .collect()
 } 
