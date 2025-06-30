@@ -1,6 +1,7 @@
 use spacetimedb::SpacetimeType;
 use std::collections::HashMap;
 use lazy_static::lazy_static;
+use crate::world_state::Season;
 
 // --- Plant Type Enum ---
 
@@ -43,6 +44,9 @@ pub struct PlantConfig {
     
     // Spawn conditions
     pub spawn_condition: SpawnCondition,
+    
+    // Seasonal growth
+    pub growing_seasons: Vec<Season>, // Which seasons this plant can grow in
 }
 
 #[derive(Clone, Debug)]
@@ -75,6 +79,7 @@ lazy_static! {
             min_respawn_time_secs: 900,  // 15 minutes
             max_respawn_time_secs: 1500, // 25 minutes
             spawn_condition: SpawnCondition::NearWater,
+            growing_seasons: vec![Season::Spring, Season::Summer], // Warm weather crop
         });
         
         configs.insert(PlantType::Hemp, PlantConfig {
@@ -91,6 +96,7 @@ lazy_static! {
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::Plains,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Hardy year-round fiber crop
         });
         
         configs.insert(PlantType::Mushroom, PlantConfig {
@@ -107,6 +113,7 @@ lazy_static! {
             min_respawn_time_secs: 300,  // 5 minutes
             max_respawn_time_secs: 600,  // 10 minutes
             spawn_condition: SpawnCondition::Forest,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Forest conditions year-round
         });
         
         configs.insert(PlantType::Potato, PlantConfig {
@@ -123,6 +130,7 @@ lazy_static! {
             min_respawn_time_secs: 900,  // 15 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Clearings,
+            growing_seasons: vec![Season::Spring, Season::Autumn], // Cool weather crop
         });
         
         configs.insert(PlantType::Pumpkin, PlantConfig {
@@ -139,6 +147,7 @@ lazy_static! {
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Coastal,
+            growing_seasons: vec![Season::Summer, Season::Autumn], // Long growing season
         });
         
         configs.insert(PlantType::Reed, PlantConfig {
@@ -155,6 +164,7 @@ lazy_static! {
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::InlandWater,
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn], // Hardy water plant
         });
         
         configs.insert(PlantType::BeachLymeGrass, PlantConfig {
@@ -171,6 +181,7 @@ lazy_static! {
             min_respawn_time_secs: 480,  // 8 minutes
             max_respawn_time_secs: 720,  // 12 minutes
             spawn_condition: SpawnCondition::Coastal, // Spawns on beach tiles
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Extremely hardy coastal grass
         });
         
         configs
@@ -230,5 +241,12 @@ pub fn get_plant_type_by_entity_name(entity_name: &str) -> Option<PlantType> {
 pub fn has_seed_drops(plant_type: &PlantType) -> bool {
     PLANT_CONFIGS.get(plant_type)
         .map(|config| config.seed_drop_chance > 0.0 && !config.seed_type.is_empty())
+        .unwrap_or(false)
+}
+
+/// Check if a plant can grow in the given season
+pub fn can_grow_in_season(plant_type: &PlantType, season: &Season) -> bool {
+    PLANT_CONFIGS.get(plant_type)
+        .map(|config| config.growing_seasons.contains(season))
         .unwrap_or(false)
 } 

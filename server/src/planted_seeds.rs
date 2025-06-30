@@ -294,13 +294,13 @@ fn get_shelter_penalty_multiplier(ctx: &ReducerContext, plant_x: f32, plant_y: f
 }
 
 /// Calculate the effective growth rate for current conditions
-fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> f32 {
+fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> (f32, crate::world_state::Season) {
     // Get current world state
     let world_state = match ctx.db.world_state().iter().next() {
         Some(state) => state,
         None => {
             log::warn!("No WorldState found for growth calculation, using default multiplier");
-            return 0.5; // Default moderate growth if no world state
+            return (0.5, crate::world_state::Season::Spring); // Default moderate growth if no world state
         }
     };
     
@@ -313,7 +313,7 @@ fn calculate_growth_rate_multiplier(ctx: &ReducerContext) -> f32 {
                time_multiplier, weather_multiplier, total_multiplier, 
                world_state.time_of_day, world_state.current_weather);
     
-    total_multiplier
+    (total_multiplier, world_state.current_season)
 }
 
 // --- Initialization ---
@@ -556,9 +556,10 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
     }
     
     let current_time = ctx.timestamp;
-    let base_growth_multiplier = calculate_growth_rate_multiplier(ctx);
+    let (base_growth_multiplier, current_season) = calculate_growth_rate_multiplier(ctx);
     let mut plants_updated = 0;
     let mut plants_matured = 0;
+    let mut plants_dormant = 0;
     
     // Process all planted seeds to update their growth
     let all_plants: Vec<PlantedSeed> = ctx.db.planted_seed().iter().collect();
@@ -571,6 +572,24 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
         
         if elapsed_seconds <= 0.0 {
             continue; // No time has passed
+        }
+        
+        // Check if this plant can grow in the current season
+        if !crate::plants_database::can_grow_in_season(&plant.plant_type, &current_season) {
+            // Plant is dormant this season - update last_growth_update but don't grow
+            let plant_id = plant.id;
+            let plant_type = plant.plant_type;
+            let plant_pos_x = plant.pos_x;
+            let plant_pos_y = plant.pos_y;
+            let plant_progress = plant.growth_progress;
+            
+            plant.last_growth_update = current_time;
+            ctx.db.planted_seed().id().update(plant);
+            plants_dormant += 1;
+            
+            log::debug!("Plant {} ({:?}) is dormant during {:?} season at ({:.1}, {:.1}) - progress: {:.1}%", 
+                       plant_id, plant_type, current_season, plant_pos_x, plant_pos_y, plant_progress * 100.0);
+            continue;
         }
         
         // Calculate cloud cover effect for this specific plant
@@ -643,9 +662,9 @@ pub fn check_plant_growth(ctx: &ReducerContext, _args: PlantedSeedGrowthSchedule
         }
     }
     
-    if plants_matured > 0 || plants_updated > 0 {
-        log::info!("Growth check: {} plants matured, {} plants updated (base rate: {:.2}x, cloud/light/crowding/shelter effects vary per plant)", 
-                  plants_matured, plants_updated, base_growth_multiplier);
+    if plants_matured > 0 || plants_updated > 0 || plants_dormant > 0 {
+        log::info!("Growth check: {} plants matured, {} plants updated, {} plants dormant (season: {:?}, base rate: {:.2}x)", 
+                  plants_matured, plants_updated, plants_dormant, current_season, base_growth_multiplier);
     }
     
     Ok(())
