@@ -12,7 +12,7 @@ use crate::player as PlayerTableTrait;
 use crate::dropped_item::{calculate_drop_position, create_dropped_item_entity, create_dropped_item_entity_with_data};
 // REMOVE unused concrete table type imports
 // use crate::items::{InventoryItemTable, ItemDefinitionTable};
-use crate::items_database; // ADD import for new module
+use crate::items_database; // Use new modular items database
 use std::cmp::min;
 use spacetimedb::Identity; // ADDED for add_item_to_player_inventory
 // Import the ContainerItemClearer trait

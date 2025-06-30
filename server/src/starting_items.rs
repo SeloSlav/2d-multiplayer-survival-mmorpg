@@ -46,7 +46,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stash", 1, None, Some(10u16)),
         ("Reed Rain Collector", 1, None, Some(11u16)),
         ("Tallow", 50, None, Some(12u16)),
-        ("Machete", 1, None, Some(13u16)),
+        ("Bush Knife", 1, None, Some(13u16)),
         ("AK74 Bayonet", 1, None, Some(14u16)),
         ("Naval Cutlass", 1, None, Some(15u16)),
         ("Military Crowbar", 1, None, Some(16u16)),
