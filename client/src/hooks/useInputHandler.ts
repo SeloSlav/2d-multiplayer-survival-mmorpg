@@ -742,8 +742,47 @@ export const useInputHandler = ({
                             if (isTapInteraction(currentTarget)) {
                                 switch (currentTarget.type) {
                                     case 'harvestable_resource':
+                                        // Enhanced debugging: Get the actual resource data for detailed logging
+                                        const resourceId = currentTarget.id as bigint;
+                                        
+                                        // Try to get the resource entity from the connection's database
+                                        let resourceEntity = null;
+                                        try {
+                                            if (connectionRef.current?.db?.harvestableResource) {
+                                                // Use the generated table handle to find the resource by ID
+                                                resourceEntity = Array.from(connectionRef.current.db.harvestableResource.iter())
+                                                    .find(resource => resource.id === resourceId);
+                                            }
+                                        } catch (error) {
+                                            console.warn('[E-Tap ACTION] Error accessing harvestable resources:', error);
+                                        }
+                                        
+                                        if (resourceEntity) {
+                                            console.log('[E-Tap ACTION] 🌱 HARVESTING RESOURCE - Details:', {
+                                                id: resourceId,
+                                                plantType: resourceEntity.plantType,
+                                                position: `(${resourceEntity.posX}, ${resourceEntity.posY})`,
+                                                chunkIndex: resourceEntity.chunkIndex,
+                                                respawnAt: resourceEntity.respawnAt,
+                                                isRespawning: !!resourceEntity.respawnAt
+                                            });
+                                            
+                                            // Also log just the plant type tag for easy scanning
+                                            console.log(`[E-Tap ACTION] 🎯 Harvesting: ${resourceEntity.plantType.tag} at (${resourceEntity.posX.toFixed(1)}, ${resourceEntity.posY.toFixed(1)})`);
+                                        } else {
+                                            console.warn('[E-Tap ACTION] ⚠️ Resource not found in cache:', resourceId);
+                                            // Log target details we do have
+                                            console.log('[E-Tap ACTION] Target details:', {
+                                                id: resourceId,
+                                                type: currentTarget.type,
+                                                position: currentTarget.position,
+                                                distance: currentTarget.distance,
+                                                data: currentTarget.data
+                                            });
+                                        }
+                                        
                                         console.log('[E-Tap ACTION] Harvesting resource:', currentTarget.id);
-                                        connectionRef.current.reducers.interactWithHarvestableResource(currentTarget.id as bigint);
+                                        connectionRef.current.reducers.interactWithHarvestableResource(resourceId);
                                         tapActionTaken = true;
                                         break;
                                     case 'dropped_item':

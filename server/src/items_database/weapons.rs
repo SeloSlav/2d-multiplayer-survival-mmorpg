@@ -101,6 +101,7 @@ pub fn get_weapon_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Hunting Bow", "A sturdy wooden bow for hunting game and self-defense. Requires arrows to fire.", ItemCategory::RangedWeapon)
             .icon("bow.png")
             .stackable(1)
+            .weapon(50, 50, 0.0) // 50 base damage, no melee speed (ranged only)
             .equippable(None) // RangedWeapons are equippable
             .crafting_cost(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 400 },
@@ -115,6 +116,7 @@ pub fn get_weapon_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Crossbow", "A mechanical crossbow with superior accuracy and power. Fires bolts in straight lines with minimal gravity effect.", ItemCategory::RangedWeapon)
             .icon("crossbow.png")
             .stackable(1)
+            .weapon(75, 75, 0.0) // 75 base damage, no melee speed (ranged only)
             .equippable(None) // RangedWeapons are equippable
             .crafting_cost(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 600 },

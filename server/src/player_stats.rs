@@ -347,6 +347,13 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             new_stamina = (new_stamina + (elapsed_seconds * STAMINA_RECOVERY_PER_SECOND)).min(100.0);
         }
 
+        // <<< ADD EXHAUSTED EFFECT MANAGEMENT >>>
+        // Update exhausted status based on low hunger, thirst, or warmth
+        if let Err(e) = crate::active_effects::update_player_exhausted_status(ctx, player_id, new_hunger, new_thirst, new_warmth, low_need_threshold) {
+            log::warn!("Failed to update exhausted status for player {:?}: {}", player_id, e);
+        }
+        // <<< END EXHAUSTED EFFECT MANAGEMENT >>>
+
         // Calculate Health
         let mut health_change_per_sec: f32 = 0.0;
         if new_thirst <= 0.0 {

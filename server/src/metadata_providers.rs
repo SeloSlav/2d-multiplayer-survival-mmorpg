@@ -14,7 +14,22 @@ pub fn is_plantable_seed(item_name: &str) -> bool {
 pub fn get_plant_type_from_seed_name(seed_name: &str) -> Option<PlantType> {
     use crate::plants_database::PLANT_CONFIGS;
     
-    PLANT_CONFIGS.iter()
+    spacetimedb::log::info!("get_plant_type_from_seed_name: Looking for seed '{}'", seed_name);
+    spacetimedb::log::info!("get_plant_type_from_seed_name: Available seeds: {:?}", 
+                            PLANT_CONFIGS.values().map(|c| &c.seed_type).collect::<Vec<_>>());
+    
+    let result = PLANT_CONFIGS.iter()
         .find(|(_, config)| config.seed_type == seed_name)
-        .map(|(plant_type, _)| *plant_type)
+        .map(|(plant_type, _)| *plant_type);
+        
+    match result {
+        Some(plant_type) => {
+            spacetimedb::log::info!("get_plant_type_from_seed_name: Found {:?} for seed '{}'", plant_type, seed_name);
+            Some(plant_type)
+        }
+        None => {
+            spacetimedb::log::error!("get_plant_type_from_seed_name: No plant type found for seed '{}'", seed_name);
+            None
+        }
+    }
 } 

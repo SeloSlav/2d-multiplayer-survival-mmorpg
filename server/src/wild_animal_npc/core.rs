@@ -38,11 +38,20 @@ use crate::death_marker::death_marker as DeathMarkerTableTrait;
 use crate::shelter::shelter as ShelterTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
+use crate::campfire::campfire as CampfireTableTrait;
 
 // Collision detection constants
 const ANIMAL_COLLISION_RADIUS: f32 = 32.0; // Animals maintain 32px distance from each other
 const ANIMAL_PLAYER_COLLISION_RADIUS: f32 = 40.0; // Animals maintain 40px distance from players
 const COLLISION_PUSHBACK_FORCE: f32 = 20.0; // How far to push back when colliding
+
+// Fire fear constants
+const FIRE_FEAR_RADIUS: f32 = 200.0; // Animals fear fire within 200px (4 tiles)
+const FIRE_FEAR_RADIUS_SQUARED: f32 = FIRE_FEAR_RADIUS * FIRE_FEAR_RADIUS;
+const TORCH_FEAR_RADIUS: f32 = 120.0; // Smaller fear radius for torches
+const TORCH_FEAR_RADIUS_SQUARED: f32 = TORCH_FEAR_RADIUS * TORCH_FEAR_RADIUS;
+const GROUP_COURAGE_THRESHOLD: usize = 3; // 3+ animals = ignore fire fear
+const GROUP_DETECTION_RADIUS: f32 = 300.0; // Distance to count group members
 
 // --- Constants ---
 pub const AI_TICK_INTERVAL_MS: u64 = 125; // AI processes 8 times per second (improved from 4fps)
@@ -434,10 +443,40 @@ fn update_animal_ai_state(
         return Ok(());
     }
 
-    // Find the closest detected player
-    let detected_player = find_detected_player(animal, stats, nearby_players);
+    // Fire fear check - if afraid of fire, don't chase players near fire sources
+    if should_fear_fire(ctx, animal) {
+        // If currently chasing, check if target is still near fire
+        if animal.state == AnimalState::Chasing {
+            if let Some(target_id) = animal.target_player_id {
+                if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
+                    // Check if player is near a fire source
+                    if is_fire_nearby(ctx, target_player.position_x, target_player.position_y) {
+                        // Stop chasing, switch to patrolling/alert
+                        animal.state = AnimalState::Patrolling;
+                        animal.state_change_time = current_time;
+                        animal.target_player_id = None;
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        
+        // Filter out players near fire sources when looking for new targets
+        let fire_safe_players: Vec<Player> = nearby_players.iter()
+            .filter(|player| !is_fire_nearby(ctx, player.position_x, player.position_y))
+            .cloned()
+            .collect();
+        
+        // Find detected player only from fire-safe players
+        let detected_player = find_detected_player(animal, stats, &fire_safe_players);
+        
+        // Delegate species-specific logic with filtered players
+        behavior.update_ai_state_logic(ctx, animal, stats, detected_player.as_ref(), current_time, rng)?;
+        return Ok(());
+    }
 
-    // Delegate species-specific logic to behavior implementation
+    // Normal behavior when not afraid of fire
+    let detected_player = find_detected_player(animal, stats, nearby_players);
     behavior.update_ai_state_logic(ctx, animal, stats, detected_player.as_ref(), current_time, rng)?;
 
     Ok(())
@@ -455,6 +494,26 @@ fn execute_animal_movement(
 ) -> Result<(), String> {
     let dt = 0.125; // Updated to match new AI tick interval (8fps instead of 4fps)
     
+    // Check fire fear first - this can override normal movement behavior
+    if should_fear_fire(ctx, animal) {
+        // Animal is afraid of fire - flee from nearest fire source
+        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+            // Calculate direction away from fire
+            let away_x = animal.pos_x - fire_x;
+            let away_y = animal.pos_y - fire_y;
+            let distance = (away_x * away_x + away_y * away_y).sqrt();
+            
+            if distance > 0.0 {
+                let flee_x = animal.pos_x + (away_x / distance) * 100.0; // Flee 100px away
+                let flee_y = animal.pos_y + (away_y / distance) * 100.0;
+                
+                // Use fast flee speed
+                move_towards_target(ctx, animal, flee_x, flee_y, stats.sprint_speed, dt);
+                return Ok(()); // Skip normal movement logic
+            }
+        }
+    }
+    
     match animal.state {
         AnimalState::Patrolling => {
             behavior.execute_patrol_logic(ctx, animal, stats, dt, rng);
@@ -469,7 +528,36 @@ fn execute_animal_movement(
                     );
                     let distance = distance_sq.sqrt();
                     
-                    // IMPROVED: More aggressive approach - get closer to attack range
+                    // Fire fear override: If chasing but fire is nearby, hover at fire boundary
+                    if should_fear_fire(ctx, animal) {
+                        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+                            let fire_distance = get_distance_squared(animal.pos_x, animal.pos_y, fire_x, fire_y).sqrt();
+                            let fear_radius = if is_campfire_at_position(ctx, fire_x, fire_y) {
+                                FIRE_FEAR_RADIUS
+                            } else {
+                                TORCH_FEAR_RADIUS
+                            };
+                            
+                            // If too close to fire, back away slightly
+                            if fire_distance < fear_radius * 0.8 {
+                                let away_x = animal.pos_x - fire_x;
+                                let away_y = animal.pos_y - fire_y;
+                                let away_distance = (away_x * away_x + away_y * away_y).sqrt();
+                                
+                                if away_distance > 0.0 {
+                                    let safe_x = animal.pos_x + (away_x / away_distance) * 30.0;
+                                    let safe_y = animal.pos_y + (away_y / away_distance) * 30.0;
+                                    move_towards_target(ctx, animal, safe_x, safe_y, stats.movement_speed, dt);
+                                    return Ok(());
+                                }
+                            }
+                            // If at safe distance from fire, circle/hover and wait
+                            // (emergent behavior - just don't move toward player if it means getting closer to fire)
+                            return Ok(());
+                        }
+                    }
+                    
+                    // Normal chase behavior if no fire fear
                     if distance > stats.attack_range * 0.9 { // Start moving when slightly outside attack range
                         // Move directly toward player - no stopping short
                         move_towards_target(ctx, animal, target_player.position_x, target_player.position_y, stats.sprint_speed, dt);
@@ -937,6 +1025,136 @@ pub fn is_position_in_shelter(ctx: &ReducerContext, x: f32, y: f32) -> bool {
         let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
         
         if x >= aabb_left && x <= aabb_right && y >= aabb_top && y <= aabb_bottom {
+            return true;
+        }
+    }
+    false
+}
+
+// Fire fear helper functions
+
+/// Check if there's a fire source (campfire or torch) within fear radius of an animal
+fn is_fire_nearby(ctx: &ReducerContext, animal_x: f32, animal_y: f32) -> bool {
+    // Check for burning campfires
+    for campfire in ctx.db.campfire().iter() {
+        if !campfire.is_burning || campfire.is_destroyed {
+            continue;
+        }
+        
+        let dx = animal_x - campfire.pos_x;
+        let dy = animal_y - campfire.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        if distance_sq <= FIRE_FEAR_RADIUS_SQUARED {
+            return true;
+        }
+    }
+    
+    // Check for players with lit torches
+    for player in ctx.db.player().iter() {
+        if !player.is_torch_lit || player.is_dead {
+            continue;
+        }
+        
+        let dx = animal_x - player.position_x;
+        let dy = animal_y - player.position_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        if distance_sq <= TORCH_FEAR_RADIUS_SQUARED {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Count nearby animals of the same species to determine group courage
+fn count_nearby_group_members(ctx: &ReducerContext, animal: &WildAnimal) -> usize {
+    let mut count = 1; // Count self
+    
+    for other_animal in ctx.db.wild_animal().iter() {
+        if other_animal.id == animal.id || other_animal.species != animal.species {
+            continue;
+        }
+        
+        let dx = animal.pos_x - other_animal.pos_x;
+        let dy = animal.pos_y - other_animal.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        if distance_sq <= GROUP_DETECTION_RADIUS * GROUP_DETECTION_RADIUS {
+            count += 1;
+        }
+    }
+    
+    count
+}
+
+/// Find the closest fire source position for boundary calculation
+fn find_closest_fire_position(ctx: &ReducerContext, animal_x: f32, animal_y: f32) -> Option<(f32, f32)> {
+    let mut closest_fire_pos: Option<(f32, f32)> = None;
+    let mut closest_distance_sq = f32::MAX;
+    
+    // Check burning campfires
+    for campfire in ctx.db.campfire().iter() {
+        if !campfire.is_burning || campfire.is_destroyed {
+            continue;
+        }
+        
+        let dx = animal_x - campfire.pos_x;
+        let dy = animal_y - campfire.pos_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        if distance_sq < closest_distance_sq {
+            closest_distance_sq = distance_sq;
+            closest_fire_pos = Some((campfire.pos_x, campfire.pos_y));
+        }
+    }
+    
+    // Check lit torches (players)
+    for player in ctx.db.player().iter() {
+        if !player.is_torch_lit || player.is_dead {
+            continue;
+        }
+        
+        let dx = animal_x - player.position_x;
+        let dy = animal_y - player.position_y;
+        let distance_sq = dx * dx + dy * dy;
+        
+        if distance_sq < closest_distance_sq {
+            closest_distance_sq = distance_sq;
+            closest_fire_pos = Some((player.position_x, player.position_y));
+        }
+    }
+    
+    closest_fire_pos
+}
+
+/// Check if an animal should fear fire (considers group courage)
+fn should_fear_fire(ctx: &ReducerContext, animal: &WildAnimal) -> bool {
+    // Count nearby group members
+    let group_size = count_nearby_group_members(ctx, animal);
+    
+    // Groups of 3+ ignore fire fear
+    if group_size >= GROUP_COURAGE_THRESHOLD {
+        return false;
+    }
+    
+    // Check if fire is nearby
+    is_fire_nearby(ctx, animal.pos_x, animal.pos_y)
+}
+
+/// Check if there's a campfire at the given position (for determining fear radius)
+fn is_campfire_at_position(ctx: &ReducerContext, x: f32, y: f32) -> bool {
+    for campfire in ctx.db.campfire().iter() {
+        if !campfire.is_burning || campfire.is_destroyed {
+            continue;
+        }
+        
+        let dx = x - campfire.pos_x;
+        let dy = y - campfire.pos_y;
+        
+        // Check if position is very close to campfire (within 10px)
+        if dx * dx + dy * dy <= 100.0 {
             return true;
         }
     }

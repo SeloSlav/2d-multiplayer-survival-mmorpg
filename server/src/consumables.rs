@@ -72,13 +72,16 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let item_def = item_defs.id().find(item_to_consume.item_def_id)
         .ok_or_else(|| format!("Definition for item ID {} not found.", item_to_consume.item_def_id))?;
 
-    // For direct consumption, we still only allow items marked as Consumable category.
-    // Bandages, now being Tools, won't pass this check if we strictly enforce it.
-    // If you want bandages to be consumable this way, their category would need to remain Consumable,
-    // or this check needs to be adjusted for them (e.g. allow Tool if name is Bandage).
-    // For now, let's keep it strict: direct consumption is for Category::Consumable.
-    if item_def.category != ItemCategory::Consumable {
-        return Err(format!("Item '{}' is not a consumable category item and cannot be used this way.", item_def.name));
+    // Allow consumption of items that are either Consumable category OR have consumable stats (e.g., seeds)
+    // Seeds are Placeable but can be eaten for emergency nutrition
+    let has_consumable_stats = item_def.consumable_health_gain.is_some() ||
+                              item_def.consumable_hunger_satiated.is_some() ||
+                              item_def.consumable_thirst_quenched.is_some() ||
+                              item_def.consumable_stamina_gain.is_some() ||
+                              item_def.warmth_bonus.is_some();
+    
+    if item_def.category != ItemCategory::Consumable && !has_consumable_stats {
+        return Err(format!("Item '{}' cannot be consumed.", item_def.name));
     }
 
     // Call the centralized helper function

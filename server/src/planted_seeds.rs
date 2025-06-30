@@ -65,11 +65,15 @@ pub struct PlantedSeedGrowthSchedule {
 
 /// Get growth configuration for a seed type from the central plants database
 fn get_growth_config_from_database(seed_type: &str) -> Option<(u64, u64, PlantType)> {
+    log::info!("get_growth_config_from_database: Looking up seed type '{}'", seed_type);
+    
     // Convert seed type to plant type using centralized metadata provider
     let plant_type = crate::metadata_providers::get_plant_type_from_seed_name(seed_type)?;
+    log::info!("get_growth_config_from_database: Found plant type {:?} for seed '{}'", plant_type, seed_type);
     
     // Get the plant config from the central database
     let config = crate::plants_database::get_plant_config(&plant_type)?;
+    log::info!("get_growth_config_from_database: Found config for {:?}", plant_type);
     
     // Return (min_growth_time_secs, max_growth_time_secs, plant_type)
     // Growth time comes from the central database's min/max_respawn_time_secs
@@ -471,11 +475,15 @@ pub fn plant_seed(
     log::info!("PLANT_SEED: Item definition found: {}", item_def.name);
     
     // Verify it's a plantable seed (using centralized database)
+    log::info!("PLANT_SEED: Checking if '{}' is plantable...", item_def.name);
     let (min_growth_time_secs, max_growth_time_secs, plant_type) = get_growth_config_from_database(&item_def.name)
         .ok_or_else(|| {
             log::error!("PLANT_SEED: '{}' is not a plantable seed", item_def.name);
             format!("'{}' is not a plantable seed", item_def.name)
         })?;
+    
+    log::info!("PLANT_SEED: '{}' is plantable! Plant type: {:?}, growth time: {}-{} seconds", 
+              item_def.name, plant_type, min_growth_time_secs, max_growth_time_secs);
     
     // Special validation for Reed Rhizome - must be planted on water near shore
     if item_def.name == "Reed Rhizome" {

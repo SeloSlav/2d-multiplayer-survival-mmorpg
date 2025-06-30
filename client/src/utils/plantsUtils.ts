@@ -2,13 +2,16 @@
  * Plant and seed utilities that work with SpacetimeDB generated data
  * This eliminates hardcoding of plant names by using the actual item definitions
  * and inferring rules from patterns in names and descriptions.
+ * 
+ * ALL SEEDS are now in seeds.rs as Placeable category items.
+ * Only RAW seeds can be planted - cooked/burnt/toasted variants cannot be planted.
  */
 
 import { ItemDefinition } from '../generated';
 
 /**
- * Determines if an item is a plantable seed based on SpacetimeDB item definitions
- * Uses item category and name patterns to identify seeds
+ * Determines if an item is plantable (seeds, cuttings, bulbs, etc.) based on SpacetimeDB item definitions
+ * Only RAW plantable items can be planted - cooked/burnt/toasted variants cannot be planted
  */
 export function isPlantableSeed(itemDef: ItemDefinition): boolean {
   // All seeds are categorized as Placeable in the database
@@ -16,14 +19,22 @@ export function isPlantableSeed(itemDef: ItemDefinition): boolean {
     return false;
   }
   
-  // Check if the item name or description indicates it's a seed
   const name = itemDef.name.toLowerCase();
   const description = itemDef.description.toLowerCase();
   
+  // Exclude cooked/burnt/toasted variants - only raw seeds can be planted
+  if (name.includes('cooked') || name.includes('burnt') || name.includes('toasted') || name.includes('roasted')) {
+    return false;
+  }
+  
+  // Check if the item name or description indicates it's plantable (seeds, cuttings, bulbs, etc.)
   return (
     name.includes('seed') ||
     name.includes('spore') ||
     name.includes('rhizome') ||
+    name.includes('cuttings') || // "Mint Cuttings"
+    name.includes('bulbs') || // "Bear Garlic Bulbs"
+    name.includes('potato') || // "Seed Potato"
     description.includes('plant') ||
     description.includes('grow') ||
     description.includes('deploy')
@@ -56,6 +67,11 @@ export function requiresWaterPlacement(itemName: string, itemDef?: ItemDefinitio
   const name = itemName.toLowerCase();
   const description = itemDef?.description.toLowerCase() || '';
   
+  // Specific exclusions for items that contain "reed" but aren't water-requiring plants
+  if (name.includes('rain collector') || name.includes('collector')) {
+    return false;
+  }
+  
   return (
     name.includes('reed') ||
     name.includes('rhizome') ||
@@ -86,8 +102,8 @@ export function getPlantPlacementType(itemName: string, itemDef?: ItemDefinition
 }
 
 /**
- * Check if a seed item is valid for planting based on item name patterns
- * This replaces hardcoded seed name checks with pattern recognition
+ * Check if a plantable item is valid for planting based on item name patterns
+ * Only RAW plantable items can be planted - cooked/burnt/toasted variants cannot be planted
  */
 export function isSeedItemValid(itemName: string, itemDefinitions?: Map<string, ItemDefinition>): boolean {
   // If we have full item definitions, use the complete check
@@ -98,10 +114,18 @@ export function isSeedItemValid(itemName: string, itemDefinitions?: Map<string, 
   
   // Fallback: use name patterns (for when itemDefinitions not available)
   const name = itemName.toLowerCase();
+  
+  // Exclude cooked/burnt variants
+  if (name.includes('cooked') || name.includes('burnt') || name.includes('toasted') || name.includes('roasted')) {
+    return false;
+  }
+  
   return (
     name.includes('seed') ||
     name.includes('spore') ||
     name.includes('rhizome') ||
+    name.includes('cuttings') || // "Mint Cuttings"
+    name.includes('bulbs') || // "Bear Garlic Bulbs"
     name.includes('potato') // "Seed Potato"
   );
 } 

@@ -1,102 +1,176 @@
 // client/src/utils/itemIconUtils.ts
 
 // Import default/error icon
-import errorIcon from '../assets/items/error.png'; // Adjust path if needed
+import errorIcon from '../assets/items/error.png';
 
-// Import all potential item icons
+// === MATERIALS ===
+// Basic crafting materials, metals, bones, and advanced materials
+
 import woodIcon from '../assets/items/wood.png';
 import stoneIcon from '../assets/items/stone.png';
+import plantFiberIcon from '../assets/items/plant_fiber.png';
+import clothIcon from '../assets/items/cloth.png';
+import charcoalIcon from '../assets/items/charcoal.png';
+import coalIcon from '../assets/items/coal.png';
+import ropeIcon from '../assets/items/rope.png';
+import reedStalkIcon from '../assets/items/reed_stalk.png';
+
+// Metal materials
+import metalOreIcon from '../assets/items/metal_ore.png';
+import metalFragmentsIcon from '../assets/items/metal_fragments.png';
+import tinCanIcon from '../assets/items/tin_can.png';
+import scrapBatteriesIcon from '../assets/items/scrap_batteries.png';
+
+// Bone materials
+import boneIcon from '../assets/items/bone.png';
+import boneFragmentsIcon from '../assets/items/bone_fragments.png';
+import animalFatIcon from '../assets/items/animal_fat.png';
+
+// Animal materials
+import cableViperGlandIcon from '../assets/items/cable_viper_gland.png';
+import foxFurIcon from '../assets/items/fox_fur.png';
+import wolfFurIcon from '../assets/items/wolf_fur.png';
+import viperScaleIcon from '../assets/items/viper_scale.png';
+
+// === TOOLS ===
+// Gathering tools, utility tools, medical tools, light sources
+
 import woodHatchetIcon from '../assets/items/wood_hatchet.png';
 import pickAxeIcon from '../assets/items/pick_axe.png';
-import campFireIcon from '../assets/items/campfire.png';
 import rockItemIcon from '../assets/items/rock_item.png';
+import combatLadleIcon from '../assets/items/combat_ladle.png';
+import boneClubIcon from '../assets/items/bone_club.png';
+import boneKnifeIcon from '../assets/items/bone_knife.png';
+import repairHammerIcon from '../assets/items/repair_hammer.png';
+
+// Light sources
+import torchIcon from '../assets/items/torch.png';
+import torchFlameIcon from '../assets/items/torch_on.png';
+import flashlightIcon from '../assets/items/flashlight.png';
+
+// Medical tools
+import bandageIcon from '../assets/items/bandage.png';
+import seloOliveOilIcon from '../assets/items/selo_olive_oil.png';
+import antiVenomIcon from '../assets/items/anti_venom.png';
+
+// Utility tools
+import blueprintIcon from '../assets/items/blueprint.png';
+import reedSnorkelIcon from '../assets/items/reed_snorkel.png';
+import boneHookIcon from '../assets/items/fishing_gaff_hook.png';
+import fishingRodIcon from '../assets/items/reed_fishing_rod.png';
+import reedBellowsIcon from '../assets/items/reed_bellows.png';
+import reedWaterBottleIcon from '../assets/items/reed_water_bottle.png';
+import waterJugIcon from '../assets/items/water_jug.png';
+
+// === WEAPONS ===
+// Melee weapons, ranged weapons, skulls
+
+import spearIcon from '../assets/items/spear.png';
+import stoneSpearIcon from '../assets/items/stone_spear.png';
+import huntingBowIcon from '../assets/items/bow.png';
+import crossbowIcon from '../assets/items/crossbow.png';
+
+// Military weapons
+import macheteIcon from '../assets/items/machete.png';
+import sovietBayonetIcon from '../assets/items/soviet_bayonet.png';
+import navalCutlassIcon from '../assets/items/naval_cutlass.png';
+import engineersMaulIcon from '../assets/items/engineers_maul.png';
+import militaryCrowbarIcon from '../assets/items/military_crowbar.png';
+
+// Skull weapons
+import skullIcon from '../assets/items/skull.png';
+import foxSkullIcon from '../assets/items/fox_skull.png';
+import wolfSkullIcon from '../assets/items/wolf_skull.png';
+import viperSkullIcon from '../assets/items/viper_skull.png';
+
+// === AMMUNITION ===
+// Arrows and projectiles
+
+import woodenArrowIcon from '../assets/items/wooden_arrow.png';
+import boneArrowIcon from '../assets/items/bone_arrow.png';
+import fireArrowIcon from '../assets/items/fire_arrow.png';
+import hollowReedArrowIcon from '../assets/items/hollow_reed_arrow.png';
+
+// === ARMOR ===
+// Protective equipment and clothing
+
 import clothShirtIcon from '../assets/items/cloth_shirt.png';
 import clothPantsIcon from '../assets/items/cloth_pants.png';
 import clothHatIcon from '../assets/items/cloth_hood.png';
 import clothGlovesIcon from '../assets/items/cloth_gloves.png';
 import clothBootsIcon from '../assets/items/cloth_boots.png';
+import burlapCapeIcon from '../assets/items/burlap_cape.png';
+import tallowHeadLampIcon from '../assets/items/tallow_head_lamp.png';
+
+// Containers (wearable storage)
 import burlapSackIcon from '../assets/items/burlap_sack.png';
 import burlapBackpackIcon from '../assets/items/burlap_backpack.png';
-import mushroomIcon from '../assets/items/mushroom.png';
+
+// === CONSUMABLES ===
+// Food, medicine, and edible items
+
+// Basic crops
 import cornIcon from '../assets/items/corn.png';
-import potatoIcon from '../assets/items/potato.png';
-import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
-import sleepingBagIcon from '../assets/items/sleeping_bag.png';
-import clothIcon from '../assets/items/cloth.png';
-import plantFiberIcon from '../assets/items/plant_fiber.png';
-import bandageIcon from '../assets/items/bandage.png';
-import torchIcon from '../assets/items/torch.png';
-import torchFlameIcon from '../assets/items/torch_on.png';
-import charcoalIcon from '../assets/items/charcoal.png';
-import spearIcon from '../assets/items/spear.png';
-import stashIcon from '../assets/items/stash.png';
-import cookedMushroomIcon from '../assets/items/cooked_mushroom.png';
-import burntMushroomIcon from '../assets/items/burnt_mushroom.png';
 import cookedCornIcon from '../assets/items/cooked_corn.png';
 import burntCornIcon from '../assets/items/burnt_corn.png';
-import cookedPotatoIcon from '../assets/items/cooked_potato.png';
-import burntPotatoIcon from '../assets/items/burnt_potato.png';
 import pumpkinIcon from '../assets/items/pumpkin.png';
 import cookedPumpkinIcon from '../assets/items/cooked_pumpkin.png';
 import burntPumpkinIcon from '../assets/items/burnt_pumpkin.png';
-import combatLadleIcon from '../assets/items/combat_ladle.png';
-import deathMarkerIcon from '../assets/items/death_marker.png';
-import stoneSpearIcon from '../assets/items/stone_spear.png';
-import burlapCapeIcon from '../assets/items/burlap_cape.png';
-import woodenArrowIcon from '../assets/items/wooden_arrow.png';
-import boneArrowIcon from '../assets/items/bone_arrow.png';
-import huntingBowIcon from '../assets/items/bow.png'; 
-import boneFragmentsIcon from '../assets/items/bone_fragments.png';
-import boneClubIcon from '../assets/items/bone_club.png';
-import boneKnifeIcon from '../assets/items/bone_knife.png';
-import skullIcon from '../assets/items/skull.png';
-import animalFatIcon from '../assets/items/animal_fat.png';
-import boneIcon from '../assets/items/bone.png';
+import potatoIcon from '../assets/items/potato.png';
+import cookedPotatoIcon from '../assets/items/cooked_potato.png';
+import burntPotatoIcon from '../assets/items/burnt_potato.png';
+
+// Grains
+import rawWheatIcon from '../assets/items/raw_wheat.png';
+
+// Vegetables
+import carrotIcon from '../assets/items/carrot.png';
+import tomatoIcon from '../assets/items/tomato.png';
+import cabbageIcon from '../assets/items/cabbage.png';
+import radishIcon from '../assets/items/radish.png';
+import beetsIcon from '../assets/items/beets.png';
+import onionIcon from '../assets/items/onion.png';
+import garlicIcon from '../assets/items/garlic.png';
+import parsnipIcon from '../assets/items/parsnip.png';
+import horseradishIcon from '../assets/items/horseradish.png';
+import salsifyIcon from '../assets/items/salsify.png';
+import turnipIcon from '../assets/items/turnip.png';
+
+// Mushrooms
+import flyAgaricIcon from '../assets/items/fly_agaric.png';
+import porciniIcon from '../assets/items/porcini.png';
+import deadlyWebcapIcon from '../assets/items/deadly_webcap.png';
+import destroyingAngelIcon from '../assets/items/destroying_angel.png';
+import shaggylnkCapIcon from '../assets/items/shaggy_ink_cap.png';
+import chanterelleIcon from '../assets/items/chanterelle.png';  
+
+// Herbs & medicinal plants
+import chicoryIcon from '../assets/items/chicory.png';
+import yarrowIcon from '../assets/items/yarrow.png';
+import chamomileIcon from '../assets/items/chamomile.png';
+import mintIcon from '../assets/items/mint.png';
+import mintCuttingsIcon from '../assets/items/mint_cuttings.png';
+import valerianIcon from '../assets/items/valerian.png';
+import valerianLeavesIcon from '../assets/items/valerian_leaves.png';
+import mugwortIcon from '../assets/items/mugwort.png';
+import fennelIcon from '../assets/items/fennel.png';
+import dillIcon from '../assets/items/dill.png';
+import bearGarlicIcon from '../assets/items/bear_garlic.png';
+import siberianGinsengIcon from '../assets/items/siberian_ginseng.png';
+import nettleLeavesIcon from '../assets/items/nettle_leaves.png';
+
+// Fiber plants
+import bogCottonIcon from '../assets/items/bog_cotton.png';
+import dogbaneFiberIcon from '../assets/items/dogbane.png';
+
+// Other plants
+import sunflowerIcon from '../assets/items/sunflower.png';
+import sunflowerSeedsIcon from '../assets/items/sunflower_seeds.png';
+
+// Animal meat
 import rawHumanFleshIcon from '../assets/items/human_meat.png';
-import blueprintIcon from '../assets/items/blueprint.png';
-import tallowIcon from '../assets/items/tallow.png';
-import repairHammerIcon from '../assets/items/repair_hammer.png';
 import cookedHumanFleshIcon from '../assets/items/cooked_human_meat.png';
 import burntHumanFleshIcon from '../assets/items/burnt_human_meat.png';
-import shelterIcon from '../assets/items/shelter.png';
-import fireArrowIcon from '../assets/items/fire_arrow.png';
-import tallowLampIcon from '../assets/items/lantern_off.png';
-import tallowHeadLampIcon from '../assets/items/tallow_head_lamp.png';
-import crossbowIcon from '../assets/items/crossbow.png';
-import flashlightIcon from '../assets/items/flashlight.png';
-import metalOreIcon from '../assets/items/metal_ore.png';
-import metalFragmentsIcon from '../assets/items/metal_fragments.png';
-import seloOliveOilIcon from '../assets/items/selo_olive_oil.png';
-import ropeIcon from '../assets/items/rope.png';
-import reedStalkIcon from '../assets/items/reed_stalk.png';
-import reedSnorkelIcon from '../assets/items/reed_snorkel.png';
-import boneHookIcon from '../assets/items/fishing_gaff_hook.png';
-import fishingRodIcon from '../assets/items/reed_fishing_rod.png';
-import rawTwigfishIcon from '../assets/items/raw_twigfish.png';
-import tinCanIcon from '../assets/items/tin_can.png';
-import cookedTwigfishIcon from '../assets/items/cooked_twigfish.png';
-import burntTwigfishIcon from '../assets/items/burnt_twigfish.png';
-import seedPotatoIcon from '../assets/items/seed_potato.png';
-import cornSeedsIcon from '../assets/items/corn_seeds.png';
-import hempSeedsIcon from '../assets/items/hemp_seeds.png';
-import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
-import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
-import pumpkinSeedsIcon from '../assets/items/pumpkin_seeds.png';
-import hollowReedArrowIcon from '../assets/items/hollow_reed_arrow.png';
-import reedBellowsIcon from '../assets/items/reed_bellows.png';
-import reedRainCollectorIcon from '../assets/items/reed_rain_collector.png';
-import reedWaterBottleIcon from '../assets/items/reed_water_bottle.png';
-import tinOfSpratsIcon from '../assets/items/tin_of_sprats.png';
-import fermentedCabbageJarIcon from '../assets/items/fermented_cabbage_jar.png';
-import oldHardtackBiscuitsIcon from '../assets/items/old_hardtack_biscuits.png';
-import expiredSovietChocolateIcon from '../assets/items/expired_soviet_chocolate.png';
-import mysteryCanIcon from '../assets/items/mystery_can.png';
-import waterJugIcon from '../assets/items/water_jug.png';
-import antiVenomIcon from '../assets/items/anti_venom.png';
-import cableViperGlandIcon from '../assets/items/cable_viper_gland.png';
-import foxSkullIcon from '../assets/items/fox_skull.png';
-import wolfSkullIcon from '../assets/items/wolf_skull.png';
-import viperSkullIcon from '../assets/items/viper_skull.png';
 import rawWolfMeatIcon from '../assets/items/wolf_meat.png';
 import cookedWolfMeatIcon from '../assets/items/cooked_wolf_meat.png';
 import burntWolffMeatIcon from '../assets/items/burnt_wolf_meat.png';
@@ -106,111 +180,219 @@ import burntFoxMeatIcon from '../assets/items/burnt_fox_meat.png';
 import rawViperMeatlIcon from '../assets/items/viper_meat.png';
 import cookedViperMeatIcon from '../assets/items/cooked_viper_meat.png';
 import burntViperMeatIcon from '../assets/items/burnt_viper_meat.png';
-import foxFurIcon from '../assets/items/fox_fur.png';
+import bearMeatIcon from '../assets/items/bear_meat.png';
+import boarMeatIcon from '../assets/items/boar_meat.png';
+import chickenMeatIcon from '../assets/items/chicken_meat.png';
+
+// Fish
+import rawTwigfishIcon from '../assets/items/raw_twigfish.png';
+import cookedTwigfishIcon from '../assets/items/cooked_twigfish.png';
+import burntTwigfishIcon from '../assets/items/burnt_twigfish.png';
+
+// Specialty foods
+import tallowIcon from '../assets/items/tallow.png';
+import tinOfSpratsIcon from '../assets/items/tin_of_sprats.png';
+import fermentedCabbageJarIcon from '../assets/items/fermented_cabbage_jar.png';
+import oldHardtackBiscuitsIcon from '../assets/items/old_hardtack_biscuits.png';
+import expiredSovietChocolateIcon from '../assets/items/expired_soviet_chocolate.png';
+import mysteryCanIcon from '../assets/items/mystery_can.png';
+
+// === SEEDS ===
+// All plantable items
+
+import seedPotatoIcon from '../assets/items/seed_potato.png';
+import cornSeedsIcon from '../assets/items/corn_seeds.png';
+import hempSeedsIcon from '../assets/items/hemp_seeds.png';
+import pumpkinSeedsIcon from '../assets/items/pumpkin_seeds.png';
+import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
+import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
+import flaxSeedsIcon from '../assets/items/flax_seeds.png';
+import parsnipSeedsIcon from '../assets/items/parnsip_seeds.png';
+import bearGarlicBulbsIcon from '../assets/items/bear_garlic_bulbs.png';
+import turnipSeedsIcon from '../assets/items/turnip_seeds.png';
+import radishSeedsIcon from '../assets/items/radish_seeds.png';
+import yarrowSeedsIcon from '../assets/items/yarrow_seeds.png';
+import mugwortSeedsIcon from '../assets/items/mugwort_seeds.png';
+
+// === PLACEABLES ===
+// Structures, containers, and deployable items
+
+import campFireIcon from '../assets/items/campfire.png';
+import stashIcon from '../assets/items/stash.png';
+import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
+import sleepingBagIcon from '../assets/items/sleeping_bag.png';
+import shelterIcon from '../assets/items/shelter.png';
+import tallowLampIcon from '../assets/items/lantern_off.png';
+import reedRainCollectorIcon from '../assets/items/reed_rain_collector.png';
+
+// Trophy decorations
 import wolfPeltIcon from '../assets/items/wolf_pelt.png';
-import viperScaleIcon from '../assets/items/viper_scale.png';
-import wolfFurIcon from '../assets/items/wolf_fur.png';
 import foxPeltIcon from '../assets/items/fox_pelt.png';
-import macheteIcon from '../assets/items/machete.png';
-import sovietBayonetIcon from '../assets/items/soviet_bayonet.png';
-import navalCutlassIcon from '../assets/items/naval_cutlass.png';
-import engineersMaulIcon from '../assets/items/engineers_maul.png';
-import militaryCrowbarIcon from '../assets/items/military_crowbar.png';
-import scrapBatteriesIcon from '../assets/items/scrap_batteries.png';   
+
+// Misc/Special
+import deathMarkerIcon from '../assets/items/death_marker.png';
 
 // Create a mapping from the asset name (stored in DB) to the imported module path
-// Use a Proxy or a function to handle fallbacks gracefully
 const iconMap: { [key: string]: string | undefined } = {
+  // === MATERIALS ===
   'wood.png': woodIcon,
   'stone.png': stoneIcon,
+  'plant_fiber.png': plantFiberIcon,
+  'cloth.png': clothIcon,
+  'charcoal.png': charcoalIcon,
+  'coal.png': coalIcon,
+  'rope.png': ropeIcon,
+  'reed_stalk.png': reedStalkIcon,
+  
+  // Metal materials
+  'metal_ore.png': metalOreIcon,
+  'metal_fragments.png': metalFragmentsIcon,
+  'tin_can.png': tinCanIcon,
+  'scrap_batteries.png': scrapBatteriesIcon,
+  
+  // Bone materials
+  'bone.png': boneIcon,
+  'bone_fragments.png': boneFragmentsIcon,
+  'animal_fat.png': animalFatIcon,
+  
+  // Animal materials
+  'cable_viper_gland.png': cableViperGlandIcon,
+  'fox_fur.png': foxFurIcon,
+  'wolf_fur.png': wolfFurIcon,
+  'viper_scale.png': viperScaleIcon,
+
+  // === TOOLS ===
   'wood_hatchet.png': woodHatchetIcon,
   'pick_axe.png': pickAxeIcon,
-  'campfire.png': campFireIcon,
   'rock_item.png': rockItemIcon,
+  'combat_ladle.png': combatLadleIcon,
+  'bone_club.png': boneClubIcon,
+  'bone_knife.png': boneKnifeIcon,
+  'repair_hammer.png': repairHammerIcon,
+  
+  // Light sources
+  'torch.png': torchIcon,
+  'torch_on.png': torchFlameIcon,
+  'flashlight.png': flashlightIcon,
+  
+  // Medical tools
+  'bandage.png': bandageIcon,
+  'selo_olive_oil.png': seloOliveOilIcon,
+  'anti_venom.png': antiVenomIcon,
+  
+  // Utility tools
+  'blueprint.png': blueprintIcon,
+  'reed_snorkel.png': reedSnorkelIcon,
+  'fishing_gaff_hook.png': boneHookIcon,
+  'reed_fishing_rod.png': fishingRodIcon,
+  'reed_bellows.png': reedBellowsIcon,
+  'reed_water_bottle.png': reedWaterBottleIcon,
+  'water_jug.png': waterJugIcon,
+
+  // === WEAPONS ===
+  'spear.png': spearIcon,
+  'stone_spear.png': stoneSpearIcon,
+  'bow.png': huntingBowIcon,
+  'crossbow.png': crossbowIcon,
+  
+  // Military weapons
+  'machete.png': macheteIcon,
+  'soviet_bayonet.png': sovietBayonetIcon,
+  'naval_cutlass.png': navalCutlassIcon,
+  'engineers_maul.png': engineersMaulIcon,
+  'military_crowbar.png': militaryCrowbarIcon,
+  
+  // Skull weapons
+  'skull.png': skullIcon,
+  'fox_skull.png': foxSkullIcon,
+  'wolf_skull.png': wolfSkullIcon,
+  'viper_skull.png': viperSkullIcon,
+
+  // === AMMUNITION ===
+  'wooden_arrow.png': woodenArrowIcon,
+  'bone_arrow.png': boneArrowIcon,
+  'fire_arrow.png': fireArrowIcon,
+  'hollow_reed_arrow.png': hollowReedArrowIcon,
+
+  // === ARMOR ===
   'cloth_shirt.png': clothShirtIcon,
   'cloth_pants.png': clothPantsIcon,
   'cloth_hood.png': clothHatIcon,
   'cloth_gloves.png': clothGlovesIcon,
   'cloth_boots.png': clothBootsIcon,
+  'burlap_cape.png': burlapCapeIcon,
+  'tallow_head_lamp.png': tallowHeadLampIcon,
+  
+  // Containers (wearable storage)
   'burlap_sack.png': burlapSackIcon,
   'burlap_backpack.png': burlapBackpackIcon,
-  'mushroom.png': mushroomIcon,
+
+  // === CONSUMABLES ===
+  // Basic crops
   'corn.png': cornIcon,
-  'potato.png': potatoIcon,
-  'wooden_storage_box.png': woodenStorageBoxIcon,
-  'sleeping_bag.png': sleepingBagIcon,
-  'cloth.png': clothIcon,
-  'plant_fiber.png': plantFiberIcon,
-  'bandage.png': bandageIcon,
-  'torch.png': torchIcon,
-  'torch_on.png': torchFlameIcon,
-  'charcoal.png': charcoalIcon,
-  'spear.png': spearIcon,
-  'stash.png': stashIcon,
-  'cooked_mushroom.png': cookedMushroomIcon,
-  'burnt_mushroom.png': burntMushroomIcon,
   'cooked_corn.png': cookedCornIcon,
   'burnt_corn.png': burntCornIcon,
-  'cooked_potato.png': cookedPotatoIcon,
-  'burnt_potato.png': burntPotatoIcon,
   'pumpkin.png': pumpkinIcon,
   'cooked_pumpkin.png': cookedPumpkinIcon,
   'burnt_pumpkin.png': burntPumpkinIcon,
-  'combat_ladle.png': combatLadleIcon,
-  'death_marker.png': deathMarkerIcon,
-  'stone_spear.png': stoneSpearIcon,
-  'burlap_cape.png': burlapCapeIcon,
-  'wooden_arrow.png': woodenArrowIcon,
-  'bone_arrow.png': boneArrowIcon,
-  'bow.png': huntingBowIcon,
-  'bone_fragments.png': boneFragmentsIcon,
-  'bone_club.png': boneClubIcon,
-  'bone_knife.png': boneKnifeIcon,
-  'skull.png': skullIcon,
-  'animal_fat.png': animalFatIcon,
-  'bone.png': boneIcon,
+  'potato.png': potatoIcon,
+  'cooked_potato.png': cookedPotatoIcon,
+  'burnt_potato.png': burntPotatoIcon,
+  
+  // Grains
+  'raw_wheat.png': rawWheatIcon,
+  
+  // Vegetables
+  'carrot.png': carrotIcon,
+  'tomato.png': tomatoIcon,
+  'cabbage.png': cabbageIcon,
+  'radish.png': radishIcon,
+  'beets.png': beetsIcon,
+  'onion.png': onionIcon,
+  'garlic.png': garlicIcon,
+  'parsnip.png': parsnipIcon,
+  'horseradish.png': horseradishIcon,
+  'salsify.png': salsifyIcon,
+  'turnip.png': turnipIcon,
+  
+  // Mushrooms
+  'fly_agaric.png': flyAgaricIcon,
+  'porcini.png': porciniIcon,
+  'deadly_webcap.png': deadlyWebcapIcon,
+  'destroying_angel.png': destroyingAngelIcon,
+  'shaggy_ink_cap.png': shaggylnkCapIcon,
+  'chanterelle.png': chanterelleIcon,
+
+  // Mushroom spores (all use same graphic)
+  'mushroom_spore.png': mushroomSporeIcon,
+  
+  // Herbs & medicinal plants
+  'chicory.png': chicoryIcon,
+  'yarrow.png': yarrowIcon,
+  'chamomile.png': chamomileIcon,
+  'mint.png': mintIcon,
+  'mint_cuttings.png': mintCuttingsIcon,
+  'valerian.png': valerianIcon,
+  'valerian_leaves.png': valerianLeavesIcon,
+  'mugwort.png': mugwortIcon,
+  'fennel.png': fennelIcon,
+  'dill.png': dillIcon,
+  'bear_garlic.png': bearGarlicIcon,
+  'siberian_ginseng.png': siberianGinsengIcon,
+  'nettle_leaves.png': nettleLeavesIcon,
+  
+  // Fiber plants
+  'bog_cotton.png': bogCottonIcon,
+  'dogbane.png': dogbaneFiberIcon,
+  
+  // Other plants
+  'sunflower.png': sunflowerIcon,
+  'sunflower_seeds.png': sunflowerSeedsIcon,
+  
+  // Animal meat
   'human_meat.png': rawHumanFleshIcon,
-  'blueprint.png': blueprintIcon,
-  'tallow.png': tallowIcon,
-  'repair_hammer.png': repairHammerIcon,
   'cooked_human_meat.png': cookedHumanFleshIcon,
   'burnt_human_meat.png': burntHumanFleshIcon,
-  'shelter.png': shelterIcon,
-  'fire_arrow.png': fireArrowIcon,
-  'lantern_off.png': tallowLampIcon,
-  'tallow_head_lamp.png': tallowHeadLampIcon,
-  'crossbow.png': crossbowIcon,
-  'flashlight.png': flashlightIcon,
-  'metal_ore.png': metalOreIcon,
-  'metal_fragments.png': metalFragmentsIcon,
-  'selo_olive_oil.png': seloOliveOilIcon,
-  'rope.png': ropeIcon,
-  'reed_stalk.png': reedStalkIcon,
-  'reed_snorkel.png': reedSnorkelIcon,
-  'fishing_gaff_hook.png': boneHookIcon,
-  'reed_fishing_rod.png': fishingRodIcon,
-  'raw_twigfish.png': rawTwigfishIcon,
-  'tin_can.png': tinCanIcon,
-  'cooked_twigfish.png': cookedTwigfishIcon,
-  'burnt_twigfish.png': burntTwigfishIcon,
-  'seed_potato.png': seedPotatoIcon,
-  'corn_seeds.png': cornSeedsIcon,
-  'hemp_seeds.png': hempSeedsIcon,
-  'reed_rhizome.png': reedRhizomeIcon,
-  'mushroom_spore.png': mushroomSporeIcon,
-  'pumpkin_seeds.png': pumpkinSeedsIcon,
-  'hollow_reed_arrow.png': hollowReedArrowIcon,
-  'reed_bellows.png': reedBellowsIcon,
-  'reed_rain_collector.png': reedRainCollectorIcon,
-  'reed_water_bottle.png': reedWaterBottleIcon,
-  'tin_of_sprats.png': tinOfSpratsIcon,
-  'fermented_cabbage_jar.png': fermentedCabbageJarIcon,
-  'old_hardtack_biscuits.png': oldHardtackBiscuitsIcon,
-  'expired_soviet_chocolate.png': expiredSovietChocolateIcon,
-  'mystery_can.png': mysteryCanIcon,
-  'water_jug.png': waterJugIcon,
-  'anti_venom.png': antiVenomIcon,
-  'cable_viper_gland.png': cableViperGlandIcon,
   'wolf_meat.png': rawWolfMeatIcon,
   'cooked_wolf_meat.png': cookedWolfMeatIcon,
   'burnt_wolf_meat.png': burntWolffMeatIcon,
@@ -220,20 +402,52 @@ const iconMap: { [key: string]: string | undefined } = {
   'viper_meat.png': rawViperMeatlIcon,
   'cooked_viper_meat.png': cookedViperMeatIcon,
   'burnt_viper_meat.png': burntViperMeatIcon,
-  'fox_skull.png': foxSkullIcon,
-  'wolf_skull.png': wolfSkullIcon,
-  'viper_skull.png': viperSkullIcon,
-  'fox_fur.png': foxFurIcon,
+  'bear_meat.png': bearMeatIcon,
+  'boar_meat.png': boarMeatIcon,
+  'chicken_meat.png': chickenMeatIcon,
+  
+  // Fish
+  'raw_twigfish.png': rawTwigfishIcon,
+  'cooked_twigfish.png': cookedTwigfishIcon,
+  'burnt_twigfish.png': burntTwigfishIcon,
+  
+  // Specialty foods
+  'tallow.png': tallowIcon,
+  'tin_of_sprats.png': tinOfSpratsIcon,
+  'fermented_cabbage_jar.png': fermentedCabbageJarIcon,
+  'old_hardtack_biscuits.png': oldHardtackBiscuitsIcon,
+  'expired_soviet_chocolate.png': expiredSovietChocolateIcon,
+  'mystery_can.png': mysteryCanIcon,
+
+  // === SEEDS ===
+  'seed_potato.png': seedPotatoIcon,
+  'corn_seeds.png': cornSeedsIcon,
+  'hemp_seeds.png': hempSeedsIcon,
+  'pumpkin_seeds.png': pumpkinSeedsIcon,
+  'reed_rhizome.png': reedRhizomeIcon,
+  'flax_seeds.png': flaxSeedsIcon,
+  'parsnip_seeds.png': parsnipSeedsIcon,
+  'bear_garlic_bulbs.png': bearGarlicBulbsIcon,
+  'turnip_seeds.png': turnipSeedsIcon,
+  'radish_seeds.png': radishSeedsIcon,
+  'yarrow_seeds.png': yarrowSeedsIcon,
+  'mugwort_seeds.png': mugwortSeedsIcon,
+
+  // === PLACEABLES ===
+  'campfire.png': campFireIcon,
+  'stash.png': stashIcon,
+  'wooden_storage_box.png': woodenStorageBoxIcon,
+  'sleeping_bag.png': sleepingBagIcon,
+  'shelter.png': shelterIcon,
+  'lantern_off.png': tallowLampIcon,
+  'reed_rain_collector.png': reedRainCollectorIcon,
+  
+  // Trophy decorations
   'wolf_pelt.png': wolfPeltIcon,
-  'viper_scale.png': viperScaleIcon,
-  'wolf_fur.png': wolfFurIcon,
   'fox_pelt.png': foxPeltIcon,
-  'machete.png': macheteIcon,
-  'soviet_bayonet.png': sovietBayonetIcon,
-  'naval_cutlass.png': navalCutlassIcon,
-  'engineers_maul.png': engineersMaulIcon,
-  'military_crowbar.png': militaryCrowbarIcon,
-  'scrap_batteries.png': scrapBatteriesIcon,
+  
+  // Misc/Special
+  'death_marker.png': deathMarkerIcon,
 };
 
 // Export a function that provides the fallback logic
@@ -242,12 +456,21 @@ export function getItemIcon(assetName: string | undefined | null): string {
         console.log('[ItemIconUtils] assetName is missing, returning errorIcon');
         return errorIcon; // Return error icon if assetName is missing
     }
+    
     const iconPath = iconMap[assetName];
-    if (!iconPath) {
-        // Log details if the specific assetName for spear is not found
-        console.log(`[ItemIconUtils] No icon found in map for '${assetName}', returning errorIcon. Mapped value:`, iconPath);
+    if (iconPath) {
+        return iconPath; // Return exact match if found
     }
-    return iconPath || errorIcon; // Return mapped icon or error icon
+    
+    // Fallback patterns for groups of similar items
+    if (assetName.includes('spores.png')) {
+        console.log(`[ItemIconUtils] Using mushroom spore icon for spores: ${assetName}`);
+        return mushroomSporeIcon; // All spores use the same icon
+    }
+    
+    // No match found
+    console.log(`[ItemIconUtils] No icon found in map for '${assetName}', returning errorIcon`);
+    return errorIcon;
 }
 
 // Keep the itemIcons map export if it's used elsewhere, but prefer getItemIcon

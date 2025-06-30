@@ -33,7 +33,7 @@ export interface ResourceConfig {
 
 // Default configuration that most resources will use
 const DEFAULT_RESOURCE_CONFIG: Omit<ResourceConfig, 'imageSource'> = {
-  targetWidth: 48,
+  targetWidth: 90,
   shadowConfig: {
     maxStretchFactor: 1.7,
     shadowBlur: 8,
@@ -56,31 +56,6 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = Object.key
 RESOURCE_CONFIGS.BeachLymeGrass = {
   ...RESOURCE_CONFIGS.BeachLymeGrass,
   targetWidth: 120 // Double the default size (60 -> 120)
-};
-
-RESOURCE_CONFIGS.Potato = {
-  ...RESOURCE_CONFIGS.Potato,
-  targetWidth: 90
-};
-
-RESOURCE_CONFIGS.BorealNettle = {
-  ...RESOURCE_CONFIGS.BorealNettle,
-  targetWidth: 90
-};
-
-RESOURCE_CONFIGS.Corn = {
-  ...RESOURCE_CONFIGS.Corn,
-  targetWidth: 90
-};
-
-RESOURCE_CONFIGS.Pumpkin = {
-  ...RESOURCE_CONFIGS.Pumpkin,
-  targetWidth: 90
-};
-
-RESOURCE_CONFIGS.Reed = {
-  ...RESOURCE_CONFIGS.Reed,
-  targetWidth: 90
 };
 
 // Helper function to get configuration for a resource

@@ -9,52 +9,52 @@ import borealNettleImageSource from '../../assets/doodads/hemp_c.png'; // Reusin
 import potatoImageSource from '../../assets/doodads/potato_b.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin_b.png';
 import reedImageSource from '../../assets/doodads/reed_stalk_b.png';
-import beachLymeGrassImageSource from '../../assets/doodads/beach_lyme_grass_c.png';
-import wheatImageSource from '../../assets/doodads/wheat_b.png';
-import carrotsImageSource from '../../assets/doodads/carrot_b.png';
-import tomatoesImageSource from '../../assets/doodads/tomato_b.png';
-import cabbageImageSource from '../../assets/doodads/cabbage_b.png';
-import radishImageSource from '../../assets/doodads/radish_b.png';
-import beetsImageSource from '../../assets/doodads/beet_b.png';
-import buckwheatImageSource from '../../assets/doodads/buckwheat_b.png';
-import turnipsImageSource from '../../assets/doodads/turnip_b.png';
-import onionsImageSource from '../../assets/doodads/onion_b.png';
-import garlicImageSource from '../../assets/doodads/garlic_b.png';
-import parsnipsImageSource from '../../assets/doodads/parsnip_b.png';
-import horseradishImageSource from '../../assets/doodads/horseradish_b.png';
-import chicoryImageSource from '../../assets/doodads/chicory_b.png';
-import yarrowImageSource from '../../assets/doodads/yarrow_b.png';
-import chamomileImageSource from '../../assets/doodads/chamomile_b.png';
-import mintImageSource from '../../assets/doodads/mint_b.png';
-import valerianImageSource from '../../assets/doodads/valerian_b.png';
-import mugwortImageSource from '../../assets/doodads/mugwort_b.png';
-import fennelImageSource from '../../assets/doodads/fennel_b.png';
-import dillImageSource from '../../assets/doodads/dill_b.png';
-import flaxImageSource from '../../assets/doodads/flax_b.png';
-import wildGarlicImageSource from '../../assets/doodads/wild_garlic_b.png';
-import siberianGinsengImageSource from '../../assets/doodads/siberian_ginseng_b.png';
-import dogbaneImageSource from '../../assets/doodads/dogbane_b.png';
-import bogCottonImageSource from '../../assets/doodads/bog_cotton_b.png';
-import chanterelleImageSource from '../../assets/doodads/chanterelle_b.png';
-import porciniImageSource from '../../assets/doodads/porcini_b.png';
-import flyAgaricImageSource from '../../assets/doodads/fly_agaric_b.png';
-import shaggyInkCapImageSource from '../../assets/doodads/shaggy_ink_cap_b.png';
-import deadlyWebcapImageSource from '../../assets/doodads/deadly_webcap_b.png';
-import destroyingAngelImageSource from '../../assets/doodads/destroying_angel_b.png';
-import lingonberriesImageSource from '../../assets/doodads/lingonberries_b.png';
-import cloudberriesImageSource from '../../assets/doodads/cloudberries_b.png';
-import bilberriesImageSource from '../../assets/doodads/bilberries_b.png';
-import wildStrawberriesImageSource from '../../assets/doodads/wild_strawberries_b.png';
-import rowanBerriesImageSource from '../../assets/doodads/rowan_berries_b.png';
-import cranberriesImageSource from '../../assets/doodads/cranberries_b.png';
-import hazelnutsImageSource from '../../assets/doodads/hazelnuts_b.png';
-import mandrakeImageSource from '../../assets/doodads/mandrake_b.png';
-import belladonnaImageSource from '../../assets/doodads/belladonna_b.png';
-import henbaneImageSource from '../../assets/doodads/henbane_b.png';
-import daturaImageSource from '../../assets/doodads/datura_b.png';
-import wolfsbaneImageSource from '../../assets/doodads/wolfsbane_b.png';
-import sunflowersImageSource from '../../assets/doodads/sunflower_b.png';
-import salsifyImageSource from '../../assets/doodads/salsify_b.png';
+import beachLymeGrassImageSource from '../../assets/doodads/beach_lyme_grass_b.png';
+import wheatImageSource from '../../assets/doodads/wheat.png';
+import carrotImageSource from '../../assets/doodads/carrot.png';
+import tomatoeImageSource from '../../assets/doodads/tomato.png';
+import cabbageImageSource from '../../assets/doodads/cabbage.png';
+import radishImageSource from '../../assets/doodads/radish.png';
+import beetsImageSource from '../../assets/doodads/beet.png';
+import buckwheatImageSource from '../../assets/doodads/buckwheat.png';
+import turnipImageSource from '../../assets/doodads/turnip.png';
+import onionImageSource from '../../assets/doodads/onion.png';
+import garlicImageSource from '../../assets/doodads/garlic.png';
+import parsnipImageSource from '../../assets/doodads/parsnip.png';
+import horseradishImageSource from '../../assets/doodads/horseradish.png';
+import chicoryImageSource from '../../assets/doodads/chicory.png';
+import yarrowImageSource from '../../assets/doodads/yarrow.png';
+import chamomileImageSource from '../../assets/doodads/chamomile.png';
+import mintImageSource from '../../assets/doodads/mint.png';
+import valerianImageSource from '../../assets/doodads/valerian.png';
+import mugwortImageSource from '../../assets/doodads/mugwort.png';
+import fennelImageSource from '../../assets/doodads/fennel.png';
+import dillImageSource from '../../assets/doodads/dill.png';
+import flaxImageSource from '../../assets/doodads/flax.png';
+import wildGarlicImageSource from '../../assets/doodads/wild_garlic.png';
+import siberianGinsengImageSource from '../../assets/doodads/siberian_ginseng.png';
+import dogbaneImageSource from '../../assets/doodads/dogbane.png';
+import bogCottonImageSource from '../../assets/doodads/bog_cotton.png';
+import chanterelleImageSource from '../../assets/doodads/chanterelle.png';
+import porciniImageSource from '../../assets/doodads/porcini.png';
+import flyAgaricImageSource from '../../assets/doodads/fly_agaric.png';
+import shaggyInkCapImageSource from '../../assets/doodads/shaggy_ink_cap.png';
+import deadlyWebcapImageSource from '../../assets/doodads/deadly_webcap.png';
+import destroyingAngelImageSource from '../../assets/doodads/destroying_angel.png';
+import lingonberriesImageSource from '../../assets/doodads/lingonberries.png';
+import cloudberriesImageSource from '../../assets/doodads/cloudberries.png';
+import bilberriesImageSource from '../../assets/doodads/bilberries.png';
+import wildStrawberriesImageSource from '../../assets/doodads/wild_strawberries.png';
+import rowanBerriesImageSource from '../../assets/doodads/rowan_berries.png';
+import cranberriesImageSource from '../../assets/doodads/cranberries.png';
+import hazelnutsImageSource from '../../assets/doodads/hazelnuts.png';
+import mandrakeImageSource from '../../assets/doodads/mandrake.png';
+import belladonnaImageSource from '../../assets/doodads/belladonna.png';
+import henbaneImageSource from '../../assets/doodads/henbane.png';
+import daturaImageSource from '../../assets/doodads/datura.png';
+import wolfsbaneImageSource from '../../assets/doodads/wolfsbane.png';
+import sunflowersImageSource from '../../assets/doodads/sunflower.png';
+import salsifyImageSource from '../../assets/doodads/salsify.png';
 
 // TODO: Add proper images for all new plant types to assets/doodads/
 // Currently using placeholders from existing images
@@ -73,17 +73,17 @@ export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
   BeachLymeGrass: beachLymeGrassImageSource,
   
   // Vegetables - TODO: Replace with proper vegetable images
-  Wheat: defaultPlantImageSource, // Grain placeholder
-  Carrots: defaultPlantImageSource, // Root vegetable placeholder
-  Tomatoes: defaultPlantImageSource, // Round fruit placeholder
+  Wheat: wheatImageSource, // Grain placeholder
+  Carrot: carrotImageSource, // Root vegetable placeholder
+  Tomato: defaultPlantImageSource, // Round fruit placeholder
   Cabbage: defaultPlantImageSource, // TODO: Add cabbage.png
   Radish: defaultPlantImageSource, // Root vegetable placeholder
   Beets: defaultPlantImageSource, // Root vegetable placeholder
   Buckwheat: defaultPlantImageSource, // Grain placeholder
-  Turnips: defaultPlantImageSource, // Root vegetable placeholder
-  Onions: defaultPlantImageSource, // Root vegetable placeholder
+  Turnip: defaultPlantImageSource, // Root vegetable placeholder
+  Onion: defaultPlantImageSource, // Root vegetable placeholder
   Garlic: defaultPlantImageSource, // Root vegetable placeholder
-  Parsnips: defaultPlantImageSource, // Root vegetable placeholder
+  Parsnip: defaultPlantImageSource, // Root vegetable placeholder
   Horseradish: defaultPlantImageSource, // Root vegetable placeholder
   
   // Herbs & Medicinal Plants - TODO: Replace with proper herb images
@@ -96,9 +96,8 @@ export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
   Fennel: defaultPlantImageSource, // TODO: Add fennel.png
   Dill: defaultPlantImageSource, // TODO: Add dill.png
   Flax: defaultPlantImageSource, // Fiber plant placeholder
-  WildGarlic: defaultPlantImageSource, // TODO: Add wild_garlic.png
+  BearGarlic: defaultPlantImageSource, // TODO: Add wild_garlic.png
   SiberianGinseng: defaultPlantImageSource, // Root medicine placeholder
-  
   Dogbane: defaultPlantImageSource, // Fiber plant placeholder
   BogCotton: defaultPlantImageSource, // TODO: Add bog_cotton.png
   
@@ -106,7 +105,7 @@ export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
   Chanterelle: defaultPlantImageSource, // TODO: Add chanterelle.png
   Porcini: defaultPlantImageSource, // TODO: Add porcini.png
   FlyAgaric: defaultPlantImageSource, // TODO: Add fly_agaric.png
-  ShaggylnkCap: defaultPlantImageSource, // TODO: Add shaggy_ink_cap.png
+  ShaggyInkCap: defaultPlantImageSource, // TODO: Add shaggy_ink_cap.png
   DeadlyWebcap: defaultPlantImageSource, // TODO: Add deadly_webcap.png
   DestroyingAngel: defaultPlantImageSource, // TODO: Add destroying_angel.png
   

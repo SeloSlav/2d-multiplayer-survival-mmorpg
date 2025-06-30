@@ -17,16 +17,16 @@ pub enum PlantType {
     
     // Vegetables
     Wheat,
-    Carrots,
-    Tomatoes,
+    Carrot,
+    Tomato,
     Cabbage,
     Radish,
     Beets,
     Buckwheat,
-    Turnips,
-    Onions,
+    Turnip,
+    Onion,
     Garlic,
-    Parsnips,
+    Parsnip,
     Horseradish,
     
     // Herbs & Medicinal Plants
@@ -39,7 +39,7 @@ pub enum PlantType {
     Fennel,
     Dill,
     Flax,
-    WildGarlic,
+    BearGarlic,
     SiberianGinseng,
     
     // Trees/Bark/Fiber (Willow & BirchBark removed - implemented via separate tree system)
@@ -50,7 +50,7 @@ pub enum PlantType {
     Chanterelle,
     Porcini,
     FlyAgaric,
-    ShaggylnkCap,
+    ShaggyInkCap,
     DeadlyWebcap,
     DestroyingAngel,
     
@@ -134,7 +134,7 @@ lazy_static! {
             primary_yield: ("Corn".to_string(), 1, 2),
             secondary_yield: Some(("Plant Fiber".to_string(), 2, 4, 0.90)),
             seed_type: "Corn Seeds".to_string(),
-            seed_drop_chance: 0.15,
+            seed_drop_chance: 0.85, // 85% chance - essential food crop must be sustainable
             min_respawn_time_secs: 900,  // 15 minutes
             max_respawn_time_secs: 1500, // 25 minutes
             spawn_condition: SpawnCondition::NearWater,
@@ -151,7 +151,7 @@ lazy_static! {
             primary_yield: ("Plant Fiber".to_string(), 40, 50),
             secondary_yield: Some(("Nettle Leaves".to_string(), 1, 3, 0.80)),
             seed_type: "Nettle Seeds".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.65, // 65% chance - important fiber crop should be sustainable
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -169,7 +169,7 @@ lazy_static! {
             primary_yield: ("Potato".to_string(), 1, 2),
             secondary_yield: Some(("Plant Fiber".to_string(), 1, 3, 0.80)),
             seed_type: "Seed Potato".to_string(),
-            seed_drop_chance: 0.18,
+            seed_drop_chance: 0.80, // 80% chance - essential food crop must be sustainable
             min_respawn_time_secs: 900,  // 15 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Clearings,
@@ -235,41 +235,41 @@ lazy_static! {
             min_tree_distance_sq: 25.0 * 25.0,
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.68,
-            primary_yield: ("Wheat".to_string(), 2, 4),
-            secondary_yield: Some(("Wheat Straw".to_string(), 1, 2, 0.70)),
+            primary_yield: ("Raw Wheat".to_string(), 2, 4),
+            secondary_yield: Some(("Plant Fiber".to_string(), 1, 3, 0.60)),
             seed_type: "Wheat Seeds".to_string(),
-            seed_drop_chance: 0.16,
+            seed_drop_chance: 0.80, // 80% chance - essential food crop must be sustainable
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Plains,
             growing_seasons: vec![Season::Spring, Season::Summer],
         });
         
-        configs.insert(PlantType::Carrots, PlantConfig {
-            entity_name: "Carrots".to_string(),
+        configs.insert(PlantType::Carrot, PlantConfig {
+            entity_name: "Carrot".to_string(),
             density_percent: 0.0006,
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.66,
-            primary_yield: ("Carrots".to_string(), 1, 3),
-            secondary_yield: Some(("Carrot Greens".to_string(), 1, 2, 0.85)),
+            primary_yield: ("Carrot".to_string(), 1, 3),
+            secondary_yield: None,
             seed_type: "Carrot Seeds".to_string(),
-            seed_drop_chance: 0.14,
+            seed_drop_chance: 0.75, // 75% chance - common food crop must be sustainable
             min_respawn_time_secs: 900,  // 15 minutes
             max_respawn_time_secs: 1500, // 25 minutes
             spawn_condition: SpawnCondition::Clearings,
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::Tomatoes, PlantConfig {
-            entity_name: "Tomatoes".to_string(),
+        configs.insert(PlantType::Tomato, PlantConfig {
+            entity_name: "Tomato".to_string(),
             density_percent: 0.0005,
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 22.0 * 22.0,
             noise_threshold: 0.67,
-            primary_yield: ("Tomatoes".to_string(), 2, 4),
+            primary_yield: ("Tomato".to_string(), 2, 4),
             secondary_yield: Some(("Tomato Seeds".to_string(), 3, 6, 0.90)),
             seed_type: "Tomato Seeds".to_string(),
             seed_drop_chance: 0.18,
@@ -287,9 +287,9 @@ lazy_static! {
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.69,
             primary_yield: ("Cabbage".to_string(), 1, 2),
-            secondary_yield: Some(("Cabbage Leaves".to_string(), 2, 4, 0.75)),
+            secondary_yield: None,
             seed_type: "Cabbage Seeds".to_string(),
-            seed_drop_chance: 0.12,
+            seed_drop_chance: 0.70, // 70% chance - food crop must be sustainable
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 2000, // 33 minutes
             spawn_condition: SpawnCondition::Clearings,
@@ -304,7 +304,7 @@ lazy_static! {
             min_stone_distance_sq: 18.0 * 18.0,
             noise_threshold: 0.62,
             primary_yield: ("Radish".to_string(), 1, 2),
-            secondary_yield: Some(("Radish Greens".to_string(), 1, 3, 0.80)),
+            secondary_yield: None,
             seed_type: "Radish Seeds".to_string(),
             seed_drop_chance: 0.16,
             min_respawn_time_secs: 300,  // 5 minutes (fast growing)
@@ -321,7 +321,7 @@ lazy_static! {
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.66,
             primary_yield: ("Beets".to_string(), 1, 2),
-            secondary_yield: Some(("Beet Greens".to_string(), 2, 3, 0.85)),
+            secondary_yield: None,
             seed_type: "Beet Seeds".to_string(),
             seed_drop_chance: 0.15,
             min_respawn_time_secs: 1000, // 16 minutes
@@ -347,15 +347,15 @@ lazy_static! {
             growing_seasons: vec![Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::Turnips, PlantConfig {
-            entity_name: "Turnips".to_string(),
+        configs.insert(PlantType::Turnip, PlantConfig {
+            entity_name: "Turnip".to_string(),
             density_percent: 0.0008,
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 22.0 * 22.0,
             noise_threshold: 0.64,
-            primary_yield: ("Turnips".to_string(), 1, 2),
-            secondary_yield: Some(("Turnip Greens".to_string(), 1, 3, 0.80)),
+            primary_yield: ("Turnip".to_string(), 1, 2),
+            secondary_yield: None,
             seed_type: "Turnip Seeds".to_string(),
             seed_drop_chance: 0.15,
             min_respawn_time_secs: 800,  // 13 minutes
@@ -364,15 +364,15 @@ lazy_static! {
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::Onions, PlantConfig {
-            entity_name: "Onions".to_string(),
+        configs.insert(PlantType::Onion, PlantConfig {
+            entity_name: "Onion".to_string(),
             density_percent: 0.0006,
             min_distance_sq: 28.0 * 28.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.67,
-            primary_yield: ("Onions".to_string(), 1, 3),
-            secondary_yield: Some(("Onion Greens".to_string(), 1, 2, 0.70)),
+            primary_yield: ("Onion".to_string(), 1, 3),
+            secondary_yield: None,
             seed_type: "Onion Sets".to_string(),
             seed_drop_chance: 0.12,
             min_respawn_time_secs: 1400, // 23 minutes
@@ -389,7 +389,7 @@ lazy_static! {
             min_stone_distance_sq: 30.0 * 30.0,
             noise_threshold: 0.69,
             primary_yield: ("Garlic".to_string(), 1, 2),
-            secondary_yield: Some(("Garlic Scapes".to_string(), 1, 1, 0.60)),
+            secondary_yield: None,
             seed_type: "Garlic Cloves".to_string(),
             seed_drop_chance: 0.10,
             min_respawn_time_secs: 1800, // 30 minutes
@@ -398,15 +398,15 @@ lazy_static! {
             growing_seasons: vec![Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::Parsnips, PlantConfig {
-            entity_name: "Parsnips".to_string(),
+        configs.insert(PlantType::Parsnip, PlantConfig {
+            entity_name: "Parsnip".to_string(),
             density_percent: 0.0004,
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.68,
-            primary_yield: ("Parsnips".to_string(), 1, 2),
-            secondary_yield: Some(("Parsnip Greens".to_string(), 1, 2, 0.75)),
+            primary_yield: ("Parsnip".to_string(), 1, 2),
+            secondary_yield: None,
             seed_type: "Parsnip Seeds".to_string(),
             seed_drop_chance: 0.13,
             min_respawn_time_secs: 1200, // 20 minutes
@@ -423,7 +423,7 @@ lazy_static! {
             min_stone_distance_sq: 30.0 * 30.0,
             noise_threshold: 0.70,
             primary_yield: ("Horseradish Root".to_string(), 1, 1),
-            secondary_yield: Some(("Horseradish Leaves".to_string(), 2, 3, 0.80)),
+            secondary_yield: None,
             seed_type: "Horseradish Root".to_string(),
             seed_drop_chance: 0.08,
             min_respawn_time_secs: 2000, // 33 minutes
@@ -440,8 +440,8 @@ lazy_static! {
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.62,
-            primary_yield: ("Chicory Leaves".to_string(), 2, 4),
-            secondary_yield: Some(("Chicory Root".to_string(), 1, 1, 0.60)),
+            primary_yield: ("Chicory".to_string(), 2, 4),
+            secondary_yield: None,
             seed_type: "Chicory Seeds".to_string(),
             seed_drop_chance: 0.14,
             min_respawn_time_secs: 600,  // 10 minutes
@@ -474,8 +474,8 @@ lazy_static! {
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.63,
-            primary_yield: ("Chamomile Flowers".to_string(), 2, 4),
-            secondary_yield: Some(("Chamomile Leaves".to_string(), 1, 2, 0.70)),
+            primary_yield: ("Chamomile".to_string(), 2, 4),
+            secondary_yield: None,
             seed_type: "Chamomile Seeds".to_string(),
             seed_drop_chance: 0.15,
             min_respawn_time_secs: 600,  // 10 minutes
@@ -494,7 +494,7 @@ lazy_static! {
             primary_yield: ("Mint Leaves".to_string(), 3, 5),
             secondary_yield: None,
             seed_type: "Mint Cuttings".to_string(),
-            seed_drop_chance: 0.10,
+            seed_drop_chance: 0.75, // 75% chance - sustainable for farming
             min_respawn_time_secs: 400,  // 6 minutes (fast spreading)
             max_respawn_time_secs: 700,  // 11 minutes
             spawn_condition: SpawnCondition::NearWater,
@@ -511,7 +511,7 @@ lazy_static! {
             primary_yield: ("Valerian Root".to_string(), 1, 2),
             secondary_yield: Some(("Valerian Leaves".to_string(), 2, 3, 0.75)),
             seed_type: "Valerian Seeds".to_string(),
-            seed_drop_chance: 0.11,
+            seed_drop_chance: 0.70, // 70% chance - medicinal herb should be farmable
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::NearWater,
@@ -542,7 +542,7 @@ lazy_static! {
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.64,
-            primary_yield: ("Fennel Seeds".to_string(), 2, 3),
+            primary_yield: ("Fennel Root".to_string(), 2, 3),
             secondary_yield: Some(("Fennel Fronds".to_string(), 1, 3, 0.80)),
             seed_type: "Fennel Seeds".to_string(),
             seed_drop_chance: 0.16,
@@ -570,33 +570,33 @@ lazy_static! {
         });
         
         configs.insert(PlantType::Flax, PlantConfig {
-            entity_name: "Flax".to_string(),
-            density_percent: 0.0007,
+            entity_name: "Flax Plant".to_string(),
+            density_percent: 0.0010, // Slightly higher than current
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 25.0 * 25.0,
             min_stone_distance_sq: 30.0 * 30.0,
             noise_threshold: 0.68,
-            primary_yield: ("Flax Fibers".to_string(), 3, 5),
-            secondary_yield: Some(("Flax Seeds".to_string(), 2, 4, 0.85)),
+            primary_yield: ("Plant Fiber".to_string(), 25, 30), // Balanced between Nettle (40-50) and Beach Lyme (15)
+            secondary_yield: None,
             seed_type: "Flax Seeds".to_string(),
             seed_drop_chance: 0.18,
-            min_respawn_time_secs: 1500, // 25 minutes
-            max_respawn_time_secs: 2200, // 36 minutes
+            min_respawn_time_secs: 800,  // 13 minutes - between Nettle (10-15) and Beach Lyme (8-12)
+            max_respawn_time_secs: 1200, // 20 minutes
             spawn_condition: SpawnCondition::Plains,
             growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn],
         });
         
-        configs.insert(PlantType::WildGarlic, PlantConfig {
-            entity_name: "Wild Garlic".to_string(),
+        configs.insert(PlantType::BearGarlic, PlantConfig {
+            entity_name: "Bear Garlic".to_string(),
             density_percent: 0.0016,
             min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 10.0 * 10.0,
             min_stone_distance_sq: 15.0 * 15.0,
             noise_threshold: 0.58,
-            primary_yield: ("Wild Garlic".to_string(), 2, 4),
+            primary_yield: ("Bear Garlic".to_string(), 2, 4),
             secondary_yield: None,
-            seed_type: "Wild Garlic Bulbs".to_string(),
-            seed_drop_chance: 0.08,
+            seed_type: "Bear Garlic Bulbs".to_string(),
+            seed_drop_chance: 0.60, // 60% chance - sustainable for farming
             min_respawn_time_secs: 600,  // 10 minutes
             max_respawn_time_secs: 900,  // 15 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -613,7 +613,7 @@ lazy_static! {
             primary_yield: ("Siberian Ginseng Root".to_string(), 1, 1),
             secondary_yield: Some(("Ginseng Leaves".to_string(), 1, 2, 0.60)),
             seed_type: "Ginseng Seeds".to_string(),
-            seed_drop_chance: 0.05,
+            seed_drop_chance: 0.40, // 40% chance - rare but still farmable
             min_respawn_time_secs: 3600, // 60 minutes (very rare)
             max_respawn_time_secs: 5400, // 90 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -629,7 +629,7 @@ lazy_static! {
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.66,
             primary_yield: ("Dogbane Fiber".to_string(), 2, 4),
-            secondary_yield: Some(("Dogbane Leaves".to_string(), 1, 3, 0.70)),
+            secondary_yield: None,
             seed_type: "Dogbane Seeds".to_string(),
             seed_drop_chance: 0.12,
             min_respawn_time_secs: 1000, // 16 minutes
@@ -666,7 +666,7 @@ lazy_static! {
             primary_yield: ("Chanterelle".to_string(), 1, 2),
             secondary_yield: None,
             seed_type: "Chanterelle Spores".to_string(),
-            seed_drop_chance: 0.08,
+            seed_drop_chance: 0.50, // 50% chance - mushrooms should be farmable
             min_respawn_time_secs: 1200, // 20 minutes
             max_respawn_time_secs: 1800, // 30 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -683,7 +683,7 @@ lazy_static! {
             primary_yield: ("Porcini".to_string(), 1, 1),
             secondary_yield: None,
             seed_type: "Porcini Spores".to_string(),
-            seed_drop_chance: 0.06,
+            seed_drop_chance: 0.45, // 45% chance - rare mushroom but farmable
             min_respawn_time_secs: 1500, // 25 minutes
             max_respawn_time_secs: 2200, // 36 minutes
             spawn_condition: SpawnCondition::Forest,
@@ -707,7 +707,7 @@ lazy_static! {
             growing_seasons: vec![Season::Autumn],
         });
         
-        configs.insert(PlantType::ShaggylnkCap, PlantConfig {
+        configs.insert(PlantType::ShaggyInkCap, PlantConfig {
             entity_name: "Shaggy Ink Cap".to_string(),
             density_percent: 0.0010,
             min_distance_sq: 25.0 * 25.0,
@@ -887,7 +887,7 @@ lazy_static! {
             min_stone_distance_sq: 60.0 * 60.0,
             noise_threshold: 0.82,
             primary_yield: ("Mandrake Root".to_string(), 1, 1),
-            secondary_yield: Some(("Mandrake Leaves".to_string(), 1, 2, 0.50)),
+            secondary_yield: None,
             seed_type: "Mandrake Seeds".to_string(),
             seed_drop_chance: 0.02,
             min_respawn_time_secs: 5400, // 90 minutes
@@ -903,8 +903,8 @@ lazy_static! {
             min_tree_distance_sq: 50.0 * 50.0,
             min_stone_distance_sq: 45.0 * 45.0,
             noise_threshold: 0.78,
-            primary_yield: ("Belladonna Berries".to_string(), 1, 3),
-            secondary_yield: Some(("Belladonna Leaves".to_string(), 1, 2, 0.70)),
+            primary_yield: ("Belladonna".to_string(), 1, 3),
+            secondary_yield: None,
             seed_type: "Belladonna Seeds".to_string(),
             seed_drop_chance: 0.04,
             min_respawn_time_secs: 3000, // 50 minutes
@@ -920,8 +920,8 @@ lazy_static! {
             min_tree_distance_sq: 40.0 * 40.0,
             min_stone_distance_sq: 35.0 * 35.0,
             noise_threshold: 0.76,
-            primary_yield: ("Henbane Seeds".to_string(), 2, 4),
-            secondary_yield: Some(("Henbane Leaves".to_string(), 1, 3, 0.80)),
+            primary_yield: ("Henbane".to_string(), 2, 4),
+            secondary_yield: None,
             seed_type: "Henbane Seeds".to_string(),
             seed_drop_chance: 0.06,
             min_respawn_time_secs: 2400, // 40 minutes
@@ -937,8 +937,8 @@ lazy_static! {
             min_tree_distance_sq: 45.0 * 45.0,
             min_stone_distance_sq: 40.0 * 40.0,
             noise_threshold: 0.77,
-            primary_yield: ("Datura Seeds".to_string(), 3, 6),
-            secondary_yield: Some(("Datura Leaves".to_string(), 1, 2, 0.75)),
+            primary_yield: ("Datura".to_string(), 3, 6),
+            secondary_yield: None,
             seed_type: "Datura Seeds".to_string(),
             seed_drop_chance: 0.08,
             min_respawn_time_secs: 2700, // 45 minutes
@@ -954,8 +954,8 @@ lazy_static! {
             min_tree_distance_sq: 60.0 * 60.0,
             min_stone_distance_sq: 50.0 * 50.0,
             noise_threshold: 0.80,
-            primary_yield: ("Wolfsbane Root".to_string(), 1, 1),
-            secondary_yield: Some(("Wolfsbane Flowers".to_string(), 1, 2, 0.60)),
+            primary_yield: ("Wolfsbane".to_string(), 1, 1),
+            secondary_yield: None,
             seed_type: "Wolfsbane Seeds".to_string(),
             seed_drop_chance: 0.03,
             min_respawn_time_secs: 4500, // 75 minutes
@@ -972,10 +972,10 @@ lazy_static! {
             min_tree_distance_sq: 30.0 * 30.0,
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.69,
-            primary_yield: ("Sunflower Seeds".to_string(), 10, 20),
-            secondary_yield: Some(("Sunflower Oil".to_string(), 1, 2, 0.40)),
+            primary_yield: ("Sunflower".to_string(), 1, 2),
+            secondary_yield: None, // Seeds come from seed drop system
             seed_type: "Sunflower Seeds".to_string(),
-            seed_drop_chance: 0.20,
+            seed_drop_chance: 0.30, // Higher chance since seeds are the main harvest
             min_respawn_time_secs: 2000, // 33 minutes
             max_respawn_time_secs: 3000, // 50 minutes
             spawn_condition: SpawnCondition::Plains,
@@ -990,7 +990,7 @@ lazy_static! {
             min_stone_distance_sq: 25.0 * 25.0,
             noise_threshold: 0.65,
             primary_yield: ("Salsify Root".to_string(), 1, 2),
-            secondary_yield: Some(("Salsify Greens".to_string(), 2, 3, 0.75)),
+            secondary_yield: None,
             seed_type: "Salsify Seeds".to_string(),
             seed_drop_chance: 0.11,
             min_respawn_time_secs: 1400, // 23 minutes

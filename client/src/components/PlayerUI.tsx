@@ -762,6 +762,17 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                             duration: bufferedRemainingTime
                         };
                         break;
+                    case 'Exhausted':
+                        effectApplies = true;
+                        effectData = {
+                            id: 'exhausted',
+                            name: 'Exhausted',
+                            emoji: '😴',
+                            type: 'negative' as const,
+                            description: 'Movement slowed due to hunger, thirst, or cold.',
+                            // No duration - permanent effect based on needs
+                        };
+                        break;
                 }
             } else if (effectTargetPlayerIdHex === localPlayerIdHex && effectTypeTag === 'RemoteBandageBurst') {
                 // Check if remote bandage healer is in range
@@ -788,7 +799,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 }
             }
             
-            if (effectApplies && effectData && (bufferedRemainingTime > 0 || effectData.id === 'cozy' || effectData.id === 'tree_cover')) {
+            if (effectApplies && effectData && (bufferedRemainingTime > 0 || effectData.id === 'cozy' || effectData.id === 'tree_cover' || effectData.id === 'exhausted')) {
                 effects.push(effectData);
             }
         });

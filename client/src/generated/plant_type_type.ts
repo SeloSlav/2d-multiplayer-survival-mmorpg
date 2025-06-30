@@ -42,16 +42,16 @@ export namespace PlantType {
   export type Reed = { tag: "Reed" };
   export type BeachLymeGrass = { tag: "BeachLymeGrass" };
   export type Wheat = { tag: "Wheat" };
-  export type Carrots = { tag: "Carrots" };
-  export type Tomatoes = { tag: "Tomatoes" };
+  export type Carrot = { tag: "Carrot" };
+  export type Tomato = { tag: "Tomato" };
   export type Cabbage = { tag: "Cabbage" };
   export type Radish = { tag: "Radish" };
   export type Beets = { tag: "Beets" };
   export type Buckwheat = { tag: "Buckwheat" };
-  export type Turnips = { tag: "Turnips" };
-  export type Onions = { tag: "Onions" };
+  export type Turnip = { tag: "Turnip" };
+  export type Onion = { tag: "Onion" };
   export type Garlic = { tag: "Garlic" };
-  export type Parsnips = { tag: "Parsnips" };
+  export type Parsnip = { tag: "Parsnip" };
   export type Horseradish = { tag: "Horseradish" };
   export type Chicory = { tag: "Chicory" };
   export type Yarrow = { tag: "Yarrow" };
@@ -62,14 +62,14 @@ export namespace PlantType {
   export type Fennel = { tag: "Fennel" };
   export type Dill = { tag: "Dill" };
   export type Flax = { tag: "Flax" };
-  export type WildGarlic = { tag: "WildGarlic" };
+  export type BearGarlic = { tag: "BearGarlic" };
   export type SiberianGinseng = { tag: "SiberianGinseng" };
   export type Dogbane = { tag: "Dogbane" };
   export type BogCotton = { tag: "BogCotton" };
   export type Chanterelle = { tag: "Chanterelle" };
   export type Porcini = { tag: "Porcini" };
   export type FlyAgaric = { tag: "FlyAgaric" };
-  export type ShaggylnkCap = { tag: "ShaggylnkCap" };
+  export type ShaggyInkCap = { tag: "ShaggyInkCap" };
   export type DeadlyWebcap = { tag: "DeadlyWebcap" };
   export type DestroyingAngel = { tag: "DestroyingAngel" };
   export type Lingonberries = { tag: "Lingonberries" };
@@ -100,16 +100,16 @@ export namespace PlantType {
   export const Reed = { tag: "Reed" };
   export const BeachLymeGrass = { tag: "BeachLymeGrass" };
   export const Wheat = { tag: "Wheat" };
-  export const Carrots = { tag: "Carrots" };
-  export const Tomatoes = { tag: "Tomatoes" };
+  export const Carrot = { tag: "Carrot" };
+  export const Tomato = { tag: "Tomato" };
   export const Cabbage = { tag: "Cabbage" };
   export const Radish = { tag: "Radish" };
   export const Beets = { tag: "Beets" };
   export const Buckwheat = { tag: "Buckwheat" };
-  export const Turnips = { tag: "Turnips" };
-  export const Onions = { tag: "Onions" };
+  export const Turnip = { tag: "Turnip" };
+  export const Onion = { tag: "Onion" };
   export const Garlic = { tag: "Garlic" };
-  export const Parsnips = { tag: "Parsnips" };
+  export const Parsnip = { tag: "Parsnip" };
   export const Horseradish = { tag: "Horseradish" };
   export const Chicory = { tag: "Chicory" };
   export const Yarrow = { tag: "Yarrow" };
@@ -120,14 +120,14 @@ export namespace PlantType {
   export const Fennel = { tag: "Fennel" };
   export const Dill = { tag: "Dill" };
   export const Flax = { tag: "Flax" };
-  export const WildGarlic = { tag: "WildGarlic" };
+  export const BearGarlic = { tag: "BearGarlic" };
   export const SiberianGinseng = { tag: "SiberianGinseng" };
   export const Dogbane = { tag: "Dogbane" };
   export const BogCotton = { tag: "BogCotton" };
   export const Chanterelle = { tag: "Chanterelle" };
   export const Porcini = { tag: "Porcini" };
   export const FlyAgaric = { tag: "FlyAgaric" };
-  export const ShaggylnkCap = { tag: "ShaggylnkCap" };
+  export const ShaggyInkCap = { tag: "ShaggyInkCap" };
   export const DeadlyWebcap = { tag: "DeadlyWebcap" };
   export const DestroyingAngel = { tag: "DestroyingAngel" };
   export const Lingonberries = { tag: "Lingonberries" };
@@ -154,16 +154,16 @@ export namespace PlantType {
       new SumTypeVariant("Reed", AlgebraicType.createProductType([])),
       new SumTypeVariant("BeachLymeGrass", AlgebraicType.createProductType([])),
       new SumTypeVariant("Wheat", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Carrots", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Tomatoes", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Carrot", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Tomato", AlgebraicType.createProductType([])),
       new SumTypeVariant("Cabbage", AlgebraicType.createProductType([])),
       new SumTypeVariant("Radish", AlgebraicType.createProductType([])),
       new SumTypeVariant("Beets", AlgebraicType.createProductType([])),
       new SumTypeVariant("Buckwheat", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Turnips", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Onions", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Turnip", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Onion", AlgebraicType.createProductType([])),
       new SumTypeVariant("Garlic", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Parsnips", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Parsnip", AlgebraicType.createProductType([])),
       new SumTypeVariant("Horseradish", AlgebraicType.createProductType([])),
       new SumTypeVariant("Chicory", AlgebraicType.createProductType([])),
       new SumTypeVariant("Yarrow", AlgebraicType.createProductType([])),
@@ -174,14 +174,14 @@ export namespace PlantType {
       new SumTypeVariant("Fennel", AlgebraicType.createProductType([])),
       new SumTypeVariant("Dill", AlgebraicType.createProductType([])),
       new SumTypeVariant("Flax", AlgebraicType.createProductType([])),
-      new SumTypeVariant("WildGarlic", AlgebraicType.createProductType([])),
+      new SumTypeVariant("BearGarlic", AlgebraicType.createProductType([])),
       new SumTypeVariant("SiberianGinseng", AlgebraicType.createProductType([])),
       new SumTypeVariant("Dogbane", AlgebraicType.createProductType([])),
       new SumTypeVariant("BogCotton", AlgebraicType.createProductType([])),
       new SumTypeVariant("Chanterelle", AlgebraicType.createProductType([])),
       new SumTypeVariant("Porcini", AlgebraicType.createProductType([])),
       new SumTypeVariant("FlyAgaric", AlgebraicType.createProductType([])),
-      new SumTypeVariant("ShaggylnkCap", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ShaggyInkCap", AlgebraicType.createProductType([])),
       new SumTypeVariant("DeadlyWebcap", AlgebraicType.createProductType([])),
       new SumTypeVariant("DestroyingAngel", AlgebraicType.createProductType([])),
       new SumTypeVariant("Lingonberries", AlgebraicType.createProductType([])),
@@ -212,7 +212,7 @@ export namespace PlantType {
 }
 
 // The tagged union or sum type for the algebraic type `PlantType`.
-export type PlantType = PlantType.Corn | PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Wheat | PlantType.Carrots | PlantType.Tomatoes | PlantType.Cabbage | PlantType.Radish | PlantType.Beets | PlantType.Buckwheat | PlantType.Turnips | PlantType.Onions | PlantType.Garlic | PlantType.Parsnips | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.Fennel | PlantType.Dill | PlantType.Flax | PlantType.WildGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggylnkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Hazelnuts | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.Salsify;
+export type PlantType = PlantType.Corn | PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Wheat | PlantType.Carrot | PlantType.Tomato | PlantType.Cabbage | PlantType.Radish | PlantType.Beets | PlantType.Buckwheat | PlantType.Turnip | PlantType.Onion | PlantType.Garlic | PlantType.Parsnip | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.Fennel | PlantType.Dill | PlantType.Flax | PlantType.BearGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggyInkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Hazelnuts | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.Salsify;
 
 export default PlantType;
 

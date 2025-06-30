@@ -25,6 +25,25 @@ pub fn get_material_definitions() -> Vec<ItemDefinition> {
             .respawn_time(300)
             .build(),
 
+        // Raw Wheat - Harvestable grain crop
+        basic_material("Raw Wheat", "Unprocessed wheat grain harvested from wheat stalks. Can be ground into flour or cooked into basic food.", 500)
+            .icon("raw_wheat.png")
+            .respawn_time(240)
+            .build(),
+
+        // Raw Buckwheat - Harvestable grain crop
+        basic_material("Raw Buckwheat", "Unprocessed buckwheat grain harvested from buckwheat plants. Can be ground into buckwheat flour or cooked into nutritious food.", 500)
+            .icon("raw_buckwheat.png")
+            .respawn_time(240)
+            .build(),
+
+        // Hazel Twigs - Flexible wood from hazelnut trees
+        basic_material("Hazel Twigs", "Flexible young branches from hazel trees. Excellent for basket weaving and small craft projects.", 300)
+            .icon("hazel_twigs.png")
+            .fuel(1.5) // Small twigs burn quickly
+            .respawn_time(240)
+            .build(),
+
         // Cloth - Crafted textile
         ItemBuilder::new("Cloth", "Woven fabric, used for basic clothing.", ItemCategory::Material)
             .icon("cloth.png")

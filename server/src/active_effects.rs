@@ -51,6 +51,7 @@ pub enum EffectType {
     TreeCover, // Natural shelter and protection from trees
     WaterDrinking, // Visual effect for drinking water containers
     Venom, // Damage over time from Cable Viper strikes
+    Exhausted, // Movement speed penalty from low hunger/thirst/warmth
 }
 
 // Table defining food poisoning risks for different food items
@@ -106,9 +107,9 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
             continue;
         }
 
-        // Skip cozy and tree cover effects - they are managed by the player stats system, not the effect tick system
+        // Skip cozy, tree cover, and exhausted effects - they are managed by the player stats system, not the effect tick system
         // Wet effects are now processed normally like other effects
-        if effect.effect_type == EffectType::Cozy || effect.effect_type == EffectType::TreeCover {
+        if effect.effect_type == EffectType::Cozy || effect.effect_type == EffectType::TreeCover || effect.effect_type == EffectType::Exhausted {
             continue;
         }
 
@@ -151,7 +152,7 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         effect.target_player_id
                     },
                     // Other effect types shouldn't reach this code path, but we need to handle them
-                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::Venom | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover | EffectType::WaterDrinking => {
+                    EffectType::HealthRegen | EffectType::Burn | EffectType::Bleed | EffectType::Venom | EffectType::SeawaterPoisoning | EffectType::FoodPoisoning | EffectType::Cozy | EffectType::Wet | EffectType::TreeCover | EffectType::WaterDrinking | EffectType::Exhausted => {
                         log::warn!("[EffectTick] Unexpected effect type {:?} in bandage processing", effect.effect_type);
                         Some(effect.player_id)
                     }
@@ -373,6 +374,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                         EffectType::TreeCover => {
                             // TreeCover provides natural shelter from rain and accelerated drying
                             // The rain protection and drying acceleration is handled in world_state.rs and wet.rs
+                            // This effect doesn't consume amount_applied_so_far
+                            amount_this_tick = 0.0;
+                        }
+                        EffectType::Exhausted => {
+                            // Exhausted provides movement speed penalty based on low needs
+                            // The movement speed penalty is handled in player movement system
                             // This effect doesn't consume amount_applied_so_far
                             amount_this_tick = 0.0;
                         }
@@ -941,6 +948,89 @@ pub fn player_has_tree_cover_effect(ctx: &ReducerContext, player_id: Identity) -
         .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::TreeCover)
 }
 
+// Exhausted Effect Management
+// ===========================
+
+/// Checks if a player should have the exhausted effect based on low hunger, thirst, or warmth
+pub fn should_player_be_exhausted(player_hunger: f32, player_thirst: f32, player_warmth: f32, low_need_threshold: f32) -> bool {
+    player_hunger < low_need_threshold || player_thirst < low_need_threshold || player_warmth < low_need_threshold
+}
+
+/// Applies or removes exhausted effect based on player's current needs
+pub fn update_player_exhausted_status(ctx: &ReducerContext, player_id: Identity, player_hunger: f32, player_thirst: f32, player_warmth: f32, low_need_threshold: f32) -> Result<(), String> {
+    let should_be_exhausted = should_player_be_exhausted(player_hunger, player_thirst, player_warmth, low_need_threshold);
+    let has_exhausted_effect = player_has_exhausted_effect(ctx, player_id);
+    
+    log::debug!("Exhausted status check for player {:?}: should_be_exhausted={}, has_exhausted_effect={} (hunger: {:.1}, thirst: {:.1}, warmth: {:.1}, threshold: {:.1})", 
+        player_id, should_be_exhausted, has_exhausted_effect, player_hunger, player_thirst, player_warmth, low_need_threshold);
+    
+    if should_be_exhausted && !has_exhausted_effect {
+        // Apply exhausted effect
+        log::info!("Applying exhausted effect to player {:?}", player_id);
+        apply_exhausted_effect(ctx, player_id)?;
+    } else if !should_be_exhausted && has_exhausted_effect {
+        // Remove exhausted effect
+        log::info!("Removing exhausted effect from player {:?}", player_id);
+        remove_exhausted_effect(ctx, player_id);
+    }
+    
+    Ok(())
+}
+
+/// Applies an exhausted effect to a player
+fn apply_exhausted_effect(ctx: &ReducerContext, player_id: Identity) -> Result<(), String> {
+    let current_time = ctx.timestamp;
+    // Set a very far future time (1 year from now) - effectively permanent
+    let very_far_future = current_time + TimeDuration::from_micros(365 * 24 * 60 * 60 * 1_000_000i64);
+    
+    let exhausted_effect = ActiveConsumableEffect {
+        effect_id: 0, // auto_inc
+        player_id,
+        target_player_id: None,
+        item_def_id: 0, // Not from an item
+        consuming_item_instance_id: None,
+        started_at: current_time,
+        ends_at: very_far_future, // Effectively permanent
+        total_amount: None, // No accumulation for exhausted effect
+        amount_applied_so_far: None,
+        effect_type: EffectType::Exhausted,
+        tick_interval_micros: 1_000_000, // 1 second ticks (not really used)
+        next_tick_at: current_time + TimeDuration::from_micros(1_000_000),
+    };
+    
+    match ctx.db.active_consumable_effect().try_insert(exhausted_effect) {
+        Ok(inserted_effect) => {
+            log::info!("Applied exhausted effect {} to player {:?}", inserted_effect.effect_id, player_id);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to apply exhausted effect to player {:?}: {:?}", player_id, e);
+            Err("Failed to apply exhausted effect".to_string())
+        }
+    }
+}
+
+/// Removes exhausted effect from a player
+fn remove_exhausted_effect(ctx: &ReducerContext, player_id: Identity) {
+    let mut effects_to_remove = Vec::new();
+    for effect in ctx.db.active_consumable_effect().iter() {
+        if effect.player_id == player_id && effect.effect_type == EffectType::Exhausted {
+            effects_to_remove.push(effect.effect_id);
+        }
+    }
+    
+    for effect_id in effects_to_remove {
+        ctx.db.active_consumable_effect().effect_id().delete(&effect_id);
+        log::info!("Removed exhausted effect {} from player {:?}", effect_id, player_id);
+    }
+}
+
+/// Checks if a player currently has the exhausted effect active
+pub fn player_has_exhausted_effect(ctx: &ReducerContext, player_id: Identity) -> bool {
+    ctx.db.active_consumable_effect().iter()
+        .any(|effect| effect.player_id == player_id && effect.effect_type == EffectType::Exhausted)
+}
+
 /// Extinguishes burn effects for a player due to water or rain
 /// Returns the number of burn effects that were extinguished
 pub fn extinguish_burn_effects(ctx: &ReducerContext, player_id: Identity, reason: &str) -> u32 {
@@ -1340,7 +1430,7 @@ pub fn clear_all_effects_on_death(ctx: &ReducerContext, player_id: Identity) {
     cancel_health_regen_effects(ctx, player_id);
     cancel_bandage_burst_effects(ctx, player_id);
     
-    // Clear any other effects (burn, food poisoning, seawater poisoning, wet, etc.)
+    // Clear any other effects (burn, food poisoning, seawater poisoning, wet, exhausted, etc.)
     let mut effects_to_remove = Vec::new();
     for effect in ctx.db.active_consumable_effect().iter() {
         if effect.player_id == player_id {

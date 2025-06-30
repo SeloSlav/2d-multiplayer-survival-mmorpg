@@ -921,7 +921,7 @@ export const useSoundSystem = ({
                     cleanupLoopingSound(objectId, "invalid distance");
                     return;
                 }
-                
+        
                 const volume = calculateSpatialVolume(
                     distance,
                     continuousSound.volume,
