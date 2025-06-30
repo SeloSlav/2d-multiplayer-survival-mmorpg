@@ -78,7 +78,6 @@ export namespace PlantType {
   export type WildStrawberries = { tag: "WildStrawberries" };
   export type RowanBerries = { tag: "RowanBerries" };
   export type Cranberries = { tag: "Cranberries" };
-  export type Hazelnuts = { tag: "Hazelnuts" };
   export type Mandrake = { tag: "Mandrake" };
   export type Belladonna = { tag: "Belladonna" };
   export type Henbane = { tag: "Henbane" };
@@ -136,7 +135,6 @@ export namespace PlantType {
   export const WildStrawberries = { tag: "WildStrawberries" };
   export const RowanBerries = { tag: "RowanBerries" };
   export const Cranberries = { tag: "Cranberries" };
-  export const Hazelnuts = { tag: "Hazelnuts" };
   export const Mandrake = { tag: "Mandrake" };
   export const Belladonna = { tag: "Belladonna" };
   export const Henbane = { tag: "Henbane" };
@@ -190,7 +188,6 @@ export namespace PlantType {
       new SumTypeVariant("WildStrawberries", AlgebraicType.createProductType([])),
       new SumTypeVariant("RowanBerries", AlgebraicType.createProductType([])),
       new SumTypeVariant("Cranberries", AlgebraicType.createProductType([])),
-      new SumTypeVariant("Hazelnuts", AlgebraicType.createProductType([])),
       new SumTypeVariant("Mandrake", AlgebraicType.createProductType([])),
       new SumTypeVariant("Belladonna", AlgebraicType.createProductType([])),
       new SumTypeVariant("Henbane", AlgebraicType.createProductType([])),
@@ -212,7 +209,7 @@ export namespace PlantType {
 }
 
 // The tagged union or sum type for the algebraic type `PlantType`.
-export type PlantType = PlantType.Corn | PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Wheat | PlantType.Carrot | PlantType.Tomato | PlantType.Cabbage | PlantType.Radish | PlantType.Beets | PlantType.Buckwheat | PlantType.Turnip | PlantType.Onion | PlantType.Garlic | PlantType.Parsnip | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.Fennel | PlantType.Dill | PlantType.Flax | PlantType.BearGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggyInkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Hazelnuts | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.Salsify;
+export type PlantType = PlantType.Corn | PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Wheat | PlantType.Carrot | PlantType.Tomato | PlantType.Cabbage | PlantType.Radish | PlantType.Beets | PlantType.Buckwheat | PlantType.Turnip | PlantType.Onion | PlantType.Garlic | PlantType.Parsnip | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.Fennel | PlantType.Dill | PlantType.Flax | PlantType.BearGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggyInkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.Salsify;
 
 export default PlantType;
 

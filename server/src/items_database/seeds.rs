@@ -411,31 +411,7 @@ pub fn get_seed_definitions() -> Vec<ItemDefinition> {
             .consumable(-2.0, -1.0, -2.0) // health, hunger, thirst
             .build(),
 
-        // === NUTS (WITH FULL COOKING PROGRESSION) ===
 
-        // Hazelnut Seeds - Raw hazelnuts that can be planted
-        ItemBuilder::new("Hazelnut Seeds", "Raw hazelnuts that can be planted to grow hazel trees or eaten for nutrition.", ItemCategory::Placeable)
-            .icon("hazelnut_seeds.png")
-            .stackable(30)
-            .respawn_time(1200) // 20 minutes
-            .consumable(3.0, 8.0, -1.0) // health, hunger, thirst - nutritious nuts
-            .build(),
-
-        // Toasted Hazelnut Seeds - Enhanced when toasted
-        ItemBuilder::new("Toasted Hazelnut Seeds", "Toasted hazelnuts with enhanced flavor and nutrition. Cannot be planted.", ItemCategory::Consumable)
-            .icon("toasted_hazelnut_seeds.png")
-            .stackable(30)
-            .respawn_time(0)
-            .consumable(6.0, 15.0, 0.0) // health, hunger, thirst
-            .build(),
-
-        // Burnt Hazelnut Seeds - Overcooked and bitter
-        ItemBuilder::new("Burnt Hazelnut Seeds", "Burnt hazelnuts that are bitter and charred. Cannot be planted.", ItemCategory::Consumable)
-            .icon("burnt_hazelnut_seeds.png")
-            .stackable(30)
-            .respawn_time(0)
-            .consumable(-2.0, 2.0, -1.0) // health, hunger, thirst
-            .build(),
 
         // === FIBER PLANT SEEDS ===
 

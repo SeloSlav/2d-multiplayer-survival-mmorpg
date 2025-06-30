@@ -154,6 +154,7 @@ import valerianIcon from '../assets/items/valerian.png';
 import valerianLeavesIcon from '../assets/items/valerian_leaves.png';
 import mugwortIcon from '../assets/items/mugwort.png';
 import fennelIcon from '../assets/items/fennel.png';
+import fennelFrondsIcon from '../assets/items/fennel_fronds.png';
 import dillIcon from '../assets/items/dill.png';
 import bearGarlicIcon from '../assets/items/bear_garlic.png';
 import siberianGinsengIcon from '../assets/items/siberian_ginseng.png';
@@ -213,6 +214,14 @@ import turnipSeedsIcon from '../assets/items/turnip_seeds.png';
 import radishSeedsIcon from '../assets/items/radish_seeds.png';
 import yarrowSeedsIcon from '../assets/items/yarrow_seeds.png';
 import mugwortSeedsIcon from '../assets/items/mugwort_seeds.png';
+import valerianSeedsIcon from '../assets/items/valerian_seeds.png';
+import fennelSeedsIcon from '../assets/items/fennel_seeds.png';
+import wheatSeedsIcon from '../assets/items/wheat_seeds.png';
+import nettleSeedsIcon from '../assets/items/nettle_seeds.png';
+import carrotSeedsIcon from '../assets/items/carrot_seeds.png';
+import chamomileSeedsIcon from '../assets/items/chamomile_seeds.png';
+import chicorySeedsIcon from '../assets/items/chicory_seeds.png';
+import salsifySeedsIcon from '../assets/items/salsify_seeds.png';
 
 // === PLACEABLES ===
 // Structures, containers, and deployable items
@@ -365,6 +374,12 @@ const iconMap: { [key: string]: string | undefined } = {
 
   // Mushroom spores (all use same graphic)
   'mushroom_spore.png': mushroomSporeIcon,
+  'fly_agaric_spores.png': mushroomSporeIcon,
+  'porcini_spores.png': mushroomSporeIcon,
+  'deadly_webcap_spores.png': mushroomSporeIcon,
+  'destroying_angel_spores.png': mushroomSporeIcon,
+  'shaggy_ink_cap_spores.png': mushroomSporeIcon,
+  'chanterelle_spores.png': mushroomSporeIcon,
   
   // Herbs & medicinal plants
   'chicory.png': chicoryIcon,
@@ -376,6 +391,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'valerian_leaves.png': valerianLeavesIcon,
   'mugwort.png': mugwortIcon,
   'fennel.png': fennelIcon,
+  'fennel_fronds.png': fennelFrondsIcon,
   'dill.png': dillIcon,
   'bear_garlic.png': bearGarlicIcon,
   'siberian_ginseng.png': siberianGinsengIcon,
@@ -432,6 +448,14 @@ const iconMap: { [key: string]: string | undefined } = {
   'radish_seeds.png': radishSeedsIcon,
   'yarrow_seeds.png': yarrowSeedsIcon,
   'mugwort_seeds.png': mugwortSeedsIcon,
+  'valerian_seeds.png': valerianSeedsIcon,
+  'fennel_seeds.png': fennelSeedsIcon,
+  'wheat_seeds.png': wheatSeedsIcon,
+  'nettle_seeds.png': nettleSeedsIcon,
+  'carrot_seeds.png': carrotSeedsIcon,
+  'chamomile_seeds.png': chamomileSeedsIcon,
+  'chicory_seeds.png': chicorySeedsIcon,
+  'salsify_seeds.png': salsifySeedsIcon,
 
   // === PLACEABLES ===
   'campfire.png': campFireIcon,

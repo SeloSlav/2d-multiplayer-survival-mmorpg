@@ -61,7 +61,6 @@ pub enum PlantType {
     WildStrawberries,
     RowanBerries,
     Cranberries,
-    Hazelnuts,
     
     // Toxic/Medicinal
     Mandrake,
@@ -859,23 +858,6 @@ lazy_static! {
             max_respawn_time_secs: 2400, // 40 minutes
             spawn_condition: SpawnCondition::InlandWater,
             growing_seasons: vec![Season::Autumn, Season::Winter],
-        });
-        
-        configs.insert(PlantType::Hazelnuts, PlantConfig {
-            entity_name: "Hazelnuts".to_string(),
-            density_percent: 0.0005,
-            min_distance_sq: 45.0 * 45.0,
-            min_tree_distance_sq: 35.0 * 35.0,
-            min_stone_distance_sq: 30.0 * 30.0,
-            noise_threshold: 0.71,
-            primary_yield: ("Hazelnuts".to_string(), 3, 8),
-            secondary_yield: Some(("Hazel Twigs".to_string(), 2, 4, 0.60)),
-            seed_type: "Hazelnut Seeds".to_string(),
-            seed_drop_chance: 0.04,
-            min_respawn_time_secs: 2800, // 46 minutes
-            max_respawn_time_secs: 4200, // 70 minutes
-            spawn_condition: SpawnCondition::Forest,
-            growing_seasons: vec![Season::Summer, Season::Autumn],
         });
         
         // === TOXIC/MEDICINAL ===

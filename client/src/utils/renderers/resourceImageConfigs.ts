@@ -5,7 +5,7 @@ import type { HarvestableResourceType } from '../../types/resourceTypes';
 
 // Import existing resource images
 import cornImageSource from '../../assets/doodads/corn_stalk_b.png';
-import borealNettleImageSource from '../../assets/doodads/hemp_c.png'; // Reusing hemp image for BorealNettle
+import borealNettleImageSource from '../../assets/doodads/hemp_b.png'; // Reusing hemp image for BorealNettle
 import potatoImageSource from '../../assets/doodads/potato_b.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin_b.png';
 import reedImageSource from '../../assets/doodads/reed_stalk_b.png';
@@ -31,7 +31,7 @@ import mugwortImageSource from '../../assets/doodads/mugwort.png';
 import fennelImageSource from '../../assets/doodads/fennel.png';
 import dillImageSource from '../../assets/doodads/dill.png';
 import flaxImageSource from '../../assets/doodads/flax.png';
-import wildGarlicImageSource from '../../assets/doodads/wild_garlic.png';
+import bearGarlicImageSource from '../../assets/doodads/bear_garlic.png';
 import siberianGinsengImageSource from '../../assets/doodads/siberian_ginseng.png';
 import dogbaneImageSource from '../../assets/doodads/dogbane.png';
 import bogCottonImageSource from '../../assets/doodads/bog_cotton.png';
@@ -47,7 +47,6 @@ import bilberriesImageSource from '../../assets/doodads/bilberries.png';
 import wildStrawberriesImageSource from '../../assets/doodads/wild_strawberries.png';
 import rowanBerriesImageSource from '../../assets/doodads/rowan_berries.png';
 import cranberriesImageSource from '../../assets/doodads/cranberries.png';
-import hazelnutsImageSource from '../../assets/doodads/hazelnuts.png';
 import mandrakeImageSource from '../../assets/doodads/mandrake.png';
 import belladonnaImageSource from '../../assets/doodads/belladonna.png';
 import henbaneImageSource from '../../assets/doodads/henbane.png';
@@ -75,59 +74,58 @@ export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
   // Vegetables - TODO: Replace with proper vegetable images
   Wheat: wheatImageSource, // Grain placeholder
   Carrot: carrotImageSource, // Root vegetable placeholder
-  Tomato: defaultPlantImageSource, // Round fruit placeholder
-  Cabbage: defaultPlantImageSource, // TODO: Add cabbage.png
-  Radish: defaultPlantImageSource, // Root vegetable placeholder
-  Beets: defaultPlantImageSource, // Root vegetable placeholder
-  Buckwheat: defaultPlantImageSource, // Grain placeholder
-  Turnip: defaultPlantImageSource, // Root vegetable placeholder
-  Onion: defaultPlantImageSource, // Root vegetable placeholder
-  Garlic: defaultPlantImageSource, // Root vegetable placeholder
-  Parsnip: defaultPlantImageSource, // Root vegetable placeholder
-  Horseradish: defaultPlantImageSource, // Root vegetable placeholder
+  Tomato: tomatoeImageSource, // Round fruit placeholder
+  Cabbage: cabbageImageSource, // TODO: Add cabbage.png
+  Radish: radishImageSource, // Root vegetable placeholder
+  Beets: beetsImageSource, // Root vegetable placeholder
+  Buckwheat: buckwheatImageSource, // Grain placeholder
+  Turnip: turnipImageSource, // Root vegetable placeholder
+  Onion: onionImageSource, // Root vegetable placeholder
+  Garlic: garlicImageSource, // Root vegetable placeholder
+  Parsnip: parsnipImageSource, // Root vegetable placeholder
+  Horseradish: horseradishImageSource, // Root vegetable placeholder
   
   // Herbs & Medicinal Plants - TODO: Replace with proper herb images
-  Chicory: defaultPlantImageSource, // TODO: Add chicory.png
-  Yarrow: defaultPlantImageSource, // TODO: Add yarrow.png
-  Chamomile: defaultPlantImageSource, // TODO: Add chamomile.png
-  Mint: defaultPlantImageSource, // TODO: Add mint.png
-  Valerian: defaultPlantImageSource, // TODO: Add valerian.png
-  Mugwort: defaultPlantImageSource, // TODO: Add mugwort.png
-  Fennel: defaultPlantImageSource, // TODO: Add fennel.png
-  Dill: defaultPlantImageSource, // TODO: Add dill.png
-  Flax: defaultPlantImageSource, // Fiber plant placeholder
-  BearGarlic: defaultPlantImageSource, // TODO: Add wild_garlic.png
-  SiberianGinseng: defaultPlantImageSource, // Root medicine placeholder
-  Dogbane: defaultPlantImageSource, // Fiber plant placeholder
-  BogCotton: defaultPlantImageSource, // TODO: Add bog_cotton.png
+  Chicory: chicoryImageSource, // TODO: Add chicory.png
+  Yarrow: yarrowImageSource, // TODO: Add yarrow.png
+  Chamomile: chamomileImageSource, // TODO: Add chamomile.png
+  Mint: mintImageSource, // TODO: Add mint.png
+  Valerian: valerianImageSource, // TODO: Add valerian.png
+  Mugwort: mugwortImageSource, // TODO: Add mugwort.png
+  Fennel: fennelImageSource, // TODO: Add fennel.png
+  Dill: dillImageSource, // TODO: Add dill.png
+  Flax: flaxImageSource, // Fiber plant placeholder
+  BearGarlic: bearGarlicImageSource, // TODO: Add wild_garlic.png
+  SiberianGinseng: siberianGinsengImageSource, // Root medicine placeholder
+  Dogbane: dogbaneImageSource, // Fiber plant placeholder
+  BogCotton: bogCottonImageSource, // TODO: Add bog_cotton.png
   
   // Mushrooms - TODO: Replace with proper mushroom images
-  Chanterelle: defaultPlantImageSource, // TODO: Add chanterelle.png
-  Porcini: defaultPlantImageSource, // TODO: Add porcini.png
-  FlyAgaric: defaultPlantImageSource, // TODO: Add fly_agaric.png
-  ShaggyInkCap: defaultPlantImageSource, // TODO: Add shaggy_ink_cap.png
-  DeadlyWebcap: defaultPlantImageSource, // TODO: Add deadly_webcap.png
-  DestroyingAngel: defaultPlantImageSource, // TODO: Add destroying_angel.png
+  Chanterelle: chanterelleImageSource, // TODO: Add chanterelle.png
+  Porcini: porciniImageSource, // TODO: Add porcini.png
+  FlyAgaric: flyAgaricImageSource, // TODO: Add fly_agaric.png
+  ShaggyInkCap: shaggyInkCapImageSource, // TODO: Add shaggy_ink_cap.png
+  DeadlyWebcap: deadlyWebcapImageSource, // TODO: Add deadly_webcap.png
+  DestroyingAngel: destroyingAngelImageSource, // TODO: Add destroying_angel.png
   
   // Berries & Nuts - TODO: Replace with proper berry/nut images
-  Lingonberries: defaultPlantImageSource, // TODO: Add lingonberries.png
-  Cloudberries: defaultPlantImageSource, // TODO: Add cloudberries.png
-  Bilberries: defaultPlantImageSource, // TODO: Add bilberries.png
-  WildStrawberries: defaultPlantImageSource, // TODO: Add wild_strawberries.png
-  RowanBerries: defaultPlantImageSource, // TODO: Add rowan_berries.png
-  Cranberries: defaultPlantImageSource, // TODO: Add cranberries.png
-  Hazelnuts: defaultPlantImageSource, // TODO: Add hazelnuts.png
+  Lingonberries: lingonberriesImageSource, // TODO: Add lingonberries.png
+  Cloudberries: cloudberriesImageSource, // TODO: Add cloudberries.png
+  Bilberries: bilberriesImageSource, // TODO: Add bilberries.png
+  WildStrawberries: wildStrawberriesImageSource, // TODO: Add wild_strawberries.png
+  RowanBerries: rowanBerriesImageSource, // TODO: Add rowan_berries.png
+  Cranberries: cranberriesImageSource, // TODO: Add cranberries.png
   
   // Toxic/Medicinal - TODO: Replace with proper toxic plant images
-  Mandrake: defaultPlantImageSource, // TODO: Add mandrake.png
-  Belladonna: defaultPlantImageSource, // TODO: Add belladonna.png
-  Henbane: defaultPlantImageSource, // TODO: Add henbane.png
-  Datura: defaultPlantImageSource, // TODO: Add datura.png
-  Wolfsbane: defaultPlantImageSource, // TODO: Add wolfsbane.png
+  Mandrake: mandrakeImageSource, // TODO: Add mandrake.png
+  Belladonna: belladonnaImageSource, // TODO: Add belladonna.png
+  Henbane: henbaneImageSource, // TODO: Add henbane.png
+  Datura: daturaImageSource, // TODO: Add datura.png
+  Wolfsbane: wolfsbaneImageSource, // TODO: Add wolfsbane.png
   
   // Other - TODO: Replace with proper images
-  Sunflowers: defaultPlantImageSource, // TODO: Add sunflowers.png
-  Salsify: defaultPlantImageSource // TODO: Add salsify.png
+  Sunflowers: sunflowersImageSource, // TODO: Add sunflowers.png
+  Salsify: salsifyImageSource // TODO: Add salsify.png
 };
 
 // Helper function to get image source for a resource type

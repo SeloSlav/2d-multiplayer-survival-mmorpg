@@ -53,9 +53,39 @@ export const RESOURCE_CONFIGS: Record<ResourceType, ResourceConfig> = Object.key
 }, {} as Record<ResourceType, ResourceConfig>);
 
 // Override specific resource configurations
-RESOURCE_CONFIGS.BeachLymeGrass = {
-  ...RESOURCE_CONFIGS.BeachLymeGrass,
-  targetWidth: 120 // Double the default size (60 -> 120)
+// RESOURCE_CONFIGS.BeachLymeGrass = {
+//   ...RESOURCE_CONFIGS.BeachLymeGrass,
+//   targetWidth: 240 // Double the default size (60 -> 120)
+// };
+
+RESOURCE_CONFIGS.ShaggyInkCap = {
+  ...RESOURCE_CONFIGS.ShaggyInkCap,
+  targetWidth: 48
+};
+
+RESOURCE_CONFIGS.Turnip = {
+  ...RESOURCE_CONFIGS.Turnip,
+  targetWidth: 48
+};
+
+RESOURCE_CONFIGS.Parsnip = {
+  ...RESOURCE_CONFIGS.Parsnip,
+  targetWidth: 48
+};
+
+RESOURCE_CONFIGS.Radish = {
+  ...RESOURCE_CONFIGS.Radish,
+  targetWidth: 48
+};
+
+RESOURCE_CONFIGS.Carrot = {
+  ...RESOURCE_CONFIGS.Carrot,
+  targetWidth: 48
+};
+
+RESOURCE_CONFIGS.Corn = {
+  ...RESOURCE_CONFIGS.Corn,
+  targetWidth: 120
 };
 
 // Helper function to get configuration for a resource

@@ -1165,31 +1165,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(45)
             .build(),
 
-        ItemBuilder::new("Hazelnuts", "Small brown nuts with a rich, buttery flavor. High in healthy fats and protein. Excellent survival food.", ItemCategory::Consumable)
-            .icon("hazelnuts.png")
-            .stackable(40)
-            .consumable(10.0, 20.0, -2.0)
-            .stamina_gain(15.0)
-            .cookable(30.0, "Toasted Hazelnuts")
-            .respawn_time(320)
-            .build(),
 
-        ItemBuilder::new("Toasted Hazelnuts", "Perfectly toasted hazelnuts with enhanced flavor and crunch. Toasting brings out the nutty oils and improves nutrition.", ItemCategory::Consumable)
-            .icon("toasted_hazelnuts.png")
-            .stackable(40)
-            .consumable(18.0, 35.0, 2.0)
-            .stamina_gain(25.0)
-            .cookable(25.0, "Burnt Hazelnuts")
-            .build(),
-
-        ItemBuilder::new("Burnt Hazelnuts", "Overcooked hazelnuts. Bitter and acrid from too much heat, but can be processed into charcoal.", ItemCategory::Consumable)
-            .icon("burnt_hazelnuts.png")
-            .stackable(40)
-            .consumable(-4.0, 5.0, -8.0)
-            .crafting_output(12, 0)
-            .cookable(35.0, "Charcoal")
-            .respawn_time(55)
-            .build(),
 
         // === TOXIC/MEDICINAL ===
         ItemBuilder::new("Mandrake Root", "Mystical root with powerful but dangerous properties. Used in traditional medicine but highly toxic if misused.", ItemCategory::Consumable)

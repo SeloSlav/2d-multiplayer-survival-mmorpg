@@ -37,12 +37,7 @@ pub fn get_material_definitions() -> Vec<ItemDefinition> {
             .respawn_time(240)
             .build(),
 
-        // Hazel Twigs - Flexible wood from hazelnut trees
-        basic_material("Hazel Twigs", "Flexible young branches from hazel trees. Excellent for basket weaving and small craft projects.", 300)
-            .icon("hazel_twigs.png")
-            .fuel(1.5) // Small twigs burn quickly
-            .respawn_time(240)
-            .build(),
+
 
         // Cloth - Crafted textile
         ItemBuilder::new("Cloth", "Woven fabric, used for basic clothing.", ItemCategory::Material)
