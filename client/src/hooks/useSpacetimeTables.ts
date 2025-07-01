@@ -132,6 +132,7 @@ export interface SpacetimeTableStates {
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDB.AnimalCorpse>;
     barrels: Map<string, SpacetimeDB.Barrel>; // ADDED barrels
+    seaStacks: Map<string, SpacetimeDB.SeaStack>; // ADDED sea stacks
 }   
 
 // Define the props the hook accepts
@@ -194,6 +195,7 @@ export const useSpacetimeTables = ({
     const [viperSpittles, setViperSpittles] = useState<Map<string, SpacetimeDBViperSpittle>>(() => new Map());
     const [animalCorpses, setAnimalCorpses] = useState<Map<string, SpacetimeDB.AnimalCorpse>>(() => new Map());
     const [barrels, setBarrels] = useState<Map<string, SpacetimeDB.Barrel>>(() => new Map()); // ADDED barrels
+    const [seaStacks, setSeaStacks] = useState<Map<string, SpacetimeDB.SeaStack>>(() => new Map()); // ADDED sea stacks
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -407,7 +409,8 @@ export const useSpacetimeTables = ({
                                 `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`
+                                `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`
                             ];
                             newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
@@ -470,6 +473,7 @@ export const useSpacetimeTables = ({
                             newHandlesForChunk.push(timedSubscribe('WaterPatch', `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('WildAnimal', `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`));
                             newHandlesForChunk.push(timedSubscribe('Barrel', `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`));
+                            newHandlesForChunk.push(timedSubscribe('SeaStack', `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`));
 
                             if (ENABLE_CLOUDS) {
                                 newHandlesForChunk.push(timedSubscribe('Cloud', `SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`));
@@ -1061,6 +1065,13 @@ export const useSpacetimeTables = ({
             };
             const handleBarrelDelete = (ctx: any, barrel: SpacetimeDB.Barrel) => setBarrels(prev => { const newMap = new Map(prev); newMap.delete(barrel.id.toString()); return newMap; });
 
+            // Sea Stack handlers - SPATIAL
+            const handleSeaStackInsert = (ctx: any, seaStack: SpacetimeDB.SeaStack) => setSeaStacks(prev => new Map(prev).set(seaStack.id.toString(), seaStack));
+            const handleSeaStackUpdate = (ctx: any, oldSeaStack: SpacetimeDB.SeaStack, newSeaStack: SpacetimeDB.SeaStack) => {
+                setSeaStacks(prev => new Map(prev).set(newSeaStack.id.toString(), newSeaStack));
+            };
+            const handleSeaStackDelete = (ctx: any, seaStack: SpacetimeDB.SeaStack) => setSeaStacks(prev => { const newMap = new Map(prev); newMap.delete(seaStack.id.toString()); return newMap; });
+
             // --- Register Callbacks ---
             connection.db.player.onInsert(handlePlayerInsert); connection.db.player.onUpdate(handlePlayerUpdate); connection.db.player.onDelete(handlePlayerDelete);
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
@@ -1194,6 +1205,11 @@ export const useSpacetimeTables = ({
             connection.db.barrel.onInsert(handleBarrelInsert);
             connection.db.barrel.onUpdate(handleBarrelUpdate);
             connection.db.barrel.onDelete(handleBarrelDelete);
+
+            // Register SeaStack callbacks - SPATIAL
+            connection.db.seaStack.onInsert(handleSeaStackInsert);
+            connection.db.seaStack.onUpdate(handleSeaStackUpdate);
+            connection.db.seaStack.onDelete(handleSeaStackDelete);
 
             callbacksRegisteredRef.current = true;
 
@@ -1473,6 +1489,7 @@ export const useSpacetimeTables = ({
                  setWildAnimals(new Map());
                  setViperSpittles(new Map());
                  setAnimalCorpses(new Map());
+                 setSeaStacks(new Map());
              }
         };
 
@@ -1524,5 +1541,6 @@ export const useSpacetimeTables = ({
         viperSpittles,
         animalCorpses,
         barrels, // ADDED barrels
+        seaStacks, // ADDED sea stacks
       };
 }; 

@@ -462,6 +462,8 @@ import { RangedWeaponStatsTableHandle } from "./ranged_weapon_stats_table.ts";
 export { RangedWeaponStatsTableHandle };
 import { RecipeTableHandle } from "./recipe_table.ts";
 export { RecipeTableHandle };
+import { SeaStackTableHandle } from "./sea_stack_table.ts";
+export { SeaStackTableHandle };
 import { SeasonalPlantManagementScheduleTableHandle } from "./seasonal_plant_management_schedule_table.ts";
 export { SeasonalPlantManagementScheduleTableHandle };
 import { ShelterTableHandle } from "./shelter_table.ts";
@@ -648,6 +650,10 @@ import { Recipe } from "./recipe_type.ts";
 export { Recipe };
 import { RecipeIngredient } from "./recipe_ingredient_type.ts";
 export { RecipeIngredient };
+import { SeaStack } from "./sea_stack_type.ts";
+export { SeaStack };
+import { SeaStackVariant } from "./sea_stack_variant_type.ts";
+export { SeaStackVariant };
 import { Season } from "./season_type.ts";
 export { Season };
 import { SeasonalPlantManagementSchedule } from "./seasonal_plant_management_schedule_type.ts";
@@ -961,6 +967,11 @@ const REMOTE_MODULE = {
       tableName: "recipe",
       rowType: Recipe.getTypeScriptAlgebraicType(),
       primaryKey: "recipeId",
+    },
+    sea_stack: {
+      tableName: "sea_stack",
+      rowType: SeaStack.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     seasonal_plant_management_schedule: {
       tableName: "seasonal_plant_management_schedule",
@@ -5422,6 +5433,10 @@ export class RemoteTables {
 
   get recipe(): RecipeTableHandle {
     return new RecipeTableHandle(this.connection.clientCache.getOrCreateTable<Recipe>(REMOTE_MODULE.tables.recipe));
+  }
+
+  get seaStack(): SeaStackTableHandle {
+    return new SeaStackTableHandle(this.connection.clientCache.getOrCreateTable<SeaStack>(REMOTE_MODULE.tables.sea_stack));
   }
 
   get seasonalPlantManagementSchedule(): SeasonalPlantManagementScheduleTableHandle {

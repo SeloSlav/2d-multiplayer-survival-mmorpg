@@ -118,7 +118,7 @@ lazy_static! {
         // === NEW ARCTIC/SUBARCTIC PLANTS ===
         configs.insert(PlantType::ScurvyGrass, PlantConfig {
             entity_name: "Scurvy Grass".to_string(),
-            density_percent: 0.0001875, // REDUCED 8x: was 0.0015 (375 plants) → now ~47 plants
+            density_percent: 0.00009375, // REDUCED 16x: was 0.0015 (375 plants) → now ~23 plants
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -135,7 +135,7 @@ lazy_static! {
         
         configs.insert(PlantType::BorealNettle, PlantConfig {
             entity_name: "Boreal Nettle".to_string(),
-            density_percent: 0.00016625, // REDUCED 8x: was 0.00133 (333 plants) → now ~42 plants
+            density_percent: 0.000083125, // REDUCED 16x: was 0.00133 (333 plants) → now ~21 plants
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -187,7 +187,7 @@ lazy_static! {
         
         configs.insert(PlantType::Reed, PlantConfig {
             entity_name: "Common Reed Stalk".to_string(),
-            density_percent: 0.000375, // REDUCED 8x: was 0.003 (750 plants) → now ~94 plants
+            density_percent: 0.0001875, // REDUCED 16x: was 0.003 (750 plants) → now ~47 plants
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -204,7 +204,7 @@ lazy_static! {
         
         configs.insert(PlantType::BeachLymeGrass, PlantConfig {
             entity_name: "Beach Lyme Grass".to_string(),
-            density_percent: 0.00025, // REDUCED 8x: was 0.002 (500 plants) → now ~63 plants
+            density_percent: 0.000125, // REDUCED 16x: was 0.002 (500 plants) → now ~31 plants
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -221,7 +221,7 @@ lazy_static! {
         
         configs.insert(PlantType::Crowberry, PlantConfig {
             entity_name: "Crowberry".to_string(),
-            density_percent: 0.00015, // REDUCED 8x: was 0.0012 (300 plants) → now ~38 plants
+            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -257,7 +257,7 @@ lazy_static! {
         
         configs.insert(PlantType::SeaPlantain, PlantConfig {
             entity_name: "Sea Plantain".to_string(),
-            density_percent: 0.000225, // REDUCED 8x: was 0.0018 (450 plants) → now ~56 plants
+            density_percent: 0.0001125, // REDUCED 16x: was 0.0018 (450 plants) → now ~28 plants
             min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 18.0 * 18.0,
@@ -274,7 +274,7 @@ lazy_static! {
         
         configs.insert(PlantType::Glasswort, PlantConfig {
             entity_name: "Glasswort".to_string(),
-            density_percent: 0.000175, // REDUCED 8x: was 0.0014 (350 plants) → now ~44 plants
+            density_percent: 0.0000875, // REDUCED 16x: was 0.0014 (350 plants) → now ~22 plants
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 15.0 * 15.0,
@@ -343,7 +343,7 @@ lazy_static! {
         
         configs.insert(PlantType::Yarrow, PlantConfig {
             entity_name: "Yarrow".to_string(),
-            density_percent: 0.0001875, // REDUCED 8x: was 0.0015 (375 plants) → now ~47 plants
+            density_percent: 0.00009375, // REDUCED 16x: was 0.0015 (375 plants) → now ~23 plants
             min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 18.0 * 18.0,
@@ -360,7 +360,7 @@ lazy_static! {
         
         configs.insert(PlantType::Chamomile, PlantConfig {
             entity_name: "Chamomile".to_string(),
-            density_percent: 0.00015, // REDUCED 8x: was 0.0012 (300 plants) → now ~38 plants
+            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
             min_distance_sq: 22.0 * 22.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -377,7 +377,7 @@ lazy_static! {
         
         configs.insert(PlantType::Mint, PlantConfig {
             entity_name: "Mint".to_string(),
-            density_percent: 0.00025, // REDUCED 8x: was 0.0020 (500 plants) → now ~63 plants
+            density_percent: 0.000125, // REDUCED 16x: was 0.0020 (500 plants) → now ~31 plants
             min_distance_sq: 18.0 * 18.0,
             min_tree_distance_sq: 12.0 * 12.0,
             min_stone_distance_sq: 15.0 * 15.0,
@@ -411,7 +411,7 @@ lazy_static! {
         
         configs.insert(PlantType::Mugwort, PlantConfig {
             entity_name: "Mugwort".to_string(),
-            density_percent: 0.0001625, // REDUCED 8x: was 0.0013 (325 plants) → now ~41 plants
+            density_percent: 0.00008125, // REDUCED 16x: was 0.0013 (325 plants) → now ~20 plants
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 22.0 * 22.0,
@@ -428,7 +428,7 @@ lazy_static! {
         
         configs.insert(PlantType::Flax, PlantConfig {
             entity_name: "Flax Plant".to_string(),
-            density_percent: 0.000125, // REDUCED 8x: was 0.0010 (250 plants) → now ~31 plants
+            density_percent: 0.0000625, // REDUCED 16x: was 0.0010 (250 plants) → now ~16 plants
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 25.0 * 25.0,
             min_stone_distance_sq: 30.0 * 30.0,
@@ -445,7 +445,7 @@ lazy_static! {
         
         configs.insert(PlantType::BearGarlic, PlantConfig {
             entity_name: "Bear Garlic".to_string(),
-            density_percent: 0.0002, // REDUCED 8x: was 0.0016 (400 plants) → now ~50 plants
+            density_percent: 0.0001, // REDUCED 16x: was 0.0016 (400 plants) → now ~25 plants
             min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 10.0 * 10.0,
             min_stone_distance_sq: 15.0 * 15.0,
@@ -497,7 +497,7 @@ lazy_static! {
         
         configs.insert(PlantType::BogCotton, PlantConfig {
             entity_name: "Bog Cotton".to_string(),
-            density_percent: 0.00015, // REDUCED 8x: was 0.0012 (300 plants) → now ~38 plants
+            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,

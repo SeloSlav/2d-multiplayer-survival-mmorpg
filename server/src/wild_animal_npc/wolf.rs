@@ -38,8 +38,8 @@ impl AnimalBehavior for TundraWolfBehavior {
             attack_damage: 25.0, // Reduced from 40.0 - still dangerous but not one-shot
             attack_range: 72.0, // INCREASED from 48.0 - larger melee range for more reliable attacks
             attack_speed_ms: 800, // REDUCED from 1000ms - faster, more aggressive attacks
-            movement_speed: 201.0, // Further reduced from 268.0 - more manageable patrol speed
-            sprint_speed: 377.0, // Further reduced from 503.0 - players can outrun with sustained sprinting
+            movement_speed: 201.0, // Patrol speed - slow and manageable
+            sprint_speed: 485.0, // INCREASED: Faster than walking (400) but slower than sprinting (800)
             perception_range: 800.0, // Excellent hunter vision (increased)
             perception_angle_degrees: 200.0, // Wider hunter awareness
             patrol_radius: 540.0, // 18m wander

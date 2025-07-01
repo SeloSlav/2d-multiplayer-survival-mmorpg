@@ -55,6 +55,8 @@ import { renderAnimalCorpse } from './animalCorpseRenderingUtils';
 import { renderPlayerCorpse } from './playerCorpseRenderingUtils';
 // Import barrel renderer
 import { renderBarrel } from './barrelRenderingUtils';
+// Import sea stack renderer
+import { renderSeaStackSingle } from './seaStackRenderingUtils';
 // Import grass renderer
 import { renderGrass } from './grassRenderingUtils';
 // Import dropped item renderer
@@ -635,6 +637,9 @@ export const renderYSortedEntities = ({
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, barrel.posX, barrel.posY - 24, 48, 48, cycleProgress, outlineColor);
             }
+        } else if (type === 'sea_stack') {
+            const seaStack = entity as any; // Sea stack from SpacetimeDB
+            renderSeaStackSingle(ctx, seaStack, doodadImagesRef.current, cycleProgress, nowMs);
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.
@@ -690,6 +695,8 @@ export const renderYSortedEntities = ({
             // Animal corpses are fully rendered in the first pass - no second pass needed
         } else if (type === 'barrel') {
             // Barrels are fully rendered in the first pass - no second pass needed
+        } else if (type === 'sea_stack') {
+            // Sea stacks are fully rendered in the first pass - no second pass needed
         } else {
             console.warn('Unhandled entity type for Y-sorting (second pass):', type, entity);
         }

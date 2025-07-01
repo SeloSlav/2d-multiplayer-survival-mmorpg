@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import whisperService, { type WhisperResponse } from '../services/whisperService';
 import { openaiService } from '../services/openaiService';
-import { kikashiService } from '../services/kikashiService';
 import { buildGameContext, type GameContextBuilderProps } from '../utils/gameContextBuilder';
 import sovaIcon from '../assets/ui/sova.png';
 import './VoiceInterface.css';
+import { elevenLabsService } from '../services/elevenLabsService';
 
 interface VoiceInterfaceProps {
   isVisible: boolean;
@@ -280,14 +280,14 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
         // Generate voice synthesis with timing data collection
         console.log('[VoiceInterface] 🎤 Generating voice synthesis...');
-        const voiceResponse = await kikashiService.synthesizeVoice({
+        const voiceResponse = await elevenLabsService.synthesizeVoice({
           text: aiResponse.response,
-          voiceStyle: 'robot2'
+          voiceStyle: 'sova'
         });
 
-        // Update Kikashi service with complete pipeline timing
+        // Update ElevenLabs service with complete pipeline timing
         if (transcriptionResult.timing && aiResponse.timing && voiceResponse.timing) {
-          kikashiService.updatePipelineTiming(
+          elevenLabsService.updatePipelineTiming(
             transcriptionResult.timing.totalLatencyMs,
             aiResponse.timing.totalLatencyMs
           );
@@ -295,8 +295,8 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           console.log('[VoiceInterface] 📊 Complete Pipeline Performance:', {
             whisperLatency: `${transcriptionResult.timing.totalLatencyMs.toFixed(2)}ms`,
             openaiLatency: `${aiResponse.timing.totalLatencyMs.toFixed(2)}ms`,
-            proxyLatency: `${voiceResponse.timing.proxyLatencyMs.toFixed(2)}ms`,
-            kikashiLatency: `${voiceResponse.timing.kikashiApiLatencyMs.toFixed(2)}ms`,
+            apiLatency: `${voiceResponse.timing.apiLatencyMs.toFixed(2)}ms`,
+            elevenLabsLatency: `${voiceResponse.timing.elevenLabsApiLatencyMs.toFixed(2)}ms`,
             totalPipeline: `${(transcriptionResult.timing.totalLatencyMs + aiResponse.timing.totalLatencyMs + voiceResponse.timing.totalLatencyMs).toFixed(2)}ms`
           });
         }
@@ -331,7 +331,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
           // Play audio response
           console.log('[VoiceInterface] 🔊 Playing audio response...');
-          await kikashiService.playAudio(voiceResponse.audioUrl);
+          await elevenLabsService.playAudio(voiceResponse.audioUrl);
           console.log('[VoiceInterface] ✅ Audio playback completed');
           
           setVoiceState(prev => ({

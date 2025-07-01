@@ -1285,11 +1285,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                 {[
                                                                     { name: "🌐 Core Multiplayer & World", status: "100%" },
                                                                     { name: "🎒 Inventory & Items (Primitive Tech Tree)", status: "100%" },
-                                                                    { name: "⚔️ Combat & Weapons", status: "100%" },
+                                                                    { name: "⚔️ Melee Combat & Ranged Weapons", status: "100%" },
                                                                     { name: "🍳 Survival & Cooking", status: "100%" },
                                                                     { name: "🏠 Simple Shelters & Storage", status: "100%" },
                                                                     { name: "🎣 Simple Fishing", status: "10%" },
                                                                     { name: "🔐 Authentication", status: "100%" },
+                                                                    { name: "🎤 Voice-Enabled AI Assistant", status: "100%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(0, 100, 0, 0.2)',
@@ -1329,10 +1330,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                                                 {/* In Progress Features */}
                                                                 {[
+                                                                    { name: "🌱 Farming Systems", status: "75%" },
+                                                                    { name: "🦌 Hunting & Wildlife", status: "75%" },
                                                                     { name: "🔧 Tool & Weapon Durability", status: "60%" },
                                                                     { name: "👥 Social & Team Features", status: "40%" },
-                                                                    { name: "🌱 Farming Systems", status: "35%" },
-                                                                    { name: "🦌 Hunting & Wildlife", status: "30%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(255, 165, 0, 0.15)',

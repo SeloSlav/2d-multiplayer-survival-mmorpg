@@ -116,6 +116,7 @@ interface GameScreenProps {
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDBAnimalCorpse>;
     barrels: Map<string, SpacetimeDBBarrel>; // ADDED barrels
+    seaStacks: Map<string, any>; // ADDED sea stacks
     inventoryItems: Map<string, SpacetimeDBInventoryItem>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     worldState: SpacetimeDBWorldState | null;
@@ -767,6 +768,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 viperSpittles={viperSpittles}
                 animalCorpses={animalCorpses}
                 barrels={props.barrels}
+                seaStacks={props.seaStacks}
                 inventoryItems={inventoryItems}
                 itemDefinitions={itemDefinitions}
                 worldState={worldState}

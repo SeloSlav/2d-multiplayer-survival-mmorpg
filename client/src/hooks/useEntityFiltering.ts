@@ -34,7 +34,8 @@ import {
   isWildAnimal, // ADDED WildAnimal type guard import
   isAnimalCorpse, // ADDED AnimalCorpse type guard import
   isBarrel, // ADDED Barrel type guard import
-  isLantern // ADDED Lantern type guard import
+  isLantern, // ADDED Lantern type guard import
+  isSeaStack // ADDED SeaStack type guard import
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
@@ -87,6 +88,8 @@ interface EntityFilteringResult {
   visibleAnimalCorpsesMap: Map<string, SpacetimeDBAnimalCorpse>; // ADDED
   visibleBarrels: SpacetimeDBBarrel[]; // ADDED
   visibleBarrelsMap: Map<string, SpacetimeDBBarrel>; // ADDED
+  visibleSeaStacks: any[]; // ADDED
+  visibleSeaStacksMap: Map<string, any>; // ADDED
 }
 
 // Define a unified entity type for sorting
@@ -109,7 +112,8 @@ export type YSortedEntityType =
   | { type: 'wild_animal'; entity: SpacetimeDBWildAnimal }
   | { type: 'viper_spittle'; entity: SpacetimeDBViperSpittle }
   | { type: 'animal_corpse'; entity: SpacetimeDBAnimalCorpse }
-  | { type: 'barrel'; entity: SpacetimeDBBarrel };
+  | { type: 'barrel'; entity: SpacetimeDBBarrel }
+  | { type: 'sea_stack'; entity: any }; // Server-provided sea stack entities
 
 export function useEntityFiltering(
   players: Map<string, SpacetimeDBPlayer>,
@@ -136,7 +140,8 @@ export function useEntityFiltering(
   wildAnimals: Map<string, SpacetimeDBWildAnimal>, // ADDED wildAnimals argument
   viperSpittles: Map<string, SpacetimeDBViperSpittle>, // ADDED viperSpittles argument
   animalCorpses: Map<string, SpacetimeDBAnimalCorpse>, // ADDED animalCorpses argument
-  barrels: Map<string, SpacetimeDBBarrel> // ADDED barrels argument
+  barrels: Map<string, SpacetimeDBBarrel>, // ADDED barrels argument
+  seaStacks: Map<string, any> // ADDED sea stacks argument
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
   const currentTime = Date.now();
@@ -266,6 +271,12 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 48; // Barrel width
       height = 48; // Barrel height
+    } else if (isSeaStack(entity)) {
+      // Handle sea stacks - they're large tall structures like trees but bigger
+      x = entity.posX;
+      y = entity.posY;
+      width = 400; // Sea stacks are large - use the same as BASE_WIDTH in rendering
+      height = 600; // Sea stacks are tall - generous height for Y-sorting visibility
     } else {
       return false; // Unknown entity type
     }
@@ -499,6 +510,12 @@ export function useEntityFiltering(
     [barrels, isEntityInView, viewBounds, currentTime]
   );
 
+  const visibleSeaStacks = useMemo(() => 
+    seaStacks ? Array.from(seaStacks.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    : [],
+    [seaStacks, isEntityInView, viewBounds, currentTime]
+  );
+
   const visibleHarvestableResourcesMap = useMemo(() => 
     new Map(visibleHarvestableResources.map(hr => [hr.id.toString(), hr])), 
     [visibleHarvestableResources]
@@ -592,6 +609,12 @@ export function useEntityFiltering(
     [visibleBarrels]
   );
 
+  // ADDED: Map for visible sea stacks
+  const visibleSeaStacksMap = useMemo(() =>
+    new Map(visibleSeaStacks.map(s => [s.id.toString(), s])),
+    [visibleSeaStacks]
+  );
+
   // Group entities for rendering
   const groundItems = useMemo(() => [
     ...visibleSleepingBags,
@@ -636,6 +659,7 @@ export function useEntityFiltering(
       ...visibleViperSpittles.map(v => ({ type: 'viper_spittle' as const, entity: v })),
       ...visibleAnimalCorpses.map(a => ({ type: 'animal_corpse' as const, entity: a })),
       ...visibleBarrels.map(b => ({ type: 'barrel' as const, entity: b })),
+      ...visibleSeaStacks.map(s => ({ type: 'sea_stack' as const, entity: s })),
       ...visibleHarvestableResources.map(hr => ({ type: 'harvestable_resource' as const, entity: hr })),
     ];
     
@@ -677,6 +701,13 @@ export function useEntityFiltering(
       if (isTree(entity)) {
         // Trees are tall, so we sort by their base position
         // No offset needed - use the actual base position
+        sortY = entity.posY;
+        return sortY;
+      }
+
+      // Sea stacks should sort by their base position like trees (they're tall structures)
+      if (isSeaStack(entity)) {
+        // Sea stacks are tall structures like trees, sort by their base position
         sortY = entity.posY;
         return sortY;
       }
@@ -739,12 +770,12 @@ export function useEntityFiltering(
         return sortY;
       }
 
-      if (isGrass(entity)) {
-        // Grass/bushes are ground-level decorations
-        // entity here is already InterpolatedGrassData due to how ySortedEntities is constructed
-        sortY = (entity as InterpolatedGrassData).serverPosY;
-        return sortY;
-      }
+      // if (isGrass(entity)) {
+      //   // Grass/bushes are ground-level decorations
+      //   // entity here is already InterpolatedGrassData due to how ySortedEntities is constructed
+      //   sortY = (entity as InterpolatedGrassData).serverPosY;
+      //   return sortY;
+      // }
 
       // Handle projectiles - calculate current Y position
       if ((entity as any).startPosX !== undefined && (entity as any).startPosY !== undefined && (entity as any).velocityY !== undefined) {
@@ -829,6 +860,7 @@ export function useEntityFiltering(
       const getTypePriority = (type: string): number => {
         switch (type) {
           case 'shelter': return 0;     // Shelters render behind everything
+          case 'sea_stack': return 0.5; // Sea stacks render like trees but slightly in front
           case 'tree': return 1;        // Trees render behind most things
           case 'stone': return 2;       // Stones
           case 'wild_animal': return 3; // Wild animals render in front of trees
@@ -866,6 +898,7 @@ export function useEntityFiltering(
     visibleViperSpittles, // ADDED visibleViperSpittles to dependencies
     visibleAnimalCorpses, // ADDED visibleAnimalCorpses to dependencies
     visibleBarrels, // ADDED visibleBarrels to dependencies
+    visibleSeaStacks, // ADDED visibleSeaStacks to dependencies
     visibleHarvestableResources, // ADDED visibleHarvestableResources to dependencies
   ]);
 
@@ -911,5 +944,7 @@ export function useEntityFiltering(
     visibleAnimalCorpsesMap,
     visibleBarrels,
     visibleBarrelsMap,
+    visibleSeaStacks, 
+    visibleSeaStacksMap,
   };
 } 

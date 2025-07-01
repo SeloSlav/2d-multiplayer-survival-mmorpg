@@ -160,6 +160,7 @@ interface GameCanvasProps {
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
     animalCorpses: Map<string, SpacetimeDBAnimalCorpse>; // Add viper spittles
   barrels: Map<string, SpacetimeDBBarrel>; // Add barrels
+  seaStacks: Map<string, any>; // Add sea stacks
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
@@ -222,6 +223,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   viperSpittles,
   animalCorpses,
   barrels,
+  seaStacks,
   setMusicPanelVisible,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
@@ -468,6 +470,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleAnimalCorpsesMap,
     visibleBarrels,
     visibleBarrelsMap,
+    visibleSeaStacks,
+    visibleSeaStacksMap,
   } = useEntityFiltering(
     players,
     trees,
@@ -494,6 +498,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     viperSpittles,
     animalCorpses,
     barrels,
+    seaStacks,
   );
 
   // --- UI State ---
@@ -772,6 +777,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       currentCanvasHeight
     );
     // --- End Water Patches ---
+
+    // --- Render Sea Stacks (SERVER-AUTHORITATIVE SYSTEM) ---
+    // DISABLED: Sea stacks are now rendered through the Y-sorted entities system for proper depth layering
+    // This ensures players can walk behind and in front of sea stacks based on Y position
+    // renderSeaStacks(
+    //   ctx,
+    //   -cameraOffsetX, // Camera world X position
+    //   -cameraOffsetY, // Camera world Y position
+    //   currentCanvasWidth,
+    //   currentCanvasHeight,
+    //   seaStacks // Pass server-provided sea stack entities
+    // );
+    // --- End Sea Stacks ---
 
     const isPlacementTooFarValue = (placementInfo && localPlayer && currentWorldMouseX !== null && currentWorldMouseY !== null)
       ? isPlacementTooFar(placementInfo, localPlayer.positionX, localPlayer.positionY, currentWorldMouseX, currentWorldMouseY)

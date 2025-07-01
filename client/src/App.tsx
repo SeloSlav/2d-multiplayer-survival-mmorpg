@@ -183,6 +183,7 @@ function AppContent() {
       viperSpittles, // <<< ADD viperSpittles HERE
       animalCorpses, // <<< ADD animalCorpses HERE (NON-SPATIAL)
       barrels, // <<< ADD barrels HERE
+      seaStacks, // <<< ADD sea stacks HERE
     } = useSpacetimeTables({ 
         connection, 
         cancelPlacement, 
@@ -780,6 +781,7 @@ function AppContent() {
                             viperSpittles={viperSpittles}
                             animalCorpses={animalCorpses}
                             barrels={barrels}
+                            seaStacks={seaStacks}
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             worldState={worldState}

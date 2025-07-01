@@ -35,6 +35,7 @@ const REMOTE_PLAYER_DOT_COLOR = '#00AAFF'; // Light blue for other players
 const TREE_DOT_COLOR = '#37ff7a'; // Bright emerald green with excellent visibility
 const ROCK_DOT_COLOR = '#bbbbff'; // Light slate blue for rocks
 const BARREL_DOT_COLOR = '#ff4444'; // Bright red for barrels - high visibility
+
 const RESOURCE_ICON_OUTLINE_COLOR = '#000000'; // Black outline for resource icons
 const RESOURCE_ICON_OUTLINE_WIDTH = 1; // 1-pixel outline width
 const CAMPFIRE_DOT_COLOR = '#FF6600'; // Bright orange for campfires and lit players
@@ -169,6 +170,7 @@ interface MinimapProps {
   barrels: Map<string, SpacetimeDBBarrel>; // Add barrels
   campfires: Map<string, SpacetimeDBCampfire>; // Add campfires
   sleepingBags: Map<string, SpacetimeDBSleepingBag>; // Add sleeping bags
+
   localPlayer: SpacetimeDBPlayer | undefined; // Extracted local player
   localPlayerId?: string;
   viewCenterOffset: { x: number; y: number }; // pan offset
@@ -226,6 +228,7 @@ export function drawMinimapOntoCanvas({
   barrels,
   campfires,
   sleepingBags,
+
   localPlayer, // Destructure localPlayer
   localPlayerId,
   playerPin, // Destructure playerPin
@@ -647,6 +650,8 @@ export function drawMinimapOntoCanvas({
     }
   });
 
+
+
   // --- Draw Campfires ---
   if (showNightLights) {
     campfires.forEach(campfire => {
@@ -1001,9 +1006,6 @@ export function drawMinimapOntoCanvas({
 
   // X button now handled by React components, not canvas drawing
   ctx.restore(); // Restore context after drawing all elements
-
-  // Restore context after drawing all elements
-  ctx.restore(); // Final restore for the opacity/shadow effects
 
   // Tab bar now handled by React components, not canvas drawing
 }

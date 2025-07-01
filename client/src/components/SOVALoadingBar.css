@@ -3,11 +3,11 @@
 
 .sova-loading-bar-container {
   position: fixed;
-  bottom: 140px; /* Above hotbar (hotbar is around bottom: 80px) */
+  bottom: 95px; /* Closer to hotbar (hotbar is at bottom: 15px + ~80px height = ~95px) */
   left: 50%;
   transform: translateX(-50%);
   z-index: 8000;
-  width: 600px;
+  width: 390px; /* Match hotbar width (6 slots × 60px + 5 margins × 6px) */
   height: 60px;
   pointer-events: none;
   font-family: "Press Start 2P", cursive;

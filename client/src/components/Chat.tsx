@@ -4,7 +4,7 @@ import ChatInput from './ChatInput';
 import { DbConnection, Message as SpacetimeDBMessage, Player as SpacetimeDBPlayer, PrivateMessage as SpacetimeDBPrivateMessage, EventContext } from '../generated'; // Assuming types
 import styles from './Chat.module.css';
 import sovaIcon from '../assets/ui/sova.png';
-import { kikashiService } from '../services/kikashiService';
+import { elevenLabsService } from '../services/elevenLabsService';
 import { openaiService } from '../services/openaiService';
 import { buildGameContext, type GameContextBuilderProps } from '../utils/gameContextBuilder';
 
@@ -187,13 +187,13 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
         // Try to synthesize and play voice response
         try {
-          const voiceResult = await kikashiService.synthesizeVoice({
+          const voiceResult = await elevenLabsService.synthesizeVoice({
             text: aiResponse.response,
-            voiceStyle: 'robot2'
+            voiceStyle: 'sova'
           });
           
           if (voiceResult.success && voiceResult.audioUrl) {
-            await kikashiService.playAudio(voiceResult.audioUrl);
+            await elevenLabsService.playAudio(voiceResult.audioUrl);
             console.log('[Chat] SOVA voice response played successfully');
           } else {
             console.error('[Chat] Voice synthesis failed:', voiceResult.error);
@@ -233,20 +233,20 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
 
   // Handle performance report generation
   const handleGenerateReport = useCallback(() => {
-    kikashiService.logPerformanceReport();
+    elevenLabsService.logPerformanceReport();
     setShowPerformanceReport(true);
   }, []);
 
   // Handle copying report to clipboard
   const handleCopyReport = useCallback(async () => {
     try {
-      const report = kikashiService.generateFormattedReport();
+      const report = elevenLabsService.generateFormattedReport();
       await navigator.clipboard.writeText(report);
       
       // Add a message to SOVA chat confirming the copy
       const confirmMessage = {
         id: `sova-report-${Date.now()}`,
-        text: 'Performance report copied to clipboard! You can now share it with the Kikashi API team.',
+        text: 'Performance report copied to clipboard! You can now share it with the ElevenLabs API team.',
         isUser: false,
         timestamp: new Date()
       };
@@ -561,11 +561,11 @@ const Chat: React.FC<ChatProps> = ({ connection, messages, players, isChatting, 
         <div className={styles.performanceReportModal}>
           <div className={styles.performanceReportContent}>
             <div className={styles.performanceReportTitle}>
-              🎤 KIKASHI API PERFORMANCE REPORT
+              🎤 ELEVENLABS API PERFORMANCE REPORT
             </div>
             
             <pre className={styles.performanceReportText}>
-              {kikashiService.generateFormattedReport()}
+              {elevenLabsService.generateFormattedReport()}
             </pre>
             
             <div className={styles.performanceReportActions}>

@@ -143,6 +143,7 @@ import mugwortIcon from '../assets/items/mugwort.png';
 
 import bearGarlicIcon from '../assets/items/bear_garlic.png';
 import siberianGinsengIcon from '../assets/items/siberian_ginseng.png';
+import ginsengLeavesIcon from '../assets/items/ginseng_leaves.png';
 import nettleLeavesIcon from '../assets/items/nettle_leaves.png';
 
 // Arctic/Subarctic plants (botanically accurate for Aleutian Islands)
@@ -214,6 +215,7 @@ import mushroomSporeIcon from '../assets/items/mushroom_spore.png';
 import reedRhizomeIcon from '../assets/items/reed_rhizome.png';
 import flaxSeedsIcon from '../assets/items/flax_seeds.png';
 import bearGarlicBulbsIcon from '../assets/items/bear_garlic_bulbs.png';
+import ginsengSeedsIcon from '../assets/items/ginseng_seeds.png';
 import yarrowSeedsIcon from '../assets/items/yarrow_seeds.png';
 import mugwortSeedsIcon from '../assets/items/mugwort_seeds.png';
 import valerianSeedsIcon from '../assets/items/valerian_seeds.png';
@@ -400,6 +402,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'mugwort.png': mugwortIcon,
   'bear_garlic.png': bearGarlicIcon,
   'siberian_ginseng.png': siberianGinsengIcon,
+  'ginseng_leaves.png': ginsengLeavesIcon,
   'nettle_leaves.png': nettleLeavesIcon,
   
   // Arctic/Subarctic plants (botanically accurate for Aleutian Islands)
@@ -468,6 +471,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'reed_rhizome.png': reedRhizomeIcon,
   'flax_seeds.png': flaxSeedsIcon,
   'bear_garlic_bulbs.png': bearGarlicBulbsIcon,
+  'ginseng_seeds.png': ginsengSeedsIcon,
   'yarrow_seeds.png': yarrowSeedsIcon,
   'mugwort_seeds.png': mugwortSeedsIcon,
   'valerian_seeds.png': valerianSeedsIcon,

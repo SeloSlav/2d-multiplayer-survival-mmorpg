@@ -44,6 +44,8 @@ use crate::wild_animal_npc::core::AnimalBehavior; // Added AnimalBehavior trait
 use crate::barrel; // Added barrel system for roadside loot
 use crate::barrel::barrel as BarrelTableTrait; // Added barrel table trait
 use crate::world_state::world_state as WorldStateTableTrait; // Added for seasonal respawn system
+use crate::sea_stack::sea_stack as SeaStackTableTrait; // Added for sea stack table
+use crate::sea_stack::{SeaStack, SeaStackVariant}; // Added for sea stack generation
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
@@ -54,6 +56,14 @@ use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use std::collections::HashSet;
 use log;
+
+// --- Sea Stack Constants ---
+const SEA_STACK_DENSITY_PERCENT: f32 = 0.0012; // 0.12% of tiles - spawns on ocean water tiles
+const MIN_SEA_STACK_DISTANCE_SQ: f32 = 360.0 * 360.0; // 360px = 7.5 tiles minimum between sea stacks (3x original)
+const MIN_SEA_STACK_TREE_DISTANCE_SQ: f32 = 80.0 * 80.0; // 80px distance from trees (though they shouldn't overlap anyway)
+const MIN_SEA_STACK_STONE_DISTANCE_SQ: f32 = 80.0 * 80.0; // 80px distance from stones
+const SEA_STACK_SPAWN_NOISE_FREQUENCY: f64 = 0.008; // Noise frequency for clustering
+const SEA_STACK_SPAWN_NOISE_THRESHOLD: f64 = 0.3; // Noise threshold for spawning
 
 // --- Constants for Chunk Calculation ---
 // Size of a chunk in tiles (e.g., 20x20 tiles per chunk)
@@ -187,6 +197,90 @@ fn is_position_on_beach_tile(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bo
         return tile.tile_type == crate::TileType::Beach;
     }
     
+    false
+}
+
+/// Helper function to check if a sea tile is too close to beach tiles
+/// Sea stacks should only spawn in deep ocean water, not near shallow coastal areas
+fn is_too_close_to_beach(ctx: &ReducerContext, tile_x: i32, tile_y: i32) -> bool {
+    // Check a small radius around the current tile for beach tiles
+    let beach_check_radius = 2; // Check 2 tiles in each direction (5x5 area)
+    
+    for dy in -beach_check_radius..=beach_check_radius {
+        for dx in -beach_check_radius..=beach_check_radius {
+            let check_x = tile_x + dx;
+            let check_y = tile_y + dy;
+            
+            // Skip if out of bounds
+            if check_x < 0 || check_y < 0 || 
+               check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
+                continue;
+            }
+            
+            // Check if this tile is a beach tile
+            if let Some(tile_type) = crate::get_tile_type_at_position(ctx, check_x, check_y) {
+                if tile_type == crate::TileType::Beach {
+                    return true; // Too close to beach
+                }
+            } else {
+                // Fallback to database query if compressed data not available
+                let world_tiles = ctx.db.world_tile();
+                for tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                    if tile.tile_type == crate::TileType::Beach {
+                        return true; // Too close to beach
+                    }
+                    break; // Only check the first tile found at this position
+                }
+            }
+        }
+    }
+    
+    false // Not too close to any beach tiles
+}
+
+/// Checks if the given world position is on ocean water (not inland water or beaches)
+/// Returns true if the position is on deep ocean water suitable for sea stacks
+/// Excludes rivers, lakes, and beaches
+pub fn is_position_on_ocean_water(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> bool {
+    // Convert pixel position to tile coordinates
+    let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
+    let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;
+    
+    // Check bounds
+    if tile_x < 0 || tile_y < 0 || 
+       tile_x >= WORLD_WIDTH_TILES as i32 || tile_y >= WORLD_HEIGHT_TILES as i32 {
+        return false; // Treat out-of-bounds as not suitable
+    }
+    
+    // NEW: Try compressed lookup first for better performance
+    if let Some(tile_type) = crate::get_tile_type_at_position(ctx, tile_x, tile_y) {
+        // Must be deep sea water (NOT beach, NOT inland water)
+        if tile_type == crate::TileType::Sea {
+            // Check if it's ocean water (not inland water like rivers/lakes)
+            if !is_tile_inland_water(ctx, tile_x, tile_y) {
+                // Also check that it's not too close to beach tiles
+                return !is_too_close_to_beach(ctx, tile_x, tile_y);
+            }
+        }
+        // Explicitly reject beach tiles and any other non-sea tiles
+        return false;
+    }
+    
+    // FALLBACK: Use original method if compressed data not available
+    let world_tiles = ctx.db.world_tile();
+    
+    // Use the multi-column index to efficiently find the tile at (world_x, world_y)
+    for tile in world_tiles.idx_world_position().filter((tile_x, tile_y)) {
+        if tile.tile_type == TileType::Sea {
+            // Check if it's ocean water (not inland water like rivers/lakes)
+            if !is_tile_inland_water(ctx, tile_x, tile_y) {
+                // Also check that it's not too close to beach tiles
+                return !is_too_close_to_beach(ctx, tile_x, tile_y);
+            }
+        }
+    }
+    
+    // If no tile found at these exact coordinates, default to not suitable
     false
 }
 
@@ -574,12 +668,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let clouds = ctx.db.cloud();
     let grasses = ctx.db.grass();
     let wild_animals = ctx.db.wild_animal();
+    let sea_stacks = ctx.db.sea_stack(); // Add sea stacks table
 
     // Check if core environment is already seeded (exclude wild_animals since they can dynamically respawn)
     if trees.iter().count() > 0 || stones.iter().count() > 0 || harvestable_resources.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Harvestable Resources: {}, Clouds: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
-            trees.iter().count(), stones.iter().count(), harvestable_resources.iter().count(), clouds.iter().count(), wild_animals.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Harvestable Resources: {}, Clouds: {}, Sea Stacks: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
+            trees.iter().count(), stones.iter().count(), harvestable_resources.iter().count(), clouds.iter().count(), sea_stacks.iter().count(), wild_animals.iter().count()
         );
         return Ok(());
     }
@@ -595,7 +690,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_tree_count = (total_tiles as f32 * crate::tree::TREE_DENSITY_PERCENT) as u32;
     let max_tree_attempts = target_tree_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
     let target_stone_count = (total_tiles as f32 * crate::stone::STONE_DENSITY_PERCENT) as u32;
-    let max_stone_attempts = target_stone_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
+    let max_stone_attempts = target_stone_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
+    let target_sea_stack_count = (total_tiles as f32 * SEA_STACK_DENSITY_PERCENT) as u32;
+    let max_sea_stack_attempts = target_sea_stack_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR; 
     
     // SEASONAL SEEDING: Calculate targets for harvestable resources based on current season
     let current_season = crate::world_state::get_current_season(ctx)
@@ -648,6 +745,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
 
     log::info!("Target Trees: {}, Max Attempts: {}", target_tree_count, max_tree_attempts);
     log::info!("Target Stones: {}, Max Attempts: {}", target_stone_count, max_stone_attempts);
+    log::info!("Target Sea Stacks: {}, Max Attempts: {}", target_sea_stack_count, max_sea_stack_attempts);
     
     // Log harvestable resource targets
     for (plant_type, target_count) in &plant_targets {
@@ -666,6 +764,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut occupied_tiles = HashSet::<(u32, u32)>::new();
     let mut spawned_tree_positions = Vec::<(f32, f32)>::new();
     let mut spawned_stone_positions = Vec::<(f32, f32)>::new();
+    let mut spawned_sea_stack_positions = Vec::<(f32, f32)>::new();
     let mut spawned_harvestable_positions = Vec::<(f32, f32)>::new(); // Unified for all plants
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
     let mut spawned_wild_animal_positions = Vec::<(f32, f32)>::new();
@@ -675,6 +774,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut tree_attempts = 0;
     let mut spawned_stone_count = 0;
     let mut stone_attempts = 0;
+    let mut spawned_sea_stack_count = 0;
+    let mut sea_stack_attempts = 0;
     
     // Unified tracking for harvestable resources
     let mut plant_spawned_counts = std::collections::HashMap::new();
@@ -808,6 +909,66 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     log::info!(
         "Finished seeding {} stones (target: {}, attempts: {}).",
         spawned_stone_count, target_stone_count, stone_attempts
+    );
+
+    // --- Seed Sea Stacks --- Use helper function ---
+    log::info!("Seeding Sea Stacks...");
+    while spawned_sea_stack_count < target_sea_stack_count && sea_stack_attempts < max_sea_stack_attempts {
+        sea_stack_attempts += 1;
+        
+        // Generate random scale for visual variety
+        let sea_stack_scale = rng.gen_range(1.0..1.8);
+        
+        // Generate random variant
+        let variant_roll: f64 = rng.gen_range(0.0..1.0);
+        let variant = if variant_roll < 0.33 {
+            SeaStackVariant::Tall
+        } else if variant_roll < 0.66 {
+            SeaStackVariant::Medium  
+        } else {
+            SeaStackVariant::Wide
+        };
+        
+        match attempt_single_spawn(
+            &mut rng,
+            &mut occupied_tiles,
+            &mut spawned_sea_stack_positions,
+            &spawned_tree_positions,
+            &spawned_stone_positions,
+            min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+            &fbm,
+            SEA_STACK_SPAWN_NOISE_FREQUENCY,
+            SEA_STACK_SPAWN_NOISE_THRESHOLD,
+            MIN_SEA_STACK_DISTANCE_SQ,
+            MIN_SEA_STACK_TREE_DISTANCE_SQ,
+            MIN_SEA_STACK_STONE_DISTANCE_SQ,
+            |pos_x, pos_y, (scale, variant): (f32, SeaStackVariant)| {
+                // Calculate chunk index for the sea stack
+                let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+                SeaStack {
+                    id: 0, // Auto-incremented
+                    pos_x,
+                    pos_y,
+                    chunk_index: chunk_idx,
+                    scale,
+                    rotation: 0.0, // Sea stacks don't rotate
+                    opacity: 1.0,
+                    variant,
+                }
+            },
+            (sea_stack_scale, variant), // Pass scale and variant as extra_args
+            |pos_x, pos_y| !is_position_on_ocean_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y), // Only spawn on ocean water, not inland water
+            ctx.db.sea_stack(),
+        ) {
+            Ok(true) => spawned_sea_stack_count += 1,
+            Ok(false) => { /* Condition not met, continue */ }
+            Err(_) => { /* Error already logged in helper, continue */ }
+        }
+    }
+    log::info!(
+        "Finished seeding {} sea stacks (target: {}, attempts: {}).",
+        spawned_sea_stack_count, target_sea_stack_count, sea_stack_attempts
     );
 
     // --- Seed Harvestable Resources (Unified System) ---
@@ -1244,8 +1405,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     }
     
     log::info!(
-        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Harvestable Resources: [{}], Clouds: {}, Wild Animals: {}, Barrels: {}",
-        spawned_tree_count, spawned_stone_count, harvestable_summary,
+        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Sea Stacks: {}, Harvestable Resources: [{}], Clouds: {}, Wild Animals: {}, Barrels: {}",
+        spawned_tree_count, spawned_stone_count, spawned_sea_stack_count, harvestable_summary,
         spawned_cloud_count, spawned_wild_animal_count, ctx.db.barrel().iter().count()
     );
     Ok(())

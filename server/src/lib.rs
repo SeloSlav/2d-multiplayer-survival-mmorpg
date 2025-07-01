@@ -74,6 +74,7 @@ pub mod wild_animal_npc; // <<< ADDED wild animal NPC system (now modular)
 mod animal_collision; // <<< ADDED animal collision system
 mod barrel; // <<< ADDED roadside barrel loot system
 mod metadata_providers; // <<< ADDED: Provides plant/seed metadata to client
+mod sea_stack; // <<< ADDED: Sea stack decorative entities
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -204,6 +205,7 @@ use crate::wild_animal_npc::viper::viper_spittle_update_schedule as ViperSpittle
 use crate::wild_animal_npc::animal_corpse as AnimalCorpseTableTrait; // <<< ADDED: Import AnimalCorpse table trait
 use crate::barrel::barrel as BarrelTableTrait; // <<< ADDED: Import Barrel table trait
 use crate::barrel::barrel_respawn_schedule as BarrelRespawnScheduleTableTrait; // <<< ADDED: Import BarrelRespawnSchedule table trait
+use crate::sea_stack::sea_stack as SeaStackTableTrait; // <<< ADDED: Import SeaStack table trait
 
 // Use struct names directly for trait aliases
 use crate::crafting::Recipe as RecipeTableTrait;

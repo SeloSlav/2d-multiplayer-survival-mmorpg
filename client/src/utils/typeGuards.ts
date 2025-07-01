@@ -14,6 +14,7 @@ import {
   WildAnimal as SpacetimeDBWildAnimal, // ADDED WildAnimal type
   AnimalCorpse as SpacetimeDBAnimalCorpse, // ADDED AnimalCorpse type
   Barrel as SpacetimeDBBarrel, // ADDED Barrel type
+  SeaStack, // ADDED SeaStack type
   Player,
   Tree,
   Stone,
@@ -252,6 +253,29 @@ export function isBarrel(entity: any): entity is Barrel {
            typeof entity.animalSpecies === 'undefined'; // Not an AnimalCorpse
 }
 
+// Type guard for SeaStack
+export function isSeaStack(entity: any): entity is SeaStack {
+    return entity && 
+           typeof entity.posX === 'number' && 
+           typeof entity.posY === 'number' && 
+           typeof entity.id !== 'undefined' &&
+           typeof entity.chunkIndex === 'number' &&
+           typeof entity.scale === 'number' && // Sea stack scale
+           typeof entity.rotation === 'number' && // Sea stack rotation
+           typeof entity.opacity === 'number' && // Sea stack opacity
+           typeof entity.variant === 'object' && // SeaStackVariant enum
+           // Ensure it doesn't match other types
+           typeof entity.identity === 'undefined' && // Not a Player
+           typeof entity.treeType === 'undefined' && // Not a Tree
+           typeof entity.health === 'undefined' && // Not a Stone/Barrel
+           typeof entity.placedBy === 'undefined' && // Not a placed item
+           typeof entity.itemDefId === 'undefined' && // Not a DroppedItem
+           typeof entity.isBurning === 'undefined' && // Not a Campfire
+           typeof entity.ownerIdentity === 'undefined' && // Not a PlayerCorpse or Stash
+           typeof entity.species === 'undefined' && // Not a WildAnimal
+           typeof entity.animalSpecies === 'undefined'; // Not an AnimalCorpse
+}
+
 // Re-export harvestable resource type guards from resourceTypes
 export { 
   isHarvestableResource, 
@@ -297,6 +321,7 @@ export function getEntityTypeString(entity: any): string {
   if (isPlayerCorpse(entity)) return 'player_corpse';
   if (isBarrel(entity)) return 'barrel';
   if (isAnimalCorpse(entity)) return 'animal_corpse';
+  if (isSeaStack(entity)) return 'sea_stack';
   
   return 'unknown';
 } 

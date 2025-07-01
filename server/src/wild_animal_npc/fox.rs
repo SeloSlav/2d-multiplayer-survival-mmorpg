@@ -78,8 +78,8 @@ impl AnimalBehavior for CinderFoxBehavior {
             attack_damage: 20.0, // Increased damage for aggressive hit-and-run
             attack_range: 72.0, // INCREASED from 40.0 - larger melee range like wolf
             attack_speed_ms: 600, // Much faster attacks (was 800ms)
-            movement_speed: 188.0, // Further reduced from 268.0 - more manageable speed
-            sprint_speed: 375.0, // Further reduced from 536.0 - escapable with sustained sprinting
+            movement_speed: 188.0, // Patrol speed - slow and manageable  
+            sprint_speed: 465.0, // INCREASED: Faster than walking (400) but slower than sprinting (800)
             perception_range: 600.0, // INCREASED from 400.0 - much better vision for early detection
             perception_angle_degrees: 220.0, // INCREASED from 180.0 - even wider field of view for safety
             patrol_radius: 180.0, // 6m patrol loop

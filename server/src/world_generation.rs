@@ -64,6 +64,8 @@ pub fn generate_world(ctx: &ReducerContext, config: WorldGenConfig) -> Result<()
     // REMOVED: Post-processing adjacency validation (was causing terrain artifacts)
     // The autotile system handles transitions properly, no need for strict adjacency rules
     
+    // Sea stacks will be generated in environment.rs alongside trees and stones
+    
     log::info!("World generation complete!");
     Ok(())
 }
@@ -1021,8 +1023,6 @@ pub fn get_minimap_data(ctx: &ReducerContext) -> Result<(), String> {
     Ok(())
 }
 
-/// Generate compressed chunk data from existing WorldTile data for efficient network transmission
-/// This converts 100+ individual WorldTile objects per chunk into 1 WorldChunkData object
 pub fn generate_compressed_chunk_data(ctx: &ReducerContext) -> Result<(), String> {
     log::info!("Generating compressed chunk data from world tiles...");
     
