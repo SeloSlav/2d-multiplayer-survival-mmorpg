@@ -58,6 +58,10 @@ export type WildAnimal = {
   chunkIndex: number,
   createdAt: Timestamp,
   lastHitTime: Timestamp | undefined,
+  packId: bigint | undefined,
+  isPackLeader: boolean,
+  packJoinTime: Timestamp | undefined,
+  lastPackCheck: Timestamp | undefined,
 };
 
 /**
@@ -93,6 +97,10 @@ export namespace WildAnimal {
       new ProductTypeElement("chunkIndex", AlgebraicType.createU32Type()),
       new ProductTypeElement("createdAt", AlgebraicType.createTimestampType()),
       new ProductTypeElement("lastHitTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("packId", AlgebraicType.createOptionType(AlgebraicType.createU64Type())),
+      new ProductTypeElement("isPackLeader", AlgebraicType.createBoolType()),
+      new ProductTypeElement("packJoinTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastPackCheck", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

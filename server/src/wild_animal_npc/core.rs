@@ -53,6 +53,14 @@ const TORCH_FEAR_RADIUS_SQUARED: f32 = TORCH_FEAR_RADIUS * TORCH_FEAR_RADIUS;
 const GROUP_COURAGE_THRESHOLD: usize = 3; // 3+ animals = ignore fire fear
 const GROUP_DETECTION_RADIUS: f32 = 300.0; // Distance to count group members
 
+// Pack behavior constants  
+const PACK_FORMATION_RADIUS: f32 = 400.0; // Distance wolves can form packs (increased for better encounters)
+const PACK_FORMATION_CHANCE: f32 = 0.20; // 20% chance per encounter to form pack (increased)
+const PACK_DISSOLUTION_CHANCE: f32 = 0.03; // 3% chance per AI tick for wolf to leave pack (reduced for longer packs)
+const PACK_CHECK_INTERVAL_MS: i64 = 5000; // Check pack formation/dissolution every 5 seconds (longer intervals)
+const MAX_PACK_SIZE: usize = 5; // Maximum wolves per pack (epic threat requiring 4-5 coordinated players)
+const PACK_COHESION_RADIUS: f32 = 350.0; // Distance pack members try to stay near alpha (increased with formation radius)
+
 // --- Constants ---
 pub const AI_TICK_INTERVAL_MS: u64 = 125; // AI processes 8 times per second (improved from 4fps)
 pub const MAX_ANIMALS_PER_CHUNK: u32 = 3;
@@ -132,6 +140,12 @@ pub struct WildAnimal {
     pub chunk_index: u32, // For spatial optimization
     pub created_at: Timestamp,
     pub last_hit_time: Option<Timestamp>, // For damage visual effects
+    
+    // Pack behavior fields
+    pub pack_id: Option<u64>, // Pack this animal belongs to (None = solo)
+    pub is_pack_leader: bool, // True if this animal is the alpha
+    pub pack_join_time: Option<Timestamp>, // When this animal joined current pack
+    pub last_pack_check: Option<Timestamp>, // Last time we checked for pack formation/dissolution
 }
 
 // --- AI Processing Schedule Table ---
@@ -392,6 +406,9 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
         
         // Update AI state based on current conditions
         update_animal_ai_state(ctx, &mut animal, &behavior, &stats, &nearby_players, current_time, &mut rng)?;
+        
+        // Process pack behavior (formation, dissolution, etc.)
+        process_pack_behavior(ctx, &mut animal, current_time, &mut rng)?;
         
         // Check for and execute attacks
         if animal.state == AnimalState::Chasing {
@@ -894,6 +911,12 @@ pub fn spawn_wild_animal(
         chunk_index: crate::environment::calculate_chunk_index(pos_x, pos_y),
         created_at: current_time,
         last_hit_time: None,
+        
+        // Initialize pack fields - animals start solo
+        pack_id: None,
+        is_pack_leader: false,
+        pack_join_time: None,
+        last_pack_check: None,
     };
     
     ctx.db.wild_animal().insert(animal);
@@ -1193,4 +1216,366 @@ pub fn has_ranged_weapon_equipped(ctx: &ReducerContext, player_id: Identity) -> 
         }
     }
     false
-} 
+}
+
+// --- Pack Management Functions ---
+
+/// Process pack formation and dissolution for wolves
+pub fn process_pack_behavior(ctx: &ReducerContext, animal: &mut WildAnimal, current_time: Timestamp, rng: &mut impl Rng) -> Result<(), String> {
+    // Only wolves can form packs
+    if animal.species != AnimalSpecies::TundraWolf {
+        return Ok(());
+    }
+    
+    // Check if enough time has passed since last pack check
+    if let Some(last_check) = animal.last_pack_check {
+        let time_since_check = (current_time.to_micros_since_unix_epoch() - last_check.to_micros_since_unix_epoch()) / 1000;
+        if time_since_check < PACK_CHECK_INTERVAL_MS {
+            return Ok(());
+        }
+    }
+    
+    animal.last_pack_check = Some(current_time);
+    
+    // If wolf is in a pack, check for dissolution
+    if let Some(pack_id) = animal.pack_id {
+        if should_leave_pack(ctx, animal, current_time, rng)? {
+            leave_pack(ctx, animal, current_time)?;
+            log::info!("Wolf {} left pack {}", animal.id, pack_id);
+        }
+    } else {
+        // Wolf is solo, check for pack formation
+        if let Some(other_wolf) = find_nearby_packable_wolf(ctx, animal) {
+            attempt_pack_formation(ctx, animal, other_wolf, current_time, rng)?;
+        }
+    }
+    
+    Ok(())
+}
+
+/// Check if a wolf should leave its current pack
+fn should_leave_pack(ctx: &ReducerContext, animal: &WildAnimal, current_time: Timestamp, rng: &mut impl Rng) -> Result<bool, String> {
+    // Leaders are MUCH less likely to leave (stable leadership)
+    let dissolution_chance = if animal.is_pack_leader {
+        PACK_DISSOLUTION_CHANCE * 0.15 // Only 15% of normal chance (was 30%)
+    } else {
+        PACK_DISSOLUTION_CHANCE
+    };
+    
+    // Random chance to leave
+    if rng.gen::<f32>() < dissolution_chance {
+        return Ok(true);
+    }
+    
+    // Leave if pack is too small or alpha is missing
+    if let Some(pack_id) = animal.pack_id {
+        let pack_members = get_pack_members(ctx, pack_id);
+        
+        // If pack has only 1 member (this wolf), dissolve
+        if pack_members.len() <= 1 {
+            return Ok(true);
+        }
+        
+        // Don't dissolve larger packs easily - they're more valuable for gameplay
+        if pack_members.len() >= 3 && rng.gen::<f32>() < 0.5 {
+            // 50% chance to stay even if randomly selected to leave (pack loyalty)
+            return Ok(false);
+        }
+        
+        // If no alpha in pack, someone should become alpha
+        if !pack_members.iter().any(|w| w.is_pack_leader) {
+            // This wolf becomes the new alpha
+            return Ok(false);
+        }
+    }
+    
+    Ok(false)
+}
+
+/// Remove a wolf from its pack
+fn leave_pack(ctx: &ReducerContext, animal: &mut WildAnimal, current_time: Timestamp) -> Result<(), String> {
+    let old_pack_id = animal.pack_id;
+    
+    animal.pack_id = None;
+    animal.is_pack_leader = false;
+    animal.pack_join_time = None;
+    
+    // If this was the alpha, promote another wolf
+    if let Some(pack_id) = old_pack_id {
+        promote_new_alpha(ctx, pack_id, current_time)?;
+    }
+    
+    Ok(())
+}
+
+/// Find a nearby wolf that can form a pack or merge packs
+fn find_nearby_packable_wolf(ctx: &ReducerContext, animal: &WildAnimal) -> Option<WildAnimal> {
+    for other_animal in ctx.db.wild_animal().iter() {
+        if other_animal.id == animal.id || other_animal.species != AnimalSpecies::TundraWolf {
+            continue;
+        }
+        
+        let distance_sq = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            other_animal.pos_x, other_animal.pos_y
+        );
+        
+        if distance_sq <= PACK_FORMATION_RADIUS * PACK_FORMATION_RADIUS {
+            // Case 1: Solo wolf meets solo wolf
+            if animal.pack_id.is_none() && other_animal.pack_id.is_none() {
+                return Some(other_animal);
+            }
+            
+            // Case 2: Solo wolf meets pack member
+            if animal.pack_id.is_none() && other_animal.pack_id.is_some() {
+                let pack_size = get_pack_size(ctx, other_animal.pack_id.unwrap());
+                if pack_size < MAX_PACK_SIZE {
+                    return Some(other_animal);
+                }
+            }
+            
+            // Case 3: Pack member meets solo wolf  
+            if animal.pack_id.is_some() && other_animal.pack_id.is_none() {
+                let pack_size = get_pack_size(ctx, animal.pack_id.unwrap());
+                if pack_size < MAX_PACK_SIZE {
+                    return Some(other_animal);
+                }
+            }
+            
+            // Case 4: Two different packs meet - alpha challenge!
+            if let (Some(pack_a), Some(pack_b)) = (animal.pack_id, other_animal.pack_id) {
+                if pack_a != pack_b && animal.is_pack_leader && other_animal.is_pack_leader {
+                    // Two alphas meeting - potential pack merger
+                    let combined_size = get_pack_size(ctx, pack_a) + get_pack_size(ctx, pack_b);
+                    if combined_size <= MAX_PACK_SIZE {
+                        return Some(other_animal);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Attempt to form a pack between two wolves or merge existing packs
+fn attempt_pack_formation(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    mut other_wolf: WildAnimal,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) -> Result<(), String> {
+    // Random chance to form pack/merge (higher chance for pack mergers - alphas are territorial)
+    let formation_chance = if animal.is_pack_leader && other_wolf.is_pack_leader {
+        PACK_FORMATION_CHANCE * 0.6 // 60% of normal chance for alpha challenges
+    } else {
+        PACK_FORMATION_CHANCE
+    };
+    
+    if rng.gen::<f32>() > formation_chance {
+        return Ok(());
+    }
+    
+    // Handle different scenarios
+    match (animal.pack_id, other_wolf.pack_id) {
+        // Case 1: Solo + Solo = New pack
+        (None, None) => {
+            let other_wolf_id = other_wolf.id;
+            let pack_id = animal.id.max(other_wolf_id);
+            let (alpha_id, _) = if rng.gen::<bool>() {
+                (animal.id, other_wolf_id)
+            } else {
+                (other_wolf_id, animal.id)
+            };
+            
+            animal.pack_id = Some(pack_id);
+            animal.is_pack_leader = alpha_id == animal.id;
+            animal.pack_join_time = Some(current_time);
+            
+            other_wolf.pack_id = Some(pack_id);
+            other_wolf.is_pack_leader = alpha_id == other_wolf_id;
+            other_wolf.pack_join_time = Some(current_time);
+            
+            ctx.db.wild_animal().id().update(other_wolf);
+            log::info!("Wolves {} and {} formed new pack {} (alpha: {})", 
+                      animal.id, other_wolf_id, pack_id, alpha_id);
+        },
+        
+        // Case 2: Solo + Pack = Join existing pack
+        (None, Some(existing_pack_id)) => {
+            animal.pack_id = Some(existing_pack_id);
+            animal.is_pack_leader = false;
+            animal.pack_join_time = Some(current_time);
+            log::info!("Solo wolf {} joined existing pack {}", animal.id, existing_pack_id);
+        },
+        
+        // Case 3: Pack + Solo = Solo joins this pack  
+        (Some(existing_pack_id), None) => {
+            let other_wolf_id = other_wolf.id;
+            other_wolf.pack_id = Some(existing_pack_id);
+            other_wolf.is_pack_leader = false;
+            other_wolf.pack_join_time = Some(current_time);
+            ctx.db.wild_animal().id().update(other_wolf);
+            log::info!("Solo wolf {} joined existing pack {}", other_wolf_id, existing_pack_id);
+        },
+        
+        // Case 4: Pack + Pack = ALPHA CHALLENGE! 
+        (Some(pack_a), Some(pack_b)) if pack_a != pack_b => {
+            if animal.is_pack_leader && other_wolf.is_pack_leader {
+                // Determine dominant alpha based on pack size, health, and random factor
+                let pack_a_size = get_pack_size(ctx, pack_a);
+                let pack_b_size = get_pack_size(ctx, pack_b);
+                
+                let animal_dominance = pack_a_size as f32 * 10.0 + animal.health * 0.1 + rng.gen::<f32>() * 20.0;
+                let other_dominance = pack_b_size as f32 * 10.0 + other_wolf.health * 0.1 + rng.gen::<f32>() * 20.0;
+                
+                let (winning_pack, losing_pack, winning_alpha, losing_alpha) = if animal_dominance > other_dominance {
+                    (pack_a, pack_b, animal.id, other_wolf.id)
+                } else {
+                    (pack_b, pack_a, other_wolf.id, animal.id)
+                };
+                
+                // Merge smaller pack into larger pack
+                merge_packs(ctx, winning_pack, losing_pack, winning_alpha, current_time)?;
+                
+                log::info!("🐺 ALPHA CHALLENGE: Pack {} (alpha {}) dominates pack {} (alpha {}) - packs merged!", 
+                          winning_pack, winning_alpha, losing_pack, losing_alpha);
+            }
+        },
+        
+        _ => {} // Same pack or other edge cases
+    }
+    
+    Ok(())
+}
+
+/// Get all members of a pack
+fn get_pack_members(ctx: &ReducerContext, pack_id: u64) -> Vec<WildAnimal> {
+    ctx.db.wild_animal()
+        .iter()
+        .filter(|animal| animal.pack_id == Some(pack_id))
+        .collect()
+}
+
+/// Get the size of a pack
+fn get_pack_size(ctx: &ReducerContext, pack_id: u64) -> usize {
+    get_pack_members(ctx, pack_id).len()
+}
+
+/// Merge two packs after an alpha challenge
+fn merge_packs(
+    ctx: &ReducerContext,
+    winning_pack_id: u64,
+    losing_pack_id: u64,
+    winning_alpha_id: u64,
+    current_time: Timestamp,
+) -> Result<(), String> {
+    let losing_pack_members = get_pack_members(ctx, losing_pack_id);
+    
+    // Transfer all losing pack members to winning pack
+    for mut losing_member in losing_pack_members {
+        let losing_member_id = losing_member.id;
+        
+        // Demote losing alpha to follower
+        losing_member.is_pack_leader = false;
+        losing_member.pack_id = Some(winning_pack_id);
+        losing_member.pack_join_time = Some(current_time);
+        
+        // Update in database
+        ctx.db.wild_animal().id().update(losing_member);
+        
+        log::debug!("Wolf {} transferred from pack {} to pack {} (now follower)", 
+                   losing_member_id, losing_pack_id, winning_pack_id);
+    }
+    
+    // If merged pack exceeds size limit, some wolves leave to form new packs or go solo
+    let merged_size = get_pack_size(ctx, winning_pack_id);
+    if merged_size > MAX_PACK_SIZE {
+        let excess_count = merged_size - MAX_PACK_SIZE;
+        let all_members = get_pack_members(ctx, winning_pack_id);
+        
+        // Remove the newest members (last to join) to maintain pack stability
+        let mut members_to_remove: Vec<_> = all_members
+            .into_iter()
+            .filter(|w| !w.is_pack_leader) // Never remove the alpha
+            .collect();
+        
+        // Sort by join time (newest first) 
+        members_to_remove.sort_by(|a, b| {
+            b.pack_join_time.unwrap_or(current_time)
+                .cmp(&a.pack_join_time.unwrap_or(current_time))
+        });
+        
+        // Remove excess wolves
+        for mut wolf_to_remove in members_to_remove.into_iter().take(excess_count) {
+            let wolf_id = wolf_to_remove.id;
+            wolf_to_remove.pack_id = None;
+            wolf_to_remove.is_pack_leader = false;
+            wolf_to_remove.pack_join_time = None;
+            ctx.db.wild_animal().id().update(wolf_to_remove);
+            
+            log::info!("Wolf {} left pack {} due to overcrowding after merger", 
+                      wolf_id, winning_pack_id);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Promote a new alpha when the current alpha leaves
+fn promote_new_alpha(ctx: &ReducerContext, pack_id: u64, current_time: Timestamp) -> Result<(), String> {
+    let pack_members = get_pack_members(ctx, pack_id);
+    
+    if pack_members.is_empty() {
+        return Ok(());
+    }
+    
+    // Find the oldest pack member (first to join)
+    if let Some(mut new_alpha) = pack_members
+        .into_iter()
+        .filter(|w| !w.is_pack_leader)
+        .min_by_key(|w| w.pack_join_time.unwrap_or(current_time)) {
+        
+        new_alpha.is_pack_leader = true;
+        let new_alpha_id = new_alpha.id;
+        ctx.db.wild_animal().id().update(new_alpha);
+        log::info!("Wolf {} promoted to alpha of pack {}", new_alpha_id, pack_id);
+    }
+    
+    Ok(())
+}
+
+/// Get the alpha wolf of a pack
+pub fn get_pack_alpha(ctx: &ReducerContext, pack_id: u64) -> Option<WildAnimal> {
+    ctx.db.wild_animal()
+        .iter()
+        .find(|animal| animal.pack_id == Some(pack_id) && animal.is_pack_leader)
+}
+
+/// Check if a wolf should follow pack alpha's movement
+pub fn should_follow_pack_alpha(animal: &WildAnimal, alpha: &WildAnimal) -> bool {
+    if animal.is_pack_leader || animal.pack_id != alpha.pack_id {
+        return false;
+    }
+    
+    // Only follow if alpha is patrolling (not chasing/attacking)
+    alpha.state == AnimalState::Patrolling || alpha.state == AnimalState::Alert
+}
+
+/// Calculate pack cohesion movement towards alpha
+pub fn get_pack_cohesion_movement(animal: &WildAnimal, alpha: &WildAnimal) -> Option<(f32, f32)> {
+    let distance_sq = get_distance_squared(
+        animal.pos_x, animal.pos_y,
+        alpha.pos_x, alpha.pos_y
+    );
+    
+    // If too far from alpha, move towards them
+    if distance_sq > PACK_COHESION_RADIUS * PACK_COHESION_RADIUS {
+        let distance = distance_sq.sqrt();
+        let direction_x = (alpha.pos_x - animal.pos_x) / distance;
+        let direction_y = (alpha.pos_y - animal.pos_y) / distance;
+        return Some((direction_x, direction_y));
+    }
+    
+    None
+}

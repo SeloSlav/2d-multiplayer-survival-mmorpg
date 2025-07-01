@@ -9,11 +9,7 @@ Place all sound files in: `client/public/sounds/`
 ```
 client/public/sounds/
 ├── tree_chop.mp3     # Tree chopping sounds + variations
-├── tree_chop1.mp3    # (tree_chop1.mp3, tree_chop2.mp3, etc.)
-├── tree_chop2.mp3    
 ├── stone_hit.mp3     # Stone hitting sounds + variations
-├── stone_hit1.mp3    # (stone_hit1.mp3, stone_hit2.mp3, etc.)
-├── stone_hit2.mp3    
 ├── weapon_swing.mp3  # Weapon/tool swing sounds + variations
 ├── weapon_swing1.mp3 # (weapon_swing1.mp3, weapon_swing2.mp3, etc.)
 ├── button_click.mp3  # UI and other sound effects

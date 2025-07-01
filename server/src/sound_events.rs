@@ -6,10 +6,10 @@ use rand::Rng;
 /// Types of sound events that can be triggered
 #[derive(SpacetimeType, Clone, Debug, PartialEq)]
 pub enum SoundType {
-    TreeChop,     // tree_chop.mp3, tree_chop1.mp3, tree_chop2.mp3 (3 variations)
+    TreeChop,     // tree_chop.mp3 (1 variation)
     TreeCreaking, // tree_creaking.mp3 (1 variation - plays when tree is about to fall)
     TreeFalling,  // tree_falling.mp3 (1 variation - plays when tree reaches 0 health)
-    StoneHit,     // stone_hit.mp3, stone_hit1.mp3, stone_hit2.mp3 (3 variations)
+    StoneHit,     // stone_hit.mp3 (1 variation)
     StoneDestroyed, // stone_destroyed.mp3 (1 variation - plays when stone reaches 0 health)
     HarvestPlant, // harvest_plant.mp3 (1 variation - for picking up resource nodes)
     PlantSeed,    // plant_seed.mp3 (1 variation - for planting seeds)
@@ -87,10 +87,10 @@ impl SoundType {
     /// Get the number of sound variations available for this sound type
     pub fn get_variation_count(&self) -> u8 {
         match self {
-            SoundType::TreeChop => 3,    // tree_chop.ogg, tree_chop1.ogg, tree_chop2.ogg
+            SoundType::TreeChop => 1,    // tree_chop.ogg
             SoundType::TreeCreaking => 1, // tree_creaking.ogg
             SoundType::TreeFalling => 1,  // tree_falling.ogg
-            SoundType::StoneHit => 3,    // stone_hit.ogg, stone_hit1.ogg, stone_hit2.ogg
+            SoundType::StoneHit => 1,    // stone_hit.ogg
             SoundType::StoneDestroyed => 1, // stone_destroyed.ogg
             SoundType::HarvestPlant => 1, // harvest_plant.ogg (single variation)
             SoundType::PlantSeed => 1, // plant_seed.ogg (single variation)
@@ -326,7 +326,7 @@ pub fn emit_tree_creaking_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, pl
 /// Single line function to emit tree falling sound (when tree dies)
 pub fn emit_tree_falling_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     // log::info!("🔊 EMITTING TREE FALLING SOUND at ({:.1}, {:.1}) by player {:?}", pos_x, pos_y, player_id);
-    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeFalling, pos_x, pos_y, 1.5, 1050.0, player_id) {
+    if let Err(e) = emit_sound_at_position_with_distance(ctx, SoundType::TreeFalling, pos_x, pos_y, 0.75, 1050.0, player_id) {
         log::error!("Failed to emit tree falling sound: {}", e);
     }
 }

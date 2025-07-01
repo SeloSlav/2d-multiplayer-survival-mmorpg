@@ -1193,6 +1193,12 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
             chunk_index: chunk_idx,
             created_at: ctx.timestamp,
             last_hit_time: None,
+            
+            // Initialize pack fields - animals start solo
+            pack_id: None,
+            is_pack_leader: false,
+            pack_join_time: None,
+            last_pack_check: None,
         };
 
         match ctx.db.wild_animal().try_insert(new_animal) {

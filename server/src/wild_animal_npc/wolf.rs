@@ -1,10 +1,18 @@
 /******************************************************************************
  *                                                                            *
- * Tundra Wolf Behavior - Aggressive Apex Predator                           *
+ * Tundra Wolf Behavior - Aggressive Apex Predator with Pack Dynamics       *
  *                                                                            *
  * Wolves are aggressive pack hunters that pursue any player in range.       *
  * They have strong attacks with bleeding effects, double strikes, and       *
  * brief resting periods after combat.                                       *
+ *                                                                            *
+ * 🐺 PACK BEHAVIOR:                                                          *
+ * - Wolves spontaneously form packs when they encounter each other          *
+ * - One alpha wolf leads each pack and controls movement direction           *
+ * - Pack members follow the alpha during patrol/movement                     *
+ * - Wolves randomly leave packs over time for dynamic pack changes          *
+ * - IMPORTANT: Pack behavior does NOT affect combat/hunting behavior!       *
+ *   All wolves still chase and attack players independently                 *
  *                                                                            *
  ******************************************************************************/
 
@@ -39,7 +47,7 @@ impl AnimalBehavior for TundraWolfBehavior {
             attack_range: 72.0, // INCREASED from 48.0 - larger melee range for more reliable attacks
             attack_speed_ms: 800, // REDUCED from 1000ms - faster, more aggressive attacks
             movement_speed: 201.0, // Patrol speed - slow and manageable
-            sprint_speed: 485.0, // INCREASED: Faster than walking (400) but slower than sprinting (800)
+            sprint_speed: 450.0, // Noticeably faster than player walking (400) - wolves will catch walkers, force players to sprint
             perception_range: 800.0, // Excellent hunter vision (increased)
             perception_angle_degrees: 200.0, // Wider hunter awareness
             patrol_radius: 540.0, // 18m wander
@@ -127,12 +135,20 @@ impl AnimalBehavior for TundraWolfBehavior {
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
-                    // Wolves are aggressive - chase immediately instead of alerting
+                    // 🐺 PACK COMBAT: Wolves maintain aggressive behavior regardless of pack status
+                    // Pack behavior does NOT interfere with hunting - all wolves chase independently
                     if self.should_chase_player(animal, stats, player) {
                         animal.state = AnimalState::Chasing;
                         animal.target_player_id = Some(player.identity);
                         animal.state_change_time = current_time;
-                        log::debug!("Tundra Wolf {} immediately chasing player {}", animal.id, player.identity);
+                        
+                        // 🐺 PACK ALERT: If this wolf is in a pack, notify pack members about the threat
+                        if let Some(pack_id) = animal.pack_id {
+                            log::debug!("🐺 Pack wolf {} (pack {}) chasing player {} - pack hunt initiated!", 
+                                      animal.id, pack_id, player.identity);
+                        } else {
+                            log::debug!("Solo Tundra Wolf {} immediately chasing player {}", animal.id, player.identity);
+                        }
                     } else {
                         // If not chasing, briefly investigate
                         animal.state = AnimalState::Alert;
@@ -276,16 +292,63 @@ impl AnimalBehavior for TundraWolfBehavior {
         dt: f32,
         rng: &mut impl Rng,
     ) {
+        // 🐺 PACK BEHAVIOR: Check if should follow pack alpha's movement
+        if let Some(pack_id) = animal.pack_id {
+            if !animal.is_pack_leader {
+                if let Some(alpha) = super::core::get_pack_alpha(ctx, pack_id) {
+                    if super::core::should_follow_pack_alpha(animal, &alpha) {
+                        // Follow alpha's movement with pack cohesion
+                        if let Some((cohesion_x, cohesion_y)) = super::core::get_pack_cohesion_movement(animal, &alpha) {
+                            let target_x = animal.pos_x + cohesion_x * stats.movement_speed * dt;
+                            let target_y = animal.pos_y + cohesion_y * stats.movement_speed * dt;
+                            
+                            // Avoid water and shelters while following alpha
+                            if !is_water_tile(ctx, target_x, target_y) && 
+                               !super::core::is_position_in_shelter(ctx, target_x, target_y) {
+                                super::core::move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
+                                log::debug!("Pack wolf {} following alpha {} towards ({:.1}, {:.1})", 
+                                          animal.id, alpha.id, target_x, target_y);
+                                return; // Skip solo wandering behavior
+                            }
+                        } else {
+                            // Near alpha - mimic alpha's direction with slight variation
+                            let variation_angle = (rng.gen::<f32>() - 0.5) * 0.5; // ±0.25 radian variation
+                            let alpha_angle = alpha.direction_y.atan2(alpha.direction_x);
+                            let follow_angle = alpha_angle + variation_angle;
+                            
+                            animal.direction_x = follow_angle.cos();
+                            animal.direction_y = follow_angle.sin();
+                            
+                            log::debug!("Pack wolf {} mimicking alpha {}'s direction with variation", 
+                                      animal.id, alpha.id);
+                        }
+                    }
+                }
+            }
+        }
+        
         // Store previous position to detect if stuck
         let prev_x = animal.pos_x;
         let prev_y = animal.pos_y;
         
-        // Random wandering with pauses
-        if rng.gen::<f32>() < 0.12 { // 12% chance to change direction
-            let angle = rng.gen::<f32>() * 2.0 * PI;
-            animal.direction_x = angle.cos();
-            animal.direction_y = angle.sin();
+        // 🐺 PACK ALPHA BEHAVIOR: Alphas lead the pack's movement
+        if animal.is_pack_leader {
+            // Alphas change direction less frequently but more decisively
+            if rng.gen::<f32>() < 0.08 { // 8% chance to change direction (less than solo wolves)
+                let angle = rng.gen::<f32>() * 2.0 * PI;
+                animal.direction_x = angle.cos();
+                animal.direction_y = angle.sin();
+                log::debug!("Alpha wolf {} choosing new direction for pack", animal.id);
+            }
+        } else if animal.pack_id.is_none() {
+            // Solo wolves: Random wandering with pauses
+            if rng.gen::<f32>() < 0.12 { // 12% chance to change direction
+                let angle = rng.gen::<f32>() * 2.0 * PI;
+                animal.direction_x = angle.cos();
+                animal.direction_y = angle.sin();
+            }
         }
+        // Pack followers already handled above
         
         let target_x = animal.pos_x + animal.direction_x * stats.movement_speed * dt;
         let target_y = animal.pos_y + animal.direction_y * stats.movement_speed * dt;
@@ -332,7 +395,9 @@ impl AnimalBehavior for TundraWolfBehavior {
             player.position_x, player.position_y
         );
         
-        // Wolves are aggressive apex predators - chase any player in range
+        // 🐺 PACK INDEPENDENCE: Wolves chase players regardless of pack status
+        // Pack behavior affects movement coordination, NOT hunting instincts
+        // Each wolf in a pack will independently chase players they detect
         distance_sq <= stats.chase_trigger_range.powi(2) && 
         animal.health > stats.max_health * 0.2 // Only need 20% health to be aggressive
     }

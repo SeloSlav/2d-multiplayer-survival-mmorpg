@@ -48,8 +48,8 @@ const HUNGER_DRAIN_PER_SECOND: f32 = 250.0 / (3.0 * 60.0 * 60.0);
 // Thirst drains from 250 to 0 in 2 hours
 const THIRST_DRAIN_PER_SECOND: f32 = 250.0 / (2.0 * 60.0 * 60.0);
 // Make stat constants pub(crate) as well for consistency, although not strictly needed if only used here
-pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 8.0; // Increased from 2.5 - should drain noticeably while sprinting
-pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 3.0; // Increased from 2.0 - faster recovery when not sprinting
+// pub(crate) const STAMINA_DRAIN_PER_SECOND: f32 = 8.0; // REMOVED: No stamina drain from sprinting
+// pub(crate) const STAMINA_RECOVERY_PER_SECOND: f32 = 3.0; // REMOVED: No stamina processing
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_THIRST: f32 = 0.5;
 pub(crate) const HEALTH_LOSS_PER_SEC_LOW_HUNGER: f32 = 0.4;
 pub(crate) const HEALTH_LOSS_MULTIPLIER_AT_ZERO: f32 = 2.0;
@@ -328,24 +328,7 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         let new_warmth = (player.warmth + (total_warmth_change_per_sec * elapsed_seconds))
                          .max(0.0).min(100.0);
 
-        // Calculate Stamina (Drain happens first if sprinting+moving, then recovery if not sprinting)
-        let mut new_stamina = player.stamina;
-        let mut new_sprinting_state = player.is_sprinting; // Start with current state
-
-        // Check if player likely moved since last stat update
-        let likely_moved = player.last_update > player.last_stat_update;
-
-        if new_sprinting_state && likely_moved {
-            // Apply drain if sprinting and likely moved
-            new_stamina = (new_stamina - (elapsed_seconds * STAMINA_DRAIN_PER_SECOND)).max(0.0);
-            if new_stamina <= 0.0 {
-                new_sprinting_state = false; // Force sprinting off if out of stamina
-                log::debug!("Player {:?} ran out of stamina (stat tick).", player_id);
-            }
-        } else if !new_sprinting_state {
-            // Apply recovery only if not sprinting (or just stopped sprinting this tick)
-            new_stamina = (new_stamina + (elapsed_seconds * STAMINA_RECOVERY_PER_SECOND)).min(100.0);
-        }
+        // Stamina processing removed - players can sprint without stamina cost
 
         // <<< ADD EXHAUSTED EFFECT MANAGEMENT >>>
         // Update exhausted status based on low hunger, thirst, or warmth
@@ -476,8 +459,6 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                             (player.hunger - new_hunger).abs() > 0.01 ||
                             (player.thirst - new_thirst).abs() > 0.01 ||
                             (player.warmth - new_warmth).abs() > 0.01 ||
-                            (player.stamina - new_stamina).abs() > 0.01 ||
-                            (player.is_sprinting != new_sprinting_state) || // Check if sprint state changed
                             player.is_dead; // Also update if other stats changed OR if player died
 
         if stats_changed {
@@ -485,18 +466,16 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
             player.hunger = new_hunger;
             player.thirst = new_thirst;
             player.warmth = new_warmth;
-            player.stamina = new_stamina;
             player.is_dead = player.is_dead;
             player.death_timestamp = player.death_timestamp;
-            player.is_sprinting = new_sprinting_state; // Update sprint state if changed
             // Note: We don't update position, direction here
 
             // ALWAYS update last_stat_update timestamp after processing
             player.last_stat_update = current_time;
 
             players.identity().update(player.clone());
-            log::trace!("[StatsUpdate] Updated stats for player {:?}. Health: {:.1}, Hunger: {:.1}, Thirst: {:.1}, Warmth: {:.1}, Stamina: {:.1}, Sprinting: {}, Dead: {}",
-                      player_id, player.health, player.hunger, player.thirst, player.warmth, player.stamina, player.is_sprinting, player.is_dead);
+            log::trace!("[StatsUpdate] Updated stats for player {:?}. Health: {:.1}, Hunger: {:.1}, Thirst: {:.1}, Warmth: {:.1}, Dead: {}",
+                      player_id, player.health, player.hunger, player.thirst, player.warmth, player.is_dead);
         } else {
              log::trace!("No significant stat changes for player {:?}, skipping update.", player_id);
              // Still update the stat timestamp even if nothing changed, to prevent large future deltas

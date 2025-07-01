@@ -73,7 +73,7 @@ const SOUND_CONFIG = {
     // Performance settings
     AUDIO_CACHE_SIZE: 50,
     SPATIAL_UPDATE_INTERVAL: 16, // ~60fps
-    // Audio variation settings for dynamic feel
+    // Audio variation settings for dynamic feel (more aggressive for variety)
     SPATIAL_PITCH_VARIATION: 0.3, // ±15% pitch variation (0.85 to 1.15)
     SPATIAL_VOLUME_VARIATION: 0.2, // ±10% volume variation (0.9 to 1.1)
     LOCAL_PITCH_VARIATION: 0.2, // ±10% pitch variation (0.9 to 1.1)
@@ -190,10 +190,10 @@ const activeBandagingSounds = new Map<string, HTMLAudioElement>();
 
 // Preload common sounds
 const PRELOAD_SOUNDS = [
-    'tree_chop.mp3', 'tree_chop1.mp3', 'tree_chop2.mp3',  // 3 tree chop variations
+    'tree_chop.mp3',  // 3 tree chop variations
     'tree_creaking.mp3',                                   // 1 tree creaking variation
     'tree_falling.mp3',                                    // 1 tree falling variation
-    'stone_hit.mp3', 'stone_hit1.mp3', 'stone_hit2.mp3',   // 3 stone hit variations
+    'stone_hit.mp3',   // 3 stone hit variations
     'stone_destroyed.mp3',                                 // 1 stone destroyed variation
     'harvest_plant.mp3',                                   // 1 plant harvest variation
     'plant_seed.mp3',                                      // 1 seed planting variation
@@ -374,11 +374,11 @@ const playLocalSound = async (
             // Random variation for variety - different counts per sound type
             let variationCount = 4; // Default for most sounds
             if (soundType === 'tree_chop') {
-                variationCount = 3; // tree_chop.mp3, tree_chop1.mp3, tree_chop2.mp3
+                variationCount = 1; // tree_chop.mp3
             } else if (soundType === 'tree_creaking' || soundType === 'tree_falling' || soundType === 'stone_destroyed') {
                 variationCount = 1; // Single variation sounds
             } else if (soundType === 'stone_hit') {
-                variationCount = 3; // stone_hit.mp3, stone_hit1.mp3, stone_hit2.mp3
+                variationCount = 1; // stone_hit.mp3
             } else if (soundType === 'harvest_plant') {
                 variationCount = 1; // harvest_plant.mp3
             } else if (soundType === 'plant_seed') {
@@ -630,9 +630,9 @@ const updateSeamlessLoopingSounds = (masterVolume: number, environmentalVolume: 
             const nextAudio = isPrimaryActive ? secondary : primary;
             
             try {
-                // Start the next audio with slight volume and pitch variation for naturalness
-                const volumeVariation = 0.95 + Math.random() * 0.1; // 0.95 to 1.05
-                const newPitchVariation = pitchVariation * (0.98 + Math.random() * 0.04); // Slight pitch variation
+                                        // Start the next audio with slight volume and pitch variation for naturalness
+                        const volumeVariation = 0.95 + Math.random() * 0.1; // 0.95 to 1.05 (±5%)
+                        const newPitchVariation = pitchVariation * (0.98 + Math.random() * 0.04); // Slight pitch variation (±2%)
                 
                 nextAudio.volume = Math.min(1.0, volume * volumeVariation);
                 nextAudio.playbackRate = newPitchVariation;
@@ -1124,7 +1124,7 @@ export const useSoundSystem = ({
                         audioClone.currentTime = 0;
                         
                         // Add random pitch variation for variety
-                        const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9 to 1.1
+                        const pitchVariation = 0.9 + Math.random() * 0.2; // 0.9 to 1.1 (±10%)
                         audioClone.playbackRate = pitchVariation;
                         
                         // Store the active sound BEFORE playing to prevent race conditions

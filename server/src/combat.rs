@@ -29,7 +29,7 @@ use crate::player_corpse;
 // REMOVED: grass module import - grass collision detection removed for performance
 
 // Specific constants needed
-use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED};
+use crate::tree::{MIN_TREE_RESPAWN_TIME_SECS, MAX_TREE_RESPAWN_TIME_SECS, TREE_COLLISION_Y_OFFSET, PLAYER_TREE_COLLISION_DISTANCE_SQUARED, TREE_INITIAL_HEALTH};
 use crate::stone::{MIN_STONE_RESPAWN_TIME_SECS, MAX_STONE_RESPAWN_TIME_SECS, STONE_COLLISION_Y_OFFSET, PLAYER_STONE_COLLISION_DISTANCE_SQUARED};
 use crate::wooden_storage_box::{WoodenStorageBox, BOX_COLLISION_RADIUS, BOX_COLLISION_Y_OFFSET, wooden_storage_box as WoodenStorageBoxTableTrait};
 // REMOVED: grass table trait import - grass collision detection removed for performance
@@ -176,6 +176,11 @@ pub fn find_targets_in_cone(
     
     // Check trees
     for tree in ctx.db.tree().iter() {
+        // Skip dead/respawning trees (respawn_at is set when tree is destroyed)
+        if tree.respawn_at.is_some() {
+            continue;
+        }
+        
         let dx = tree.pos_x - player.position_x;
         let target_y = tree.pos_y - TREE_COLLISION_Y_OFFSET;
         let dy = target_y - player.position_y;
@@ -202,6 +207,11 @@ pub fn find_targets_in_cone(
     
     // Check stones
     for stone in ctx.db.stone().iter() {
+        // Skip dead/respawning stones (respawn_at is set when stone is destroyed)
+        if stone.respawn_at.is_some() {
+            continue;
+        }
+        
         let dx = stone.pos_x - player.position_x;
         let target_y = stone.pos_y - STONE_COLLISION_Y_OFFSET;
         let dy = target_y - player.position_y;
@@ -970,7 +980,9 @@ pub fn damage_tree(
            attacker_id, tree_id, damage, old_health, tree.health, tree.resource_remaining);
     
     // Sound logic: Always play chop sound, plus special sounds for dramatic moments
-    const CREAKING_THRESHOLD: u32 = 240; // About 3 stone hatchet hits remaining (80 * 3 = 240)
+    // Dynamic creaking threshold: Based on weapon damage to indicate "3-4 hits remaining"
+    const TARGET_HITS_REMAINING: f32 = 3.5; // Target number of hits when creaking should start
+    let creaking_threshold = (damage * TARGET_HITS_REMAINING) as u32; // Health when ~3-4 hits remain
     
     // Tree is destroyed when either health reaches 0 OR resources are depleted
     let tree_destroyed = tree.health == 0 || tree.resource_remaining == 0;
@@ -981,7 +993,7 @@ pub fn damage_tree(
         sound_events::emit_tree_falling_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
         // Set health to 0 to ensure it's marked as destroyed
         tree.health = 0;
-    } else if tree.health <= CREAKING_THRESHOLD {
+    } else if tree.health <= creaking_threshold {
         // Tree is in critical condition - play both chop and creaking sound for every hit
         sound_events::emit_tree_chop_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
         sound_events::emit_tree_creaking_sound(ctx, tree.pos_x, tree.pos_y, attacker_id);
@@ -2339,7 +2351,10 @@ fn resolve_knockback_collision(
 
     // Check against trees (solid collision)
     for tree in ctx.db.tree().iter() {
-        if tree.health == 0 { continue; } 
+        // Skip dead/respawning trees (respawn_at is set when tree is destroyed)
+        if tree.health == 0 || tree.respawn_at.is_some() { 
+            continue; 
+        } 
         let tree_collision_center_y = tree.pos_y - TREE_COLLISION_Y_OFFSET;
         let dx = proposed_x - tree.pos_x;
         let dy = proposed_y - tree_collision_center_y;
@@ -2352,7 +2367,10 @@ fn resolve_knockback_collision(
     
     // Check against stones (solid collision)
     for stone in ctx.db.stone().iter() {
-        if stone.health == 0 { continue; }
+        // Skip dead/respawning stones (respawn_at is set when stone is destroyed)
+        if stone.health == 0 || stone.respawn_at.is_some() { 
+            continue; 
+        }
         let stone_collision_center_y = stone.pos_y - STONE_COLLISION_Y_OFFSET;
         let dx = proposed_x - stone.pos_x;
         let dy = proposed_y - stone_collision_center_y;
