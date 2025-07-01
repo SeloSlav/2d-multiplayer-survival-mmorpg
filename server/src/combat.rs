@@ -2495,13 +2495,27 @@ pub fn damage_animal_corpse(
 
     if animal_corpse.health > 0 && rng.gen_bool(actual_cloth_chance) {
         let cloth_type = match animal_corpse.animal_species {
-            crate::wild_animal_npc::AnimalSpecies::CinderFox => "Fox Fur",
-            crate::wild_animal_npc::AnimalSpecies::TundraWolf => "Wolf Pelt",
-            crate::wild_animal_npc::AnimalSpecies::CableViper => "Viper Scale",
+            crate::wild_animal_npc::AnimalSpecies::CinderFox => Some("Fox Fur"),
+            crate::wild_animal_npc::AnimalSpecies::TundraWolf => Some("Wolf Fur"),
+            crate::wild_animal_npc::AnimalSpecies::CableViper => Some("Viper Scale"),
+            crate::wild_animal_npc::AnimalSpecies::ArcticWalrus => None, // Walrus doesn't drop cloth-type resources
         };
-        match grant_resource(ctx, attacker_id, cloth_type, quantity_per_hit) {
-            Ok(_) => resources_granted.push((cloth_type.to_string(), quantity_per_hit)),
-            Err(e) => log::error!("Failed to grant {}: {}", cloth_type, e),
+        
+        if let Some(cloth_name) = cloth_type {
+            match grant_resource(ctx, attacker_id, cloth_name, quantity_per_hit) {
+                Ok(_) => resources_granted.push((cloth_name.to_string(), quantity_per_hit)),
+                Err(e) => log::error!("Failed to grant {}: {}", cloth_name, e),
+            }
+        }
+    }
+
+    // NEW: Universal Animal Leather drop for ALL animals (like Animal Fat/Bone)
+    // This gives all animals a chance to drop the universal leather resource
+    let animal_leather_chance = (0.40 * effectiveness_multiplier).clamp(0.0, 0.40); // 40% base chance
+    if animal_corpse.health > 0 && rng.gen_bool(animal_leather_chance) {
+        match grant_resource(ctx, attacker_id, "Animal Leather", quantity_per_hit) {
+            Ok(_) => resources_granted.push(("Animal Leather".to_string(), quantity_per_hit)),
+            Err(e) => log::error!("Failed to grant Animal Leather: {}", e),
         }
     }
 
@@ -2513,7 +2527,12 @@ pub fn damage_animal_corpse(
     }
 
     if animal_corpse.health > 0 && rng.gen_bool(actual_meat_chance) {
-        let meat_type = crate::wild_animal_npc::animal_corpse::get_animal_meat_type(animal_corpse.animal_species);
+        let meat_type = match animal_corpse.animal_species {
+            crate::wild_animal_npc::AnimalSpecies::CinderFox => "Raw Fox Meat",
+            crate::wild_animal_npc::AnimalSpecies::TundraWolf => "Raw Wolf Meat",
+            crate::wild_animal_npc::AnimalSpecies::CableViper => "Raw Viper Meat",
+            crate::wild_animal_npc::AnimalSpecies::ArcticWalrus => "Raw Walrus Meat",
+        };
         match grant_resource(ctx, attacker_id, meat_type, quantity_per_hit) {
             Ok(_) => resources_granted.push((meat_type.to_string(), quantity_per_hit)),
             Err(e) => log::error!("Failed to grant {}: {}", meat_type, e),
@@ -2529,6 +2548,7 @@ pub fn damage_animal_corpse(
             crate::wild_animal_npc::AnimalSpecies::CinderFox => "Fox Skull",
             crate::wild_animal_npc::AnimalSpecies::TundraWolf => "Wolf Skull",
             crate::wild_animal_npc::AnimalSpecies::CableViper => "Viper Skull",
+            crate::wild_animal_npc::AnimalSpecies::ArcticWalrus => "Walrus Skull", // Large, imposing skull with tusks
         };
         
         match grant_resource(ctx, attacker_id, skull_type, 1) {

@@ -30,7 +30,9 @@ use crate::fishing::is_water_tile;
 use crate::animal_collision::check_animal_collision;
 use super::core::{
     AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal,
-    move_towards_target, can_attack
+    move_towards_target, can_attack, is_animal_trapped_by_fire_and_ranged, find_closest_fire_position,
+    transition_to_state, emit_species_sound,
+    is_player_in_chase_range, get_player_distance
 };
 
 pub struct TundraWolfBehavior;
@@ -114,9 +116,7 @@ impl AnimalBehavior for TundraWolfBehavior {
         if let Some(player) = detected_player {
             if super::core::is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
                 // Force flee even though wolves normally never flee
-                animal.state = AnimalState::Fleeing;
-                animal.target_player_id = None;
-                animal.state_change_time = current_time;
+                super::core::transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fire trap escape");
                 
                 // Set flee destination away from BOTH fire AND player
                 if let Some((fire_x, fire_y)) = super::core::find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
@@ -135,12 +135,16 @@ impl AnimalBehavior for TundraWolfBehavior {
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
+                    // Fire fear is now handled by the new simplified logic in update_animal_ai_state
+                    // No need for separate fire detection here
+                    
                     // 🐺 PACK COMBAT: Wolves maintain aggressive behavior regardless of pack status
                     // Pack behavior does NOT interfere with hunting - all wolves chase independently
                     if self.should_chase_player(animal, stats, player) {
-                        animal.state = AnimalState::Chasing;
-                        animal.target_player_id = Some(player.identity);
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "player in range");
+                        
+                        // 🔊 WOLF GROWL: Emit intimidating growl when starting to chase
+                        super::core::emit_species_sound(ctx, animal, player.identity, "chase_start");
                         
                         // 🐺 PACK ALERT: If this wolf is in a pack, notify pack members about the threat
                         if let Some(pack_id) = animal.pack_id {
@@ -151,10 +155,9 @@ impl AnimalBehavior for TundraWolfBehavior {
                         }
                     } else {
                         // If not chasing, briefly investigate
-                        animal.state = AnimalState::Alert;
+                        super::core::transition_to_state(animal, AnimalState::Alert, current_time, None, "investigating player");
                         animal.investigation_x = Some(player.position_x);
                         animal.investigation_y = Some(player.position_y);
-                        animal.state_change_time = current_time;
                     }
                 }
             },
@@ -162,23 +165,17 @@ impl AnimalBehavior for TundraWolfBehavior {
             AnimalState::Chasing => {
                 if let Some(target_id) = animal.target_player_id {
                     if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
-                        let distance_sq = get_distance_squared(
-                            animal.pos_x, animal.pos_y,
-                            target_player.position_x, target_player.position_y
-                        );
-                        
                         // Check if should stop chasing (wolves are VERY persistent)
-                        if distance_sq > (stats.chase_trigger_range * 1.8).powi(2) {
-                            animal.state = AnimalState::Patrolling;
-                            animal.target_player_id = None;
-                            animal.state_change_time = current_time;
-                            log::debug!("Tundra Wolf {} stopping chase - player too far", animal.id);
+                        if !super::core::is_player_in_chase_range(animal, &target_player, stats) {
+                            let distance = super::core::get_player_distance(animal, &target_player);
+                            if distance > stats.chase_trigger_range * 1.8 {
+                                super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player too far");
+                                log::debug!("Tundra Wolf {} stopping chase - player too far", animal.id);
+                            }
                         }
                     } else {
                         // Target lost
-                        animal.state = AnimalState::Patrolling;
-                        animal.target_player_id = None;
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target lost");
                     }
                 }
             },
@@ -191,16 +188,18 @@ impl AnimalBehavior for TundraWolfBehavior {
                 if time_in_state > 1500 { // Reduced from 4000ms to 1.5 seconds - wolves are aggressive
                     if let Some(player) = detected_player {
                         if self.should_chase_player(animal, stats, player) {
-                            animal.state = AnimalState::Chasing;
-                            animal.target_player_id = Some(player.identity);
+                            super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "alert timeout - chase");
+                            
+                            // 🔊 WOLF GROWL: Emit intimidating growl when transitioning to chase
+                            super::core::emit_species_sound(ctx, animal, player.identity, "alert_to_chase");
+                            
                             log::debug!("Tundra Wolf {} transitioning from alert to chase", animal.id);
                         } else {
-                            animal.state = AnimalState::Patrolling;
+                            super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - patrol");
                         }
                     } else {
-                        animal.state = AnimalState::Patrolling;
+                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - no target");
                     }
-                    animal.state_change_time = current_time;
                 }
             },
             
@@ -215,11 +214,9 @@ impl AnimalBehavior for TundraWolfBehavior {
                         
                         if distance_to_flee_target < 100.0 {
                             // Reached flee destination or close enough - return to patrol
-                            animal.state = AnimalState::Patrolling;
-                            animal.target_player_id = None;
+                            super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "reached flee destination");
                             animal.investigation_x = None;
                             animal.investigation_y = None;
-                            animal.state_change_time = current_time;
                             log::debug!("Tundra Wolf {} finished fleeing - returning to patrol", animal.id);
                         }
                     }

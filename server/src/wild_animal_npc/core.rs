@@ -73,6 +73,7 @@ pub enum AnimalSpecies {
     CinderFox,
     TundraWolf,
     CableViper,
+    ArcticWalrus,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, spacetimedb::SpacetimeType)]
@@ -146,6 +147,9 @@ pub struct WildAnimal {
     pub is_pack_leader: bool, // True if this animal is the alpha
     pub pack_join_time: Option<Timestamp>, // When this animal joined current pack
     pub last_pack_check: Option<Timestamp>, // Last time we checked for pack formation/dissolution
+    
+    // Fire fear override tracking
+    pub fire_fear_overridden_by: Option<Identity>, // Player who caused fire fear override (None = normal fire fear)
 }
 
 // --- AI Processing Schedule Table ---
@@ -230,6 +234,7 @@ pub enum AnimalBehaviorEnum {
     CinderFox(crate::wild_animal_npc::fox::CinderFoxBehavior),
     TundraWolf(crate::wild_animal_npc::wolf::TundraWolfBehavior),
     CableViper(crate::wild_animal_npc::viper::CableViperBehavior),
+    ArcticWalrus(crate::wild_animal_npc::walrus::ArcticWalrusBehavior),
 }
 
 impl AnimalBehavior for AnimalBehaviorEnum {
@@ -238,6 +243,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.get_stats(),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.get_stats(),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.get_stats(),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.get_stats(),
         }
     }
 
@@ -246,6 +252,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.get_movement_pattern(),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.get_movement_pattern(),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.get_movement_pattern(),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.get_movement_pattern(),
         }
     }
 
@@ -262,6 +269,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.execute_attack_effects(ctx, animal, target_player, stats, current_time, rng),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.execute_attack_effects(ctx, animal, target_player, stats, current_time, rng),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.execute_attack_effects(ctx, animal, target_player, stats, current_time, rng),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.execute_attack_effects(ctx, animal, target_player, stats, current_time, rng),
         }
     }
 
@@ -278,6 +286,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.update_ai_state_logic(ctx, animal, stats, detected_player, current_time, rng),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.update_ai_state_logic(ctx, animal, stats, detected_player, current_time, rng),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.update_ai_state_logic(ctx, animal, stats, detected_player, current_time, rng),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.update_ai_state_logic(ctx, animal, stats, detected_player, current_time, rng),
         }
     }
 
@@ -294,6 +303,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.execute_flee_logic(ctx, animal, stats, dt, current_time, rng),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.execute_flee_logic(ctx, animal, stats, dt, current_time, rng),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.execute_flee_logic(ctx, animal, stats, dt, current_time, rng),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.execute_flee_logic(ctx, animal, stats, dt, current_time, rng),
         }
     }
 
@@ -309,6 +319,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.execute_patrol_logic(ctx, animal, stats, dt, rng),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.execute_patrol_logic(ctx, animal, stats, dt, rng),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.execute_patrol_logic(ctx, animal, stats, dt, rng),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.execute_patrol_logic(ctx, animal, stats, dt, rng),
         }
     }
 
@@ -317,6 +328,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.should_chase_player(animal, stats, player),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.should_chase_player(animal, stats, player),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.should_chase_player(animal, stats, player),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.should_chase_player(animal, stats, player),
         }
     }
 
@@ -333,6 +345,7 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::CinderFox(behavior) => behavior.handle_damage_response(ctx, animal, attacker, stats, current_time, rng),
             AnimalBehaviorEnum::TundraWolf(behavior) => behavior.handle_damage_response(ctx, animal, attacker, stats, current_time, rng),
             AnimalBehaviorEnum::CableViper(behavior) => behavior.handle_damage_response(ctx, animal, attacker, stats, current_time, rng),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.handle_damage_response(ctx, animal, attacker, stats, current_time, rng),
         }
     }
 }
@@ -343,6 +356,7 @@ impl AnimalSpecies {
             AnimalSpecies::CinderFox => AnimalBehaviorEnum::CinderFox(crate::wild_animal_npc::fox::CinderFoxBehavior),
             AnimalSpecies::TundraWolf => AnimalBehaviorEnum::TundraWolf(crate::wild_animal_npc::wolf::TundraWolfBehavior),
             AnimalSpecies::CableViper => AnimalBehaviorEnum::CableViper(crate::wild_animal_npc::viper::CableViperBehavior),
+            AnimalSpecies::ArcticWalrus => AnimalBehaviorEnum::ArcticWalrus(crate::wild_animal_npc::walrus::ArcticWalrusBehavior),
         }
     }
 
@@ -457,43 +471,110 @@ fn update_animal_ai_state(
         animal.state = AnimalState::Fleeing;
         animal.state_change_time = current_time;
         animal.target_player_id = None;
+        // Clear fire fear override when fleeing due to low health
+        animal.fire_fear_overridden_by = None;
         return Ok(());
     }
 
-    // Fire fear check - if afraid of fire, don't chase players near fire sources
+    // CENTRALIZED FIRE FEAR LOGIC - Force animals into fleeing state when they detect fire
     if should_fear_fire(ctx, animal) {
-        // If currently chasing, check if target is still near fire
-        if animal.state == AnimalState::Chasing {
-            if let Some(target_id) = animal.target_player_id {
-                if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
-                    // Check if player is near a fire source
-                    if is_fire_nearby(ctx, target_player.position_x, target_player.position_y) {
-                        // Stop chasing, switch to patrolling/alert
-                        animal.state = AnimalState::Patrolling;
-                        animal.state_change_time = current_time;
-                        animal.target_player_id = None;
-                        return Ok(());
+        // Check for fire from players with torches
+        for player in nearby_players {
+            let player_has_fire = is_fire_nearby(ctx, player.position_x, player.position_y);
+            
+            if player_has_fire {
+                // Check if fire fear is overridden for this specific player
+                let should_fear_this_player = animal.fire_fear_overridden_by.map_or(true, |override_id| override_id != player.identity);
+                
+                if should_fear_this_player {
+                    // FORCE FLEE STATE - Don't just filter players, actively flee from fire
+                    transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fleeing from torch");
+                    
+                    // Set flee destination away from the fire source
+                    let flee_distance = match animal.species {
+                        AnimalSpecies::TundraWolf => 950.0,   // 750 + 200 buffer
+                        AnimalSpecies::CinderFox => 640.0,    // INCREASED: Proportional to new 240px chase range  
+                        AnimalSpecies::CableViper => 500.0,   // 350 + 150 buffer
+                        AnimalSpecies::ArcticWalrus => 0.0,   // Walruses ignore fire
+                    };
+                    
+                    if flee_distance > 0.0 {
+                        set_flee_destination_away_from_threat(animal, player.position_x, player.position_y, flee_distance, rng);
+                        
+                        log::info!("{:?} {} FLEEING from torch - target: ({:.1}, {:.1})", 
+                                  animal.species, animal.id, 
+                                  animal.investigation_x.unwrap_or(0.0), 
+                                  animal.investigation_y.unwrap_or(0.0));
+                        
+                        return Ok(()); // Skip normal AI logic - animal is now fleeing
                     }
                 }
             }
         }
         
-        // Filter out players near fire sources when looking for new targets
-        let fire_safe_players: Vec<Player> = nearby_players.iter()
-            .filter(|player| !is_fire_nearby(ctx, player.position_x, player.position_y))
-            .cloned()
-            .collect();
-        
-        // Find detected player only from fire-safe players
-        let detected_player = find_detected_player(animal, stats, &fire_safe_players);
-        
-        // Delegate species-specific logic with filtered players
-        behavior.update_ai_state_logic(ctx, animal, stats, detected_player.as_ref(), current_time, rng)?;
-        return Ok(());
+        // Check for standalone campfires
+        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+            // Check if fire fear override applies for any nearby players
+            let mut should_flee_from_fire = true;
+            
+            if let Some(override_player_id) = animal.fire_fear_overridden_by {
+                for player in ctx.db.player().iter() {
+                    if player.identity == override_player_id && !player.is_dead {
+                        let distance_to_player = get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y).sqrt();
+                        let distance_to_fire = get_distance_squared(animal.pos_x, animal.pos_y, fire_x, fire_y).sqrt();
+                        
+                        // If the override player is near this fire source, don't flee
+                        if distance_to_player <= 300.0 && distance_to_fire <= FIRE_FEAR_RADIUS {
+                            should_flee_from_fire = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if should_flee_from_fire {
+                // FORCE FLEE STATE from standalone fire sources (campfires)
+                transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fleeing from campfire");
+                
+                let flee_distance = match animal.species {
+                    AnimalSpecies::TundraWolf => 950.0,
+                    AnimalSpecies::CinderFox => 640.0,
+                    AnimalSpecies::CableViper => 500.0,
+                    AnimalSpecies::ArcticWalrus => 0.0, // Walruses ignore fire
+                };
+                
+                if flee_distance > 0.0 {
+                    set_flee_destination_away_from_threat(animal, fire_x, fire_y, flee_distance, rng);
+                    
+                    log::info!("{:?} {} FLEEING from campfire - target: ({:.1}, {:.1})", 
+                              animal.species, animal.id,
+                              animal.investigation_x.unwrap_or(0.0), 
+                              animal.investigation_y.unwrap_or(0.0));
+                    
+                    return Ok(()); // Skip normal AI logic - animal is now fleeing
+                }
+            }
+        }
     }
-
-    // Normal behavior when not afraid of fire
-    let detected_player = find_detected_player(animal, stats, nearby_players);
+    
+    // Normal AI logic - only process if not fleeing from fire
+    // Filter out fire-afraid players for target selection
+    let mut fire_safe_players = Vec::new();
+    
+    for player in nearby_players {
+        let player_has_fire = is_fire_nearby(ctx, player.position_x, player.position_y);
+        let should_fear_this_player = player_has_fire && 
+            should_fear_fire(ctx, animal) && 
+            // Only fear if no override OR override is for a different player
+            animal.fire_fear_overridden_by.map_or(true, |override_id| override_id != player.identity);
+        
+        if !should_fear_this_player {
+            fire_safe_players.push(player.clone());
+        }
+    }
+    
+    // Use fire-safe players for AI logic
+    let detected_player = find_detected_player(animal, stats, &fire_safe_players);
     behavior.update_ai_state_logic(ctx, animal, stats, detected_player.as_ref(), current_time, rng)?;
 
     Ok(())
@@ -511,25 +592,8 @@ fn execute_animal_movement(
 ) -> Result<(), String> {
     let dt = 0.125; // Updated to match new AI tick interval (8fps instead of 4fps)
     
-    // Check fire fear first - this can override normal movement behavior
-    if should_fear_fire(ctx, animal) {
-        // Animal is afraid of fire - flee from nearest fire source
-        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
-            // Calculate direction away from fire
-            let away_x = animal.pos_x - fire_x;
-            let away_y = animal.pos_y - fire_y;
-            let distance = (away_x * away_x + away_y * away_y).sqrt();
-            
-            if distance > 0.0 {
-                let flee_x = animal.pos_x + (away_x / distance) * 100.0; // Flee 100px away
-                let flee_y = animal.pos_y + (away_y / distance) * 100.0;
-                
-                // Use fast flee speed
-                move_towards_target(ctx, animal, flee_x, flee_y, stats.sprint_speed, dt);
-                return Ok(()); // Skip normal movement logic
-            }
-        }
-    }
+    // Fire fear is now handled entirely in update_animal_ai_state() 
+    // Movement system just executes whatever state the animal is in
     
     match animal.state {
         AnimalState::Patrolling => {
@@ -545,36 +609,7 @@ fn execute_animal_movement(
                     );
                     let distance = distance_sq.sqrt();
                     
-                    // Fire fear override: If chasing but fire is nearby, hover at fire boundary
-                    if should_fear_fire(ctx, animal) {
-                        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
-                            let fire_distance = get_distance_squared(animal.pos_x, animal.pos_y, fire_x, fire_y).sqrt();
-                            let fear_radius = if is_campfire_at_position(ctx, fire_x, fire_y) {
-                                FIRE_FEAR_RADIUS
-                            } else {
-                                TORCH_FEAR_RADIUS
-                            };
-                            
-                            // If too close to fire, back away slightly
-                            if fire_distance < fear_radius * 0.8 {
-                                let away_x = animal.pos_x - fire_x;
-                                let away_y = animal.pos_y - fire_y;
-                                let away_distance = (away_x * away_x + away_y * away_y).sqrt();
-                                
-                                if away_distance > 0.0 {
-                                    let safe_x = animal.pos_x + (away_x / away_distance) * 30.0;
-                                    let safe_y = animal.pos_y + (away_y / away_distance) * 30.0;
-                                    move_towards_target(ctx, animal, safe_x, safe_y, stats.movement_speed, dt);
-                                    return Ok(());
-                                }
-                            }
-                            // If at safe distance from fire, circle/hover and wait
-                            // (emergent behavior - just don't move toward player if it means getting closer to fire)
-                            return Ok(());
-                        }
-                    }
-                    
-                    // Normal chase behavior if no fire fear
+                    // Normal chase behavior - fire fear logic handled above
                     if distance > stats.attack_range * 0.9 { // Start moving when slightly outside attack range
                         // Move directly toward player - no stopping short
                         move_towards_target(ctx, animal, target_player.position_x, target_player.position_y, stats.sprint_speed, dt);
@@ -802,6 +837,7 @@ fn apply_knockback_to_player(animal: &WildAnimal, target: &mut Player, current_t
             AnimalSpecies::TundraWolf => 48.0,
             AnimalSpecies::CinderFox => 32.0,
             AnimalSpecies::CableViper => 24.0,
+            AnimalSpecies::ArcticWalrus => 64.0, // Strongest knockback - massive walrus attack
         };
         
         let knockback_dx = (dx_target_from_animal / distance) * knockback_distance;
@@ -837,6 +873,7 @@ fn handle_player_death(ctx: &ReducerContext, target: &mut Player, animal: &WildA
         AnimalSpecies::CinderFox => "Cinder Fox",
         AnimalSpecies::TundraWolf => "Tundra Wolf", 
         AnimalSpecies::CableViper => "Cable Viper",
+        AnimalSpecies::ArcticWalrus => "Arctic Walrus",
     };
     
     let new_death_marker = crate::death_marker::DeathMarker {
@@ -917,6 +954,9 @@ pub fn spawn_wild_animal(
         is_pack_leader: false,
         pack_join_time: None,
         last_pack_check: None,
+        
+        // Fire fear override tracking
+        fire_fear_overridden_by: None,
     };
     
     ctx.db.wild_animal().insert(animal);
@@ -954,6 +994,9 @@ pub fn damage_wild_animal(
                         }
                     }
                 }
+                
+                // Play animal pain/growl sound when hit
+                emit_species_sound(ctx, &animal, attacker_id, "hit");
             }
         }
         
@@ -978,11 +1021,36 @@ pub fn damage_wild_animal(
             ctx.db.wild_animal().id().delete(&animal_id);
             log::info!("Wild animal {} killed by player {} - corpse created", animal_id, attacker_id);
         } else {
-            // Handle species-specific damage response
-            let behavior = animal.species.get_behavior();
-            let stats = behavior.get_stats();
-            
+            // 🔥 FIRE FEAR OVERRIDE: If animal was afraid of fire but got attacked, they now ignore fire and retaliate
             if let Some(attacker) = ctx.db.player().identity().find(&attacker_id) {
+                let was_fire_afraid = should_fear_fire(ctx, &animal);
+                
+                // Check if animal was previously fleeing from fire or in a fire-influenced state
+                let was_fleeing_from_fire = animal.state == AnimalState::Fleeing && was_fire_afraid;
+                let was_avoiding_fire_targets = was_fire_afraid && 
+                    (animal.state == AnimalState::Patrolling || animal.state == AnimalState::Alert);
+                
+                if (was_fleeing_from_fire || was_avoiding_fire_targets) && animal.species != AnimalSpecies::ArcticWalrus {
+                    // Set fire fear override for this specific attacker
+                    animal.fire_fear_overridden_by = Some(attacker.identity);
+                    
+                    // Override fire fear - animal now prioritizes attacking over fire avoidance
+                    transition_to_state(&mut animal, AnimalState::Chasing, ctx.timestamp, Some(attacker.identity), "fire fear overridden by attack");
+                    
+                    // Clear flee destination if they were fleeing
+                    animal.investigation_x = None;
+                    animal.investigation_y = None;
+                    
+                    // Emit aggressive sound to indicate they're now hostile
+                    emit_species_sound(ctx, &animal, attacker.identity, "fire_fear_override");
+                    
+                    log::info!("🔥➡️⚔️ {:?} {} was afraid of fire but got attacked - now ignoring fire from attacker {} specifically", 
+                              animal.species, animal.id, attacker.identity);
+                }
+                
+                // Continue with species-specific damage response
+                let behavior = animal.species.get_behavior();
+                let stats = behavior.get_stats();
                 behavior.handle_damage_response(ctx, &mut animal, &attacker, &stats, ctx.timestamp, &mut rng)?;
             }
             
@@ -1182,6 +1250,12 @@ fn is_campfire_at_position(ctx: &ReducerContext, x: f32, y: f32) -> bool {
         }
     }
     false
+}
+
+/// Wrapper function for animal behavior compatibility - checks if position has fire nearby
+/// The distance parameter is ignored since is_fire_nearby already uses appropriate thresholds
+pub fn is_position_near_fire(ctx: &ReducerContext, x: f32, y: f32, _distance: f32) -> bool {
+    is_fire_nearby(ctx, x, y)
 }
 
 // --- Anti-Exploit Functions (Fire Trap Escape) ---
@@ -1578,4 +1652,531 @@ pub fn get_pack_cohesion_movement(animal: &WildAnimal, alpha: &WildAnimal) -> Op
     }
     
     None
+}
+
+/// **COMMON FIRE FLEE SYSTEM** - Handles torch loop prevention for all animals
+/// Returns true if fire was detected and animal is now fleeing (caller should skip normal AI logic)
+pub fn handle_fire_detection_and_flee(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    player: &Player,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) -> bool {
+    // 🦭 WALRUS EXCEPTION: Walruses don't respond to fire at all
+    if animal.species == AnimalSpecies::ArcticWalrus {
+        return false; // Walruses ignore fire completely
+    }
+    
+    // Check if player has fire nearby
+    if !is_position_near_fire(ctx, player.position_x, player.position_y, 100.0) {
+        return false; // No fire detected
+    }
+    
+    // Calculate species-specific flee distance beyond engagement radius
+    let base_flee_distance = match animal.species {
+        AnimalSpecies::TundraWolf => stats.chase_trigger_range + 200.0,   // 750 + 200 = 950px
+        AnimalSpecies::CinderFox => 320.0,                               // Fixed distance for foxes
+        AnimalSpecies::CableViper => stats.chase_trigger_range + 150.0,  // 350 + 150 = 500px
+        AnimalSpecies::ArcticWalrus => unreachable!(), // Already handled above
+    };
+    
+    // Special handling for cornered foxes (don't flee if too close)
+    if animal.species == AnimalSpecies::CinderFox {
+        let distance_to_player = get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y).sqrt();
+        let cornered_distance = 240.0; // Larger buffer from torch users for foxes
+        
+        if distance_to_player <= cornered_distance {
+            return false; // Fox is cornered, let it fight instead of flee
+        }
+    }
+    
+    // Force animal to flee beyond engagement radius
+    animal.state = AnimalState::Fleeing;
+    animal.target_player_id = None;
+    animal.state_change_time = current_time;
+    
+    // Calculate direction away from player with fire
+    let dx = animal.pos_x - player.position_x;
+    let dy = animal.pos_y - player.position_y;
+    let distance = (dx * dx + dy * dy).sqrt();
+    
+    if distance > 0.0 {
+        // Flee in exact opposite direction from player
+        let flee_direction_x = dx / distance;
+        let flee_direction_y = dy / distance;
+        
+        animal.investigation_x = Some(animal.pos_x + flee_direction_x * base_flee_distance);
+        animal.investigation_y = Some(animal.pos_y + flee_direction_y * base_flee_distance);
+    } else {
+        // Fallback: flee in random direction if player position is unknown
+        let flee_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.investigation_x = Some(animal.pos_x + base_flee_distance * flee_angle.cos());
+        animal.investigation_y = Some(animal.pos_y + base_flee_distance * flee_angle.sin());
+    }
+    
+    log::info!("{:?} {} fleeing from torch/fire - moving beyond engagement range ({:.0}px)", 
+               animal.species, animal.id, base_flee_distance);
+    
+    true // Fire detected and flee initiated
+}
+
+/// **COMMON SOUND EMISSION SYSTEM** - Handles species-specific growl/hiss sounds
+pub fn emit_species_sound(
+    ctx: &ReducerContext,
+    animal: &WildAnimal, 
+    player_identity: Identity,
+    sound_context: &str,  // "chase_start", "cornered", "attack", etc.
+) {
+    match animal.species {
+        AnimalSpecies::TundraWolf => {
+            crate::sound_events::emit_wolf_growl_sound(ctx, animal.pos_x, animal.pos_y, player_identity);
+        },
+        AnimalSpecies::CinderFox => {
+            crate::sound_events::emit_fox_growl_sound(ctx, animal.pos_x, animal.pos_y, player_identity);
+        },
+        AnimalSpecies::CableViper => {
+            crate::sound_events::emit_snake_growl_sound(ctx, animal.pos_x, animal.pos_y, player_identity);
+        },
+        AnimalSpecies::ArcticWalrus => {
+            crate::sound_events::emit_walrus_growl_sound(ctx, animal.pos_x, animal.pos_y, player_identity);
+        },
+    }
+    
+    log::debug!("{:?} {} emitting {} sound", animal.species, animal.id, sound_context);
+}
+
+/// **COMMON STATE TRANSITION HELPER** - Standardizes state changes with logging
+pub fn transition_to_state(
+    animal: &mut WildAnimal,
+    new_state: AnimalState,
+    current_time: Timestamp,
+    target_player: Option<Identity>,
+    reason: &str,
+) {
+    let old_state = animal.state;
+    animal.state = new_state;
+    animal.state_change_time = current_time;
+    
+    // Clear fire fear override when appropriate
+    match new_state {
+        AnimalState::Patrolling => {
+            // Clear fire fear override when returning to patrol
+            if animal.fire_fear_overridden_by.is_some() {
+                log::debug!("{:?} {} clearing fire fear override - returning to patrol", 
+                           animal.species, animal.id);
+                animal.fire_fear_overridden_by = None;
+            }
+            animal.target_player_id = None;
+        },
+        
+        AnimalState::Fleeing => {
+            // Clear fire fear override when fleeing (probably due to low health)
+            if animal.fire_fear_overridden_by.is_some() {
+                log::debug!("{:?} {} clearing fire fear override - fleeing", 
+                           animal.species, animal.id);
+                animal.fire_fear_overridden_by = None;
+            }
+            animal.target_player_id = target_player;
+        },
+        
+        AnimalState::Chasing => {
+            // If switching to a different target, clear fire fear override
+            if let (Some(old_target), Some(new_target)) = (animal.target_player_id, target_player) {
+                if old_target != new_target && animal.fire_fear_overridden_by.is_some() {
+                    log::debug!("{:?} {} clearing fire fear override - switching targets", 
+                               animal.species, animal.id);
+                    animal.fire_fear_overridden_by = None;
+                }
+            }
+            animal.target_player_id = target_player;
+        },
+        
+        _ => {
+            // For other states, keep target and fire fear override as is
+            animal.target_player_id = target_player;
+        }
+    }
+    
+    log::debug!("{:?} {} state: {:?} -> {:?} ({})", 
+               animal.species, animal.id, old_state, new_state, reason);
+}
+
+/// **COMMON DISTANCE AND DETECTION HELPERS** - Reduce boilerplate in animal behaviors
+pub fn get_player_distance(animal: &WildAnimal, player: &Player) -> f32 {
+    get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y).sqrt()
+}
+
+pub fn is_player_in_attack_range(animal: &WildAnimal, player: &Player, stats: &AnimalStats) -> bool {
+    let distance_sq = get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y);
+    distance_sq <= (stats.attack_range * stats.attack_range)
+}
+
+pub fn is_player_in_chase_range(animal: &WildAnimal, player: &Player, stats: &AnimalStats) -> bool {
+    let distance_sq = get_distance_squared(animal.pos_x, animal.pos_y, player.position_x, player.position_y);
+    distance_sq <= (stats.chase_trigger_range * stats.chase_trigger_range)
+}
+
+/// **COMMON FLEE DESTINATION CALCULATOR** - Standardizes flee logic
+pub fn set_flee_destination_away_from_threat(
+    animal: &mut WildAnimal,
+    threat_x: f32,
+    threat_y: f32,
+    flee_distance: f32,
+    rng: &mut impl Rng,
+) {
+    // Calculate direction away from threat
+    let dx_from_threat = animal.pos_x - threat_x;
+    let dy_from_threat = animal.pos_y - threat_y;
+    let distance_from_threat = (dx_from_threat * dx_from_threat + dy_from_threat * dy_from_threat).sqrt();
+    
+    if distance_from_threat > 0.1 {
+        // Flee in exact opposite direction from threat
+        let flee_direction_x = dx_from_threat / distance_from_threat;
+        let flee_direction_y = dy_from_threat / distance_from_threat;
+        
+        animal.investigation_x = Some(animal.pos_x + flee_direction_x * flee_distance);
+        animal.investigation_y = Some(animal.pos_y + flee_direction_y * flee_distance);
+        
+        log::debug!("{:?} {} fleeing {:.0}px away from threat at ({:.1}, {:.1})", 
+                   animal.species, animal.id, flee_distance, threat_x, threat_y);
+    } else {
+        // Fallback: random direction if threat position is unknown
+        let random_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.investigation_x = Some(animal.pos_x + random_angle.cos() * flee_distance);
+        animal.investigation_y = Some(animal.pos_y + random_angle.sin() * flee_distance);
+        
+        log::debug!("{:?} {} fleeing {:.0}px in random direction (threat position unknown)", 
+                   animal.species, animal.id, flee_distance);
+    }
+}
+
+/// **COMMON STUCK DETECTION AND RECOVERY** - Detects when animals get stuck and picks new directions
+pub fn handle_movement_stuck_recovery(
+    animal: &mut WildAnimal,
+    prev_x: f32,
+    prev_y: f32,
+    movement_threshold: f32,
+    rng: &mut impl Rng,
+    context: &str, // "patrol", "flee", etc.
+) -> bool {
+    let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+    
+    if distance_moved < movement_threshold {
+        // Stuck! Pick new random direction
+        let new_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.direction_x = new_angle.cos();
+        animal.direction_y = new_angle.sin();
+        
+        log::debug!("{:?} {} stuck during {} - changing direction", 
+                   animal.species, animal.id, context);
+        return true; // Was stuck
+    }
+    false // Not stuck
+}
+
+/// **COMMON RANDOM DIRECTION CHANGE** - Handles species-specific random direction changes during patrol
+pub fn maybe_change_patrol_direction(
+    animal: &mut WildAnimal,
+    rng: &mut impl Rng,
+) {
+    let change_chance = match animal.species {
+        AnimalSpecies::CinderFox => 0.18,     // Foxes are skittish
+        AnimalSpecies::TundraWolf => 0.12,    // Wolves are more purposeful (solo) or 0.08 (alpha)
+        AnimalSpecies::CableViper => 0.15,    // Vipers are moderate
+        AnimalSpecies::ArcticWalrus => 0.06,  // Walruses are very slow and deliberate
+    };
+    
+    // Adjust for pack wolves (alphas change direction less frequently)
+    let effective_chance = if animal.species == AnimalSpecies::TundraWolf && animal.is_pack_leader {
+        change_chance * 0.67 // 8% for alphas vs 12% for solo wolves
+    } else {
+        change_chance
+    };
+    
+    if rng.gen::<f32>() < effective_chance {
+        let new_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.direction_x = new_angle.cos();
+        animal.direction_y = new_angle.sin();
+        
+        log::debug!("{:?} {} changed patrol direction", animal.species, animal.id);
+    }
+}
+
+/// **COMMON PATROL MOVEMENT** - Standard wandering with obstacle avoidance
+pub fn execute_standard_patrol(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    dt: f32,
+    rng: &mut impl Rng,
+) {
+    let prev_x = animal.pos_x;
+    let prev_y = animal.pos_y;
+    
+    // Handle species-specific random direction changes
+    maybe_change_patrol_direction(animal, rng);
+    
+    let target_x = animal.pos_x + animal.direction_x * stats.movement_speed * dt;
+    let target_y = animal.pos_y + animal.direction_y * stats.movement_speed * dt;
+    
+    // Check if target position is safe (avoid shelters and water)
+    if !is_position_in_shelter(ctx, target_x, target_y) &&
+       !crate::fishing::is_water_tile(ctx, target_x, target_y) {
+        move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
+        
+        // Check if stuck and recover
+        handle_movement_stuck_recovery(animal, prev_x, prev_y, 3.0, rng, "patrol");
+    } else {
+        // If target position is blocked, pick a new random direction
+        let new_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.direction_x = new_angle.cos();
+        animal.direction_y = new_angle.sin();
+    }
+}
+
+/// **COMMON FLEE MOVEMENT** - Standard fleeing with destination and obstacle avoidance
+pub fn execute_standard_flee(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    dt: f32,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) {
+    let prev_x = animal.pos_x;
+    let prev_y = animal.pos_y;
+    
+    // Pick a random direction to flee if none set
+    if animal.investigation_x.is_none() || animal.investigation_y.is_none() {
+        let flee_angle = rng.gen::<f32>() * 2.0 * PI;
+        let flee_distance = match animal.species {
+            AnimalSpecies::CinderFox => 600.0 + (rng.gen::<f32>() * 400.0), // 12-20m for foxes
+            AnimalSpecies::TundraWolf => 400.0 + (rng.gen::<f32>() * 300.0), // 8-14m for wolves
+            AnimalSpecies::CableViper => 300.0 + (rng.gen::<f32>() * 200.0), // 6-10m for vipers
+            AnimalSpecies::ArcticWalrus => 100.0, // Walruses barely flee (defensive positioning only)
+        };
+        
+        animal.investigation_x = Some(animal.pos_x + flee_distance * flee_angle.cos());
+        animal.investigation_y = Some(animal.pos_y + flee_distance * flee_angle.sin());
+        
+        log::debug!("{:?} {} set flee destination: {:.0}px away", 
+                   animal.species, animal.id, flee_distance);
+    }
+    
+    if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
+        move_towards_target(ctx, animal, target_x, target_y, stats.sprint_speed, dt);
+        
+        // Check if stuck and pick new direction
+        if handle_movement_stuck_recovery(animal, prev_x, prev_y, 5.0, rng, "flee") {
+            // Pick new flee direction if stuck
+            let new_angle = rng.gen::<f32>() * 2.0 * PI;
+            let flee_distance = 300.0;
+            animal.investigation_x = Some(animal.pos_x + flee_distance * new_angle.cos());
+            animal.investigation_y = Some(animal.pos_y + flee_distance * new_angle.sin());
+        }
+        
+        // Check if reached destination or timeout
+        let distance_to_target = get_distance_squared(animal.pos_x, animal.pos_y, target_x, target_y).sqrt();
+        let time_fleeing = current_time.to_micros_since_unix_epoch() - animal.state_change_time.to_micros_since_unix_epoch();
+        
+        let max_flee_time = match animal.species {
+            AnimalSpecies::CinderFox => 3_000_000,  // 3 seconds
+            AnimalSpecies::TundraWolf => 4_000_000, // 4 seconds  
+            AnimalSpecies::CableViper => 3_000_000, // 3 seconds
+            AnimalSpecies::ArcticWalrus => 1_000_000, // 1 second (walruses don't really flee)
+        };
+        
+        if distance_to_target <= 50.0 || time_fleeing > max_flee_time {
+            transition_to_state(animal, AnimalState::Patrolling, current_time, None, "flee completed");
+            animal.investigation_x = None;
+            animal.investigation_y = None;
+            log::debug!("{:?} {} finished fleeing - returning to patrol", animal.species, animal.id);
+        }
+    }
+}
+
+/// **COMMON CHASE DISTANCE CHECKS** - Standard logic for when to stop chasing
+pub fn should_stop_chasing(
+    animal: &WildAnimal,
+    target_player: &Player,
+    stats: &AnimalStats,
+) -> bool {
+    let distance = get_player_distance(animal, target_player);
+    
+    // Species-specific chase persistence
+    let max_chase_distance = match animal.species {
+        AnimalSpecies::TundraWolf => stats.chase_trigger_range * 1.8,  // Very persistent
+        AnimalSpecies::CinderFox => stats.chase_trigger_range * 2.0,   // Committed when attacking
+        AnimalSpecies::CableViper => stats.chase_trigger_range * 1.5,  // Moderate persistence
+        AnimalSpecies::ArcticWalrus => stats.chase_trigger_range * 3.0, // Extremely persistent once provoked
+    };
+    
+    distance > max_chase_distance
+}
+
+/// **COMMON STATE TIMEOUT CHECKER** - Handles time-based state transitions
+pub fn check_state_timeout(
+    animal: &WildAnimal,
+    current_time: Timestamp,
+    timeout_ms: i64,
+) -> bool {
+    let time_in_state = (current_time.to_micros_since_unix_epoch() - 
+                        animal.state_change_time.to_micros_since_unix_epoch()) / 1000;
+    time_in_state > timeout_ms
+}
+
+/// **COMMON PLAYER HEALTH ASSESSMENT** - Evaluate player health for decision making
+pub fn assess_player_threat_level(player: &Player) -> PlayerThreatLevel {
+    let health_percent = player.health / crate::player_stats::PLAYER_MAX_HEALTH;
+    
+    if health_percent >= 0.7 {
+        PlayerThreatLevel::Healthy
+    } else if health_percent >= 0.4 {
+        PlayerThreatLevel::Moderate
+    } else if health_percent >= 0.15 {
+        PlayerThreatLevel::Weak
+    } else {
+        PlayerThreatLevel::Critical
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlayerThreatLevel {
+    Healthy,    // 70%+ health - dangerous to attack
+    Moderate,   // 40-70% health - moderate threat
+    Weak,       // 15-40% health - good target for opportunistic animals
+    Critical,   // <15% health - easy target
+}
+
+/// **COMMON ATTACK AFTERMATH LOGIC** - Handle common post-attack behaviors
+pub fn handle_attack_aftermath(
+    animal: &mut WildAnimal,
+    target_player: &Player,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) {
+    match animal.species {
+        AnimalSpecies::CinderFox => {
+            // Fox hit-and-run behavior based on target health
+            let threat_level = assess_player_threat_level(target_player);
+            
+            if matches!(threat_level, PlayerThreatLevel::Healthy | PlayerThreatLevel::Moderate) {
+                // Healthy target - flee after attack
+                set_flee_destination_away_from_threat(animal, target_player.position_x, target_player.position_y, 320.0, rng);
+                transition_to_state(animal, AnimalState::Fleeing, current_time, None, "hit and run");
+                
+                // Fox jumps back after attack
+                let jump_distance = 80.0;
+                let dx = animal.pos_x - target_player.position_x;
+                let dy = animal.pos_y - target_player.position_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+                if distance > 0.0 {
+                    animal.pos_x += (dx / distance) * jump_distance;
+                    animal.pos_y += (dy / distance) * jump_distance;
+                }
+                
+                log::info!("Cinder Fox {} hit-and-run on healthy target - fleeing", animal.id);
+            } else {
+                // Weak target - stay aggressive
+                transition_to_state(animal, AnimalState::Chasing, current_time, Some(target_player.identity), "continue assault");
+                log::info!("Cinder Fox {} continues assault on weak target", animal.id);
+            }
+        },
+        
+        AnimalSpecies::TundraWolf => {
+            // Wolves sometimes get double strikes or become more aggressive
+            if rng.gen::<f32>() < 0.3 {
+                animal.last_attack_time = None; // Reset for immediate second strike
+                log::info!("Tundra Wolf {} enters blood rage - double strike ready!", animal.id);
+            }
+        },
+        
+        AnimalSpecies::CableViper => {
+            // Vipers might retreat after venomous strike or continue attacking
+            log::info!("Cable Viper {} injected venom - assessing next move", animal.id);
+        },
+        
+        AnimalSpecies::ArcticWalrus => {
+            // Walruses are relentless once engaged - no special behavior, just keep attacking
+            log::info!("Arctic Walrus {} delivered crushing blow - remaining aggressive", animal.id);
+        },
+    }
+}
+
+/// **COMMON CHASE STATE HANDLER** - Standardized chase behavior
+pub fn handle_chase_state(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    current_time: Timestamp,
+) -> Result<(), String> {
+    if let Some(target_id) = animal.target_player_id {
+        if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
+            // Check if should stop chasing based on distance
+            if should_stop_chasing(animal, &target_player, stats) {
+                transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player escaped");
+                log::debug!("{:?} {} stopping chase - player too far", animal.species, animal.id);
+            }
+        } else {
+            // Target lost
+            transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target lost");
+        }
+    }
+    Ok(())
+}
+
+/// **COMMON DAMAGE RESPONSE HANDLER** - Standard health-based reactions  
+pub fn handle_standard_damage_response(
+    animal: &mut WildAnimal,
+    attacker: &Player,
+    stats: &AnimalStats,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) {
+    let health_percent = animal.health / stats.max_health;
+    
+    // Check if should flee due to low health
+    if health_percent < stats.flee_trigger_health_percent {
+        set_flee_destination_away_from_threat(animal, attacker.position_x, attacker.position_y, 400.0, rng);
+        transition_to_state(animal, AnimalState::Fleeing, current_time, None, "low health flee");
+        
+        log::info!("{:?} {} fleeing due to injury ({:.1}% health)", 
+                  animal.species, animal.id, health_percent * 100.0);
+    } else {
+        // Species-specific damage responses
+        match animal.species {
+            AnimalSpecies::CinderFox => {
+                let threat_level = assess_player_threat_level(attacker);
+                
+                if matches!(threat_level, PlayerThreatLevel::Healthy | PlayerThreatLevel::Moderate) {
+                    // Healthy attacker - flee
+                    set_flee_destination_away_from_threat(animal, attacker.position_x, attacker.position_y, 320.0, rng);
+                    transition_to_state(animal, AnimalState::Fleeing, current_time, None, "healthy attacker");
+                } else {
+                    // Weak attacker - become aggressive
+                    transition_to_state(animal, AnimalState::Chasing, current_time, Some(attacker.identity), "weak attacker");
+                }
+            },
+            
+            AnimalSpecies::TundraWolf => {
+                // Wolves rarely flee - become more aggressive when hit
+                if health_percent > 0.3 {
+                    transition_to_state(animal, AnimalState::Chasing, current_time, Some(attacker.identity), "retaliation");
+                    log::info!("Tundra Wolf {} retaliating against attacker", animal.id);
+                }
+            },
+            
+            AnimalSpecies::CableViper => {
+                // Vipers might enter defensive mode or continue attacking
+                log::info!("Cable Viper {} damaged - entering defensive posture", animal.id);
+            },
+            
+            AnimalSpecies::ArcticWalrus => {
+                // Walruses are relentless once engaged - no special behavior, just keep attacking
+                log::info!("Arctic Walrus {} delivered crushing blow - remaining aggressive", animal.id);
+            },
+        }
+    }
 }

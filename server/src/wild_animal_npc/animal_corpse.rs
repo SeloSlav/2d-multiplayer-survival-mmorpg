@@ -124,15 +124,17 @@ pub fn get_animal_loot_chances(animal_species: AnimalSpecies) -> (f64, f64, f64,
         AnimalSpecies::CinderFox => (0.60, 0.80, 0.30, 0.70), // High cloth (fur), good meat, some fat, low bone
         AnimalSpecies::TundraWolf => (0.70, 0.50, 0.60, 0.80), // Good fat and bone, decent cloth (pelt), good meat
         AnimalSpecies::CableViper => (0.30, 0.20, 0.90, 0.40), // Low fat/cloth, very high bone (scales), some meat
+        AnimalSpecies::ArcticWalrus => (0.85, 0.95, 0.65, 0.75), // Very high fat (blubber), excellent hide, good bone, good meat
     }
 }
 
-/// Gets the meat type for a specific animal
-pub fn get_animal_meat_type(animal_species: AnimalSpecies) -> &'static str {
+/// Get the meat type for a specific animal species
+fn get_meat_type(animal_species: AnimalSpecies) -> &'static str {
     match animal_species {
         AnimalSpecies::CinderFox => "Raw Fox Meat",
         AnimalSpecies::TundraWolf => "Raw Wolf Meat",
         AnimalSpecies::CableViper => "Raw Viper Meat",
+        AnimalSpecies::ArcticWalrus => "Raw Walrus Meat", // Rich, fatty meat
     }
 }
 
@@ -228,19 +230,31 @@ pub fn get_harvest_loot(
     
     if rng.gen_bool(actual_cloth_chance) {
         let cloth_type = match animal_species {
-            AnimalSpecies::CinderFox => "Fox Fur", // Fox has valuable fur (common material)
-            AnimalSpecies::TundraWolf => "Wolf Fur", // Wolf has warm fur (common material)  
-            AnimalSpecies::CableViper => "Viper Scale", // Viper has scales (treated as cloth)
+            AnimalSpecies::CinderFox => Some("Fox Fur"),
+            AnimalSpecies::TundraWolf => Some("Wolf Fur"),
+            AnimalSpecies::CableViper => Some("Viper Scale"), // Viper has scales (treated as cloth)
+            AnimalSpecies::ArcticWalrus => None, // Walrus doesn't drop cloth-type resources
         };
-        loot.push((cloth_type.to_string(), base_quantity));
+        
+        if let Some(cloth_name) = cloth_type {
+            loot.push((cloth_name.to_string(), base_quantity));
+        }
+    }
+    
+    // NEW: Universal Animal Leather drop for ALL animals (like Animal Fat/Bone)
+    // This gives all animals a chance to drop the universal leather resource
+    let animal_leather_chance = (0.40 * effectiveness_multiplier).clamp(0.0, 0.40); // 40% base chance
+    if rng.gen_bool(animal_leather_chance) {
+        loot.push(("Animal Leather".to_string(), base_quantity));
     }
     
     // Rare trophy drops - only with good tools and low chance
     if tool_name == "Bone Knife" {
         let rare_trophy_chance = match animal_species {
-            AnimalSpecies::CinderFox => 0.15, // 15% chance for Fox Pelt with bone knife
-            AnimalSpecies::TundraWolf => 0.12, // 12% chance for Wolf Pelt with bone knife
-            AnimalSpecies::CableViper => 0.0, // No rare trophy for viper
+            AnimalSpecies::CinderFox => 0.02,  // 2% chance for fox pelt
+            AnimalSpecies::TundraWolf => 0.03, // 3% chance for wolf pelt
+            AnimalSpecies::CableViper => 0.0,  // No rare trophy for viper
+            AnimalSpecies::ArcticWalrus => 0.01, // 1% chance for walrus pelt (ultra rare)
         };
         
         if rare_trophy_chance > 0.0 && rng.gen_bool(rare_trophy_chance) {
@@ -248,17 +262,18 @@ pub fn get_harvest_loot(
                 AnimalSpecies::CinderFox => "Fox Pelt", // Rare placeable trophy
                 AnimalSpecies::TundraWolf => "Wolf Pelt", // Rare placeable trophy
                 AnimalSpecies::CableViper => unreachable!(), // Already checked above
+                AnimalSpecies::ArcticWalrus => "Walrus Pelt", // Rare placeable trophy
             };
-            loot.push((rare_trophy.to_string(), 1)); // Always quantity 1 for rare trophies
+            loot.push((rare_trophy.to_string(), 1)); // Rare trophies always drop just 1
         }
     }
     
-         if rng.gen_bool(actual_bone_chance) {
-         loot.push(("Animal Bone".to_string(), base_quantity));
-     }
+    if rng.gen_bool(actual_bone_chance) {
+        loot.push(("Animal Bone".to_string(), base_quantity));
+    }
     
     if rng.gen_bool(actual_meat_chance) {
-        let meat_type = get_animal_meat_type(animal_species);
+        let meat_type = get_meat_type(animal_species);
         loot.push((meat_type.to_string(), base_quantity));
     }
     

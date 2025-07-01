@@ -20,7 +20,8 @@ use crate::utils::get_distance_squared;
 use crate::player as PlayerTableTrait;
 use super::core::{
     AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal,
-    move_towards_target, can_attack
+    move_towards_target, can_attack, transition_to_state, 
+    emit_species_sound, get_player_distance, is_player_in_chase_range, set_flee_destination_away_from_threat
 };
 
 pub struct CinderFoxBehavior;
@@ -41,33 +42,9 @@ impl FoxBehavior for CinderFoxBehavior {
         from_y: f32,
         rng: &mut impl Rng,
     ) {
-        // Calculate direction away from threat
-        let dx_from_threat = animal.pos_x - from_x;
-        let dy_from_threat = animal.pos_y - from_y;
-        let distance_from_threat = (dx_from_threat * dx_from_threat + dy_from_threat * dy_from_threat).sqrt();
-        
-        if distance_from_threat > 0.1 {
-            // ZERO RANDOMNESS: Pick exact opposite direction and commit completely
-            let flee_direction_x = dx_from_threat / distance_from_threat;
-            let flee_direction_y = dy_from_threat / distance_from_threat;
-            
-            // Flee VERY far - foxes bolt away and stay away
-            let flee_distance = 800.0; // Fixed distance, no randomness
-            let flee_x = animal.pos_x + flee_direction_x * flee_distance;
-            let flee_y = animal.pos_y + flee_direction_y * flee_distance;
-            
-            animal.investigation_x = Some(flee_x);
-            animal.investigation_y = Some(flee_y);
-            
-            log::debug!("Fox {} committed to EXACT opposite direction: ({:.1}, {:.1}) - distance: {:.1}px", 
-                       animal.id, flee_x, flee_y, flee_distance);
-        } else {
-            // Fallback: pick a random direction (only if threat position is unknown)
-            let random_angle = rng.gen::<f32>() * 2.0 * PI;
-            let flee_distance = 800.0; // Fixed distance
-            animal.investigation_x = Some(animal.pos_x + random_angle.cos() * flee_distance);
-            animal.investigation_y = Some(animal.pos_y + random_angle.sin() * flee_distance);
-        }
+        // Fox chase trigger range is 240px, so flee at least 640px (240 + 400 buffer)
+        let flee_distance = 640.0; // Fixed distance beyond engagement range
+        super::core::set_flee_destination_away_from_threat(animal, from_x, from_y, flee_distance, rng);
     }
 }
 
@@ -83,7 +60,7 @@ impl AnimalBehavior for CinderFoxBehavior {
             perception_range: 600.0, // INCREASED from 400.0 - much better vision for early detection
             perception_angle_degrees: 220.0, // INCREASED from 180.0 - even wider field of view for safety
             patrol_radius: 180.0, // 6m patrol loop
-            chase_trigger_range: 120.0, // Shorter chase range - foxes are cautious
+            chase_trigger_range: 240.0, // INCREASED: Foxes are more aggressive hunters
             flee_trigger_health_percent: 0.1, // Only flee when critically wounded (10%)
             hide_duration_ms: 0, // NO HIDING - foxes don't hide anymore
         }
@@ -155,9 +132,7 @@ impl AnimalBehavior for CinderFoxBehavior {
             if super::core::is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
                 // Force flee even though foxes might be attacking weak players
                 Self::set_fox_flee_destination(animal, player.position_x, player.position_y, rng);
-                animal.state = AnimalState::Fleeing;
-                animal.target_player_id = None;
-                animal.state_change_time = current_time;
+                super::core::transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fire trap escape");
                 
                 log::info!("🔥 Cinder Fox {} ESCAPING fire trap! Player {} with ranged weapon detected at campfire.", 
                           animal.id, player.identity);
@@ -168,19 +143,18 @@ impl AnimalBehavior for CinderFoxBehavior {
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
-                    let distance_to_player = get_distance_squared(
-                        animal.pos_x, animal.pos_y,
-                        player.position_x, player.position_y
-                    ).sqrt();
+                    let distance_to_player = super::core::get_player_distance(animal, player);
                     
-                    // CORNERED ANIMAL OVERRIDE: If player gets too close, attack regardless of health
-                    const CORNERED_DISTANCE: f32 = 180.0; // ~6 tiles - doubled range for earlier aggression
+                    // Fire fear is now handled by the new simplified logic in update_animal_ai_state
+                    // No need for separate fire detection here
                     
-                    if distance_to_player <= CORNERED_DISTANCE {
+                    if distance_to_player <= 480.0 { // INCREASED: Cornered distance proportional to new chase range
                         // Too close! Fox feels cornered and attacks even healthy players
-                        animal.state = AnimalState::Chasing;
-                        animal.target_player_id = Some(player.identity);
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "cornered attack");
+                        
+                        // 🔊 FOX GROWL: Emit desperate growl when cornered
+                        super::core::emit_species_sound(ctx, animal, player.identity, "cornered");
+                        
                         log::info!("Fox {} CORNERED! Attacking player {} at close range ({:.1}px) regardless of health ({:.1})", 
                                    animal.id, player.identity, distance_to_player, player.health);
                     } else {
@@ -188,16 +162,16 @@ impl AnimalBehavior for CinderFoxBehavior {
                         if player.health >= (crate::player_stats::PLAYER_MAX_HEALTH * 0.4) {
                             // Healthy player = FLEE IMMEDIATELY AND COMMIT
                             Self::set_fox_flee_destination(animal, player.position_x, player.position_y, rng);
-                            animal.state = AnimalState::Fleeing;
-                            animal.target_player_id = None;
-                            animal.state_change_time = current_time;
+                            super::core::transition_to_state(animal, AnimalState::Fleeing, current_time, None, "healthy player flee");
                             log::info!("Fox {} COMMITTED TO FLEEING from healthy player {} (health: {:.1}) at distance {:.1}px", 
                                        animal.id, player.identity, player.health, distance_to_player);
                         } else {
                             // Weak player = ATTACK IMMEDIATELY AND COMMIT
-                            animal.state = AnimalState::Chasing;
-                            animal.target_player_id = Some(player.identity);
-                            animal.state_change_time = current_time;
+                            super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "weak player attack");
+                            
+                            // 🔊 FOX GROWL: Emit aggressive growl when starting to attack weak player
+                            super::core::emit_species_sound(ctx, animal, player.identity, "attack_weak");
+                            
                             log::info!("Fox {} COMMITTED TO ATTACKING weak player {} (health: {:.1}) at distance {:.1}px", 
                                        animal.id, player.identity, player.health, distance_to_player);
                         }
@@ -209,24 +183,16 @@ impl AnimalBehavior for CinderFoxBehavior {
                 // COMMITTED TO ATTACK - don't re-evaluate, just check distance
                 if let Some(target_id) = animal.target_player_id {
                     if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
-                        let distance_sq = get_distance_squared(
-                            animal.pos_x, animal.pos_y,
-                            target_player.position_x, target_player.position_y
-                        );
-                        
                         // Only stop chasing if player gets too far away
-                        if distance_sq > (stats.chase_trigger_range * 2.0).powi(2) { // Increased commitment range
-                            animal.state = AnimalState::Patrolling;
-                            animal.target_player_id = None;
-                            animal.state_change_time = current_time;
+                        let distance = super::core::get_player_distance(animal, &target_player);
+                        if distance > (stats.chase_trigger_range * 2.0) { // Increased commitment range
+                            super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player escaped");
                             log::debug!("Fox {} stopping chase - player escaped too far", animal.id);
                         }
                         // NO health re-evaluation - fox is committed to the attack!
                     } else {
                         // Target lost
-                        animal.state = AnimalState::Patrolling;
-                        animal.target_player_id = None;
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target lost");
                     }
                 }
             },
@@ -234,20 +200,20 @@ impl AnimalBehavior for CinderFoxBehavior {
             AnimalState::Fleeing => {
                 // Check for cornered animal override even while fleeing
                 if let Some(player) = detected_player {
-                    let distance_to_player = get_distance_squared(
-                        animal.pos_x, animal.pos_y,
-                        player.position_x, player.position_y
-                    ).sqrt();
+                    let distance_to_player = super::core::get_player_distance(animal, player);
                     
-                    const CORNERED_DISTANCE: f32 = 180.0; // Same distance as patrol (doubled)
+                    // Fire fear is now handled by the unified system - INCREASED cornered distance
+                    let cornered_distance = 360.0; // Proportional to new chase range
                     
-                    if distance_to_player <= CORNERED_DISTANCE {
+                    if distance_to_player <= cornered_distance {
                         // Player got too close while fleeing - turn and fight!
-                        animal.state = AnimalState::Chasing;
-                        animal.target_player_id = Some(player.identity);
+                        super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "cornered while fleeing");
                         animal.investigation_x = None; // Clear flee destination
                         animal.investigation_y = None;
-                        animal.state_change_time = current_time;
+                        
+                        // 🔊 FOX GROWL: Emit desperate growl when cornered while fleeing
+                        super::core::emit_species_sound(ctx, animal, player.identity, "cornered_fleeing");
+                        
                         log::info!("Fox {} CORNERED while fleeing! Turning to attack player {} at {:.1}px", 
                                    animal.id, player.identity, distance_to_player);
                         return Ok(()); // Exit early to start chasing
@@ -262,8 +228,7 @@ impl AnimalBehavior for CinderFoxBehavior {
                     if distance_to_target_sq <= 50.0 * 50.0 { // Reached flee destination
                         animal.investigation_x = None;
                         animal.investigation_y = None;
-                        animal.state = AnimalState::Patrolling;
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "reached flee destination");
                         log::debug!("Fox {} reached flee destination, continuing patrol", animal.id);
                     }
                 } else {
@@ -273,8 +238,7 @@ impl AnimalBehavior for CinderFoxBehavior {
                     
                     // Return to patrol after timeout (removed spawn distance check)
                     if time_since_flee > 3_000_000 { // 3 seconds timeout
-                        animal.state = AnimalState::Patrolling;
-                        animal.state_change_time = current_time;
+                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "flee timeout");
                         log::debug!("Fox {} flee timeout - continuing patrol", animal.id);
                     }
                 }

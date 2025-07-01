@@ -58,6 +58,7 @@ import { useArrowBreakEffects } from '../hooks/useArrowBreakEffects';
 import { useThunderEffects } from '../hooks/useThunderEffects';
 import { useFireArrowParticles } from '../hooks/useFireArrowParticles';
 import { useWorldTileCache } from '../hooks/useWorldTileCache';
+import { useAmbientSounds } from '../hooks/useAmbientSounds';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -162,6 +163,8 @@ interface GameCanvasProps {
   barrels: Map<string, SpacetimeDBBarrel>; // Add barrels
   seaStacks: Map<string, any>; // Add sea stacks
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  // Add ambient sound volume control
+  environmentalVolume?: number; // 0-1 scale for ambient/environmental sounds
 }
 
 /**
@@ -225,6 +228,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   barrels,
   seaStacks,
   setMusicPanelVisible,
+  environmentalVolume,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -640,6 +644,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const resourceSparkleParticles = useResourceSparkleParticles({
     harvestableResources: visibleHarvestableResourcesMap,
   });
+
+  // 🌊 AMBIENT SOUND SYSTEM - Seamless atmospheric audio for the Aleutian island
+  const ambientSoundSystem = useAmbientSounds({
+    masterVolume: 1.0, // Master volume (could be made configurable later)
+    environmentalVolume: environmentalVolume ?? 0.7, // Use environmental volume from settings or default
+    timeOfDay: worldState?.timeOfDay, // Pass actual server time of day
+    weatherCondition: worldState?.currentWeather, // Pass actual server weather condition
+  });
+
+  // 🧪 DEBUG: Expose ambient sound test function to window for debugging
+  React.useEffect(() => {
+    (window as any).testAmbientVariants = ambientSoundSystem.testAllVariants;
+    return () => {
+      delete (window as any).testAmbientVariants;
+    };
+  }, [ambientSoundSystem.testAllVariants]);
 
   // Simple particle renderer function
   const renderParticlesToCanvas = (ctx: CanvasRenderingContext2D, particles: any[]) => {

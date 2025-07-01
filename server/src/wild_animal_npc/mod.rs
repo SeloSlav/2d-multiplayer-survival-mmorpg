@@ -5,6 +5,7 @@ pub mod core;
 pub mod fox;
 pub mod wolf;
 pub mod viper;
+pub mod walrus;
 pub mod respawn;
 pub mod animal_corpse;
 
@@ -15,6 +16,7 @@ pub use core::*;
 pub use fox::FoxBehavior;
 pub use wolf::WolfBehavior;
 pub use viper::ViperBehavior;
+pub use walrus::WalrusBehavior;
 
 // Re-export animal corpse functionality
 pub use animal_corpse::*; 

@@ -38,6 +38,7 @@ export namespace AnimalSpecies {
   export type CinderFox = { tag: "CinderFox" };
   export type TundraWolf = { tag: "TundraWolf" };
   export type CableViper = { tag: "CableViper" };
+  export type ArcticWalrus = { tag: "ArcticWalrus" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -48,12 +49,14 @@ export namespace AnimalSpecies {
   export const CinderFox = { tag: "CinderFox" };
   export const TundraWolf = { tag: "TundraWolf" };
   export const CableViper = { tag: "CableViper" };
+  export const ArcticWalrus = { tag: "ArcticWalrus" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
       new SumTypeVariant("CinderFox", AlgebraicType.createProductType([])),
       new SumTypeVariant("TundraWolf", AlgebraicType.createProductType([])),
       new SumTypeVariant("CableViper", AlgebraicType.createProductType([])),
+      new SumTypeVariant("ArcticWalrus", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -68,7 +71,7 @@ export namespace AnimalSpecies {
 }
 
 // The tagged union or sum type for the algebraic type `AnimalSpecies`.
-export type AnimalSpecies = AnimalSpecies.CinderFox | AnimalSpecies.TundraWolf | AnimalSpecies.CableViper;
+export type AnimalSpecies = AnimalSpecies.CinderFox | AnimalSpecies.TundraWolf | AnimalSpecies.CableViper | AnimalSpecies.ArcticWalrus;
 
 export default AnimalSpecies;
 

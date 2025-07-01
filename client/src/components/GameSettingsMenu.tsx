@@ -1,6 +1,13 @@
 import React from 'react';
 import styles from './MenuComponents.module.css';
 
+// Default audio settings based on optimal neural processing thresholds
+export const DEFAULT_AUDIO_SETTINGS = {
+    musicVolume: 0.25,        // 25% - Neural Harmony Levels (Cortical Music Enhancement)
+    soundVolume: 0.50,        // 50% - Haptic Feedback Matrix (Neural Action Response)
+    environmentalVolume: 1.00 // 100% - Atmospheric Sensors (Environmental Analysis)
+} as const;
+
 interface GameSettingsMenuProps {
     onBack: () => void;
     onClose: () => void;

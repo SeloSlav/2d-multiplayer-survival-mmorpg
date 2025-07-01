@@ -62,6 +62,7 @@ export type WildAnimal = {
   isPackLeader: boolean,
   packJoinTime: Timestamp | undefined,
   lastPackCheck: Timestamp | undefined,
+  fireFearOverriddenBy: Identity | undefined,
 };
 
 /**
@@ -101,6 +102,7 @@ export namespace WildAnimal {
       new ProductTypeElement("isPackLeader", AlgebraicType.createBoolType()),
       new ProductTypeElement("packJoinTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastPackCheck", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("fireFearOverriddenBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
     ]);
   }
 

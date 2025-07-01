@@ -15,47 +15,47 @@
  */
 
 // server/src/environment.rs
-use spacetimedb::{ReducerContext, Table, Timestamp};
-use crate::{WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TILE_SIZE_PX, WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES};
+use spacetimedb::{ReducerContext, Table, Timestamp, Identity, ScheduleAt};
+use crate::{
+    tree::Tree,
+    stone::Stone, 
+    sea_stack::{SeaStack, SeaStackVariant},
+    TileType, WorldTile,
+    harvestable_resource::{self, HarvestableResource},
+    grass::{Grass, GrassAppearanceType},
+    wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern, WildAnimal},
+    cloud::{Cloud, CloudUpdateSchedule, CloudShapeType, CloudType},
+    barrel,
+    plants_database,
+    items::ItemDefinition,
+    utils::*,
+    WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TILE_SIZE_PX,
+    PLAYER_RADIUS,
+};
+use log;
 
-// Import resource modules
-use crate::tree;
-use crate::stone;
-use crate::harvestable_resource;
-use crate::plants_database; // Import plant database
-use crate::cloud;
-use crate::grass;
-
-// Import table traits needed for ctx.db access
+// Import table traits
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
-use crate::items::ItemDefinition;
-use crate::cloud::{Cloud, CloudShapeType, CloudUpdateSchedule};
-use crate::utils::*;
 use crate::cloud::cloud as CloudTableTrait;
 use crate::cloud::cloud_update_schedule as CloudUpdateScheduleTableTrait;
 use crate::grass::grass as GrassTableTrait;
-use crate::world_tile as WorldTileTableTrait; // Added for tile checking
-use crate::{TileType, WorldTile}; // Added for tile type checking
-use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait; // Added for wild animals
-use crate::wild_animal_npc::{AnimalSpecies, AnimalState, MovementPattern}; // Added for wild animal types
-use crate::wild_animal_npc::core::AnimalBehavior; // Added AnimalBehavior trait
-use crate::barrel; // Added barrel system for roadside loot
-use crate::barrel::barrel as BarrelTableTrait; // Added barrel table trait
-use crate::world_state::world_state as WorldStateTableTrait; // Added for seasonal respawn system
-use crate::sea_stack::sea_stack as SeaStackTableTrait; // Added for sea stack table
-use crate::sea_stack::{SeaStack, SeaStackVariant}; // Added for sea stack generation
+use crate::world_tile as WorldTileTableTrait;
+use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
+use crate::wild_animal_npc::core::AnimalBehavior;
+use crate::barrel::barrel as BarrelTableTrait;
+use crate::world_state::world_state as WorldStateTableTrait;
+use crate::sea_stack::sea_stack as SeaStackTableTrait;
 
 // Import utils helpers and macro
 use crate::utils::{calculate_tile_bounds, attempt_single_spawn};
-use crate::check_and_respawn_resource; // Import the macro
+use crate::check_and_respawn_resource;
 
 use noise::{NoiseFn, Perlin, Fbm};
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use std::collections::HashSet;
-use log;
 
 // --- Sea Stack Constants ---
 const SEA_STACK_DENSITY_PERCENT: f32 = 0.0012; // 0.12% of tiles - spawns on ocean water tiles
@@ -498,6 +498,41 @@ pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y:
             
             // REMOVED: Complex terrain preference logic - vipers can spawn anywhere suitable like before
             true // Accept any suitable land tile
+        }
+        
+        AnimalSpecies::ArcticWalrus => {
+            // 🦭 WALRUS BEACH REQUIREMENT: Must spawn on beach tiles or coastal areas
+            if matches!(tile_type, TileType::Beach) {
+                return true; // Perfect beach habitat
+            }
+            
+            // Also allow coastal areas (grass/dirt adjacent to water)
+            if matches!(tile_type, TileType::Grass | TileType::Dirt) {
+                // Check if adjacent to water or beach (within 1 tile)
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        if dx == 0 && dy == 0 { continue; }
+                        
+                        let check_x = tile_x + dx;
+                        let check_y = tile_y + dy;
+                        
+                        // Check bounds
+                        if check_x < 0 || check_y < 0 || 
+                           check_x >= WORLD_WIDTH_TILES as i32 || check_y >= WORLD_HEIGHT_TILES as i32 {
+                            continue;
+                        }
+                        
+                        // Check if adjacent tile is water or beach
+                        for adjacent_tile in world_tiles.idx_world_position().filter((check_x, check_y)) {
+                            if matches!(adjacent_tile.tile_type, TileType::Sea | TileType::Beach) {
+                                return true; // Coastal area suitable for walrus
+                            }
+                        }
+                    }
+                }
+            }
+            
+            false // Not on beach or coastal area
         }
     }
 }
@@ -1051,9 +1086,10 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     
     // Define species distribution (weighted probabilities)
     let species_weights = [
-        (AnimalSpecies::CinderFox, 50),    // 50% - Most common
-        (AnimalSpecies::TundraWolf, 30),   // 30% - Moderately common  f
-        (AnimalSpecies::CableViper, 20),   // 20% - Least common
+        (AnimalSpecies::CinderFox, 40),      // 40% - Most common
+        (AnimalSpecies::TundraWolf, 30),     // 30% - Moderately common
+        (AnimalSpecies::CableViper, 20),     // 20% - Uncommon
+        (AnimalSpecies::ArcticWalrus, 10),   // 10% - Rare (beaches only)
     ];
     let total_weight: u32 = species_weights.iter().map(|(_, weight)| weight).sum();
     
@@ -1106,7 +1142,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         // Block spawning on water, in central compound, or unsuitable terrain for the species
         if is_position_on_water(ctx, pos_x, pos_y) || 
            is_position_in_central_compound(pos_x, pos_y) ||
-           !validate_spawn_location(ctx, pos_x, pos_y, &plants_database::SpawnCondition::Forest, &[], &[]) {
+           !is_wild_animal_location_suitable(ctx, pos_x, pos_y, chosen_species, &spawned_tree_positions) {
             continue;
         }
         
@@ -1169,54 +1205,141 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         let perception_range = stats.perception_range;
         let attack_damage = stats.attack_damage;
         
-        let new_animal = crate::wild_animal_npc::WildAnimal {
-            id: 0, // auto_inc
-            species: chosen_species,
-            pos_x,
-            pos_y,
-            direction_x: 0.0,
-            direction_y: 1.0,
-            facing_direction: "left".to_string(), // Default facing direction
-            state: AnimalState::Patrolling,
-            health: max_health as f32,
-            spawn_x: pos_x,
-            spawn_y: pos_y,
-            target_player_id: None,
-            last_attack_time: None,
-            state_change_time: ctx.timestamp,
-            hide_until: None,
-            investigation_x: None,
-            investigation_y: None,
-            patrol_phase: 0.0,
-            scent_ping_timer: 0,
-            movement_pattern: MovementPattern::Loop, // Default pattern
-            chunk_index: chunk_idx,
-            created_at: ctx.timestamp,
-            last_hit_time: None,
-            
-            // Initialize pack fields - animals start solo
-            pack_id: None,
-            is_pack_leader: false,
-            pack_join_time: None,
-            last_pack_check: None,
+        // WALRUS GROUP SPAWNING: Spawn multiple walruses together
+        let walrus_group_size = if chosen_species == AnimalSpecies::ArcticWalrus {
+            rng.gen_range(3..=6) // Spawn 3-6 walruses per group
+        } else {
+            1 // All other animals spawn alone
         };
+        
+        let mut walrus_positions = Vec::new();
+        walrus_positions.push((pos_x, pos_y)); // Include the main spawn position
+        
+        // If spawning multiple walruses, generate additional positions nearby
+        if walrus_group_size > 1 {
+            for _ in 1..walrus_group_size {
+                let mut attempts = 0;
+                let max_attempts = 20;
+                
+                while attempts < max_attempts {
+                    attempts += 1;
+                    
+                    // Generate position within 30-60 pixels of the main spawn point
+                    let angle = rng.gen::<f32>() * 2.0 * std::f32::consts::PI;
+                    let distance = rng.gen_range(30.0..60.0);
+                    let group_pos_x = pos_x + (angle.cos() * distance);
+                    let group_pos_y = pos_y + (angle.sin() * distance);
+                    
+                    // Check boundaries
+                    if group_pos_x < PLAYER_RADIUS || group_pos_x > WORLD_WIDTH_PX - PLAYER_RADIUS ||
+                       group_pos_y < PLAYER_RADIUS || group_pos_y > WORLD_HEIGHT_PX - PLAYER_RADIUS {
+                        continue;
+                    }
+                    
+                    // Check if suitable for walrus spawning
+                    if is_position_on_water(ctx, group_pos_x, group_pos_y) || 
+                       is_position_in_central_compound(group_pos_x, group_pos_y) ||
+                       !is_wild_animal_location_suitable(ctx, group_pos_x, group_pos_y, chosen_species, &spawned_tree_positions) {
+                        continue;
+                    }
+                    
+                    // Check distance from other walruses in this group (minimum 25px apart)
+                    let mut too_close_to_group_member = false;
+                    for &(other_x, other_y) in &walrus_positions {
+                        let dx = group_pos_x - other_x;
+                        let dy = group_pos_y - other_y;
+                        if dx * dx + dy * dy < (25.0 * 25.0) {
+                            too_close_to_group_member = true;
+                            break;
+                        }
+                    }
+                    if too_close_to_group_member {
+                        continue;
+                    }
+                    
+                    // Check distance from existing animals outside this group
+                    let mut too_close_to_other_animal = false;
+                    for &(other_x, other_y) in &spawned_wild_animal_positions {
+                        let dx = group_pos_x - other_x;
+                        let dy = group_pos_y - other_y;
+                        if dx * dx + dy * dy < (80.0 * 80.0) { // Reduced from 150 for group members
+                            too_close_to_other_animal = true;
+                            break;
+                        }
+                    }
+                    if too_close_to_other_animal {
+                        continue;
+                    }
+                    
+                    // Position is valid, add to group
+                    walrus_positions.push((group_pos_x, group_pos_y));
+                    break;
+                }
+            }
+        }
+        
+        log::info!("Spawning {} {:?} at position ({:.1}, {:.1})", 
+                  walrus_positions.len(), chosen_species, pos_x, pos_y);
+        
+        // Spawn all animals in the group
+        let mut group_spawn_success = true;
+        for (i, &(spawn_x, spawn_y)) in walrus_positions.iter().enumerate() {
+            let new_animal = crate::wild_animal_npc::WildAnimal {
+                id: 0, // auto_inc
+                species: chosen_species,
+                pos_x: spawn_x,
+                pos_y: spawn_y,
+                direction_x: 0.0,
+                direction_y: 1.0,
+                facing_direction: "left".to_string(), // Default facing direction
+                state: AnimalState::Patrolling,
+                health: max_health as f32,
+                spawn_x: spawn_x,
+                spawn_y: spawn_y,
+                target_player_id: None,
+                last_attack_time: None,
+                state_change_time: ctx.timestamp,
+                hide_until: None,
+                investigation_x: None,
+                investigation_y: None,
+                patrol_phase: 0.0,
+                scent_ping_timer: 0,
+                movement_pattern: MovementPattern::Loop, // Default pattern
+                chunk_index: chunk_idx,
+                created_at: ctx.timestamp,
+                last_hit_time: None,
+                
+                // Initialize pack fields - animals start solo
+                pack_id: None,
+                is_pack_leader: false,
+                pack_join_time: None,
+                last_pack_check: None,
+                
+                // Fire fear override tracking
+                fire_fear_overridden_by: None,
+            };
 
-        match ctx.db.wild_animal().try_insert(new_animal) {
-            Ok(inserted_animal) => {
-                occupied_tiles.insert((tile_x, tile_y));
-                spawned_wild_animal_positions.push((pos_x, pos_y));
-                spawned_wild_animal_count += 1;
-                
-                // Update chunk animal count
-                animals_per_chunk_map.insert(chunk_idx, current_animals_in_chunk + 1);
-                
-                log::info!("Spawned {:?} #{} at ({:.1}, {:.1}) in chunk {} [{}/{}]", 
-                          chosen_species, inserted_animal.id, pos_x, pos_y, chunk_idx, 
-                          current_animals_in_chunk + 1, max_animals_per_chunk);
+            match ctx.db.wild_animal().try_insert(new_animal) {
+                Ok(inserted_animal) => {
+                    spawned_wild_animal_positions.push((spawn_x, spawn_y));
+                    spawned_wild_animal_count += 1;
+                    
+                    log::info!("Spawned {:?} #{} at ({:.1}, {:.1}) [group member {}/{}]", 
+                              chosen_species, inserted_animal.id, spawn_x, spawn_y, i + 1, walrus_positions.len());
+                }
+                Err(e) => {
+                    log::warn!("Failed to insert {:?} group member {} at ({:.1}, {:.1}): {}. Skipping this animal.", 
+                              chosen_species, i + 1, spawn_x, spawn_y, e);
+                    group_spawn_success = false;
+                    break;
+                }
             }
-            Err(e) => {
-                log::warn!("Failed to insert wild animal (attempt {}): {}. Skipping this animal.", wild_animal_attempts, e);
-            }
+        }
+        
+        if group_spawn_success {
+            occupied_tiles.insert((tile_x, tile_y));
+            // Update chunk animal count (count the whole group as one "spawn event")
+            animals_per_chunk_map.insert(chunk_idx, current_animals_in_chunk + 1);
         }
     }
     log::info!(

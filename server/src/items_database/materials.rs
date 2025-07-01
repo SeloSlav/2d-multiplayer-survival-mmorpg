@@ -138,6 +138,11 @@ pub fn get_material_definitions() -> Vec<ItemDefinition> {
             .icon("viper_scale.png")
             .build(),
 
+        // Animal Leather - Universal leather resource
+        basic_material("Animal Leather", "Processed leather from various animal hides. A versatile material for crafting clothing, armor, and equipment.", 50)
+            .icon("animal_leather.png")
+            .build(),
+
         // NOTE: Animal skulls (Fox, Wolf, Viper) moved to weapons.rs as they are weapons like Human Skull
 
     ]

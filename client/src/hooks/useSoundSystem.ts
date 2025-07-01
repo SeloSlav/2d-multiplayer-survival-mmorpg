@@ -58,6 +58,10 @@ const SOUND_DEFINITIONS = {
     stop_bandaging: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.0, maxDistance: 300 }, // Stop bandaging sound
     barrel_hit: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 600 }, // Barrel hit sound
     barrel_destroyed: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 700 }, // Barrel destroyed sound
+    // Animal growl sounds - when animals detect and approach players
+    growl_wolf: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 800 }, // Wolf growl when starting to chase
+    growl_fox: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 650 }, // Fox growl when starting to attack
+    growl_snake: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 700 }, // Snake/viper growl when approaching
     // UI/Item interaction sounds - immediate (no server sync needed)
     crush_bones: { strategy: SoundStrategy.IMMEDIATE, volume: 1.2 }, // Local client sound
 } as const;
@@ -222,6 +226,9 @@ const PRELOAD_SOUNDS = [
     'bandaging.mp3',                                        // 1 bandaging variation
     'barrel_hit.mp3',                                       // 1 barrel hit variation
     'barrel_destroyed.mp3',                                 // 1 barrel destroyed variation
+    'growl_wolf.mp3',                                       // 1 wolf growl variation
+    'growl_fox.mp3',                                        // 1 fox growl variation
+    'growl_snake.mp3',                                      // 1 snake growl variation
 ] as const;
 
 // Enhanced audio loading with error handling and performance monitoring
@@ -435,6 +442,12 @@ const playLocalSound = async (
                 variationCount = 1; // barrel_hit.mp3
             } else if (soundType === 'barrel_destroyed') {
                 variationCount = 1; // barrel_destroyed.mp3
+            } else if (soundType === 'growl_wolf') {
+                variationCount = 1; // growl_wolf.mp3
+            } else if (soundType === 'growl_fox') {
+                variationCount = 1; // growl_fox.mp3
+            } else if (soundType === 'growl_snake') {
+                variationCount = 1; // growl_snake.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);

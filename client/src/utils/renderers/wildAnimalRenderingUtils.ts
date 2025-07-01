@@ -64,6 +64,8 @@ function getAnimalImageName(species: AnimalSpecies): string {
             return 'tundra_wolf.png';
         case 'CableViper':
             return 'cable_viper.png';
+        case 'ArcticWalrus':
+            return 'walrus.png';
         default:
             return 'cinder_fox.png';
     }

@@ -180,33 +180,39 @@ pub fn has_player_barrel_collision(ctx: &ReducerContext, pos_x: f32, pos_y: f32)
 /// Guarantees 1-3 items will drop (100% chance for at least one item)
 fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_pos_y: f32) -> Result<(), String> {
     let loot_table = get_barrel_loot_table(ctx);
-    let mut drops_created = 0;
     const MAX_DROPS_PER_BARREL: usize = 3;
     
     log::info!("[BarrelLoot] Generating loot drops for barrel at ({:.1}, {:.1})", barrel_pos_x, barrel_pos_y);
     
-    // Track which items have dropped to avoid duplicates
-    let mut dropped_items = Vec::new();
+    // FIXED: Roll for ALL items first, then randomly select from successful rolls
+    let mut successful_rolls = Vec::new();
     
-    // Roll for each item in the loot table
+    // Roll for every item in the loot table (no early breaks!)
     for loot_entry in &loot_table {
-        // Stop if we've reached max drops
-        if drops_created >= MAX_DROPS_PER_BARREL {
-            break;
-        }
-        
-        // Check if this item should drop based on chance
         let roll: f32 = ctx.rng().gen();
-        if roll > loot_entry.drop_chance {
-            continue; // This item doesn't drop
+        if roll <= loot_entry.drop_chance {
+            successful_rolls.push(loot_entry);
         }
-        
-        dropped_items.push(loot_entry);
-        drops_created += 1;
     }
     
+    log::info!("[BarrelLoot] {} items passed their drop chance rolls", successful_rolls.len());
+    
+    // If we have more successful rolls than max drops, randomly select which ones to actually drop
+    let mut items_to_drop = if successful_rolls.len() <= MAX_DROPS_PER_BARREL {
+        // All successful rolls can drop
+        successful_rolls.clone()
+    } else {
+        // Randomly select MAX_DROPS_PER_BARREL items from successful rolls
+        use rand::seq::SliceRandom;
+        let mut rng = ctx.rng();
+        let mut shuffled = successful_rolls.clone();
+        shuffled.shuffle(&mut rng);
+        shuffled.truncate(MAX_DROPS_PER_BARREL);
+        shuffled
+    };
+    
     // GUARANTEE: If no items rolled to drop, force drop a common item
-    if dropped_items.is_empty() {
+    if items_to_drop.is_empty() {
         log::info!("[BarrelLoot] No items rolled to drop, forcing a guaranteed common item drop");
         
         // Find a common tier item (highest drop chances) to guarantee
@@ -215,21 +221,22 @@ fn generate_barrel_loot_drops(ctx: &ReducerContext, barrel_pos_x: f32, barrel_po
             .next();
             
         if let Some(guaranteed_item) = fallback_item {
-            dropped_items.push(guaranteed_item);
-            drops_created = 1;
+            items_to_drop.push(guaranteed_item);
             log::info!("[BarrelLoot] Guaranteed drop: item {}", guaranteed_item.item_def_id);
         } else {
             // Ultimate fallback - use the first item in the table
             if let Some(first_item) = loot_table.first() {
-                dropped_items.push(first_item);
-                drops_created = 1;
+                items_to_drop.push(first_item);
                 log::warn!("[BarrelLoot] Using first item as guaranteed drop: item {}", first_item.item_def_id);
             }
         }
     }
     
+    let drops_created = items_to_drop.len();
+    log::info!("[BarrelLoot] Selected {} items to drop from {} successful rolls", drops_created, successful_rolls.len());
+    
     // Create the actual dropped items
-    for (index, loot_entry) in dropped_items.iter().enumerate() {
+    for (index, loot_entry) in items_to_drop.iter().enumerate() {
         // Determine quantity
         let quantity = if loot_entry.min_quantity == loot_entry.max_quantity {
             loot_entry.min_quantity

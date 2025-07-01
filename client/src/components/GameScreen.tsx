@@ -804,6 +804,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 rainCollectors={rainCollectors}
                 waterPatches={waterPatches}
                 setMusicPanelVisible={setIsMusicPanelVisible}
+                environmentalVolume={props.environmentalVolume}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

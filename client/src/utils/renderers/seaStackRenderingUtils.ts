@@ -59,7 +59,7 @@ function preloadSeaStackImages(): void {
       
       if (loadedCount === totalImages) {
         imagesLoaded = true;
-        console.log('[SeaStacks] All images pre-loaded successfully');
+        // console.log('[SeaStacks] All images pre-loaded successfully');
       }
     };
     img.onerror = () => {
@@ -68,7 +68,7 @@ function preloadSeaStackImages(): void {
       
       if (loadedCount === totalImages) {
         imagesLoaded = preloadedImages.length > 0; // Only mark loaded if we have at least one image
-        console.log(`[SeaStacks] Image loading completed with ${preloadedImages.length}/${totalImages} successful`);
+        //console.log(`[SeaStacks] Image loading completed with ${preloadedImages.length}/${totalImages} successful`);
       }
     };
     img.src = imageSrc;
@@ -101,16 +101,16 @@ function getImageContourAtLevel(
   canvas.width = width;
   canvas.height = height;
   
+  // Set willReadFrequently for better performance BEFORE any getImageData calls
+  ctx.canvas.setAttribute('willReadFrequently', 'true');
+  
   // Draw the image to analyze its pixels
   ctx.drawImage(image, 0, 0, width, height);
   
   let widestContour: number[] = [];
   let maxWidth = 0;
   
-  // Set willReadFrequently for better performance
-  ctx.canvas.setAttribute('willReadFrequently', 'true');
-  
-  console.log(`[SeaStacks] Image dimensions: ${width}x${height}`);
+  // console.log(`[SeaStacks] Image dimensions: ${width}x${height}`);
   
   // First pass: scan entire image to see what alpha values we actually have
   let minAlpha = null, maxAlpha = null, totalPixels = 0, opaquePixels = 0;
@@ -137,21 +137,21 @@ function getImageContourAtLevel(
   
   // Fallback if no valid alpha values found
   if (minAlpha === null || maxAlpha === null) {
-    console.log(`[SeaStacks] Could not read alpha values, using fallback`);
+    // console.log(`[SeaStacks] Could not read alpha values, using fallback`);
     minAlpha = 0;
     maxAlpha = 255;
   }
   
-  console.log(`[SeaStacks] Alpha range: ${minAlpha}-${maxAlpha}, ${opaquePixels}/${totalPixels} pixels have alpha > 0`);
+  // console.log(`[SeaStacks] Alpha range: ${minAlpha}-${maxAlpha}, ${opaquePixels}/${totalPixels} pixels have alpha > 0`);
   
   // Use a simple threshold that should work
   const alphaThreshold = 30; // Fixed threshold that should catch solid pixels
-  console.log(`[SeaStacks] Using alpha threshold: ${alphaThreshold}`);
+  // console.log(`[SeaStacks] Using alpha threshold: ${alphaThreshold}`);
   
     // Scan the image for contours, focusing on the bottom portion where sea stacks are widest
   const startY = Math.floor(height * 0.2); // Start from 20% down
   const endY = Math.floor(height * 0.98);  // Scan almost to the very bottom (98%)
-  console.log(`[SeaStacks] Scanning rows ${startY} to ${endY}`);
+  // console.log(`[SeaStacks] Scanning rows ${startY} to ${endY}`);
   
   let rowsWithPixels = 0;
   let debugRowCount = 0;
@@ -180,12 +180,12 @@ function getImageContourAtLevel(
       
       // Debug first few rows
       if (debugRowCount < 3 && pixelsInRow > 0) {
-        console.log(`[SeaStacks] Row ${y} debug: ${pixelsInRow} pixels with alpha>0, left=${leftEdge}, right=${rightEdge}, threshold=${alphaThreshold}`);
+        // console.log(`[SeaStacks] Row ${y} debug: ${pixelsInRow} pixels with alpha>0, left=${leftEdge}, right=${rightEdge}, threshold=${alphaThreshold}`);
         // Sample a few pixel values
         for (let x = 0; x < Math.min(width, 10); x++) {
           const alpha = data[x * 4 + 3];
           if (alpha > 0) {
-            console.log(`[SeaStacks] Pixel at (${x}, ${y}) has alpha=${alpha}`);
+            // console.log(`[SeaStacks] Pixel at (${x}, ${y}) has alpha=${alpha}`);
           }
         }
         debugRowCount++;
@@ -199,7 +199,7 @@ function getImageContourAtLevel(
           maxWidth = contourWidth;
           widestContour = [];
           
-          console.log(`[SeaStacks] New widest contour at Y=${y}: width=${contourWidth}, left=${leftEdge}, right=${rightEdge}, pixelsInRow=${pixelsInRow}`);
+          // console.log(`[SeaStacks] New widest contour at Y=${y}: width=${contourWidth}, left=${leftEdge}, right=${rightEdge}, pixelsInRow=${pixelsInRow}`);
           
           // Create contour points every 2 pixels for performance
           for (let x = leftEdge; x <= rightEdge; x += 2) {
@@ -212,13 +212,13 @@ function getImageContourAtLevel(
     }
   }
   
-  console.log(`[SeaStacks] Found ${rowsWithPixels} rows with pixels out of ${Math.floor((endY - startY) / 2)} scanned rows`);
+  // console.log(`[SeaStacks] Found ${rowsWithPixels} rows with pixels out of ${Math.floor((endY - startY) / 2)} scanned rows`);
     
-    console.log(`[SeaStacks] Final contour: width=${maxWidth}, points=${widestContour.length}`);
+    // console.log(`[SeaStacks] Final contour: width=${maxWidth}, points=${widestContour.length}`);
     
     // If still no contour found, try a more aggressive approach
     if (maxWidth === 0) {
-      console.log(`[SeaStacks] No contour found with threshold ${alphaThreshold}, trying lower threshold`);
+      // console.log(`[SeaStacks] No contour found with threshold ${alphaThreshold}, trying lower threshold`);
       
       // Try with a much lower threshold
       const lowThreshold = 5;
@@ -250,7 +250,7 @@ function getImageContourAtLevel(
             if (contourWidth > maxWidth) {
               maxWidth = contourWidth;
               widestContour = [];
-              console.log(`[SeaStacks] Found contour with low threshold at Y=${y}: width=${contourWidth}`);
+              // console.log(`[SeaStacks] Found contour with low threshold at Y=${y}: width=${contourWidth}`);
               for (let x = leftEdge; x <= rightEdge; x += 2) {
                 widestContour.push(x - width / 2);
               }
@@ -271,7 +271,7 @@ function getImageContourAtLevel(
     for (let x = -fallbackWidth / 2; x <= fallbackWidth / 2; x += 6) { // Smaller increments for better coverage
       widestContour.push(x);
     }
-    console.log(`[SeaStacks] Using fallback width: ${fallbackWidth} (${widestContour.length} points)`);
+    // console.log(`[SeaStacks] Using fallback width: ${fallbackWidth} (${widestContour.length} points)`);
   }
   
   // Cache the result

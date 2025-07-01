@@ -40,6 +40,11 @@ pub enum SoundType {
     StopBandaging,  // Special signal to stop bandaging sound
     BarrelHit,      // barrel_hit.mp3 (1 variation - when barrels are hit but not destroyed)
     BarrelDestroyed, // barrel_destroyed.mp3 (1 variation - when barrels are destroyed)
+    // Animal growl sounds - when animals detect and approach players
+    GrowlWolf,      // growl_wolf.mp3 (1 variation - when wolves start chasing)
+    GrowlFox,       // growl_fox.mp3 (1 variation - when foxes start attacking)
+    GrowlSnake,     // growl_snake.mp3 (1 variation - when vipers start approaching)
+    GrowlWalrus,    // growl_walrus.mp3 (2 variations - when walruses are disturbed)
     // Add more as needed - extensible system
 }
 
@@ -81,6 +86,10 @@ impl SoundType {
             SoundType::StopBandaging => "stop_bandaging",
             SoundType::BarrelHit => "barrel_hit",
             SoundType::BarrelDestroyed => "barrel_destroyed",
+            SoundType::GrowlWolf => "growl_wolf",
+            SoundType::GrowlFox => "growl_fox",
+            SoundType::GrowlSnake => "growl_snake",
+            SoundType::GrowlWalrus => "growl_walrus",
         }
     }
 
@@ -121,6 +130,10 @@ impl SoundType {
             SoundType::StopBandaging => 1,
             SoundType::BarrelHit => 1,
             SoundType::BarrelDestroyed => 1,
+            SoundType::GrowlWolf => 1,
+            SoundType::GrowlFox => 1,
+            SoundType::GrowlSnake => 1,
+            SoundType::GrowlWalrus => 2,
         }
     }
 
@@ -502,6 +515,26 @@ pub fn emit_barrel_hit_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, playe
 /// Emit a barrel destroyed sound (when barrels are completely destroyed)
 pub fn emit_barrel_destroyed_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     let _ = emit_sound_at_position_with_distance(ctx, SoundType::BarrelDestroyed, pos_x, pos_y, 1.3, 700.0, player_id);
+}
+
+/// Emit a wolf growl sound (when wolves detect and start chasing players)
+pub fn emit_wolf_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::GrowlWolf, pos_x, pos_y, 1.2, 800.0, player_id);
+}
+
+/// Emit a fox growl sound (when foxes detect and start attacking players)
+pub fn emit_fox_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::GrowlFox, pos_x, pos_y, 1.0, 650.0, player_id);
+}
+
+/// Emit a snake/viper growl sound (when vipers detect and start approaching players)
+pub fn emit_snake_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::GrowlSnake, pos_x, pos_y, 1.1, 700.0, player_id);
+}
+
+/// Emit a walrus growl sound (when walruses are disturbed or patrolling)
+pub fn emit_walrus_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::GrowlWalrus, pos_x, pos_y, 1.3, 1000.0, player_id);
 }
 
 /// Emit a global sound that plays to all clients at full volume regardless of position

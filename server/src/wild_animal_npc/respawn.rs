@@ -262,6 +262,9 @@ fn spawn_animal(
         is_pack_leader: false,
         pack_join_time: None,
         last_pack_check: None,
+        
+        // Fire fear override tracking
+        fire_fear_overridden_by: None,
     };
     
     // Attempt to spawn the animal
