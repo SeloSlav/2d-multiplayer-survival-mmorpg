@@ -14,9 +14,9 @@ const SEA_STACK_CONFIG = {
 // Water line effect constants
 const WATER_LINE_CONFIG = {
   HEIGHT_OFFSET: 55, // How high up from the base to place the water line (increased to 55 for better gradient coverage)
-  WAVE_AMPLITUDE: 2, // How much the water line moves up/down (reduced for more subtle effect)
-  WAVE_FREQUENCY: 0.002, // Speed of wave animation (slower for more realistic)
-  SHIMMER_FREQUENCY: 0.005, // Speed of shimmer effect
+  WAVE_AMPLITUDE: 1.5, // How much the water line moves up/down (even more subtle for cozy feel)
+  WAVE_FREQUENCY: 0.0008, // Much slower for cozy, atmospheric feel (was 0.002)
+  SHIMMER_FREQUENCY: 0.002, // Slower shimmer for atmospheric feel (was 0.005)
   UNDERWATER_TINT: 'rgba(12, 62, 79, 0.6)', // Dark blue underwater tint using #0C3E4F
   CONTOUR_SAMPLE_DENSITY: 4, // Sample every 4 pixels for contour detection
 };
@@ -77,7 +77,7 @@ function preloadSeaStackImages(): void {
 
 /**
  * Analyzes image pixels to find the widest contour near the base
- * Samples multiple Y levels to ensure we get the full width
+ * Samples multiple Y levels to ensure we get the full width, including the very bottom
  * Returns an array of X positions where the image has content (not transparent)
  */
 function getImageContourAtLevel(
@@ -107,51 +107,171 @@ function getImageContourAtLevel(
   let widestContour: number[] = [];
   let maxWidth = 0;
   
-  // Sample multiple Y levels around the water line to find the widest part
-  const baseY = height - WATER_LINE_CONFIG.HEIGHT_OFFSET;
-  const scanRange = 25; // Scan 25 pixels above and below the water line (increased for higher water line)
+  // Set willReadFrequently for better performance
+  ctx.canvas.setAttribute('willReadFrequently', 'true');
   
-  for (let yOffset = -scanRange; yOffset <= scanRange; yOffset += 3) {
-    const checkY = baseY + yOffset;
-    
-    if (checkY >= 0 && checkY < height) {
-      try {
-        const imageData = ctx.getImageData(0, checkY, width, 1);
-        const data = imageData.data;
-        
-        const currentContour: number[] = [];
-        
-        // Sample across the width to find where the image has content
-        for (let x = 0; x < width; x += 2) { // Sample every 2 pixels for better coverage
-          const pixelIndex = x * 4; // RGBA
-          const alpha = data[pixelIndex + 3]; // Alpha channel
-          
-          if (alpha > 5) { // Not transparent (low threshold to catch edges)
-            currentContour.push(x - width / 2); // Convert to centered coordinates
-          }
+  console.log(`[SeaStacks] Image dimensions: ${width}x${height}`);
+  
+  // First pass: scan entire image to see what alpha values we actually have
+  let minAlpha = null, maxAlpha = null, totalPixels = 0, opaquePixels = 0;
+  
+  // Sample a few rows to analyze alpha values
+  for (let y = 0; y < height; y += Math.floor(height / 20)) { // Sample ~20 rows across the image
+    try {
+      const imageData = ctx.getImageData(0, y, width, 1);
+      const data = imageData.data;
+      
+      for (let x = 0; x < width; x++) {
+        const alpha = data[x * 4 + 3];
+        if (alpha !== undefined && !isNaN(alpha)) {
+          if (minAlpha === null || alpha < minAlpha) minAlpha = alpha;
+          if (maxAlpha === null || alpha > maxAlpha) maxAlpha = alpha;
+          totalPixels++;
+          if (alpha > 0) opaquePixels++;
         }
-        
-        // If this contour is wider than our current widest, use it
-        if (currentContour.length > 0) {
-          const contourWidth = Math.max(...currentContour) - Math.min(...currentContour);
-          if (contourWidth > maxWidth) {
-            maxWidth = contourWidth;
-            widestContour = currentContour;
-          }
-        }
-      } catch (error) {
-        console.warn('[SeaStacks] Could not analyze image pixels for contour at Y offset:', yOffset, error);
       }
+    } catch (error) {
+      console.warn(`[SeaStacks] Error reading row ${y}:`, error);
     }
   }
+  
+  // Fallback if no valid alpha values found
+  if (minAlpha === null || maxAlpha === null) {
+    console.log(`[SeaStacks] Could not read alpha values, using fallback`);
+    minAlpha = 0;
+    maxAlpha = 255;
+  }
+  
+  console.log(`[SeaStacks] Alpha range: ${minAlpha}-${maxAlpha}, ${opaquePixels}/${totalPixels} pixels have alpha > 0`);
+  
+  // Use a simple threshold that should work
+  const alphaThreshold = 30; // Fixed threshold that should catch solid pixels
+  console.log(`[SeaStacks] Using alpha threshold: ${alphaThreshold}`);
+  
+    // Scan the image for contours, focusing on the bottom portion where sea stacks are widest
+  const startY = Math.floor(height * 0.2); // Start from 20% down
+  const endY = Math.floor(height * 0.98);  // Scan almost to the very bottom (98%)
+  console.log(`[SeaStacks] Scanning rows ${startY} to ${endY}`);
+  
+  let rowsWithPixels = 0;
+  let debugRowCount = 0;
+  
+  for (let y = startY; y < endY; y += 2) { // Every 2nd row for better accuracy
+    try {
+      const imageData = ctx.getImageData(0, y, width, 1);
+      const data = imageData.data;
+      
+      let leftEdge = -1;
+      let rightEdge = -1;
+      let pixelsInRow = 0;
+      
+      // Count pixels in this row and find edges
+      for (let x = 0; x < width; x++) {
+        const alpha = data[x * 4 + 3];
+        if (alpha > 0) pixelsInRow++;
+        
+        if (alpha > alphaThreshold) {
+          if (leftEdge === -1) leftEdge = x;
+          rightEdge = x; // Keep updating to get the rightmost
+        }
+      }
+      
+      if (pixelsInRow > 0) rowsWithPixels++;
+      
+      // Debug first few rows
+      if (debugRowCount < 3 && pixelsInRow > 0) {
+        console.log(`[SeaStacks] Row ${y} debug: ${pixelsInRow} pixels with alpha>0, left=${leftEdge}, right=${rightEdge}, threshold=${alphaThreshold}`);
+        // Sample a few pixel values
+        for (let x = 0; x < Math.min(width, 10); x++) {
+          const alpha = data[x * 4 + 3];
+          if (alpha > 0) {
+            console.log(`[SeaStacks] Pixel at (${x}, ${y}) has alpha=${alpha}`);
+          }
+        }
+        debugRowCount++;
+      }
+      
+      // If we found both edges, check if this is the widest
+      if (leftEdge !== -1 && rightEdge !== -1) {
+        const contourWidth = rightEdge - leftEdge + 1;
+        
+        if (contourWidth > maxWidth) {
+          maxWidth = contourWidth;
+          widestContour = [];
+          
+          console.log(`[SeaStacks] New widest contour at Y=${y}: width=${contourWidth}, left=${leftEdge}, right=${rightEdge}, pixelsInRow=${pixelsInRow}`);
+          
+          // Create contour points every 2 pixels for performance
+          for (let x = leftEdge; x <= rightEdge; x += 2) {
+            widestContour.push(x - width / 2); // Convert to centered coordinates
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`[SeaStacks] Error reading row ${y}:`, error);
+    }
+  }
+  
+  console.log(`[SeaStacks] Found ${rowsWithPixels} rows with pixels out of ${Math.floor((endY - startY) / 2)} scanned rows`);
+    
+    console.log(`[SeaStacks] Final contour: width=${maxWidth}, points=${widestContour.length}`);
+    
+    // If still no contour found, try a more aggressive approach
+    if (maxWidth === 0) {
+      console.log(`[SeaStacks] No contour found with threshold ${alphaThreshold}, trying lower threshold`);
+      
+      // Try with a much lower threshold
+      const lowThreshold = 5;
+      for (let y = startY; y < endY; y += 3) {
+        try {
+          const imageData = ctx.getImageData(0, y, width, 1);
+          const data = imageData.data;
+          
+          let leftEdge = -1, rightEdge = -1;
+          
+          for (let x = 0; x < width; x++) {
+            const alpha = data[x * 4 + 3];
+            if (alpha > lowThreshold) {
+              leftEdge = x;
+              break;
+            }
+          }
+          
+          for (let x = width - 1; x >= 0; x--) {
+            const alpha = data[x * 4 + 3];
+            if (alpha > lowThreshold) {
+              rightEdge = x;
+              break;
+            }
+          }
+          
+          if (leftEdge !== -1 && rightEdge !== -1) {
+            const contourWidth = rightEdge - leftEdge + 1;
+            if (contourWidth > maxWidth) {
+              maxWidth = contourWidth;
+              widestContour = [];
+              console.log(`[SeaStacks] Found contour with low threshold at Y=${y}: width=${contourWidth}`);
+              for (let x = leftEdge; x <= rightEdge; x += 2) {
+                widestContour.push(x - width / 2);
+              }
+            }
+          }
+        } catch (error) {
+          // Skip
+        }
+      }
+    }
+  
+
   
   // If we still don't have a good contour, create a fallback based on a reasonable base width
   if (widestContour.length === 0) {
     console.warn('[SeaStacks] No contour found, using fallback width');
-    const fallbackWidth = width * 0.8; // Use 80% of the total width as fallback (increased for higher water line)
+    const fallbackWidth = width * 0.15; // Use only 15% of the total width as fallback (much smaller!)
     for (let x = -fallbackWidth / 2; x <= fallbackWidth / 2; x += 6) { // Smaller increments for better coverage
       widestContour.push(x);
     }
+    console.log(`[SeaStacks] Using fallback width: ${fallbackWidth} (${widestContour.length} points)`);
   }
   
   // Cache the result
@@ -190,22 +310,20 @@ function drawWaterLineEffects(
   
   // Create clipping path that follows the contour and extends downward
   if (contourPoints.length > 0) {
-    // Find leftmost and rightmost points
+    // Find leftmost and rightmost points to ensure we cover the full detected width
     const leftMost = Math.min(...contourPoints);
     const rightMost = Math.max(...contourPoints);
     
-    // Start from left side of water line
-    ctx.moveTo(leftMost, waterLineY + baseWaveOffset);
+    // Create a simple rectangular clipping area that covers the full detected width
+    // This ensures we don't miss any parts of the sea stack base
+    const waveOffset1 = baseWaveOffset + Math.sin(time * WATER_LINE_CONFIG.WAVE_FREQUENCY * 2) * 1;
+    const waveOffset2 = baseWaveOffset + Math.sin(time * WATER_LINE_CONFIG.WAVE_FREQUENCY * 2 + 1) * 1;
     
-    // Follow the contour points with subtle wave animation
-    contourPoints.forEach((x, index) => {
-      const localWaveOffset = baseWaveOffset + Math.sin(time * WATER_LINE_CONFIG.WAVE_FREQUENCY * 2 + index * 0.5) * 1;
-      ctx.lineTo(x, waterLineY + localWaveOffset);
-    });
-    
-    // Complete the underwater area
-    ctx.lineTo(rightMost, waterLineY + baseWaveOffset + 100); // Extend down
-    ctx.lineTo(leftMost, waterLineY + baseWaveOffset + 100); // Extend down
+    // Create a rectangular clipping path that covers the full width with slight wave animation
+    ctx.moveTo(leftMost, waterLineY + waveOffset1);
+    ctx.lineTo(rightMost, waterLineY + waveOffset2);
+    ctx.lineTo(rightMost, waterLineY + 100); // Extend down
+    ctx.lineTo(leftMost, waterLineY + 100); // Extend down
     ctx.closePath();
     
     // Apply clipping and fill with gradient underwater tint
@@ -219,7 +337,7 @@ function drawWaterLineEffects(
     underwaterGradient.addColorStop(1, 'rgba(12, 62, 79, 1)'); // Stay fully opaque to bottom
     
     ctx.fillStyle = underwaterGradient;
-    ctx.fillRect(-width / 2, waterLineY, width, 100);
+    ctx.fillRect(leftMost, waterLineY, rightMost - leftMost, 100);
   }
   
   ctx.restore();

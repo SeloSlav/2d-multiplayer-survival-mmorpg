@@ -9,7 +9,7 @@ import { TILE_SIZE } from '../../config/gameConfig';
 
 interface WaterLine {
   startX: number; // Starting point of the line
-  y: number;
+  y: number; // Base Y position (wave movement will be added to this)
   angle: number; // Slight rotation for natural look
   targetLength: number; // Final length when fully grown
   currentLength: number; // Current animated length
@@ -25,6 +25,8 @@ interface WaterLine {
   baseOpacity: number; // Original opacity before fading
   isGrowing: boolean; // Whether line is still in growth phase
   flickerPhase: number; // For subtle opacity variation
+  wavePhase: number; // Phase offset for wave movement (matches sea stack system)
+  shimmerPhase: number; // Phase offset for shimmer intensity
 }
 
 interface WaterOverlayState {
@@ -34,48 +36,53 @@ interface WaterOverlayState {
   worldTiles: Map<string, any> | null;
 }
 
-// Water overlay configuration constants
+// Water overlay configuration constants - synchronized with sea stack water effects
 const WATER_CONFIG = {
-  // Line density - significantly reduced for subtle sparkling effect
-  LINES_PER_SCREEN_AREA: 0.3, // Reduced from 1.2 to 0.3 for much fewer lines
+  // Line density - very subtle for cozy atmosphere
+  LINES_PER_SCREEN_AREA: 0.3, // Further reduced for more atmospheric feel
   
-  // Line properties - keep short like screenshot but make more subtle
-  MIN_LENGTH: 6,   // Slightly shorter
-  MAX_LENGTH: 20,  // Reduced max length
-  MIN_OPACITY: 0.1, // More subtle
-  MAX_OPACITY: 0.3,  // Reduced maximum opacity
+  // Line properties - match sea stack visibility
+  MIN_LENGTH: 12,   // Longer for better wave visibility
+  MAX_LENGTH: 40,  // Longer lines for better wave effect
+  MIN_OPACITY: 0.4, // Much more visible like sea stacks
+  MAX_OPACITY: 0.7,  // Strong opacity like sea stacks
   MIN_THICKNESS: 1,
-  MAX_THICKNESS: 1, // Keep thickness consistent
+  MAX_THICKNESS: 1.5, // Slight thickness variation
   
-  // Growth animation properties - 3x faster for quick sparkling effect
-  MIN_GROWTH_SPEED: 6.0, // 3x faster (was 2.0)
-  MAX_GROWTH_SPEED: 24.0, // 3x faster (was 8.0)
-  GROWTH_DURATION: 0.1, // Much shorter growth phase (was 0.3)
+  // Growth animation properties - much slower for cozy feel
+  MIN_GROWTH_SPEED: 1.5, // Much slower growth
+  MAX_GROWTH_SPEED: 4.0, // Much slower growth
+  GROWTH_DURATION: 0.4, // Longer growth phase for smoother appearance
   
-  // Line lifetime properties - 3x faster cycling for Sea of Stars effect
-  MIN_LIFETIME: 0.25, // Much shorter (was 0.8)
-  MAX_LIFETIME: 0.5, // Much shorter (was 1.5)
-  FADE_DURATION: 0.15, // 3x faster fade (was 0.4)
+  // Line lifetime properties - longer lasting for atmospheric feel
+  MIN_LIFETIME: 2.0, // Much longer lifetime
+  MAX_LIFETIME: 4.0, // Longer maximum lifetime
+  FADE_DURATION: 1.0, // Slower, gentler fade
+  
+  // Wave movement properties - synchronized with sea stacks
+  WAVE_AMPLITUDE: 1.5, // Match sea stack amplitude
+  WAVE_FREQUENCY: 0.0008, // Match sea stack frequency for consistency
+  SHIMMER_FREQUENCY: 0.002, // Match sea stack shimmer frequency
   
   // Visual variety for natural look
-  MAX_ANGLE_DEVIATION: 0.1, // slight rotation in radians (about 6 degrees)
-  FLICKER_SPEED: 2.0, // subtle opacity variation speed
+  MAX_ANGLE_DEVIATION: 0.05, // Less rotation for cleaner horizontal lines
+  FLICKER_SPEED: 0.8, // Slower, more gentle opacity variation
   
-  // Multi-line cluster properties - reduce group sizes
-  MIN_LINES_PER_GROUP: 1, // More single lines
-  MAX_LINES_PER_GROUP: 2, // Reduced from 3 to 2 lines per group max
-  LINE_SPACING: 1, // Vertical spacing between parallel lines (pixels)
-  HORIZONTAL_OFFSET_RANGE: 6, // Reduced horizontal offset
+  // Multi-line cluster properties
+  MIN_LINES_PER_GROUP: 1,
+  MAX_LINES_PER_GROUP: 2,
+  LINE_SPACING: 2, // Slightly more spacing for cleaner look
+  HORIZONTAL_OFFSET_RANGE: 8,
   
-  // Visual properties - light/white for visibility against blue water
-  WATER_LINE_COLOR: '#E2E8F0', // Light gray/white for good contrast
-  WATER_LINE_GLOW_COLOR: '#F7FAFC', // Very light white for subtle glow
+  // Visual properties - match sea stack water colors for consistency
+  WATER_LINE_COLOR: 'rgba(100, 200, 255, 0.8)', // Light blue matching sea stacks
+  WATER_LINE_GLOW_COLOR: 'rgba(150, 220, 255, 0.3)', // Subtle blue glow
   
-  // Screen margins (keep large for seamless coverage)
-  SPAWN_MARGIN: 800, // Keep large spawn area
+  // Screen margins
+  SPAWN_MARGIN: 800,
   
-  // Global wave effect - slightly faster for more dynamic feel
-  GLOBAL_WAVE_SPEED: 0.25, // Slightly faster global phase shift (was 0.15)
+  // Global wave effect - match sea stack speed for consistency
+  GLOBAL_WAVE_SPEED: 0.0008, // Match sea stack wave frequency
 };
 
 let waterSystem: WaterOverlayState = {
@@ -271,6 +278,8 @@ function createWaterLineGroup(
       baseOpacity: opacity, // Store original opacity
       isGrowing: true, // Start in growing state
       flickerPhase: Math.random() * Math.PI * 2, // Random flicker start
+      wavePhase: Math.random() * Math.PI * 2, // Random wave phase offset for natural variation
+      shimmerPhase: Math.random() * Math.PI * 2, // Random shimmer phase offset
     });
   }
   
@@ -369,7 +378,7 @@ function updateWaterLines(
 }
 
 /**
- * Renders water lines on the canvas
+ * Renders water lines on the canvas with wave movement and shimmer effects
  */
 function renderWaterLines(
   ctx: CanvasRenderingContext2D,
@@ -385,19 +394,20 @@ function renderWaterLines(
   // Set line cap for smoother lines
   ctx.lineCap = 'round';
   
-  // Debug logging removed - system working correctly
+  const currentTime = Date.now();
   
-  // Test removed - coordinate system is working
-  
-  // Render lines with glow effect
-  // Note: Context is already translated to world space, so we render directly in world coordinates
+  // Render lines with wave movement and glow effect
   waterSystem.lines.forEach((line, index) => {
-    // In world space, we render directly using the line's world coordinates
+    // Calculate base wave movement (synchronized with sea stacks)
+    const baseWaveOffset = Math.sin(currentTime * WATER_CONFIG.WAVE_FREQUENCY + line.wavePhase + line.startX * 0.01) * WATER_CONFIG.WAVE_AMPLITUDE;
+    
+    // Calculate shimmer intensity (synchronized with sea stacks)
+    const shimmerIntensity = (Math.sin(currentTime * WATER_CONFIG.SHIMMER_FREQUENCY + line.shimmerPhase) + 1) * 0.5;
+    
+    // In world space, calculate line positions
     const lineStartX = line.startX;
     const lineEndX = line.startX + line.currentLength;
-    const lineY = line.y;
-    
-
+    const baseY = line.y;
     
     // Check if line is visible in the camera view (world space culling)
     const cullMargin = 800;
@@ -407,25 +417,72 @@ function renderWaterLines(
     const cameraBottom = cameraY + canvasHeight / 2 + cullMargin;
     
     if (lineEndX < cameraLeft || lineStartX > cameraRight || 
-        lineY < cameraTop || lineY > cameraBottom) {
+        baseY < cameraTop - 10 || baseY > cameraBottom + 10) {
       return; // Skip this line
     }
     
-    // Create subtle glow effect by drawing the line multiple times
+    // Create wavy line points (exactly like sea stacks)
+    const wavePoints: Array<{x: number, y: number}> = [];
+    const pointSpacing = 4; // Distance between wave points
+    const numPoints = Math.floor(line.currentLength / pointSpacing) + 1;
+    
+    for (let i = 0; i < numPoints; i++) {
+      const x = lineStartX + (i * pointSpacing);
+      if (x > lineEndX) break;
+      
+      // Apply wave exactly like sea stacks: baseWaveOffset + local variation
+      const localWaveOffset = baseWaveOffset + Math.sin(currentTime * WATER_CONFIG.WAVE_FREQUENCY * 3 + i * 0.3) * 1;
+      const y = baseY + localWaveOffset;
+      
+      wavePoints.push({x, y});
+    }
+    
+    // Ensure we have the end point
+    if (wavePoints.length > 0 && wavePoints[wavePoints.length - 1].x < lineEndX) {
+      const lastIndex = wavePoints.length;
+      const localWaveOffset = baseWaveOffset + Math.sin(currentTime * WATER_CONFIG.WAVE_FREQUENCY * 3 + lastIndex * 0.3) * 1;
+      wavePoints.push({x: lineEndX, y: baseY + localWaveOffset});
+    }
+    
+    // Create glow effect (like sea stacks)
     const glowPasses = [
-      { color: WATER_CONFIG.WATER_LINE_GLOW_COLOR, width: line.thickness + 2, alpha: line.opacity * 0.3 },
-      { color: WATER_CONFIG.WATER_LINE_COLOR, width: line.thickness, alpha: line.opacity }
+      { 
+        color: WATER_CONFIG.WATER_LINE_GLOW_COLOR, 
+        width: line.thickness + 1, 
+        alpha: line.opacity * 0.3 
+      },
+      { 
+        color: WATER_CONFIG.WATER_LINE_COLOR, 
+        width: line.thickness, 
+        alpha: line.opacity * (0.6 + shimmerIntensity * 0.3) 
+      }
     ];
+    
+    // Add shimmer highlights (like sea stacks)
+    if (shimmerIntensity > 0.7) {
+      glowPasses.push({
+        color: 'rgba(255, 255, 255, ' + ((shimmerIntensity - 0.7) * 2) + ')',
+        width: 1,
+        alpha: 1
+      });
+    }
     
     glowPasses.forEach(pass => {
       ctx.strokeStyle = pass.color;
       ctx.globalAlpha = pass.alpha;
       ctx.lineWidth = pass.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       
-      // Draw the horizontal water line in world coordinates
+      // Draw the wavy line following the points (exactly like sea stacks)
       ctx.beginPath();
-      ctx.moveTo(lineStartX, lineY);
-      ctx.lineTo(lineEndX, lineY);
+      wavePoints.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
       ctx.stroke();
     });
   });
@@ -448,7 +505,7 @@ export function renderWaterOverlay(
   // Update water system with worldTiles
   updateWaterLines(deltaTime, cameraX, cameraY, canvasWidth, canvasHeight, worldTiles || null);
   
-  // Render water lines
+  // Render water lines with consistent timing
   renderWaterLines(ctx, cameraX, cameraY, canvasWidth, canvasHeight);
 }
 

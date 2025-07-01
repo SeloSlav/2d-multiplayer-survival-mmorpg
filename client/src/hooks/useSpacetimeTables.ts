@@ -1360,7 +1360,8 @@ export const useSpacetimeTables = ({
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`
                                 ];
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
                                 

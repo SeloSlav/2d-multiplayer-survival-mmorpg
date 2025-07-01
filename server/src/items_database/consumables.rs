@@ -123,7 +123,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Sea Plantain", "Maritime plant with year-round edible leaves. Salty flavor from growing near the ocean.", ItemCategory::Consumable)
             .icon("sea_plantain.png")
             .stackable(18)
-            .consumable(6.0, 10.0, -5.0) // Negative thirst due to salt content
+            .consumable(12.0, 10.0, -5.0) // Negative thirst due to salt content
             .stamina_gain(4.0)
             .cookable(20.0, "Burnt Sea Plantain")
             .respawn_time(140)
