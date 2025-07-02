@@ -5,7 +5,7 @@ console.log('[ElevenLabsService] 🚀 Loading ElevenLabs service...');
 
 // Simple, safe configuration
 const ELEVENLABS_VOICE_ID = 'UivHUCWpHRyCj1nnWAhu';
-const ELEVENLABS_MODEL = 'eleven_flash_v2_5';
+const ELEVENLABS_MODEL = 'eleven_turbo_v2_5'; // Faster model for testing
 
 let ELEVENLABS_API_KEY = 'not-loaded';
 let ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1';
@@ -168,7 +168,10 @@ class ElevenLabsService {
         return { success: false, error: 'Failed to prepare request body' };
       }
       
+      // 🚨 ENHANCED DIAGNOSTIC TIMING - Pre-fetch
+      const preFetchTime = performance.now();
       console.log('[ElevenLabsService] 🌐 Making request to ElevenLabs API:', TTS_ENDPOINT);
+      console.log('[ElevenLabsService] 📊 Setup time:', (preFetchTime - timing.requestStartTime!).toFixed(2) + 'ms');
       
       let response;
       try {
@@ -190,7 +193,9 @@ class ElevenLabsService {
       timing.apiResponseTime = performance.now();
       timing.apiLatencyMs = timing.apiResponseTime - timing.requestStartTime!;
 
+      // 🚨 CRITICAL DIAGNOSTIC: This is the pure ElevenLabs API time
       console.log(`[ElevenLabsService] ⚡ API response received in ${timing.apiLatencyMs.toFixed(2)}ms`);
+      console.log(`[ElevenLabsService] 🚨 PURE ELEVENLABS TIME: ${timing.apiLatencyMs.toFixed(2)}ms (this is what ElevenLabs took)`);
       console.log('[ElevenLabsService] Response status:', response.status);
 
       if (!response.ok) {
@@ -212,6 +217,10 @@ class ElevenLabsService {
         throw new Error(errorMessage);
       }
 
+      // 🚨 ENHANCED DIAGNOSTIC TIMING - Pre-blob processing
+      const preBlobTime = performance.now();
+      console.log('[ElevenLabsService] 📊 Response header processing time:', (preBlobTime - timing.apiResponseTime!).toFixed(2) + 'ms');
+
       // Process audio response
       let audioBlob: Blob;
       try {
@@ -228,12 +237,21 @@ class ElevenLabsService {
       timing.totalLatencyMs = timing.audioProcessedTime - timing.requestStartTime!;
       timing.audioSizeBytes = audioBlob.size;
 
+      // 🚨 DETAILED BREAKDOWN FOR DEBUGGING
       console.log(`[ElevenLabsService] 🎵 Audio processed in ${timing.audioProcessingMs.toFixed(2)}ms`);
       console.log(`[ElevenLabsService] 📊 Total latency: ${timing.totalLatencyMs.toFixed(2)}ms`);
       console.log(`[ElevenLabsService] 🌐 API latency: ${timing.apiLatencyMs.toFixed(2)}ms`);
       console.log(`[ElevenLabsService] 🎤 ElevenLabs API latency: ${timing.elevenLabsApiLatencyMs.toFixed(2)}ms`);
       console.log(`[ElevenLabsService] 📁 Audio size: ${(timing.audioSizeBytes / 1024).toFixed(2)} KB`);
       console.log(`[ElevenLabsService] 🚀 Throughput: ${(timing.textLength! / (timing.totalLatencyMs / 1000)).toFixed(2)} chars/sec`);
+      
+      // 🚨 FINAL DIAGNOSTIC SUMMARY
+      console.log('[ElevenLabsService] 🔍 LATENCY BREAKDOWN:');
+      console.log(`  • Setup: ${(preFetchTime - timing.requestStartTime!).toFixed(2)}ms`);
+      console.log(`  • Network + ElevenLabs processing: ${timing.apiLatencyMs.toFixed(2)}ms ⭐ KEY METRIC`);
+      console.log(`  • Blob reading: ${timing.elevenLabsApiLatencyMs.toFixed(2)}ms`);
+      console.log(`  • URL creation: ${timing.audioProcessingMs.toFixed(2)}ms`);
+      console.log(`  • Total: ${timing.totalLatencyMs.toFixed(2)}ms`);
       
       // Check if we actually got audio data
       if (audioBlob.size === 0) {

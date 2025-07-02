@@ -74,7 +74,7 @@ class OpenAIService {
           'Authorization': `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4-1106-preview',
+          model: 'gpt-4o-mini', // Much faster and cheaper model
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
