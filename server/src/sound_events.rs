@@ -44,7 +44,9 @@ pub enum SoundType {
     GrowlWolf,      // growl_wolf.mp3 (1 variation - when wolves start chasing)
     GrowlFox,       // growl_fox.mp3 (1 variation - when foxes start attacking)
     GrowlSnake,     // growl_snake.mp3 (1 variation - when vipers start approaching)
-    GrowlWalrus,    // growl_walrus.mp3 (2 variations - when walruses are disturbed)
+    GrowlWalrus,    // growl_walrus.mp3 (3 variations - when walruses are disturbed)
+    Walking,        // walking.mp3 (2 variations - footstep sounds when player moves)
+    Swimming,       // swimming.mp3 (3 variations - swimming sounds when player moves in water)
     // Add more as needed - extensible system
 }
 
@@ -90,6 +92,8 @@ impl SoundType {
             SoundType::GrowlFox => "growl_fox",
             SoundType::GrowlSnake => "growl_snake",
             SoundType::GrowlWalrus => "growl_walrus",
+            SoundType::Walking => "walking",
+            SoundType::Swimming => "swimming",
         }
     }
 
@@ -133,7 +137,9 @@ impl SoundType {
             SoundType::GrowlWolf => 1,
             SoundType::GrowlFox => 1,
             SoundType::GrowlSnake => 1,
-            SoundType::GrowlWalrus => 2,
+            SoundType::GrowlWalrus => 3,
+            SoundType::Walking => 2,
+            SoundType::Swimming => 3,
         }
     }
 
@@ -535,6 +541,16 @@ pub fn emit_snake_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, play
 /// Emit a walrus growl sound (when walruses are disturbed or patrolling)
 pub fn emit_walrus_growl_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
     let _ = emit_sound_at_position_with_distance(ctx, SoundType::GrowlWalrus, pos_x, pos_y, 1.3, 1000.0, player_id);
+}
+
+/// Emit walking/footstep sound (when player moves)
+pub fn emit_walking_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::Walking, pos_x, pos_y, 0.7, 400.0, player_id);
+}
+
+/// Emit swimming sound (when player moves in water)
+pub fn emit_swimming_sound(ctx: &ReducerContext, pos_x: f32, pos_y: f32, player_id: Identity) {
+    let _ = emit_sound_at_position_with_distance(ctx, SoundType::Swimming, pos_x, pos_y, 0.8, 450.0, player_id);
 }
 
 /// Emit a global sound that plays to all clients at full volume regardless of position

@@ -77,6 +77,7 @@ export namespace PlantType {
   export type Datura = { tag: "Datura" };
   export type Wolfsbane = { tag: "Wolfsbane" };
   export type Sunflowers = { tag: "Sunflowers" };
+  export type MemoryShard = { tag: "MemoryShard" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -126,6 +127,7 @@ export namespace PlantType {
   export const Datura = { tag: "Datura" };
   export const Wolfsbane = { tag: "Wolfsbane" };
   export const Sunflowers = { tag: "Sunflowers" };
+  export const MemoryShard = { tag: "MemoryShard" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -171,6 +173,7 @@ export namespace PlantType {
       new SumTypeVariant("Datura", AlgebraicType.createProductType([])),
       new SumTypeVariant("Wolfsbane", AlgebraicType.createProductType([])),
       new SumTypeVariant("Sunflowers", AlgebraicType.createProductType([])),
+      new SumTypeVariant("MemoryShard", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -185,7 +188,7 @@ export namespace PlantType {
 }
 
 // The tagged union or sum type for the algebraic type `PlantType`.
-export type PlantType = PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Carrot | PlantType.Beets | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.BearGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Flax | PlantType.Salsify | PlantType.ScurvyGrass | PlantType.Crowberry | PlantType.SeaPlantain | PlantType.Glasswort | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggyInkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers;
+export type PlantType = PlantType.BorealNettle | PlantType.Potato | PlantType.Pumpkin | PlantType.Reed | PlantType.BeachLymeGrass | PlantType.Carrot | PlantType.Beets | PlantType.Horseradish | PlantType.Chicory | PlantType.Yarrow | PlantType.Chamomile | PlantType.Mint | PlantType.Valerian | PlantType.Mugwort | PlantType.BearGarlic | PlantType.SiberianGinseng | PlantType.Dogbane | PlantType.BogCotton | PlantType.Flax | PlantType.Salsify | PlantType.ScurvyGrass | PlantType.Crowberry | PlantType.SeaPlantain | PlantType.Glasswort | PlantType.Chanterelle | PlantType.Porcini | PlantType.FlyAgaric | PlantType.ShaggyInkCap | PlantType.DeadlyWebcap | PlantType.DestroyingAngel | PlantType.Lingonberries | PlantType.Cloudberries | PlantType.Bilberries | PlantType.WildStrawberries | PlantType.RowanBerries | PlantType.Cranberries | PlantType.Mandrake | PlantType.Belladonna | PlantType.Henbane | PlantType.Datura | PlantType.Wolfsbane | PlantType.Sunflowers | PlantType.MemoryShard;
 
 export default PlantType;
 

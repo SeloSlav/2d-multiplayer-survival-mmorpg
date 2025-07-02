@@ -33,6 +33,9 @@ import foxFurIcon from '../assets/items/fox_fur.png';
 import wolfFurIcon from '../assets/items/wolf_fur.png';
 import viperScaleIcon from '../assets/items/viper_scale.png';
 
+// Technological materials
+import memoryShardIcon from '../assets/items/memory_shard.png';
+
 // === TOOLS ===
 // Gathering tools, utility tools, medical tools, light sources
 
@@ -295,6 +298,9 @@ const iconMap: { [key: string]: string | undefined } = {
   'fox_fur.png': foxFurIcon,
   'wolf_fur.png': wolfFurIcon,
   'viper_scale.png': viperScaleIcon,
+
+  // Technological materials
+  'memory_shard.png': memoryShardIcon,
 
   // === TOOLS ===
   'wood_hatchet.png': woodHatchetIcon,

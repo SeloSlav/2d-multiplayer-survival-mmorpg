@@ -317,9 +317,6 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             if (def.consumableThirstQuenched !== undefined && def.consumableThirstQuenched !== 0) {
                 stats.push({ label: 'Thirst', value: `${def.consumableThirstQuenched > 0 ? '+' : ''}${def.consumableThirstQuenched}`, color: '#5bc0de' });
             }
-            if (def.consumableStaminaGain !== undefined && def.consumableStaminaGain !== 0) {
-                stats.push({ label: 'Stamina', value: `${def.consumableStaminaGain > 0 ? '+' : ''}${def.consumableStaminaGain}`, color: '#5cb85c' });
-            }
             if (def.consumableDurationSecs !== undefined && def.consumableDurationSecs > 0) {
                 stats.push({ label: 'Duration', value: `${def.consumableDurationSecs}s` });
             }
@@ -601,9 +598,6 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
             }
             if (def.consumableThirstQuenched !== undefined && def.consumableThirstQuenched !== 0) {
                 stats.push({ label: 'Thirst', value: `${def.consumableThirstQuenched > 0 ? '+' : ''}${def.consumableThirstQuenched}`, color: '#5bc0de' });
-            }
-            if (def.consumableStaminaGain !== undefined && def.consumableStaminaGain !== 0) {
-                stats.push({ label: 'Stamina', value: `${def.consumableStaminaGain > 0 ? '+' : ''}${def.consumableStaminaGain}`, color: '#5cb85c' });
             }
             if (def.consumableDurationSecs !== undefined && def.consumableDurationSecs > 0) {
                 stats.push({ label: 'Duration', value: `${def.consumableDurationSecs}s` });

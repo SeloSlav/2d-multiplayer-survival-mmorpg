@@ -88,6 +88,7 @@ pub fn get_barrel_loot_table(ctx: &ReducerContext) -> Vec<BarrelLootEntry> {
     // Define all loot entries as (name, min_qty, max_qty, drop_chance)  
     let loot_definitions = [
         // --- COMMON TIER (60-80% drop rates) ---
+        ("Memory Shard", 8, 15, 0.98),         // DRAMATICALLY INCREASED: Now 8-15 shards at 98% rate (Rust-competitive)
         ("Rope", 1, 3, 0.75),                  // Essential crafting material
         ("Metal Fragments", 2, 4, 0.65),       // Crafting material  
         ("Wooden Arrow", 3, 8, 0.70),          // Basic ammunition

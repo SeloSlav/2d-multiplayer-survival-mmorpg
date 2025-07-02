@@ -73,6 +73,8 @@ export namespace SoundType {
   export type GrowlFox = { tag: "GrowlFox" };
   export type GrowlSnake = { tag: "GrowlSnake" };
   export type GrowlWalrus = { tag: "GrowlWalrus" };
+  export type Walking = { tag: "Walking" };
+  export type Swimming = { tag: "Swimming" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -118,6 +120,8 @@ export namespace SoundType {
   export const GrowlFox = { tag: "GrowlFox" };
   export const GrowlSnake = { tag: "GrowlSnake" };
   export const GrowlWalrus = { tag: "GrowlWalrus" };
+  export const Walking = { tag: "Walking" };
+  export const Swimming = { tag: "Swimming" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -159,6 +163,8 @@ export namespace SoundType {
       new SumTypeVariant("GrowlFox", AlgebraicType.createProductType([])),
       new SumTypeVariant("GrowlSnake", AlgebraicType.createProductType([])),
       new SumTypeVariant("GrowlWalrus", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Walking", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Swimming", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -173,7 +179,7 @@ export namespace SoundType {
 }
 
 // The tagged union or sum type for the algebraic type `SoundType`.
-export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain | SoundType.NormalRain | SoundType.DrinkingWater | SoundType.ThrowingUp | SoundType.EatingFood | SoundType.WateringCrops | SoundType.FillingContainer | SoundType.MeleeHitSharp | SoundType.SpearHit | SoundType.TorchHit | SoundType.TorchHitLit | SoundType.LightTorch | SoundType.ExtinguishTorch | SoundType.MeleeHitBlunt | SoundType.WeaponSwing | SoundType.ArrowHit | SoundType.ShootBow | SoundType.ShootCrossbow | SoundType.Bandaging | SoundType.StopBandaging | SoundType.BarrelHit | SoundType.BarrelDestroyed | SoundType.GrowlWolf | SoundType.GrowlFox | SoundType.GrowlSnake | SoundType.GrowlWalrus;
+export type SoundType = SoundType.TreeChop | SoundType.TreeCreaking | SoundType.TreeFalling | SoundType.StoneHit | SoundType.StoneDestroyed | SoundType.HarvestPlant | SoundType.PlantSeed | SoundType.PickupItem | SoundType.CampfireLooping | SoundType.LanternLooping | SoundType.Repair | SoundType.RepairFail | SoundType.HeavyStormRain | SoundType.NormalRain | SoundType.DrinkingWater | SoundType.ThrowingUp | SoundType.EatingFood | SoundType.WateringCrops | SoundType.FillingContainer | SoundType.MeleeHitSharp | SoundType.SpearHit | SoundType.TorchHit | SoundType.TorchHitLit | SoundType.LightTorch | SoundType.ExtinguishTorch | SoundType.MeleeHitBlunt | SoundType.WeaponSwing | SoundType.ArrowHit | SoundType.ShootBow | SoundType.ShootCrossbow | SoundType.Bandaging | SoundType.StopBandaging | SoundType.BarrelHit | SoundType.BarrelDestroyed | SoundType.GrowlWolf | SoundType.GrowlFox | SoundType.GrowlSnake | SoundType.GrowlWalrus | SoundType.Walking | SoundType.Swimming;
 
 export default SoundType;
 

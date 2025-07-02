@@ -192,7 +192,7 @@ impl AnimalBehavior for ArcticWalrusBehavior {
         rng: &mut impl Rng,
     ) {
         // 🔊 WALRUS RANDOM GROWLING: Walruses make sounds randomly while patrolling
-        if rng.gen::<f32>() < 0.003 { // 0.3% chance per tick = roughly every 5-10 seconds
+        if rng.gen::<f32>() < 0.008 { // 0.8% chance per tick = roughly every 2-4 seconds (more vocal than before)
             crate::sound_events::emit_walrus_growl_sound(ctx, animal.pos_x, animal.pos_y, ctx.identity());
             log::debug!("Arctic Walrus {} emits territorial growl while patrolling", animal.id);
         }

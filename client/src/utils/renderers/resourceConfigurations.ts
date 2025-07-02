@@ -68,6 +68,12 @@ RESOURCE_CONFIGS.Carrot = {
   targetWidth: 48
 };
 
+RESOURCE_CONFIGS.MemoryShard = {
+  ...RESOURCE_CONFIGS.MemoryShard,
+  targetWidth: 64
+};
+
+
 // Helper function to get configuration for a resource
 export function getResourceConfig(resourceType: ResourceType): ResourceConfig {
   return RESOURCE_CONFIGS[resourceType];

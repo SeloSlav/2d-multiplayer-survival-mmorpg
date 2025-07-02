@@ -62,6 +62,10 @@ const SOUND_DEFINITIONS = {
     growl_wolf: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.2, maxDistance: 800 }, // Wolf growl when starting to chase
     growl_fox: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.0, maxDistance: 650 }, // Fox growl when starting to attack
     growl_snake: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.1, maxDistance: 700 }, // Snake/viper growl when approaching
+    growl_walrus: { strategy: SoundStrategy.SERVER_ONLY, volume: 1.3, maxDistance: 1000 }, // Walrus growl when disturbed or patrolling
+    // Movement sounds - server only for proper synchronization
+    walking: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.7, maxDistance: 400 }, // Player footsteps when moving
+    swimming: { strategy: SoundStrategy.SERVER_ONLY, volume: 0.8, maxDistance: 450 }, // Player swimming sounds in water
     // UI/Item interaction sounds - immediate (no server sync needed)
     crush_bones: { strategy: SoundStrategy.IMMEDIATE, volume: 1.2 }, // Local client sound
 } as const;
@@ -229,6 +233,14 @@ const PRELOAD_SOUNDS = [
     'growl_wolf.mp3',                                       // 1 wolf growl variation
     'growl_fox.mp3',                                        // 1 fox growl variation
     'growl_snake.mp3',                                      // 1 snake growl variation
+    'growl_walrus.mp3',                                     // 3 walrus growl variations
+    'growl_walrus2.mp3',
+    'growl_walrus3.mp3',
+    'walking.mp3',                                          // 2 walking/footstep variations
+    'walking1.mp3',
+    'swimming.mp3',                                         // 3 swimming sound variations
+    'swimming1.mp3',
+    'swimming2.mp3',
 ] as const;
 
 // Enhanced audio loading with error handling and performance monitoring
@@ -448,6 +460,12 @@ const playLocalSound = async (
                 variationCount = 1; // growl_fox.mp3
             } else if (soundType === 'growl_snake') {
                 variationCount = 1; // growl_snake.mp3
+            } else if (soundType === 'growl_walrus') {
+                variationCount = 3; // growl_walrus.mp3, growl_walrus2.mp3, growl_walrus3.mp3
+            } else if (soundType === 'walking') {
+                variationCount = 2; // walking.mp3, walking1.mp3, walking2.mp3
+            } else if (soundType === 'swimming') {
+                variationCount = 3; // swimming.mp3, swimming1.mp3, swimming2.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);

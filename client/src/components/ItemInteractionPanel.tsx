@@ -112,8 +112,7 @@ const ItemInteractionPanel: React.FC<ItemInteractionPanelProps> = ({
             def.category.tag === 'Consumable' || 
             def.consumableHealthGain !== undefined ||
             def.consumableHungerSatiated !== undefined ||
-            def.consumableThirstQuenched !== undefined ||
-            def.consumableStaminaGain !== undefined)) {
+            def.consumableThirstQuenched !== undefined)) {
             actions.push({
                 label: 'Consume',
                 action: 'consume',

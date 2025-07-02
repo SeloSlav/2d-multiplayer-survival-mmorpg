@@ -116,6 +116,12 @@ pub fn get_material_definitions() -> Vec<ItemDefinition> {
             .respawn_time(240)
             .build(),
 
+        // Memory Shard - Common technological foundational resource
+        basic_material("Memory Shard", "A rugged cognitive archive from the crashed Sovereign Tide flagship. These modular data chips stored tactical memory blocks and were designed to survive extreme conditions.", 5000)
+            .icon("memory_shard.png")
+            .respawn_time(600) // 10 minutes - common foundational resource
+            .build(),
+
         // === ANIMAL MATERIALS ===
 
         // Cable Viper Gland - Poison gland

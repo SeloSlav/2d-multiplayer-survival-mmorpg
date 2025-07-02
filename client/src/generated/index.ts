@@ -448,6 +448,8 @@ import { PlayerPinTableHandle } from "./player_pin_table.ts";
 export { PlayerPinTableHandle };
 import { PlayerStatScheduleTableHandle } from "./player_stat_schedule_table.ts";
 export { PlayerStatScheduleTableHandle };
+import { PlayerWalkingSoundStateTableHandle } from "./player_walking_sound_state_table.ts";
+export { PlayerWalkingSoundStateTableHandle };
 import { PrivateMessageTableHandle } from "./private_message_table.ts";
 export { PrivateMessageTableHandle };
 import { ProcessEffectsScheduleTableHandle } from "./process_effects_schedule_table.ts";
@@ -634,6 +636,8 @@ import { PlayerPin } from "./player_pin_type.ts";
 export { PlayerPin };
 import { PlayerStatSchedule } from "./player_stat_schedule_type.ts";
 export { PlayerStatSchedule };
+import { PlayerWalkingSoundState } from "./player_walking_sound_state_type.ts";
+export { PlayerWalkingSoundState };
 import { PrivateMessage } from "./private_message_type.ts";
 export { PrivateMessage };
 import { ProcessEffectsSchedule } from "./process_effects_schedule_type.ts";
@@ -932,6 +936,11 @@ const REMOTE_MODULE = {
       tableName: "player_stat_schedule",
       rowType: PlayerStatSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "id",
+    },
+    player_walking_sound_state: {
+      tableName: "player_walking_sound_state",
+      rowType: PlayerWalkingSoundState.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
     },
     private_message: {
       tableName: "private_message",
@@ -5405,6 +5414,10 @@ export class RemoteTables {
 
   get playerStatSchedule(): PlayerStatScheduleTableHandle {
     return new PlayerStatScheduleTableHandle(this.connection.clientCache.getOrCreateTable<PlayerStatSchedule>(REMOTE_MODULE.tables.player_stat_schedule));
+  }
+
+  get playerWalkingSoundState(): PlayerWalkingSoundStateTableHandle {
+    return new PlayerWalkingSoundStateTableHandle(this.connection.clientCache.getOrCreateTable<PlayerWalkingSoundState>(REMOTE_MODULE.tables.player_walking_sound_state));
   }
 
   get privateMessage(): PrivateMessageTableHandle {

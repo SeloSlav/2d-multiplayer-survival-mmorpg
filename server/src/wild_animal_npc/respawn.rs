@@ -19,10 +19,10 @@ pub fn maintain_wild_animal_population(ctx: &ReducerContext) -> Result<(), Strin
     let wild_animals = ctx.db.wild_animal();
     let current_animal_count = wild_animals.iter().count();
     
-    // Population thresholds (similar to Rust's animal spawn system)
-    const MIN_POPULATION_THRESHOLD: usize = 25; // When to start respawning (1/3 of target ~75)
-    const TARGET_POPULATION: usize = 75; // Target population (~0.03% of world tiles)
-    const MAX_RESPAWN_PER_CYCLE: usize = 3; // Max animals to spawn per respawn cycle (gradual)
+    // Population thresholds - REDUCED for better performance (matching environment.rs)
+    const MIN_POPULATION_THRESHOLD: usize = 50; // When to start respawning (1/3 of target ~147)
+    const TARGET_POPULATION: usize = 147; // Target population (~0.07% of world tiles, reduced 30%)
+    const MAX_RESPAWN_PER_CYCLE: usize = 3; // Max animals to spawn per respawn cycle (reduced for gradual growth)
     
     // Only respawn if population is below minimum threshold
     if current_animal_count >= MIN_POPULATION_THRESHOLD {
@@ -37,9 +37,10 @@ pub fn maintain_wild_animal_population(ctx: &ReducerContext) -> Result<(), Strin
     
     // Species distribution (same as initial seeding)
     let species_weights = [
-        (AnimalSpecies::CinderFox, 50),    // 50% - Most common
-        (AnimalSpecies::TundraWolf, 30),   // 30% - Moderately common  
-        (AnimalSpecies::CableViper, 20),   // 20% - Least common
+        (AnimalSpecies::CinderFox, 35),    // 35% - Most common
+        (AnimalSpecies::TundraWolf, 25),   // 25% - Moderately common  
+        (AnimalSpecies::CableViper, 20),   // 20% - Uncommon
+        (AnimalSpecies::ArcticWalrus, 20), // 20% - More common (beaches only)
     ];
     let total_weight: u32 = species_weights.iter().map(|(_, weight)| weight).sum();
     
@@ -75,7 +76,7 @@ pub fn maintain_wild_animal_population(ctx: &ReducerContext) -> Result<(), Strin
         let current_animals_in_chunk = animals_per_chunk_map.get(&chunk_idx).copied().unwrap_or(0);
         
         // Skip if chunk already has too many animals (maintain distribution)
-        if current_animals_in_chunk >= 1 { // Max 1 animal per chunk
+        if current_animals_in_chunk >= 1 { // Max 1 animal per chunk (reduced for performance)
             continue;
         }
         

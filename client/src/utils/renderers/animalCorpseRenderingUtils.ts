@@ -3,12 +3,35 @@ import { imageManager } from './imageManager';
 
 // Import animal images directly from assets
 import cinderFoxImg from '../../assets/cinder_fox.png';
+import cinderFox2Img from '../../assets/cinder_fox2.png';
 import tundraWolfImg from '../../assets/tundra_wolf.png';
+import tundraWolf2Img from '../../assets/tundra_wolf2.png';
 import cableViperImg from '../../assets/cable_viper.png';
+import walrusImg from '../../assets/walrus.png';
 
 // Animal corpse dimensions and rendering constants
 export const ANIMAL_CORPSE_HEIGHT = 96; // Height for interaction indicators
 export const ANIMAL_CORPSE_COLLISION_RADIUS = 16; // From server-side constant
+
+// Helper function to get correct image variation (consistent with live animals)
+function getCorpseImageSrc(species: any, animalId: bigint): string {
+    switch (species.tag) {
+        case 'CinderFox':
+            // Use same variation logic as live animals
+            const foxVariation = Number(animalId) % 2;
+            return foxVariation === 0 ? cinderFoxImg : cinderFox2Img;
+        case 'TundraWolf':
+            // Use same variation logic as live animals
+            const wolfVariation = Number(animalId) % 2;
+            return wolfVariation === 0 ? tundraWolfImg : tundraWolf2Img;
+        case 'CableViper':
+            return cableViperImg;
+        case 'ArcticWalrus':
+            return walrusImg;
+        default:
+            return cinderFoxImg;
+    }
+}
 
 // Preload animal corpse images using imageManager
 export const preloadAnimalCorpseImages = () => {
@@ -16,8 +39,11 @@ export const preloadAnimalCorpseImages = () => {
   
   // Preload using imageManager for consistency with other assets
   imageManager.preloadImage(cinderFoxImg);
+  imageManager.preloadImage(cinderFox2Img);  // Add new cinder fox variation
   imageManager.preloadImage(tundraWolfImg);
+  imageManager.preloadImage(tundraWolf2Img);  // Add new variation
   imageManager.preloadImage(cableViperImg);
+  imageManager.preloadImage(walrusImg);  // Add missing walrus image
   
   // console.log('[AnimalCorpse] Animal corpse images queued for preloading');
 };
@@ -36,21 +62,8 @@ export const renderAnimalCorpse = (
   const screenX = corpse.posX;
   const screenY = corpse.posY;
 
-  // Get the appropriate animal image based on species using imageManager
-  let imageSrc: string;
-  switch (corpse.animalSpecies.tag) {
-    case 'CinderFox':
-      imageSrc = cinderFoxImg;
-      break;
-    case 'TundraWolf':
-      imageSrc = tundraWolfImg;
-      break;
-    case 'CableViper':
-      imageSrc = cableViperImg;
-      break;
-    default:
-      imageSrc = cinderFoxImg; // fallback
-  }
+  // Get the appropriate animal image based on species and ID for consistent variations
+  const imageSrc = getCorpseImageSrc(corpse.animalSpecies, corpse.animalId);
   
   // console.log(`[AnimalCorpse] Looking for image: ${imageSrc}`);
   const img = imageManager.getImage(imageSrc);

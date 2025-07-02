@@ -64,6 +64,9 @@ pub enum PlantType {
     
     // === OTHER ===
     Sunflowers, // Some cold-hardy varieties exist
+    
+    // === TECHNOLOGICAL DEBRIS ===
+    MemoryShard, // Crashed ship cognitive archive debris
 }
 
 // --- Plant Configuration System ---
@@ -135,7 +138,7 @@ lazy_static! {
         
         configs.insert(PlantType::BorealNettle, PlantConfig {
             entity_name: "Boreal Nettle".to_string(),
-            density_percent: 0.00066, // INCREASED 8x: was 0.000083125 (~21 plants) → now ~166 plants (PRIMARY FIBER SOURCE)
+            density_percent: 0.0015, // INCREASED 23x: was 0.000083125 (~21 plants) → now ~375 plants (PRIMARY FIBER SOURCE)
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -187,7 +190,7 @@ lazy_static! {
         
         configs.insert(PlantType::Reed, PlantConfig {
             entity_name: "Common Reed Stalk".to_string(),
-            density_percent: 0.00075, // INCREASED 4x: was 0.0001875 (~47 plants) → now ~188 plants (SUPPLEMENTARY FIBER)
+            density_percent: 0.0012, // INCREASED 6.4x: was 0.0001875 (~47 plants) → now ~300 plants (SUPPLEMENTARY FIBER)
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -204,7 +207,7 @@ lazy_static! {
         
         configs.insert(PlantType::BeachLymeGrass, PlantConfig {
             entity_name: "Beach Lyme Grass".to_string(),
-            density_percent: 0.00075, // INCREASED 6x: was 0.000125 (~31 plants) → now ~188 plants (RELIABLE BEACH FIBER)
+            density_percent: 0.00125, // INCREASED 10x: was 0.000125 (~31 plants) → now ~313 plants (RELIABLE BEACH FIBER)
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -221,7 +224,7 @@ lazy_static! {
         
         configs.insert(PlantType::Crowberry, PlantConfig {
             entity_name: "Crowberry".to_string(),
-            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
+            density_percent: 0.002, // INCREASED 27x: was 0.000075 (~19 plants) → now ~500 plants
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -326,7 +329,7 @@ lazy_static! {
         // === HERBS & MEDICINAL PLANTS ===
         configs.insert(PlantType::Chicory, PlantConfig {
             entity_name: "Chicory".to_string(),
-            density_percent: 0.0010,
+            density_percent: 0.0002, // REDUCED 5x: was 0.0010 (250 plants) → now ~50 plants (MEDICINAL - less clutter)
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -343,7 +346,7 @@ lazy_static! {
         
         configs.insert(PlantType::Yarrow, PlantConfig {
             entity_name: "Yarrow".to_string(),
-            density_percent: 0.00009375, // REDUCED 16x: was 0.0015 (375 plants) → now ~23 plants
+            density_percent: 0.0003, // REDUCED 7x: was 0.002 (500 plants) → now ~75 plants (MEDICINAL - less clutter)
             min_distance_sq: 20.0 * 20.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 18.0 * 18.0,
@@ -360,7 +363,7 @@ lazy_static! {
         
         configs.insert(PlantType::Chamomile, PlantConfig {
             entity_name: "Chamomile".to_string(),
-            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
+            density_percent: 0.0002, // REDUCED 7.5x: was 0.0015 (375 plants) → now ~50 plants (MEDICINAL - less clutter)
             min_distance_sq: 22.0 * 22.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -394,7 +397,7 @@ lazy_static! {
         
         configs.insert(PlantType::Valerian, PlantConfig {
             entity_name: "Valerian".to_string(),
-            density_percent: 0.0008,
+            density_percent: 0.0002, // REDUCED 4x: was 0.0008 (200 plants) → now ~50 plants (MEDICINAL - less clutter)
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -411,7 +414,7 @@ lazy_static! {
         
         configs.insert(PlantType::Mugwort, PlantConfig {
             entity_name: "Mugwort".to_string(),
-            density_percent: 0.00008125, // REDUCED 16x: was 0.0013 (325 plants) → now ~20 plants
+            density_percent: 0.0002, // REDUCED 7.5x: was 0.0015 (375 plants) → now ~50 plants (MEDICINAL - less clutter)
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 18.0 * 18.0,
             min_stone_distance_sq: 22.0 * 22.0,
@@ -428,7 +431,7 @@ lazy_static! {
         
         configs.insert(PlantType::Flax, PlantConfig {
             entity_name: "Flax Plant".to_string(),
-            density_percent: 0.0005, // INCREASED 8x: was 0.0000625 (~16 plants) → now ~125 plants (DEDICATED FIBER CROP)
+            density_percent: 0.001, // INCREASED 16x: was 0.0000625 (~16 plants) → now ~250 plants (DEDICATED FIBER CROP)
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 25.0 * 25.0,
             min_stone_distance_sq: 30.0 * 30.0,
@@ -837,6 +840,25 @@ lazy_static! {
             max_respawn_time_secs: 2000, // 33 minutes
             spawn_condition: SpawnCondition::Plains,
             growing_seasons: vec![Season::Autumn],
+        });
+        
+        // === TECHNOLOGICAL DEBRIS ===
+        
+        configs.insert(PlantType::MemoryShard, PlantConfig {
+            entity_name: "Memory Shard".to_string(),
+            density_percent: 0.0006, // TRIPLED: More beach finds for casual exploration (~150 across map)
+            min_distance_sq: 120.0 * 120.0, // Reduced spacing slightly - more frequent discoveries
+            min_tree_distance_sq: 80.0 * 80.0,
+            min_stone_distance_sq: 90.0 * 90.0,
+            noise_threshold: 0.82, // Slightly easier to find - rewarding exploration
+            primary_yield: ("Memory Shard".to_string(), 1, 3), // Occasionally 2-3 for lucky finds
+            secondary_yield: None,
+            seed_type: "".to_string(), // No seeds - technological debris
+            seed_drop_chance: 0.0, // No seed drops
+            min_respawn_time_secs: 1800, // 30 minutes - much faster for casual progression
+            max_respawn_time_secs: 2700, // 45 minutes
+            spawn_condition: SpawnCondition::Coastal, // Debris washed up on beaches and coastline from the crash
+            growing_seasons: vec![Season::Spring, Season::Summer, Season::Autumn, Season::Winter], // Always findable - not biological
         });
         
         configs

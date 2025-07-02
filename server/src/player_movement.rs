@@ -26,6 +26,10 @@ use crate::player_collision;
 // Import grass types
 use crate::grass::GrassAppearanceType;
 
+// Import sound event functions
+use crate::sound_events::emit_walking_sound;
+use crate::sound_events::emit_swimming_sound;
+
 // === DODGE ROLL CONSTANTS ===
 pub const DODGE_ROLL_DISTANCE: f32 = 300.0; // Increased from 120 to 300 pixels (about 7.5x player radius)
 pub const DODGE_ROLL_DURATION_MS: u64 = 350; // Increased from 250 to 350ms for more dramatic effect
@@ -45,6 +49,18 @@ pub struct PlayerDodgeRollState {
     target_y: f32,
     direction: String, // "up", "down", "left", "right"
     last_dodge_time_ms: u64, // For cooldown tracking
+}
+
+// Table to track walking sound cadence for each player
+#[spacetimedb::table(name = player_walking_sound_state, public)]
+#[derive(Clone, Debug)]
+pub struct PlayerWalkingSoundState {
+    #[primary_key]
+    player_id: Identity,
+    last_walking_sound_time_ms: u64,
+    total_distance_since_last_sound: f32, // Accumulated distance for cadence
+    last_swimming_sound_time_ms: u64, // Track swimming sound timing separately
+    total_swimming_distance_since_last_sound: f32, // Accumulated swimming distance for cadence
 }
 
 /*
@@ -415,6 +431,18 @@ const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; //
 const MAX_TELEPORT_DISTANCE: f32 = 600.0; // Increased for high ping tolerance (Croatia-Netherlands)
 const POSITION_UPDATE_TIMEOUT_MS: u64 = 20000; // 20 seconds for users with 100+ ms ping
 
+// === WALKING SOUND CONSTANTS ===
+const WALKING_SOUND_DISTANCE_THRESHOLD: f32 = 80.0; // Minimum distance for a footstep (normal walking)
+const SPRINTING_SOUND_DISTANCE_THRESHOLD: f32 = 120.0; // Distance for footstep when sprinting (faster cadence)
+const WALKING_SOUND_MIN_TIME_MS: u64 = 300; // Minimum time between footsteps (normal walking)
+const SPRINTING_SOUND_MIN_TIME_MS: u64 = 200; // Minimum time between footsteps when sprinting (faster cadence)
+
+// === SWIMMING SOUND CONSTANTS ===
+const SWIMMING_SOUND_DISTANCE_THRESHOLD: f32 = 90.0; // Minimum distance for a swimming stroke (normal swimming)
+const FAST_SWIMMING_SOUND_DISTANCE_THRESHOLD: f32 = 130.0; // Distance for swimming stroke when sprinting in water
+const SWIMMING_SOUND_MIN_TIME_MS: u64 = 350; // Minimum time between swimming strokes (normal swimming)
+const FAST_SWIMMING_SOUND_MIN_TIME_MS: u64 = 250; // Minimum time between swimming strokes when sprinting in water
+
 /// Simple timestamped position update from client
 /// This replaces complex prediction with simple client-authoritative movement
 #[spacetimedb::reducer]
@@ -578,6 +606,96 @@ pub fn update_player_position_simple(
         // Apply wet effect when entering water
         if let Err(e) = crate::wet::apply_wet_effect(ctx, sender_id, "entering water") {
             log::warn!("Failed to apply wet effect when player {:?} entered water: {}", sender_id, e);
+        }
+    }
+
+    // --- Movement Sound Logic (Walking & Swimming) ---
+    // Only emit movement sounds if player actually moved and conditions are right
+    if movement_distance > 3.0 && // Moved a meaningful distance
+       !current_player.is_dead && 
+       !current_player.is_knocked_out &&
+       !is_jumping {   // No movement sounds while jumping
+        
+        let walking_sound_states = ctx.db.player_walking_sound_state();
+        
+        // Get or create walking sound state for this player
+        let mut walking_state = walking_sound_states.player_id().find(&sender_id).unwrap_or_else(|| {
+            PlayerWalkingSoundState {
+                player_id: sender_id,
+                last_walking_sound_time_ms: 0,
+                total_distance_since_last_sound: 0.0,
+                last_swimming_sound_time_ms: 0,
+                total_swimming_distance_since_last_sound: 0.0,
+            }
+        });
+        
+        if is_on_water {
+            // --- Swimming Sound Logic ---
+            // Add movement distance to accumulated swimming total
+            walking_state.total_swimming_distance_since_last_sound += movement_distance;
+            
+            // Determine thresholds based on movement speed (sprinting in water)
+            let (distance_threshold, time_threshold_ms) = if is_sprinting {
+                (FAST_SWIMMING_SOUND_DISTANCE_THRESHOLD, FAST_SWIMMING_SOUND_MIN_TIME_MS)
+            } else {
+                (SWIMMING_SOUND_DISTANCE_THRESHOLD, SWIMMING_SOUND_MIN_TIME_MS)
+            };
+            
+            // Check if enough distance and time has passed for a swimming stroke
+            let time_since_last_stroke = now_ms.saturating_sub(walking_state.last_swimming_sound_time_ms);
+            
+            if walking_state.total_swimming_distance_since_last_sound >= distance_threshold && 
+               time_since_last_stroke >= time_threshold_ms {
+                
+                // Emit swimming sound
+                emit_swimming_sound(ctx, final_x, final_y, sender_id);
+                
+                // Reset accumulated swimming distance and update time
+                walking_state.total_swimming_distance_since_last_sound = 0.0;
+                walking_state.last_swimming_sound_time_ms = now_ms;
+                
+                log::debug!("Player {:?} swimming stroke at ({:.1}, {:.1}) - sprinting: {}, distance: {:.1}", 
+                           sender_id, final_x, final_y, is_sprinting, movement_distance);
+            }
+        } else if !current_player.is_crouching {
+            // --- Walking Sound Logic (on land, not crouching) ---
+            // Add movement distance to accumulated total
+            walking_state.total_distance_since_last_sound += movement_distance;
+            
+            // Determine thresholds based on movement speed
+            let (distance_threshold, time_threshold_ms) = if is_sprinting {
+                (SPRINTING_SOUND_DISTANCE_THRESHOLD, SPRINTING_SOUND_MIN_TIME_MS)
+            } else {
+                (WALKING_SOUND_DISTANCE_THRESHOLD, WALKING_SOUND_MIN_TIME_MS)
+            };
+            
+            // Check if enough distance and time has passed for a footstep
+            let time_since_last_footstep = now_ms.saturating_sub(walking_state.last_walking_sound_time_ms);
+            
+            if walking_state.total_distance_since_last_sound >= distance_threshold && 
+               time_since_last_footstep >= time_threshold_ms {
+                
+                // Emit walking sound
+                emit_walking_sound(ctx, final_x, final_y, sender_id);
+                
+                // Reset accumulated distance and update time
+                walking_state.total_distance_since_last_sound = 0.0;
+                walking_state.last_walking_sound_time_ms = now_ms;
+                
+                log::debug!("Player {:?} footstep at ({:.1}, {:.1}) - sprinting: {}, distance: {:.1}", 
+                           sender_id, final_x, final_y, is_sprinting, movement_distance);
+            }
+        }
+        
+
+        
+        // Update or insert the walking sound state
+        if walking_sound_states.player_id().find(&sender_id).is_some() {
+            walking_sound_states.player_id().update(walking_state);
+        } else {
+            if let Err(e) = walking_sound_states.try_insert(walking_state) {
+                log::warn!("Failed to insert walking sound state for player {:?}: {}", sender_id, e);
+            }
         }
     }
 

@@ -738,12 +738,17 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     
     log::info!("🌱 Seeding plants for season: {:?}", current_season);
     
+    // Log global plant density multiplier if not default
+    if GLOBAL_PLANT_DENSITY_MULTIPLIER != 1.0 {
+        log::info!("🌿 Using global plant density multiplier: {:.2}x", GLOBAL_PLANT_DENSITY_MULTIPLIER);
+    }
+
     let mut plant_targets = std::collections::HashMap::new();
     let mut plant_attempts = std::collections::HashMap::new();
     for (plant_type, config) in plants_database::PLANT_CONFIGS.iter() {
         // SEASONAL CHECK: Only seed plants that can grow in the current season
         if plants_database::can_grow_in_season(plant_type, &current_season) {
-            let target_count = (total_tiles as f32 * config.density_percent) as u32;
+            let target_count = (total_tiles as f32 * config.density_percent * GLOBAL_PLANT_DENSITY_MULTIPLIER) as u32;
             let max_attempts = target_count * crate::tree::MAX_TREE_SEEDING_ATTEMPTS_FACTOR;
             plant_targets.insert(plant_type.clone(), target_count);
             plant_attempts.insert(plant_type.clone(), max_attempts);
@@ -759,8 +764,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
-    // Wild animal seeding parameters
-    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0003; // 0.03% of tiles
+    // Wild animal seeding parameters - REDUCED for better performance (30% reduction)
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.00015; // 0.015% of tiles (reduced from 0.1% for better performance)
     const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
@@ -1086,16 +1091,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     
     // Define species distribution (weighted probabilities)
     let species_weights = [
-        (AnimalSpecies::CinderFox, 40),      // 40% - Most common
-        (AnimalSpecies::TundraWolf, 30),     // 30% - Moderately common
+        (AnimalSpecies::CinderFox, 35),      // 35% - Most common
+        (AnimalSpecies::TundraWolf, 25),     // 25% - Moderately common
         (AnimalSpecies::CableViper, 20),     // 20% - Uncommon
-        (AnimalSpecies::ArcticWalrus, 10),   // 10% - Rare (beaches only)
+        (AnimalSpecies::ArcticWalrus, 20),   // 20% - More common (beaches only)
     ];
     let total_weight: u32 = species_weights.iter().map(|(_, weight)| weight).sum();
     
     // NEW: Chunk-based distribution system to prevent clustering (not to fill every chunk)
     let total_chunks = WORLD_WIDTH_CHUNKS * WORLD_WIDTH_CHUNKS;
-    let max_animals_per_chunk = 1; // Hard limit: maximum 1 animal per chunk
+    let max_animals_per_chunk = 1; // Hard limit: maximum 1 animal per chunk (reduced for performance)
     
     log::info!("Using chunk-based distribution: {} total chunks, max {} animal per chunk (target total: {})", 
                total_chunks, max_animals_per_chunk, target_wild_animal_count);
@@ -1608,9 +1613,18 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
     // scheduled reducer would be needed here or in `cloud.rs`.
 
     // --- NEW: Wild Animal Population Maintenance ---
-    // Maintain minimum animal population levels with gradual respawn (like Rust game)
+    // Maintain minimum animal population levels with gradual respawn
     crate::wild_animal_npc::respawn::maintain_wild_animal_population(ctx)?;
 
     Ok(())
 }
 
+/// Global multiplier for all plant densities (1.0 = normal, 2.0 = double density, 0.5 = half density)
+/// ADJUST THIS VALUE TO GLOBALLY SCALE ALL PLANT SPAWNS WITHOUT EDITING INDIVIDUAL DENSITIES
+/// 
+/// Examples:
+/// - 2.0 = Double all plant spawns (more resources, easier survival)
+/// - 0.5 = Half all plant spawns (scarce resources, harder survival)
+/// - 0.1 = Very sparse world (10% of normal plants, extreme scarcity)
+/// - 3.0 = Very abundant world (300% of normal plants, easy resources)
+pub const GLOBAL_PLANT_DENSITY_MULTIPLIER: f32 = 1.0;

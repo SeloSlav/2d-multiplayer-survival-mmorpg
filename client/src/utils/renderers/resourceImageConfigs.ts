@@ -4,7 +4,7 @@
 import type { HarvestableResourceType } from '../../types/resourceTypes';
 
 // Import existing resource images
-import borealNettleImageSource from '../../assets/doodads/hemp_b.png'; // Reusing hemp image for BorealNettle
+import borealNettleImageSource from '../../assets/doodads/nettle.png'; // Reusing hemp image for BorealNettle
 import potatoImageSource from '../../assets/doodads/potato_b.png';
 import pumpkinImageSource from '../../assets/doodads/pumpkin_b.png';
 import reedImageSource from '../../assets/doodads/reed_stalk_b.png';
@@ -56,6 +56,9 @@ import wolfsbaneImageSource from '../../assets/doodads/wolfsbane.png';
 
 // Other
 import sunflowersImageSource from '../../assets/doodads/sunflower.png';
+
+// Technological debris
+import memoryShardImageSource from '../../assets/doodads/memory_shard.png';
 
 // Resource type to image source mapping (BOTANICALLY ACCURATE FOR ALEUTIAN ISLANDS)
 export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
@@ -115,7 +118,10 @@ export const RESOURCE_IMAGE_SOURCES: Record<HarvestableResourceType, string> = {
   Wolfsbane: wolfsbaneImageSource,
   
   // === OTHER ===
-  Sunflowers: sunflowersImageSource
+  Sunflowers: sunflowersImageSource,
+
+  // === TECHNOLOGICAL DEBRIS ===
+  MemoryShard: memoryShardImageSource
 };
 
 // Helper function to get image source for a resource type
