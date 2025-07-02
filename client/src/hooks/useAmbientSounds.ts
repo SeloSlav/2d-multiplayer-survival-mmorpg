@@ -140,9 +140,9 @@ const AMBIENT_SOUND_DEFINITIONS = {
     whale_song: { 
         type: 'random', 
         filename: 'ambient_whale_song.mp3', 
-        baseVolume: 0.08, // Slightly louder since it's rare and atmospheric
-        minInterval: 480000, // 8 minutes minimum - rare and special
-        maxInterval: 900000, // 15 minutes maximum - creates anticipation
+        baseVolume: 0.12, // Increased volume since they're more frequent now
+        minInterval: 90000, // 1.5 minutes minimum - much more frequent!
+        maxInterval: 180000, // 3 minutes maximum - regular whale activity
         variations: 3,
         description: 'Distant whale songs echoing across the Aleutian waters'
     }
@@ -719,13 +719,18 @@ const startSimpleLoopingSound = async (
 // Main ambient sound system hook
 export const useAmbientSounds = ({
     masterVolume = 1.0,
-    environmentalVolume = 0.7,
+    environmentalVolume, // Remove default - use whatever is passed in (including 0)
     timeOfDay, // No default - will be passed from actual game data
     weatherCondition, // No default - will be passed from actual game data
 }: AmbientSoundProps = {}) => {
+    // Use a fallback only if environmentalVolume is completely undefined, but allow 0
+    const effectiveEnvironmentalVolume = environmentalVolume !== undefined ? environmentalVolume : 0.7;
+    
     const isInitializedRef = useRef(false);
     const lastWeatherRef = useRef(weatherCondition);
     const updateIntervalRef = useRef<number | undefined>(undefined);
+
+    console.log(`🌊 [VOLUME DEBUG] useAmbientSounds called with environmentalVolume=${environmentalVolume}, effective=${effectiveEnvironmentalVolume}`);
 
     // Calculate which continuous sounds should be playing
     const getActiveContinuousSounds = useCallback((): AmbientSoundType[] => {
@@ -761,10 +766,12 @@ export const useAmbientSounds = ({
                 return;
             }
 
-            console.log(`🌊 Starting continuous ambient sound: ${soundType}`);
+            console.log(`🌊 Starting continuous ambient sound: ${soundType} with environmentalVolume=${effectiveEnvironmentalVolume}`);
             loadingSeamlessSounds.add(soundType);
 
-            const finalVolume = definition.baseVolume * environmentalVolume;
+            const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume;
+            console.log(`🌊 [VOLUME] ${soundType}: baseVolume=${definition.baseVolume} * environmentalVolume=${effectiveEnvironmentalVolume} = finalVolume=${finalVolume}`);
+            
             const pitchVariation = 0.95 + Math.random() * 0.1; // Tighter pitch range for seamless sounds
             
             if (definition.useSeamlessLooping) {
@@ -783,7 +790,7 @@ export const useAmbientSounds = ({
         } finally {
             loadingSeamlessSounds.delete(soundType);
         }
-    }, [environmentalVolume]);
+    }, [effectiveEnvironmentalVolume]);
 
     // Stop a continuous ambient sound
     const stopContinuousSound = useCallback(async (soundType: AmbientSoundType) => {
@@ -828,7 +835,7 @@ export const useAmbientSounds = ({
                 ).join(', ')}`);
 
                 const audio = await ambientAudioCache.loadAudio(filename);
-                const finalVolume = definition.baseVolume * environmentalVolume;
+                const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume;
                 
                 // Wait a moment for audio metadata to load before checking duration
                 await new Promise(resolve => setTimeout(resolve, 200));
@@ -889,7 +896,7 @@ export const useAmbientSounds = ({
         };
 
         scheduleNext();
-    }, [masterVolume, environmentalVolume, timeOfDay]);
+    }, [masterVolume, effectiveEnvironmentalVolume, timeOfDay]);
 
     // Initialize ambient sound system - ALWAYS ensure update loop is running
     useEffect(() => {
@@ -1052,16 +1059,81 @@ export const useAmbientSounds = ({
 
     // Update volumes when master/environmental volume changes
     useEffect(() => {
+        console.log(`🌊 [VOLUME UPDATE] Volume effect triggered: effectiveEnvironmentalVolume=${effectiveEnvironmentalVolume}, masterVolume=${masterVolume}`);
+        
+        // If environmental volume is 0, stop all ambient sounds immediately
+        if (effectiveEnvironmentalVolume === 0) {
+            console.log(`🌊 [VOLUME UPDATE] Environmental volume is 0 - stopping all ambient sounds`);
+            
+            // Stop all seamless looping sounds
+            activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
+                seamlessSound.primary.volume = 0;
+                seamlessSound.secondary.volume = 0;
+                seamlessSound.volume = 0;
+                console.log(`🌊 [VOLUME UPDATE] Silenced seamless sound ${soundType}`);
+            });
+            
+            // Stop all random sounds
+            activeRandomSounds.forEach((audio) => {
+                audio.volume = 0;
+            });
+            console.log(`🌊 [VOLUME UPDATE] Silenced ${activeRandomSounds.size} random sounds`);
+            
+            // Stop simple looping sounds
+            const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+            if (simpleLoopingSounds instanceof Map) {
+                simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
+                    audio.volume = 0;
+                    console.log(`🌊 [VOLUME UPDATE] Silenced simple loop sound ${soundType}`);
+                });
+            }
+            
+            return; // Don't process volume updates when muted
+        }
+        
+        // Update seamless looping sounds (continuous)
         activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
             const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-            const targetVolume = definition.baseVolume * environmentalVolume * masterVolume;
+            const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
             
             // Update volume for both audio instances
             seamlessSound.primary.volume = Math.min(1.0, targetVolume);
             seamlessSound.secondary.volume = Math.min(1.0, targetVolume);
             seamlessSound.volume = targetVolume;
+            
+            console.log(`🌊 [VOLUME UPDATE] Updated seamless sound ${soundType}: ${targetVolume.toFixed(3)}`);
         });
-    }, [masterVolume, environmentalVolume]);
+        
+        // Update currently playing random sounds
+        activeRandomSounds.forEach((audio) => {
+            // Find the sound type based on the audio src
+            let soundType: AmbientSoundType | null = null;
+            for (const [type, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
+                if (definition.type === 'random' && audio.src.includes(definition.filename.replace('.mp3', ''))) {
+                    soundType = type as AmbientSoundType;
+                    break;
+                }
+            }
+            
+            if (soundType) {
+                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
+                audio.volume = Math.min(1.0, targetVolume);
+                console.log(`🌊 [VOLUME UPDATE] Updated random sound ${soundType}: ${targetVolume.toFixed(3)}`);
+            }
+        });
+        
+        // Update simple looping sounds (fallback system)
+        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+        if (simpleLoopingSounds instanceof Map) {
+            simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
+                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
+                audio.volume = Math.min(1.0, targetVolume);
+                console.log(`🌊 [VOLUME UPDATE] Updated simple loop sound ${soundType}: ${targetVolume.toFixed(3)}`);
+            });
+        }
+    }, [masterVolume, effectiveEnvironmentalVolume]);
 
     // Public API
     const playManualAmbientSound = useCallback((soundType: AmbientSoundType) => {
