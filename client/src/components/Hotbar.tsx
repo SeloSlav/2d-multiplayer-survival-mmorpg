@@ -71,6 +71,11 @@ interface TooltipState {
   content: {
     name: string;
     quantity: number;
+    consumableStats?: {
+      health: number;
+      thirst: number;
+      hunger: number;
+    };
   } | null;
   position: {
     x: number;
@@ -1007,11 +1012,25 @@ const Hotbar: React.FC<HotbarProps> = ({
     const tooltipX = rect.left - 10; // 10px gap from slot
     const tooltipY = rect.top + (rect.height / 2); // Center vertically with slot
 
+    // Check if item is consumable and extract restoration values
+    let consumableStats: { health: number; thirst: number; hunger: number } | undefined = undefined;
+    if (item.definition.category.tag === 'Consumable') {
+      const health = item.definition.consumableHealthGain || 0;
+      const thirst = item.definition.consumableThirstQuenched || 0;
+      const hunger = item.definition.consumableHungerSatiated || 0;
+      
+      // Only show stats if at least one value is positive
+      if (health > 0 || thirst > 0 || hunger > 0) {
+        consumableStats = { health, thirst, hunger };
+      }
+    }
+
     setTooltip({
       visible: true,
       content: {
         name: item.definition.name,
-        quantity: item.instance.quantity
+        quantity: item.instance.quantity,
+        consumableStats
       },
       position: {
         x: tooltipX,
@@ -1298,7 +1317,7 @@ const Hotbar: React.FC<HotbarProps> = ({
             left: `${tooltip.position.x}px`,
             top: `${tooltip.position.y}px`,
             transform: 'translate(-100%, -50%)', // Position to the left and center vertically
-            backgroundColor: UI_BG_COLOR,
+            backgroundColor: 'rgba(40, 40, 60, 0.95)', // More opaque for better readability
             border: `1px solid ${UI_BORDER_COLOR}`,
             borderRadius: '4px',
             padding: '8px 12px',
@@ -1314,6 +1333,19 @@ const Hotbar: React.FC<HotbarProps> = ({
           <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
             {tooltip.content.name}
           </div>
+          {tooltip.content.consumableStats && (
+            <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.8)', marginBottom: '2px' }}>
+              {tooltip.content.consumableStats.health > 0 && (
+                <span style={{ marginRight: '8px' }}>❤️ +{tooltip.content.consumableStats.health}</span>
+              )}
+              {tooltip.content.consumableStats.thirst > 0 && (
+                <span style={{ marginRight: '8px' }}>💧 +{tooltip.content.consumableStats.thirst}</span>
+              )}
+              {tooltip.content.consumableStats.hunger > 0 && (
+                <span>🍖 +{tooltip.content.consumableStats.hunger}</span>
+              )}
+            </div>
+          )}
           <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.7)' }}>
             Quantity: {tooltip.content.quantity}
           </div>

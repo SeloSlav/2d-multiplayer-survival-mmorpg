@@ -77,7 +77,6 @@ pub fn consume_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<(), S
     let has_consumable_stats = item_def.consumable_health_gain.is_some() ||
                               item_def.consumable_hunger_satiated.is_some() ||
                               item_def.consumable_thirst_quenched.is_some() ||
-                              item_def.consumable_stamina_gain.is_some() ||
                               item_def.warmth_bonus.is_some();
     
     if item_def.category != ItemCategory::Consumable && !has_consumable_stats {
@@ -196,10 +195,7 @@ pub fn apply_item_effects_and_consume(
                     player_to_update.thirst = (player_to_update.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
                     if player_to_update.thirst != old_val { stat_changed_instantly = true; }
                 }
-                if let Some(stamina_gain) = item_def.consumable_stamina_gain {
-                    player_to_update.stamina = (player_to_update.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
-                    stat_changed_instantly = true;
-                }
+
                 if let Some(warmth_gain) = item_def.warmth_bonus {
                     let old_val = player_to_update.warmth;
                     player_to_update.warmth = (player_to_update.warmth + warmth_gain).clamp(MIN_STAT_VALUE, MAX_WARMTH_VALUE);
@@ -226,10 +222,7 @@ pub fn apply_item_effects_and_consume(
                 player_to_update.thirst = (player_to_update.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
                 if player_to_update.thirst != old_val { stat_changed_instantly = true; }
             }
-            if let Some(stamina_gain) = item_def.consumable_stamina_gain {
-                player_to_update.stamina = (player_to_update.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
-                stat_changed_instantly = true;
-            }
+
         } else {
             apply_instant_effects_for_helper(ctx, item_def, player_id, player_to_update, &mut stat_changed_instantly);
         }
@@ -288,10 +281,7 @@ fn apply_instant_effects_for_helper(ctx: &ReducerContext, item_def: &ItemDefinit
         player.thirst = (player.thirst + thirst_quenched).clamp(MIN_STAT_VALUE, MAX_THIRST_VALUE);
         if player.thirst != old_val { *stat_changed = true; }
     }
-    if let Some(stamina_gain) = item_def.consumable_stamina_gain {
-        player.stamina = (player.stamina + stamina_gain).clamp(MIN_STAT_VALUE, MAX_STAMINA_VALUE);
-        *stat_changed = true;
-    }
+
     if let Some(warmth_gain) = item_def.warmth_bonus {
         let old_val = player.warmth;
         player.warmth = (player.warmth + warmth_gain).clamp(MIN_STAT_VALUE, MAX_WARMTH_VALUE);

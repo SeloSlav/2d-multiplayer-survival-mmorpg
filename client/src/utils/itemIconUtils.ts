@@ -27,6 +27,7 @@ import boneFragmentsIcon from '../assets/items/bone_fragments.png';
 import animalFatIcon from '../assets/items/animal_fat.png';
 
 // Animal materials
+import animalLeatherIcon from '../assets/items/animal_leather.png';
 import cableViperGlandIcon from '../assets/items/cable_viper_gland.png';
 import foxFurIcon from '../assets/items/fox_fur.png';
 import wolfFurIcon from '../assets/items/wolf_fur.png';
@@ -289,6 +290,7 @@ const iconMap: { [key: string]: string | undefined } = {
   'animal_fat.png': animalFatIcon,
   
   // Animal materials
+  'animal_leather.png': animalLeatherIcon,
   'cable_viper_gland.png': cableViperGlandIcon,
   'fox_fur.png': foxFurIcon,
   'wolf_fur.png': wolfFurIcon,

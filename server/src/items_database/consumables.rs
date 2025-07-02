@@ -16,8 +16,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Pumpkin", "Soft, sweet, and nutritious cooked pumpkin chunks.", ItemCategory::Consumable)
             .icon("cooked_pumpkin.png")
             .stackable(10)
-            .consumable(30.0, 50.0, 30.0)
-            .stamina_gain(15.0)
+            .consumable(35.0, 55.0, 35.0) // Increased health/hunger/thirst to compensate for removed stamina
             .cookable(45.0, "Burnt Pumpkin")
             .respawn_time(360)
             .build(),
@@ -42,8 +41,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Potato", "Fluffy and satisfying. A hearty source of energy.", ItemCategory::Consumable)
             .icon("cooked_potato.png")
             .stackable(20)
-            .consumable(20.0, 60.0, 12.0)
-            .stamina_gain(20.0)
+            .consumable(25.0, 70.0, 15.0) // Increased values to compensate for removed stamina
             .cookable(40.0, "Burnt Potato")
             .respawn_time(260)
             .build(),
@@ -69,7 +67,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_carrot.png")
             .stackable(15)
             .consumable(25.0, 35.0, 15.0)
-            .stamina_gain(12.0)
             .cookable(45.0, "Burnt Carrot")
             .respawn_time(240)
             .build(),
@@ -88,7 +85,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("scurvy_grass.png")
             .stackable(20)
             .consumable(15.0, 8.0, 5.0) // High health (vitamin C), low hunger/thirst
-            .stamina_gain(8.0)
             .cookable(25.0, "Burnt Scurvy Grass")
             .respawn_time(150)
             .build(),
@@ -106,7 +102,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("crowberry.png")
             .stackable(25)
             .consumable(8.0, 12.0, 10.0)
-            .stamina_gain(6.0)
             .cookable(22.0, "Burnt Crowberry")
             .respawn_time(180)
             .build(),
@@ -124,7 +119,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("sea_plantain.png")
             .stackable(18)
             .consumable(12.0, 10.0, -5.0) // Negative thirst due to salt content
-            .stamina_gain(4.0)
             .cookable(20.0, "Burnt Sea Plantain")
             .respawn_time(140)
             .build(),
@@ -142,7 +136,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("glasswort.png")
             .stackable(15)
             .consumable(4.0, 8.0, -8.0) // Good hunger, very negative thirst (salty)
-            .stamina_gain(5.0)
             .cookable(30.0, "Burnt Glasswort")
             .respawn_time(160)
             .build(),
@@ -156,10 +149,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(40)
             .build(),
 
-
-
-
-
         ItemBuilder::new("Beet", "A deep red root vegetable with a sweet, earthy flavor. Nutritious and can be eaten raw or cooked.", ItemCategory::Consumable)
             .icon("beet.png")
             .stackable(12)
@@ -171,8 +160,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Beet", "Tender and sweet cooked beet. A healthy side dish that provides excellent nutrition.", ItemCategory::Consumable)
             .icon("cooked_beet.png")
             .stackable(12)
-            .consumable(30.0, 45.0, 25.0)
-            .stamina_gain(20.0)
+            .consumable(38.0, 55.0, 30.0) // Increased to compensate for removed 20 stamina
             .cookable(50.0, "Burnt Beet")
             .respawn_time(300)
             .build(),
@@ -187,11 +175,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .build(),
 
 
-
-
-
-
-
         ItemBuilder::new("Horseradish", "A pungent root vegetable with a sharp, spicy flavor. Can be eaten raw or cooked for better nutrition.", ItemCategory::Consumable)
             .icon("horseradish.png")
             .stackable(12)
@@ -204,7 +187,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_horseradish.png")
             .stackable(12)
             .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
             .cookable(50.0, "Burnt Horseradish")
             .respawn_time(280)
             .build(),
@@ -230,7 +212,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_sunflower.png")
             .stackable(12)
             .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
             .cookable(50.0, "Burnt Sunflower")
             .respawn_time(280)
             .build(),
@@ -256,7 +237,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_salsify.png")
             .stackable(12)
             .consumable(15.0, 25.0, 12.0)
-            .stamina_gain(8.0)
             .cookable(50.0, "Burnt Salsify Root")
             .respawn_time(280)
             .build(),
@@ -284,7 +264,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_chicory.png")
             .stackable(12)
             .consumable(12.0, 18.0, 8.0)
-            .stamina_gain(6.0)
             .cookable(50.0, "Burnt Chicory")
             .respawn_time(260)
             .build(),
@@ -310,7 +289,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_yarrow.png")
             .stackable(12)
             .consumable(8.0, 12.0, 6.0)
-            .stamina_gain(4.0)
             .cookable(50.0, "Burnt Yarrow")
             .respawn_time(240)
             .build(),
@@ -336,7 +314,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_chamomile.png")
             .stackable(12)
             .consumable(6.0, 10.0, 8.0)
-            .stamina_gain(3.0)
             .cookable(50.0, "Burnt Chamomile")
             .respawn_time(260)
             .build(),
@@ -362,7 +339,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_mint.png")
             .stackable(12)
             .consumable(6.0, 10.0, 8.0)
-            .stamina_gain(3.0)
             .cookable(50.0, "Burnt Mint Leaves")
             .respawn_time(260)
             .build(),
@@ -381,7 +357,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("valerian.png")
             .stackable(15)
             .consumable(8.0, 5.0, 3.0)
-            .stamina_gain(15.0)
             .cookable(40.0, "Burnt Valerian Root")
             .respawn_time(240)
             .build(),
@@ -399,7 +374,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("mugwort.png")
             .stackable(12)
             .consumable(6.0, 12.0, 2.0)
-            .stamina_gain(8.0)
             .cookable(35.0, "Cooked Mugwort")
             .respawn_time(200)
             .build(),
@@ -407,8 +381,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Mugwort", "Sautéed mugwort with mellowed bitterness. The cooking process enhances its digestive properties.", ItemCategory::Consumable)
             .icon("cooked_mugwort.png")
             .stackable(12)
-            .consumable(12.0, 20.0, 4.0)
-            .stamina_gain(15.0)
+            .consumable(20.0, 28.0, 8.0) // Increased to compensate for removed 15 stamina
             .cookable(25.0, "Burnt Mugwort")
             .build(),
 
@@ -425,7 +398,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("bear_garlic.png")
             .stackable(16)
             .consumable(7.0, 10.0, 3.0)
-            .stamina_gain(10.0)
             .cookable(38.0, "Roasted Bear Garlic")
             .respawn_time(280)
             .build(),
@@ -433,8 +405,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Roasted Bear Garlic", "Caramelized wild garlic with a sweet, mellow flavor. Roasting reduces the pungency and enhances the nutrition.", ItemCategory::Consumable)
             .icon("roasted_bear_garlic.png")
             .stackable(16)
-            .consumable(15.0, 18.0, 8.0)
-            .stamina_gain(20.0)
+            .consumable(25.0, 28.0, 12.0) // Increased to compensate for removed 20 stamina
             .cookable(28.0, "Burnt Bear Garlic")
             .build(),
 
@@ -450,8 +421,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Siberian Ginseng", "Adaptogenic root known for boosting energy and resilience. Provides excellent stamina restoration.", ItemCategory::Consumable)
             .icon("siberian_ginseng.png")
             .stackable(8)
-            .consumable(12.0, 8.0, 5.0)
-            .stamina_gain(25.0)
+            .consumable(25.0, 15.0, 10.0) // Increased to compensate for removed 25 stamina (medicinal bias)
             .cookable(45.0, "Burnt Siberian Ginseng")
             .respawn_time(360)
             .build(),
@@ -469,7 +439,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("nettle_leaves.png")
             .stackable(25)
             .consumable(-8.0, 12.0, -15.0) // Damage and dehydration from stinging
-            .stamina_gain(5.0) // Still some nutrition despite the pain
             .cookable(25.0, "Cooked Nettle Leaves")
             .respawn_time(180)
             .build(),
@@ -477,8 +446,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Nettle Leaves", "Properly cooked nettle leaves. Cooking destroys the stinging hairs, revealing excellent nutrition and iron content.", ItemCategory::Consumable)
             .icon("cooked_nettle_leaves.png")
             .stackable(25)
-            .consumable(15.0, 22.0, 8.0) // Great nutrition once cooked
-            .stamina_gain(18.0)
+            .consumable(25.0, 32.0, 12.0) // Increased to compensate for removed 18 stamina
             .cookable(20.0, "Burnt Nettle Leaves")
             .build(),
 
@@ -497,7 +465,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("chamomile.png")
             .stackable(30)
             .consumable(2.0, 4.0, 3.0)
-            .stamina_gain(4.0)
             .cookable(20.0, "Burnt Chamomile")
             .respawn_time(140)
             .build(),
@@ -515,7 +482,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("valerian_leaves.png")
             .stackable(25)
             .consumable(3.0, 6.0, 2.0)
-            .stamina_gain(8.0)
             .cookable(25.0, "Burnt Valerian Leaves")
             .respawn_time(180)
             .build(),
@@ -533,7 +499,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("ginseng_leaves.png")
             .stackable(15)
             .consumable(5.0, 6.0, 3.0)
-            .stamina_gain(10.0)
             .cookable(30.0, "Burnt Ginseng Leaves")
             .respawn_time(240)
             .build(),
@@ -560,7 +525,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_human_meat.png")
             .stackable(10)
             .consumable(10.0, 40.0, -5.0)
-            .stamina_gain(5.0)
             .cookable(30.0, "Burnt Human Flesh")
             .respawn_time(240)
             .build(),
@@ -579,7 +543,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("raw_twigfish.png")
             .stackable(10)
             .consumable(5.0, 5.0, 0.0)
-            .stamina_gain(0.0)
             .cookable(45.0, "Cooked Twigfish")
             .respawn_time(180)
             .build(),
@@ -588,7 +551,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_twigfish.png")
             .stackable(10)
             .consumable(15.0, 20.0, 5.0)
-            .stamina_gain(10.0)
             .cookable(30.0, "Burnt Twigfish")
             .build(),
 
@@ -596,7 +558,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_twigfish.png")
             .stackable(10)
             .consumable(2.0, 5.0, 0.0)
-            .stamina_gain(0.0)
             .crafting_output(8, 0)
             .cookable(35.0, "Charcoal")
             .build(),
@@ -612,8 +573,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Fox Meat", "Properly cooked fox meat. Lean and flavorful with good nutritional value.", ItemCategory::Consumable)
             .icon("cooked_fox_meat.png")
             .stackable(15)
-            .consumable(22.0, 32.0, 8.0)
-            .stamina_gain(15.0)
+            .consumable(30.0, 40.0, 12.0) // Increased to compensate for removed 15 stamina
             .cookable(25.0, "Burnt Fox Meat")
             .build(),
 
@@ -635,8 +595,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Wolf Meat", "Well-cooked wolf meat. Dense and protein-rich, providing substantial nutrition.", ItemCategory::Consumable)
             .icon("cooked_wolf_meat.png")
             .stackable(12)
-            .consumable(28.0, 45.0, 5.0)
-            .stamina_gain(22.0)
+            .consumable(38.0, 55.0, 10.0) // Increased to compensate for removed 22 stamina
             .cookable(30.0, "Burnt Wolf Meat")
             .build(),
 
@@ -658,8 +617,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Viper Meat", "Tender snake meat, properly cooked to neutralize toxins. Surprisingly delicious and nutritious.", ItemCategory::Consumable)
             .icon("cooked_viper_meat.png")
             .stackable(20)
-            .consumable(25.0, 20.0, 12.0)
-            .stamina_gain(18.0)
+            .consumable(35.0, 30.0, 16.0) // Increased to compensate for removed 18 stamina
             .cookable(20.0, "Burnt Viper Meat")
             .build(),
 
@@ -676,7 +634,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("tallow.png")
             .stackable(1000)
             .consumable(0.0, 20.0, -7.0)
-            .stamina_gain(10.0)
             .respawn_time(300)
             .build(),
 
@@ -684,7 +641,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("tin_of_sprats.png")
             .stackable(10)
             .consumable(15.0, 35.0, -5.0)
-            .stamina_gain(8.0)
             .respawn_time(900)
             .build(),
 
@@ -692,7 +648,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("fermented_cabbage_jar.png")
             .stackable(5)
             .consumable(8.0, 20.0, -25.0)
-            .stamina_gain(5.0)
             .respawn_time(720)
             .build(),
 
@@ -700,7 +655,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("old_hardtack_biscuits.png")
             .stackable(15)
             .consumable(-8.0, 45.0, -15.0)
-            .stamina_gain(12.0)
             .respawn_time(600)
             .build(),
 
@@ -708,7 +662,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("expired_soviet_chocolate.png")
             .stackable(8)
             .consumable(-3.0, 15.0, 5.0)
-            .stamina_gain(25.0)
             .respawn_time(1200)
             .build(),
 
@@ -716,7 +669,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("mystery_can.png")
             .stackable(5)
             .consumable(0.0, 30.0, 0.0)
-            .stamina_gain(0.0)
             .respawn_time(800)
             .build(),
 
@@ -733,7 +685,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("chanterelle.png")
             .stackable(20)
             .consumable(6.0, 8.0, 2.0)
-            .stamina_gain(5.0)
             .cookable(25.0, "Cooked Chanterelle")
             .respawn_time(220)
             .build(),
@@ -741,8 +692,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Chanterelle", "Perfectly sautéed chanterelles with enhanced flavor and nutrition. Golden and aromatic.", ItemCategory::Consumable)
             .icon("cooked_chanterelle.png")
             .stackable(20)
-            .consumable(15.0, 18.0, 8.0)
-            .stamina_gain(12.0)
+            .consumable(22.0, 25.0, 12.0) // Increased to compensate for removed 12 stamina
             .cookable(20.0, "Burnt Chanterelle")
             .build(),
 
@@ -759,7 +709,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("porcini.png")
             .stackable(15)
             .consumable(8.0, 12.0, 3.0)
-            .stamina_gain(8.0)
             .cookable(30.0, "Cooked Porcini")
             .respawn_time(280)
             .build(),
@@ -767,8 +716,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Cooked Porcini", "Expertly cooked porcini mushrooms. Rich, meaty texture with exceptional nutritional value.", ItemCategory::Consumable)
             .icon("cooked_porcini.png")
             .stackable(15)
-            .consumable(20.0, 25.0, 12.0)
-            .stamina_gain(18.0)
+            .consumable(30.0, 35.0, 16.0) // Increased to compensate for removed 18 stamina
             .cookable(25.0, "Burnt Porcini")
             .build(),
 
@@ -785,7 +733,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("shaggy_ink_cap.png")
             .stackable(25)
             .consumable(4.0, 6.0, 1.0)
-            .stamina_gain(3.0)
             .cookable(20.0, "Cooked Shaggy Ink Cap")
             .respawn_time(180)
             .build(),
@@ -794,7 +741,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cooked_shaggy_ink_cap.png")
             .stackable(25)
             .consumable(12.0, 15.0, 6.0)
-            .stamina_gain(10.0)
             .cookable(15.0, "Burnt Shaggy Ink Cap")
             .build(),
 
@@ -811,7 +757,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("fly_agaric.png")
             .stackable(10)
             .consumable(-15.0, 2.0, -20.0)
-            .stamina_gain(-10.0)
             .cookable(30.0, "Burnt Fly Agaric")
             .respawn_time(400)
             .build(),
@@ -820,7 +765,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_fly_agaric.png")
             .stackable(10)
             .consumable(-8.0, 1.0, -12.0)
-            .stamina_gain(-5.0)
             .crafting_output(12, 0)
             .cookable(40.0, "Charcoal")
             .respawn_time(70)
@@ -830,7 +774,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("deadly_webcap.png")
             .stackable(8)
             .consumable(-25.0, 1.0, -30.0)
-            .stamina_gain(-20.0)
             .cookable(35.0, "Burnt Deadly Webcap")
             .respawn_time(500)
             .build(),
@@ -839,7 +782,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_deadly_webcap.png")
             .stackable(8)
             .consumable(-12.0, 1.0, -15.0)
-            .stamina_gain(-8.0)
             .crafting_output(15, 0)
             .cookable(45.0, "Charcoal")
             .respawn_time(90)
@@ -849,7 +791,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("destroying_angel.png")
             .stackable(6)
             .consumable(-30.0, 1.0, -40.0)
-            .stamina_gain(-25.0)
             .cookable(40.0, "Burnt Destroying Angel")
             .respawn_time(600)
             .build(),
@@ -858,7 +799,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_destroying_angel.png")
             .stackable(6)
             .consumable(-15.0, 1.0, -20.0)
-            .stamina_gain(-10.0)
             .crafting_output(18, 0)
             .cookable(50.0, "Charcoal")
             .respawn_time(110)
@@ -869,7 +809,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("lingonberries.png")
             .stackable(25)
             .consumable(8.0, 12.0, 8.0)
-            .stamina_gain(6.0)
             .cookable(20.0, "Burnt Lingonberries")
             .respawn_time(240)
             .build(),
@@ -887,7 +826,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cloudberries.png")
             .stackable(20)
             .consumable(12.0, 15.0, 12.0)
-            .stamina_gain(10.0)
             .cookable(22.0, "Burnt Cloudberries")
             .respawn_time(360)
             .build(),
@@ -905,7 +843,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("bilberries.png")
             .stackable(30)
             .consumable(6.0, 10.0, 6.0)
-            .stamina_gain(8.0)
             .cookable(18.0, "Burnt Bilberries")
             .respawn_time(200)
             .build(),
@@ -923,7 +860,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("wild_strawberries.png")
             .stackable(35)
             .consumable(5.0, 8.0, 5.0)
-            .stamina_gain(5.0)
             .cookable(15.0, "Burnt Wild Strawberries")
             .respawn_time(180)
             .build(),
@@ -941,7 +877,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("rowan_berries.png")
             .stackable(25)
             .consumable(4.0, 6.0, 3.0)
-            .stamina_gain(4.0)
             .cookable(18.0, "Burnt Rowan Berries")
             .respawn_time(220)
             .build(),
@@ -959,7 +894,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("cranberries.png")
             .stackable(25)
             .consumable(6.0, 8.0, 6.0)
-            .stamina_gain(6.0)
             .cookable(20.0, "Burnt Cranberries")
             .respawn_time(250)
             .build(),
@@ -979,8 +913,7 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Mandrake Root", "Mystical root with powerful but dangerous properties. Used in traditional medicine but highly toxic if misused.", ItemCategory::Consumable)
             .icon("mandrake_root.png")
             .stackable(5)
-            .consumable(-10.0, 3.0, -15.0)
-            .stamina_gain(20.0)
+            .consumable(-5.0, 8.0, -10.0) // Rebalanced to compensate for removed 20 stamina (still toxic but less harsh)
             .cookable(50.0, "Burnt Mandrake Root")
             .respawn_time(480)
             .build(),
@@ -989,7 +922,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_mandrake_root.png")
             .stackable(5)
             .consumable(-5.0, 1.0, -8.0)
-            .stamina_gain(5.0)
             .crafting_output(15, 0)
             .cookable(55.0, "Charcoal")
             .respawn_time(85)
@@ -999,7 +931,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("belladonna.png")
             .stackable(8)
             .consumable(-20.0, 2.0, -25.0)
-            .stamina_gain(-15.0)
             .cookable(35.0, "Burnt Belladonna")
             .respawn_time(520)
             .build(),
@@ -1008,7 +939,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_belladonna.png")
             .stackable(8)
             .consumable(-10.0, 1.0, -12.0)
-            .stamina_gain(-8.0)
             .crafting_output(12, 0)
             .cookable(45.0, "Charcoal")
             .respawn_time(95)
@@ -1018,7 +948,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("henbane.png")
             .stackable(10)
             .consumable(-12.0, 3.0, -18.0)
-            .stamina_gain(-8.0)
             .cookable(40.0, "Burnt Henbane")
             .respawn_time(420)
             .build(),
@@ -1027,7 +956,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_henbane.png")
             .stackable(10)
             .consumable(-6.0, 1.0, -9.0)
-            .stamina_gain(-3.0)
             .crafting_output(10, 0)
             .cookable(42.0, "Charcoal")
             .respawn_time(75)
@@ -1037,7 +965,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("datura.png")
             .stackable(6)
             .consumable(-18.0, 2.0, -30.0)
-            .stamina_gain(-12.0)
             .cookable(45.0, "Burnt Datura")
             .respawn_time(560)
             .build(),
@@ -1046,7 +973,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_datura.png")
             .stackable(6)
             .consumable(-9.0, 1.0, -15.0)
-            .stamina_gain(-6.0)
             .crafting_output(14, 0)
             .cookable(48.0, "Charcoal")
             .respawn_time(100)
@@ -1056,7 +982,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("wolfsbane.png")
             .stackable(8)
             .consumable(-22.0, 1.0, -35.0)
-            .stamina_gain(-18.0)
             .cookable(50.0, "Burnt Wolfsbane")
             .respawn_time(600)
             .build(),
@@ -1065,7 +990,6 @@ pub fn get_consumable_definitions() -> Vec<ItemDefinition> {
             .icon("burnt_wolfsbane.png")
             .stackable(8)
             .consumable(-11.0, 1.0, -18.0)
-            .stamina_gain(-9.0)
             .crafting_output(16, 0)
             .cookable(52.0, "Charcoal")
             .respawn_time(105)

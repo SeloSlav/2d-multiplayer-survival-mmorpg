@@ -36,7 +36,6 @@ impl ItemBuilder {
                 consumable_health_gain: None,
                 consumable_hunger_satiated: None,
                 consumable_thirst_quenched: None,
-                consumable_stamina_gain: None,
                 consumable_duration_secs: None,
                 cook_time_secs: None,
                 cooked_item_def_name: None,
@@ -77,10 +76,7 @@ impl ItemBuilder {
         self
     }
     
-    pub fn stamina_gain(mut self, stamina: f32) -> Self {
-        self.inner.consumable_stamina_gain = Some(stamina);
-        self
-    }
+
     
     pub fn consumable_duration(mut self, duration: f32) -> Self {
         self.inner.consumable_duration_secs = Some(duration);

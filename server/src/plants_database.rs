@@ -135,7 +135,7 @@ lazy_static! {
         
         configs.insert(PlantType::BorealNettle, PlantConfig {
             entity_name: "Boreal Nettle".to_string(),
-            density_percent: 0.000083125, // REDUCED 16x: was 0.00133 (333 plants) → now ~21 plants
+            density_percent: 0.00066, // INCREASED 8x: was 0.000083125 (~21 plants) → now ~166 plants (PRIMARY FIBER SOURCE)
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -187,7 +187,7 @@ lazy_static! {
         
         configs.insert(PlantType::Reed, PlantConfig {
             entity_name: "Common Reed Stalk".to_string(),
-            density_percent: 0.0001875, // REDUCED 16x: was 0.003 (750 plants) → now ~47 plants
+            density_percent: 0.00075, // INCREASED 4x: was 0.0001875 (~47 plants) → now ~188 plants (SUPPLEMENTARY FIBER)
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
@@ -204,7 +204,7 @@ lazy_static! {
         
         configs.insert(PlantType::BeachLymeGrass, PlantConfig {
             entity_name: "Beach Lyme Grass".to_string(),
-            density_percent: 0.000125, // REDUCED 16x: was 0.002 (500 plants) → now ~31 plants
+            density_percent: 0.00075, // INCREASED 6x: was 0.000125 (~31 plants) → now ~188 plants (RELIABLE BEACH FIBER)
             min_distance_sq: 30.0 * 30.0,
             min_tree_distance_sq: 20.0 * 20.0,
             min_stone_distance_sq: 25.0 * 25.0,
@@ -428,7 +428,7 @@ lazy_static! {
         
         configs.insert(PlantType::Flax, PlantConfig {
             entity_name: "Flax Plant".to_string(),
-            density_percent: 0.0000625, // REDUCED 16x: was 0.0010 (250 plants) → now ~16 plants
+            density_percent: 0.0005, // INCREASED 8x: was 0.0000625 (~16 plants) → now ~125 plants (DEDICATED FIBER CROP)
             min_distance_sq: 35.0 * 35.0,
             min_tree_distance_sq: 25.0 * 25.0,
             min_stone_distance_sq: 30.0 * 30.0,
@@ -497,12 +497,12 @@ lazy_static! {
         
         configs.insert(PlantType::BogCotton, PlantConfig {
             entity_name: "Bog Cotton".to_string(),
-            density_percent: 0.000075, // REDUCED 16x: was 0.0012 (300 plants) → now ~19 plants
+            density_percent: 0.00045, // INCREASED 6x: was 0.000075 (~19 plants) → now ~113 plants (COTTON SPECIALTY FIBER)
             min_distance_sq: 25.0 * 25.0,
             min_tree_distance_sq: 15.0 * 15.0,
             min_stone_distance_sq: 20.0 * 20.0,
             noise_threshold: 0.60,
-            primary_yield: ("Cotton Fibers".to_string(), 3, 5),
+            primary_yield: ("Plant Fiber".to_string(), 3, 5),
             secondary_yield: None,
             seed_type: "Bog Cotton Seeds".to_string(),
             seed_drop_chance: 0.55, // Increased from 0.10 for farming sustainability
