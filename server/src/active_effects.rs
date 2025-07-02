@@ -378,11 +378,12 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
                             amount_this_tick = 0.0;
                         }
                         EffectType::Exhausted => {
-                            // Exhausted provides movement speed penalty based on low needs
-                            // The movement speed penalty is handled in player movement system
-                            // This effect doesn't consume amount_applied_so_far
-                            amount_this_tick = 0.0;
-                        }
+                        // Exhausted provides movement speed penalty (EXHAUSTED_SPEED_PENALTY = 0.75)
+                        // Applied when hunger OR thirst is below 20% (50/250)
+                        // The movement speed penalty is handled in player movement system
+                        // This effect doesn't consume amount_applied_so_far
+                        amount_this_tick = 0.0;
+        }
                     }
 
                     if (player_to_update.health - old_health).abs() > f32::EPSILON {
@@ -951,26 +952,33 @@ pub fn player_has_tree_cover_effect(ctx: &ReducerContext, player_id: Identity) -
 // Exhausted Effect Management
 // ===========================
 
-/// Checks if a player should have the exhausted effect based on low hunger, thirst, or warmth
-pub fn should_player_be_exhausted(player_hunger: f32, player_thirst: f32, player_warmth: f32, low_need_threshold: f32) -> bool {
-    player_hunger < low_need_threshold || player_thirst < low_need_threshold || player_warmth < low_need_threshold
+// Exhausted effect speed penalty constant
+pub const EXHAUSTED_SPEED_PENALTY: f32 = 0.75; // 25% speed reduction when exhausted
+
+/// Checks if a player should have the exhausted effect based on low hunger or thirst only
+/// Player is exhausted when hunger OR thirst drops below 20% of maximum
+pub fn should_player_be_exhausted(player_hunger: f32, player_thirst: f32, _player_warmth: f32, _low_need_threshold: f32) -> bool {
+    const HUNGER_EXHAUSTION_THRESHOLD: f32 = 50.0; // 20% of 250 max hunger
+    const THIRST_EXHAUSTION_THRESHOLD: f32 = 50.0; // 20% of 250 max thirst
+    
+    player_hunger < HUNGER_EXHAUSTION_THRESHOLD || player_thirst < THIRST_EXHAUSTION_THRESHOLD
 }
 
-/// Applies or removes exhausted effect based on player's current needs
+/// Applies or removes exhausted effect based on player's current hunger and thirst only
 pub fn update_player_exhausted_status(ctx: &ReducerContext, player_id: Identity, player_hunger: f32, player_thirst: f32, player_warmth: f32, low_need_threshold: f32) -> Result<(), String> {
     let should_be_exhausted = should_player_be_exhausted(player_hunger, player_thirst, player_warmth, low_need_threshold);
     let has_exhausted_effect = player_has_exhausted_effect(ctx, player_id);
     
-    log::debug!("Exhausted status check for player {:?}: should_be_exhausted={}, has_exhausted_effect={} (hunger: {:.1}, thirst: {:.1}, warmth: {:.1}, threshold: {:.1})", 
-        player_id, should_be_exhausted, has_exhausted_effect, player_hunger, player_thirst, player_warmth, low_need_threshold);
+    log::debug!("Exhausted status check for player {:?}: should_be_exhausted={}, has_exhausted_effect={} (hunger: {:.1}, thirst: {:.1} - warmth ignored: {:.1})", 
+        player_id, should_be_exhausted, has_exhausted_effect, player_hunger, player_thirst, player_warmth);
     
     if should_be_exhausted && !has_exhausted_effect {
         // Apply exhausted effect
-        log::info!("Applying exhausted effect to player {:?}", player_id);
+        log::info!("Applying exhausted effect to player {:?} (hunger: {:.1}, thirst: {:.1})", player_id, player_hunger, player_thirst);
         apply_exhausted_effect(ctx, player_id)?;
     } else if !should_be_exhausted && has_exhausted_effect {
         // Remove exhausted effect
-        log::info!("Removing exhausted effect from player {:?}", player_id);
+        log::info!("Removing exhausted effect from player {:?} (hunger: {:.1}, thirst: {:.1})", player_id, player_hunger, player_thirst);
         remove_exhausted_effect(ctx, player_id);
     }
     

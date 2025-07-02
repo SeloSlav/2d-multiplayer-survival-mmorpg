@@ -766,10 +766,10 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                         effectApplies = true;
                         effectData = {
                             id: 'exhausted',
-                            name: 'Exhausted',
-                            emoji: '😴',
+                            name: 'Withering',
+                            emoji: '😵‍💫',
                             type: 'negative' as const,
-                            description: 'Movement slowed due to hunger, thirst, or cold.',
+                            description: 'Movement slowed by severe hunger or thirst. Body weakening from lack of sustenance.',
                             // No duration - permanent effect based on needs
                         };
                         break;

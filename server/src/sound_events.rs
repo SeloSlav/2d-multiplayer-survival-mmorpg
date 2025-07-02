@@ -45,8 +45,8 @@ pub enum SoundType {
     GrowlFox,       // growl_fox.mp3 (1 variation - when foxes start attacking)
     GrowlSnake,     // growl_snake.mp3 (1 variation - when vipers start approaching)
     GrowlWalrus,    // growl_walrus.mp3 (3 variations - when walruses are disturbed)
-    Walking,        // walking.mp3 (2 variations - footstep sounds when player moves)
-    Swimming,       // swimming.mp3 (3 variations - swimming sounds when player moves in water)
+    Walking,        // walking.mp3 (4 variations - footstep sounds when player moves)
+    Swimming,       // swimming.mp3 (4 variations - swimming sounds when player moves in water)
     // Add more as needed - extensible system
 }
 
@@ -138,8 +138,8 @@ impl SoundType {
             SoundType::GrowlFox => 1,
             SoundType::GrowlSnake => 1,
             SoundType::GrowlWalrus => 3,
-            SoundType::Walking => 2,
-            SoundType::Swimming => 3,
+            SoundType::Walking => 4,
+            SoundType::Swimming => 4,
         }
     }
 

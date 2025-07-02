@@ -218,8 +218,6 @@ use crate::PlayerLastAttackTimestamp as PlayerLastAttackTimestampTableTrait; // 
 use crate::player_stats::{
     SPRINT_SPEED_MULTIPLIER,
     JUMP_COOLDOWN_MS,
-    LOW_THIRST_SPEED_PENALTY,
-    LOW_WARMTH_SPEED_PENALTY,
     PLAYER_STARTING_HUNGER,
     PLAYER_STARTING_THIRST
 };

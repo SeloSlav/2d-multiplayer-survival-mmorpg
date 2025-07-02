@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Player, DbConnection } from '../generated';
+import { Player, DbConnection, ActiveConsumableEffect, EffectType } from '../generated';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { resolveClientCollision, GameEntities } from '../utils/clientCollision';
 
@@ -8,8 +8,21 @@ const POSITION_UPDATE_INTERVAL_MS = 25; // 40fps for better prediction accuracy 
 const PLAYER_SPEED = 400; // pixels per second - balanced for 60s world traversal
 const SPRINT_MULTIPLIER = 2.0; // 2x speed for sprinting (800 px/s)
 const WATER_SPEED_PENALTY = 0.5; // Half speed in water (matches server WATER_SPEED_PENALTY)
+const EXHAUSTED_SPEED_PENALTY = 0.75; // 25% speed reduction when exhausted (matches server EXHAUSTED_SPEED_PENALTY)
 const RUBBER_BAND_THRESHOLD = 200; // Increased threshold for sprinting tolerance (Croatia-Netherlands ~50-100ms latency)
 const SMOOTH_INTERPOLATION_SPEED = 0.3; // Faster interpolation for less noticeable rubber banding
+
+// Helper function to check if a player has the exhausted effect
+const hasExhaustedEffect = (connection: DbConnection | null, playerId: string): boolean => {
+  if (!connection) return false;
+  
+  for (const effect of connection.db.activeConsumableEffect.iter()) {
+    if (effect.playerId.toHexString() === playerId && effect.effectType.tag === 'Exhausted') {
+      return true;
+    }
+  }
+  return false;
+};
 
 // Performance monitoring constants
 const PERFORMANCE_LOG_INTERVAL = 10000; // Log every 10 seconds
@@ -215,6 +228,11 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         // Apply crouch speed reduction (must match server)
         if (localPlayer.isCrouching) {
           speedMultiplier *= 0.5; // Half speed when crouching
+        }
+        
+        // Apply exhausted effect speed penalty (must match server)
+        if (hasExhaustedEffect(connection, localPlayer.identity.toHexString())) {
+          speedMultiplier *= EXHAUSTED_SPEED_PENALTY; // 25% speed reduction when exhausted
         }
         
         // Apply water speed penalty (must match server) - but not while jumping

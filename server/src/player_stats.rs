@@ -60,8 +60,7 @@ pub(crate) const HEALTH_LOSS_PER_SEC_LOW_WARMTH: f32 = 0.25;
 // Add the constants moved from lib.rs and make them pub(crate)
 pub(crate) const SPRINT_SPEED_MULTIPLIER: f32 = 2.0; // MUST MATCH CLIENT (2.0)
 pub(crate) const JUMP_COOLDOWN_MS: u64 = 300; // Reduced to 300ms for faster jumping
-pub(crate) const LOW_THIRST_SPEED_PENALTY: f32 = 0.8;
-pub(crate) const LOW_WARMTH_SPEED_PENALTY: f32 = 0.8;
+// NOTE: Speed penalties are now handled by the exhausted effect in active_effects.rs
 
 // Add torch warmth constant
 // Neutralizes night cold (-1.5) but midnight (-2.0) still causes slow warmth loss

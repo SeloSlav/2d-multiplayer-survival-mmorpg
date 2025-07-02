@@ -15,7 +15,10 @@ use crate::player_stats::stat_thresholds_config as StatThresholdsConfigTableTrai
 use crate::{PLAYER_RADIUS, PLAYER_SPEED, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, WATER_SPEED_PENALTY, is_player_on_water, is_player_jumping, get_effective_player_radius};
 
 // Import constants from player_stats module
-use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, LOW_THIRST_SPEED_PENALTY, LOW_WARMTH_SPEED_PENALTY, JUMP_COOLDOWN_MS};
+use crate::player_stats::{SPRINT_SPEED_MULTIPLIER, JUMP_COOLDOWN_MS};
+
+// Import exhausted effect constants and functions
+use crate::active_effects::{EXHAUSTED_SPEED_PENALTY, player_has_exhausted_effect};
 
 // Import constants from environment module
 use crate::environment::{calculate_chunk_index, WORLD_WIDTH_CHUNKS};
@@ -427,21 +430,32 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // 1600 px/s max (100% buffer over 800 px/s sprint speed for high latency)
+const BASE_MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // 1600 px/s max (100% buffer over 800 px/s sprint speed for high latency)
 const MAX_TELEPORT_DISTANCE: f32 = 600.0; // Increased for high ping tolerance (Croatia-Netherlands)
 const POSITION_UPDATE_TIMEOUT_MS: u64 = 20000; // 20 seconds for users with 100+ ms ping
 
+/// Calculate the maximum allowed movement speed for a player, accounting for exhausted effect
+fn get_max_movement_speed_for_player(ctx: &ReducerContext, player_id: Identity) -> f32 {
+    let has_exhausted_effect = player_has_exhausted_effect(ctx, player_id);
+    
+    if has_exhausted_effect {
+        BASE_MAX_MOVEMENT_SPEED * EXHAUSTED_SPEED_PENALTY // 25% speed reduction when exhausted
+    } else {
+        BASE_MAX_MOVEMENT_SPEED
+    }
+}
+
 // === WALKING SOUND CONSTANTS ===
 const WALKING_SOUND_DISTANCE_THRESHOLD: f32 = 80.0; // Minimum distance for a footstep (normal walking)
-const SPRINTING_SOUND_DISTANCE_THRESHOLD: f32 = 120.0; // Distance for footstep when sprinting (faster cadence)
+const SPRINTING_SOUND_DISTANCE_THRESHOLD: f32 = 110.0; // Distance for footstep when sprinting (faster cadence)
 const WALKING_SOUND_MIN_TIME_MS: u64 = 300; // Minimum time between footsteps (normal walking)
-const SPRINTING_SOUND_MIN_TIME_MS: u64 = 200; // Minimum time between footsteps when sprinting (faster cadence)
+const SPRINTING_SOUND_MIN_TIME_MS: u64 = 250; // Minimum time between footsteps when sprinting (less aggressive)
 
 // === SWIMMING SOUND CONSTANTS ===
 const SWIMMING_SOUND_DISTANCE_THRESHOLD: f32 = 90.0; // Minimum distance for a swimming stroke (normal swimming)
-const FAST_SWIMMING_SOUND_DISTANCE_THRESHOLD: f32 = 130.0; // Distance for swimming stroke when sprinting in water
+const FAST_SWIMMING_SOUND_DISTANCE_THRESHOLD: f32 = 120.0; // Distance for swimming stroke when sprinting in water
 const SWIMMING_SOUND_MIN_TIME_MS: u64 = 350; // Minimum time between swimming strokes (normal swimming)
-const FAST_SWIMMING_SOUND_MIN_TIME_MS: u64 = 250; // Minimum time between swimming strokes when sprinting in water
+const FAST_SWIMMING_SOUND_MIN_TIME_MS: u64 = 280; // Minimum time between swimming strokes when sprinting in water (less aggressive)
 
 /// Simple timestamped position update from client
 /// This replaces complex prediction with simple client-authoritative movement
@@ -520,9 +534,13 @@ pub fn update_player_position_simple(
     // More lenient validation for high-latency connections (Croatia-Netherlands)
     if time_diff_ms >= 20 && time_diff_ms <= 300 && distance_moved > 5.0 { // 20-300ms window, min 5px movement
         let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
-        if speed_px_per_sec > MAX_MOVEMENT_SPEED {
-            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}) over {}ms", 
-                      sender_id, speed_px_per_sec, MAX_MOVEMENT_SPEED, time_diff_ms);
+        let max_speed_for_player = get_max_movement_speed_for_player(ctx, sender_id);
+        
+        if speed_px_per_sec > max_speed_for_player {
+            let has_exhausted = player_has_exhausted_effect(ctx, sender_id);
+            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}{}) over {}ms", 
+                      sender_id, speed_px_per_sec, max_speed_for_player, 
+                      if has_exhausted { " - exhausted" } else { "" }, time_diff_ms);
             return Err("Movement speed too high".to_string());
         }
     }

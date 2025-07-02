@@ -236,11 +236,14 @@ const PRELOAD_SOUNDS = [
     'growl_walrus.mp3',                                     // 3 walrus growl variations
     'growl_walrus2.mp3',
     'growl_walrus3.mp3',
-    'walking.mp3',                                          // 2 walking/footstep variations
+    'walking.mp3',                                          // 4 walking/footstep variations
     'walking1.mp3',
-    'swimming.mp3',                                         // 3 swimming sound variations
+    'walking2.mp3',
+    'walking3.mp3',
+    'swimming.mp3',                                         // 4 swimming sound variations
     'swimming1.mp3',
     'swimming2.mp3',
+    'swimming3.mp3',
 ] as const;
 
 // Enhanced audio loading with error handling and performance monitoring
@@ -463,9 +466,9 @@ const playLocalSound = async (
             } else if (soundType === 'growl_walrus') {
                 variationCount = 3; // growl_walrus.mp3, growl_walrus2.mp3, growl_walrus3.mp3
             } else if (soundType === 'walking') {
-                variationCount = 2; // walking.mp3, walking1.mp3, walking2.mp3
+                variationCount = 4; // walking.mp3, walking1.mp3, walking2.mp3, walking3.mp3
             } else if (soundType === 'swimming') {
-                variationCount = 3; // swimming.mp3, swimming1.mp3, swimming2.mp3
+                variationCount = 4; // swimming.mp3, swimming1.mp3, swimming2.mp3, swimming3.mp3
             }
             
             const randomVariation = Math.floor(Math.random() * variationCount);
