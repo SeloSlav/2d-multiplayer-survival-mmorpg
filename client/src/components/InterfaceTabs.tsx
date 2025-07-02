@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import './InterfaceTabs.css';
 
 interface InterfaceTabsProps {
-  currentView: 'minimap';
-  onViewChange: (view: 'minimap') => void;
+  currentView: 'minimap' | 'encyclopedia' | 'memory-grid';
+  onViewChange: (view: 'minimap' | 'encyclopedia' | 'memory-grid') => void;
   className?: string;
 }
 
@@ -15,6 +15,8 @@ const InterfaceTabs: React.FC<InterfaceTabsProps> = ({
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
   const isMinimapActive = currentView === 'minimap';
+  const isEncyclopediaActive = currentView === 'encyclopedia';
+  const isMemoryGridActive = currentView === 'memory-grid';
 
   return (
     <div className={`interface-tabs ${className}`}>
@@ -28,15 +30,24 @@ const InterfaceTabs: React.FC<InterfaceTabsProps> = ({
         GRU MAPS
       </button>
       
-      {/* Encyclopedia Tab - Disabled */}
+      {/* Encyclopedia Tab */}
       <button
-        className={`tab encyclopedia-tab disabled ${hoveredTab === 'encyclopedia' ? 'hovered' : ''}`}
-        disabled
+        className={`tab encyclopedia-tab ${isEncyclopediaActive ? 'active' : 'inactive'} ${hoveredTab === 'encyclopedia' ? 'hovered' : ''}`}
+        onClick={() => onViewChange('encyclopedia')}
         onMouseEnter={() => setHoveredTab('encyclopedia')}
         onMouseLeave={() => setHoveredTab(null)}
-        title="Coming Soon"
       >
-        ENCYCLOPEDIA <span className="coming-soon-indicator">(COMING SOON)</span>
+        ENCYCLOPEDIA
+      </button>
+      
+      {/* Memory Grid Tab */}
+      <button
+        className={`tab memory-grid-tab ${isMemoryGridActive ? 'active' : 'inactive'} ${hoveredTab === 'memory-grid' ? 'hovered' : ''}`}
+        onClick={() => onViewChange('memory-grid')}
+        onMouseEnter={() => setHoveredTab('memory-grid')}
+        onMouseLeave={() => setHoveredTab(null)}
+      >
+        MEMORY GRID
       </button>
     </div>
   );

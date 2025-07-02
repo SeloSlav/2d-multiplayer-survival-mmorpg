@@ -628,8 +628,20 @@ pub fn update_player_position_simple(
     }
 
     // --- Movement Sound Logic (Walking & Swimming) ---
+    // Calculate how much collision affected movement to detect if player is stuck
+    let intended_movement_distance = ((clamped_x - current_player.position_x).powi(2) + (clamped_y - current_player.position_y).powi(2)).sqrt();
+    let actual_movement_distance = ((final_x - current_player.position_x).powi(2) + (final_y - current_player.position_y).powi(2)).sqrt();
+    let collision_impact_ratio = if intended_movement_distance > 0.1 {
+        actual_movement_distance / intended_movement_distance
+    } else {
+        1.0 // No intended movement, so no collision impact
+    };
+    
     // Only emit movement sounds if player actually moved and conditions are right
+    // AND player isn't stuck against objects due to collision
     if movement_distance > 3.0 && // Moved a meaningful distance
+       actual_movement_distance > 2.0 && // Actually moved after collision correction
+       collision_impact_ratio > 0.6 && // Not severely impacted by collision (60% of intended movement achieved)
        !current_player.is_dead && 
        !current_player.is_knocked_out &&
        !is_jumping {   // No movement sounds while jumping
@@ -715,6 +727,10 @@ pub fn update_player_position_simple(
                 log::warn!("Failed to insert walking sound state for player {:?}: {}", sender_id, e);
             }
         }
+    } else if movement_distance > 3.0 && actual_movement_distance <= 2.0 {
+        // Debug log when collision suppresses walking sounds
+        log::debug!("Player {:?} collision-suppressed walking sound: intended={:.1}px, actual={:.1}px, ratio={:.2}", 
+                   sender_id, intended_movement_distance, actual_movement_distance, collision_impact_ratio);
     }
 
     // --- Update player state ---
