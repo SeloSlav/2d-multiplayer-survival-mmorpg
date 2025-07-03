@@ -11,6 +11,7 @@
 use spacetimedb::{Identity, Timestamp, ReducerContext, Table, log, SpacetimeType, TimeDuration, ScheduleAt};
 use std::cmp::min;
 use std::time::Duration;   
+use rand::Rng; // Added for random chance
 
 // Import new models
 use crate::models::{ContainerType, ItemLocation, EquipmentSlotType, ContainerLocationData};
@@ -22,7 +23,7 @@ use crate::Player;
 use crate::items::{
     inventory_item as InventoryItemTableTrait,
     item_definition as ItemDefinitionTableTrait,
-    InventoryItem, ItemDefinition,
+    InventoryItem, ItemDefinition, ItemCategory,
     calculate_merge_result, split_stack_helper, add_item_to_player_inventory
 };
 use crate::inventory_management::{self, ItemContainer, ContainerItemClearer, merge_or_place_into_container_slot};
@@ -63,6 +64,7 @@ pub(crate) const FUEL_CONSUME_INTERVAL_SECS: u64 = 5;
 pub const NUM_FUEL_SLOTS: usize = 5;
 const FUEL_CHECK_INTERVAL_SECS: u64 = 1;
 pub const FURNACE_PROCESS_INTERVAL_SECS: u64 = 1;
+const CHARCOAL_PRODUCTION_CHANCE: u8 = 75; // 75% chance
 
 /// --- Furnace Data Structure ---
 /// Represents a furnace in the game world with position, owner, burning state,
@@ -120,9 +122,9 @@ pub struct FurnaceProcessingSchedule {
  *                           REDUCERS (Generic Handlers)                        *
  ******************************************************************************/
 
-/// --- Add Fuel to Furnace ---
+/// --- Move Item to Furnace ---
 #[spacetimedb::reducer]
-pub fn add_fuel_to_furnace(ctx: &ReducerContext, furnace_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
+pub fn move_item_to_furnace(ctx: &ReducerContext, furnace_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
     let (_player, mut furnace) = validate_furnace_interaction(ctx, furnace_id)?;
     inventory_management::handle_move_to_container_slot(ctx, &mut furnace, target_slot_index, item_instance_id)?;
     ctx.db.furnace().id().update(furnace.clone());
@@ -132,7 +134,7 @@ pub fn add_fuel_to_furnace(ctx: &ReducerContext, furnace_id: u32, target_slot_in
 
 /// --- Remove Fuel from Furnace ---
 #[spacetimedb::reducer]
-pub fn auto_remove_fuel_from_furnace(ctx: &ReducerContext, furnace_id: u32, source_slot_index: u8) -> Result<(), String> {
+pub fn quick_move_from_furnace(ctx: &ReducerContext, furnace_id: u32, source_slot_index: u8) -> Result<(), String> {
     let (_player, mut furnace) = validate_furnace_interaction(ctx, furnace_id)?;
     inventory_management::handle_quick_move_from_container(ctx, &mut furnace, source_slot_index)?;
     let still_has_fuel = check_if_furnace_has_fuel(ctx, &furnace);
@@ -180,7 +182,7 @@ pub fn split_stack_into_furnace(
 
 /// --- Furnace Internal Item Movement ---
 #[spacetimedb::reducer]
-pub fn move_fuel_within_furnace(
+pub fn move_item_within_furnace(
     ctx: &ReducerContext,
     furnace_id: u32,
     source_slot_index: u8,
@@ -225,7 +227,7 @@ pub fn quick_move_to_furnace(
 
 /// --- Move From Furnace to Player ---
 #[spacetimedb::reducer]
-pub fn move_fuel_item_from_furnace_to_player_slot(
+pub fn move_item_from_furnace_to_player_slot(
     ctx: &ReducerContext,
     furnace_id: u32,
     source_slot_index: u8,
@@ -373,9 +375,9 @@ pub fn split_and_move_from_furnace(
         },
         "furnace_fuel" => {
             // Moving to a slot in the *same* or *another* furnace. 
-            // `add_fuel_to_furnace` expects the item to come from player inventory.
+            // `move_item_to_furnace` expects the item to come from player inventory.
             // The new_item_instance_id is already in player's inventory due to split_stack_helper's new location.
-            add_fuel_to_furnace(ctx, source_furnace_id, target_slot_index as u8, new_item_instance_id)
+            move_item_to_furnace(ctx, source_furnace_id, target_slot_index as u8, new_item_instance_id)
         },
         _ => {
             log::error!("[SplitMoveFromFurnace] Invalid target_slot_type: {}", target_slot_type);
@@ -661,19 +663,70 @@ pub fn process_furnace_logic_scheduled(ctx: &ReducerContext, schedule_args: Furn
     if furnace.is_burning {
         // Process fuel consumption
         if let Some(remaining_time) = furnace.remaining_fuel_burn_time_secs {
-            if remaining_time <= 0.0 {
-                // Current fuel is depleted, try to find next fuel
-                if !find_and_consume_next_fuel(ctx, &mut furnace) {
-                    // No more fuel, extinguish furnace
-                    furnace.is_burning = false;
-                    furnace.current_fuel_def_id = None;
-                    furnace.remaining_fuel_burn_time_secs = None;
-                    log::info!("Furnace {} ran out of fuel and was extinguished.", furnace_id);
-                    needs_update = true;
+            // Apply Reed Bellows fuel burn rate multiplier (makes fuel burn slower)
+            let fuel_burn_multiplier = get_fuel_burn_rate_multiplier(ctx, &furnace);
+            let adjusted_time_increment = FURNACE_PROCESS_INTERVAL_SECS as f32 / fuel_burn_multiplier;
+            
+            if remaining_time <= adjusted_time_increment {
+                // Fuel unit completely burned, consume it and check for more
+                let mut consumed_and_reloaded_from_stack = false;
+                
+                // Find the current fuel slot and consume one unit
+                for i in 0..NUM_FUEL_SLOTS as u8 {
+                    if furnace.get_slot_def_id(i) == furnace.current_fuel_def_id {
+                        if let Some(instance_id) = furnace.get_slot_instance_id(i) {
+                            if let Some(mut fuel_item) = ctx.db.inventory_item().instance_id().find(instance_id) {
+                                let consumed_item_def_id = fuel_item.item_def_id;
+                                fuel_item.quantity -= 1;
+
+                                if fuel_item.quantity > 0 {
+                                    // Still has fuel, update quantity and reload burn time
+                                    ctx.db.inventory_item().instance_id().update(fuel_item.clone());
+                                    // Set burn time for Wood (5.0 seconds)
+                                    furnace.remaining_fuel_burn_time_secs = Some(5.0);
+                                    consumed_and_reloaded_from_stack = true;
+                                } else {
+                                    // No more fuel in this stack, remove item and clear slot
+                                    ctx.db.inventory_item().instance_id().delete(instance_id);
+                                    furnace.set_slot(i, None, None);
+                                    furnace.current_fuel_def_id = None; 
+                                    furnace.remaining_fuel_burn_time_secs = None;
+                                }
+                                needs_update = true;
+
+                                // Produce charcoal from consumed Wood
+                                if let Some(consumed_def) = ctx.db.item_definition().id().find(consumed_item_def_id) {
+                                    if consumed_def.name == "Wood" && ctx.rng().gen_range(0..100) < CHARCOAL_PRODUCTION_CHANCE {
+                                        if let Some(charcoal_def) = get_item_def_by_name(ctx, "Charcoal") {
+                                            let _ = try_add_charcoal_to_furnace_or_drop(ctx, &mut furnace, &charcoal_def, 1);
+                                            needs_update = true; // Charcoal might have been added to slots
+                                        }
+                                    }
+                                }
+                                break; 
+                            } else { 
+                                furnace.current_fuel_def_id = None; 
+                                furnace.remaining_fuel_burn_time_secs = None; 
+                                needs_update = true; 
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If we didn't reload from existing stack, try to find new fuel
+                if !consumed_and_reloaded_from_stack {
+                    if !find_and_consume_next_fuel(ctx, &mut furnace) {
+                        furnace.is_burning = false;
+                        log::info!("Furnace {} ran out of fuel and was extinguished.", furnace_id);
+                        needs_update = true;
+                    } else {
+                        needs_update = true;
+                    }
                 }
             } else {
                 // Consume fuel time
-                furnace.remaining_fuel_burn_time_secs = Some(remaining_time - FURNACE_PROCESS_INTERVAL_SECS as f32);
+                furnace.remaining_fuel_burn_time_secs = Some(remaining_time - adjusted_time_increment);
                 needs_update = true;
             }
         } else {
@@ -701,10 +754,14 @@ pub fn process_furnace_logic_scheduled(ctx: &ReducerContext, schedule_args: Furn
                 None
             });
 
+            // Apply Reed Bellows smelting speed multiplier (makes smelting faster)
+            let smelting_speed_multiplier = get_smelting_speed_multiplier(ctx, &furnace);
+            let adjusted_smelting_time_increment = FURNACE_PROCESS_INTERVAL_SECS as f32 * smelting_speed_multiplier;
+            
             let smelting_result = crate::cooking::process_appliance_cooking_tick(
                 ctx, 
                 &mut furnace, 
-                FURNACE_PROCESS_INTERVAL_SECS as f32,
+                adjusted_smelting_time_increment,
                 current_fuel_instance_id
             );
             match smelting_result {
@@ -746,13 +803,13 @@ pub fn schedule_next_furnace_processing(ctx: &ReducerContext, furnace_id: u32) -
 
     // Only schedule if burning or has fuel
     if furnace.is_burning || check_if_furnace_has_fuel(ctx, &furnace) {
-        let next_run_time = ctx.timestamp + TimeDuration::from_micros((FURNACE_PROCESS_INTERVAL_SECS * 1_000_000) as i64);
+        let interval = TimeDuration::from_micros((FURNACE_PROCESS_INTERVAL_SECS * 1_000_000) as i64);
         let schedule = FurnaceProcessingSchedule {
             furnace_id: furnace_id as u64,
-            scheduled_at: ScheduleAt::Time(next_run_time),
+            scheduled_at: interval.into(), // PERIODIC - same as campfire
         };
         ctx.db.furnace_processing_schedule().insert(schedule);
-        log::debug!("Scheduled next processing for furnace {} at {:?}", furnace_id, next_run_time);
+        log::debug!("Scheduled periodic processing for furnace {}", furnace_id);
     } else {
         log::debug!("Furnace {} not burning and has no fuel, not scheduling processing.", furnace_id);
     }
@@ -953,6 +1010,120 @@ fn find_and_consume_next_fuel(ctx: &ReducerContext, furnace: &mut Furnace) -> bo
 
 fn get_item_def_by_name<'a>(ctx: &'a ReducerContext, name: &str) -> Option<ItemDefinition> {
     ctx.db.item_definition().iter().find(|def| def.name == name)
+}
+
+
+
+// --- Helper: Try to add charcoal to furnace or drop it ---
+// Returns Ok(bool) where true means furnace struct was modified (charcoal added to slots)
+// and false means it was dropped or stacked with existing items.
+fn try_add_charcoal_to_furnace_or_drop(
+    ctx: &ReducerContext,
+    furnace: &mut Furnace,
+    charcoal_def: &ItemDefinition,
+    quantity: u32
+) -> Result<bool, String> {
+    let mut inventory_items_table = ctx.db.inventory_item();
+    let charcoal_def_id = charcoal_def.id;
+    let charcoal_stack_size = charcoal_def.stack_size;
+    let mut charcoal_added_to_furnace_slots = false;
+
+    // 1. Try to stack with existing charcoal in furnace slots
+    for i in 0..NUM_FUEL_SLOTS as u8 {
+        if furnace.get_slot_def_id(i) == Some(charcoal_def_id) {
+            if let Some(instance_id) = furnace.get_slot_instance_id(i) {
+                if let Some(mut existing_charcoal_item) = inventory_items_table.instance_id().find(instance_id) {
+                    if existing_charcoal_item.quantity < charcoal_stack_size {
+                        let can_add = charcoal_stack_size - existing_charcoal_item.quantity;
+                        let to_add = min(quantity, can_add); // quantity is usually 1 from charcoal production
+                        existing_charcoal_item.quantity += to_add;
+                        inventory_items_table.instance_id().update(existing_charcoal_item);
+                        log::info!("[Charcoal] Furnace {}: Stacked {} charcoal onto existing stack in slot {}.", furnace.id, to_add, i);
+                        // Furnace struct (slots) didn't change, only InventoryItem quantity
+                        // Return false because furnace struct itself was not modified for its slots.
+                        return Ok(false); 
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Try to place in an empty slot
+    for i in 0..NUM_FUEL_SLOTS as u8 {
+        if furnace.get_slot_instance_id(i).is_none() {
+            let new_charcoal_location = ItemLocation::Container(ContainerLocationData {
+                container_type: ContainerType::Furnace,
+                container_id: furnace.id as u64,
+                slot_index: i,
+            });
+            let new_charcoal_item = InventoryItem {
+                instance_id: 0, 
+                item_def_id: charcoal_def_id,
+                quantity, // This will be 1 from production
+                location: new_charcoal_location,
+                item_data: None,
+            };
+            match inventory_items_table.try_insert(new_charcoal_item) {
+                Ok(inserted_item) => {
+                    furnace.set_slot(i, Some(inserted_item.instance_id), Some(charcoal_def_id));
+                    log::info!("[Charcoal] Furnace {}: Placed {} charcoal into empty slot {}.", furnace.id, quantity, i);
+                    charcoal_added_to_furnace_slots = true; // Furnace struct was modified
+                    return Ok(charcoal_added_to_furnace_slots);
+                }
+                Err(e) => {
+                    log::error!("[Charcoal] Furnace {}: Failed to insert new charcoal item for slot {}: {:?}", furnace.id, i, e);
+                    // Continue to drop if insert fails
+                    break; 
+                }
+            }
+        }
+    }
+
+    // 3. If not added to furnace (full or insert error), drop it
+    log::info!("[Charcoal] Furnace {}: Slots full or error encountered. Dropping {} charcoal.", furnace.id, quantity);
+    let drop_x = furnace.pos_x;
+    let drop_y = furnace.pos_y + crate::dropped_item::DROP_OFFSET / 2.0; 
+    create_dropped_item_entity(ctx, charcoal_def_id, quantity, drop_x, drop_y)?;
+    
+    Ok(charcoal_added_to_furnace_slots) // False, as it was dropped or failed to add to slots by modifying furnace struct
+}
+
+/// Check if a Reed Bellows is present in any of the furnace's fuel slots
+pub fn has_reed_bellows(ctx: &ReducerContext, furnace: &Furnace) -> bool {
+    let item_defs_table = ctx.db.item_definition();
+    
+    // Check all fuel slots for Reed Bellows
+    for slot_index in 0..NUM_FUEL_SLOTS {
+        if let Some(fuel_def_id) = furnace.get_slot_def_id(slot_index as u8) {
+            if let Some(item_def) = item_defs_table.id().find(fuel_def_id) {
+                if item_def.name == "Reed Bellows" {
+                    log::debug!("Reed Bellows found in furnace {} slot {}", furnace.id, slot_index);
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Get the fuel burn rate multiplier based on whether Reed Bellows is present
+/// Reed Bellows makes fuel burn 50% slower (multiplier = 1.5)
+pub fn get_fuel_burn_rate_multiplier(ctx: &ReducerContext, furnace: &Furnace) -> f32 {
+    if has_reed_bellows(ctx, furnace) {
+        1.5 // Fuel burns 50% slower with bellows (lasts 1.5x longer)
+    } else {
+        1.0 // Normal burn rate
+    }
+}
+
+/// Get the smelting speed multiplier based on whether Reed Bellows is present  
+/// Reed Bellows makes smelting 20% faster (multiplier = 1.2)
+pub fn get_smelting_speed_multiplier(ctx: &ReducerContext, furnace: &Furnace) -> f32 {
+    if has_reed_bellows(ctx, furnace) {
+        1.2 // Smelting 20% faster with bellows
+    } else {
+        1.0 // Normal smelting speed
+    }
 }
 
 // Implement CookableAppliance for Furnace (smelting only)

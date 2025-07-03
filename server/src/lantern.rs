@@ -9,6 +9,7 @@ use crate::campfire::{campfire as CampfireTableTrait};
 use crate::wooden_storage_box::{wooden_storage_box as WoodenStorageBoxTableTrait};
 use crate::environment::calculate_chunk_index;
 use crate::player_inventory::{get_player_item, find_first_empty_player_slot, move_item_to_inventory, move_item_to_hotbar};
+use crate::dropped_item::create_dropped_item_entity_with_data;
 
 // --- ADDED: Import for sound events ---
 use crate::sound_events::{start_lantern_sound, stop_lantern_sound};
@@ -106,9 +107,9 @@ impl ItemContainer for Lantern {
  *                           REDUCERS (Generic Handlers)                        *
  ******************************************************************************/
 
-/// --- Add Fuel to Lantern ---
+/// --- Move Item to Lantern ---
 #[spacetimedb::reducer]
-pub fn add_fuel_to_lantern(ctx: &ReducerContext, lantern_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
+pub fn move_item_to_lantern(ctx: &ReducerContext, lantern_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
     let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
     handle_move_to_container_slot(ctx, &mut lantern, target_slot_index, item_instance_id)?;
     ctx.db.lantern().id().update(lantern.clone());
@@ -637,7 +638,7 @@ impl ContainerItemClearer for LanternClearer {
 /// Removes the fuel item from a specific lantern slot and returns it to the player inventory/hotbar.
 /// Uses the quick move logic (attempts merge, then finds first empty slot).
 #[spacetimedb::reducer]
-pub fn auto_remove_fuel_from_lantern(ctx: &ReducerContext, lantern_id: u32, source_slot_index: u8) -> Result<(), String> {
+pub fn quick_move_from_lantern(ctx: &ReducerContext, lantern_id: u32, source_slot_index: u8) -> Result<(), String> {
     let (_player, mut lantern) = validate_lantern_interaction(ctx, lantern_id)?;
     inventory_management::handle_quick_move_from_container(ctx, &mut lantern, source_slot_index)?;
     let still_has_fuel = check_if_lantern_has_fuel(ctx, &lantern);
@@ -689,7 +690,7 @@ pub fn split_stack_into_lantern(
 /// --- Lantern Internal Item Movement ---
 /// Moves/merges/swaps an item BETWEEN two slots within the same lantern.
 #[spacetimedb::reducer]
-pub fn move_fuel_within_lantern(
+pub fn move_item_within_lantern(
     ctx: &ReducerContext,
     lantern_id: u32,
     source_slot_index: u8,
@@ -735,9 +736,9 @@ pub fn quick_move_to_lantern(
 }
 
 /// --- Move From Lantern to Player ---
-/// Moves a specific fuel item FROM a lantern slot TO a specific player inventory/hotbar slot.
+/// Moves a specific item FROM a lantern slot TO a specific player inventory/hotbar slot.
 #[spacetimedb::reducer]
-pub fn move_lantern_fuel_to_player_slot(
+pub fn move_item_from_lantern_to_player_slot(
     ctx: &ReducerContext,
     lantern_id: u32,
     source_slot_index: u8,
@@ -821,16 +822,19 @@ pub fn split_and_drop_item_from_lantern_slot_to_world(
         return Err(format!("Cannot split {} items, only {} available", quantity_to_split, source_item.quantity));
     }
     
-    // Create dropped item location
-    let drop_location = ItemLocation::Dropped(crate::models::DroppedLocationData {
-        pos_x: lantern.pos_x,
-        pos_y: lantern.pos_y,
-    });
+    // Create the dropped item entity directly in the world
+    create_dropped_item_entity_with_data(
+        ctx,
+        source_item.item_def_id,
+        quantity_to_split,
+        lantern.pos_x,
+        lantern.pos_y,
+        source_item.item_data.clone()
+    )?;
     
-    // Split the stack
-    let _new_item_instance_id = split_stack_helper(ctx, &mut source_item, quantity_to_split, drop_location)?;
+    // Update source item quantity
+    source_item.quantity -= quantity_to_split;
     
-    // Update source item
     if source_item.quantity == 0 {
         // Remove empty item and clear slot
         ctx.db.inventory_item().instance_id().delete(item_instance_id);

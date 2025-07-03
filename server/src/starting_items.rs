@@ -53,6 +53,9 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Stash", 1, None, Some(12u16)),
         ("Tallow", 50, None, Some(13u16)),
         ("Wood", 500, None, Some(14u16)),
+        ("Reed Water Bottle", 1, None, Some(15u16)),
+        ("Reed Bellows", 1, None, Some(16u16)),
+        ("Tin Can", 1, None, Some(17u16)),
         // ("Tallow", 50, None, Some(12u16)),
         // ("Pumpkin Seeds", 10, None, Some(13u16)),
     ];

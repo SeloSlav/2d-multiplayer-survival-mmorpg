@@ -331,10 +331,10 @@ pub fn move_item_from_rain_collector(
     Ok(())
 }
 
-/// --- Quick Move Item from Rain Collector ---
+/// --- Quick Move from Rain Collector ---
 /// Automatically finds the next available inventory/hotbar slot for the item.
 #[spacetimedb::reducer]
-pub fn quick_move_item_from_rain_collector(
+pub fn quick_move_from_rain_collector(
     ctx: &ReducerContext,
     collector_id: u32,
     source_slot_index: u8,

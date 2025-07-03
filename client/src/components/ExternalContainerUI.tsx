@@ -10,8 +10,8 @@ import React, { useCallback, useMemo, useRef } from 'react';
 import styles from './InventoryUI.module.css'; // Reuse styles for now
 
 // Import Custom Components
-import DraggableItem from './DraggableItem';
-import DroppableSlot from './DroppableSlot';
+import ContainerSlots from './ContainerSlots';
+import ContainerButtons from './ContainerButtons';
 
 // Import Types
 import { 
@@ -21,10 +21,10 @@ import {
     Lantern as SpacetimeDBLantern, 
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
     PlayerCorpse, 
-    Stash as SpacetimeDBStash, // Added Stash type
-    Shelter as SpacetimeDBShelter, // Added Shelter type
-    Tree as SpacetimeDBTree, // Added Tree type
-    RainCollector as SpacetimeDBRainCollector, // Added RainCollector type
+    Stash as SpacetimeDBStash,
+    Shelter as SpacetimeDBShelter,
+    Tree as SpacetimeDBTree,
+    RainCollector as SpacetimeDBRainCollector,
     WorldState
 } from '../generated';
 import { InteractionTarget } from '../hooks/useInteractionManager';
@@ -32,16 +32,9 @@ import { DragSourceSlotInfo, DraggedItemInfo } from '../types/dragDropTypes';
 import { PopulatedItem } from './InventoryUI';
 import { isWaterContainer, getWaterContent, formatWaterContent, getWaterLevelPercentage } from '../utils/waterContainerHelpers';
 
-// Constants
-const NUM_FUEL_SLOTS = 5;
-const NUM_LANTERN_FUEL_SLOTS = 1; // Lanterns have 1 fuel slot
-const NUM_BOX_SLOTS = 18;
-const NUM_CORPSE_SLOTS = 30;
-const NUM_STASH_SLOTS = 6; // Added for Stash
-const NUM_RAIN_COLLECTOR_SLOTS = 1; // Rain collector has 1 slot for water containers
-const BOX_COLS = 6;
-const CORPSE_COLS = 6;
-const STASH_COLS = 6; // Stash layout: 1 row of 6
+// Import new utilities
+import { useContainer } from '../hooks/useContainer';
+import { ContainerType, isFuelContainer, getContainerConfig } from '../utils/containerUtils';
 
 interface ExternalContainerUIProps {
     interactionTarget: InteractionTarget;
@@ -52,16 +45,15 @@ interface ExternalContainerUIProps {
     lanterns: Map<string, SpacetimeDBLantern>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
-    stashes: Map<string, SpacetimeDBStash>; // Added stashes
-    rainCollectors: Map<string, SpacetimeDBRainCollector>; // Added rain collectors
-    shelters?: Map<string, SpacetimeDBShelter>; // Added shelters (optional)
-    trees?: Map<string, SpacetimeDBTree>; // Added trees (optional)
+    stashes: Map<string, SpacetimeDBStash>;
+    rainCollectors: Map<string, SpacetimeDBRainCollector>;
+    shelters?: Map<string, SpacetimeDBShelter>;
+    trees?: Map<string, SpacetimeDBTree>;
     currentStorageBox?: SpacetimeDBWoodenStorageBox | null;
-    // currentStash will be derived like currentCampfire/currentCorpse
     connection: DbConnection | null;
     onItemDragStart: (info: DraggedItemInfo) => void;
     onItemDrop: (targetSlotInfo: DragSourceSlotInfo | null) => void;
-    playerId: string | null; // Need player ID to check ownership for hiding stash
+    playerId: string | null;
     onExternalItemMouseEnter: (item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => void;
     onExternalItemMouseLeave: () => void;
     onExternalItemMouseMove: (event: React.MouseEvent<HTMLDivElement>) => void;
@@ -77,10 +69,10 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     lanterns,
     woodenStorageBoxes,
     playerCorpses,
-    stashes, // Added stashes
-    rainCollectors, // Added rain collectors
-    shelters, // Added shelters
-    trees, // Added trees
+    stashes,
+    rainCollectors,
+    shelters,
+    trees,
     currentStorageBox,
     connection,
     onItemDragStart,
@@ -97,201 +89,25 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     // Wrap the onItemDrop to track completion times
     const handleItemDropWithTracking = useCallback((targetSlotInfo: DragSourceSlotInfo | null) => {
         lastDragCompleteTime.current = Date.now();
-        // console.log('[ExternalContainerUI] Drag operation completed at:', lastDragCompleteTime.current);
         onItemDrop(targetSlotInfo);
     }, [onItemDrop]);
 
-    // --- Derived Data for Campfire ---
-    const isCampfireInteraction = interactionTarget?.type === 'campfire';
-    const campfireIdNum = isCampfireInteraction ? Number(interactionTarget!.id) : null;
-    const currentCampfire = campfireIdNum !== null ? campfires.get(campfireIdNum.toString()) : undefined;
-    const fuelItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_FUEL_SLOTS).fill(null);
-        if (!isCampfireInteraction || !currentCampfire) return items;
-        const instanceIds = [
-            currentCampfire.fuelInstanceId0, currentCampfire.fuelInstanceId1, currentCampfire.fuelInstanceId2,
-            currentCampfire.fuelInstanceId3, currentCampfire.fuelInstanceId4,
-        ];
-        instanceIds.forEach((instanceIdOpt, index) => {
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[index] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        });
-        return items;
-    }, [isCampfireInteraction, currentCampfire, inventoryItems, itemDefinitions]);
-
-    // --- Derived Data for Furnace ---
-    const isFurnaceInteraction = interactionTarget?.type === 'furnace';
-    const furnaceIdNum = isFurnaceInteraction ? Number(interactionTarget!.id) : null;
-    const currentFurnace = furnaceIdNum !== null ? furnaces.get(furnaceIdNum.toString()) : undefined;
-    const furnaceFuelItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_FUEL_SLOTS).fill(null);
-        if (!isFurnaceInteraction || !currentFurnace) return items;
-        const instanceIds = [
-            currentFurnace.fuelInstanceId0, currentFurnace.fuelInstanceId1, currentFurnace.fuelInstanceId2,
-            currentFurnace.fuelInstanceId3, currentFurnace.fuelInstanceId4,
-        ];
-        instanceIds.forEach((instanceIdOpt, index) => {
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[index] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        });
-        return items;
-    }, [isFurnaceInteraction, currentFurnace, inventoryItems, itemDefinitions]);
-
-    // --- Derived Data for Lantern ---
-    const isLanternInteraction = interactionTarget?.type === 'lantern';
-    const lanternIdNum = isLanternInteraction ? Number(interactionTarget!.id) : null;
-    const currentLantern = lanternIdNum !== null ? lanterns.get(lanternIdNum.toString()) : undefined;
-    const lanternFuelItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_LANTERN_FUEL_SLOTS).fill(null);
-        if (!isLanternInteraction || !currentLantern) return items;
-        const instanceIds = [
-            currentLantern.fuelInstanceId0,
-        ];
-        instanceIds.forEach((instanceIdOpt, index) => {
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[index] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        });
-        return items;
-    }, [isLanternInteraction, currentLantern, inventoryItems, itemDefinitions]);
-
-    // --- Derived Data for Box ---
-    const isBoxInteraction = interactionTarget?.type === 'wooden_storage_box';
-    const boxIdNum = isBoxInteraction ? Number(interactionTarget!.id) : null;
-    const boxItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_BOX_SLOTS).fill(null);
-        if (!isBoxInteraction || !currentStorageBox) return items;
-        const instanceIds = [
-            currentStorageBox.slotInstanceId0, currentStorageBox.slotInstanceId1, currentStorageBox.slotInstanceId2,
-            currentStorageBox.slotInstanceId3, currentStorageBox.slotInstanceId4, currentStorageBox.slotInstanceId5,
-            currentStorageBox.slotInstanceId6, currentStorageBox.slotInstanceId7, currentStorageBox.slotInstanceId8,
-            currentStorageBox.slotInstanceId9, currentStorageBox.slotInstanceId10, currentStorageBox.slotInstanceId11,
-            currentStorageBox.slotInstanceId12, currentStorageBox.slotInstanceId13, currentStorageBox.slotInstanceId14,
-            currentStorageBox.slotInstanceId15, currentStorageBox.slotInstanceId16, currentStorageBox.slotInstanceId17,
-        ];
-        instanceIds.forEach((instanceIdOpt, index) => {
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[index] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        });
-        return items;
-    }, [isBoxInteraction, currentStorageBox, inventoryItems, itemDefinitions]);
-
-    // --- Derived Data for Corpse --- 
-    const isCorpseInteraction = interactionTarget?.type === 'player_corpse';
-    const corpseIdBigInt = isCorpseInteraction ? BigInt(interactionTarget!.id) : null;
-    const corpseIdStr = corpseIdBigInt?.toString() ?? null;
-    const currentCorpse = corpseIdStr !== null ? playerCorpses.get(corpseIdStr) : undefined;
-    const corpseItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_CORPSE_SLOTS).fill(null);
-        if (!isCorpseInteraction || !currentCorpse) return items;
-        // Need to dynamically access slot_instance_id_N fields
-        for (let i = 0; i < NUM_CORPSE_SLOTS; i++) {
-            const instanceIdKey = `slotInstanceId${i}` as keyof PlayerCorpse;
-            const instanceIdOpt = currentCorpse[instanceIdKey] as bigint | null | undefined;
-
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[i] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        }
-        return items;
-    }, [isCorpseInteraction, currentCorpse, inventoryItems, itemDefinitions]);
-
-    // --- Derived Data for Stash ---
-    const isStashInteraction = interactionTarget?.type === 'stash';
-    const stashIdNum = isStashInteraction ? Number(interactionTarget!.id) : null;
-    const currentStash = stashIdNum !== null ? stashes.get(stashIdNum.toString()) : undefined;
-
-    // --- Derived Data for Rain Collector ---
-    const isRainCollectorInteraction = interactionTarget?.type === 'rain_collector';
-    const rainCollectorIdNum = isRainCollectorInteraction ? Number(interactionTarget!.id) : null;
-    const currentRainCollector = rainCollectorIdNum !== null && rainCollectors ? rainCollectors.get(rainCollectorIdNum.toString()) : undefined;
-    
-
-    const stashItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_STASH_SLOTS).fill(null);
-        if (!isStashInteraction || !currentStash) return items;
-        // Dynamically access slot_instance_id_N fields for Stash
-        for (let i = 0; i < NUM_STASH_SLOTS; i++) {
-            const instanceIdKey = `slotInstanceId${i}` as keyof SpacetimeDBStash;
-            const instanceIdOpt = currentStash[instanceIdKey] as bigint | null | undefined;
-
-            if (instanceIdOpt) {
-                const instanceIdStr = instanceIdOpt.toString();
-                const foundInvItem = inventoryItems.get(instanceIdStr);
-                if (foundInvItem) {
-                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                    if (definition) {
-                        items[i] = { instance: foundInvItem, definition };
-                    }
-                }
-            }
-        }
-        return items;
-    }, [isStashInteraction, currentStash, inventoryItems, itemDefinitions]);
-
-    const rainCollectorItems = useMemo(() => {
-        const items: (PopulatedItem | null)[] = Array(NUM_RAIN_COLLECTOR_SLOTS).fill(null);
-        if (!isRainCollectorInteraction || !currentRainCollector) return items;
-        
-        // Rain collector has only one slot
-        if (currentRainCollector.slot0InstanceId) {
-            const instanceIdStr = currentRainCollector.slot0InstanceId.toString();
-            const foundInvItem = inventoryItems.get(instanceIdStr);
-            if (foundInvItem) {
-                const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
-                if (definition) {
-                    items[0] = { instance: foundInvItem, definition };
-                }
-            }
-        }
-        
-        return items;
-    }, [isRainCollectorInteraction, currentRainCollector, inventoryItems, itemDefinitions]);
-
-    // --- Tooltip Handlers ---
-    const handleItemMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
-        // Prevent browser tooltip
-        event.currentTarget.removeAttribute('title');
-        onExternalItemMouseEnter(item, event);
-    }, [onExternalItemMouseEnter]);
+    // Use the new container hook to eliminate all the duplication!
+    const container = useContainer({
+        interactionTarget,
+        inventoryItems,
+        itemDefinitions,
+        campfires,
+        furnaces,
+        lanterns,
+        woodenStorageBoxes,
+        playerCorpses,
+        stashes,
+        rainCollectors,
+        currentStorageBox,
+        connection,
+        lastDragCompleteTime
+    });
 
     // Enhanced tooltip handler for campfire items to show Reed Bellows effects
     const handleCampfireFuelMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
@@ -299,6 +115,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         event.currentTarget.removeAttribute('title');
         
         // Check if Reed Bellows is present in the campfire
+        const currentCampfire = container.containerEntity as SpacetimeDBCampfire;
         const hasReedBellows = currentCampfire && [
             currentCampfire.fuelDefId0, currentCampfire.fuelDefId1, 
             currentCampfire.fuelDefId2, currentCampfire.fuelDefId3, 
@@ -322,23 +139,22 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                     ...item,
                     definition: {
                         ...item.definition,
-                        fuelBurnDurationSecs: enhancedBurnTime // Show the actual effective burn time
+                        fuelBurnDurationSecs: enhancedBurnTime
                     }
                 };
                 descriptionAddition = `\n\n🎐 Reed Bellows: +50% burn time (${item.definition.fuelBurnDurationSecs}s → ${enhancedBurnTime}s)`;
             }
-            
             // Handle cookable items - show enhanced cooking speed
             else if (item.definition.cookTimeSecs && item.definition.cookTimeSecs > 0) {
-                const enhancedCookTime = Math.round(item.definition.cookTimeSecs / 1.4); // 40% faster = divide by 1.4
+                const enhancedCookTime = Math.round(item.definition.cookTimeSecs / 1.2);
                 enhancedItem = {
                     ...item,
                     definition: {
                         ...item.definition,
-                        cookTimeSecs: enhancedCookTime // Show the actual effective cook time
+                        cookTimeSecs: enhancedCookTime
                     }
                 };
-                descriptionAddition = `\n\n🎐 Reed Bellows: +40% cooking speed (${item.definition.cookTimeSecs}s → ${enhancedCookTime}s)`;
+                descriptionAddition = `\n\n🎐 Reed Bellows: +20% cooking speed (${item.definition.cookTimeSecs}s → ${enhancedCookTime}s)`;
             }
 
             // Add description if we have enhancement info
@@ -357,230 +173,109 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             // Regular tooltip when no Reed Bellows present
             onExternalItemMouseEnter(item, event);
         }
-    }, [onExternalItemMouseEnter, currentCampfire, itemDefinitions]);
+    }, [onExternalItemMouseEnter, container.containerEntity, itemDefinitions]);
 
-    const handleItemMouseLeave = useCallback(() => {
-        onExternalItemMouseLeave();
-    }, [onExternalItemMouseLeave]);
-
-    const handleItemMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-        onExternalItemMouseMove(event);
-    }, [onExternalItemMouseMove]);
-
-    // --- Callbacks specific to containers ---
-    const handleRemoveFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
-        event.preventDefault();
+    // Enhanced tooltip handler for furnace items to show Reed Bellows effects
+    const handleFurnaceFuelMouseEnter = useCallback((item: PopulatedItem, event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent browser tooltip
+        event.currentTarget.removeAttribute('title');
         
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            // console.log('[ExternalContainerUI] Blocking campfire fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
-            return;
-        }
-        
-        if (!connection?.reducers || campfireIdNum === null) return;
-        // console.log('[ExternalContainerUI] Processing campfire fuel context menu for slot:', slotIndex);
-        try { connection.reducers.autoRemoveFuelFromCampfire(campfireIdNum, slotIndex); } catch (e) { console.error("Error remove fuel:", e); }
-    }, [connection, campfireIdNum]);
-
-    const handleToggleBurn = useCallback(() => {
-        if (!connection?.reducers || campfireIdNum === null) return;
-        try { connection.reducers.toggleCampfireBurning(campfireIdNum); } catch (e) { console.error("Error toggle burn:", e); }
-    }, [connection, campfireIdNum]);
-
-    // Furnace-specific callbacks
-    const handleRemoveFurnaceFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            // console.log('[ExternalContainerUI] Blocking furnace fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
-            return;
-        }
-        
-        if (!connection?.reducers || furnaceIdNum === null) return;
-        // console.log('[ExternalContainerUI] Processing furnace fuel context menu for slot:', slotIndex);
-        try { connection.reducers.autoRemoveFuelFromFurnace(furnaceIdNum, slotIndex); } catch (e) { console.error("Error remove furnace fuel:", e); }
-    }, [connection, furnaceIdNum]);
-
-    const handleToggleFurnaceBurn = useCallback(() => {
-        if (!connection?.reducers || furnaceIdNum === null) return;
-        try { connection.reducers.toggleFurnaceBurning(furnaceIdNum); } catch (e) { console.error("Error toggle furnace burn:", e); }
-    }, [connection, furnaceIdNum]);
-
-    // Lantern-specific callbacks
-    const handleRemoveLanternFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            return;
-        }
-        
-        if (!connection?.reducers || lanternIdNum === null) return;
-        console.log('[ExternalContainerUI] Processing lantern fuel context menu for slot:', slotIndex);
-        try { 
-            connection.reducers.autoRemoveFuelFromLantern(lanternIdNum, slotIndex); 
-        } catch (e) { 
-            console.error("Error removing lantern fuel:", e); 
-        }
-    }, [connection, lanternIdNum]);
-
-    const handleToggleLanternBurn = useCallback(() => {
-        if (!connection?.reducers || lanternIdNum === null || !currentLantern) return;
-        try { 
-            if (currentLantern.isBurning) {
-                connection.reducers.extinguishLantern(lanternIdNum);
-            } else {
-                connection.reducers.lightLantern(lanternIdNum);
+        // Check if Reed Bellows is present in the furnace
+        const currentFurnace = container.containerEntity as SpacetimeDBFurnace;
+        const hasReedBellows = currentFurnace && [
+            currentFurnace.fuelDefId0, currentFurnace.fuelDefId1, 
+            currentFurnace.fuelDefId2, currentFurnace.fuelDefId3, 
+            currentFurnace.fuelDefId4
+        ].some(defId => {
+            if (defId) {
+                const itemDef = itemDefinitions.get(defId.toString());
+                return itemDef?.name === 'Reed Bellows';
             }
-        } catch (e) { console.error("Error toggle lantern burn:", e); }
-    }, [connection, lanternIdNum, currentLantern]);
+            return false;
+        });
 
-    const handleBoxItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            // console.log('[ExternalContainerUI] Blocking box context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
-            return;
-        }
-        
-        // console.log('[ExtCont CtxMenu Box->Inv DEBUG PRE-GUARD]', { connectionExists: !!connection?.reducers, itemInfoExists: !!itemInfo, boxIdNum });
-        if (!connection?.reducers || !itemInfo || boxIdNum === null) return; // Check boxIdNum null
-        // console.log('[ExternalContainerUI] Processing box context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
-        try { connection.reducers.quickMoveFromBox(boxIdNum, slotIndex); } catch (e: any) { console.error("[ExtCont CtxMenu Box->Inv]", e); }
-    }, [connection, boxIdNum]);
+        if (hasReedBellows) {
+            let enhancedItem = { ...item };
+            let descriptionAddition = '';
 
-    // --- NEW Callback for Corpse Context Menu ---
-    const handleCorpseItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            // console.log('[ExternalContainerUI] Blocking corpse context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
-            return;
-        }
-        
-        // console.log('[ExtCont CtxMenu Corpse->Inv DEBUG PRE-GUARD]', { connectionExists
-        if (!connection?.reducers || !itemInfo || !corpseIdBigInt) return;
-        // Corpse ID is u32 on the server, need to convert BigInt
-        const corpseIdU32 = Number(corpseIdBigInt); 
-        // console.log('[ExternalContainerUI] Processing corpse context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
-        try {
-            connection.reducers.quickMoveFromCorpse(corpseIdU32, slotIndex);
-        } catch (e: any) { 
-            console.error("[ExtCont CtxMenu Corpse->Inv]", e); 
-        }
-    }, [connection, corpseIdBigInt]);
+            // Handle fuel items - show enhanced burn time
+            if (item.definition.fuelBurnDurationSecs && item.definition.fuelBurnDurationSecs > 0) {
+                const enhancedBurnTime = Math.round(item.definition.fuelBurnDurationSecs * 1.5);
+                enhancedItem = {
+                    ...item,
+                    definition: {
+                        ...item.definition,
+                        fuelBurnDurationSecs: enhancedBurnTime
+                    }
+                };
+                descriptionAddition = `\n\n🎐 Reed Bellows: +50% burn time (${item.definition.fuelBurnDurationSecs}s → ${enhancedBurnTime}s)`;
+            }
+            // Handle smeltable items - show enhanced smelting speed
+            else if (item.definition.cookTimeSecs && item.definition.cookTimeSecs > 0) {
+                const enhancedSmeltTime = item.definition.cookTimeSecs / 1.2;
+                const enhancedSmeltTimeRounded = Math.round(enhancedSmeltTime * 10) / 10; // Round to 1 decimal place
+                const baseTimeRounded = Math.round(item.definition.cookTimeSecs * 10) / 10; // Round base time too
+                enhancedItem = {
+                    ...item,
+                    definition: {
+                        ...item.definition,
+                        cookTimeSecs: enhancedSmeltTimeRounded
+                    }
+                };
+                descriptionAddition = `\n\n🎐 Reed Bellows: +20% smelting speed (${baseTimeRounded}s → ${enhancedSmeltTimeRounded}s)`;
+            }
 
-    // --- NEW Callback for Stash Context Menu (Quick Move from Stash) ---
-    const handleStashItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            // console.log('[ExternalContainerUI] Blocking stash context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
-            return;
-        }
-        
-        if (!connection?.reducers || !itemInfo || stashIdNum === null || !currentStash || currentStash.isHidden) return;
-        // console.log('[ExternalContainerUI] Processing stash context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
-        try {
-            connection.reducers.quickMoveFromStash(stashIdNum, slotIndex);
-        } catch (e: any) { 
-            console.error("[ExtCont CtxMenu Stash->Inv]", e); 
-        }
-    }, [connection, stashIdNum, currentStash]);
+            // Add description if we have enhancement info
+            if (descriptionAddition) {
+                enhancedItem = {
+                    ...enhancedItem,
+                    definition: {
+                        ...enhancedItem.definition,
+                        description: `${item.definition.description}${descriptionAddition}`
+                    }
+                };
+            }
 
-    // --- NEW Callback for Toggling Stash Visibility ---
-    const handleToggleStashVisibility = useCallback(() => {
-        if (!connection?.reducers || stashIdNum === null || !currentStash) return;
-        // Permission to hide might be on server (placed_by or last_surfaced_by)
-        // Permission to surface is based on proximity (handled by server) but client can always try.
-        try {
-            connection.reducers.toggleStashVisibility(stashIdNum);
-        } catch (e: any) {
-            console.error("Error toggling stash visibility:", e);
+            onExternalItemMouseEnter(enhancedItem, event);
+        } else {
+            // Regular tooltip when no Reed Bellows present
+            onExternalItemMouseEnter(item, event);
         }
-    }, [connection, stashIdNum, currentStash]);
-
-    // --- NEW Callback for Rain Collector Context Menu (Quick Move from Rain Collector) ---
-    const handleRainCollectorItemContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem, slotIndex: number) => {
-        event.preventDefault();
-        
-        // Block context menu for 200ms after a drag operation completes
-        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
-        if (timeSinceLastDrag < 200) {
-            return;
-        }
-        
-        if (!connection?.reducers || !itemInfo || rainCollectorIdNum === null || !currentRainCollector) return;
-        console.log('[ExternalContainerUI] Processing rain collector context menu for item:', itemInfo.definition.name, 'slot:', slotIndex);
-        try {
-            connection.reducers.quickMoveItemFromRainCollector(rainCollectorIdNum, slotIndex);
-        } catch (e: any) { 
-            console.error("[ExtCont CtxMenu RainCollector->Inv]", e); 
-        }
-    }, [connection, rainCollectorIdNum, currentRainCollector]);
-
-    // --- NEW Callback for Fill Water Container ---
-    const handleFillWaterContainer = useCallback(() => {
-        if (!connection?.reducers || rainCollectorIdNum === null || !currentRainCollector) return;
-        try {
-            connection.reducers.fillWaterContainer(rainCollectorIdNum);
-        } catch (e: any) {
-            console.error("Error filling water container:", e);
-        }
-    }, [connection, rainCollectorIdNum, currentRainCollector]);
+    }, [onExternalItemMouseEnter, container.containerEntity, itemDefinitions]);
 
     // Helper function to check if it's raining heavily enough to prevent campfire lighting
-    // Only heavy rain/storms prevent lighting, light/moderate rain should allow lighting
     const isHeavyRaining = useMemo(() => {
         if (!worldState?.rainIntensity || worldState.rainIntensity <= 0) return false;
         
-        // Check the weather type if available, otherwise fall back to intensity threshold
         if (worldState.currentWeather) {
-            // Only HeavyRain and HeavyStorm prevent lighting (matches server logic in world_state.rs)
             return worldState.currentWeather.tag === 'HeavyRain' || worldState.currentWeather.tag === 'HeavyStorm';
         }
         
-        // Fallback: Use intensity threshold (>= 0.8 is heavy rain/storm range)
         return worldState.rainIntensity >= 0.8;
     }, [worldState]);
 
     // Helper function to check if campfire is protected from rain
     const campfireProtection = useMemo(() => {
-        if (!isCampfireInteraction || !currentCampfire) return { isProtected: false, protectionType: null, hasData: false };
-        
-        // Check if we have shelter/tree data
-        const hasShelterData = shelters && shelters.size >= 0; // Changed to >= 0 to include empty maps as "has data"
-        const hasTreeData = trees && trees.size >= 0; // Changed to >= 0 to include empty maps as "has data"
-        
-        console.log(`[Campfire Protection Debug] Has shelter data: ${hasShelterData}, Has tree data: ${hasTreeData}`);
-        console.log(`[Campfire Protection Debug] Shelter count: ${shelters?.size || 0}, Tree count: ${trees?.size || 0}`);
-        console.log(`[Campfire Protection Debug] Campfire at: (${currentCampfire.posX}, ${currentCampfire.posY})`);
-        
-        // If we don't have any data at all, be strict and block lighting
-        if (!hasShelterData && !hasTreeData) {
-            console.log(`[Campfire Protection Debug] No shelter/tree data available - blocking lighting`);
+        if (container.containerType !== 'campfire' || !container.containerEntity) {
             return { isProtected: false, protectionType: null, hasData: false };
         }
         
-        // Check shelter protection (same logic as server)
+        const currentCampfire = container.containerEntity as SpacetimeDBCampfire;
+        const hasShelterData = shelters && shelters.size >= 0;
+        const hasTreeData = trees && trees.size >= 0;
+        
+        if (!hasShelterData && !hasTreeData) {
+            return { isProtected: false, protectionType: null, hasData: false };
+        }
+        
+        // Check shelter protection
         if (shelters) {
             for (const shelter of Array.from(shelters.values())) {
                 if (shelter.isDestroyed) continue;
                 
-                // Shelter AABB collision detection (from server constants)
-                const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 25.0; // From server shelter.rs
-                const SHELTER_AABB_HALF_WIDTH = 96.0; // From server shelter.rs  
-                const SHELTER_AABB_HALF_HEIGHT = 64.0; // From server shelter.rs
+                const SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y = 25.0;
+                const SHELTER_AABB_HALF_WIDTH = 96.0;
+                const SHELTER_AABB_HALF_HEIGHT = 64.0;
                 
                 const shelterAabbCenterX = shelter.posX;
                 const shelterAabbCenterY = shelter.posY - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
@@ -589,50 +284,40 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                 const aabbTop = shelterAabbCenterY - SHELTER_AABB_HALF_HEIGHT;
                 const aabbBottom = shelterAabbCenterY + SHELTER_AABB_HALF_HEIGHT;
                 
-                // Check if campfire position is inside shelter AABB
                 if (currentCampfire.posX >= aabbLeft && currentCampfire.posX <= aabbRight &&
                     currentCampfire.posY >= aabbTop && currentCampfire.posY <= aabbBottom) {
-                    console.log(`[Campfire Protection Debug] Protected by shelter at (${shelter.posX}, ${shelter.posY})`);
                     return { isProtected: true, protectionType: 'shelter', hasData: true };
                 }
             }
         }
         
-        // Check tree protection (within 100px of any tree)
-        const TREE_PROTECTION_DISTANCE_SQ = 100.0 * 100.0; // 100px protection radius
+        // Check tree protection
+        const TREE_PROTECTION_DISTANCE_SQ = 100.0 * 100.0;
         
         if (trees) {
             for (const tree of Array.from(trees.values())) {
-                // Skip destroyed trees (respawnAt is set when tree is harvested)
                 if (tree.respawnAt !== null && tree.respawnAt !== undefined) continue;
                 
-                // Calculate distance squared between campfire and tree
                 const dx = currentCampfire.posX - tree.posX;
                 const dy = currentCampfire.posY - tree.posY;
                 const distanceSq = dx * dx + dy * dy;
-                const distance = Math.sqrt(distanceSq);
                 
-                console.log(`[Campfire Protection Debug] Tree at (${tree.posX}, ${tree.posY}) - distance: ${distance.toFixed(1)}px`);
-                
-                // Check if campfire is within protection distance of this tree
                 if (distanceSq <= TREE_PROTECTION_DISTANCE_SQ) {
-                    console.log(`[Campfire Protection Debug] Protected by tree at (${tree.posX}, ${tree.posY}) - distance: ${distance.toFixed(1)}px`);
                     return { isProtected: true, protectionType: 'tree', hasData: true };
                 }
             }
         }
         
-        console.log(`[Campfire Protection Debug] No protection found`);
         return { isProtected: false, protectionType: null, hasData: true };
-    }, [isCampfireInteraction, currentCampfire, shelters, trees]);
+    }, [container.containerType, container.containerEntity, shelters, trees]);
 
     // Calculate toggle button state for campfire
     const isToggleButtonDisabled = useMemo(() => {
-        if (!isCampfireInteraction || !currentCampfire) return true;
-        if (currentCampfire.isBurning) return false; // If already burning, can extinguish
+        if (container.containerType !== 'campfire' || !container.containerEntity) return true;
+        if (container.isActive) return false; // If already burning, can extinguish
         
         // Check if there's valid fuel first
-        const hasValidFuel = fuelItems.some(item => 
+        const hasValidFuel = container.items.some(item => 
             item && 
             item.definition.fuelBurnDurationSecs !== undefined && 
             item.definition.fuelBurnDurationSecs > 0 && 
@@ -640,14 +325,10 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         );
         
         if (!hasValidFuel) return true; // No fuel = disabled
-        
-        // Let server handle rain protection validation - don't block client-side
-        // if (isHeavyRaining && !campfireProtection.isProtected) return true;
-        
         return false; // Has fuel and either no rain or protected = enabled
-    }, [isCampfireInteraction, currentCampfire, fuelItems, isHeavyRaining, campfireProtection]);
+    }, [container.containerType, container.containerEntity, container.isActive, container.items]);
 
-    // Helper function to get weather warning message (informational only)
+    // Helper function to get weather warning message
     const getWeatherWarningMessage = useMemo(() => {
         if (!worldState?.currentWeather || !isHeavyRaining) return null;
         
@@ -661,131 +342,101 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         }
     }, [worldState, isHeavyRaining]);
 
-    // --- Render Logic ---
-    if (!interactionTarget) {
-        return null; // Don't render anything if no interaction target
-    }
-
-    let containerTitle = "External Container"; // Default title
-    if (isCampfireInteraction) {
-        containerTitle = "CAMPFIRE";
-    } else if (isFurnaceInteraction) {
-        containerTitle = "FURNACE";
-    } else if (isLanternInteraction) {
-        containerTitle = "LANTERN";
-    } else if (isBoxInteraction) {
-        containerTitle = "WOODEN STORAGE BOX";
-    } else if (isCorpseInteraction) {
-        containerTitle = currentCorpse?.username ? `${currentCorpse.username}'s Backpack` : "Player Corpse";
-    } else if (isStashInteraction) {
-        containerTitle = currentStash?.isHidden ? "HIDDEN STASH (NEARBY)" : "STASH";
-        if (currentStash?.isHidden && playerId !== currentStash?.placedBy?.toHexString() && playerId !== currentStash?.lastSurfacedBy?.toHexString()) {
-            // If it's hidden and not our stash (placer/surfacer), don't show item UI, only surface button potentially.
-            // For now, the generic title change is enough, actual slot rendering will be conditional.
-        }
-    } else if (isRainCollectorInteraction) {
-        containerTitle = "RAIN COLLECTOR";
-    }
-
     // Determine if the current player can operate the stash hide/surface button
     const canOperateStashButton = useMemo(() => {
-        if (!isStashInteraction || !currentStash || !playerId) return false;
-        if (currentStash.isHidden) {
-            return true; // Anyone can attempt to surface if they are close enough (server validates proximity)
+        if (container.containerType !== 'stash' || !container.containerEntity || !playerId) return false;
+        
+        const stash = container.containerEntity as SpacetimeDBStash;
+        if (stash.isHidden) {
+            return true; // Anyone can attempt to surface if they are close enough
         }
         // If not hidden, only placer or last surfacer can hide it
-        return currentStash.placedBy?.toHexString() === playerId || currentStash.lastSurfacedBy?.toHexString() === playerId;
-    }, [isStashInteraction, currentStash, playerId]);
+        return stash.placedBy?.toHexString() === playerId || stash.lastSurfacedBy?.toHexString() === playerId;
+    }, [container.containerType, container.containerEntity, playerId]);
+
+    // Handle stash visibility toggle
+    const handleToggleStashVisibility = useCallback(() => {
+        if (!connection?.reducers || container.containerId === null || !container.containerEntity) return;
+        
+        const stashIdNum = typeof container.containerId === 'bigint' ? Number(container.containerId) : container.containerId;
+        try {
+            connection.reducers.toggleStashVisibility(stashIdNum);
+        } catch (e: any) {
+            console.error("Error toggling stash visibility:", e);
+        }
+    }, [connection, container.containerId, container.containerEntity]);
+
+    // Handle rain collector fill water container
+    const handleFillWaterContainer = useCallback(() => {
+        if (!connection?.reducers || container.containerId === null || !container.containerEntity) return;
+        
+        const rainCollectorIdNum = typeof container.containerId === 'bigint' ? Number(container.containerId) : container.containerId;
+        try {
+            connection.reducers.fillWaterContainer(rainCollectorIdNum);
+        } catch (e: any) {
+            console.error("Error filling water container:", e);
+        }
+    }, [connection, container.containerId, container.containerEntity]);
+
+    // Special lantern toggle handler (light/extinguish instead of toggle)
+    const handleLanternToggle = useCallback(() => {
+        if (!connection?.reducers || container.containerId === null || !container.containerEntity) return;
+        
+        const lantern = container.containerEntity as SpacetimeDBLantern;
+        const lanternIdNum = typeof container.containerId === 'bigint' ? Number(container.containerId) : container.containerId;
+        
+        try { 
+            if (lantern.isBurning) {
+                connection.reducers.extinguishLantern(lanternIdNum);
+            } else {
+                connection.reducers.lightLantern(lanternIdNum);
+            }
+        } catch (e: any) { 
+            console.error("Error toggle lantern burn:", e); 
+        }
+    }, [connection, container.containerId, container.containerEntity]);
+
+    // Don't render anything if no container
+    if (!container.containerType || !container.containerEntity) {
+        return null;
+    }
+
+    const config = getContainerConfig(container.containerType);
 
     return (
         <div className={styles.externalInventorySection}>
             {/* Dynamic Title */}
-            <h3 className={styles.sectionTitle}>{containerTitle}</h3>
+            <h3 className={styles.sectionTitle}>{container.containerTitle}</h3>
 
-            {/* Campfire UI */} 
-            {isCampfireInteraction && currentCampfire && (
-                <>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
-                            {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
-                                const itemInSlot = fuelItems[index];
-                                const currentCampfireSlotInfo: DragSourceSlotInfo = { type: 'campfire_fuel', index: index, parentId: campfireIdNum ?? undefined };
-                                const slotKey = `campfire-fuel-${campfireIdNum ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentCampfireSlotInfo}
-                                        onItemDrop={handleItemDropWithTracking}
-                                        className={styles.slot}
-                                        isDraggingOver={false}
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentCampfireSlotInfo}
+            {/* Generic Container Slots - handles all slot rendering */}
+            <ContainerSlots
+                containerType={container.containerType}
+                items={container.items}
+                createSlotInfo={container.createSlotInfo}
+                getSlotKey={container.getSlotKey}
                                                 onItemDragStart={onItemDragStart}
                                                 onItemDrop={handleItemDropWithTracking}
-                                                onContextMenu={(event) => handleRemoveFuel(event, index)}
-                                                onMouseEnter={(e) => handleCampfireFuelMouseEnter(itemInSlot, e)}
-                                                onMouseLeave={handleItemMouseLeave}
-                                                onMouseMove={handleItemMouseMove}
-                                            />
-                                        )}
-                                        
-                                        {/* Water level indicator for water containers in campfire */}
-                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                            const hasWater = waterLevelPercentage > 0;
-                                            
-                                            return (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: '4px',
-                                                        top: '4px',
-                                                        bottom: '4px',
-                                                        width: '3px',
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                        borderRadius: '1px',
-                                                        zIndex: 4,
-                                                        pointerEvents: 'none',
-                                                    }}
-                                                >
-                                                    {hasWater && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                bottom: '0px',
-                                                                left: '0px',
-                                                                right: '0px',
-                                                                height: `${waterLevelPercentage * 100}%`,
-                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                                borderRadius: '1px',
-                                                                transition: 'height 0.3s ease-in-out',
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                        <button
-                            onClick={handleToggleBurn}
-                            disabled={isToggleButtonDisabled}
-                            className={`${styles.interactionButton} ${
-                                currentCampfire.isBurning
-                                    ? styles.extinguishButton
-                                    : styles.lightFireButton
-                            }`}
+                onContextMenu={container.contextMenuHandler}
+                onItemMouseEnter={
+                    container.containerType === 'campfire' ? handleCampfireFuelMouseEnter : 
+                    container.containerType === 'furnace' ? handleFurnaceFuelMouseEnter :
+                    onExternalItemMouseEnter
+                }
+                onItemMouseLeave={onExternalItemMouseLeave}
+                onItemMouseMove={onExternalItemMouseMove}
+            />
 
-                        >
-                            {currentCampfire.isBurning ? "Extinguish" : "Light Fire"}
-                        </button>
-                        {/* Rain warning message - informational only */}
-                        {!!isHeavyRaining && !currentCampfire.isBurning && (
+            {/* Generic Container Buttons - handles toggle/light/extinguish */}
+            <ContainerButtons
+                containerType={container.containerType}
+                containerEntity={container.containerEntity}
+                items={container.items}
+                onToggle={container.containerType === 'lantern' ? handleLanternToggle : container.toggleHandler}
+            >
+                {/* Special case buttons for specific containers */}
+                
+                {/* Campfire weather warning */}
+                {container.containerType === 'campfire' && isHeavyRaining && !container.isActive && (
                             <div style={{ 
                                 marginTop: '8px', 
                                 color: '#87CEEB', 
@@ -795,489 +446,40 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             }}>
                                 🌧️ {getWeatherWarningMessage}
                             </div>
-                        )}
-                    </div>
-                </>
-            )}
-            {isCampfireInteraction && !currentCampfire && (
-                 <div>Error: Campfire data missing.</div>
-            )}
+                )}
 
-            {/* Furnace UI */} 
-            {isFurnaceInteraction && currentFurnace && (
-                <>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
-                            {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
-                                const itemInSlot = furnaceFuelItems[index];
-                                const currentFurnaceSlotInfo: DragSourceSlotInfo = { type: 'furnace_fuel', index: index, parentId: furnaceIdNum ?? undefined };
-                                const slotKey = `furnace-fuel-${furnaceIdNum ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentFurnaceSlotInfo}
-                                        onItemDrop={handleItemDropWithTracking}
-                                        className={styles.slot}
-                                        isDraggingOver={false}
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentFurnaceSlotInfo}
-                                                onItemDragStart={onItemDragStart}
-                                                onItemDrop={handleItemDropWithTracking}
-                                                onContextMenu={(event) => handleRemoveFurnaceFuel(event, index)}
-                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                                onMouseLeave={handleItemMouseLeave}
-                                                onMouseMove={handleItemMouseMove}
-                                            />
-                                        )}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                        <button
-                            onClick={handleToggleFurnaceBurn}
-                            disabled={!currentFurnace || (!currentFurnace.isBurning && !furnaceFuelItems.some(item => 
-                                item && 
-                                item.definition.fuelBurnDurationSecs !== undefined && 
-                                item.definition.fuelBurnDurationSecs > 0 && 
-                                item.instance.quantity > 0
-                            ))}
-                            className={`${styles.interactionButton} ${
-                                currentFurnace.isBurning
-                                    ? styles.extinguishButton
-                                    : styles.lightFireButton
-                            }`}
-
-                        >
-                            {currentFurnace.isBurning ? "Extinguish" : "Light Furnace"}
-                        </button>
-                    </div>
-                </>
-            )}
-            {isFurnaceInteraction && !currentFurnace && (
-                 <div>Error: Furnace data missing.</div>
-            )}
-
-            {/* Lantern UI */} 
-            {isLanternInteraction && currentLantern && (
-                <>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
-                            {Array.from({ length: NUM_LANTERN_FUEL_SLOTS }).map((_, index) => {
-                                const itemInSlot = lanternFuelItems[index];
-                                const currentLanternSlotInfo: DragSourceSlotInfo = { type: 'lantern_fuel', index: index, parentId: lanternIdNum ?? undefined };
-                                const slotKey = `lantern-fuel-${lanternIdNum ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentLanternSlotInfo}
-                                        onItemDrop={handleItemDropWithTracking}
-                                        className={styles.slot}
-                                        isDraggingOver={false}
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentLanternSlotInfo}
-                                                onItemDragStart={onItemDragStart}
-                                                onItemDrop={handleItemDropWithTracking}
-                                                onContextMenu={(event) => handleRemoveLanternFuel(event, index)}
-                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                                onMouseLeave={handleItemMouseLeave}
-                                                onMouseMove={handleItemMouseMove}
-                                            />
-                                        )}
-                                        
-                                        {/* Water level indicator for water containers in lantern fuel slot */}
-                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                            const hasWater = waterLevelPercentage > 0;
-                                            
-                                            return (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: '4px',
-                                                        top: '4px',
-                                                        bottom: '4px',
-                                                        width: '3px',
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                        borderRadius: '1px',
-                                                        zIndex: 4,
-                                                        pointerEvents: 'none',
-                                                    }}
-                                                >
-                                                    {hasWater && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                bottom: '0px',
-                                                                left: '0px',
-                                                                right: '0px',
-                                                                height: `${waterLevelPercentage * 100}%`,
-                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                                borderRadius: '1px',
-                                                                transition: 'height 0.3s ease-in-out',
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                        <button
-                            onClick={handleToggleLanternBurn}
-                            disabled={!currentLantern || (!currentLantern.isBurning && !lanternFuelItems.some(item => 
-                                item && 
-                                item.definition.name === 'Tallow' && 
-                                item.instance.quantity > 0
-                            ))}
-                            className={`${styles.interactionButton} ${
-                                currentLantern.isBurning
-                                    ? styles.extinguishButton
-                                    : styles.lightFireButton
-                            }`}
-                        >
-                            {currentLantern.isBurning ? "Extinguish" : "Light Lantern"}
-                        </button>
-                    </div>
-                </>
-            )}
-            {isLanternInteraction && !currentLantern && (
-                 <div>Error: Lantern data missing.</div>
-            )}
-
-            {/* Box UI */} 
-            {isBoxInteraction && currentStorageBox && (
-                <>
-                    <div className={styles.inventoryGrid}>
-                        {Array.from({ length: NUM_BOX_SLOTS }).map((_, index) => {
-                            const itemInSlot = boxItems[index];
-                            const currentBoxSlotInfo: DragSourceSlotInfo = { type: 'wooden_storage_box', index: index, parentId: boxIdNum ?? undefined };
-                            const slotKey = `box-${boxIdNum ?? 'unknown'}-${index}`;
-                            return (
-                                <DroppableSlot
-                                    key={slotKey}
-                                    slotInfo={currentBoxSlotInfo}
-                                    onItemDrop={handleItemDropWithTracking}
-                                    className={styles.slot} 
-                                    isDraggingOver={false} // Placeholder, real value from drag state needed
-                                >
-                                    {itemInSlot && (
-                                        <DraggableItem
-                                            item={itemInSlot}
-                                            sourceSlot={currentBoxSlotInfo}
-                                            onItemDragStart={onItemDragStart}
-                                            onItemDrop={handleItemDropWithTracking} 
-                                            onContextMenu={(event) => handleBoxItemContextMenu(event, itemInSlot, index)}
-                                            onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                            onMouseLeave={handleItemMouseLeave}
-                                            onMouseMove={handleItemMouseMove}
-                                        />
-                                    )}
-                                    
-                                    {/* Water level indicator for water containers in wooden storage box */}
-                                    {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                        const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                        const hasWater = waterLevelPercentage > 0;
-                                        
-                                        return (
-                                            <div
-                                                style={{
-                                                    position: 'absolute',
-                                                    left: '4px',
-                                                    top: '4px',
-                                                    bottom: '4px',
-                                                    width: '3px',
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                    borderRadius: '1px',
-                                                    zIndex: 4,
-                                                    pointerEvents: 'none',
-                                                }}
-                                            >
-                                                {hasWater && (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            bottom: '0px',
-                                                            left: '0px',
-                                                            right: '0px',
-                                                            height: `${waterLevelPercentage * 100}%`,
-                                                            backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                            borderRadius: '1px',
-                                                            transition: 'height 0.3s ease-in-out',
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </DroppableSlot>
-                            );
-                        })}
-                    </div>
-                </>
-            )}
-            {isBoxInteraction && !currentStorageBox && (
-                <div>Error: Wooden Storage Box data missing.</div>
-            )}
-
-            {/* Corpse UI */} 
-            {isCorpseInteraction && currentCorpse && (
-                <>
-                    <div className={styles.inventoryGrid}>
-                        {Array.from({ length: NUM_CORPSE_SLOTS }).map((_, index) => {
-                            const itemInSlot = corpseItems[index];
-                            // Ensure corpseIdBigInt is defined before creating slot info
-                            const corpseIdForSlot = corpseIdBigInt ?? undefined; 
-                            const currentCorpseSlotInfo: DragSourceSlotInfo = { type: 'player_corpse', index: index, parentId: corpseIdForSlot };
-                            const slotKey = `corpse-${corpseIdStr ?? 'unknown'}-${index}`;
-                            return (
-                                <DroppableSlot
-                                    key={slotKey}
-                                    slotInfo={currentCorpseSlotInfo}
-                                    onItemDrop={handleItemDropWithTracking}
-                                    className={styles.slot}
-                                    isDraggingOver={false} // Add state if needed
-                                >
-                                    {itemInSlot && (
-                                        <DraggableItem
-                                            item={itemInSlot}
-                                            sourceSlot={currentCorpseSlotInfo}
-                                            onItemDragStart={onItemDragStart}
-                                            onItemDrop={handleItemDropWithTracking}
-                                            onContextMenu={(event) => handleCorpseItemContextMenu(event, itemInSlot, index)}
-                                            onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                            onMouseLeave={handleItemMouseLeave}
-                                            onMouseMove={handleItemMouseMove}
-                                        />
-                                    )}
-                                    
-                                    {/* Water level indicator for water containers in corpse */}
-                                    {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                        const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                        const hasWater = waterLevelPercentage > 0;
-                                        
-                                        return (
-                                            <div
-                                                style={{
-                                                    position: 'absolute',
-                                                    left: '4px',
-                                                    top: '4px',
-                                                    bottom: '4px',
-                                                    width: '3px',
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                    borderRadius: '1px',
-                                                    zIndex: 4,
-                                                    pointerEvents: 'none',
-                                                }}
-                                            >
-                                                {hasWater && (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            bottom: '0px',
-                                                            left: '0px',
-                                                            right: '0px',
-                                                            height: `${waterLevelPercentage * 100}%`,
-                                                            backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                            borderRadius: '1px',
-                                                            transition: 'height 0.3s ease-in-out',
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </DroppableSlot>
-                            );
-                        })}
-                    </div>
-                </>
-            )}
-            {isCorpseInteraction && !currentCorpse && (
-                <div>Error: Player Corpse data missing.</div>
-            )}
-
-            {/* Stash UI */}
-            {isStashInteraction && currentStash && (
-                <>
-                    {!currentStash.isHidden && (
-                        <div className={styles.inventoryGrid}>
-                            {Array.from({ length: NUM_STASH_SLOTS }).map((_, index) => {
-                                const itemInSlot = stashItems[index];
-                                const currentStashSlotInfo: DragSourceSlotInfo = { type: 'stash', index: index, parentId: stashIdNum ?? undefined };
-                                const slotKey = `stash-${stashIdNum ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentStashSlotInfo}
-                                        onItemDrop={handleItemDropWithTracking}
-                                        className={styles.slot}
-                                        isDraggingOver={false} // Add state if needed
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentStashSlotInfo}
-                                                onItemDragStart={onItemDragStart}
-                                                onItemDrop={handleItemDropWithTracking}
-                                                onContextMenu={(event) => handleStashItemContextMenu(event, itemInSlot, index)}
-                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                                onMouseLeave={handleItemMouseLeave}
-                                                onMouseMove={handleItemMouseMove}
-                                            />
-                                        )}
-                                        
-                                        {/* Water level indicator for water containers in stash */}
-                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                            const hasWater = waterLevelPercentage > 0;
-                                            
-                                            return (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: '4px',
-                                                        top: '4px',
-                                                        bottom: '4px',
-                                                        width: '3px',
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                        borderRadius: '1px',
-                                                        zIndex: 4,
-                                                        pointerEvents: 'none',
-                                                    }}
-                                                >
-                                                    {hasWater && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                bottom: '0px',
-                                                                left: '0px',
-                                                                right: '0px',
-                                                                height: `${waterLevelPercentage * 100}%`,
-                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                                borderRadius: '1px',
-                                                                transition: 'height 0.3s ease-in-out',
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {canOperateStashButton && (
+                {/* Stash visibility button */}
+                {container.containerType === 'stash' && canOperateStashButton && (
                          <button
                             onClick={handleToggleStashVisibility}
                             className={`${styles.interactionButton} ${
-                                currentStash.isHidden
-                                    ? styles.lightFireButton // Use a generic "positive action" style
-                                    : styles.extinguishButton // Use a generic "negative action" style
-                            }`}
-                        >
-                            {currentStash.isHidden ? "Surface Stash" : "Hide Stash"}
+                            (container.containerEntity as SpacetimeDBStash).isHidden
+                                ? styles.lightFireButton
+                                : styles.extinguishButton
+                        }`}
+                    >
+                        {(container.containerEntity as SpacetimeDBStash).isHidden ? "Surface Stash" : "Hide Stash"}
                         </button>
                     )}
-                    {currentStash.isHidden && !canOperateStashButton && (
-                        <p className={styles.infoText}>This stash is hidden. You might be able to surface it if you are on top of it.</p>
-                    )}
-                </>
-            )}
-            {isStashInteraction && !currentStash && (
-                <div>Error: Stash data missing.</div>
-            )}
 
-            {/* Rain Collector UI */}
-            {isRainCollectorInteraction && currentRainCollector && (
-                <>
-                    <div className={styles.inventoryGrid} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        {/* Single slot for water container */}
-                        <div style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
-                            {Array.from({ length: NUM_RAIN_COLLECTOR_SLOTS }).map((_, index) => {
-                                const itemInSlot = rainCollectorItems[index];
-                                const currentRainCollectorSlotInfo: DragSourceSlotInfo = { type: 'rain_collector', index: index, parentId: rainCollectorIdNum ?? undefined };
-                                const slotKey = `rain-collector-${rainCollectorIdNum ?? 'unknown'}-${index}`;
-                                return (
-                                    <DroppableSlot
-                                        key={slotKey}
-                                        slotInfo={currentRainCollectorSlotInfo}
-                                        onItemDrop={handleItemDropWithTracking}
-                                        className={styles.slot}
-                                        isDraggingOver={false}
-                                    >
-                                        {itemInSlot && (
-                                            <DraggableItem
-                                                item={itemInSlot}
-                                                sourceSlot={currentRainCollectorSlotInfo}
-                                                onItemDragStart={onItemDragStart}
-                                                onItemDrop={handleItemDropWithTracking}
-                                                onContextMenu={(event) => handleRainCollectorItemContextMenu(event, itemInSlot, index)}
-                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
-                                                onMouseLeave={handleItemMouseLeave}
-                                                onMouseMove={handleItemMouseMove}
-                                            />
-                                        )}
-                                        
-                                        {/* Water level indicator for water containers in rain collector */}
-                                        {itemInSlot && isWaterContainer(itemInSlot.definition.name) && (() => {
-                                            const waterLevelPercentage = getWaterLevelPercentage(itemInSlot.instance, itemInSlot.definition.name);
-                                            const hasWater = waterLevelPercentage > 0;
-                                            
-                                            return (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        left: '4px',
-                                                        top: '4px',
-                                                        bottom: '4px',
-                                                        width: '3px',
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                                        borderRadius: '1px',
-                                                        zIndex: 4,
-                                                        pointerEvents: 'none',
-                                                    }}
-                                                >
-                                                    {hasWater && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                bottom: '0px',
-                                                                left: '0px',
-                                                                right: '0px',
-                                                                height: `${waterLevelPercentage * 100}%`,
-                                                                backgroundColor: 'rgba(0, 150, 255, 0.8)',
-                                                                borderRadius: '1px',
-                                                                transition: 'height 0.3s ease-in-out',
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </DroppableSlot>
-                                );
-                            })}
-                        </div>
-                        
-                        {/* Fill Water Container Button */}
+                {/* Stash hidden message */}
+                {container.containerType === 'stash' && (container.containerEntity as SpacetimeDBStash).isHidden && !canOperateStashButton && (
+                        <p className={styles.infoText}>This stash is hidden. You might be able to surface it if you are on top of it.</p>
+                )}
+
+                {/* Rain collector fill button and info */}
+                {container.containerType === 'rain_collector' && (
+                    <>
                         <button
                             onClick={handleFillWaterContainer}
-                            disabled={!currentRainCollector || !rainCollectorItems[0] || !['Reed Water Bottle', 'Plastic Water Jug'].includes(rainCollectorItems[0].definition.name) || currentRainCollector.totalWaterCollected <= 0}
+                            disabled={!container.items[0] || 
+                                     !['Reed Water Bottle', 'Plastic Water Jug'].includes(container.items[0]?.definition.name || '') || 
+                                     (container.containerEntity as SpacetimeDBRainCollector).totalWaterCollected <= 0}
                             className={`${styles.interactionButton} ${styles.lightFireButton}`}
                         >
-                            Fill Container ({currentRainCollector.totalWaterCollected.toFixed(1)}L)
+                            Fill Container ({(container.containerEntity as SpacetimeDBRainCollector).totalWaterCollected.toFixed(1)}L)
                         </button>
                         
-                        {/* Water collection info */}
                         <div style={{ 
                             marginTop: '4px', 
                             color: '#87CEEB', 
@@ -1286,12 +488,16 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
                             fontStyle: 'italic'
                         }}>
                             💧 Place water containers (bottles/jugs) to fill during rain
-                        </div>
                     </div>
                 </>
             )}
-            {isRainCollectorInteraction && !currentRainCollector && (
-                <div>Error: Rain Collector data missing.</div>
+            </ContainerButtons>
+
+            {/* Special handling for hidden stash - don't show slots */}
+            {container.containerType === 'stash' && (container.containerEntity as SpacetimeDBStash).isHidden && (
+                <div style={{ marginTop: '8px' }}>
+                    {/* Slots are hidden, only show the surface button above */}
+                </div>
             )}
         </div>
     );

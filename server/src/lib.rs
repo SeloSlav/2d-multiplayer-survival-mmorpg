@@ -103,7 +103,7 @@ pub use drinking::{drink_water, fill_water_container_from_natural_source};
 pub use planted_seeds::plant_seed;
 
 // ADD: Re-export rain collector reducers
-pub use rain_collector::{place_rain_collector, move_item_to_rain_collector, move_item_from_rain_collector, fill_water_container};
+pub use rain_collector::{place_rain_collector, move_item_to_rain_collector, move_item_from_rain_collector, quick_move_from_rain_collector, fill_water_container};
 
 // ADD: Re-export water container consumption reducer
 pub use consumables::consume_filled_water_container;
@@ -154,21 +154,61 @@ pub use chat::Message;
 // Re-export player movement reducer for client bindings
 pub use player_movement::update_player_position_simple;
 
-// Re-export campfire reducer for client bindings
-pub use campfire::place_campfire;
+// Re-export campfire reducers for client bindings  
+pub use campfire::{
+    place_campfire, move_item_to_campfire, quick_move_from_campfire,
+    split_stack_into_campfire, move_item_within_campfire, split_stack_within_campfire,
+    quick_move_to_campfire, move_item_from_campfire_to_player_slot,
+    split_stack_from_campfire, split_and_move_from_campfire,
+    drop_item_from_campfire_slot_to_world, split_and_drop_item_from_campfire_slot_to_world,
+    interact_with_campfire, toggle_campfire_burning
+};
 
 // Re-export furnace reducers for client bindings
 pub use furnace::{
-    place_furnace, add_fuel_to_furnace, auto_remove_fuel_from_furnace, 
-    split_stack_into_furnace, move_fuel_within_furnace, split_stack_within_furnace,
-    quick_move_to_furnace, move_fuel_item_from_furnace_to_player_slot,
+    place_furnace, move_item_to_furnace, quick_move_from_furnace, 
+    split_stack_into_furnace, move_item_within_furnace, split_stack_within_furnace,
+    quick_move_to_furnace, move_item_from_furnace_to_player_slot,
     split_stack_from_furnace, split_and_move_from_furnace,
     drop_item_from_furnace_slot_to_world, split_and_drop_item_from_furnace_slot_to_world,
     interact_with_furnace, toggle_furnace_burning, process_furnace_logic_scheduled
 };
 
 // Re-export lantern reducers for client bindings
-pub use lantern::{place_lantern, add_fuel_to_lantern, light_lantern, extinguish_lantern, pickup_lantern};
+pub use lantern::{
+    place_lantern, move_item_to_lantern, quick_move_from_lantern,
+    split_stack_into_lantern, move_item_within_lantern, split_stack_within_lantern,
+    quick_move_to_lantern, move_item_from_lantern_to_player_slot,
+    split_stack_from_lantern, split_and_drop_item_from_lantern_slot_to_world,
+    drop_item_from_lantern_slot_to_world, light_lantern, extinguish_lantern, 
+    toggle_lantern, pickup_lantern, interact_with_lantern
+};
+
+// Re-export wooden storage box reducers for client bindings
+pub use wooden_storage_box::{
+    place_wooden_storage_box, move_item_to_box, quick_move_from_box,
+    split_stack_into_box, move_item_within_box, split_stack_within_box,
+    quick_move_to_box, move_item_from_box, split_stack_from_box,
+    drop_item_from_box_slot_to_world, split_and_drop_item_from_box_slot_to_world,
+    interact_with_storage_box, pickup_storage_box
+};
+
+// Re-export stash reducers for client bindings  
+pub use stash::{
+    place_stash, move_item_to_stash, quick_move_from_stash,
+    split_stack_into_stash, move_item_within_stash, split_stack_within_stash,
+    quick_move_to_stash, move_item_from_stash, split_stack_from_stash,
+    drop_item_from_stash_slot_to_world, split_and_drop_item_from_stash_slot_to_world,
+    toggle_stash_visibility
+};
+
+// Re-export player corpse reducers for client bindings
+pub use player_corpse::{
+    create_player_corpse, move_item_to_corpse, quick_move_from_corpse,
+    split_stack_into_corpse, move_item_within_corpse, split_stack_within_corpse,
+    quick_move_to_corpse, move_item_from_corpse, split_stack_from_corpse,
+    drop_item_from_corpse_slot_to_world, split_and_drop_item_from_corpse_slot_to_world
+};
 
 // Re-export knocked out functions and types for other modules
 pub use knocked_out::{schedule_knocked_out_recovery, KnockedOutRecoverySchedule, KnockedOutStatus};

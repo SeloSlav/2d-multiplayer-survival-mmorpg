@@ -32,20 +32,8 @@ import {
 } from "@clockworklabs/spacetimedb-sdk";
 
 // Import and reexport all reducer arg types
-import { AddFuelToCampfire } from "./add_fuel_to_campfire_reducer.ts";
-export { AddFuelToCampfire };
-import { AddFuelToFurnace } from "./add_fuel_to_furnace_reducer.ts";
-export { AddFuelToFurnace };
-import { AddFuelToLantern } from "./add_fuel_to_lantern_reducer.ts";
-export { AddFuelToLantern };
 import { AttackBarrel } from "./attack_barrel_reducer.ts";
 export { AttackBarrel };
-import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
-export { AutoRemoveFuelFromCampfire };
-import { AutoRemoveFuelFromFurnace } from "./auto_remove_fuel_from_furnace_reducer.ts";
-export { AutoRemoveFuelFromFurnace };
-import { AutoRemoveFuelFromLantern } from "./auto_remove_fuel_from_lantern_reducer.ts";
-export { AutoRemoveFuelFromLantern };
 import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
 export { CancelAllCrafting };
 import { CancelCraftingItem } from "./cancel_crafting_item_reducer.ts";
@@ -156,44 +144,50 @@ import { LoadRangedWeapon } from "./load_ranged_weapon_reducer.ts";
 export { LoadRangedWeapon };
 import { ManageSeasonalPlants } from "./manage_seasonal_plants_reducer.ts";
 export { ManageSeasonalPlants };
-import { MoveFuelItemFromFurnaceToPlayerSlot } from "./move_fuel_item_from_furnace_to_player_slot_reducer.ts";
-export { MoveFuelItemFromFurnaceToPlayerSlot };
-import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reducer.ts";
-export { MoveFuelItemToPlayerSlot };
-import { MoveFuelWithinCampfire } from "./move_fuel_within_campfire_reducer.ts";
-export { MoveFuelWithinCampfire };
-import { MoveFuelWithinFurnace } from "./move_fuel_within_furnace_reducer.ts";
-export { MoveFuelWithinFurnace };
-import { MoveFuelWithinLantern } from "./move_fuel_within_lantern_reducer.ts";
-export { MoveFuelWithinLantern };
 import { MoveItemFromBox } from "./move_item_from_box_reducer.ts";
 export { MoveItemFromBox };
+import { MoveItemFromCampfireToPlayerSlot } from "./move_item_from_campfire_to_player_slot_reducer.ts";
+export { MoveItemFromCampfireToPlayerSlot };
 import { MoveItemFromCorpse } from "./move_item_from_corpse_reducer.ts";
 export { MoveItemFromCorpse };
+import { MoveItemFromFurnaceToPlayerSlot } from "./move_item_from_furnace_to_player_slot_reducer.ts";
+export { MoveItemFromFurnaceToPlayerSlot };
+import { MoveItemFromLanternToPlayerSlot } from "./move_item_from_lantern_to_player_slot_reducer.ts";
+export { MoveItemFromLanternToPlayerSlot };
 import { MoveItemFromRainCollector } from "./move_item_from_rain_collector_reducer.ts";
 export { MoveItemFromRainCollector };
 import { MoveItemFromStash } from "./move_item_from_stash_reducer.ts";
 export { MoveItemFromStash };
 import { MoveItemToBox } from "./move_item_to_box_reducer.ts";
 export { MoveItemToBox };
+import { MoveItemToCampfire } from "./move_item_to_campfire_reducer.ts";
+export { MoveItemToCampfire };
 import { MoveItemToCorpse } from "./move_item_to_corpse_reducer.ts";
 export { MoveItemToCorpse };
+import { MoveItemToFurnace } from "./move_item_to_furnace_reducer.ts";
+export { MoveItemToFurnace };
 import { MoveItemToHotbar } from "./move_item_to_hotbar_reducer.ts";
 export { MoveItemToHotbar };
 import { MoveItemToInventory } from "./move_item_to_inventory_reducer.ts";
 export { MoveItemToInventory };
+import { MoveItemToLantern } from "./move_item_to_lantern_reducer.ts";
+export { MoveItemToLantern };
 import { MoveItemToRainCollector } from "./move_item_to_rain_collector_reducer.ts";
 export { MoveItemToRainCollector };
 import { MoveItemToStash } from "./move_item_to_stash_reducer.ts";
 export { MoveItemToStash };
 import { MoveItemWithinBox } from "./move_item_within_box_reducer.ts";
 export { MoveItemWithinBox };
+import { MoveItemWithinCampfire } from "./move_item_within_campfire_reducer.ts";
+export { MoveItemWithinCampfire };
 import { MoveItemWithinCorpse } from "./move_item_within_corpse_reducer.ts";
 export { MoveItemWithinCorpse };
+import { MoveItemWithinFurnace } from "./move_item_within_furnace_reducer.ts";
+export { MoveItemWithinFurnace };
+import { MoveItemWithinLantern } from "./move_item_within_lantern_reducer.ts";
+export { MoveItemWithinLantern };
 import { MoveItemWithinStash } from "./move_item_within_stash_reducer.ts";
 export { MoveItemWithinStash };
-import { MoveLanternFuelToPlayerSlot } from "./move_lantern_fuel_to_player_slot_reducer.ts";
-export { MoveLanternFuelToPlayerSlot };
 import { MoveToFirstAvailableHotbarSlot } from "./move_to_first_available_hotbar_slot_reducer.ts";
 export { MoveToFirstAvailableHotbarSlot };
 import { PickupDroppedItem } from "./pickup_dropped_item_reducer.ts";
@@ -242,12 +236,18 @@ import { ProcessWildAnimalAi } from "./process_wild_animal_ai_reducer.ts";
 export { ProcessWildAnimalAi };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
 export { QuickMoveFromBox };
+import { QuickMoveFromCampfire } from "./quick_move_from_campfire_reducer.ts";
+export { QuickMoveFromCampfire };
 import { QuickMoveFromCorpse } from "./quick_move_from_corpse_reducer.ts";
 export { QuickMoveFromCorpse };
+import { QuickMoveFromFurnace } from "./quick_move_from_furnace_reducer.ts";
+export { QuickMoveFromFurnace };
+import { QuickMoveFromLantern } from "./quick_move_from_lantern_reducer.ts";
+export { QuickMoveFromLantern };
+import { QuickMoveFromRainCollector } from "./quick_move_from_rain_collector_reducer.ts";
+export { QuickMoveFromRainCollector };
 import { QuickMoveFromStash } from "./quick_move_from_stash_reducer.ts";
 export { QuickMoveFromStash };
-import { QuickMoveItemFromRainCollector } from "./quick_move_item_from_rain_collector_reducer.ts";
-export { QuickMoveItemFromRainCollector };
 import { QuickMoveToBox } from "./quick_move_to_box_reducer.ts";
 export { QuickMoveToBox };
 import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
@@ -1130,33 +1130,9 @@ const REMOTE_MODULE = {
     },
   },
   reducers: {
-    add_fuel_to_campfire: {
-      reducerName: "add_fuel_to_campfire",
-      argsType: AddFuelToCampfire.getTypeScriptAlgebraicType(),
-    },
-    add_fuel_to_furnace: {
-      reducerName: "add_fuel_to_furnace",
-      argsType: AddFuelToFurnace.getTypeScriptAlgebraicType(),
-    },
-    add_fuel_to_lantern: {
-      reducerName: "add_fuel_to_lantern",
-      argsType: AddFuelToLantern.getTypeScriptAlgebraicType(),
-    },
     attack_barrel: {
       reducerName: "attack_barrel",
       argsType: AttackBarrel.getTypeScriptAlgebraicType(),
-    },
-    auto_remove_fuel_from_campfire: {
-      reducerName: "auto_remove_fuel_from_campfire",
-      argsType: AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType(),
-    },
-    auto_remove_fuel_from_furnace: {
-      reducerName: "auto_remove_fuel_from_furnace",
-      argsType: AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType(),
-    },
-    auto_remove_fuel_from_lantern: {
-      reducerName: "auto_remove_fuel_from_lantern",
-      argsType: AutoRemoveFuelFromLantern.getTypeScriptAlgebraicType(),
     },
     cancel_all_crafting: {
       reducerName: "cancel_all_crafting",
@@ -1378,33 +1354,25 @@ const REMOTE_MODULE = {
       reducerName: "manage_seasonal_plants",
       argsType: ManageSeasonalPlants.getTypeScriptAlgebraicType(),
     },
-    move_fuel_item_from_furnace_to_player_slot: {
-      reducerName: "move_fuel_item_from_furnace_to_player_slot",
-      argsType: MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType(),
-    },
-    move_fuel_item_to_player_slot: {
-      reducerName: "move_fuel_item_to_player_slot",
-      argsType: MoveFuelItemToPlayerSlot.getTypeScriptAlgebraicType(),
-    },
-    move_fuel_within_campfire: {
-      reducerName: "move_fuel_within_campfire",
-      argsType: MoveFuelWithinCampfire.getTypeScriptAlgebraicType(),
-    },
-    move_fuel_within_furnace: {
-      reducerName: "move_fuel_within_furnace",
-      argsType: MoveFuelWithinFurnace.getTypeScriptAlgebraicType(),
-    },
-    move_fuel_within_lantern: {
-      reducerName: "move_fuel_within_lantern",
-      argsType: MoveFuelWithinLantern.getTypeScriptAlgebraicType(),
-    },
     move_item_from_box: {
       reducerName: "move_item_from_box",
       argsType: MoveItemFromBox.getTypeScriptAlgebraicType(),
     },
+    move_item_from_campfire_to_player_slot: {
+      reducerName: "move_item_from_campfire_to_player_slot",
+      argsType: MoveItemFromCampfireToPlayerSlot.getTypeScriptAlgebraicType(),
+    },
     move_item_from_corpse: {
       reducerName: "move_item_from_corpse",
       argsType: MoveItemFromCorpse.getTypeScriptAlgebraicType(),
+    },
+    move_item_from_furnace_to_player_slot: {
+      reducerName: "move_item_from_furnace_to_player_slot",
+      argsType: MoveItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType(),
+    },
+    move_item_from_lantern_to_player_slot: {
+      reducerName: "move_item_from_lantern_to_player_slot",
+      argsType: MoveItemFromLanternToPlayerSlot.getTypeScriptAlgebraicType(),
     },
     move_item_from_rain_collector: {
       reducerName: "move_item_from_rain_collector",
@@ -1418,9 +1386,17 @@ const REMOTE_MODULE = {
       reducerName: "move_item_to_box",
       argsType: MoveItemToBox.getTypeScriptAlgebraicType(),
     },
+    move_item_to_campfire: {
+      reducerName: "move_item_to_campfire",
+      argsType: MoveItemToCampfire.getTypeScriptAlgebraicType(),
+    },
     move_item_to_corpse: {
       reducerName: "move_item_to_corpse",
       argsType: MoveItemToCorpse.getTypeScriptAlgebraicType(),
+    },
+    move_item_to_furnace: {
+      reducerName: "move_item_to_furnace",
+      argsType: MoveItemToFurnace.getTypeScriptAlgebraicType(),
     },
     move_item_to_hotbar: {
       reducerName: "move_item_to_hotbar",
@@ -1429,6 +1405,10 @@ const REMOTE_MODULE = {
     move_item_to_inventory: {
       reducerName: "move_item_to_inventory",
       argsType: MoveItemToInventory.getTypeScriptAlgebraicType(),
+    },
+    move_item_to_lantern: {
+      reducerName: "move_item_to_lantern",
+      argsType: MoveItemToLantern.getTypeScriptAlgebraicType(),
     },
     move_item_to_rain_collector: {
       reducerName: "move_item_to_rain_collector",
@@ -1442,17 +1422,25 @@ const REMOTE_MODULE = {
       reducerName: "move_item_within_box",
       argsType: MoveItemWithinBox.getTypeScriptAlgebraicType(),
     },
+    move_item_within_campfire: {
+      reducerName: "move_item_within_campfire",
+      argsType: MoveItemWithinCampfire.getTypeScriptAlgebraicType(),
+    },
     move_item_within_corpse: {
       reducerName: "move_item_within_corpse",
       argsType: MoveItemWithinCorpse.getTypeScriptAlgebraicType(),
     },
+    move_item_within_furnace: {
+      reducerName: "move_item_within_furnace",
+      argsType: MoveItemWithinFurnace.getTypeScriptAlgebraicType(),
+    },
+    move_item_within_lantern: {
+      reducerName: "move_item_within_lantern",
+      argsType: MoveItemWithinLantern.getTypeScriptAlgebraicType(),
+    },
     move_item_within_stash: {
       reducerName: "move_item_within_stash",
       argsType: MoveItemWithinStash.getTypeScriptAlgebraicType(),
-    },
-    move_lantern_fuel_to_player_slot: {
-      reducerName: "move_lantern_fuel_to_player_slot",
-      argsType: MoveLanternFuelToPlayerSlot.getTypeScriptAlgebraicType(),
     },
     move_to_first_available_hotbar_slot: {
       reducerName: "move_to_first_available_hotbar_slot",
@@ -1550,17 +1538,29 @@ const REMOTE_MODULE = {
       reducerName: "quick_move_from_box",
       argsType: QuickMoveFromBox.getTypeScriptAlgebraicType(),
     },
+    quick_move_from_campfire: {
+      reducerName: "quick_move_from_campfire",
+      argsType: QuickMoveFromCampfire.getTypeScriptAlgebraicType(),
+    },
     quick_move_from_corpse: {
       reducerName: "quick_move_from_corpse",
       argsType: QuickMoveFromCorpse.getTypeScriptAlgebraicType(),
     },
+    quick_move_from_furnace: {
+      reducerName: "quick_move_from_furnace",
+      argsType: QuickMoveFromFurnace.getTypeScriptAlgebraicType(),
+    },
+    quick_move_from_lantern: {
+      reducerName: "quick_move_from_lantern",
+      argsType: QuickMoveFromLantern.getTypeScriptAlgebraicType(),
+    },
+    quick_move_from_rain_collector: {
+      reducerName: "quick_move_from_rain_collector",
+      argsType: QuickMoveFromRainCollector.getTypeScriptAlgebraicType(),
+    },
     quick_move_from_stash: {
       reducerName: "quick_move_from_stash",
       argsType: QuickMoveFromStash.getTypeScriptAlgebraicType(),
-    },
-    quick_move_item_from_rain_collector: {
-      reducerName: "quick_move_item_from_rain_collector",
-      argsType: QuickMoveItemFromRainCollector.getTypeScriptAlgebraicType(),
     },
     quick_move_to_box: {
       reducerName: "quick_move_to_box",
@@ -1865,13 +1865,7 @@ const REMOTE_MODULE = {
 
 // A type representing all the possible variants of a reducer.
 export type Reducer = never
-| { name: "AddFuelToCampfire", args: AddFuelToCampfire }
-| { name: "AddFuelToFurnace", args: AddFuelToFurnace }
-| { name: "AddFuelToLantern", args: AddFuelToLantern }
 | { name: "AttackBarrel", args: AttackBarrel }
-| { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
-| { name: "AutoRemoveFuelFromFurnace", args: AutoRemoveFuelFromFurnace }
-| { name: "AutoRemoveFuelFromLantern", args: AutoRemoveFuelFromLantern }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
 | { name: "CancelFishing", args: CancelFishing }
@@ -1927,25 +1921,28 @@ export type Reducer = never
 | { name: "LightLantern", args: LightLantern }
 | { name: "LoadRangedWeapon", args: LoadRangedWeapon }
 | { name: "ManageSeasonalPlants", args: ManageSeasonalPlants }
-| { name: "MoveFuelItemFromFurnaceToPlayerSlot", args: MoveFuelItemFromFurnaceToPlayerSlot }
-| { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
-| { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
-| { name: "MoveFuelWithinFurnace", args: MoveFuelWithinFurnace }
-| { name: "MoveFuelWithinLantern", args: MoveFuelWithinLantern }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
+| { name: "MoveItemFromCampfireToPlayerSlot", args: MoveItemFromCampfireToPlayerSlot }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
+| { name: "MoveItemFromFurnaceToPlayerSlot", args: MoveItemFromFurnaceToPlayerSlot }
+| { name: "MoveItemFromLanternToPlayerSlot", args: MoveItemFromLanternToPlayerSlot }
 | { name: "MoveItemFromRainCollector", args: MoveItemFromRainCollector }
 | { name: "MoveItemFromStash", args: MoveItemFromStash }
 | { name: "MoveItemToBox", args: MoveItemToBox }
+| { name: "MoveItemToCampfire", args: MoveItemToCampfire }
 | { name: "MoveItemToCorpse", args: MoveItemToCorpse }
+| { name: "MoveItemToFurnace", args: MoveItemToFurnace }
 | { name: "MoveItemToHotbar", args: MoveItemToHotbar }
 | { name: "MoveItemToInventory", args: MoveItemToInventory }
+| { name: "MoveItemToLantern", args: MoveItemToLantern }
 | { name: "MoveItemToRainCollector", args: MoveItemToRainCollector }
 | { name: "MoveItemToStash", args: MoveItemToStash }
 | { name: "MoveItemWithinBox", args: MoveItemWithinBox }
+| { name: "MoveItemWithinCampfire", args: MoveItemWithinCampfire }
 | { name: "MoveItemWithinCorpse", args: MoveItemWithinCorpse }
+| { name: "MoveItemWithinFurnace", args: MoveItemWithinFurnace }
+| { name: "MoveItemWithinLantern", args: MoveItemWithinLantern }
 | { name: "MoveItemWithinStash", args: MoveItemWithinStash }
-| { name: "MoveLanternFuelToPlayerSlot", args: MoveLanternFuelToPlayerSlot }
 | { name: "MoveToFirstAvailableHotbarSlot", args: MoveToFirstAvailableHotbarSlot }
 | { name: "PickupDroppedItem", args: PickupDroppedItem }
 | { name: "PickupLantern", args: PickupLantern }
@@ -1970,9 +1967,12 @@ export type Reducer = never
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "ProcessWildAnimalAi", args: ProcessWildAnimalAi }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
+| { name: "QuickMoveFromCampfire", args: QuickMoveFromCampfire }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
+| { name: "QuickMoveFromFurnace", args: QuickMoveFromFurnace }
+| { name: "QuickMoveFromLantern", args: QuickMoveFromLantern }
+| { name: "QuickMoveFromRainCollector", args: QuickMoveFromRainCollector }
 | { name: "QuickMoveFromStash", args: QuickMoveFromStash }
-| { name: "QuickMoveItemFromRainCollector", args: QuickMoveItemFromRainCollector }
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
@@ -2047,54 +2047,6 @@ export type Reducer = never
 export class RemoteReducers {
   constructor(private connection: DbConnectionImpl, private setCallReducerFlags: SetReducerFlags) {}
 
-  addFuelToCampfire(campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) {
-    const __args = { campfireId, targetSlotIndex, itemInstanceId };
-    let __writer = new BinaryWriter(1024);
-    AddFuelToCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("add_fuel_to_campfire", __argsBuffer, this.setCallReducerFlags.addFuelToCampfireFlags);
-  }
-
-  onAddFuelToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.onReducer("add_fuel_to_campfire", callback);
-  }
-
-  removeOnAddFuelToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.offReducer("add_fuel_to_campfire", callback);
-  }
-
-  addFuelToFurnace(furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) {
-    const __args = { furnaceId, targetSlotIndex, itemInstanceId };
-    let __writer = new BinaryWriter(1024);
-    AddFuelToFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("add_fuel_to_furnace", __argsBuffer, this.setCallReducerFlags.addFuelToFurnaceFlags);
-  }
-
-  onAddFuelToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.onReducer("add_fuel_to_furnace", callback);
-  }
-
-  removeOnAddFuelToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.offReducer("add_fuel_to_furnace", callback);
-  }
-
-  addFuelToLantern(lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) {
-    const __args = { lanternId, targetSlotIndex, itemInstanceId };
-    let __writer = new BinaryWriter(1024);
-    AddFuelToLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("add_fuel_to_lantern", __argsBuffer, this.setCallReducerFlags.addFuelToLanternFlags);
-  }
-
-  onAddFuelToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.onReducer("add_fuel_to_lantern", callback);
-  }
-
-  removeOnAddFuelToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
-    this.connection.offReducer("add_fuel_to_lantern", callback);
-  }
-
   attackBarrel(barrelId: bigint) {
     const __args = { barrelId };
     let __writer = new BinaryWriter(1024);
@@ -2109,54 +2061,6 @@ export class RemoteReducers {
 
   removeOnAttackBarrel(callback: (ctx: ReducerEventContext, barrelId: bigint) => void) {
     this.connection.offReducer("attack_barrel", callback);
-  }
-
-  autoRemoveFuelFromCampfire(campfireId: number, sourceSlotIndex: number) {
-    const __args = { campfireId, sourceSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("auto_remove_fuel_from_campfire", __argsBuffer, this.setCallReducerFlags.autoRemoveFuelFromCampfireFlags);
-  }
-
-  onAutoRemoveFuelFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
-    this.connection.onReducer("auto_remove_fuel_from_campfire", callback);
-  }
-
-  removeOnAutoRemoveFuelFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
-    this.connection.offReducer("auto_remove_fuel_from_campfire", callback);
-  }
-
-  autoRemoveFuelFromFurnace(furnaceId: number, sourceSlotIndex: number) {
-    const __args = { furnaceId, sourceSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("auto_remove_fuel_from_furnace", __argsBuffer, this.setCallReducerFlags.autoRemoveFuelFromFurnaceFlags);
-  }
-
-  onAutoRemoveFuelFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
-    this.connection.onReducer("auto_remove_fuel_from_furnace", callback);
-  }
-
-  removeOnAutoRemoveFuelFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
-    this.connection.offReducer("auto_remove_fuel_from_furnace", callback);
-  }
-
-  autoRemoveFuelFromLantern(lanternId: number, sourceSlotIndex: number) {
-    const __args = { lanternId, sourceSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    AutoRemoveFuelFromLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("auto_remove_fuel_from_lantern", __argsBuffer, this.setCallReducerFlags.autoRemoveFuelFromLanternFlags);
-  }
-
-  onAutoRemoveFuelFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
-    this.connection.onReducer("auto_remove_fuel_from_lantern", callback);
-  }
-
-  removeOnAutoRemoveFuelFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
-    this.connection.offReducer("auto_remove_fuel_from_lantern", callback);
   }
 
   cancelAllCrafting() {
@@ -2971,86 +2875,6 @@ export class RemoteReducers {
     this.connection.offReducer("manage_seasonal_plants", callback);
   }
 
-  moveFuelItemFromFurnaceToPlayerSlot(furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
-    const __args = { furnaceId, sourceSlotIndex, targetSlotType, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_fuel_item_from_furnace_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveFuelItemFromFurnaceToPlayerSlotFlags);
-  }
-
-  onMoveFuelItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_fuel_item_from_furnace_to_player_slot", callback);
-  }
-
-  removeOnMoveFuelItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_fuel_item_from_furnace_to_player_slot", callback);
-  }
-
-  moveFuelItemToPlayerSlot(campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
-    const __args = { campfireId, sourceSlotIndex, targetSlotType, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveFuelItemToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_fuel_item_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveFuelItemToPlayerSlotFlags);
-  }
-
-  onMoveFuelItemToPlayerSlot(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_fuel_item_to_player_slot", callback);
-  }
-
-  removeOnMoveFuelItemToPlayerSlot(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_fuel_item_to_player_slot", callback);
-  }
-
-  moveFuelWithinCampfire(campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) {
-    const __args = { campfireId, sourceSlotIndex, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveFuelWithinCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_fuel_within_campfire", __argsBuffer, this.setCallReducerFlags.moveFuelWithinCampfireFlags);
-  }
-
-  onMoveFuelWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_fuel_within_campfire", callback);
-  }
-
-  removeOnMoveFuelWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_fuel_within_campfire", callback);
-  }
-
-  moveFuelWithinFurnace(furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) {
-    const __args = { furnaceId, sourceSlotIndex, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveFuelWithinFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_fuel_within_furnace", __argsBuffer, this.setCallReducerFlags.moveFuelWithinFurnaceFlags);
-  }
-
-  onMoveFuelWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_fuel_within_furnace", callback);
-  }
-
-  removeOnMoveFuelWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_fuel_within_furnace", callback);
-  }
-
-  moveFuelWithinLantern(lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) {
-    const __args = { lanternId, sourceSlotIndex, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveFuelWithinLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_fuel_within_lantern", __argsBuffer, this.setCallReducerFlags.moveFuelWithinLanternFlags);
-  }
-
-  onMoveFuelWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_fuel_within_lantern", callback);
-  }
-
-  removeOnMoveFuelWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_fuel_within_lantern", callback);
-  }
-
   moveItemFromBox(boxId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { boxId, sourceSlotIndex, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3067,6 +2891,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_from_box", callback);
   }
 
+  moveItemFromCampfireToPlayerSlot(campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { campfireId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemFromCampfireToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_from_campfire_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveItemFromCampfireToPlayerSlotFlags);
+  }
+
+  onMoveItemFromCampfireToPlayerSlot(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_from_campfire_to_player_slot", callback);
+  }
+
+  removeOnMoveItemFromCampfireToPlayerSlot(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_from_campfire_to_player_slot", callback);
+  }
+
   moveItemFromCorpse(corpseId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { corpseId, sourceSlotIndex, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3081,6 +2921,38 @@ export class RemoteReducers {
 
   removeOnMoveItemFromCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_item_from_corpse", callback);
+  }
+
+  moveItemFromFurnaceToPlayerSlot(furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_from_furnace_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveItemFromFurnaceToPlayerSlotFlags);
+  }
+
+  onMoveItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_from_furnace_to_player_slot", callback);
+  }
+
+  removeOnMoveItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_from_furnace_to_player_slot", callback);
+  }
+
+  moveItemFromLanternToPlayerSlot(lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemFromLanternToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_from_lantern_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveItemFromLanternToPlayerSlotFlags);
+  }
+
+  onMoveItemFromLanternToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_from_lantern_to_player_slot", callback);
+  }
+
+  removeOnMoveItemFromLanternToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_from_lantern_to_player_slot", callback);
   }
 
   moveItemFromRainCollector(collectorId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
@@ -3131,6 +3003,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_to_box", callback);
   }
 
+  moveItemToCampfire(campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { campfireId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_campfire", __argsBuffer, this.setCallReducerFlags.moveItemToCampfireFlags);
+  }
+
+  onMoveItemToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("move_item_to_campfire", callback);
+  }
+
+  removeOnMoveItemToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("move_item_to_campfire", callback);
+  }
+
   moveItemToCorpse(corpseId: number, targetSlotIndex: number, itemInstanceId: bigint) {
     const __args = { corpseId, targetSlotIndex, itemInstanceId };
     let __writer = new BinaryWriter(1024);
@@ -3145,6 +3033,22 @@ export class RemoteReducers {
 
   removeOnMoveItemToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("move_item_to_corpse", callback);
+  }
+
+  moveItemToFurnace(furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { furnaceId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_furnace", __argsBuffer, this.setCallReducerFlags.moveItemToFurnaceFlags);
+  }
+
+  onMoveItemToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("move_item_to_furnace", callback);
+  }
+
+  removeOnMoveItemToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("move_item_to_furnace", callback);
   }
 
   moveItemToHotbar(itemInstanceId: bigint, targetHotbarSlot: number) {
@@ -3177,6 +3081,22 @@ export class RemoteReducers {
 
   removeOnMoveItemToInventory(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, targetInventorySlot: number) => void) {
     this.connection.offReducer("move_item_to_inventory", callback);
+  }
+
+  moveItemToLantern(lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { lanternId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    MoveItemToLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_to_lantern", __argsBuffer, this.setCallReducerFlags.moveItemToLanternFlags);
+  }
+
+  onMoveItemToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("move_item_to_lantern", callback);
+  }
+
+  removeOnMoveItemToLantern(callback: (ctx: ReducerEventContext, lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("move_item_to_lantern", callback);
   }
 
   moveItemToRainCollector(collectorId: number, itemInstanceId: bigint, targetSlotIndex: number) {
@@ -3227,6 +3147,22 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_within_box", callback);
   }
 
+  moveItemWithinCampfire(campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { campfireId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemWithinCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_within_campfire", __argsBuffer, this.setCallReducerFlags.moveItemWithinCampfireFlags);
+  }
+
+  onMoveItemWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_within_campfire", callback);
+  }
+
+  removeOnMoveItemWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_within_campfire", callback);
+  }
+
   moveItemWithinCorpse(corpseId: number, sourceSlotIndex: number, targetSlotIndex: number) {
     const __args = { corpseId, sourceSlotIndex, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3243,6 +3179,38 @@ export class RemoteReducers {
     this.connection.offReducer("move_item_within_corpse", callback);
   }
 
+  moveItemWithinFurnace(furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemWithinFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_within_furnace", __argsBuffer, this.setCallReducerFlags.moveItemWithinFurnaceFlags);
+  }
+
+  onMoveItemWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_within_furnace", callback);
+  }
+
+  removeOnMoveItemWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_within_furnace", callback);
+  }
+
+  moveItemWithinLantern(lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveItemWithinLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_item_within_lantern", __argsBuffer, this.setCallReducerFlags.moveItemWithinLanternFlags);
+  }
+
+  onMoveItemWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_item_within_lantern", callback);
+  }
+
+  removeOnMoveItemWithinLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_item_within_lantern", callback);
+  }
+
   moveItemWithinStash(stashId: number, sourceSlotIndex: number, targetSlotIndex: number) {
     const __args = { stashId, sourceSlotIndex, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3257,22 +3225,6 @@ export class RemoteReducers {
 
   removeOnMoveItemWithinStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_item_within_stash", callback);
-  }
-
-  moveLanternFuelToPlayerSlot(lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
-    const __args = { lanternId, sourceSlotIndex, targetSlotType, targetSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    MoveLanternFuelToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("move_lantern_fuel_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveLanternFuelToPlayerSlotFlags);
-  }
-
-  onMoveLanternFuelToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.onReducer("move_lantern_fuel_to_player_slot", callback);
-  }
-
-  removeOnMoveLanternFuelToPlayerSlot(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
-    this.connection.offReducer("move_lantern_fuel_to_player_slot", callback);
   }
 
   moveToFirstAvailableHotbarSlot(itemInstanceId: bigint) {
@@ -3659,6 +3611,22 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_from_box", callback);
   }
 
+  quickMoveFromCampfire(campfireId: number, sourceSlotIndex: number) {
+    const __args = { campfireId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveFromCampfire.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_from_campfire", __argsBuffer, this.setCallReducerFlags.quickMoveFromCampfireFlags);
+  }
+
+  onQuickMoveFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_from_campfire", callback);
+  }
+
+  removeOnQuickMoveFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_from_campfire", callback);
+  }
+
   quickMoveFromCorpse(corpseId: number, sourceSlotIndex: number) {
     const __args = { corpseId, sourceSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3675,6 +3643,54 @@ export class RemoteReducers {
     this.connection.offReducer("quick_move_from_corpse", callback);
   }
 
+  quickMoveFromFurnace(furnaceId: number, sourceSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveFromFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_from_furnace", __argsBuffer, this.setCallReducerFlags.quickMoveFromFurnaceFlags);
+  }
+
+  onQuickMoveFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_from_furnace", callback);
+  }
+
+  removeOnQuickMoveFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_from_furnace", callback);
+  }
+
+  quickMoveFromLantern(lanternId: number, sourceSlotIndex: number) {
+    const __args = { lanternId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveFromLantern.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_from_lantern", __argsBuffer, this.setCallReducerFlags.quickMoveFromLanternFlags);
+  }
+
+  onQuickMoveFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_from_lantern", callback);
+  }
+
+  removeOnQuickMoveFromLantern(callback: (ctx: ReducerEventContext, lanternId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_from_lantern", callback);
+  }
+
+  quickMoveFromRainCollector(collectorId: number, sourceSlotIndex: number) {
+    const __args = { collectorId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveFromRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_from_rain_collector", __argsBuffer, this.setCallReducerFlags.quickMoveFromRainCollectorFlags);
+  }
+
+  onQuickMoveFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("quick_move_from_rain_collector", callback);
+  }
+
+  removeOnQuickMoveFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("quick_move_from_rain_collector", callback);
+  }
+
   quickMoveFromStash(stashId: number, sourceSlotIndex: number) {
     const __args = { stashId, sourceSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -3689,22 +3705,6 @@ export class RemoteReducers {
 
   removeOnQuickMoveFromStash(callback: (ctx: ReducerEventContext, stashId: number, sourceSlotIndex: number) => void) {
     this.connection.offReducer("quick_move_from_stash", callback);
-  }
-
-  quickMoveItemFromRainCollector(collectorId: number, sourceSlotIndex: number) {
-    const __args = { collectorId, sourceSlotIndex };
-    let __writer = new BinaryWriter(1024);
-    QuickMoveItemFromRainCollector.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("quick_move_item_from_rain_collector", __argsBuffer, this.setCallReducerFlags.quickMoveItemFromRainCollectorFlags);
-  }
-
-  onQuickMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
-    this.connection.onReducer("quick_move_item_from_rain_collector", callback);
-  }
-
-  removeOnQuickMoveItemFromRainCollector(callback: (ctx: ReducerEventContext, collectorId: number, sourceSlotIndex: number) => void) {
-    this.connection.offReducer("quick_move_item_from_rain_collector", callback);
   }
 
   quickMoveToBox(boxId: number, itemInstanceId: bigint) {
@@ -4770,39 +4770,9 @@ export class RemoteReducers {
 }
 
 export class SetReducerFlags {
-  addFuelToCampfireFlags: CallReducerFlags = 'FullUpdate';
-  addFuelToCampfire(flags: CallReducerFlags) {
-    this.addFuelToCampfireFlags = flags;
-  }
-
-  addFuelToFurnaceFlags: CallReducerFlags = 'FullUpdate';
-  addFuelToFurnace(flags: CallReducerFlags) {
-    this.addFuelToFurnaceFlags = flags;
-  }
-
-  addFuelToLanternFlags: CallReducerFlags = 'FullUpdate';
-  addFuelToLantern(flags: CallReducerFlags) {
-    this.addFuelToLanternFlags = flags;
-  }
-
   attackBarrelFlags: CallReducerFlags = 'FullUpdate';
   attackBarrel(flags: CallReducerFlags) {
     this.attackBarrelFlags = flags;
-  }
-
-  autoRemoveFuelFromCampfireFlags: CallReducerFlags = 'FullUpdate';
-  autoRemoveFuelFromCampfire(flags: CallReducerFlags) {
-    this.autoRemoveFuelFromCampfireFlags = flags;
-  }
-
-  autoRemoveFuelFromFurnaceFlags: CallReducerFlags = 'FullUpdate';
-  autoRemoveFuelFromFurnace(flags: CallReducerFlags) {
-    this.autoRemoveFuelFromFurnaceFlags = flags;
-  }
-
-  autoRemoveFuelFromLanternFlags: CallReducerFlags = 'FullUpdate';
-  autoRemoveFuelFromLantern(flags: CallReducerFlags) {
-    this.autoRemoveFuelFromLanternFlags = flags;
   }
 
   cancelAllCraftingFlags: CallReducerFlags = 'FullUpdate';
@@ -5070,39 +5040,29 @@ export class SetReducerFlags {
     this.manageSeasonalPlantsFlags = flags;
   }
 
-  moveFuelItemFromFurnaceToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
-  moveFuelItemFromFurnaceToPlayerSlot(flags: CallReducerFlags) {
-    this.moveFuelItemFromFurnaceToPlayerSlotFlags = flags;
-  }
-
-  moveFuelItemToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
-  moveFuelItemToPlayerSlot(flags: CallReducerFlags) {
-    this.moveFuelItemToPlayerSlotFlags = flags;
-  }
-
-  moveFuelWithinCampfireFlags: CallReducerFlags = 'FullUpdate';
-  moveFuelWithinCampfire(flags: CallReducerFlags) {
-    this.moveFuelWithinCampfireFlags = flags;
-  }
-
-  moveFuelWithinFurnaceFlags: CallReducerFlags = 'FullUpdate';
-  moveFuelWithinFurnace(flags: CallReducerFlags) {
-    this.moveFuelWithinFurnaceFlags = flags;
-  }
-
-  moveFuelWithinLanternFlags: CallReducerFlags = 'FullUpdate';
-  moveFuelWithinLantern(flags: CallReducerFlags) {
-    this.moveFuelWithinLanternFlags = flags;
-  }
-
   moveItemFromBoxFlags: CallReducerFlags = 'FullUpdate';
   moveItemFromBox(flags: CallReducerFlags) {
     this.moveItemFromBoxFlags = flags;
   }
 
+  moveItemFromCampfireToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
+  moveItemFromCampfireToPlayerSlot(flags: CallReducerFlags) {
+    this.moveItemFromCampfireToPlayerSlotFlags = flags;
+  }
+
   moveItemFromCorpseFlags: CallReducerFlags = 'FullUpdate';
   moveItemFromCorpse(flags: CallReducerFlags) {
     this.moveItemFromCorpseFlags = flags;
+  }
+
+  moveItemFromFurnaceToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
+  moveItemFromFurnaceToPlayerSlot(flags: CallReducerFlags) {
+    this.moveItemFromFurnaceToPlayerSlotFlags = flags;
+  }
+
+  moveItemFromLanternToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
+  moveItemFromLanternToPlayerSlot(flags: CallReducerFlags) {
+    this.moveItemFromLanternToPlayerSlotFlags = flags;
   }
 
   moveItemFromRainCollectorFlags: CallReducerFlags = 'FullUpdate';
@@ -5120,9 +5080,19 @@ export class SetReducerFlags {
     this.moveItemToBoxFlags = flags;
   }
 
+  moveItemToCampfireFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToCampfire(flags: CallReducerFlags) {
+    this.moveItemToCampfireFlags = flags;
+  }
+
   moveItemToCorpseFlags: CallReducerFlags = 'FullUpdate';
   moveItemToCorpse(flags: CallReducerFlags) {
     this.moveItemToCorpseFlags = flags;
+  }
+
+  moveItemToFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToFurnace(flags: CallReducerFlags) {
+    this.moveItemToFurnaceFlags = flags;
   }
 
   moveItemToHotbarFlags: CallReducerFlags = 'FullUpdate';
@@ -5133,6 +5103,11 @@ export class SetReducerFlags {
   moveItemToInventoryFlags: CallReducerFlags = 'FullUpdate';
   moveItemToInventory(flags: CallReducerFlags) {
     this.moveItemToInventoryFlags = flags;
+  }
+
+  moveItemToLanternFlags: CallReducerFlags = 'FullUpdate';
+  moveItemToLantern(flags: CallReducerFlags) {
+    this.moveItemToLanternFlags = flags;
   }
 
   moveItemToRainCollectorFlags: CallReducerFlags = 'FullUpdate';
@@ -5150,19 +5125,29 @@ export class SetReducerFlags {
     this.moveItemWithinBoxFlags = flags;
   }
 
+  moveItemWithinCampfireFlags: CallReducerFlags = 'FullUpdate';
+  moveItemWithinCampfire(flags: CallReducerFlags) {
+    this.moveItemWithinCampfireFlags = flags;
+  }
+
   moveItemWithinCorpseFlags: CallReducerFlags = 'FullUpdate';
   moveItemWithinCorpse(flags: CallReducerFlags) {
     this.moveItemWithinCorpseFlags = flags;
   }
 
+  moveItemWithinFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  moveItemWithinFurnace(flags: CallReducerFlags) {
+    this.moveItemWithinFurnaceFlags = flags;
+  }
+
+  moveItemWithinLanternFlags: CallReducerFlags = 'FullUpdate';
+  moveItemWithinLantern(flags: CallReducerFlags) {
+    this.moveItemWithinLanternFlags = flags;
+  }
+
   moveItemWithinStashFlags: CallReducerFlags = 'FullUpdate';
   moveItemWithinStash(flags: CallReducerFlags) {
     this.moveItemWithinStashFlags = flags;
-  }
-
-  moveLanternFuelToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
-  moveLanternFuelToPlayerSlot(flags: CallReducerFlags) {
-    this.moveLanternFuelToPlayerSlotFlags = flags;
   }
 
   moveToFirstAvailableHotbarSlotFlags: CallReducerFlags = 'FullUpdate';
@@ -5285,19 +5270,34 @@ export class SetReducerFlags {
     this.quickMoveFromBoxFlags = flags;
   }
 
+  quickMoveFromCampfireFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveFromCampfire(flags: CallReducerFlags) {
+    this.quickMoveFromCampfireFlags = flags;
+  }
+
   quickMoveFromCorpseFlags: CallReducerFlags = 'FullUpdate';
   quickMoveFromCorpse(flags: CallReducerFlags) {
     this.quickMoveFromCorpseFlags = flags;
   }
 
+  quickMoveFromFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveFromFurnace(flags: CallReducerFlags) {
+    this.quickMoveFromFurnaceFlags = flags;
+  }
+
+  quickMoveFromLanternFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveFromLantern(flags: CallReducerFlags) {
+    this.quickMoveFromLanternFlags = flags;
+  }
+
+  quickMoveFromRainCollectorFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveFromRainCollector(flags: CallReducerFlags) {
+    this.quickMoveFromRainCollectorFlags = flags;
+  }
+
   quickMoveFromStashFlags: CallReducerFlags = 'FullUpdate';
   quickMoveFromStash(flags: CallReducerFlags) {
     this.quickMoveFromStashFlags = flags;
-  }
-
-  quickMoveItemFromRainCollectorFlags: CallReducerFlags = 'FullUpdate';
-  quickMoveItemFromRainCollector(flags: CallReducerFlags) {
-    this.quickMoveItemFromRainCollectorFlags = flags;
   }
 
   quickMoveToBoxFlags: CallReducerFlags = 'FullUpdate';

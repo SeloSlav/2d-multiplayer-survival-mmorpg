@@ -974,7 +974,7 @@ export function useEntityFiltering(
     visibleViperSpittlesMap,
     visibleAnimalCorpses,
     visibleAnimalCorpsesMap,
-    visibleBarrels, 
+    visibleBarrels,
     visibleBarrelsMap,
     visibleSeaStacks, 
     visibleSeaStacksMap,

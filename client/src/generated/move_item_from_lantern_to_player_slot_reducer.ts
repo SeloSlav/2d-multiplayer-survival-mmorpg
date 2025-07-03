@@ -31,34 +31,36 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type AddFuelToFurnace = {
-  furnaceId: number,
+export type MoveItemFromLanternToPlayerSlot = {
+  lanternId: number,
+  sourceSlotIndex: number,
+  targetSlotType: string,
   targetSlotIndex: number,
-  itemInstanceId: bigint,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace AddFuelToFurnace {
+export namespace MoveItemFromLanternToPlayerSlot {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("furnaceId", AlgebraicType.createU32Type()),
-      new ProductTypeElement("targetSlotIndex", AlgebraicType.createU8Type()),
-      new ProductTypeElement("itemInstanceId", AlgebraicType.createU64Type()),
+      new ProductTypeElement("lanternId", AlgebraicType.createU32Type()),
+      new ProductTypeElement("sourceSlotIndex", AlgebraicType.createU8Type()),
+      new ProductTypeElement("targetSlotType", AlgebraicType.createStringType()),
+      new ProductTypeElement("targetSlotIndex", AlgebraicType.createU32Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: AddFuelToFurnace): void {
-    AddFuelToFurnace.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: MoveItemFromLanternToPlayerSlot): void {
+    MoveItemFromLanternToPlayerSlot.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): AddFuelToFurnace {
-    return AddFuelToFurnace.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): MoveItemFromLanternToPlayerSlot {
+    return MoveItemFromLanternToPlayerSlot.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

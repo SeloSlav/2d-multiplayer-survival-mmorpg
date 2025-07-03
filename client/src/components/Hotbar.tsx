@@ -866,113 +866,77 @@ const Hotbar: React.FC<HotbarProps> = ({
   const handleHotbarItemContextMenu = (event: React.MouseEvent<HTMLDivElement>, itemInfo: PopulatedItem) => {
       event.preventDefault();
       event.stopPropagation();
-      if (itemInfo.instance.location.tag === 'Hotbar') {
-        const hotbarData = itemInfo.instance.location.value as HotbarLocationData;
-        // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} in slot ${hotbarData.slotIndex}`);
-      } else {
-        // console.log(`[Hotbar ContextMenu] Right-clicked on: ${itemInfo.definition.name} (not in hotbar)`);
-      }
 
       if (!connection?.reducers) return;
       const itemInstanceId = BigInt(itemInfo.instance.instanceId);
 
-      if (interactingWith?.type === 'wooden_storage_box') {
-          const boxIdNum = Number(interactingWith.id);
-          try {
-              connection.reducers.quickMoveToBox(boxIdNum, itemInstanceId);
-          } catch (error: any) {
-              console.error("[Hotbar ContextMenu Hotbar->Box] Failed to call quickMoveToBox reducer:", error);
-          }
-          return;
-      } 
-      else if (interactingWith?.type === 'campfire') {
-          const campfireIdNum = Number(interactingWith.id);
-           try {
-               connection.reducers.quickMoveToCampfire(campfireIdNum, itemInstanceId);
-           } catch (error: any) {
-               console.error("[Hotbar ContextMenu Hotbar->Campfire] Failed to call quickMoveToCampfire reducer:", error);
-           }
-           return;
-      }
-      else if (interactingWith?.type === 'furnace') {
-          const furnaceIdNum = Number(interactingWith.id);
-           try {
-               connection.reducers.quickMoveToFurnace(furnaceIdNum, itemInstanceId);
-           } catch (error: any) {
-               console.error("[Hotbar ContextMenu Hotbar->Furnace] Failed to call quickMoveToFurnace reducer:", error);
-           }
-           return;
-      }
-      else if (interactingWith?.type === 'lantern') {
-          const lanternIdNum = Number(interactingWith.id);
-           try {
-               connection.reducers.quickMoveToLantern(lanternIdNum, itemInstanceId);
-           } catch (error: any) {
-               console.error("[Hotbar ContextMenu Hotbar->Lantern] Failed to call quickMoveToLantern reducer:", error);
-           }
-           return;
-      } 
-      else if (interactingWith?.type === 'player_corpse') {
-           const corpseId = Number(interactingWith.id);
-           try {
-               connection.reducers.quickMoveToCorpse(corpseId, itemInstanceId);
-           } catch (error: any) {
-               console.error("[Hotbar ContextMenu Hotbar->Corpse] Failed to call quickMoveToCorpse reducer:", error);
-           }
-           return;
-      }       else if (interactingWith?.type === 'stash') {
-          const stashId = Number(interactingWith.id);
-          const currentStash = stashes.get(interactingWith.id.toString());
-          if (currentStash && !currentStash.isHidden) {
-            try {
-                connection.reducers.quickMoveToStash(stashId, itemInstanceId);
-            } catch (error: any) {
-                console.error("[Hotbar ContextMenu Hotbar->Stash] Failed to call quickMoveToStash reducer:", error);
-            }
-          } else {
-            // console.log(`[Hotbar ContextMenu Hotbar->Stash] Stash ${stashId} is hidden or not found. Cannot quick move.`);
-          }
-          return;
-      }
-      else if (interactingWith?.type === 'rain_collector') {
-          const rainCollectorId = Number(interactingWith.id);
-          try {
-              connection.reducers.moveItemToRainCollector(rainCollectorId, itemInstanceId, 0);
-          } catch (error: any) {
-              console.error("[Hotbar ContextMenu Hotbar->RainCollector] Failed to call moveItemToRainCollector reducer:", error);
-          }
-          return;
-      }
-      else {
-          // Check if it's a water container with water content
-          const isWaterContainerItem = isWaterContainer(itemInfo.definition.name);
-          const hasWater = hasWaterContent(itemInfo.instance);
+      // Handle container interactions using correct reducer functions  
+      if (interactingWith) {
+          const containerId = Number(interactingWith.id);
           
-          if (isWaterContainerItem && hasWater) {
-              try {
-                  console.log(`[Hotbar ContextMenu] Consuming water from ${itemInfo.definition.name}`);
-                  connection.reducers.consumeFilledWaterContainer(itemInstanceId);
-              } catch (error: any) {
-                  console.error("[Hotbar ContextMenu] Failed to consume water container:", error);
+          try {
+              switch (interactingWith.type) {
+                  case 'player_corpse':
+                      connection.reducers.quickMoveToCorpse(containerId, itemInstanceId);
+                      break;
+                  case 'wooden_storage_box':
+                      connection.reducers.quickMoveToBox(containerId, itemInstanceId);
+                      break;
+                  case 'stash':
+                      const currentStash = stashes.get(interactingWith.id.toString());
+                      if (currentStash && !currentStash.isHidden) {
+                          connection.reducers.quickMoveToStash(containerId, itemInstanceId);
+                      }
+                      break;
+                  case 'campfire':
+                      connection.reducers.quickMoveToCampfire(containerId, itemInstanceId);
+                      break;
+                  case 'furnace':
+                      connection.reducers.quickMoveToFurnace(containerId, itemInstanceId);
+                      break;
+                  case 'lantern':
+                      connection.reducers.quickMoveToLantern(containerId, itemInstanceId);
+                      break;
+                  case 'rain_collector':
+                      // Rain collectors use a different function signature with slot index
+                      connection.reducers.moveItemToRainCollector(containerId, itemInstanceId, 0);
+                      break;
+                  default:
+                      console.warn(`[Hotbar CtxMenu] Unknown interaction type: ${interactingWith.type}`);
+                      break;
               }
+              return; // Successfully handled container interaction
+          } catch (error: any) {
+              console.error(`[Hotbar CtxMenu] Error moving to ${interactingWith.type}:`, error);
               return;
           }
-
-          const isArmor = itemInfo.definition.category.tag === 'Armor';
-          const hasEquipSlot = itemInfo.definition.equipmentSlotType !== null && itemInfo.definition.equipmentSlotType !== undefined;
-          
-          if (isArmor && hasEquipSlot) {
-               try {
-                   connection.reducers.equipArmorFromInventory(itemInstanceId);
-               } catch (error: any) {
-                   console.error("[Hotbar ContextMenu Equip] Failed to call equipArmorFromInventory reducer:", error);
-              }
-              return;
+      }
+      
+      // Default actions when no container is open
+      // Check if it's a water container with water content
+      const isWaterContainerItem = isWaterContainer(itemInfo.definition.name);
+      const hasWater = hasWaterContent(itemInfo.instance);
+      
+      if (isWaterContainerItem && hasWater) {
+          try {
+              console.log(`[Hotbar ContextMenu] Consuming water from ${itemInfo.definition.name}`);
+              connection.reducers.consumeFilledWaterContainer(itemInstanceId);
+          } catch (error: any) {
+              console.error("[Hotbar ContextMenu] Failed to consume water container:", error);
           }
-          
+          return;
+      }
 
-          
-
+      const isArmor = itemInfo.definition.category.tag === 'Armor';
+      const hasEquipSlot = itemInfo.definition.equipmentSlotType !== null && itemInfo.definition.equipmentSlotType !== undefined;
+      
+      if (isArmor && hasEquipSlot) {
+           try {
+               connection.reducers.equipArmorFromInventory(itemInstanceId);
+           } catch (error: any) {
+               console.error("[Hotbar ContextMenu Equip] Failed to call equipArmorFromInventory reducer:", error);
+          }
+          return;
       }
   };
 

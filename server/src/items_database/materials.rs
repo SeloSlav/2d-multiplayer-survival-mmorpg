@@ -75,7 +75,7 @@ pub fn get_material_definitions() -> Vec<ItemDefinition> {
         ItemBuilder::new("Metal Ore", "Raw metallic ore extracted from the ground. Can be smelted into metal fragments.", ItemCategory::Material)
             .icon("metal_ore.png")
             .stackable(1000)
-            .cook_time(3.33)
+            .cook_time(4.0)
             .cooked_item("Metal Fragments")
             .respawn_time(600)
             .build(),

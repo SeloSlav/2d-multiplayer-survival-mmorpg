@@ -31,7 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type MoveFuelWithinCampfire = {
+export type MoveItemWithinCampfire = {
   campfireId: number,
   sourceSlotIndex: number,
   targetSlotIndex: number,
@@ -40,7 +40,7 @@ export type MoveFuelWithinCampfire = {
 /**
  * A namespace for generated helper functions.
  */
-export namespace MoveFuelWithinCampfire {
+export namespace MoveItemWithinCampfire {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -53,12 +53,12 @@ export namespace MoveFuelWithinCampfire {
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: MoveFuelWithinCampfire): void {
-    MoveFuelWithinCampfire.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: MoveItemWithinCampfire): void {
+    MoveItemWithinCampfire.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): MoveFuelWithinCampfire {
-    return MoveFuelWithinCampfire.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): MoveItemWithinCampfire {
+    return MoveItemWithinCampfire.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

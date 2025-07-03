@@ -134,9 +134,9 @@ const MusicControlPanel: React.FC<MusicControlPanelProps> = ({
     // Handle shuffle toggle - toggleShuffle is synchronous, not async
     const handleShuffleToggle = () => {
         try {
-            console.log('🎵 Toggling shuffle from:', shuffleMode);
+            // console.log('🎵 Toggling shuffle from:', shuffleMode);
             toggleShuffle(); // This is synchronous, not async
-            console.log('🎵 Shuffle button clicked');
+            // console.log('🎵 Shuffle button clicked');
         } catch (error) {
             console.error('🎵 Failed to toggle shuffle:', error);
         }

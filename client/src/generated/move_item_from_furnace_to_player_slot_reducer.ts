@@ -31,7 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type MoveFuelItemFromFurnaceToPlayerSlot = {
+export type MoveItemFromFurnaceToPlayerSlot = {
   furnaceId: number,
   sourceSlotIndex: number,
   targetSlotType: string,
@@ -41,7 +41,7 @@ export type MoveFuelItemFromFurnaceToPlayerSlot = {
 /**
  * A namespace for generated helper functions.
  */
-export namespace MoveFuelItemFromFurnaceToPlayerSlot {
+export namespace MoveItemFromFurnaceToPlayerSlot {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -55,12 +55,12 @@ export namespace MoveFuelItemFromFurnaceToPlayerSlot {
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: MoveFuelItemFromFurnaceToPlayerSlot): void {
-    MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: MoveItemFromFurnaceToPlayerSlot): void {
+    MoveItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): MoveFuelItemFromFurnaceToPlayerSlot {
-    return MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): MoveItemFromFurnaceToPlayerSlot {
+    return MoveItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

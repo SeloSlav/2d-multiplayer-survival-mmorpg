@@ -272,7 +272,7 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
             .attack_interval(0.6)
             .build(),
 
-        ItemBuilder::new("Reed Bellows", "A primitive bellows crafted from reed stalks and animal hide. When placed in a campfire, it provides better airflow, making fuel burn slower while cooking food faster.", ItemCategory::Tool)
+        ItemBuilder::new("Reed Bellows", "A primitive bellows crafted from reed stalks and animal hide. When placed in campfires: makes fuel burn 50% slower and cooking 20% faster. When placed in furnaces: makes fuel burn 50% slower and smelting 20% faster.", ItemCategory::Tool)
             .icon("reed_bellows.png")
             .crafting_cost(vec![
                 CostIngredient { item_name: "Common Reed Stalk".to_string(), quantity: 8 },

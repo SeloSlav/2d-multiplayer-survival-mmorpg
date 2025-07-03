@@ -1,5 +1,6 @@
 import { Furnace } from '../../generated'; // Import generated Furnace type
-import furnaceImage from '../../assets/doodads/furnace_simple.png'; // Direct import - USING ACTUAL IMAGE NOW
+import furnaceImage from '../../assets/doodads/furnace_simple.png'; // Direct import OFF
+import furnaceOnImage from '../../assets/doodads/furnace_simple_on.png'; // Direct import ON
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { drawDynamicGroundShadow, applyStandardDropShadow, calculateShakeOffsets } from './shadowUtils';
 import { imageManager } from './imageManager'; // Import image manager
@@ -34,12 +35,12 @@ const lastKnownServerFurnaceShakeTimes = new Map<string, number>();
 
 // --- Define Configuration ---
 const furnaceConfig: GroundEntityConfig<Furnace> = {
-    // Use actual furnace image like wooden storage box pattern
+    // Return imported URL based on burning state
     getImageSource: (entity) => {
         if (entity.isDestroyed) {
             return null; // Don't render if destroyed
         }
-        return furnaceImage; // Use actual furnace image (same image for burning/not burning - visual state can be shown via effects)
+        return entity.isBurning ? furnaceOnImage : furnaceImage;
     },
 
     getTargetDimensions: (_img, _entity) => ({
@@ -154,8 +155,9 @@ const furnaceConfig: GroundEntityConfig<Furnace> = {
     fallbackColor: '#8B4513', // Sienna brown fallback (like wooden storage box)
 };
 
-// Preload furnace image
+// Preload both furnace images
 imageManager.preloadImage(furnaceImage);
+imageManager.preloadImage(furnaceOnImage);
 
 // --- Rendering Function ---
 export function renderFurnace(

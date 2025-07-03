@@ -31,34 +31,32 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type MoveFuelWithinFurnace = {
-  furnaceId: number,
+export type QuickMoveFromRainCollector = {
+  collectorId: number,
   sourceSlotIndex: number,
-  targetSlotIndex: number,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace MoveFuelWithinFurnace {
+export namespace QuickMoveFromRainCollector {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("furnaceId", AlgebraicType.createU32Type()),
+      new ProductTypeElement("collectorId", AlgebraicType.createU32Type()),
       new ProductTypeElement("sourceSlotIndex", AlgebraicType.createU8Type()),
-      new ProductTypeElement("targetSlotIndex", AlgebraicType.createU8Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: MoveFuelWithinFurnace): void {
-    MoveFuelWithinFurnace.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: QuickMoveFromRainCollector): void {
+    QuickMoveFromRainCollector.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): MoveFuelWithinFurnace {
-    return MoveFuelWithinFurnace.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): QuickMoveFromRainCollector {
+    return QuickMoveFromRainCollector.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

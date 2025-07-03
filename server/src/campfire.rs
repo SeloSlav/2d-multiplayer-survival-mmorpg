@@ -148,9 +148,9 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  /// --- Add Fuel to Campfire ---
  /// Adds an item from the player's inventory as fuel to a specific campfire slot.
  /// Validates the campfire interaction and fuel item, then uses the generic container handler
- /// to move the item to the campfire. Updates the campfire state after successful addition.
- #[spacetimedb::reducer]
- pub fn add_fuel_to_campfire(ctx: &ReducerContext, campfire_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
+/// to move the item to the campfire. Updates the campfire state after successful addition.
+#[spacetimedb::reducer]
+pub fn move_item_to_campfire(ctx: &ReducerContext, campfire_id: u32, target_slot_index: u8, item_instance_id: u64) -> Result<(), String> {
      let (_player, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
      inventory_management::handle_move_to_container_slot(ctx, &mut campfire, target_slot_index, item_instance_id)?;
      ctx.db.campfire().id().update(campfire.clone()); // Persist campfire slot changes
@@ -162,7 +162,7 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  /// Removes the fuel item from a specific campfire slot and returns it to the player inventory/hotbar.
  /// Uses the quick move logic (attempts merge, then finds first empty slot).
  #[spacetimedb::reducer]
- pub fn auto_remove_fuel_from_campfire(ctx: &ReducerContext, campfire_id: u32, source_slot_index: u8) -> Result<(), String> {
+ pub fn quick_move_from_campfire(ctx: &ReducerContext, campfire_id: u32, source_slot_index: u8) -> Result<(), String> {
      let (_player, mut campfire) = validate_campfire_interaction(ctx, campfire_id)?;
      inventory_management::handle_quick_move_from_container(ctx, &mut campfire, source_slot_index)?;
      let still_has_fuel = check_if_campfire_has_fuel(ctx, &campfire);
@@ -213,9 +213,9 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  }
  
  /// --- Campfire Internal Item Movement ---
- /// Moves/merges/swaps an item BETWEEN two slots within the same campfire.
- #[spacetimedb::reducer]
- pub fn move_fuel_within_campfire(
+/// Moves/merges/swaps an item BETWEEN two slots within the same campfire.
+#[spacetimedb::reducer]
+pub fn move_item_within_campfire(
      ctx: &ReducerContext,
      campfire_id: u32,
      source_slot_index: u8,
@@ -261,9 +261,9 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
  }
  
  /// --- Move From Campfire to Player ---
- /// Moves a specific fuel item FROM a campfire slot TO a specific player inventory/hotbar slot.
+ /// Moves a specific item FROM a campfire slot TO a specific player inventory/hotbar slot.
  #[spacetimedb::reducer]
- pub fn move_fuel_item_to_player_slot(
+ pub fn move_item_from_campfire_to_player_slot(
      ctx: &ReducerContext,
      campfire_id: u32,
      source_slot_index: u8,
@@ -410,11 +410,11 @@ const CAMPFIRE_DAMAGE_RADIUS_SQUARED: f32 = 2500.0; // 50.0 * 50.0
          "hotbar" => {
              move_item_to_hotbar(ctx, new_item_instance_id, target_slot_index as u8)
          },
-         "campfire_fuel" => {
-             // Moving to a slot in the *same* or *another* campfire. 
-             // `add_fuel_to_campfire` expects the item to come from player inventory.
-             // The new_item_instance_id is already in player's inventory due to split_stack_helper's new location.
-             add_fuel_to_campfire(ctx, source_campfire_id, target_slot_index as u8, new_item_instance_id)
+                 "campfire_fuel" => {
+            // Moving to a slot in the *same* or *another* campfire. 
+            // `move_item_to_campfire` expects the item to come from player inventory.
+            // The new_item_instance_id is already in player's inventory due to split_stack_helper's new location.
+            move_item_to_campfire(ctx, source_campfire_id, target_slot_index as u8, new_item_instance_id)
          },
          _ => {
              log::error!("[SplitMoveFromCampfire] Invalid target_slot_type: {}", target_slot_type);
@@ -1538,10 +1538,10 @@ pub fn get_fuel_burn_rate_multiplier(ctx: &ReducerContext, campfire: &Campfire) 
 }
 
 /// Get the cooking speed multiplier based on whether Reed Bellows is present  
-/// Reed Bellows makes cooking 40% faster (multiplier = 1.4)
+/// Reed Bellows makes cooking 20% faster (multiplier = 1.2)
 pub fn get_cooking_speed_multiplier(ctx: &ReducerContext, campfire: &Campfire) -> f32 {
     if has_reed_bellows(ctx, campfire) {
-        1.4 // Cooking 40% faster with bellows
+        1.2 // Cooking 20% faster with bellows
     } else {
         1.0 // Normal cooking speed
     }

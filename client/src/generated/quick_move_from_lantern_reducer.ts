@@ -31,16 +31,15 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type AddFuelToLantern = {
+export type QuickMoveFromLantern = {
   lanternId: number,
-  targetSlotIndex: number,
-  itemInstanceId: bigint,
+  sourceSlotIndex: number,
 };
 
 /**
  * A namespace for generated helper functions.
  */
-export namespace AddFuelToLantern {
+export namespace QuickMoveFromLantern {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -48,17 +47,16 @@ export namespace AddFuelToLantern {
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
       new ProductTypeElement("lanternId", AlgebraicType.createU32Type()),
-      new ProductTypeElement("targetSlotIndex", AlgebraicType.createU8Type()),
-      new ProductTypeElement("itemInstanceId", AlgebraicType.createU64Type()),
+      new ProductTypeElement("sourceSlotIndex", AlgebraicType.createU8Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: AddFuelToLantern): void {
-    AddFuelToLantern.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: QuickMoveFromLantern): void {
+    QuickMoveFromLantern.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): AddFuelToLantern {
-    return AddFuelToLantern.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): QuickMoveFromLantern {
+    return QuickMoveFromLantern.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

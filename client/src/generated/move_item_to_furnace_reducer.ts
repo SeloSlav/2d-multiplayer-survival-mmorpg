@@ -31,8 +31,8 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type AddFuelToCampfire = {
-  campfireId: number,
+export type MoveItemToFurnace = {
+  furnaceId: number,
   targetSlotIndex: number,
   itemInstanceId: bigint,
 };
@@ -40,25 +40,25 @@ export type AddFuelToCampfire = {
 /**
  * A namespace for generated helper functions.
  */
-export namespace AddFuelToCampfire {
+export namespace MoveItemToFurnace {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
   */
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createProductType([
-      new ProductTypeElement("campfireId", AlgebraicType.createU32Type()),
+      new ProductTypeElement("furnaceId", AlgebraicType.createU32Type()),
       new ProductTypeElement("targetSlotIndex", AlgebraicType.createU8Type()),
       new ProductTypeElement("itemInstanceId", AlgebraicType.createU64Type()),
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: AddFuelToCampfire): void {
-    AddFuelToCampfire.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: MoveItemToFurnace): void {
+    MoveItemToFurnace.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): AddFuelToCampfire {
-    return AddFuelToCampfire.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): MoveItemToFurnace {
+    return MoveItemToFurnace.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }

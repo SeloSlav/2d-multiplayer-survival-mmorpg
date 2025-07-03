@@ -398,138 +398,88 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         
         // Don't trigger context menu if we're currently dragging or just finished dragging
         if (draggedItemInfo) {
-            // console.log('[InventoryUI] Blocking context menu - currently dragging');
             return;
         }
         
         // Add a small delay check for recent drag operations
         if (document.body.classList.contains('item-dragging')) {
-            // console.log('[InventoryUI] Blocking context menu - drag operation in progress');
             return;
         }
         
         // Block context menu for 200ms after a drag operation completes
         const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
         if (timeSinceLastDrag < 200) {
-            // console.log('[InventoryUI] Blocking context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
             return;
         }
         
-        if (!connection?.reducers || !itemInfo) return;
+        if (!connection || !itemInfo) return;
         const itemInstanceId = BigInt(itemInfo.instance.instanceId);
-
-        // console.log('[InventoryUI] Processing context menu for item:', itemInfo.definition.name);
 
         // Get interaction context directly here
         const currentInteraction = interactionTarget;
-        const currentBoxId = currentInteraction?.type === 'wooden_storage_box' ? Number(currentInteraction.id) : null;
-        const currentCampfireId = currentInteraction?.type === 'campfire' ? Number(currentInteraction.id) : null;
-        const currentFurnaceId = currentInteraction?.type === 'furnace' ? Number(currentInteraction.id) : null;
-        const currentLanternId = currentInteraction?.type === 'lantern' ? Number(currentInteraction.id) : null;
-        const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
-        const currentStashId = currentInteraction?.type === 'stash' ? Number(currentInteraction.id) : null;
-        const currentRainCollectorId = currentInteraction?.type === 'rain_collector' ? Number(currentInteraction.id) : null;
-
-        // --- PRIORITY 1: Open Corpse ---
-        if (currentCorpseId !== null) {
+        
+        // Handle container interactions using correct reducer functions
+        if (currentInteraction && connection?.reducers) {
+            const containerId = Number(currentInteraction.id);
+            
             try {
-                // console.log(`[Inv CtxMenu Inv->Corpse] Corpse ${currentCorpseId} open. Calling quickMoveToCorpse for item ${itemInstanceId}`);
-                connection.reducers.quickMoveToCorpse(currentCorpseId, itemInstanceId);
-            } catch (e: any) { 
-                console.error("[Inv CtxMenu Inv->Corpse] Error quick moving to corpse:", e); 
-                // TODO: setUiError 
-            }
-            return; // Action handled
-        }
-
-        // --- PRIORITY 2: Open Box --- 
-        if (currentBoxId !== null) {
-            try { 
-                // console.log(`[Inv CtxMenu Inv->Box] Box ${currentBoxId} open. Calling quickMoveToBox for item ${itemInstanceId}`);
-                connection.reducers.quickMoveToBox(currentBoxId, itemInstanceId); 
-            } catch (e: any) { 
-                console.error("[Inv CtxMenu Inv->Box]", e); 
-                // TODO: setUiError 
-            }
-            return; // Action handled
-        } 
-        // --- PRIORITY 3: Open Stash ---
-        else if (currentStashId !== null) {
-            const stashEntity = stashes.get(currentStashId.toString());
-            if (stashEntity && !stashEntity.isHidden) {
-                try {
-                    // console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} open. Calling quickMoveToStash for item ${itemInstanceId}`);
-                    connection.reducers.quickMoveToStash(currentStashId, itemInstanceId);
-                } catch (e: any) {
-                    console.error(`[Inv CtxMenu Inv->Stash] Error quick moving item ${itemInstanceId} to stash ${currentStashId}:`, e);
-                    // TODO: setUiError
+                switch (currentInteraction.type) {
+                    case 'player_corpse':
+                        connection.reducers.quickMoveToCorpse(containerId, itemInstanceId);
+                        break;
+                    case 'wooden_storage_box':
+                        connection.reducers.quickMoveToBox(containerId, itemInstanceId);
+                        break;
+                    case 'stash':
+                        const stashEntity = stashes.get(containerId.toString());
+                        if (stashEntity?.isHidden) {
+                            return; // Can't move to hidden stash
+                        }
+                        connection.reducers.quickMoveToStash(containerId, itemInstanceId);
+                        break;
+                    case 'campfire':
+                        connection.reducers.quickMoveToCampfire(containerId, itemInstanceId);
+                        break;
+                    case 'furnace':
+                        connection.reducers.quickMoveToFurnace(containerId, itemInstanceId);
+                        break;
+                    case 'lantern':
+                        connection.reducers.quickMoveToLantern(containerId, itemInstanceId);
+                        break;
+                    case 'rain_collector':
+                        // Rain collectors use a different function signature with slot index
+                        connection.reducers.moveItemToRainCollector(containerId, itemInstanceId, 0);
+                        break;
+                    default:
+                        console.warn(`[Inv CtxMenu] Unknown interaction type: ${currentInteraction.type}`);
+                        return;
                 }
-            } else {
-                // console.log(`[Inv CtxMenu Inv->Stash] Stash ${currentStashId} is hidden. Cannot quick move.`);
-                // Optionally set a UI error here to inform the player
+                return; // Successfully handled container interaction
+            } catch (e: any) {
+                console.error(`[Inv CtxMenu] Error moving to ${currentInteraction.type}:`, e);
+                return;
             }
-            return; // Action handled (or intentionally not handled if hidden)
         }
-        // --- PRIORITY 3.5: Open Rain Collector ---
-        else if (currentRainCollectorId !== null) {
-            // Only allow water containers to be moved to rain collectors
-            const allowedWaterContainers = ['Reed Water Bottle', 'Plastic Water Jug'];
-            if (allowedWaterContainers.includes(itemInfo.definition.name)) {
-                try {
-                    // console.log(`[Inv CtxMenu Inv->RainCollector] Rain Collector ${currentRainCollectorId} open. Calling moveItemToRainCollector for item ${itemInstanceId}`);
-                    connection.reducers.moveItemToRainCollector(currentRainCollectorId, itemInstanceId, 0);
-                } catch (e: any) {
-                    console.error(`[Inv CtxMenu Inv->RainCollector] Error quick moving item ${itemInstanceId} to rain collector ${currentRainCollectorId}:`, e);
-                    // TODO: setUiError
-                }
-            } else {
-                // console.log(`[Inv CtxMenu Inv->RainCollector] Item ${itemInfo.definition.name} cannot be moved to rain collector. Only water containers allowed.`);
-                // Optionally show a brief message to the player
-            }
-            return; // Action handled
+        
+        // Check connection before default actions
+        if (!connection) {
+            console.error("[Inv CtxMenu] No connection available");
+            return;
         }
-        // --- PRIORITY 4: Open Campfire --- 
-        else if (currentCampfireId !== null) {
+        
+        // Default actions when no container is open
+        const isArmor = itemInfo.definition.category.tag === 'Armor' && itemInfo.definition.equipmentSlotType !== null;
+        if (isArmor) {
             try { 
-                // console.log(`[Inv CtxMenu Inv->Campfire] Campfire ${currentCampfireId} open. Calling quickMoveToCampfire for item ${itemInstanceId}`);
-                connection.reducers.quickMoveToCampfire(currentCampfireId, itemInstanceId); 
+                connection.reducers.equipArmorFromInventory(itemInstanceId); 
             } catch (e: any) { 
-                console.error("[Inv CtxMenu Inv->Campfire]", e); 
-                // TODO: setUiError 
+                console.error("[Inv CtxMenu EquipArmor]", e); 
             }
-            return; // Action handled
-        } 
-        // --- PRIORITY 4.5: Open Furnace --- 
-        else if (currentFurnaceId !== null) {
+        } else {
             try { 
-                // console.log(`[Inv CtxMenu Inv->Furnace] Furnace ${currentFurnaceId} open. Calling quickMoveToFurnace for item ${itemInstanceId}`);
-                connection.reducers.quickMoveToFurnace(currentFurnaceId, itemInstanceId); 
+                connection.reducers.moveToFirstAvailableHotbarSlot(itemInstanceId); 
             } catch (e: any) { 
-                console.error("[Inv CtxMenu Inv->Furnace]", e); 
-                // TODO: setUiError 
-            }
-            return; // Action handled
-        } 
-        // --- PRIORITY 5: Open Lantern --- 
-        else if (currentLanternId !== null) {
-            try { 
-                // console.log(`[Inv CtxMenu Inv->Lantern] Lantern ${currentLanternId} open. Calling quickMoveToLantern for item ${itemInstanceId}`);
-                connection.reducers.quickMoveToLantern(currentLanternId, itemInstanceId); 
-            } catch (e: any) { 
-                console.error("[Inv CtxMenu Inv->Lantern]", e); 
-                // TODO: setUiError 
-            }
-            return; // Action handled
-        } 
-        // --- DEFAULT ACTIONS (No relevant container open) --- 
-        else {
-            const isArmor = itemInfo.definition.category.tag === 'Armor' && itemInfo.definition.equipmentSlotType !== null;
-            if (isArmor) {
-                // console.log(`[Inv CtxMenu EquipArmor] No container open. Item ${itemInstanceId} is Armor. Calling equipArmorFromInventory.`);
-                try { connection.reducers.equipArmorFromInventory(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu EquipArmor]", e); /* TODO: setUiError */ }
-            } else {
-                // console.log(`[Inv CtxMenu Inv->Hotbar] No container open. Item ${itemInstanceId} not Armor. Calling moveToFirstAvailableHotbarSlot.`);
-                try { connection.reducers.moveToFirstAvailableHotbarSlot(itemInstanceId); } catch (e: any) { console.error("[Inv CtxMenu Inv->Hotbar]", e); /* TODO: setUiError */ }
+                console.error("[Inv CtxMenu Inv->Hotbar]", e); 
             }
         }
     }, [connection, interactionTarget, stashes, draggedItemInfo]);

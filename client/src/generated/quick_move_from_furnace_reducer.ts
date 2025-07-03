@@ -31,7 +31,7 @@ import {
   deepEqual,
 } from "@clockworklabs/spacetimedb-sdk";
 
-export type AutoRemoveFuelFromFurnace = {
+export type QuickMoveFromFurnace = {
   furnaceId: number,
   sourceSlotIndex: number,
 };
@@ -39,7 +39,7 @@ export type AutoRemoveFuelFromFurnace = {
 /**
  * A namespace for generated helper functions.
  */
-export namespace AutoRemoveFuelFromFurnace {
+export namespace QuickMoveFromFurnace {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -51,12 +51,12 @@ export namespace AutoRemoveFuelFromFurnace {
     ]);
   }
 
-  export function serialize(writer: BinaryWriter, value: AutoRemoveFuelFromFurnace): void {
-    AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType().serialize(writer, value);
+  export function serialize(writer: BinaryWriter, value: QuickMoveFromFurnace): void {
+    QuickMoveFromFurnace.getTypeScriptAlgebraicType().serialize(writer, value);
   }
 
-  export function deserialize(reader: BinaryReader): AutoRemoveFuelFromFurnace {
-    return AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType().deserialize(reader);
+  export function deserialize(reader: BinaryReader): QuickMoveFromFurnace {
+    return QuickMoveFromFurnace.getTypeScriptAlgebraicType().deserialize(reader);
   }
 
 }
