@@ -38,6 +38,7 @@ import { renderHarvestableResource } from './unifiedResourceRenderer';
 // Import planted seed renderer (will be activated once client bindings are generated)
 import { renderPlantedSeed } from './plantedSeedRenderingUtils';
 import { renderCampfire } from './campfireRenderingUtils';
+import { renderFurnace } from './furnaceRenderingUtils'; // ADDED: Furnace renderer import
 import { renderLantern } from './lanternRenderingUtils';
 import { renderStash } from './stashRenderingUtils';
 import { renderSleepingBag } from './sleepingBagRenderingUtils';
@@ -120,6 +121,8 @@ interface RenderYSortedEntitiesProps {
     heroImageRef: React.RefObject<HTMLImageElement | null>;
     heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
     heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
+    heroSprintImageRef: React.RefObject<HTMLImageElement | null>;
+    heroIdleImageRef: React.RefObject<HTMLImageElement | null>;
     lastPositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
@@ -133,6 +136,8 @@ interface RenderYSortedEntitiesProps {
     worldMouseY: number | null;
     localPlayerId?: string;
     animationFrame: number;
+    sprintAnimationFrame: number;
+    idleAnimationFrame: number;
     nowMs: number;
     hoveredPlayerIds: Set<string>;
     onPlayerHover: (identity: string, hover: boolean) => void;
@@ -174,6 +179,8 @@ export const renderYSortedEntities = ({
     heroImageRef,
     heroWaterImageRef,
     heroCrouchImageRef,
+    heroSprintImageRef,
+    heroIdleImageRef,
     lastPositionsRef,
     activeConnections,
     activeEquipments,
@@ -187,6 +194,8 @@ export const renderYSortedEntities = ({
     worldMouseY,
     localPlayerId,
     animationFrame,
+    sprintAnimationFrame,
+    idleAnimationFrame,
     nowMs,
     hoveredPlayerIds,
     onPlayerHover,
@@ -388,11 +397,21 @@ export const renderYSortedEntities = ({
               // console.log(`[DEBUG] Rendering player ${playerId} - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
                 // console.log(`[DEBUG] Calling renderPlayer for ${playerId}`);
+                // Choose animation frame based on player state
+                let currentAnimFrame: number;
+                if (!isPlayerMoving) {
+                  currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
+                } else if (playerForRendering.isSprinting) {
+                  currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                } else {
+                  currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                }
                 renderPlayer(
-                        ctx, playerForRendering, heroImg, isOnline, 
+                        ctx, playerForRendering, heroImg, heroSprintImageRef.current || heroImg, heroIdleImageRef.current || heroImg,
+                        isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
-                  animationFrame, 
+                  currentAnimFrame, // Use appropriate animation frame
                   nowMs, 
                   jumpOffset,
                   isPersistentlyHovered,
@@ -409,11 +428,21 @@ export const renderYSortedEntities = ({
               // console.log(`[DEBUG] Rendering player ${playerId} (down/right) - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
                 // console.log(`[DEBUG] Calling renderPlayer for ${playerId} (down/right)`);
+                // Choose animation frame based on player state
+                let currentAnimFrame: number;
+                if (!isPlayerMoving) {
+                  currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
+                } else if (playerForRendering.isSprinting) {
+                  currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                } else {
+                  currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                }
                 renderPlayer(
-                    ctx, playerForRendering, heroImg, isOnline, 
+                    ctx, playerForRendering, heroImg, heroSprintImageRef.current || heroImg, heroIdleImageRef.current || heroImg,
+                    isOnline, 
                     isPlayerMoving, 
                     currentlyHovered,
-                  animationFrame, 
+                  currentAnimFrame, // Use appropriate animation frame
                   nowMs, 
                   jumpOffset,
                   isPersistentlyHovered,
@@ -481,6 +510,16 @@ export const renderYSortedEntities = ({
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
                 drawInteractionOutline(ctx, campfire.posX, campfire.posY - 48, 64, 96, cycleProgress, outlineColor);
+            }
+        } else if (type === 'furnace') { // ADDED: Furnace handling (same as campfire)
+            const furnace = entity as any; // Furnace type from generated types
+            const isTheClosestTarget = closestInteractableTarget?.type === 'furnace' && closestInteractableTarget?.id === furnace.id;
+            renderFurnace(ctx, furnace, nowMs, cycleProgress);
+            
+            // Draw outline only if this is THE closest interactable target
+            if (isTheClosestTarget) {
+                const outlineColor = getInteractionOutlineColor('open');
+                drawInteractionOutline(ctx, furnace.posX, furnace.posY - 48, 72, 96, cycleProgress, outlineColor); // Slightly wider (72 vs 64)
             }
         } else if (type === 'lantern') {
             const lantern = entity as any; // Type will be Lantern from generated types
@@ -663,6 +702,8 @@ export const renderYSortedEntities = ({
             // Harvestable resources are fully rendered in the first pass - no second pass needed
         } else if (type === 'campfire') {
             // Campfires handle their own shadows, no separate pass needed here generally
+        } else if (type === 'furnace') { // ADDED: Furnace second pass
+            // Furnaces are fully rendered in the first pass - no second pass needed (same as campfires)
         } else if (type === 'lantern') {
             // Lanterns are fully rendered in the first pass - no second pass needed
         } else if (type === 'dropped_item') {

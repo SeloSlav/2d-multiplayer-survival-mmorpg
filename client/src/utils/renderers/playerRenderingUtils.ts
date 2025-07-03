@@ -72,33 +72,59 @@ export const getSpriteCoordinates = (
   player: SpacetimeDBPlayer,
   isMoving: boolean,
   currentAnimationFrame: number,
-  isUsingItem: boolean
+  isUsingItem: boolean,
+  totalFrames: number = 6, // Total frame count (6 for walking, 8 for sprinting, 16 for idle)
+  isIdle: boolean = false // NEW: Flag to indicate idle animation
 ): { sx: number, sy: number } => {
+  // Handle idle animation (4x4 grid layout)
+  if (isIdle && !isMoving && !isUsingItem) {
+    const idleFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds
+    const spriteCol = idleFrame % 4; // Cycle through 4 columns (frames) on the row
+    
+    // Calculate row based on player's facing direction (same logic as movement)
+    let spriteRow = 2; // Default Down
+    switch (player.direction) {
+      case 'up':         spriteRow = 3; break;
+      case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
+      case 'right':      spriteRow = 1; break;
+      case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+      case 'down':       spriteRow = 0; break;
+      case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
+      case 'left':       spriteRow = 2; break;
+      case 'up_left':    spriteRow = 2; break; // Use left sprite for diagonal up-left
+      default:           spriteRow = 0; break; // Default fallback
+    }
+    
+    const sx = spriteCol * gameConfig.spriteWidth;
+    const sy = spriteRow * gameConfig.spriteHeight;
+    return { sx, sy };
+  }
+
+  // Handle movement animations (walking/sprinting - directional sprite sheets)
   let spriteRow = 2; // Default Down
   switch (player.direction) {
-    case 'up':         spriteRow = 0; break;
-    case 'up_right':   spriteRow = 0; break; // Use right sprite for diagonal up-right
+    case 'up':         spriteRow = 3; break;
+    case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
     case 'right':      spriteRow = 1; break;
-    case 'down_right': spriteRow = 2; break; // Use right sprite for diagonal down-right
-    case 'down':       spriteRow = 2; break;
-    case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
-    case 'left':       spriteRow = 3; break;
-    case 'up_left':    spriteRow = 0; break; // Use left sprite for diagonal up-left
-    default:           spriteRow = 2; break;
+    case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+    case 'down':       spriteRow = 0; break;
+    case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left (FIXED)
+    case 'left':       spriteRow = 2; break;
+    case 'up_left':    spriteRow = 2; break; // Use left sprite for diagonal up-left
+    default:           spriteRow = 0; break; // Default fallback
   }
-  
-  let frameIndex = IDLE_FRAME_INDEX; // Default to idle frame
-  
-  if (isMoving) {
-    // Use the animation frame directly (now comes from walking cycle: 0,1,2,1)
-    frameIndex = currentAnimationFrame;
-  } else if (isUsingItem) {
-    // For item usage, alternate between frames 0 and 1 for a subtle animation
-    frameIndex = currentAnimationFrame % 2; 
+
+  // Calculate sprite column
+  let spriteCol: number;
+  if (isMoving && !isUsingItem) {
+    // Use the current animation frame for walking/sprinting (0 to totalFrames-1)
+    spriteCol = currentAnimationFrame % totalFrames;
+  } else {
+    // Static/idle sprite - use frame 1 as the neutral position for all sprite sheets
+    spriteCol = 1;
   }
-  // If not moving and not using item, stays at IDLE_FRAME_INDEX (1)
-  
-  const sx = frameIndex * gameConfig.spriteWidth;
+
+  const sx = spriteCol * gameConfig.spriteWidth;
   const sy = spriteRow * gameConfig.spriteHeight;
   return { sx, sy };
 };
@@ -159,6 +185,8 @@ export const renderPlayer = (
   ctx: CanvasRenderingContext2D,
   player: SpacetimeDBPlayer,
   heroImg: CanvasImageSource,
+  heroSprintImg: CanvasImageSource,
+  heroIdleImg: CanvasImageSource, // NEW: Add idle sprite parameter
   isOnline: boolean,
   isMoving: boolean,
   isHovered: boolean,
@@ -396,7 +424,23 @@ export const renderPlayer = (
     lastKnownServerJumpTimes.delete(playerId);
   }
 
-  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
+  // Determine frame count and sprite type based on player state
+  const isSprinting = (!isCorpse && player.isSprinting && finalIsMoving);
+  const isIdleState = (!isCorpse && !finalIsMoving && !isUsingItem && !isUsingSeloOliveOil);
+  
+  let totalFrames: number;
+  let isIdleAnimation = false;
+  
+  if (isIdleState) {
+    totalFrames = 16; // 16 frames for idle animation (4x4)
+    isIdleAnimation = true;
+  } else if (isSprinting) {
+    totalFrames = 8; // 8 frames for sprinting
+  } else {
+    totalFrames = 6; // 6 frames for walking
+  }
+
+  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil, totalFrames, isIdleAnimation);
   
   // Shake Logic (directly uses elapsedSinceServerHitMs)
   let shakeX = 0;
@@ -441,9 +485,22 @@ export const renderPlayer = (
   // --- Draw Dynamic Ground Shadow (for living players only) ---
   // Don't show shadow on water, but keep showing while jumping (same logic as sprite selection)
   const shouldShowShadow = !isCorpse && !(player.isOnWater && !isCurrentlyJumping);
-  if (heroImg instanceof HTMLImageElement && shouldShowShadow) {
+  
+  // NEW: Choose sprite based on player state
+  let currentSpriteImg: CanvasImageSource;
+  if (isCorpse) {
+    currentSpriteImg = heroImg; // Corpses use walking sprite
+  } else if (isIdleState) {
+    currentSpriteImg = heroIdleImg; // Use idle sprite when not moving
+  } else if (isSprinting) {
+    currentSpriteImg = heroSprintImg; // Use sprint sprite when sprinting and moving
+  } else {
+    currentSpriteImg = heroImg; // Use walking sprite for normal movement
+  }
+  
+  if (currentSpriteImg instanceof HTMLImageElement && shouldShowShadow) {
     // Extract the specific sprite frame for shadow rendering
-    const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil);
+    const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil, totalFrames, isIdleAnimation);
     
     // Create a temporary canvas with just the current sprite frame
     const spriteCanvas = document.createElement('canvas');
@@ -454,7 +511,7 @@ export const renderPlayer = (
     if (spriteCtx) {
       // Draw just the current sprite frame to the temporary canvas
       spriteCtx.drawImage(
-        heroImg,
+        currentSpriteImg, // UPDATED: Use selected sprite
         sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source: specific frame from spritesheet
         0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight    // Destination: full temporary canvas
       );
@@ -652,14 +709,14 @@ export const renderPlayer = (
     // --- END MODIFICATION ---
 
     // --- Prepare sprite on offscreen canvas (for tinting) ---
-    if (offscreenCtx && heroImg) {
+    if (offscreenCtx && currentSpriteImg) {
       offscreenCanvas.width = gameConfig.spriteWidth;
       offscreenCanvas.height = gameConfig.spriteHeight;
       offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
       
       // Draw the original sprite frame to the offscreen canvas
       offscreenCtx.drawImage(
-        heroImg as CanvasImageSource, // Cast because heroImg can be HTMLImageElement | null
+        currentSpriteImg as CanvasImageSource, // UPDATED: Use selected sprite
         sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight,
         0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
       );
@@ -671,10 +728,10 @@ export const renderPlayer = (
         offscreenCtx.globalCompositeOperation = 'source-over';
       }
 
-    } else if (!heroImg) {
-      // console.warn("heroImg is null, cannot draw player sprite.");
-      // Fallback or skip drawing if heroImg is not loaded - though asset loader should handle this.
-      return; // Exit if no hero image
+    } else if (!currentSpriteImg) {
+      // console.warn("currentSpriteImg is null, cannot draw player sprite.");
+      // Fallback or skip drawing if sprite is not loaded - though asset loader should handle this.
+      return; // Exit if no sprite image
     }
     // --- End Prepare sprite on offscreen canvas ---
 

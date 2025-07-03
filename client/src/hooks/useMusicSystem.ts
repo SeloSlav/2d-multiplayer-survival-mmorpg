@@ -213,7 +213,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
     const preloadAllTracks = useCallback(async () => {
         if (!finalConfig.preloadAll) return;
 
-        console.log('🎵 Starting music preload...');
+        // console.log('🎵 Starting music preload...');
         setState(prev => ({ ...prev, isLoading: true, preloadProgress: 0 }));
 
         let loadedCount = 0;
@@ -225,7 +225,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
                 loadedCount++;
                 const progress = loadedCount / totalTracks;
                 setState(prev => ({ ...prev, preloadProgress: progress }));
-                console.log(`🎵 Preloaded: ${track.displayName} (${loadedCount}/${totalTracks})`);
+                // console.log(`🎵 Preloaded: ${track.displayName} (${loadedCount}/${totalTracks})`);
             } catch (error) {
                 console.warn(`🎵 Failed to preload: ${track.displayName}`, error);
                 loadedCount++; // Still count as "processed"
@@ -242,7 +242,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             error: loadedCount === 0 ? 'Failed to load any music tracks' : null
         }));
 
-        console.log(`🎵 Music preload complete! Loaded ${loadedCount}/${totalTracks} tracks`);
+        // console.log(`🎵 Music preload complete! Loaded ${loadedCount}/${totalTracks} tracks`);
     }, [finalConfig.preloadAll]);
 
     // Play a specific track
@@ -253,7 +253,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
                 throw new Error(`Invalid track index: ${trackIndex}`);
             }
 
-            console.log(`🎵 Playing: ${track.displayName}`);
+            // console.log(`🎵 Playing: ${track.displayName}`);
 
             // Clean up previous event listeners to prevent multiple tracks from auto-advancing
             cleanupEventListeners();
@@ -300,10 +300,10 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
 
             // Set up track end listener for automatic next track
             const handleTrackEnded = () => {
-                console.log('🎵 Track ended, checking if should auto-advance...');
+                // console.log('🎵 Track ended, checking if should auto-advance...');
                 // Use stateRef to check current playing state
                 if (stateRef.current.isPlaying) {
-                    console.log('🎵 Auto-advancing to next track');
+                    // console.log('🎵 Auto-advancing to next track');
                     // Call nextTrack via ref to avoid circular dependency
                     if (nextTrackRef.current) {
                         nextTrackRef.current().catch((error: Error) => {
@@ -315,7 +315,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
                         });
                     }
                 } else {
-                    console.log('🎵 Track ended but music system is not playing, skipping auto-advance');
+                    // console.log('🎵 Track ended but music system is not playing, skipping auto-advance');
                 }
             };
             
@@ -349,7 +349,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
 
     // Start music system
     const startMusic = useCallback(async () => {
-        console.log('🎵 Starting music system...');
+        // console.log('🎵 Starting music system...');
         
         // Use stateRef to get the most current state
         const currentState = stateRef.current;
@@ -358,7 +358,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         
         // If no playlist exists, create a new shuffled one
         if (currentPlaylist.length === 0) {
-            console.log('🎵 No existing playlist, creating new shuffled playlist');
+            // console.log('🎵 No existing playlist, creating new shuffled playlist');
             currentPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
             setState(prev => ({ ...prev, playlist: currentPlaylist }));
         }
@@ -368,17 +368,17 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         if (startPosition === 0) {
             startPosition = Math.floor(Math.random() * currentPlaylist.length);
             setState(prev => ({ ...prev, playlistPosition: startPosition }));
-            console.log(`🎵 Randomized starting position: ${startPosition + 1}/${currentPlaylist.length}`);
+            // console.log(`🎵 Randomized starting position: ${startPosition + 1}/${currentPlaylist.length}`);
         }
 
         const firstTrackIndex = currentPlaylist[startPosition];
-        console.log(`🎵 Starting with track: ${MUSIC_TRACKS[firstTrackIndex]?.displayName}`);
+        // console.log(`🎵 Starting with track: ${MUSIC_TRACKS[firstTrackIndex]?.displayName}`);
         await playTrack(firstTrackIndex, false); // No crossfade for first track
     }, [playTrack]); // Removed state dependencies to prevent stale closures
 
     // Stop music
     const stopMusic = useCallback(() => {
-        console.log('🎵 Stopping music...');
+        // console.log('🎵 Stopping music...');
         
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
@@ -404,18 +404,18 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         const currentState = stateRef.current;
         
         if (!currentState.isPlaying) {
-            console.log('🎵 nextTrack called but music is not playing');
+            // console.log('🎵 nextTrack called but music is not playing');
             return;
         }
 
-        console.log(`🎵 Moving to next track. Current position: ${currentState.playlistPosition}/${currentState.playlist.length}`);
+        // console.log(`🎵 Moving to next track. Current position: ${currentState.playlistPosition}/${currentState.playlist.length}`);
 
         let nextPosition = currentState.playlistPosition + 1;
         let playlistToUse = currentState.playlist;
         
         // If we've reached the end of the playlist, shuffle a new one
         if (nextPosition >= currentState.playlist.length) {
-            console.log('🎵 End of playlist reached, creating new shuffled playlist');
+            // console.log('🎵 End of playlist reached, creating new shuffled playlist');
             const newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
             playlistToUse = newPlaylist;
             nextPosition = 0;
@@ -433,7 +433,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         }
 
         const nextTrackIndex = playlistToUse[nextPosition];
-        console.log(`🎵 Playing track ${nextPosition + 1}/${playlistToUse.length}: ${MUSIC_TRACKS[nextTrackIndex]?.displayName}`);
+        // console.log(`🎵 Playing track ${nextPosition + 1}/${playlistToUse.length}: ${MUSIC_TRACKS[nextTrackIndex]?.displayName}`);
         
         await playTrack(nextTrackIndex);
     }, [playTrack]);
@@ -465,7 +465,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
     // Set volume
     const setVolume = useCallback((volume: number) => {
         const clampedVolume = Math.max(0, Math.min(1, volume)); // 0-100% range
-        console.log('🎵 Setting music volume to:', clampedVolume);
+        // console.log('🎵 Setting music volume to:', clampedVolume);
         
         if (currentAudioRef.current) {
             currentAudioRef.current.volume = clampedVolume;
@@ -484,7 +484,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         const currentConfig = configRef.current;
         const newShuffleMode = !currentState.shuffleMode; // Use state instead of config
         
-        console.log(`🎵 Toggling shuffle mode: ${currentState.shuffleMode} → ${newShuffleMode}`);
+        // console.log(`🎵 Toggling shuffle mode: ${currentState.shuffleMode} → ${newShuffleMode}`);
         
         // Update config
         configRef.current = { ...currentConfig, shuffleMode: newShuffleMode };
@@ -494,14 +494,14 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
         
         if (newShuffleMode) {
             // Create new shuffled playlist, but keep current track at the front if playing
-            console.log('🎵 Creating shuffled playlist');
+            // console.log('🎵 Creating shuffled playlist');
             let newPlaylist = createShuffledPlaylist(MUSIC_TRACKS.length);
             
             // If we're currently playing a track, move it to the front of the new playlist
             if (currentTrackIndex >= 0 && currentState.isPlaying) {
                 newPlaylist = newPlaylist.filter(idx => idx !== currentTrackIndex);
                 newPlaylist.unshift(currentTrackIndex);
-                console.log(`🎵 Moved current track ${currentTrackIndex} to front of shuffled playlist`);
+                // console.log(`🎵 Moved current track ${currentTrackIndex} to front of shuffled playlist`);
             }
             
             setState(prev => ({ 
@@ -512,7 +512,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             }));
         } else {
             // Create ordered playlist (0, 1, 2, 3...)
-            console.log('🎵 Creating sequential playlist');
+            // console.log('🎵 Creating sequential playlist');
             const orderedPlaylist = Array.from({ length: MUSIC_TRACKS.length }, (_, i) => i);
             
             // Set position to current track index if playing, otherwise start at 0
@@ -526,7 +526,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             }));
         }
         
-        console.log(`🎵 Shuffle mode is now: ${newShuffleMode ? 'ON' : 'OFF'}`);
+        // console.log(`🎵 Shuffle mode is now: ${newShuffleMode ? 'ON' : 'OFF'}`);
     }, []); // Keep empty dependency array since we're using refs
 
     // Initialize music system
@@ -537,7 +537,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
 
         // Cleanup on unmount
         return () => {
-            console.log('🎵 Music system cleanup');
+            // console.log('🎵 Music system cleanup');
             cleanupEventListeners(); // Clean up any active event listeners
             if (currentAudioRef.current) {
                 currentAudioRef.current.pause();
@@ -556,7 +556,7 @@ export const useMusicSystem = (config: Partial<MusicSystemConfig> = {}) => {
             return;
         }
 
-        console.log(`🎵 Playing specific track: ${MUSIC_TRACKS[trackIndex]?.displayName}`);
+        // console.log(`🎵 Playing specific track: ${MUSIC_TRACKS[trackIndex]?.displayName}`);
         
         // Update playlist position to match the selected track
         const currentState = stateRef.current;

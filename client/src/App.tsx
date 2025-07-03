@@ -49,6 +49,7 @@ const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) 
 // Import interaction distance constants directly from their respective rendering utility files
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT } from './utils/renderers/woodenStorageBoxRenderingUtils';
 import { PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED, CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './utils/renderers/campfireRenderingUtils';
+import { PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED, FURNACE_HEIGHT, FURNACE_RENDER_Y_OFFSET } from './utils/renderers/furnaceRenderingUtils'; // ADDED: Furnace interaction constants
 import { PLAYER_STASH_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/stashRenderingUtils';
 import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/playerCorpseRenderingUtils';
 // Add other relevant interaction distances if new interactable container types are added
@@ -151,7 +152,7 @@ function AppContent() {
 
     // --- Pass viewport state to useSpacetimeTables ---
     const { 
-      players, trees, clouds, stones, campfires, lanterns,
+      players, trees, clouds, stones, campfires, furnaces, lanterns, // ADDED: furnaces
       harvestableResources,
       itemDefinitions, 
       inventoryItems, worldState, activeEquipments, droppedItems, 
@@ -494,6 +495,15 @@ function AppContent() {
                         interactionDistanceSquared = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
                     }
                     break;
+                case 'furnace': // ADDED: Furnace interaction distance handling
+                    const furnace = furnaces.get(interactingWith.id.toString());
+                    if (furnace) {
+                        // Use the same visual center calculation as useInteractionFinder
+                        const visualCenterY = furnace.posY - (FURNACE_HEIGHT / 2) - FURNACE_RENDER_Y_OFFSET;
+                        entityPosition = { x: furnace.posX, y: visualCenterY };
+                        interactionDistanceSquared = PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED;
+                    }
+                    break;
                 case 'stash':
                     const stash = stashes.get(interactingWith.id.toString());
                     if (stash) {
@@ -535,6 +545,7 @@ function AppContent() {
         connection?.identity, // Add connection identity dependency
         woodenStorageBoxes, 
         campfires, 
+        furnaces, // ADDED: Furnaces dependency
         stashes, 
         playerCorpses,
         handleSetInteractingWith
@@ -766,6 +777,7 @@ function AppContent() {
                             clouds={clouds}
                             stones={stones}
                             campfires={campfires}
+                            furnaces={furnaces} // ADDED: Furnaces prop
                             lanterns={lanterns}
                             harvestableResources={harvestableResources}
                             droppedItems={droppedItems}

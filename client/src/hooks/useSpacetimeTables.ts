@@ -92,6 +92,7 @@ export interface SpacetimeTableStates {
     trees: Map<string, SpacetimeDB.Tree>;
     stones: Map<string, SpacetimeDB.Stone>;
     campfires: Map<string, SpacetimeDB.Campfire>;
+    furnaces: Map<string, SpacetimeDB.Furnace>; // ADDED: Furnace support
     lanterns: Map<string, SpacetimeDB.Lantern>;
     harvestableResources: Map<string, SpacetimeDB.HarvestableResource>;
     itemDefinitions: Map<string, SpacetimeDB.ItemDefinition>;
@@ -156,6 +157,7 @@ export const useSpacetimeTables = ({
     const [trees, setTrees] = useState<Map<string, SpacetimeDB.Tree>>(() => new Map());
     const [stones, setStones] = useState<Map<string, SpacetimeDB.Stone>>(() => new Map());
     const [campfires, setCampfires] = useState<Map<string, SpacetimeDB.Campfire>>(() => new Map());
+    const [furnaces, setFurnaces] = useState<Map<string, SpacetimeDB.Furnace>>(() => new Map()); // ADDED: Furnace state
     const [lanterns, setLanterns] = useState<Map<string, SpacetimeDB.Lantern>>(() => new Map());
     const [harvestableResources, setHarvestableResources] = useState<Map<string, SpacetimeDB.HarvestableResource>>(() => new Map());
     const [plantedSeeds, setPlantedSeeds] = useState<Map<string, SpacetimeDB.PlantedSeed>>(() => new Map());
@@ -402,6 +404,7 @@ export const useSpacetimeTables = ({
                                 `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
+                                `SELECT * FROM furnace WHERE chunk_index = ${chunkIndex}`, // ADDED: Furnace spatial subscription
                                 `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
                                 `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
@@ -637,6 +640,16 @@ export const useSpacetimeTables = ({
             };
             const handleCampfireUpdate = (ctx: any, oldFire: SpacetimeDB.Campfire, newFire: SpacetimeDB.Campfire) => setCampfires(prev => new Map(prev).set(newFire.id.toString(), newFire));
             const handleCampfireDelete = (ctx: any, campfire: SpacetimeDB.Campfire) => setCampfires(prev => { const newMap = new Map(prev); newMap.delete(campfire.id.toString()); return newMap; });
+
+            // --- Furnace Subscriptions --- ADDED: Same pattern as campfire
+            const handleFurnaceInsert = (ctx: any, furnace: SpacetimeDB.Furnace) => {
+                setFurnaces(prev => new Map(prev).set(furnace.id.toString(), furnace));
+                if (connection.identity && furnace.placedBy.isEqual(connection.identity)) {
+                   cancelPlacementRef.current();
+               }
+            };
+            const handleFurnaceUpdate = (ctx: any, oldFurnace: SpacetimeDB.Furnace, newFurnace: SpacetimeDB.Furnace) => setFurnaces(prev => new Map(prev).set(newFurnace.id.toString(), newFurnace));
+            const handleFurnaceDelete = (ctx: any, furnace: SpacetimeDB.Furnace) => setFurnaces(prev => { const newMap = new Map(prev); newMap.delete(furnace.id.toString()); return newMap; });
 
             // --- Lantern Subscriptions ---
             const handleLanternInsert = (ctx: any, lantern: SpacetimeDB.Lantern) => {
@@ -1077,6 +1090,7 @@ export const useSpacetimeTables = ({
             connection.db.tree.onInsert(handleTreeInsert); connection.db.tree.onUpdate(handleTreeUpdate); connection.db.tree.onDelete(handleTreeDelete);
             connection.db.stone.onInsert(handleStoneInsert); connection.db.stone.onUpdate(handleStoneUpdate); connection.db.stone.onDelete(handleStoneDelete);
             connection.db.campfire.onInsert(handleCampfireInsert); connection.db.campfire.onUpdate(handleCampfireUpdate); connection.db.campfire.onDelete(handleCampfireDelete);
+            connection.db.furnace.onInsert(handleFurnaceInsert); connection.db.furnace.onUpdate(handleFurnaceUpdate); connection.db.furnace.onDelete(handleFurnaceDelete); // ADDED: Furnace event registration
             connection.db.lantern.onInsert(handleLanternInsert); connection.db.lantern.onUpdate(handleLanternUpdate); connection.db.lantern.onDelete(handleLanternDelete);
             connection.db.itemDefinition.onInsert(handleItemDefInsert); connection.db.itemDefinition.onUpdate(handleItemDefUpdate); connection.db.itemDefinition.onDelete(handleItemDefDelete);
             connection.db.inventoryItem.onInsert(handleInventoryInsert); connection.db.inventoryItem.onUpdate(handleInventoryUpdate); connection.db.inventoryItem.onDelete(handleInventoryDelete);
@@ -1357,6 +1371,7 @@ export const useSpacetimeTables = ({
                                  const resourceQueries = [
                                     `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM furnace WHERE chunk_index = ${chunkIndex}`, // ADDED: Furnace initial spatial subscription
                                     `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
@@ -1455,7 +1470,7 @@ export const useSpacetimeTables = ({
                  currentChunksRef.current = [];
                  setLocalPlayerRegistered(false);
                  // Reset table states
-                 setPlayers(new Map()); setTrees(new Map()); setStones(new Map()); setCampfires(new Map()); setLanterns(new Map());
+                 setPlayers(new Map()); setTrees(new Map()); setStones(new Map()); setCampfires(new Map()); setFurnaces(new Map()); setLanterns(new Map()); // ADDED: Furnace cleanup
                  setHarvestableResources(new Map());
                  setItemDefinitions(new Map()); setRecipes(new Map());
                  setInventoryItems(new Map()); setWorldState(null); setActiveEquipments(new Map());
@@ -1502,6 +1517,7 @@ export const useSpacetimeTables = ({
         trees,
         stones,
         campfires,
+        furnaces, // ADDED: Furnace state
         lanterns,
         harvestableResources,
         itemDefinitions,

@@ -17,6 +17,7 @@ import DroppableSlot from './DroppableSlot';
 import { 
     ItemDefinition, InventoryItem, DbConnection, 
     Campfire as SpacetimeDBCampfire,
+    Furnace as SpacetimeDBFurnace,
     Lantern as SpacetimeDBLantern, 
     WoodenStorageBox as SpacetimeDBWoodenStorageBox, 
     PlayerCorpse, 
@@ -47,6 +48,7 @@ interface ExternalContainerUIProps {
     inventoryItems: Map<string, InventoryItem>;
     itemDefinitions: Map<string, ItemDefinition>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    furnaces: Map<string, SpacetimeDBFurnace>;
     lanterns: Map<string, SpacetimeDBLantern>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
     playerCorpses: Map<string, PlayerCorpse>;
@@ -71,6 +73,7 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     inventoryItems,
     itemDefinitions,
     campfires,
+    furnaces,
     lanterns,
     woodenStorageBoxes,
     playerCorpses,
@@ -123,6 +126,32 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         });
         return items;
     }, [isCampfireInteraction, currentCampfire, inventoryItems, itemDefinitions]);
+
+    // --- Derived Data for Furnace ---
+    const isFurnaceInteraction = interactionTarget?.type === 'furnace';
+    const furnaceIdNum = isFurnaceInteraction ? Number(interactionTarget!.id) : null;
+    const currentFurnace = furnaceIdNum !== null ? furnaces.get(furnaceIdNum.toString()) : undefined;
+    const furnaceFuelItems = useMemo(() => {
+        const items: (PopulatedItem | null)[] = Array(NUM_FUEL_SLOTS).fill(null);
+        if (!isFurnaceInteraction || !currentFurnace) return items;
+        const instanceIds = [
+            currentFurnace.fuelInstanceId0, currentFurnace.fuelInstanceId1, currentFurnace.fuelInstanceId2,
+            currentFurnace.fuelInstanceId3, currentFurnace.fuelInstanceId4,
+        ];
+        instanceIds.forEach((instanceIdOpt, index) => {
+            if (instanceIdOpt) {
+                const instanceIdStr = instanceIdOpt.toString();
+                const foundInvItem = inventoryItems.get(instanceIdStr);
+                if (foundInvItem) {
+                    const definition = itemDefinitions.get(foundInvItem.itemDefId.toString());
+                    if (definition) {
+                        items[index] = { instance: foundInvItem, definition };
+                    }
+                }
+            }
+        });
+        return items;
+    }, [isFurnaceInteraction, currentFurnace, inventoryItems, itemDefinitions]);
 
     // --- Derived Data for Lantern ---
     const isLanternInteraction = interactionTarget?.type === 'lantern';
@@ -358,6 +387,27 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
         if (!connection?.reducers || campfireIdNum === null) return;
         try { connection.reducers.toggleCampfireBurning(campfireIdNum); } catch (e) { console.error("Error toggle burn:", e); }
     }, [connection, campfireIdNum]);
+
+    // Furnace-specific callbacks
+    const handleRemoveFurnaceFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
+        event.preventDefault();
+        
+        // Block context menu for 200ms after a drag operation completes
+        const timeSinceLastDrag = Date.now() - lastDragCompleteTime.current;
+        if (timeSinceLastDrag < 200) {
+            // console.log('[ExternalContainerUI] Blocking furnace fuel context menu - recent drag completion:', timeSinceLastDrag, 'ms ago');
+            return;
+        }
+        
+        if (!connection?.reducers || furnaceIdNum === null) return;
+        // console.log('[ExternalContainerUI] Processing furnace fuel context menu for slot:', slotIndex);
+        try { connection.reducers.autoRemoveFuelFromFurnace(furnaceIdNum, slotIndex); } catch (e) { console.error("Error remove furnace fuel:", e); }
+    }, [connection, furnaceIdNum]);
+
+    const handleToggleFurnaceBurn = useCallback(() => {
+        if (!connection?.reducers || furnaceIdNum === null) return;
+        try { connection.reducers.toggleFurnaceBurning(furnaceIdNum); } catch (e) { console.error("Error toggle furnace burn:", e); }
+    }, [connection, furnaceIdNum]);
 
     // Lantern-specific callbacks
     const handleRemoveLanternFuel = useCallback((event: React.MouseEvent<HTMLDivElement>, slotIndex: number) => {
@@ -619,6 +669,8 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
     let containerTitle = "External Container"; // Default title
     if (isCampfireInteraction) {
         containerTitle = "CAMPFIRE";
+    } else if (isFurnaceInteraction) {
+        containerTitle = "FURNACE";
     } else if (isLanternInteraction) {
         containerTitle = "LANTERN";
     } else if (isBoxInteraction) {
@@ -749,6 +801,63 @@ const ExternalContainerUI: React.FC<ExternalContainerUIProps> = ({
             )}
             {isCampfireInteraction && !currentCampfire && (
                  <div>Error: Campfire data missing.</div>
+            )}
+
+            {/* Furnace UI */} 
+            {isFurnaceInteraction && currentFurnace && (
+                <>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div className={styles.multiSlotContainer} style={{ display: 'flex', flexDirection: 'row', gap: '4px' }}>
+                            {Array.from({ length: NUM_FUEL_SLOTS }).map((_, index) => {
+                                const itemInSlot = furnaceFuelItems[index];
+                                const currentFurnaceSlotInfo: DragSourceSlotInfo = { type: 'furnace_fuel', index: index, parentId: furnaceIdNum ?? undefined };
+                                const slotKey = `furnace-fuel-${furnaceIdNum ?? 'unknown'}-${index}`;
+                                return (
+                                    <DroppableSlot
+                                        key={slotKey}
+                                        slotInfo={currentFurnaceSlotInfo}
+                                        onItemDrop={handleItemDropWithTracking}
+                                        className={styles.slot}
+                                        isDraggingOver={false}
+                                    >
+                                        {itemInSlot && (
+                                            <DraggableItem
+                                                item={itemInSlot}
+                                                sourceSlot={currentFurnaceSlotInfo}
+                                                onItemDragStart={onItemDragStart}
+                                                onItemDrop={handleItemDropWithTracking}
+                                                onContextMenu={(event) => handleRemoveFurnaceFuel(event, index)}
+                                                onMouseEnter={(e) => handleItemMouseEnter(itemInSlot, e)}
+                                                onMouseLeave={handleItemMouseLeave}
+                                                onMouseMove={handleItemMouseMove}
+                                            />
+                                        )}
+                                    </DroppableSlot>
+                                );
+                            })}
+                        </div>
+                        <button
+                            onClick={handleToggleFurnaceBurn}
+                            disabled={!currentFurnace || (!currentFurnace.isBurning && !furnaceFuelItems.some(item => 
+                                item && 
+                                item.definition.fuelBurnDurationSecs !== undefined && 
+                                item.definition.fuelBurnDurationSecs > 0 && 
+                                item.instance.quantity > 0
+                            ))}
+                            className={`${styles.interactionButton} ${
+                                currentFurnace.isBurning
+                                    ? styles.extinguishButton
+                                    : styles.lightFireButton
+                            }`}
+
+                        >
+                            {currentFurnace.isBurning ? "Extinguish" : "Light Furnace"}
+                        </button>
+                    </div>
+                </>
+            )}
+            {isFurnaceInteraction && !currentFurnace && (
+                 <div>Error: Furnace data missing.</div>
             )}
 
             {/* Lantern UI */} 

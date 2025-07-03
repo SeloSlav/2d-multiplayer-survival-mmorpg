@@ -894,6 +894,15 @@ const Hotbar: React.FC<HotbarProps> = ({
            }
            return;
       }
+      else if (interactingWith?.type === 'furnace') {
+          const furnaceIdNum = Number(interactingWith.id);
+           try {
+               connection.reducers.quickMoveToFurnace(furnaceIdNum, itemInstanceId);
+           } catch (error: any) {
+               console.error("[Hotbar ContextMenu Hotbar->Furnace] Failed to call quickMoveToFurnace reducer:", error);
+           }
+           return;
+      }
       else if (interactingWith?.type === 'lantern') {
           const lanternIdNum = Number(interactingWith.id);
            try {

@@ -4,6 +4,7 @@ import {
   Tree as SpacetimeDBTree,
   Stone as SpacetimeDBStone,
   Campfire as SpacetimeDBCampfire,
+  Furnace as SpacetimeDBFurnace, // ADDED: Furnace import
   Lantern as SpacetimeDBLantern,
   WorldState as SpacetimeDBWorldState,
   ActiveEquipment as SpacetimeDBActiveEquipment,
@@ -37,7 +38,7 @@ import {
 } from '../generated';
 
 // --- Core Hooks ---
-import { useAnimationCycle, useWalkingAnimationCycle } from '../hooks/useAnimationCycle';
+import { useAnimationCycle, useWalkingAnimationCycle, useSprintAnimationCycle, useIdleAnimationCycle } from '../hooks/useAnimationCycle';
 import { useAssetLoader } from '../hooks/useAssetLoader';
 import { useGameViewport } from '../hooks/useGameViewport';
 import { useMousePosition } from '../hooks/useMousePosition';
@@ -115,6 +116,7 @@ interface GameCanvasProps {
   clouds: Map<string, SpacetimeDBCloud>;
   stones: Map<string, SpacetimeDBStone>;
   campfires: Map<string, SpacetimeDBCampfire>;
+  furnaces: Map<string, SpacetimeDBFurnace>; // ADDED: Furnaces prop
   lanterns: Map<string, SpacetimeDBLantern>;
   harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
   droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -180,6 +182,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   clouds,
   stones,
   campfires,
+  furnaces, // ADDED: Furnaces destructuring
   lanterns,
   harvestableResources,
   droppedItems,
@@ -274,7 +277,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer, predictedPosition);
   // console.log('[GameCanvas DEBUG] Camera offsets:', cameraOffsetX, cameraOffsetY, 'canvas size:', canvasSize);
   
-  const { heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
+  const { heroImageRef, heroSprintImageRef, heroIdleImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const doodadImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
@@ -381,6 +384,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   } = useInteractionFinder({
     localPlayer,
     campfires,
+    furnaces, // ADDED: Furnaces to useInteractionFinder
     droppedItems,
     woodenStorageBoxes,
     playerCorpses,
@@ -435,6 +439,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   });
 
   const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
+  const sprintAnimationFrame = useSprintAnimationCycle(100); // Even faster animation for sprinting
+  const idleAnimationFrame = useIdleAnimationCycle(250); // Slower, relaxed animation for idle state
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
@@ -448,8 +454,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleHarvestableResources,
     visibleDroppedItems,
     visibleCampfires,
+    visibleFurnaces, // ADDED: Furnaces visible array
     visibleHarvestableResourcesMap,
     visibleCampfiresMap,
+    visibleFurnacesMap, // ADDED: Furnaces visible map
     visibleLanternsMap,
     visibleDroppedItemsMap,
     visibleBoxesMap,
@@ -481,6 +489,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     trees,
     stones,
     campfires,
+    furnaces, // ADDED: Furnaces to useEntityFiltering
     lanterns,
     harvestableResources,
     droppedItems,
@@ -879,6 +888,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx,
       ySortedEntities,
       heroImageRef,
+      heroSprintImageRef,
+      heroIdleImageRef,
       heroWaterImageRef,
       heroCrouchImageRef,
       lastPositionsRef,
@@ -894,6 +905,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       worldMouseY: currentWorldMouseY,
       localPlayerId: localPlayerId,
       animationFrame,
+      sprintAnimationFrame,
+      idleAnimationFrame,
       nowMs: now_ms,
       hoveredPlayerIds,
       onPlayerHover: handlePlayerHover,
@@ -946,6 +959,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx,
       harvestableResources: visibleHarvestableResourcesMap,
       campfires: visibleCampfiresMap,
+      furnaces: visibleFurnacesMap, // ADDED: furnaces parameter
       droppedItems: visibleDroppedItemsMap,
       woodenStorageBoxes: visibleBoxesMap,
       playerCorpses: visiblePlayerCorpsesMap,
@@ -1003,7 +1017,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     // Interaction indicators - Draw only for visible entities that are interactable
-    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'lantern' | 'box' | 'stash' | 'corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
+    const drawIndicatorIfNeeded = (entityType: 'campfire' | 'furnace' | 'lantern' | 'box' | 'stash' | 'corpse' | 'knocked_out_player' | 'water', entityId: number | bigint | string, entityPosX: number, entityPosY: number, entityHeight: number, isInView: boolean) => {
       // If holdInteractionProgress is null (meaning no interaction is even being tracked by the state object),
       // or if the entity is not in view, do nothing.
       if (!isInView || !holdInteractionProgress) {
@@ -1043,6 +1057,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Iterate through visible entities MAPS for indicators
     visibleCampfiresMap.forEach((fire: SpacetimeDBCampfire) => {
       drawIndicatorIfNeeded('campfire', fire.id, fire.posX, fire.posY, CAMPFIRE_HEIGHT, true);
+    });
+
+    // Furnace interaction indicators (for hold actions like toggle burning)
+    visibleFurnacesMap.forEach((furnace: SpacetimeDBFurnace) => {
+      drawIndicatorIfNeeded('furnace', furnace.id, furnace.posX, furnace.posY, 144, true); // 144px height for doubled furnace size
     });
 
     // Lantern interaction indicators
@@ -1165,7 +1184,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ySortedEntities, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
     players, itemDefinitions, inventoryItems, trees, stones,
     worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
-    itemImagesRef, heroImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
+    itemImagesRef, heroImageRef, heroSprintImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
     canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
     closestInteractableHarvestableResourceId,

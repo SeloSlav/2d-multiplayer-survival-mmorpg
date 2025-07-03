@@ -234,8 +234,8 @@ const PRELOAD_SOUNDS = [
     'growl_fox.mp3',                                        // 1 fox growl variation
     'growl_snake.mp3',                                      // 1 snake growl variation
     'growl_walrus.mp3',                                     // 3 walrus growl variations
+    'growl_walrus1.mp3',
     'growl_walrus2.mp3',
-    'growl_walrus3.mp3',
     'walking.mp3',                                          // 4 walking/footstep variations
     'walking1.mp3',
     'walking2.mp3',
@@ -464,7 +464,7 @@ const playLocalSound = async (
             } else if (soundType === 'growl_snake') {
                 variationCount = 1; // growl_snake.mp3
             } else if (soundType === 'growl_walrus') {
-                variationCount = 3; // growl_walrus.mp3, growl_walrus2.mp3, growl_walrus3.mp3
+                variationCount = 3; // growl_walrus.mp3, growl_walrus1.mp3, growl_walrus2.mp3
             } else if (soundType === 'walking') {
                 variationCount = 4; // walking.mp3, walking1.mp3, walking2.mp3, walking3.mp3
             } else if (soundType === 'swimming') {

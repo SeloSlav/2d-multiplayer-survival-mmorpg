@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, Lantern as SpacetimeDBLantern, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState, RainCollector as SpacetimeDBRainCollector } from '../generated';
+import { Player, InventoryItem, ItemDefinition, DbConnection, ActiveEquipment, Campfire as SpacetimeDBCampfire, Lantern as SpacetimeDBLantern, WoodenStorageBox as SpacetimeDBWoodenStorageBox, Recipe, CraftingQueueItem, PlayerCorpse, StatThresholdsConfig, Stash as SpacetimeDBStash, ActiveConsumableEffect, KnockedOutStatus, WorldState, RainCollector as SpacetimeDBRainCollector, Furnace as SpacetimeDBFurnace } from '../generated';
 import { Identity } from '@clockworklabs/spacetimedb-sdk';
 import InventoryUI, { PopulatedItem } from './InventoryUI';
 import Hotbar from './Hotbar';
@@ -30,6 +30,7 @@ interface PlayerUIProps {
   activeEquipments: Map<string, ActiveEquipment>;
   activeConsumableEffects: Map<string, ActiveConsumableEffect>;
   campfires: Map<string, SpacetimeDBCampfire>;
+  furnaces: Map<string, SpacetimeDBFurnace>;
   lanterns: Map<string, SpacetimeDBLantern>;
   onSetInteractingWith: (target: InteractionTarget) => void;
   interactingWith: InteractionTarget;
@@ -63,6 +64,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
     activeEquipments,
     activeConsumableEffects,
     campfires,
+    furnaces,
     lanterns,
     onSetInteractingWith,
     interactingWith,
@@ -896,6 +898,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                     draggedItemInfo={draggedItemInfo}
                     interactionTarget={interactingWith}
                     campfires={campfires}
+                    furnaces={furnaces}
                     lanterns={lanterns}
                     woodenStorageBoxes={woodenStorageBoxes}
                     playerCorpses={playerCorpses}

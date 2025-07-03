@@ -5,6 +5,7 @@ import {
   Tree as SpacetimeDBTree,
   Stone as SpacetimeDBStone,
   Campfire as SpacetimeDBCampfire,
+  Furnace as SpacetimeDBFurnace, // ADDED: Furnace import
   Lantern as SpacetimeDBLantern,
   HarvestableResource as SpacetimeDBHarvestableResource,
   DroppedItem as SpacetimeDBDroppedItem,
@@ -50,6 +51,7 @@ interface EntityFilteringResult {
   visibleHarvestableResources: SpacetimeDBHarvestableResource[];
   visibleDroppedItems: SpacetimeDBDroppedItem[];
   visibleCampfires: SpacetimeDBCampfire[];
+  visibleFurnaces: SpacetimeDBFurnace[]; // ADDED: Furnaces
   visiblePlayers: SpacetimeDBPlayer[];
   visibleTrees: SpacetimeDBTree[];
   visibleStones: SpacetimeDBStone[];
@@ -58,6 +60,7 @@ interface EntityFilteringResult {
   visibleProjectiles: SpacetimeDBProjectile[];
   visibleHarvestableResourcesMap: Map<string, SpacetimeDBHarvestableResource>;
   visibleCampfiresMap: Map<string, SpacetimeDBCampfire>;
+  visibleFurnacesMap: Map<string, SpacetimeDBFurnace>; // ADDED: Furnaces map
   visibleLanternsMap: Map<string, SpacetimeDBLantern>;
   visibleDroppedItemsMap: Map<string, SpacetimeDBDroppedItem>;
   visibleBoxesMap: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -102,6 +105,7 @@ export type YSortedEntityType =
   | { type: 'stash'; entity: SpacetimeDBStash }
   | { type: 'harvestable_resource'; entity: SpacetimeDBHarvestableResource }
   | { type: 'campfire'; entity: SpacetimeDBCampfire }
+  | { type: 'furnace'; entity: SpacetimeDBFurnace } // ADDED: Furnace type
   | { type: 'lantern'; entity: SpacetimeDBLantern }
   | { type: 'dropped_item'; entity: SpacetimeDBDroppedItem }
   | { type: 'projectile'; entity: SpacetimeDBProjectile }
@@ -120,6 +124,7 @@ export function useEntityFiltering(
   trees: Map<string, SpacetimeDBTree>,
   stones: Map<string, SpacetimeDBStone>,
   campfires: Map<string, SpacetimeDBCampfire>,
+  furnaces: Map<string, SpacetimeDBFurnace>, // ADDED: Furnaces parameter
   lanterns: Map<string, SpacetimeDBLantern>,
   harvestableResources: Map<string, SpacetimeDBHarvestableResource>,
   droppedItems: Map<string, SpacetimeDBDroppedItem>,
@@ -184,6 +189,12 @@ export function useEntityFiltering(
       y = entity.posY;
       width = 64;
       height = 64;
+    } else if ((entity as any).fuelInventoryId !== undefined && (entity as any).isBurning !== undefined) {
+      // Handle furnaces - same dimensions as campfires for visibility check
+      x = (entity as any).posX;
+      y = (entity as any).posY;
+      width = 144; // Doubled from 72 to 144 to match rendering size
+      height = 144; // Doubled from 72 to 144 to match rendering size
     } else if (isLantern(entity)) {
       // Handle lanterns using proper type guard
       x = entity.posX;
@@ -316,6 +327,13 @@ export function useEntityFiltering(
     campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds, currentTime) && !e.isDestroyed)
     : [],
     [campfires, isEntityInView, viewBounds, currentTime]
+  );
+
+  const visibleFurnaces = useMemo(() => 
+    // Check source map - same filtering as campfires
+    furnaces ? Array.from(furnaces.values()).filter(e => isEntityInView(e, viewBounds, currentTime) && !e.isDestroyed)
+    : [],
+    [furnaces, isEntityInView, viewBounds, currentTime]
   );
 
   const visibleLanterns = useMemo(() => {
@@ -526,6 +544,11 @@ export function useEntityFiltering(
     [visibleCampfires]
   );
 
+  const visibleFurnacesMap = useMemo(() => 
+    new Map(visibleFurnaces.map(f => [f.id.toString(), f])), 
+    [visibleFurnaces]
+  );
+
   const visibleLanternsMap = useMemo(() => 
     new Map(visibleLanterns.map(l => [l.id.toString(), l])), 
     [visibleLanterns]
@@ -647,6 +670,7 @@ export function useEntityFiltering(
       ...visibleWoodenStorageBoxes.map(b => ({ type: 'wooden_storage_box' as const, entity: b })),
       ...visibleStashes.map(st => ({ type: 'stash' as const, entity: st })),
       ...visibleCampfires.map(cf => ({ type: 'campfire' as const, entity: cf })),
+      ...visibleFurnaces.map(f => ({ type: 'furnace' as const, entity: f })), // ADDED: Furnaces
       ...visibleLanterns.map(l => ({ type: 'lantern' as const, entity: l })),
       ...visibleDroppedItems.map(di => ({ type: 'dropped_item' as const, entity: di })),
       ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
@@ -762,6 +786,13 @@ export function useEntityFiltering(
         return sortY;
       }
 
+      // Check for furnace using same logic as campfire
+      if ((entity as any).fuelInventoryId !== undefined && (entity as any).isBurning !== undefined) {
+        // Furnaces are ground objects like campfires - sort by their base position
+        sortY = (entity as any).posY;
+        return sortY;
+      }
+
       // Check for lantern using proper type guard
       if (isLantern(entity)) {
         // Lanterns use the same Y-sorting as campfires and other ground objects
@@ -867,6 +898,7 @@ export function useEntityFiltering(
           case 'wooden_storage_box': return 4;
           case 'stash': return 5;
           case 'campfire': return 25;  // Changed from 6 to 25 - campfires render in front of players when very close
+          case 'furnace': return 26;   // ADDED: Furnaces render slightly in front of campfires
           case 'lantern': return 7;
           case 'grass': return 8;
           case 'planted_seed': return 9;
@@ -889,7 +921,7 @@ export function useEntityFiltering(
   }, [
     visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, 
-    visibleCampfires, visibleLanterns, visibleDroppedItems,
+    visibleCampfires, visibleFurnaces, visibleLanterns, visibleDroppedItems, // ADDED: visibleFurnaces
     visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
     visibleShelters, // ADDED visibleShelters to dependencies
     visiblePlantedSeeds, // ADDED visiblePlantedSeeds to dependencies
@@ -942,9 +974,11 @@ export function useEntityFiltering(
     visibleViperSpittlesMap,
     visibleAnimalCorpses,
     visibleAnimalCorpsesMap,
-    visibleBarrels,
+    visibleBarrels, 
     visibleBarrelsMap,
     visibleSeaStacks, 
     visibleSeaStacksMap,
+    visibleFurnaces,
+    visibleFurnacesMap,
   };
 } 

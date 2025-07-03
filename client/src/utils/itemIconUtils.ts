@@ -39,8 +39,10 @@ import memoryShardIcon from '../assets/items/memory_shard.png';
 // === TOOLS ===
 // Gathering tools, utility tools, medical tools, light sources
 
-import woodHatchetIcon from '../assets/items/wood_hatchet.png';
-import pickAxeIcon from '../assets/items/pick_axe.png';
+import stoneHatchetIcon from '../assets/items/stone_hatchet.png';
+import metalHatchetIcon from '../assets/items/metal_hatchet.png';
+import stonePickaxeIcon from '../assets/items/stone_pickaxe.png';
+import metalPickaxeIcon from '../assets/items/metal_pickaxe.png';
 import rockItemIcon from '../assets/items/rock_item.png';
 import combatLadleIcon from '../assets/items/combat_ladle.png';
 import boneClubIcon from '../assets/items/bone_club.png';
@@ -255,6 +257,7 @@ import wolfsbaneSeedsIcon from '../assets/items/wolfsbane_seeds.png';
 // Structures, containers, and deployable items
 
 import campFireIcon from '../assets/items/campfire.png';
+import furnaceIcon from '../assets/items/furnace.png';
 import stashIcon from '../assets/items/stash.png';
 import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
 import sleepingBagIcon from '../assets/items/sleeping_bag.png';
@@ -303,8 +306,10 @@ const iconMap: { [key: string]: string | undefined } = {
   'memory_shard.png': memoryShardIcon,
 
   // === TOOLS ===
-  'wood_hatchet.png': woodHatchetIcon,
-  'pick_axe.png': pickAxeIcon,
+  'stone_hatchet.png': stoneHatchetIcon,
+  'metal_hatchet.png': metalHatchetIcon,
+  'stone_pickaxe.png': stonePickaxeIcon,
+  'metal_pickaxe.png': metalPickaxeIcon,
   'rock_item.png': rockItemIcon,
   'combat_ladle.png': combatLadleIcon,
   'bone_club.png': boneClubIcon,
@@ -512,6 +517,7 @@ const iconMap: { [key: string]: string | undefined } = {
 
   // === PLACEABLES ===
   'campfire.png': campFireIcon,
+  'furnace.png': furnaceIcon,
   'stash.png': stashIcon,
   'wooden_storage_box.png': woodenStorageBoxIcon,
   'sleeping_bag.png': sleepingBagIcon,

@@ -264,7 +264,9 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         // For knocked out players, use a lower threshold since they move much slower
         const movementThreshold = localPlayer.isKnockedOut ? 0.01 : 0.1;
         if (Math.abs(direction.x) > movementThreshold || Math.abs(direction.y) > movementThreshold) {
-          const newFacingDirection = Math.abs(direction.x) > Math.abs(direction.y) 
+          // Prioritize horizontal movement (left/right) over vertical movement (up/down)
+          // This ensures that diagonal movement shows as left/right instead of up/down
+          const newFacingDirection = Math.abs(direction.x) > movementThreshold
             ? (direction.x > 0 ? 'right' : 'left')
             : (direction.y > 0 ? 'down' : 'up');
           
@@ -281,7 +283,9 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         }
       } else if (localPlayer.isKnockedOut && hasDirectionalInput) {
         // Special case: knocked out players can still update facing direction without significant movement
-        const newFacingDirection = Math.abs(direction.x) > Math.abs(direction.y) 
+        // Prioritize horizontal movement (left/right) over vertical movement (up/down)
+        const movementThreshold = 0.01; // Lower threshold for knocked out players
+        const newFacingDirection = Math.abs(direction.x) > movementThreshold
           ? (direction.x > 0 ? 'right' : 'left')
           : (direction.y > 0 ? 'down' : 'up');
         
@@ -308,6 +312,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
           }
         }
       }
+      
+      // GUARD: Don't update facing direction when completely idle to prevent cycling
+      // Only allow direction updates when there's actual movement input above the threshold
+      // This prevents floating-point noise from causing direction cycling when idle
 
       // Send position update to server at controlled intervals
       const shouldSendUpdate = now - lastSentTime.current >= POSITION_UPDATE_INTERVAL_MS;

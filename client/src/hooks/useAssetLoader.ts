@@ -3,7 +3,9 @@ import { imageManager } from '../utils/renderers/imageManager';
 import { itemIcons } from '../utils/itemIconUtils';
 
 // Import asset paths
-import heroSpriteSheet from '../assets/hero2.png';
+import heroSpriteSheet from '../assets/hero_walk.png';
+import heroSprintSpriteSheet from '../assets/hero_sprint.png';
+import heroIdleSpriteSheet from '../assets/hero_idle.png';
 import heroWaterSpriteSheet from '../assets/hero2_water.png';
 import heroCrouchSpriteSheet from '../assets/hero2_crouch.png';
 import grassTexture from '../assets/tiles/grass2.png';
@@ -27,6 +29,8 @@ import cloud5Texture from '../assets/environment/clouds/cloud5.png';
 // Define the hook's return type for clarity
 interface AssetLoaderResult {
   heroImageRef: React.RefObject<HTMLImageElement | null>;
+  heroSprintImageRef: React.RefObject<HTMLImageElement | null>;
+  heroIdleImageRef: React.RefObject<HTMLImageElement | null>;
   heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
   heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
   grassImageRef: React.RefObject<HTMLImageElement | null>;
@@ -43,6 +47,8 @@ export function useAssetLoader(): AssetLoaderResult {
 
   // Refs for the loaded images
   const heroImageRef = useRef<HTMLImageElement | null>(null);
+  const heroSprintImageRef = useRef<HTMLImageElement | null>(null);
+  const heroIdleImageRef = useRef<HTMLImageElement | null>(null);
   const heroWaterImageRef = useRef<HTMLImageElement | null>(null);
   const heroCrouchImageRef = useRef<HTMLImageElement | null>(null);
   const grassImageRef = useRef<HTMLImageElement | null>(null);
@@ -54,7 +60,7 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 6 + 5 + 1 + 3; // hero images + clouds + shelter + animal corpse images
+    const totalStaticAssets = 8 + 5 + 1 + 3; // hero images (5) + clouds (5) + shelter (1) + animal corpse images (3) = 17 total
     
     // Count total item icons to preload
     const itemIconEntries = Object.entries(itemIcons).filter(([key, iconPath]) => iconPath);
@@ -91,6 +97,8 @@ export function useAssetLoader(): AssetLoaderResult {
 
     // --- Load Static Images --- 
     loadImage(heroSpriteSheet, heroImageRef);
+    loadImage(heroSprintSpriteSheet, heroSprintImageRef);
+    loadImage(heroIdleSpriteSheet, heroIdleImageRef);
     loadImage(heroWaterSpriteSheet, heroWaterImageRef);
     loadImage(heroCrouchSpriteSheet, heroCrouchImageRef);
     loadImage(grassTexture, grassImageRef);
@@ -173,6 +181,8 @@ export function useAssetLoader(): AssetLoaderResult {
   // Return the refs and loading state
   return {
     heroImageRef,
+    heroSprintImageRef,
+    heroIdleImageRef,
     heroWaterImageRef,
     heroCrouchImageRef,
     grassImageRef,

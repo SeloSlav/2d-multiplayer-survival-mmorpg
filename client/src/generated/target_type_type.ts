@@ -39,6 +39,7 @@ export namespace TargetType {
   export type Stone = { tag: "Stone" };
   export type Player = { tag: "Player" };
   export type Campfire = { tag: "Campfire" };
+  export type Furnace = { tag: "Furnace" };
   export type Lantern = { tag: "Lantern" };
   export type WoodenStorageBox = { tag: "WoodenStorageBox" };
   export type Stash = { tag: "Stash" };
@@ -60,6 +61,7 @@ export namespace TargetType {
   export const Stone = { tag: "Stone" };
   export const Player = { tag: "Player" };
   export const Campfire = { tag: "Campfire" };
+  export const Furnace = { tag: "Furnace" };
   export const Lantern = { tag: "Lantern" };
   export const WoodenStorageBox = { tag: "WoodenStorageBox" };
   export const Stash = { tag: "Stash" };
@@ -77,6 +79,7 @@ export namespace TargetType {
       new SumTypeVariant("Stone", AlgebraicType.createProductType([])),
       new SumTypeVariant("Player", AlgebraicType.createProductType([])),
       new SumTypeVariant("Campfire", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Furnace", AlgebraicType.createProductType([])),
       new SumTypeVariant("Lantern", AlgebraicType.createProductType([])),
       new SumTypeVariant("WoodenStorageBox", AlgebraicType.createProductType([])),
       new SumTypeVariant("Stash", AlgebraicType.createProductType([])),
@@ -101,7 +104,7 @@ export namespace TargetType {
 }
 
 // The tagged union or sum type for the algebraic type `TargetType`.
-export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.Lantern | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.AnimalCorpse | TargetType.Shelter | TargetType.RainCollector | TargetType.Barrel;
+export type TargetType = TargetType.Tree | TargetType.Stone | TargetType.Player | TargetType.Campfire | TargetType.Furnace | TargetType.Lantern | TargetType.WoodenStorageBox | TargetType.Stash | TargetType.SleepingBag | TargetType.Animal | TargetType.PlayerCorpse | TargetType.AnimalCorpse | TargetType.Shelter | TargetType.RainCollector | TargetType.Barrel;
 
 export default TargetType;
 

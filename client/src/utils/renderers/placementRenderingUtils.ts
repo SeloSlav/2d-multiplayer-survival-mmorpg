@@ -1,6 +1,7 @@
 import { PlacementItemInfo } from '../../hooks/usePlacementManager';
 // Import dimensions directly from their respective rendering utility files
 import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from './campfireRenderingUtils';
+import { FURNACE_WIDTH_PREVIEW, FURNACE_HEIGHT_PREVIEW } from './furnaceRenderingUtils'; // ADDED: Furnace dimensions
 import { LANTERN_WIDTH_PREVIEW, LANTERN_HEIGHT_PREVIEW } from './lanternRenderingUtils';
 import { SLEEPING_BAG_WIDTH, SLEEPING_BAG_HEIGHT } from './sleepingBagRenderingUtils';
 import { STASH_WIDTH, STASH_HEIGHT } from './stashRenderingUtils';
@@ -144,7 +145,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
     }
 
     // List of items that cannot be placed on water
-    const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector'];
+    const waterBlockedItems = ['Camp Fire', 'Furnace', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector']; // ADDED: Furnace
     
     // Seeds that don't require water (most seeds) cannot be planted on water
     const isSeedButNotWaterSeed = isSeedItemValid(placementInfo.itemName) && !requiresWaterPlacement(placementInfo.itemName);
@@ -243,7 +244,10 @@ export function renderPlacementPreview({
     let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire
     let drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
 
-    if (placementInfo.iconAssetName === 'lantern_off.png') {
+    if (placementInfo.iconAssetName === 'furnace.png') { // ADDED: Furnace placement dimensions
+        drawWidth = FURNACE_WIDTH_PREVIEW; 
+        drawHeight = FURNACE_HEIGHT_PREVIEW;
+    } else if (placementInfo.iconAssetName === 'lantern_off.png') {
         drawWidth = LANTERN_WIDTH_PREVIEW; 
         drawHeight = LANTERN_HEIGHT_PREVIEW;
     } else if (placementInfo.iconAssetName === 'wooden_storage_box.png') {

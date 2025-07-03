@@ -18,6 +18,20 @@ pub fn get_placeable_definitions() -> Vec<ItemDefinition> {
             .respawn_time(300)
             .build(),
 
+        // Furnace - Metal smelting station
+        ItemBuilder::new("Furnace", "A stone furnace for smelting metal ore into metal fragments. Burns wood as fuel.", ItemCategory::Placeable)
+            .icon("furnace.png")
+            .stackable(3)
+            .crafting_cost(vec![
+                CostIngredient { item_name: "Stone".to_string(), quantity: 100 },
+                CostIngredient { item_name: "Wood".to_string(), quantity: 50 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 25 },
+                CostIngredient { item_name: "Animal Fat".to_string(), quantity: 15 }, // For heat-resistant lining
+            ])
+            .crafting_output(1, 30)
+            .respawn_time(450)
+            .build(),
+
         // Stash - Small hidden storage
         ItemBuilder::new("Stash", "A small, concealable stash for hiding items. Fewer slots than a box, but can be hidden.", ItemCategory::Placeable)
             .icon("stash.png")

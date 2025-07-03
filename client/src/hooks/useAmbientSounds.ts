@@ -212,14 +212,14 @@ class AmbientAudioCache {
         let audio = this.get(filename);
         if (audio) {
             const cloned = audio.cloneNode() as HTMLAudioElement;
-            console.log(`🌊 [CACHE HIT] ${filename} from cache (duration: ${audio.duration})`);
+            // console.log(`🌊 [CACHE HIT] ${filename} from cache (duration: ${audio.duration})`);
             return cloned;
         }
         
         try {
             // Load and cache
             const fullPath = AMBIENT_CONFIG.SOUNDS_BASE_PATH + filename;
-            console.log(`🌊 [LOADING] Attempting to load: ${fullPath}`);
+            // console.log(`🌊 [LOADING] Attempting to load: ${fullPath}`);
             
             audio = new Audio(fullPath);
             audio.preload = 'metadata'; // Changed from 'auto' to 'metadata' for faster loading
@@ -234,7 +234,7 @@ class AmbientAudioCache {
                 // Wait for loadedmetadata instead of canplaythrough for faster response
                 audio!.addEventListener('loadedmetadata', () => {
                     clearTimeout(loadTimeout);
-                    console.log(`🌊 [METADATA LOADED] ${filename} - duration: ${audio!.duration}s`);
+                    // console.log(`🌊 [METADATA LOADED] ${filename} - duration: ${audio!.duration}s`);
                     resolve(null);
                 }, { once: true });
                 
@@ -247,7 +247,7 @@ class AmbientAudioCache {
                 // Also listen for canplaythrough as backup
                 audio!.addEventListener('canplaythrough', () => {
                     clearTimeout(loadTimeout);
-                    console.log(`🌊 [CAN PLAY] ${filename} ready to play`);
+                    // console.log(`🌊 [CAN PLAY] ${filename} ready to play`);
                     resolve(null);
                 }, { once: true });
                 
@@ -256,7 +256,7 @@ class AmbientAudioCache {
             
             this.set(filename, audio);
             const cloned = audio.cloneNode() as HTMLAudioElement;
-            console.log(`🌊 [CACHED] ${filename} stored in cache and cloned`);
+            // console.log(`🌊 [CACHED] ${filename} stored in cache and cloned`);
             return cloned;
         } catch (error) {
             console.warn(`🌊 [FALLBACK] Failed to load ${filename}, using silent fallback:`, error);
@@ -360,7 +360,7 @@ const createSeamlessLoopingSound = async (
     pitchVariation: number
 ): Promise<boolean> => {
     try {
-        console.log(`🌊 Creating seamless ambient sound: ${soundType} (${filename})`);
+        // console.log(`🌊 Creating seamless ambient sound: ${soundType} (${filename})`);
         
         const audio1 = await ambientAudioCache.loadAudio(filename);
         const audio2 = await ambientAudioCache.loadAudio(filename);
@@ -394,7 +394,7 @@ const createSeamlessLoopingSound = async (
         ]);
         
         const duration = Math.max(duration1, duration2); // Use the longer duration just in case
-        console.log(`🌊 Audio duration confirmed: ${duration}s for ${filename}`);
+        // console.log(`🌊 Audio duration confirmed: ${duration}s for ${filename}`);
         
         if (duration <= 0) {
             console.error(`🌊 Invalid audio duration ${duration}s for ${filename}, aborting seamless loop`);
@@ -411,7 +411,7 @@ const createSeamlessLoopingSound = async (
         const overlapTime = Math.min(2, duration * AMBIENT_CONFIG.OVERLAP_PERCENTAGE); // 15% overlap, max 2 seconds
         const nextSwapTime = Date.now() + (duration - overlapTime) * 1000;
         
-        console.log(`🌊 Seamless loop timing: duration=${duration}s, overlap=${overlapTime}s, first swap in ${((nextSwapTime - Date.now()) / 1000).toFixed(1)}s`);
+        // console.log(`🌊 Seamless loop timing: duration=${duration}s, overlap=${overlapTime}s, first swap in ${((nextSwapTime - Date.now()) / 1000).toFixed(1)}s`);
         
         // Store the seamless sound configuration
         activeSeamlessLoopingSounds.set(soundType, {
@@ -423,14 +423,14 @@ const createSeamlessLoopingSound = async (
             pitchVariation
         });
         
-        console.log(`🌊 Added ${soundType} to activeSeamlessLoopingSounds map. Map size: ${activeSeamlessLoopingSounds.size}`);
-        console.log(`🌊 Current seamless sounds: [${Array.from(activeSeamlessLoopingSounds.keys()).join(', ')}]`);
+        // console.log(`🌊 Added ${soundType} to activeSeamlessLoopingSounds map. Map size: ${activeSeamlessLoopingSounds.size}`);
+        // console.log(`🌊 Current seamless sounds: [${Array.from(activeSeamlessLoopingSounds.keys()).join(', ')}]`);
         
         // Start with primary audio and fade in smoothly
         try {
             await audio1.play();
             fadeInAudio(audio1, volume, AMBIENT_CONFIG.FADE_DURATION); // Smooth 3-second fade-in
-            console.log(`🌊 ✅ Successfully started seamless ambient sound: ${soundType} (duration: ${duration}s, next swap in: ${((nextSwapTime - Date.now()) / 1000).toFixed(1)}s)`);
+            // console.log(`🌊 ✅ Successfully started seamless ambient sound: ${soundType} (duration: ${duration}s, next swap in: ${((nextSwapTime - Date.now()) / 1000).toFixed(1)}s)`);
         } catch (playError) {
             console.warn(`🌊 Failed to play initial audio for ${soundType}, trying again:`, playError);
             // Retry once
@@ -439,7 +439,7 @@ const createSeamlessLoopingSound = async (
                     audio1.currentTime = 0;
                     await audio1.play();
                     fadeInAudio(audio1, volume, AMBIENT_CONFIG.FADE_DURATION);
-                    console.log(`🌊 ✅ Retry successful for ${soundType}`);
+                    // console.log(`🌊 ✅ Retry successful for ${soundType}`);
                 } catch (retryError) {
                     console.error(`🌊 ❌ Retry failed for ${soundType}:`, retryError);
                     cleanupSeamlessSound(soundType, "initial play retry failed");
@@ -474,7 +474,7 @@ const cleanupSeamlessSound = async (soundType: AmbientSoundType, reason: string 
     loadingSeamlessSounds.delete(soundType); // Clear loading state
     
     if (seamlessSound) {
-        console.log(`🌊 Cleaning up seamless ambient sound for ${soundType} (${reason})`);
+        // console.log(`🌊 Cleaning up seamless ambient sound for ${soundType} (${reason})`);
         
         // Mark both audio instances as being cleaned to prevent interference
         (seamlessSound.primary as any)._isBeingCleaned = true;
@@ -499,8 +499,8 @@ const cleanupSeamlessSound = async (soundType: AmbientSoundType, reason: string 
             }
         }
         activeSeamlessLoopingSounds.delete(soundType);
-        console.log(`🌊 ✅ Cleaned up seamless ambient sound for ${soundType} (${reason}). Map size now: ${activeSeamlessLoopingSounds.size}`);
-        console.log(`🌊 Remaining seamless sounds: [${Array.from(activeSeamlessLoopingSounds.keys()).join(', ') || 'none'}]`);
+        // console.log(`🌊 ✅ Cleaned up seamless ambient sound for ${soundType} (${reason}). Map size now: ${activeSeamlessLoopingSounds.size}`);
+        // console.log(`🌊 Remaining seamless sounds: [${Array.from
     }
 };
 
@@ -516,17 +516,17 @@ const updateSeamlessLoopingSounds = () => {
     if (now - lastDebugTime >= 5000) {
         lastDebugTime = now;
         const activeCount = activeSeamlessLoopingSounds.size;
-        console.log(`🌊 [${new Date().toLocaleTimeString()}] 🔄 Update loop #${updateLoopCallCount}: Monitoring ${activeCount} seamless sounds`);
+        // console.log(`🌊 [${new Date().toLocaleTimeString()}] 🔄 Update loop #${updateLoopCallCount}: Monitoring ${activeCount} seamless sounds`);
         
         if (activeCount > 0) {
             activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
                 const timeUntilSwap = (seamlessSound.nextSwapTime - now) / 1000;
                 const activeAudio = seamlessSound.isPrimaryActive ? seamlessSound.primary : seamlessSound.secondary;
                 const isPlaying = !activeAudio.paused && !activeAudio.ended;
-                console.log(`   - ${soundType}: swap in ${timeUntilSwap.toFixed(1)}s (${seamlessSound.isPrimaryActive ? 'primary' : 'secondary'} active, playing: ${isPlaying})`);
+                // console.log(`   - ${soundType}: swap in ${timeUntilSwap.toFixed(1)}s (${seamlessSound.isPrimaryActive ? 'primary' : 'secondary'} active, playing: ${isPlaying})`);
             });
         } else {
-            console.log(`   - ❌ No seamless sounds found in map! This means sounds will stop after first loop.`);
+            // console.log(`   - ❌ No seamless sounds found in map! This means sounds will stop after first loop.`);
         }
     }
     
@@ -546,7 +546,7 @@ const updateSeamlessLoopingSounds = () => {
             const currentAudio = isPrimaryActive ? primary : secondary;
             const nextAudio = isPrimaryActive ? secondary : primary;
             
-            console.log(`🌊 Starting seamless swap for ${soundType} at ${now} (scheduled: ${nextSwapTime})`);
+            // console.log(`🌊 Starting seamless swap for ${soundType} at ${now} (scheduled: ${nextSwapTime})`);
             
             try {
                 // Check if current audio is still playing - if not, restart it
@@ -573,7 +573,7 @@ const updateSeamlessLoopingSounds = () => {
                 
                 // Start next audio and handle the crossfade
                 nextAudio.play().then(() => {
-                    console.log(`🌊 Next audio started for ${soundType}, beginning crossfade`);
+                    // console.log(`🌊 Next audio started for ${soundType}, beginning crossfade`);
                     
                     // Gradually fade in next audio and fade out current
                     const crossfadeDuration = 1000; // 1 second crossfade
@@ -612,7 +612,7 @@ const updateSeamlessLoopingSounds = () => {
                                 const overlapTime = Math.min(2, duration * AMBIENT_CONFIG.OVERLAP_PERCENTAGE);
                                 seamlessSound.nextSwapTime = now + (duration - overlapTime) * 1000;
                                 
-                                console.log(`🌊 ✅ Seamless swap completed for ${soundType}: ${isPrimaryActive ? 'primary→secondary' : 'secondary→primary'}, next swap in ${((seamlessSound.nextSwapTime - Date.now()) / 1000).toFixed(1)}s`);
+                                // console.log(`🌊 ✅ Seamless swap completed for ${soundType}: ${isPrimaryActive ? 'primary→secondary' : 'secondary→primary'}, next swap in ${((seamlessSound.nextSwapTime - Date.now()) / 1000).toFixed(1)}s`);
                             }
                         }
                     }, stepTime);
@@ -623,7 +623,7 @@ const updateSeamlessLoopingSounds = () => {
                     const duration = currentAudio.duration || 10;
                     const overlapTime = Math.min(2, duration * AMBIENT_CONFIG.OVERLAP_PERCENTAGE);
                     seamlessSound.nextSwapTime = now + (duration - overlapTime) * 1000;
-                    console.log(`🌊 Rescheduled ${soundType} swap in ${((seamlessSound.nextSwapTime - now) / 1000).toFixed(1)}s due to play error`);
+                    // console.log(`🌊 Rescheduled ${soundType} swap in ${((seamlessSound.nextSwapTime - now) / 1000).toFixed(1)}s due to play error`);
                 });
                 
             } catch (error) {
@@ -638,7 +638,7 @@ const updateSeamlessLoopingSounds = () => {
                     // Reschedule further out
                     const duration = currentAudio.duration || 10;
                     seamlessSound.nextSwapTime = now + duration * 1000;
-                    console.log(`🌊 Recovery: rescheduled ${soundType} in ${duration}s`);
+                    // console.log(`🌊 Recovery: rescheduled ${soundType} in ${duration}s`);
                 } catch (recoveryError) {
                     console.error(`🌊 Failed to recover ambient sound ${soundType}:`, recoveryError);
                     // Last resort: cleanup and restart via health check
@@ -659,7 +659,7 @@ const updateSeamlessLoopingSounds = () => {
                     activeAudio.currentTime = 0;
                     activeAudio.volume = volume;
                     activeAudio.play().then(() => {
-                        console.log(`🌊 ✅ Health check restart successful for ${soundType}`);
+                        // console.log(`🌊 ✅ Health check restart successful for ${soundType}`);
                         // Reschedule next swap
                         const duration = activeAudio.duration || 10;
                         const overlapTime = Math.min(2, duration * AMBIENT_CONFIG.OVERLAP_PERCENTAGE);
@@ -673,7 +673,7 @@ const updateSeamlessLoopingSounds = () => {
                             backupAudio.volume = volume;
                             backupAudio.play().then(() => {
                                 seamlessSound.isPrimaryActive = !isPrimaryActive;
-                                console.log(`🌊 ✅ Health check switched to backup audio for ${soundType}`);
+                                // console.log(`🌊 ✅ Health check switched to backup audio for ${soundType}`);
                             }).catch(e2 => console.warn(`🌊 Backup audio failed: ${e2}`));
                         }
                     });
@@ -708,7 +708,7 @@ const startSimpleLoopingSound = async (
         await audio.play();
         fadeInAudio(audio, volume, AMBIENT_CONFIG.FADE_DURATION);
         
-        console.log(`🌊 ✅ Started simple loop fallback for ${soundType}`);
+        // console.log(`🌊 ✅ Started simple loop fallback for ${soundType}`);
         return true;
     } catch (error) {
         console.warn(`🌊 ❌ Simple loop fallback failed for ${soundType}:`, error);
@@ -730,7 +730,7 @@ export const useAmbientSounds = ({
     const lastWeatherRef = useRef(weatherCondition);
     const updateIntervalRef = useRef<number | undefined>(undefined);
 
-    console.log(`🌊 [VOLUME DEBUG] useAmbientSounds called with environmentalVolume=${environmentalVolume}, effective=${effectiveEnvironmentalVolume}`);
+    // console.log(`🌊 [VOLUME DEBUG] useAmbientSounds called with environmentalVolume=${environmentalVolume}, effective=${effectiveEnvironmentalVolume}`);
 
     // Calculate which continuous sounds should be playing
     const getActiveContinuousSounds = useCallback((): AmbientSoundType[] => {
@@ -762,22 +762,22 @@ export const useAmbientSounds = ({
 
             // Check if already playing or loading
             if (activeSeamlessLoopingSounds.has(soundType) || loadingSeamlessSounds.has(soundType)) {
-                console.log(`🌊 ${soundType} already playing or loading, skipping start`);
+                // console.log(`🌊 ${soundType} already playing or loading, skipping start`);
                 return;
             }
 
-            console.log(`🌊 Starting continuous ambient sound: ${soundType} with environmentalVolume=${effectiveEnvironmentalVolume}`);
+            // console.log(`🌊 Starting continuous ambient sound: ${soundType} with environmentalVolume=${effectiveEnvironmentalVolume}`);
             loadingSeamlessSounds.add(soundType);
 
             const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume;
-            console.log(`🌊 [VOLUME] ${soundType}: baseVolume=${definition.baseVolume} * environmentalVolume=${effectiveEnvironmentalVolume} = finalVolume=${finalVolume}`);
+            // console.log(`🌊 [VOLUME] ${soundType}: baseVolume=${definition.baseVolume} * environmentalVolume=${effectiveEnvironmentalVolume} = finalVolume=${finalVolume}`);
             
             const pitchVariation = 0.95 + Math.random() * 0.1; // Tighter pitch range for seamless sounds
             
             if (definition.useSeamlessLooping) {
                 const success = await createSeamlessLoopingSound(soundType, definition.filename, finalVolume, pitchVariation);
                 if (success) {
-                    console.log(`🌊 ✅ Started seamless ambient sound: ${soundType} (${definition.description})`);
+                    // console.log(`🌊 ✅ Started seamless ambient sound: ${soundType} (${definition.description})`);
                 } else {
                     console.warn(`🌊 ❌ Seamless looping failed for ${soundType}, using simple loop fallback`);
                     // Fallback to simple looping
@@ -825,14 +825,14 @@ export const useAmbientSounds = ({
                                 definition.filename.replace('.mp3', `${variation + 1}.mp3`);
 
                 // Enhanced logging to verify variant selection
-                console.log(`🌊 [VARIANT CHECK] ${soundType}:`);
-                console.log(`   - Total variants: ${definition.variations || 1}`);
-                console.log(`   - Selected variation index: ${variation}`);
-                console.log(`   - Base filename: ${definition.filename}`);
-                console.log(`   - Final filename: ${filename}`);
-                console.log(`   - Expected variants: ${Array.from({length: definition.variations || 1}, (_, i) => 
-                    i === 0 ? definition.filename : definition.filename.replace('.mp3', `${i + 1}.mp3`)
-                ).join(', ')}`);
+                // console.log(`🌊 [VARIANT CHECK] ${soundType}:`);
+                //console.log(`   - Total variants: ${definition.variations || 1}`);
+                //console.log(`   - Selected variation index: ${variation}`);
+                //console.log(`   - Base filename: ${definition.filename}`);
+                //console.log(`   - Final filename: ${filename}`);
+                // console.log(`   - Expected variants: ${Array.from({length: definition.variations || 1}, (_, i) => 
+                //     i === 0 ? definition.filename : definition.filename.replace('.mp3', `${i + 1}.mp3`)
+                // ).join(', ')}`); 
 
                 const audio = await ambientAudioCache.loadAudio(filename);
                 const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume;
@@ -852,7 +852,7 @@ export const useAmbientSounds = ({
                     audio.load();
                     return; // Skip playing this variant
                 } else {
-                    console.log(`🌊 ✅ [VARIANT SUCCESS] Successfully loaded: ${filename} (${audio.duration.toFixed(2)}s)`);
+                    // console.log(`🌊 ✅ [VARIANT SUCCESS] Successfully loaded: ${filename} (${audio.duration.toFixed(2)}s)`);
                 }
                 
                 // Start at 0 volume for fade-in
@@ -876,7 +876,7 @@ export const useAmbientSounds = ({
                 // Smooth fade-in for ambient random sounds (shorter duration than continuous)
                 fadeInAudio(audio, finalVolume * masterVolume, 800); // 800ms fade-in for random sounds
                 
-                console.log(`🌊 Played random ambient: ${soundType} (${definition.description}) with fade-in`);
+                // console.log(`🌊 Played random ambient: ${soundType} (${definition.description}) with fade-in`);
             } catch (error) {
                 console.warn(`🌊 Failed to play random ambient sound: ${soundType}`, error);
             }
@@ -900,11 +900,11 @@ export const useAmbientSounds = ({
 
     // Initialize ambient sound system - ALWAYS ensure update loop is running
     useEffect(() => {
-        console.log('🌊 Initializing/Reinitializing Aleutian Island ambient sound system...');
+        // console.log('🌊 Initializing/Reinitializing Aleutian Island ambient sound system...');
 
         // Clear any existing interval first (in case of hot reload)
         if (updateIntervalRef.current) {
-            console.log(`🌊 Clearing existing update interval ${updateIntervalRef.current}`);
+            // console.log(`🌊 Clearing existing update interval ${updateIntervalRef.current}`);
             window.clearInterval(updateIntervalRef.current);
             updateIntervalRef.current = undefined;
         }
@@ -912,7 +912,7 @@ export const useAmbientSounds = ({
         // Only set up random sounds once globally to avoid duplicates
         if (!isInitializedRef.current) {
             isInitializedRef.current = true;
-            console.log('🌊 Setting up random sound schedules (first time only)...');
+            // console.log('🌊 Setting up random sound schedules (first time only)...');
             
             // Start all random sound schedules
             Object.keys(AMBIENT_SOUND_DEFINITIONS).forEach(soundType => {
@@ -929,13 +929,13 @@ export const useAmbientSounds = ({
                 updateSeamlessLoopingSounds();
             }, 50); // Update every 50ms
             
-            console.log(`🌊 ✅ Started seamless sound update loop with interval ID: ${updateIntervalRef.current}`);
+            // console.log(`🌊 ✅ Started seamless sound update loop with interval ID: ${updateIntervalRef.current}`);
             
             // Immediate verification that the interval is working
             setTimeout(() => {
                 const isStillActive = updateIntervalRef.current !== undefined;
                 const mapSize = activeSeamlessLoopingSounds.size;
-                console.log(`🌊 [VERIFICATION] Update loop active: ${isStillActive}, seamless sounds: ${mapSize}, interval ID: ${updateIntervalRef.current}`);
+                // console.log(`🌊 [VERIFICATION] Update loop active: ${isStillActive}, seamless sounds: ${mapSize}, interval ID: ${updateIntervalRef.current}`);
                 
                 if (mapSize > 0 && !isStillActive) {
                     console.error('🌊 ❌ CRITICAL: Have seamless sounds but no update loop! This will cause sounds to stop after first loop.');
@@ -947,19 +947,19 @@ export const useAmbientSounds = ({
         
         // Activate global safety net to prevent update loop from ever dying permanently
         ensureUpdateLoopIsRunning();
-        console.log(`🌊 🛡️ Global safety net activated to monitor update loop health`);
+        // console.log(`🌊 🛡️ Global safety net activated to monitor update loop health`);
 
         return () => {
             // Cleanup on unmount/hot reload
             if (updateIntervalRef.current) {
-                console.log(`🌊 Cleaning up update interval ${updateIntervalRef.current} on unmount/hot reload`);
+                // console.log(`🌊 Cleaning up update interval ${updateIntervalRef.current} on unmount/hot reload`);
                 window.clearInterval(updateIntervalRef.current);
                 updateIntervalRef.current = undefined;
             }
             
             // Clean up global safety net
             if (globalUpdateIntervalId) {
-                console.log(`🌊 Cleaning up global safety net interval ${globalUpdateIntervalId}`);
+                // console.log(`🌊 Cleaning up global safety net interval ${globalUpdateIntervalId}`);
                 window.clearInterval(globalUpdateIntervalId);
                 globalUpdateIntervalId = undefined;
             }
@@ -993,7 +993,7 @@ export const useAmbientSounds = ({
             });
             activeRandomSounds.clear();
             
-            console.log(`🌊 Ambient sound system cleanup completed`);
+            // console.log(`🌊 Ambient sound system cleanup completed`);
         };
     }, []); // No dependencies - always restart the update loop
 
@@ -1059,32 +1059,32 @@ export const useAmbientSounds = ({
 
     // Update volumes when master/environmental volume changes
     useEffect(() => {
-        console.log(`🌊 [VOLUME UPDATE] Volume effect triggered: effectiveEnvironmentalVolume=${effectiveEnvironmentalVolume}, masterVolume=${masterVolume}`);
+        // console.log(`🌊 [VOLUME UPDATE] Volume effect triggered: effectiveEnvironmentalVolume=${effectiveEnvironmentalVolume}, masterVolume=${masterVolume}`);
         
         // If environmental volume is 0, stop all ambient sounds immediately
         if (effectiveEnvironmentalVolume === 0) {
-            console.log(`🌊 [VOLUME UPDATE] Environmental volume is 0 - stopping all ambient sounds`);
+            // console.log(`🌊 [VOLUME UPDATE] Environmental volume is 0 - stopping all ambient sounds`);
             
             // Stop all seamless looping sounds
             activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
                 seamlessSound.primary.volume = 0;
                 seamlessSound.secondary.volume = 0;
                 seamlessSound.volume = 0;
-                console.log(`🌊 [VOLUME UPDATE] Silenced seamless sound ${soundType}`);
+                // console.log(`🌊 [VOLUME UPDATE] Silenced seamless sound ${soundType}`);
             });
             
             // Stop all random sounds
             activeRandomSounds.forEach((audio) => {
                 audio.volume = 0;
             });
-            console.log(`🌊 [VOLUME UPDATE] Silenced ${activeRandomSounds.size} random sounds`);
+            // console.log(`🌊 [VOLUME UPDATE] Silenced ${activeRandomSounds.size} random sounds`);
             
             // Stop simple looping sounds
             const simpleLoopingSounds = (window as any).simpleLoopingSounds;
             if (simpleLoopingSounds instanceof Map) {
                 simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
                     audio.volume = 0;
-                    console.log(`🌊 [VOLUME UPDATE] Silenced simple loop sound ${soundType}`);
+                    // console.log(`🌊 [VOLUME UPDATE] Silenced simple loop sound ${soundType}`);
                 });
             }
             
@@ -1101,7 +1101,7 @@ export const useAmbientSounds = ({
             seamlessSound.secondary.volume = Math.min(1.0, targetVolume);
             seamlessSound.volume = targetVolume;
             
-            console.log(`🌊 [VOLUME UPDATE] Updated seamless sound ${soundType}: ${targetVolume.toFixed(3)}`);
+            // console.log(`🌊 [VOLUME UPDATE] Updated seamless sound ${soundType}: ${targetVolume.toFixed(3)}`);
         });
         
         // Update currently playing random sounds
@@ -1119,7 +1119,7 @@ export const useAmbientSounds = ({
                 const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
                 const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
                 audio.volume = Math.min(1.0, targetVolume);
-                console.log(`🌊 [VOLUME UPDATE] Updated random sound ${soundType}: ${targetVolume.toFixed(3)}`);
+                // console.log(`🌊 [VOLUME UPDATE] Updated random sound ${soundType}: ${targetVolume.toFixed(3)}`);
             }
         });
         
@@ -1130,7 +1130,7 @@ export const useAmbientSounds = ({
                 const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
                 const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
                 audio.volume = Math.min(1.0, targetVolume);
-                console.log(`🌊 [VOLUME UPDATE] Updated simple loop sound ${soundType}: ${targetVolume.toFixed(3)}`);
+                // console.log(`🌊 [VOLUME UPDATE] Updated simple loop sound ${soundType}: ${targetVolume.toFixed(3)}`);
             });
         }
     }, [masterVolume, effectiveEnvironmentalVolume]);
@@ -1145,10 +1145,10 @@ export const useAmbientSounds = ({
 
     // Debug function to test all ambient sound variants
     const testAllVariants = useCallback(async () => {
-        console.log('🌊 🧪 [VARIANT TEST] Testing all ambient sound variants...');
+        // console.log('🌊 🧪 [VARIANT TEST] Testing all ambient sound variants...');
         
         // First, test direct file access
-        console.log('\n🌊 [DIRECT ACCESS TEST] Testing file accessibility...');
+        // console.log('\n🌊 [DIRECT ACCESS TEST] Testing file accessibility...');
         const testFilenames = ['ambient_seagull_cry.mp3', 'ambient_seagull_cry2.mp3', 'ambient_wolf_howl.mp3'];
         
         for (const testFile of testFilenames) {
@@ -1164,11 +1164,11 @@ export const useAmbientSounds = ({
             }
         }
         
-        console.log('\n🌊 [AUDIO ELEMENT TEST] Testing via audio elements...');
+        // console.log('\n🌊 [AUDIO ELEMENT TEST] Testing via audio elements...');
         for (const [soundType, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
             if (definition.type !== 'random') continue;
             
-            console.log(`\n🌊 Testing ${soundType} (${definition.variations || 1} variants):`);
+            // console.log(`\n🌊 Testing ${soundType} (${definition.variations || 1} variants):`);
             
             for (let i = 0; i < (definition.variations || 1); i++) {
                 const filename = i === 0 ? definition.filename : 
@@ -1191,7 +1191,7 @@ export const useAmbientSounds = ({
             }
         }
         
-        console.log('\n🌊 🧪 [VARIANT TEST] Complete! Check above for any missing variants.');
+        // console.log('\n🌊 🧪 [VARIANT TEST] Complete! Check above for any missing variants.');
     }, []);
 
     const stopAllAmbientSounds = useCallback(async () => {

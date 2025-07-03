@@ -6,6 +6,7 @@ export type SlotType =
     | 'hotbar' 
     | 'equipment' 
     | 'campfire_fuel'
+    | 'furnace_fuel'
     | 'lantern_fuel'
     | 'wooden_storage_box'
     | 'player_corpse'

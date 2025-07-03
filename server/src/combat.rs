@@ -1505,7 +1505,12 @@ pub fn damage_lantern(
         attacker_id, lantern_id, damage, old_health, lantern.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, lantern.pos_x, lantern.pos_y, attacker_id);
+
     if lantern.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, lantern.pos_x, lantern.pos_y, attacker_id);
         lantern.is_destroyed = true;
         lantern.destroyed_at = Some(timestamp);
         
@@ -1605,7 +1610,12 @@ pub fn damage_campfire(
         attacker_id, campfire_id, damage, old_health, campfire.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, campfire.pos_x, campfire.pos_y, attacker_id);
+
     if campfire.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, campfire.pos_x, campfire.pos_y, attacker_id);
         campfire.is_destroyed = true;
         campfire.destroyed_at = Some(timestamp);
         
@@ -1705,7 +1715,12 @@ pub fn damage_wooden_storage_box(
         attacker_id, box_id, damage, old_health, wooden_box.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, wooden_box.pos_x, wooden_box.pos_y, attacker_id);
+
     if wooden_box.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, wooden_box.pos_x, wooden_box.pos_y, attacker_id);
         wooden_box.is_destroyed = true;
         wooden_box.destroyed_at = Some(timestamp);
 
@@ -1785,7 +1800,12 @@ pub fn damage_stash(
         attacker_id, stash_id, damage, old_health, stash.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, stash.pos_x, stash.pos_y, attacker_id);
+
     if stash.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, stash.pos_x, stash.pos_y, attacker_id);
         stash.is_destroyed = true;
         stash.destroyed_at = Some(timestamp);
 
@@ -1856,7 +1876,12 @@ pub fn damage_sleeping_bag(
         attacker_id, bag_id, damage, old_health, bag.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, bag.pos_x, bag.pos_y, attacker_id);
+
     if bag.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, bag.pos_x, bag.pos_y, attacker_id);
         bag.is_destroyed = true;
         bag.destroyed_at = Some(timestamp);
         
@@ -1918,16 +1943,18 @@ pub fn damage_player_corpse(
     const BASE_CHANCE_FLESH: f64 = 0.30;
     const BASE_CHANCE_BONE: f64 = 0.20;
     // Multipliers for specific tools and general categories
-    const BONE_KNIFE_MULTIPLIER: f64 = 8.0;
+    const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
     const BONE_CLUB_MULTIPLIER: f64 = 3.0;
     const MACHETE_MULTIPLIER: f64 = 7.0; // High effectiveness for sharp cutting tool
+    const AK74_BAYONET_MULTIPLIER: f64 = 10.0; // Highest effectiveness for modern military bayonet
     const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
     const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1; // For non-primary items when harvesting corpses
 
     let effectiveness_multiplier = match item_def.name.as_str() {
+        "AK74 Bayonet" => AK74_BAYONET_MULTIPLIER,
         "Bone Knife" => BONE_KNIFE_MULTIPLIER,
         "Bone Club" => BONE_CLUB_MULTIPLIER,
-        "Machete" => MACHETE_MULTIPLIER,
+        "Bush Knife" => MACHETE_MULTIPLIER,
         _ => {
             if item_def.primary_target_type == Some(TargetType::PlayerCorpse) {
                 PRIMARY_CORPSE_TOOL_MULTIPLIER
@@ -1948,9 +1975,10 @@ pub fn damage_player_corpse(
 
     // Determine quantity based on tool, introducing randomization for specialized tools
     let quantity_per_successful_hit = match item_def.name.as_str() {
+        "AK74 Bayonet" => rng.gen_range(4..=7), // Highest yield for modern military bayonet
         "Bone Knife" => rng.gen_range(3..=5),
         "Bone Club" => rng.gen_range(2..=4),
-        "Machete" => rng.gen_range(1..=3),
+        "Bush Knife" => rng.gen_range(1..=3),
         _ => { // Default for other items
             if item_def.primary_target_type == Some(TargetType::PlayerCorpse) && item_def.category == ItemCategory::Tool {
                 rng.gen_range(1..=2) // Other primary tools for corpses
@@ -2447,13 +2475,15 @@ pub fn damage_animal_corpse(
     const BONE_KNIFE_MULTIPLIER: f64 = 8.0;
     const BONE_CLUB_MULTIPLIER: f64 = 3.0;
     const MACHETE_MULTIPLIER: f64 = 7.0; // High effectiveness for sharp cutting tool
+    const AK74_BAYONET_MULTIPLIER: f64 = 10.0; // Highest effectiveness for modern military bayonet
     const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
     const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1;
 
     let effectiveness_multiplier = match item_def.name.as_str() {
+        "AK74 Bayonet" => AK74_BAYONET_MULTIPLIER,
         "Bone Knife" => BONE_KNIFE_MULTIPLIER,
         "Bone Club" => BONE_CLUB_MULTIPLIER,
-        "Machete" => MACHETE_MULTIPLIER,
+        "Bush Knife" => MACHETE_MULTIPLIER,
         _ => {
             if item_def.primary_target_type == Some(TargetType::AnimalCorpse) {
                 PRIMARY_CORPSE_TOOL_MULTIPLIER
@@ -2471,9 +2501,10 @@ pub fn damage_animal_corpse(
 
     // Determine quantity based on tool
     let quantity_per_hit = match item_def.name.as_str() {
+        "AK74 Bayonet" => rng.gen_range(4..=7), // Highest yield for modern military bayonet
         "Bone Knife" => rng.gen_range(3..=5),
         "Bone Club" => rng.gen_range(2..=4),
-        "Machete" => rng.gen_range(1..=3),
+        "Bush Knife" => rng.gen_range(1..=3),
         _ => {
             if item_def.primary_target_type == Some(TargetType::AnimalCorpse) && item_def.category == ItemCategory::Tool {
                 rng.gen_range(1..=2)
@@ -2627,7 +2658,12 @@ pub fn damage_rain_collector(
         attacker_id, rain_collector_id, damage, old_health, rain_collector.health
     );
 
+    // Play hit sound for all hits
+    sound_events::emit_barrel_hit_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, attacker_id);
+
     if rain_collector.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, attacker_id);
         rain_collector.is_destroyed = true;
         rain_collector.destroyed_at = Some(timestamp);
 
@@ -2685,7 +2721,7 @@ pub fn play_weapon_hit_sound(
     hit_pos_y: f32,
     attacker_id: Identity,
 ) {
-    if item_def.name == "Stone Hatchet" || item_def.name == "Stone Pickaxe" || item_def.name == "Machete" {
+    if item_def.name == "Stone Hatchet" || item_def.name == "Metal Hatchet" || item_def.name == "Stone Pickaxe" || item_def.name == "Metal Pickaxe" || item_def.name == "Bush Knife" || item_def.name == "AK74 Bayonet" {
         sound_events::emit_melee_hit_sharp_sound(ctx, hit_pos_x, hit_pos_y, attacker_id);
         log::debug!("Emitted melee_hit_sharp sound for {} hitting target", item_def.name);
     } else if item_def.name == "Wooden Spear" || item_def.name == "Stone Spear" || item_def.name == "Bone Knife" || item_def.name == "Bone Gaff Hook" {

@@ -794,20 +794,27 @@ pub fn place_campfire(ctx: &ReducerContext, item_instance_id: u64, world_x: f32,
                  None
              })
          });
- 
+
          // Apply Reed Bellows cooking speed multiplier (makes cooking faster)
          let cooking_speed_multiplier = get_cooking_speed_multiplier(ctx, &campfire);
          let adjusted_cooking_time_increment = time_increment * cooking_speed_multiplier;
          
-         match crate::cooking::process_appliance_cooking_tick(ctx, &mut campfire, adjusted_cooking_time_increment, active_fuel_instance_id_for_cooking_check) {
-             Ok(cooking_modified_appliance) => {
-                 if cooking_modified_appliance {
-                     made_changes_to_campfire_struct = true;
+         // ADDED: Check if any items in campfire slots are Metal Ore and prevent cooking them
+         // Metal Ore should only be smelted in furnaces, not cooked in campfires
+         if !has_metal_ore_in_campfire(ctx, &campfire) {
+             match crate::cooking::process_appliance_cooking_tick(ctx, &mut campfire, adjusted_cooking_time_increment, active_fuel_instance_id_for_cooking_check) {
+                 Ok(cooking_modified_appliance) => {
+                     if cooking_modified_appliance {
+                         made_changes_to_campfire_struct = true;
+                     }
+                 }
+                 Err(e) => {
+                     // log::error!("[ProcessCampfireScheduled] Error during generic cooking tick for campfire {}: {}. Further processing might be affected.", campfire.id, e);
                  }
              }
-             Err(e) => {
-                 // log::error!("[ProcessCampfireScheduled] Error during generic cooking tick for campfire {}: {}. Further processing might be affected.", campfire.id, e);
-             }
+         } else {
+             // Skip cooking entirely if Metal Ore is present - it should only be smelted in furnaces
+             log::debug!("[ProcessCampfireScheduled] Campfire {} contains Metal Ore, skipping cooking logic (Metal Ore can only be smelted in furnaces).", campfire.id);
          }
          // --- END COOKING LOGIC (delegated) ---
  
@@ -1538,4 +1545,23 @@ pub fn get_cooking_speed_multiplier(ctx: &ReducerContext, campfire: &Campfire) -
     } else {
         1.0 // Normal cooking speed
     }
+}
+
+// --- NEW: Check if any items in campfire slots are Metal Ore and prevent cooking them
+// Metal Ore should only be smelted in furnaces, not cooked in campfires
+fn has_metal_ore_in_campfire(ctx: &ReducerContext, campfire: &Campfire) -> bool {
+    let item_defs_table = ctx.db.item_definition();
+    
+    // Check all fuel slots for Metal Ore
+    for slot_index in 0..NUM_FUEL_SLOTS {
+        if let Some(fuel_def_id) = campfire.get_slot_def_id(slot_index as u8) {
+            if let Some(item_def) = item_defs_table.id().find(fuel_def_id) {
+                if item_def.name == "Metal Ore" {
+                    log::debug!("Metal Ore found in campfire {} slot {}", campfire.id, slot_index);
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }

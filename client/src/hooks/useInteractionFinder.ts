@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
     Player as SpacetimeDBPlayer,
     Campfire as SpacetimeDBCampfire,
+    Furnace as SpacetimeDBFurnace, // ADDED: Furnace import
     Lantern as SpacetimeDBLantern,
     DroppedItem as SpacetimeDBDroppedItem,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
@@ -22,6 +23,11 @@ import {
     CAMPFIRE_HEIGHT,
     CAMPFIRE_RENDER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
+import {
+    PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED,
+    FURNACE_HEIGHT,
+    FURNACE_RENDER_Y_OFFSET
+} from '../utils/renderers/furnaceRenderingUtils'; // ADDED: Furnace rendering constants
 import {
     PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED,
     LANTERN_HEIGHT,
@@ -50,6 +56,7 @@ interface UseInteractionFinderProps {
     localPlayer: SpacetimeDBPlayer | null | undefined;
     harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    furnaces: Map<string, SpacetimeDBFurnace>; // ADDED: Furnace support
     lanterns: Map<string, SpacetimeDBLantern>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -75,6 +82,7 @@ interface UseInteractionFinderResult {
     // Generic harvestable resource ID (replaces all individual resource types)
     closestInteractableHarvestableResourceId: bigint | null;
     closestInteractableCampfireId: number | null;
+    closestInteractableFurnaceId: number | null; // ADDED: Furnace support
     closestInteractableLanternId: number | null;
     closestInteractableDroppedItemId: bigint | null;
     closestInteractableBoxId: number | null;
@@ -161,6 +169,7 @@ function canPlayerInteractWithObjectInShelter(
 export function useInteractionFinder({
     localPlayer,
     campfires,
+    furnaces, // ADDED: Furnace prop destructuring
     lanterns,
     droppedItems,
     woodenStorageBoxes,
@@ -180,6 +189,7 @@ export function useInteractionFinder({
     // State for closest interactable IDs
     const [closestInteractableHarvestableResourceId, setClosestInteractableHarvestableResourceId] = useState<bigint | null>(null);
     const [closestInteractableCampfireId, setClosestInteractableCampfireId] = useState<number | null>(null);
+    const [closestInteractableFurnaceId, setClosestInteractableFurnaceId] = useState<number | null>(null); // ADDED: Furnace state
     const [closestInteractableLanternId, setClosestInteractableLanternId] = useState<number | null>(null);
     const [closestInteractableDroppedItemId, setClosestInteractableDroppedItemId] = useState<bigint | null>(null);
     const [closestInteractableBoxId, setClosestInteractableBoxId] = useState<number | null>(null);
@@ -204,6 +214,9 @@ export function useInteractionFinder({
 
         let closestCampfireId: number | null = null;
         let closestCampfireDistSq = PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED;
+
+        let closestFurnaceId: number | null = null; // ADDED: Furnace tracking variables
+        let closestFurnaceDistSq = PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED;
 
         let closestLanternId: number | null = null;
         let closestLanternDistSq = PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED;
@@ -294,6 +307,27 @@ export function useInteractionFinder({
                         )) {
                             closestCampfireDistSq = distSq;
                             closestCampfireId = campfire.id;
+                        }
+                    }
+                });
+            }
+
+            // Find closest furnace - ADDED: Same pattern as campfire
+            if (furnaces) {
+                furnaces.forEach((furnace) => {
+                    const visualCenterY = furnace.posY - (FURNACE_HEIGHT / 2) - FURNACE_RENDER_Y_OFFSET;
+                    
+                    const dx = playerX - furnace.posX;
+                    const dy = playerY - visualCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < closestFurnaceDistSq) {
+                        // Check shelter access control
+                        if (canPlayerInteractWithObjectInShelter(
+                            playerX, playerY, localPlayer.identity.toHexString(),
+                            furnace.posX, furnace.posY, shelters
+                        )) {
+                            closestFurnaceDistSq = distSq;
+                            closestFurnaceId = furnace.id;
                         }
                     }
                 });
@@ -559,6 +593,14 @@ export function useInteractionFinder({
                     distance: Math.sqrt(closestCampfireDistSq)
                 });
             }
+            if (closestFurnaceId) { // ADDED: Furnace candidate
+                candidates.push({
+                    type: 'furnace',
+                    id: closestFurnaceId,
+                    position: { x: 0, y: 0 },
+                    distance: Math.sqrt(closestFurnaceDistSq)
+                });
+            }
             if (closestLanternId) {
                 const lantern = lanterns?.get(String(closestLanternId));
                 let isEmpty = true;
@@ -672,6 +714,7 @@ export function useInteractionFinder({
             closestInteractableTarget: closestTarget,
             closestInteractableHarvestableResourceId: closestHarvestableResourceId,
             closestInteractableCampfireId: closestCampfireId,
+            closestInteractableFurnaceId: closestFurnaceId, // ADDED: Furnace return
             closestInteractableLanternId: closestLanternId,
             closestInteractableDroppedItemId: closestDroppedItemId,
             closestInteractableBoxId: closestBoxId,
@@ -684,7 +727,7 @@ export function useInteractionFinder({
             closestInteractableWaterPosition: closestWaterPosition,
         };
     // Recalculate when player position or interactable maps change
-    }, [localPlayer, harvestableResources, campfires, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]);
+    }, [localPlayer, harvestableResources, campfires, furnaces, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]); // ADDED: furnaces dependency
 
     // Effect to update state based on memoized results
     useEffect(() => {
@@ -694,6 +737,9 @@ export function useInteractionFinder({
         }
         if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
             setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
+        }
+        if (interactionResult.closestInteractableFurnaceId !== closestInteractableFurnaceId) { // ADDED: Furnace useEffect
+            setClosestInteractableFurnaceId(interactionResult.closestInteractableFurnaceId);
         }
         if (interactionResult.closestInteractableLanternId !== closestInteractableLanternId) {
             setClosestInteractableLanternId(interactionResult.closestInteractableLanternId);
@@ -733,6 +779,7 @@ export function useInteractionFinder({
         closestInteractableTarget: interactionResult.closestInteractableTarget,
         closestInteractableHarvestableResourceId,
         closestInteractableCampfireId,
+        closestInteractableFurnaceId, // ADDED: Furnace final return
         closestInteractableLanternId,
         closestInteractableDroppedItemId,
         closestInteractableBoxId,

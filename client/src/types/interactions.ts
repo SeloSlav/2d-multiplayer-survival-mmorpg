@@ -33,6 +33,7 @@ export interface InteractableTarget {
 export type InteractionTargetType = 
     | 'harvestable_resource'  // Unified for all plants (mushroom, corn, potato, pumpkin, hemp, reed)
     | 'campfire' 
+    | 'furnace'  // ADDED: Furnace support (same behavior as campfire)
     | 'lantern'
     | 'dropped_item' 
     | 'box'  // wooden_storage_box
@@ -77,6 +78,11 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
         behavior: InteractionBehavior.INTERFACE,
         priority: 80,
         actionType: 'open_campfire'
+    },
+    furnace: {
+        behavior: InteractionBehavior.INTERFACE,
+        priority: 80,
+        actionType: 'open_furnace'
     },
     lantern: {
         behavior: InteractionBehavior.INTERFACE,
@@ -182,6 +188,9 @@ export function hasSpecialConditions(target: InteractableTarget): boolean {
         case 'campfire':
             // Special campfire conditions for toggle burning via hold
             return true; // Campfires can be toggled via hold
+        case 'furnace':
+            // Special furnace conditions for toggle burning via hold (same as campfire)
+            return true; // Furnaces can be toggled via hold
         default:
             return false;
     }
@@ -199,6 +208,9 @@ export function getEffectiveInteractionBehavior(target: InteractableTarget): Int
             return InteractionBehavior.INTERFACE;
         case 'campfire':
             // Campfires always open interface via tap (secondary hold action handles toggle)
+            return InteractionBehavior.INTERFACE;
+        case 'furnace':
+            // Furnaces always open interface via tap (secondary hold action handles toggle)
             return InteractionBehavior.INTERFACE;
         case 'stash':
             // Stashes always open interface via tap (secondary hold action handles visibility toggle)  
@@ -219,6 +231,8 @@ export function hasSecondaryHoldAction(target: InteractableTarget): boolean {
             return true; // Always has secondary hold action (pickup if empty, toggle if has fuel)
         case 'campfire':
             return true; // Always has toggle burning action
+        case 'furnace':
+            return true; // Always has toggle burning action (same as campfire)
         case 'stash':
             return true; // Always has toggle visibility action
         default:
@@ -235,6 +249,8 @@ export function getSecondaryHoldDuration(target: InteractableTarget): number {
             return 500; // 0.5 seconds to toggle/pickup lantern (quick action)
         case 'campfire':
             return 500; // 0.5 seconds to toggle campfire (quick action)
+        case 'furnace':
+            return 500; // 0.5 seconds to toggle furnace (quick action, same as campfire)
         case 'stash':
             return 250; // 0.25 seconds to toggle stash visibility (very quick)
         default:

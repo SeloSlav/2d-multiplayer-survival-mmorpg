@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 #[derive(SpacetimeType, Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum ContainerType {
     Campfire,
+    Furnace,
     WoodenStorageBox,
     PlayerCorpse,
     Stash,
@@ -95,6 +96,7 @@ pub enum TargetType {
     Stone,
     Player,
     Campfire,
+    Furnace,
     Lantern,
     WoodenStorageBox,
     Stash,

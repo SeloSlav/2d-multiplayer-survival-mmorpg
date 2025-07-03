@@ -104,6 +104,8 @@ export function renderPlayerCorpse({
     ctx,
     mockPlayerForCorpse,
     heroImg,
+    heroImg, // heroSprintImg - corpses don't sprint
+    heroImg, // heroIdleImg - corpses don't use idle animation  
     false, // isOnline
     false, // isMoving (corpse is static)
     false, // isHovered

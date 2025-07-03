@@ -80,7 +80,7 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
         // Primary Gathering Tools
         basic_tool("Stone Hatchet", "A simple hatchet for chopping wood.", 
                   TargetType::Tree, 60, 80, 25, 35, "Wood")
-            .icon("wood_hatchet.png")
+            .icon("stone_hatchet.png")
             .pvp_damage(15, 20)
             .crafting_cost(vec![
                 CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
@@ -89,6 +89,19 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
             .crafting_output(1, 30)
             .respawn_time(600)
             .attack_interval(0.8)
+            .build(),
+
+        basic_tool("Metal Hatchet", "A robust metal hatchet that cuts through wood efficiently. Gathers significantly more wood than its stone counterpart.",
+                  TargetType::Tree, 80, 120, 50, 70, "Wood")
+            .icon("metal_hatchet.png")
+            .pvp_damage(22, 30)
+            .crafting_cost(vec![
+                CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 150 },
+            ])
+            .crafting_output(1, 45)
+            .respawn_time(900)
+            .attack_interval(0.7)
             .build(),
 
         ItemBuilder::new("Combat Ladle", "A surprisingly sturdy ladle, ready for a culinary confrontation. Also works as a basic gathering tool.", ItemCategory::Tool)
@@ -107,7 +120,7 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
 
         basic_tool("Stone Pickaxe", "A simple pickaxe for breaking rocks.",
                   TargetType::Stone, 60, 120, 13, 22, "Stone")
-            .icon("pick_axe.png")
+            .icon("stone_pickaxe.png")
             .equippable(None)
             .pvp_damage(18, 25)
             .crafting_cost(vec![
@@ -117,6 +130,20 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
             .crafting_output(1, 30)
             .respawn_time(600)
             .attack_interval(1.2)
+            .build(),
+
+        basic_tool("Metal Pickaxe", "A sturdy metal pickaxe that breaks rocks efficiently. Gathers significantly more stone than its stone counterpart.",
+                  TargetType::Stone, 80, 160, 26, 44, "Stone")
+            .icon("metal_pickaxe.png")
+            .equippable(None)
+            .pvp_damage(25, 35)
+            .crafting_cost(vec![
+                CostIngredient { item_name: "Wood".to_string(), quantity: 200 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 150 },
+            ])
+            .crafting_output(1, 45)
+            .respawn_time(900)
+            .attack_interval(1.0)
             .build(),
 
         ItemBuilder::new("Rock", "A basic tool for gathering.", ItemCategory::Tool)

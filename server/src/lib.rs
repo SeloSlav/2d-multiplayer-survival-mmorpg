@@ -16,6 +16,8 @@ mod items;
 mod world_state;
 // Declare the campfire module
 mod campfire;
+// Declare the furnace module
+mod furnace;
 // Declare the lantern module
 mod lantern;
 // Declare the active_equipment module
@@ -155,6 +157,16 @@ pub use player_movement::update_player_position_simple;
 // Re-export campfire reducer for client bindings
 pub use campfire::place_campfire;
 
+// Re-export furnace reducers for client bindings
+pub use furnace::{
+    place_furnace, add_fuel_to_furnace, auto_remove_fuel_from_furnace, 
+    split_stack_into_furnace, move_fuel_within_furnace, split_stack_within_furnace,
+    quick_move_to_furnace, move_fuel_item_from_furnace_to_player_slot,
+    split_stack_from_furnace, split_and_move_from_furnace,
+    drop_item_from_furnace_slot_to_world, split_and_drop_item_from_furnace_slot_to_world,
+    interact_with_furnace, toggle_furnace_burning, process_furnace_logic_scheduled
+};
+
 // Re-export lantern reducers for client bindings
 pub use lantern::{place_lantern, add_fuel_to_lantern, light_lantern, extinguish_lantern, pickup_lantern};
 
@@ -174,6 +186,7 @@ pub use torch::toggle_torch;
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
+use crate::furnace::furnace as FurnaceTableTrait;
 use crate::lantern::lantern as LanternTableTrait;
 use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait;

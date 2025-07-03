@@ -24,6 +24,7 @@ import {
     DbConnection,
     ActiveEquipment,
     Campfire as SpacetimeDBCampfire,
+    Furnace as SpacetimeDBFurnace,
     Lantern as SpacetimeDBLantern,
     WoodenStorageBox as SpacetimeDBWoodenStorageBox,
     Recipe,
@@ -74,6 +75,7 @@ interface InventoryUIProps {
     // Add new props for interaction context
     interactionTarget: { type: string; id: number | bigint } | null;
     campfires: Map<string, SpacetimeDBCampfire>;
+    furnaces: Map<string, SpacetimeDBFurnace>;
     lanterns: Map<string, SpacetimeDBLantern>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>; // <<< ADDED Prop Definition
     playerCorpses: Map<string, PlayerCorpse>; // <<< ADD prop definition for corpses
@@ -128,6 +130,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
     draggedItemInfo,
     interactionTarget,
     campfires,
+    furnaces,
     lanterns,
     woodenStorageBoxes,
     playerCorpses,
@@ -421,6 +424,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
         const currentInteraction = interactionTarget;
         const currentBoxId = currentInteraction?.type === 'wooden_storage_box' ? Number(currentInteraction.id) : null;
         const currentCampfireId = currentInteraction?.type === 'campfire' ? Number(currentInteraction.id) : null;
+        const currentFurnaceId = currentInteraction?.type === 'furnace' ? Number(currentInteraction.id) : null;
         const currentLanternId = currentInteraction?.type === 'lantern' ? Number(currentInteraction.id) : null;
         const currentCorpseId = currentInteraction?.type === 'player_corpse' ? Number(currentInteraction.id) : null;
         const currentStashId = currentInteraction?.type === 'stash' ? Number(currentInteraction.id) : null;
@@ -491,6 +495,17 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                 connection.reducers.quickMoveToCampfire(currentCampfireId, itemInstanceId); 
             } catch (e: any) { 
                 console.error("[Inv CtxMenu Inv->Campfire]", e); 
+                // TODO: setUiError 
+            }
+            return; // Action handled
+        } 
+        // --- PRIORITY 4.5: Open Furnace --- 
+        else if (currentFurnaceId !== null) {
+            try { 
+                // console.log(`[Inv CtxMenu Inv->Furnace] Furnace ${currentFurnaceId} open. Calling quickMoveToFurnace for item ${itemInstanceId}`);
+                connection.reducers.quickMoveToFurnace(currentFurnaceId, itemInstanceId); 
+            } catch (e: any) { 
+                console.error("[Inv CtxMenu Inv->Furnace]", e); 
                 // TODO: setUiError 
             }
             return; // Action handled
@@ -893,6 +908,7 @@ const InventoryUI: React.FC<InventoryUIProps> = ({
                             inventoryItems={inventoryItems}
                             itemDefinitions={itemDefinitions}
                             campfires={campfires}
+                            furnaces={furnaces}
                             lanterns={lanterns}
                             woodenStorageBoxes={woodenStorageBoxes}
                             playerCorpses={playerCorpses}

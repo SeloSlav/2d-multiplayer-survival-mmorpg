@@ -16,6 +16,7 @@ import {
 // Using unified approach - individual resource heights no longer needed
 
 import { CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from './campfireRenderingUtils';
+import { FURNACE_HEIGHT, FURNACE_RENDER_Y_OFFSET } from './furnaceRenderingUtils'; // ADDED: Furnace constants
 import { BOX_HEIGHT } from './woodenStorageBoxRenderingUtils';
 
 // Define Sleeping Bag dimensions locally for label positioning
@@ -26,7 +27,7 @@ const RAIN_COLLECTOR_HEIGHT = 128; // Doubled from 64
 
 // Define the single target type for labels
 interface InteractableTarget {
-    type: 'harvestable_resource' | 'campfire' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water' | 'rain_collector';
+    type: 'harvestable_resource' | 'campfire' | 'furnace' | 'lantern' | 'dropped_item' | 'box' | 'corpse' | 'stash' | 'sleeping_bag' | 'knocked_out_player' | 'water' | 'rain_collector'; // ADDED: furnace
     id: bigint | number | string;
     position: { x: number; y: number };
     distance: number;
@@ -37,6 +38,7 @@ interface RenderLabelsParams {
     ctx: CanvasRenderingContext2D;
     harvestableResources: Map<string, any>; // Unified harvestable resources
     campfires: Map<string, SpacetimeDBCampfire>;
+    furnaces: Map<string, any>; // ADDED: furnaces parameter
     lanterns: Map<string, any>; // Add lanterns parameter
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     woodenStorageBoxes: Map<string, SpacetimeDBWoodenStorageBox>;
@@ -196,6 +198,7 @@ function renderStyledInteractionLabel(
 export function renderInteractionLabels({
     ctx,
     campfires,
+    furnaces, // ADDED: furnaces parameter
     lanterns,
     droppedItems,
     woodenStorageBoxes,
@@ -246,6 +249,17 @@ export function renderInteractionLabels({
             if (fire) {
                 const visualCenterX = fire.posX;
                 const visualCenterY = fire.posY - (CAMPFIRE_HEIGHT / 2) - CAMPFIRE_RENDER_Y_OFFSET;
+                textX = visualCenterX;
+                textY = visualCenterY - 50;
+                renderStyledInteractionLabel(ctx, text, textX, textY);
+            }
+            break;
+        }
+        case 'furnace': { // ADDED: Furnace label support
+            const furnace = furnaces.get(closestInteractableTarget.id.toString());
+            if (furnace) {
+                const visualCenterX = furnace.posX;
+                const visualCenterY = furnace.posY - (FURNACE_HEIGHT / 2) - FURNACE_RENDER_Y_OFFSET;
                 textX = visualCenterX;
                 textY = visualCenterY - 50;
                 renderStyledInteractionLabel(ctx, text, textX, textY);

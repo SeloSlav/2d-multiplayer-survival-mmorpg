@@ -275,6 +275,11 @@ export const useInputHandler = ({
                             connection.reducers.toggleCampfireBurning(Number(holdTarget.targetId));
                             actionTaken = true;
                             break;
+                        case 'furnace':
+                            console.log('[E-Hold ACTION] Attempting to toggle furnace burning:', holdTarget.targetId);
+                            connection.reducers.toggleFurnaceBurning(Number(holdTarget.targetId));
+                            actionTaken = true;
+                            break;
                         case 'lantern':
                             if (currentTarget.data?.isEmpty) {
                                 console.log('[E-Hold ACTION] Attempting to pickup empty lantern:', holdTarget.targetId);
@@ -798,6 +803,11 @@ export const useInputHandler = ({
                                     case 'campfire':
                                         console.log('[E-Tap ACTION] Opening campfire interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'campfire', id: currentTarget.id });
+                                        tapActionTaken = true;
+                                        break;
+                                    case 'furnace':
+                                        console.log('[E-Tap ACTION] Opening furnace interface:', currentTarget.id);
+                                        onSetInteractingWith({ type: 'furnace', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'lantern':
@@ -1511,7 +1521,7 @@ export const useInputHandler = ({
             "Rock", "Spear", "Stone Hatchet", "Stone Pickaxe", "Combat Ladle",
             "Bone Club", "Bone Knife", "Repair Hammer", "Stone Spear", "Wooden Spear",
             "Stone Axe", "Stone Knife", "Wooden Club", "Improvised Knife", "Bone Gaff Hook",
-            "Machete"
+            "Bush Knife"
         ];
 
         const nameMatch = throwableNames.includes(itemDef.name);

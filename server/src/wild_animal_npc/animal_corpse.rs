@@ -187,10 +187,12 @@ pub fn get_harvest_loot(
     // Determine tool effectiveness multiplier (similar to player corpse logic)
     const BONE_KNIFE_MULTIPLIER: f64 = 5.0;
     const BONE_CLUB_MULTIPLIER: f64 = 3.0;
+    const AK74_BAYONET_MULTIPLIER: f64 = 7.0; // Highest effectiveness for modern military bayonet
     const PRIMARY_CORPSE_TOOL_MULTIPLIER: f64 = 1.0;
     const NON_PRIMARY_ITEM_MULTIPLIER: f64 = 0.1;
     
     let effectiveness_multiplier = match tool_name {
+        "AK74 Bayonet" => AK74_BAYONET_MULTIPLIER,
         "Bone Knife" => BONE_KNIFE_MULTIPLIER,
         "Bone Club" => BONE_CLUB_MULTIPLIER,
         _ => {
@@ -210,6 +212,7 @@ pub fn get_harvest_loot(
     
     // Determine quantity per successful hit based on tool
     let base_quantity = match tool_name {
+        "AK74 Bayonet" => rng.gen_range(4..=7), // Highest yield for modern military bayonet
         "Bone Knife" => rng.gen_range(3..=5),
         "Bone Club" => rng.gen_range(2..=4),
         _ => {
@@ -249,12 +252,12 @@ pub fn get_harvest_loot(
     }
     
     // Rare trophy drops - only with good tools and low chance
-    if tool_name == "Bone Knife" {
+    if tool_name == "Bone Knife" || tool_name == "AK74 Bayonet" {
         let rare_trophy_chance = match animal_species {
-            AnimalSpecies::CinderFox => 0.02,  // 2% chance for fox pelt
-            AnimalSpecies::TundraWolf => 0.03, // 3% chance for wolf pelt
+            AnimalSpecies::CinderFox => if tool_name == "AK74 Bayonet" { 0.03 } else { 0.02 },  // 3%/2% chance for fox pelt
+            AnimalSpecies::TundraWolf => if tool_name == "AK74 Bayonet" { 0.045 } else { 0.03 }, // 4.5%/3% chance for wolf pelt
             AnimalSpecies::CableViper => 0.0,  // No rare trophy for viper
-            AnimalSpecies::ArcticWalrus => 0.01, // 1% chance for walrus pelt (ultra rare)
+            AnimalSpecies::ArcticWalrus => if tool_name == "AK74 Bayonet" { 0.015 } else { 0.01 }, // 1.5%/1% chance for walrus pelt (ultra rare)
         };
         
         if rare_trophy_chance > 0.0 && rng.gen_bool(rare_trophy_chance) {

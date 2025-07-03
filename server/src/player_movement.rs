@@ -216,83 +216,7 @@ pub fn jump(ctx: &ReducerContext) -> Result<(), String> {
    }
 }
 
-/// Updates player facing direction based on mouse position.
-/// 
-/// This allows the player's facing direction to be controlled by the mouse cursor
-/// position relative to the player, but only when the player is not actively moving.
-/// When the player is moving, their direction is controlled by movement instead.
-/// 
-/// # Arguments
-/// * `mouse_world_x` - The world X coordinate of the mouse cursor
-/// * `mouse_world_y` - The world Y coordinate of the mouse cursor
-#[spacetimedb::reducer]
-pub fn update_player_facing_direction(
-    ctx: &ReducerContext,
-    mouse_world_x: f32,
-    mouse_world_y: f32,
-) -> Result<(), String> {
-    let sender_id = ctx.sender;
-    let players = ctx.db.player();
-    let dodge_roll_states = ctx.db.player_dodge_roll_state();
 
-    let mut current_player = players.identity()
-        .find(sender_id)
-        .ok_or_else(|| "Player not found".to_string())?;
-
-    // --- If player is dead, don't update facing direction ---
-    if current_player.is_dead {
-        log::trace!("Ignoring facing direction update for dead player {:?}", sender_id);
-        return Ok(());
-    }
-
-    // --- Don't update facing direction during active dodge roll ---
-    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
-    if let Some(dodge_state) = dodge_roll_states.player_id().find(&sender_id) {
-        let elapsed_ms = now_ms.saturating_sub(dodge_state.start_time_ms);
-        if elapsed_ms < DODGE_ROLL_DURATION_MS {
-            // Player is currently dodge rolling, don't update facing direction
-            log::trace!("Skipping mouse direction update during dodge roll for player {:?}", sender_id);
-            return Ok(());
-        }
-    }
-
-    // --- Check if player is actively moving ---
-    // If the player moved recently (within the last 100ms), skip mouse direction update
-    // This prevents direction flipping while moving
-    let now_micros = ctx.timestamp.to_micros_since_unix_epoch();
-    let last_update_micros = current_player.last_update.to_micros_since_unix_epoch();
-    let time_since_last_update_ms = (now_micros.saturating_sub(last_update_micros) / 1000) as u64;
-    
-    // If player moved within the last 100ms, they're considered "actively moving"
-    const MOVEMENT_TIMEOUT_MS: u64 = 100;
-    if time_since_last_update_ms < MOVEMENT_TIMEOUT_MS {
-        // Player is actively moving, skip mouse direction update to prevent flipping
-        return Ok(());
-    }
-
-    // Calculate direction vector from player to mouse cursor
-    let dx = mouse_world_x - current_player.position_x;
-    let dy = mouse_world_y - current_player.position_y;
-
-    // Simple, pure mouse-based direction - no complex logic
-    let new_direction = if dx.abs() > dy.abs() {
-        // Mouse is more horizontal than vertical
-        if dx > 0.0 { "right" } else { "left" }
-    } else {
-        // Mouse is more vertical than horizontal
-        if dy > 0.0 { "down" } else { "up" }
-    };
-
-    // Only update if direction actually changed
-    if current_player.direction != new_direction {
-        current_player.direction = new_direction.to_string();
-        current_player.last_update = ctx.timestamp;
-        players.identity().update(current_player);
-        log::trace!("Player {:?} facing direction updated to: {} (mouse-based, not moving)", sender_id, new_direction);
-    }
-
-    Ok(())
-}
 
 /// Reducer that handles player dodge roll requests.
 /// 
@@ -353,8 +277,6 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
     if move_x == 0.0 && move_y == 0.0 {
         return Err("Must be moving to dodge roll. Hold a movement key (WASD) while pressing dodge.".to_string());
     }
-
-
 
     // Calculate dodge direction based on movement input (we know movement input exists due to earlier check)
     // Normalize the movement vector to get proper direction
@@ -716,8 +638,6 @@ pub fn update_player_position_simple(
                            sender_id, final_x, final_y, is_sprinting, movement_distance);
             }
         }
-        
-
         
         // Update or insert the walking sound state
         if walking_sound_states.player_id().find(&sender_id).is_some() {

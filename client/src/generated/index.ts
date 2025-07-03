@@ -34,12 +34,16 @@ import {
 // Import and reexport all reducer arg types
 import { AddFuelToCampfire } from "./add_fuel_to_campfire_reducer.ts";
 export { AddFuelToCampfire };
+import { AddFuelToFurnace } from "./add_fuel_to_furnace_reducer.ts";
+export { AddFuelToFurnace };
 import { AddFuelToLantern } from "./add_fuel_to_lantern_reducer.ts";
 export { AddFuelToLantern };
 import { AttackBarrel } from "./attack_barrel_reducer.ts";
 export { AttackBarrel };
 import { AutoRemoveFuelFromCampfire } from "./auto_remove_fuel_from_campfire_reducer.ts";
 export { AutoRemoveFuelFromCampfire };
+import { AutoRemoveFuelFromFurnace } from "./auto_remove_fuel_from_furnace_reducer.ts";
+export { AutoRemoveFuelFromFurnace };
 import { AutoRemoveFuelFromLantern } from "./auto_remove_fuel_from_lantern_reducer.ts";
 export { AutoRemoveFuelFromLantern };
 import { CancelAllCrafting } from "./cancel_all_crafting_reducer.ts";
@@ -92,6 +96,8 @@ import { DropItemFromCampfireSlotToWorld } from "./drop_item_from_campfire_slot_
 export { DropItemFromCampfireSlotToWorld };
 import { DropItemFromCorpseSlotToWorld } from "./drop_item_from_corpse_slot_to_world_reducer.ts";
 export { DropItemFromCorpseSlotToWorld };
+import { DropItemFromFurnaceSlotToWorld } from "./drop_item_from_furnace_slot_to_world_reducer.ts";
+export { DropItemFromFurnaceSlotToWorld };
 import { DropItemFromLanternSlotToWorld } from "./drop_item_from_lantern_slot_to_world_reducer.ts";
 export { DropItemFromLanternSlotToWorld };
 import { DropItemFromStashSlotToWorld } from "./drop_item_from_stash_slot_to_world_reducer.ts";
@@ -132,6 +138,8 @@ import { InitViperSpittleSystem } from "./init_viper_spittle_system_reducer.ts";
 export { InitViperSpittleSystem };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
+import { InteractWithFurnace } from "./interact_with_furnace_reducer.ts";
+export { InteractWithFurnace };
 import { InteractWithHarvestableResource } from "./interact_with_harvestable_resource_reducer.ts";
 export { InteractWithHarvestableResource };
 import { InteractWithLantern } from "./interact_with_lantern_reducer.ts";
@@ -148,10 +156,14 @@ import { LoadRangedWeapon } from "./load_ranged_weapon_reducer.ts";
 export { LoadRangedWeapon };
 import { ManageSeasonalPlants } from "./manage_seasonal_plants_reducer.ts";
 export { ManageSeasonalPlants };
+import { MoveFuelItemFromFurnaceToPlayerSlot } from "./move_fuel_item_from_furnace_to_player_slot_reducer.ts";
+export { MoveFuelItemFromFurnaceToPlayerSlot };
 import { MoveFuelItemToPlayerSlot } from "./move_fuel_item_to_player_slot_reducer.ts";
 export { MoveFuelItemToPlayerSlot };
 import { MoveFuelWithinCampfire } from "./move_fuel_within_campfire_reducer.ts";
 export { MoveFuelWithinCampfire };
+import { MoveFuelWithinFurnace } from "./move_fuel_within_furnace_reducer.ts";
+export { MoveFuelWithinFurnace };
 import { MoveFuelWithinLantern } from "./move_fuel_within_lantern_reducer.ts";
 export { MoveFuelWithinLantern };
 import { MoveItemFromBox } from "./move_item_from_box_reducer.ts";
@@ -192,6 +204,8 @@ import { PickupStorageBox } from "./pickup_storage_box_reducer.ts";
 export { PickupStorageBox };
 import { PlaceCampfire } from "./place_campfire_reducer.ts";
 export { PlaceCampfire };
+import { PlaceFurnace } from "./place_furnace_reducer.ts";
+export { PlaceFurnace };
 import { PlaceLantern } from "./place_lantern_reducer.ts";
 export { PlaceLantern };
 import { PlaceRainCollector } from "./place_rain_collector_reducer.ts";
@@ -212,6 +226,8 @@ import { ProcessCampfireLogicScheduled } from "./process_campfire_logic_schedule
 export { ProcessCampfireLogicScheduled };
 import { ProcessCorpseDespawn } from "./process_corpse_despawn_reducer.ts";
 export { ProcessCorpseDespawn };
+import { ProcessFurnaceLogicScheduled } from "./process_furnace_logic_scheduled_reducer.ts";
+export { ProcessFurnaceLogicScheduled };
 import { ProcessGlobalTick } from "./process_global_tick_reducer.ts";
 export { ProcessGlobalTick };
 import { ProcessGrassRespawn } from "./process_grass_respawn_reducer.ts";
@@ -238,6 +254,8 @@ import { QuickMoveToCampfire } from "./quick_move_to_campfire_reducer.ts";
 export { QuickMoveToCampfire };
 import { QuickMoveToCorpse } from "./quick_move_to_corpse_reducer.ts";
 export { QuickMoveToCorpse };
+import { QuickMoveToFurnace } from "./quick_move_to_furnace_reducer.ts";
+export { QuickMoveToFurnace };
 import { QuickMoveToLantern } from "./quick_move_to_lantern_reducer.ts";
 export { QuickMoveToLantern };
 import { QuickMoveToStash } from "./quick_move_to_stash_reducer.ts";
@@ -284,12 +302,16 @@ import { SplitAndDropItemFromCampfireSlotToWorld } from "./split_and_drop_item_f
 export { SplitAndDropItemFromCampfireSlotToWorld };
 import { SplitAndDropItemFromCorpseSlotToWorld } from "./split_and_drop_item_from_corpse_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromCorpseSlotToWorld };
+import { SplitAndDropItemFromFurnaceSlotToWorld } from "./split_and_drop_item_from_furnace_slot_to_world_reducer.ts";
+export { SplitAndDropItemFromFurnaceSlotToWorld };
 import { SplitAndDropItemFromLanternSlotToWorld } from "./split_and_drop_item_from_lantern_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromLanternSlotToWorld };
 import { SplitAndDropItemFromStashSlotToWorld } from "./split_and_drop_item_from_stash_slot_to_world_reducer.ts";
 export { SplitAndDropItemFromStashSlotToWorld };
 import { SplitAndMoveFromCampfire } from "./split_and_move_from_campfire_reducer.ts";
 export { SplitAndMoveFromCampfire };
+import { SplitAndMoveFromFurnace } from "./split_and_move_from_furnace_reducer.ts";
+export { SplitAndMoveFromFurnace };
 import { SplitStack } from "./split_stack_reducer.ts";
 export { SplitStack };
 import { SplitStackFromBox } from "./split_stack_from_box_reducer.ts";
@@ -298,6 +320,8 @@ import { SplitStackFromCampfire } from "./split_stack_from_campfire_reducer.ts";
 export { SplitStackFromCampfire };
 import { SplitStackFromCorpse } from "./split_stack_from_corpse_reducer.ts";
 export { SplitStackFromCorpse };
+import { SplitStackFromFurnace } from "./split_stack_from_furnace_reducer.ts";
+export { SplitStackFromFurnace };
 import { SplitStackFromLantern } from "./split_stack_from_lantern_reducer.ts";
 export { SplitStackFromLantern };
 import { SplitStackFromStash } from "./split_stack_from_stash_reducer.ts";
@@ -308,6 +332,8 @@ import { SplitStackIntoCampfire } from "./split_stack_into_campfire_reducer.ts";
 export { SplitStackIntoCampfire };
 import { SplitStackIntoCorpse } from "./split_stack_into_corpse_reducer.ts";
 export { SplitStackIntoCorpse };
+import { SplitStackIntoFurnace } from "./split_stack_into_furnace_reducer.ts";
+export { SplitStackIntoFurnace };
 import { SplitStackIntoLantern } from "./split_stack_into_lantern_reducer.ts";
 export { SplitStackIntoLantern };
 import { SplitStackIntoStash } from "./split_stack_into_stash_reducer.ts";
@@ -318,6 +344,8 @@ import { SplitStackWithinCampfire } from "./split_stack_within_campfire_reducer.
 export { SplitStackWithinCampfire };
 import { SplitStackWithinCorpse } from "./split_stack_within_corpse_reducer.ts";
 export { SplitStackWithinCorpse };
+import { SplitStackWithinFurnace } from "./split_stack_within_furnace_reducer.ts";
+export { SplitStackWithinFurnace };
 import { SplitStackWithinLantern } from "./split_stack_within_lantern_reducer.ts";
 export { SplitStackWithinLantern };
 import { SplitStackWithinStash } from "./split_stack_within_stash_reducer.ts";
@@ -334,6 +362,8 @@ import { ToggleCampfireBurning } from "./toggle_campfire_burning_reducer.ts";
 export { ToggleCampfireBurning };
 import { ToggleCrouch } from "./toggle_crouch_reducer.ts";
 export { ToggleCrouch };
+import { ToggleFurnaceBurning } from "./toggle_furnace_burning_reducer.ts";
+export { ToggleFurnaceBurning };
 import { ToggleLantern } from "./toggle_lantern_reducer.ts";
 export { ToggleLantern };
 import { ToggleStashVisibility } from "./toggle_stash_visibility_reducer.ts";
@@ -344,8 +374,6 @@ import { UpdateCloudIntensities } from "./update_cloud_intensities_reducer.ts";
 export { UpdateCloudIntensities };
 import { UpdateCloudPositions } from "./update_cloud_positions_reducer.ts";
 export { UpdateCloudPositions };
-import { UpdatePlayerFacingDirection } from "./update_player_facing_direction_reducer.ts";
-export { UpdatePlayerFacingDirection };
 import { UpdatePlayerPositionSimple } from "./update_player_position_simple_reducer.ts";
 export { UpdatePlayerPositionSimple };
 import { UpdateProjectiles } from "./update_projectiles_reducer.ts";
@@ -402,6 +430,10 @@ import { FishingSessionTableHandle } from "./fishing_session_table.ts";
 export { FishingSessionTableHandle };
 import { FoodPoisoningRiskTableHandle } from "./food_poisoning_risk_table.ts";
 export { FoodPoisoningRiskTableHandle };
+import { FurnaceTableHandle } from "./furnace_table.ts";
+export { FurnaceTableHandle };
+import { FurnaceProcessingScheduleTableHandle } from "./furnace_processing_schedule_table.ts";
+export { FurnaceProcessingScheduleTableHandle };
 import { GlobalTickScheduleTableHandle } from "./global_tick_schedule_table.ts";
 export { GlobalTickScheduleTableHandle };
 import { GrassTableHandle } from "./grass_table.ts";
@@ -574,6 +606,10 @@ import { FishingSession } from "./fishing_session_type.ts";
 export { FishingSession };
 import { FoodPoisoningRisk } from "./food_poisoning_risk_type.ts";
 export { FoodPoisoningRisk };
+import { Furnace } from "./furnace_type.ts";
+export { Furnace };
+import { FurnaceProcessingSchedule } from "./furnace_processing_schedule_type.ts";
+export { FurnaceProcessingSchedule };
 import { GlobalTickSchedule } from "./global_tick_schedule_type.ts";
 export { GlobalTickSchedule };
 import { Grass } from "./grass_type.ts";
@@ -821,6 +857,16 @@ const REMOTE_MODULE = {
       tableName: "food_poisoning_risk",
       rowType: FoodPoisoningRisk.getTypeScriptAlgebraicType(),
       primaryKey: "itemDefId",
+    },
+    furnace: {
+      tableName: "furnace",
+      rowType: Furnace.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
+    },
+    furnace_processing_schedule: {
+      tableName: "furnace_processing_schedule",
+      rowType: FurnaceProcessingSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "furnaceId",
     },
     global_tick_schedule: {
       tableName: "global_tick_schedule",
@@ -1088,6 +1134,10 @@ const REMOTE_MODULE = {
       reducerName: "add_fuel_to_campfire",
       argsType: AddFuelToCampfire.getTypeScriptAlgebraicType(),
     },
+    add_fuel_to_furnace: {
+      reducerName: "add_fuel_to_furnace",
+      argsType: AddFuelToFurnace.getTypeScriptAlgebraicType(),
+    },
     add_fuel_to_lantern: {
       reducerName: "add_fuel_to_lantern",
       argsType: AddFuelToLantern.getTypeScriptAlgebraicType(),
@@ -1099,6 +1149,10 @@ const REMOTE_MODULE = {
     auto_remove_fuel_from_campfire: {
       reducerName: "auto_remove_fuel_from_campfire",
       argsType: AutoRemoveFuelFromCampfire.getTypeScriptAlgebraicType(),
+    },
+    auto_remove_fuel_from_furnace: {
+      reducerName: "auto_remove_fuel_from_furnace",
+      argsType: AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType(),
     },
     auto_remove_fuel_from_lantern: {
       reducerName: "auto_remove_fuel_from_lantern",
@@ -1204,6 +1258,10 @@ const REMOTE_MODULE = {
       reducerName: "drop_item_from_corpse_slot_to_world",
       argsType: DropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    drop_item_from_furnace_slot_to_world: {
+      reducerName: "drop_item_from_furnace_slot_to_world",
+      argsType: DropItemFromFurnaceSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     drop_item_from_lantern_slot_to_world: {
       reducerName: "drop_item_from_lantern_slot_to_world",
       argsType: DropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType(),
@@ -1284,6 +1342,10 @@ const REMOTE_MODULE = {
       reducerName: "interact_with_campfire",
       argsType: InteractWithCampfire.getTypeScriptAlgebraicType(),
     },
+    interact_with_furnace: {
+      reducerName: "interact_with_furnace",
+      argsType: InteractWithFurnace.getTypeScriptAlgebraicType(),
+    },
     interact_with_harvestable_resource: {
       reducerName: "interact_with_harvestable_resource",
       argsType: InteractWithHarvestableResource.getTypeScriptAlgebraicType(),
@@ -1316,6 +1378,10 @@ const REMOTE_MODULE = {
       reducerName: "manage_seasonal_plants",
       argsType: ManageSeasonalPlants.getTypeScriptAlgebraicType(),
     },
+    move_fuel_item_from_furnace_to_player_slot: {
+      reducerName: "move_fuel_item_from_furnace_to_player_slot",
+      argsType: MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType(),
+    },
     move_fuel_item_to_player_slot: {
       reducerName: "move_fuel_item_to_player_slot",
       argsType: MoveFuelItemToPlayerSlot.getTypeScriptAlgebraicType(),
@@ -1323,6 +1389,10 @@ const REMOTE_MODULE = {
     move_fuel_within_campfire: {
       reducerName: "move_fuel_within_campfire",
       argsType: MoveFuelWithinCampfire.getTypeScriptAlgebraicType(),
+    },
+    move_fuel_within_furnace: {
+      reducerName: "move_fuel_within_furnace",
+      argsType: MoveFuelWithinFurnace.getTypeScriptAlgebraicType(),
     },
     move_fuel_within_lantern: {
       reducerName: "move_fuel_within_lantern",
@@ -1404,6 +1474,10 @@ const REMOTE_MODULE = {
       reducerName: "place_campfire",
       argsType: PlaceCampfire.getTypeScriptAlgebraicType(),
     },
+    place_furnace: {
+      reducerName: "place_furnace",
+      argsType: PlaceFurnace.getTypeScriptAlgebraicType(),
+    },
     place_lantern: {
       reducerName: "place_lantern",
       argsType: PlaceLantern.getTypeScriptAlgebraicType(),
@@ -1443,6 +1517,10 @@ const REMOTE_MODULE = {
     process_corpse_despawn: {
       reducerName: "process_corpse_despawn",
       argsType: ProcessCorpseDespawn.getTypeScriptAlgebraicType(),
+    },
+    process_furnace_logic_scheduled: {
+      reducerName: "process_furnace_logic_scheduled",
+      argsType: ProcessFurnaceLogicScheduled.getTypeScriptAlgebraicType(),
     },
     process_global_tick: {
       reducerName: "process_global_tick",
@@ -1495,6 +1573,10 @@ const REMOTE_MODULE = {
     quick_move_to_corpse: {
       reducerName: "quick_move_to_corpse",
       argsType: QuickMoveToCorpse.getTypeScriptAlgebraicType(),
+    },
+    quick_move_to_furnace: {
+      reducerName: "quick_move_to_furnace",
+      argsType: QuickMoveToFurnace.getTypeScriptAlgebraicType(),
     },
     quick_move_to_lantern: {
       reducerName: "quick_move_to_lantern",
@@ -1588,6 +1670,10 @@ const REMOTE_MODULE = {
       reducerName: "split_and_drop_item_from_corpse_slot_to_world",
       argsType: SplitAndDropItemFromCorpseSlotToWorld.getTypeScriptAlgebraicType(),
     },
+    split_and_drop_item_from_furnace_slot_to_world: {
+      reducerName: "split_and_drop_item_from_furnace_slot_to_world",
+      argsType: SplitAndDropItemFromFurnaceSlotToWorld.getTypeScriptAlgebraicType(),
+    },
     split_and_drop_item_from_lantern_slot_to_world: {
       reducerName: "split_and_drop_item_from_lantern_slot_to_world",
       argsType: SplitAndDropItemFromLanternSlotToWorld.getTypeScriptAlgebraicType(),
@@ -1599,6 +1685,10 @@ const REMOTE_MODULE = {
     split_and_move_from_campfire: {
       reducerName: "split_and_move_from_campfire",
       argsType: SplitAndMoveFromCampfire.getTypeScriptAlgebraicType(),
+    },
+    split_and_move_from_furnace: {
+      reducerName: "split_and_move_from_furnace",
+      argsType: SplitAndMoveFromFurnace.getTypeScriptAlgebraicType(),
     },
     split_stack: {
       reducerName: "split_stack",
@@ -1615,6 +1705,10 @@ const REMOTE_MODULE = {
     split_stack_from_corpse: {
       reducerName: "split_stack_from_corpse",
       argsType: SplitStackFromCorpse.getTypeScriptAlgebraicType(),
+    },
+    split_stack_from_furnace: {
+      reducerName: "split_stack_from_furnace",
+      argsType: SplitStackFromFurnace.getTypeScriptAlgebraicType(),
     },
     split_stack_from_lantern: {
       reducerName: "split_stack_from_lantern",
@@ -1636,6 +1730,10 @@ const REMOTE_MODULE = {
       reducerName: "split_stack_into_corpse",
       argsType: SplitStackIntoCorpse.getTypeScriptAlgebraicType(),
     },
+    split_stack_into_furnace: {
+      reducerName: "split_stack_into_furnace",
+      argsType: SplitStackIntoFurnace.getTypeScriptAlgebraicType(),
+    },
     split_stack_into_lantern: {
       reducerName: "split_stack_into_lantern",
       argsType: SplitStackIntoLantern.getTypeScriptAlgebraicType(),
@@ -1655,6 +1753,10 @@ const REMOTE_MODULE = {
     split_stack_within_corpse: {
       reducerName: "split_stack_within_corpse",
       argsType: SplitStackWithinCorpse.getTypeScriptAlgebraicType(),
+    },
+    split_stack_within_furnace: {
+      reducerName: "split_stack_within_furnace",
+      argsType: SplitStackWithinFurnace.getTypeScriptAlgebraicType(),
     },
     split_stack_within_lantern: {
       reducerName: "split_stack_within_lantern",
@@ -1688,6 +1790,10 @@ const REMOTE_MODULE = {
       reducerName: "toggle_crouch",
       argsType: ToggleCrouch.getTypeScriptAlgebraicType(),
     },
+    toggle_furnace_burning: {
+      reducerName: "toggle_furnace_burning",
+      argsType: ToggleFurnaceBurning.getTypeScriptAlgebraicType(),
+    },
     toggle_lantern: {
       reducerName: "toggle_lantern",
       argsType: ToggleLantern.getTypeScriptAlgebraicType(),
@@ -1707,10 +1813,6 @@ const REMOTE_MODULE = {
     update_cloud_positions: {
       reducerName: "update_cloud_positions",
       argsType: UpdateCloudPositions.getTypeScriptAlgebraicType(),
-    },
-    update_player_facing_direction: {
-      reducerName: "update_player_facing_direction",
-      argsType: UpdatePlayerFacingDirection.getTypeScriptAlgebraicType(),
     },
     update_player_position_simple: {
       reducerName: "update_player_position_simple",
@@ -1764,9 +1866,11 @@ const REMOTE_MODULE = {
 // A type representing all the possible variants of a reducer.
 export type Reducer = never
 | { name: "AddFuelToCampfire", args: AddFuelToCampfire }
+| { name: "AddFuelToFurnace", args: AddFuelToFurnace }
 | { name: "AddFuelToLantern", args: AddFuelToLantern }
 | { name: "AttackBarrel", args: AttackBarrel }
 | { name: "AutoRemoveFuelFromCampfire", args: AutoRemoveFuelFromCampfire }
+| { name: "AutoRemoveFuelFromFurnace", args: AutoRemoveFuelFromFurnace }
 | { name: "AutoRemoveFuelFromLantern", args: AutoRemoveFuelFromLantern }
 | { name: "CancelAllCrafting", args: CancelAllCrafting }
 | { name: "CancelCraftingItem", args: CancelCraftingItem }
@@ -1793,6 +1897,7 @@ export type Reducer = never
 | { name: "DropItemFromBoxSlotToWorld", args: DropItemFromBoxSlotToWorld }
 | { name: "DropItemFromCampfireSlotToWorld", args: DropItemFromCampfireSlotToWorld }
 | { name: "DropItemFromCorpseSlotToWorld", args: DropItemFromCorpseSlotToWorld }
+| { name: "DropItemFromFurnaceSlotToWorld", args: DropItemFromFurnaceSlotToWorld }
 | { name: "DropItemFromLanternSlotToWorld", args: DropItemFromLanternSlotToWorld }
 | { name: "DropItemFromStashSlotToWorld", args: DropItemFromStashSlotToWorld }
 | { name: "EquipArmor", args: EquipArmor }
@@ -1813,6 +1918,7 @@ export type Reducer = never
 | { name: "InitProjectileSystem", args: InitProjectileSystem }
 | { name: "InitViperSpittleSystem", args: InitViperSpittleSystem }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
+| { name: "InteractWithFurnace", args: InteractWithFurnace }
 | { name: "InteractWithHarvestableResource", args: InteractWithHarvestableResource }
 | { name: "InteractWithLantern", args: InteractWithLantern }
 | { name: "InteractWithSleepingBag", args: InteractWithSleepingBag }
@@ -1821,8 +1927,10 @@ export type Reducer = never
 | { name: "LightLantern", args: LightLantern }
 | { name: "LoadRangedWeapon", args: LoadRangedWeapon }
 | { name: "ManageSeasonalPlants", args: ManageSeasonalPlants }
+| { name: "MoveFuelItemFromFurnaceToPlayerSlot", args: MoveFuelItemFromFurnaceToPlayerSlot }
 | { name: "MoveFuelItemToPlayerSlot", args: MoveFuelItemToPlayerSlot }
 | { name: "MoveFuelWithinCampfire", args: MoveFuelWithinCampfire }
+| { name: "MoveFuelWithinFurnace", args: MoveFuelWithinFurnace }
 | { name: "MoveFuelWithinLantern", args: MoveFuelWithinLantern }
 | { name: "MoveItemFromBox", args: MoveItemFromBox }
 | { name: "MoveItemFromCorpse", args: MoveItemFromCorpse }
@@ -1843,6 +1951,7 @@ export type Reducer = never
 | { name: "PickupLantern", args: PickupLantern }
 | { name: "PickupStorageBox", args: PickupStorageBox }
 | { name: "PlaceCampfire", args: PlaceCampfire }
+| { name: "PlaceFurnace", args: PlaceFurnace }
 | { name: "PlaceLantern", args: PlaceLantern }
 | { name: "PlaceRainCollector", args: PlaceRainCollector }
 | { name: "PlaceShelter", args: PlaceShelter }
@@ -1853,6 +1962,7 @@ export type Reducer = never
 | { name: "ProcessActiveConsumableEffectsTick", args: ProcessActiveConsumableEffectsTick }
 | { name: "ProcessCampfireLogicScheduled", args: ProcessCampfireLogicScheduled }
 | { name: "ProcessCorpseDespawn", args: ProcessCorpseDespawn }
+| { name: "ProcessFurnaceLogicScheduled", args: ProcessFurnaceLogicScheduled }
 | { name: "ProcessGlobalTick", args: ProcessGlobalTick }
 | { name: "ProcessGrassRespawn", args: ProcessGrassRespawn }
 | { name: "ProcessKnockedOutRecovery", args: ProcessKnockedOutRecovery }
@@ -1866,6 +1976,7 @@ export type Reducer = never
 | { name: "QuickMoveToBox", args: QuickMoveToBox }
 | { name: "QuickMoveToCampfire", args: QuickMoveToCampfire }
 | { name: "QuickMoveToCorpse", args: QuickMoveToCorpse }
+| { name: "QuickMoveToFurnace", args: QuickMoveToFurnace }
 | { name: "QuickMoveToLantern", args: QuickMoveToLantern }
 | { name: "QuickMoveToStash", args: QuickMoveToStash }
 | { name: "RegenerateCompressedChunks", args: RegenerateCompressedChunks }
@@ -1889,23 +2000,28 @@ export type Reducer = never
 | { name: "SplitAndDropItemFromBoxSlotToWorld", args: SplitAndDropItemFromBoxSlotToWorld }
 | { name: "SplitAndDropItemFromCampfireSlotToWorld", args: SplitAndDropItemFromCampfireSlotToWorld }
 | { name: "SplitAndDropItemFromCorpseSlotToWorld", args: SplitAndDropItemFromCorpseSlotToWorld }
+| { name: "SplitAndDropItemFromFurnaceSlotToWorld", args: SplitAndDropItemFromFurnaceSlotToWorld }
 | { name: "SplitAndDropItemFromLanternSlotToWorld", args: SplitAndDropItemFromLanternSlotToWorld }
 | { name: "SplitAndDropItemFromStashSlotToWorld", args: SplitAndDropItemFromStashSlotToWorld }
 | { name: "SplitAndMoveFromCampfire", args: SplitAndMoveFromCampfire }
+| { name: "SplitAndMoveFromFurnace", args: SplitAndMoveFromFurnace }
 | { name: "SplitStack", args: SplitStack }
 | { name: "SplitStackFromBox", args: SplitStackFromBox }
 | { name: "SplitStackFromCampfire", args: SplitStackFromCampfire }
 | { name: "SplitStackFromCorpse", args: SplitStackFromCorpse }
+| { name: "SplitStackFromFurnace", args: SplitStackFromFurnace }
 | { name: "SplitStackFromLantern", args: SplitStackFromLantern }
 | { name: "SplitStackFromStash", args: SplitStackFromStash }
 | { name: "SplitStackIntoBox", args: SplitStackIntoBox }
 | { name: "SplitStackIntoCampfire", args: SplitStackIntoCampfire }
 | { name: "SplitStackIntoCorpse", args: SplitStackIntoCorpse }
+| { name: "SplitStackIntoFurnace", args: SplitStackIntoFurnace }
 | { name: "SplitStackIntoLantern", args: SplitStackIntoLantern }
 | { name: "SplitStackIntoStash", args: SplitStackIntoStash }
 | { name: "SplitStackWithinBox", args: SplitStackWithinBox }
 | { name: "SplitStackWithinCampfire", args: SplitStackWithinCampfire }
 | { name: "SplitStackWithinCorpse", args: SplitStackWithinCorpse }
+| { name: "SplitStackWithinFurnace", args: SplitStackWithinFurnace }
 | { name: "SplitStackWithinLantern", args: SplitStackWithinLantern }
 | { name: "SplitStackWithinStash", args: SplitStackWithinStash }
 | { name: "StartCrafting", args: StartCrafting }
@@ -1914,12 +2030,12 @@ export type Reducer = never
 | { name: "TickWorldState", args: TickWorldState }
 | { name: "ToggleCampfireBurning", args: ToggleCampfireBurning }
 | { name: "ToggleCrouch", args: ToggleCrouch }
+| { name: "ToggleFurnaceBurning", args: ToggleFurnaceBurning }
 | { name: "ToggleLantern", args: ToggleLantern }
 | { name: "ToggleStashVisibility", args: ToggleStashVisibility }
 | { name: "ToggleTorch", args: ToggleTorch }
 | { name: "UpdateCloudIntensities", args: UpdateCloudIntensities }
 | { name: "UpdateCloudPositions", args: UpdateCloudPositions }
-| { name: "UpdatePlayerFacingDirection", args: UpdatePlayerFacingDirection }
 | { name: "UpdatePlayerPositionSimple", args: UpdatePlayerPositionSimple }
 | { name: "UpdateProjectiles", args: UpdateProjectiles }
 | { name: "UpdateViewport", args: UpdateViewport }
@@ -1945,6 +2061,22 @@ export class RemoteReducers {
 
   removeOnAddFuelToCampfire(callback: (ctx: ReducerEventContext, campfireId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("add_fuel_to_campfire", callback);
+  }
+
+  addFuelToFurnace(furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) {
+    const __args = { furnaceId, targetSlotIndex, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    AddFuelToFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("add_fuel_to_furnace", __argsBuffer, this.setCallReducerFlags.addFuelToFurnaceFlags);
+  }
+
+  onAddFuelToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("add_fuel_to_furnace", callback);
+  }
+
+  removeOnAddFuelToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, targetSlotIndex: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("add_fuel_to_furnace", callback);
   }
 
   addFuelToLantern(lanternId: number, targetSlotIndex: number, itemInstanceId: bigint) {
@@ -1993,6 +2125,22 @@ export class RemoteReducers {
 
   removeOnAutoRemoveFuelFromCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number) => void) {
     this.connection.offReducer("auto_remove_fuel_from_campfire", callback);
+  }
+
+  autoRemoveFuelFromFurnace(furnaceId: number, sourceSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    AutoRemoveFuelFromFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("auto_remove_fuel_from_furnace", __argsBuffer, this.setCallReducerFlags.autoRemoveFuelFromFurnaceFlags);
+  }
+
+  onAutoRemoveFuelFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
+    this.connection.onReducer("auto_remove_fuel_from_furnace", callback);
+  }
+
+  removeOnAutoRemoveFuelFromFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number) => void) {
+    this.connection.offReducer("auto_remove_fuel_from_furnace", callback);
   }
 
   autoRemoveFuelFromLantern(lanternId: number, sourceSlotIndex: number) {
@@ -2387,6 +2535,22 @@ export class RemoteReducers {
     this.connection.offReducer("drop_item_from_corpse_slot_to_world", callback);
   }
 
+  dropItemFromFurnaceSlotToWorld(furnaceId: number, slotIndex: number) {
+    const __args = { furnaceId, slotIndex };
+    let __writer = new BinaryWriter(1024);
+    DropItemFromFurnaceSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("drop_item_from_furnace_slot_to_world", __argsBuffer, this.setCallReducerFlags.dropItemFromFurnaceSlotToWorldFlags);
+  }
+
+  onDropItemFromFurnaceSlotToWorld(callback: (ctx: ReducerEventContext, furnaceId: number, slotIndex: number) => void) {
+    this.connection.onReducer("drop_item_from_furnace_slot_to_world", callback);
+  }
+
+  removeOnDropItemFromFurnaceSlotToWorld(callback: (ctx: ReducerEventContext, furnaceId: number, slotIndex: number) => void) {
+    this.connection.offReducer("drop_item_from_furnace_slot_to_world", callback);
+  }
+
   dropItemFromLanternSlotToWorld(lanternId: number, slotIndex: number) {
     const __args = { lanternId, slotIndex };
     let __writer = new BinaryWriter(1024);
@@ -2671,6 +2835,22 @@ export class RemoteReducers {
     this.connection.offReducer("interact_with_campfire", callback);
   }
 
+  interactWithFurnace(furnaceId: number) {
+    const __args = { furnaceId };
+    let __writer = new BinaryWriter(1024);
+    InteractWithFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("interact_with_furnace", __argsBuffer, this.setCallReducerFlags.interactWithFurnaceFlags);
+  }
+
+  onInteractWithFurnace(callback: (ctx: ReducerEventContext, furnaceId: number) => void) {
+    this.connection.onReducer("interact_with_furnace", callback);
+  }
+
+  removeOnInteractWithFurnace(callback: (ctx: ReducerEventContext, furnaceId: number) => void) {
+    this.connection.offReducer("interact_with_furnace", callback);
+  }
+
   interactWithHarvestableResource(resourceId: bigint) {
     const __args = { resourceId };
     let __writer = new BinaryWriter(1024);
@@ -2791,6 +2971,22 @@ export class RemoteReducers {
     this.connection.offReducer("manage_seasonal_plants", callback);
   }
 
+  moveFuelItemFromFurnaceToPlayerSlot(furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveFuelItemFromFurnaceToPlayerSlot.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_fuel_item_from_furnace_to_player_slot", __argsBuffer, this.setCallReducerFlags.moveFuelItemFromFurnaceToPlayerSlotFlags);
+  }
+
+  onMoveFuelItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_fuel_item_from_furnace_to_player_slot", callback);
+  }
+
+  removeOnMoveFuelItemFromFurnaceToPlayerSlot(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_fuel_item_from_furnace_to_player_slot", callback);
+  }
+
   moveFuelItemToPlayerSlot(campfireId: number, sourceSlotIndex: number, targetSlotType: string, targetSlotIndex: number) {
     const __args = { campfireId, sourceSlotIndex, targetSlotType, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -2821,6 +3017,22 @@ export class RemoteReducers {
 
   removeOnMoveFuelWithinCampfire(callback: (ctx: ReducerEventContext, campfireId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
     this.connection.offReducer("move_fuel_within_campfire", callback);
+  }
+
+  moveFuelWithinFurnace(furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    MoveFuelWithinFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("move_fuel_within_furnace", __argsBuffer, this.setCallReducerFlags.moveFuelWithinFurnaceFlags);
+  }
+
+  onMoveFuelWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("move_fuel_within_furnace", callback);
+  }
+
+  removeOnMoveFuelWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("move_fuel_within_furnace", callback);
   }
 
   moveFuelWithinLantern(lanternId: number, sourceSlotIndex: number, targetSlotIndex: number) {
@@ -3143,6 +3355,22 @@ export class RemoteReducers {
     this.connection.offReducer("place_campfire", callback);
   }
 
+  placeFurnace(itemInstanceId: bigint, worldX: number, worldY: number) {
+    const __args = { itemInstanceId, worldX, worldY };
+    let __writer = new BinaryWriter(1024);
+    PlaceFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("place_furnace", __argsBuffer, this.setCallReducerFlags.placeFurnaceFlags);
+  }
+
+  onPlaceFurnace(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.onReducer("place_furnace", callback);
+  }
+
+  removeOnPlaceFurnace(callback: (ctx: ReducerEventContext, itemInstanceId: bigint, worldX: number, worldY: number) => void) {
+    this.connection.offReducer("place_furnace", callback);
+  }
+
   placeLantern(itemInstanceId: bigint, worldX: number, worldY: number) {
     const __args = { itemInstanceId, worldX, worldY };
     let __writer = new BinaryWriter(1024);
@@ -3301,6 +3529,22 @@ export class RemoteReducers {
 
   removeOnProcessCorpseDespawn(callback: (ctx: ReducerEventContext, args: PlayerCorpseDespawnSchedule) => void) {
     this.connection.offReducer("process_corpse_despawn", callback);
+  }
+
+  processFurnaceLogicScheduled(scheduleArgs: FurnaceProcessingSchedule) {
+    const __args = { scheduleArgs };
+    let __writer = new BinaryWriter(1024);
+    ProcessFurnaceLogicScheduled.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("process_furnace_logic_scheduled", __argsBuffer, this.setCallReducerFlags.processFurnaceLogicScheduledFlags);
+  }
+
+  onProcessFurnaceLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: FurnaceProcessingSchedule) => void) {
+    this.connection.onReducer("process_furnace_logic_scheduled", callback);
+  }
+
+  removeOnProcessFurnaceLogicScheduled(callback: (ctx: ReducerEventContext, scheduleArgs: FurnaceProcessingSchedule) => void) {
+    this.connection.offReducer("process_furnace_logic_scheduled", callback);
   }
 
   processGlobalTick(schedule: GlobalTickSchedule) {
@@ -3509,6 +3753,22 @@ export class RemoteReducers {
 
   removeOnQuickMoveToCorpse(callback: (ctx: ReducerEventContext, corpseId: number, itemInstanceId: bigint) => void) {
     this.connection.offReducer("quick_move_to_corpse", callback);
+  }
+
+  quickMoveToFurnace(furnaceId: number, itemInstanceId: bigint) {
+    const __args = { furnaceId, itemInstanceId };
+    let __writer = new BinaryWriter(1024);
+    QuickMoveToFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("quick_move_to_furnace", __argsBuffer, this.setCallReducerFlags.quickMoveToFurnaceFlags);
+  }
+
+  onQuickMoveToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, itemInstanceId: bigint) => void) {
+    this.connection.onReducer("quick_move_to_furnace", callback);
+  }
+
+  removeOnQuickMoveToFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, itemInstanceId: bigint) => void) {
+    this.connection.offReducer("quick_move_to_furnace", callback);
   }
 
   quickMoveToLantern(lanternId: number, itemInstanceId: bigint) {
@@ -3847,6 +4107,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_and_drop_item_from_corpse_slot_to_world", callback);
   }
 
+  splitAndDropItemFromFurnaceSlotToWorld(furnaceId: number, slotIndex: number, quantityToSplit: number) {
+    const __args = { furnaceId, slotIndex, quantityToSplit };
+    let __writer = new BinaryWriter(1024);
+    SplitAndDropItemFromFurnaceSlotToWorld.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_drop_item_from_furnace_slot_to_world", __argsBuffer, this.setCallReducerFlags.splitAndDropItemFromFurnaceSlotToWorldFlags);
+  }
+
+  onSplitAndDropItemFromFurnaceSlotToWorld(callback: (ctx: ReducerEventContext, furnaceId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.onReducer("split_and_drop_item_from_furnace_slot_to_world", callback);
+  }
+
+  removeOnSplitAndDropItemFromFurnaceSlotToWorld(callback: (ctx: ReducerEventContext, furnaceId: number, slotIndex: number, quantityToSplit: number) => void) {
+    this.connection.offReducer("split_and_drop_item_from_furnace_slot_to_world", callback);
+  }
+
   splitAndDropItemFromLanternSlotToWorld(lanternId: number, slotIndex: number, quantityToSplit: number) {
     const __args = { lanternId, slotIndex, quantityToSplit };
     let __writer = new BinaryWriter(1024);
@@ -3893,6 +4169,22 @@ export class RemoteReducers {
 
   removeOnSplitAndMoveFromCampfire(callback: (ctx: ReducerEventContext, sourceCampfireId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
     this.connection.offReducer("split_and_move_from_campfire", callback);
+  }
+
+  splitAndMoveFromFurnace(sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { sourceFurnaceId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitAndMoveFromFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_and_move_from_furnace", __argsBuffer, this.setCallReducerFlags.splitAndMoveFromFurnaceFlags);
+  }
+
+  onSplitAndMoveFromFurnace(callback: (ctx: ReducerEventContext, sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_and_move_from_furnace", callback);
+  }
+
+  removeOnSplitAndMoveFromFurnace(callback: (ctx: ReducerEventContext, sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_and_move_from_furnace", callback);
   }
 
   splitStack(sourceItemInstanceId: bigint, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
@@ -3957,6 +4249,22 @@ export class RemoteReducers {
 
   removeOnSplitStackFromCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
     this.connection.offReducer("split_stack_from_corpse", callback);
+  }
+
+  splitStackFromFurnace(sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
+    const __args = { sourceFurnaceId, sourceSlotIndex, quantityToSplit, targetSlotType, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackFromFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_from_furnace", __argsBuffer, this.setCallReducerFlags.splitStackFromFurnaceFlags);
+  }
+
+  onSplitStackFromFurnace(callback: (ctx: ReducerEventContext, sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_from_furnace", callback);
+  }
+
+  removeOnSplitStackFromFurnace(callback: (ctx: ReducerEventContext, sourceFurnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_from_furnace", callback);
   }
 
   splitStackFromLantern(sourceLanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotType: string, targetSlotIndex: number) {
@@ -4039,6 +4347,22 @@ export class RemoteReducers {
     this.connection.offReducer("split_stack_into_corpse", callback);
   }
 
+  splitStackIntoFurnace(sourceItemInstanceId: bigint, quantityToSplit: number, targetFurnaceId: number, targetSlotIndex: number) {
+    const __args = { sourceItemInstanceId, quantityToSplit, targetFurnaceId, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackIntoFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_into_furnace", __argsBuffer, this.setCallReducerFlags.splitStackIntoFurnaceFlags);
+  }
+
+  onSplitStackIntoFurnace(callback: (ctx: ReducerEventContext, sourceItemInstanceId: bigint, quantityToSplit: number, targetFurnaceId: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_into_furnace", callback);
+  }
+
+  removeOnSplitStackIntoFurnace(callback: (ctx: ReducerEventContext, sourceItemInstanceId: bigint, quantityToSplit: number, targetFurnaceId: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_into_furnace", callback);
+  }
+
   splitStackIntoLantern(sourceItemInstanceId: bigint, quantityToSplit: number, targetLanternId: number, targetSlotIndex: number) {
     const __args = { sourceItemInstanceId, quantityToSplit, targetLanternId, targetSlotIndex };
     let __writer = new BinaryWriter(1024);
@@ -4117,6 +4441,22 @@ export class RemoteReducers {
 
   removeOnSplitStackWithinCorpse(callback: (ctx: ReducerEventContext, corpseId: number, sourceSlotIndex: number, targetSlotIndex: number, quantityToSplit: number) => void) {
     this.connection.offReducer("split_stack_within_corpse", callback);
+  }
+
+  splitStackWithinFurnace(furnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) {
+    const __args = { furnaceId, sourceSlotIndex, quantityToSplit, targetSlotIndex };
+    let __writer = new BinaryWriter(1024);
+    SplitStackWithinFurnace.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("split_stack_within_furnace", __argsBuffer, this.setCallReducerFlags.splitStackWithinFurnaceFlags);
+  }
+
+  onSplitStackWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) => void) {
+    this.connection.onReducer("split_stack_within_furnace", callback);
+  }
+
+  removeOnSplitStackWithinFurnace(callback: (ctx: ReducerEventContext, furnaceId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) => void) {
+    this.connection.offReducer("split_stack_within_furnace", callback);
   }
 
   splitStackWithinLantern(lanternId: number, sourceSlotIndex: number, quantityToSplit: number, targetSlotIndex: number) {
@@ -4243,6 +4583,22 @@ export class RemoteReducers {
     this.connection.offReducer("toggle_crouch", callback);
   }
 
+  toggleFurnaceBurning(furnaceId: number) {
+    const __args = { furnaceId };
+    let __writer = new BinaryWriter(1024);
+    ToggleFurnaceBurning.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("toggle_furnace_burning", __argsBuffer, this.setCallReducerFlags.toggleFurnaceBurningFlags);
+  }
+
+  onToggleFurnaceBurning(callback: (ctx: ReducerEventContext, furnaceId: number) => void) {
+    this.connection.onReducer("toggle_furnace_burning", callback);
+  }
+
+  removeOnToggleFurnaceBurning(callback: (ctx: ReducerEventContext, furnaceId: number) => void) {
+    this.connection.offReducer("toggle_furnace_burning", callback);
+  }
+
   toggleLantern(lanternId: number) {
     const __args = { lanternId };
     let __writer = new BinaryWriter(1024);
@@ -4317,22 +4673,6 @@ export class RemoteReducers {
 
   removeOnUpdateCloudPositions(callback: (ctx: ReducerEventContext, scheduleArgs: CloudUpdateSchedule) => void) {
     this.connection.offReducer("update_cloud_positions", callback);
-  }
-
-  updatePlayerFacingDirection(mouseWorldX: number, mouseWorldY: number) {
-    const __args = { mouseWorldX, mouseWorldY };
-    let __writer = new BinaryWriter(1024);
-    UpdatePlayerFacingDirection.getTypeScriptAlgebraicType().serialize(__writer, __args);
-    let __argsBuffer = __writer.getBuffer();
-    this.connection.callReducer("update_player_facing_direction", __argsBuffer, this.setCallReducerFlags.updatePlayerFacingDirectionFlags);
-  }
-
-  onUpdatePlayerFacingDirection(callback: (ctx: ReducerEventContext, mouseWorldX: number, mouseWorldY: number) => void) {
-    this.connection.onReducer("update_player_facing_direction", callback);
-  }
-
-  removeOnUpdatePlayerFacingDirection(callback: (ctx: ReducerEventContext, mouseWorldX: number, mouseWorldY: number) => void) {
-    this.connection.offReducer("update_player_facing_direction", callback);
   }
 
   updatePlayerPositionSimple(newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) {
@@ -4435,6 +4775,11 @@ export class SetReducerFlags {
     this.addFuelToCampfireFlags = flags;
   }
 
+  addFuelToFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  addFuelToFurnace(flags: CallReducerFlags) {
+    this.addFuelToFurnaceFlags = flags;
+  }
+
   addFuelToLanternFlags: CallReducerFlags = 'FullUpdate';
   addFuelToLantern(flags: CallReducerFlags) {
     this.addFuelToLanternFlags = flags;
@@ -4448,6 +4793,11 @@ export class SetReducerFlags {
   autoRemoveFuelFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   autoRemoveFuelFromCampfire(flags: CallReducerFlags) {
     this.autoRemoveFuelFromCampfireFlags = flags;
+  }
+
+  autoRemoveFuelFromFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  autoRemoveFuelFromFurnace(flags: CallReducerFlags) {
+    this.autoRemoveFuelFromFurnaceFlags = flags;
   }
 
   autoRemoveFuelFromLanternFlags: CallReducerFlags = 'FullUpdate';
@@ -4580,6 +4930,11 @@ export class SetReducerFlags {
     this.dropItemFromCorpseSlotToWorldFlags = flags;
   }
 
+  dropItemFromFurnaceSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  dropItemFromFurnaceSlotToWorld(flags: CallReducerFlags) {
+    this.dropItemFromFurnaceSlotToWorldFlags = flags;
+  }
+
   dropItemFromLanternSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
   dropItemFromLanternSlotToWorld(flags: CallReducerFlags) {
     this.dropItemFromLanternSlotToWorldFlags = flags;
@@ -4670,6 +5025,11 @@ export class SetReducerFlags {
     this.interactWithCampfireFlags = flags;
   }
 
+  interactWithFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  interactWithFurnace(flags: CallReducerFlags) {
+    this.interactWithFurnaceFlags = flags;
+  }
+
   interactWithHarvestableResourceFlags: CallReducerFlags = 'FullUpdate';
   interactWithHarvestableResource(flags: CallReducerFlags) {
     this.interactWithHarvestableResourceFlags = flags;
@@ -4710,6 +5070,11 @@ export class SetReducerFlags {
     this.manageSeasonalPlantsFlags = flags;
   }
 
+  moveFuelItemFromFurnaceToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
+  moveFuelItemFromFurnaceToPlayerSlot(flags: CallReducerFlags) {
+    this.moveFuelItemFromFurnaceToPlayerSlotFlags = flags;
+  }
+
   moveFuelItemToPlayerSlotFlags: CallReducerFlags = 'FullUpdate';
   moveFuelItemToPlayerSlot(flags: CallReducerFlags) {
     this.moveFuelItemToPlayerSlotFlags = flags;
@@ -4718,6 +5083,11 @@ export class SetReducerFlags {
   moveFuelWithinCampfireFlags: CallReducerFlags = 'FullUpdate';
   moveFuelWithinCampfire(flags: CallReducerFlags) {
     this.moveFuelWithinCampfireFlags = flags;
+  }
+
+  moveFuelWithinFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  moveFuelWithinFurnace(flags: CallReducerFlags) {
+    this.moveFuelWithinFurnaceFlags = flags;
   }
 
   moveFuelWithinLanternFlags: CallReducerFlags = 'FullUpdate';
@@ -4820,6 +5190,11 @@ export class SetReducerFlags {
     this.placeCampfireFlags = flags;
   }
 
+  placeFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  placeFurnace(flags: CallReducerFlags) {
+    this.placeFurnaceFlags = flags;
+  }
+
   placeLanternFlags: CallReducerFlags = 'FullUpdate';
   placeLantern(flags: CallReducerFlags) {
     this.placeLanternFlags = flags;
@@ -4868,6 +5243,11 @@ export class SetReducerFlags {
   processCorpseDespawnFlags: CallReducerFlags = 'FullUpdate';
   processCorpseDespawn(flags: CallReducerFlags) {
     this.processCorpseDespawnFlags = flags;
+  }
+
+  processFurnaceLogicScheduledFlags: CallReducerFlags = 'FullUpdate';
+  processFurnaceLogicScheduled(flags: CallReducerFlags) {
+    this.processFurnaceLogicScheduledFlags = flags;
   }
 
   processGlobalTickFlags: CallReducerFlags = 'FullUpdate';
@@ -4933,6 +5313,11 @@ export class SetReducerFlags {
   quickMoveToCorpseFlags: CallReducerFlags = 'FullUpdate';
   quickMoveToCorpse(flags: CallReducerFlags) {
     this.quickMoveToCorpseFlags = flags;
+  }
+
+  quickMoveToFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  quickMoveToFurnace(flags: CallReducerFlags) {
+    this.quickMoveToFurnaceFlags = flags;
   }
 
   quickMoveToLanternFlags: CallReducerFlags = 'FullUpdate';
@@ -5050,6 +5435,11 @@ export class SetReducerFlags {
     this.splitAndDropItemFromCorpseSlotToWorldFlags = flags;
   }
 
+  splitAndDropItemFromFurnaceSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
+  splitAndDropItemFromFurnaceSlotToWorld(flags: CallReducerFlags) {
+    this.splitAndDropItemFromFurnaceSlotToWorldFlags = flags;
+  }
+
   splitAndDropItemFromLanternSlotToWorldFlags: CallReducerFlags = 'FullUpdate';
   splitAndDropItemFromLanternSlotToWorld(flags: CallReducerFlags) {
     this.splitAndDropItemFromLanternSlotToWorldFlags = flags;
@@ -5063,6 +5453,11 @@ export class SetReducerFlags {
   splitAndMoveFromCampfireFlags: CallReducerFlags = 'FullUpdate';
   splitAndMoveFromCampfire(flags: CallReducerFlags) {
     this.splitAndMoveFromCampfireFlags = flags;
+  }
+
+  splitAndMoveFromFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  splitAndMoveFromFurnace(flags: CallReducerFlags) {
+    this.splitAndMoveFromFurnaceFlags = flags;
   }
 
   splitStackFlags: CallReducerFlags = 'FullUpdate';
@@ -5083,6 +5478,11 @@ export class SetReducerFlags {
   splitStackFromCorpseFlags: CallReducerFlags = 'FullUpdate';
   splitStackFromCorpse(flags: CallReducerFlags) {
     this.splitStackFromCorpseFlags = flags;
+  }
+
+  splitStackFromFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  splitStackFromFurnace(flags: CallReducerFlags) {
+    this.splitStackFromFurnaceFlags = flags;
   }
 
   splitStackFromLanternFlags: CallReducerFlags = 'FullUpdate';
@@ -5110,6 +5510,11 @@ export class SetReducerFlags {
     this.splitStackIntoCorpseFlags = flags;
   }
 
+  splitStackIntoFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  splitStackIntoFurnace(flags: CallReducerFlags) {
+    this.splitStackIntoFurnaceFlags = flags;
+  }
+
   splitStackIntoLanternFlags: CallReducerFlags = 'FullUpdate';
   splitStackIntoLantern(flags: CallReducerFlags) {
     this.splitStackIntoLanternFlags = flags;
@@ -5133,6 +5538,11 @@ export class SetReducerFlags {
   splitStackWithinCorpseFlags: CallReducerFlags = 'FullUpdate';
   splitStackWithinCorpse(flags: CallReducerFlags) {
     this.splitStackWithinCorpseFlags = flags;
+  }
+
+  splitStackWithinFurnaceFlags: CallReducerFlags = 'FullUpdate';
+  splitStackWithinFurnace(flags: CallReducerFlags) {
+    this.splitStackWithinFurnaceFlags = flags;
   }
 
   splitStackWithinLanternFlags: CallReducerFlags = 'FullUpdate';
@@ -5175,6 +5585,11 @@ export class SetReducerFlags {
     this.toggleCrouchFlags = flags;
   }
 
+  toggleFurnaceBurningFlags: CallReducerFlags = 'FullUpdate';
+  toggleFurnaceBurning(flags: CallReducerFlags) {
+    this.toggleFurnaceBurningFlags = flags;
+  }
+
   toggleLanternFlags: CallReducerFlags = 'FullUpdate';
   toggleLantern(flags: CallReducerFlags) {
     this.toggleLanternFlags = flags;
@@ -5198,11 +5613,6 @@ export class SetReducerFlags {
   updateCloudPositionsFlags: CallReducerFlags = 'FullUpdate';
   updateCloudPositions(flags: CallReducerFlags) {
     this.updateCloudPositionsFlags = flags;
-  }
-
-  updatePlayerFacingDirectionFlags: CallReducerFlags = 'FullUpdate';
-  updatePlayerFacingDirection(flags: CallReducerFlags) {
-    this.updatePlayerFacingDirectionFlags = flags;
   }
 
   updatePlayerPositionSimpleFlags: CallReducerFlags = 'FullUpdate';
@@ -5322,6 +5732,14 @@ export class RemoteTables {
 
   get foodPoisoningRisk(): FoodPoisoningRiskTableHandle {
     return new FoodPoisoningRiskTableHandle(this.connection.clientCache.getOrCreateTable<FoodPoisoningRisk>(REMOTE_MODULE.tables.food_poisoning_risk));
+  }
+
+  get furnace(): FurnaceTableHandle {
+    return new FurnaceTableHandle(this.connection.clientCache.getOrCreateTable<Furnace>(REMOTE_MODULE.tables.furnace));
+  }
+
+  get furnaceProcessingSchedule(): FurnaceProcessingScheduleTableHandle {
+    return new FurnaceProcessingScheduleTableHandle(this.connection.clientCache.getOrCreateTable<FurnaceProcessingSchedule>(REMOTE_MODULE.tables.furnace_processing_schedule));
   }
 
   get globalTickSchedule(): GlobalTickScheduleTableHandle {

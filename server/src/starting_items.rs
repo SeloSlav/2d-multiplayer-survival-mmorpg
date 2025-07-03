@@ -26,6 +26,9 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         // Hotbar (Slots 0-5)
         ("Combat Ladle", 1, Some(0u8), None), 
         ("Torch", 10, Some(1u8), None),
+        ("Furnace", 1, Some(2u8), None),
+        ("Metal Ore", 1000, Some(3u8), None),
+        ("Camp Fire", 1, Some(4u8), None),
         // ("Hunting Bow", 1, Some(0u8), None),
         // ("Bandage", 3, Some(1u8), None),
         // ("Stone Hatchet", 1, Some(2u8), None),

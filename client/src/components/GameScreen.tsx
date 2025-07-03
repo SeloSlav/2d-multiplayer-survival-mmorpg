@@ -35,6 +35,7 @@ import {
     Tree as SpacetimeDBTree,
     Stone as SpacetimeDBStone,
     Campfire as SpacetimeDBCampfire,
+    Furnace as SpacetimeDBFurnace, // ADDED: Furnace import
     Lantern as SpacetimeDBLantern,
     HarvestableResource as SpacetimeDBHarvestableResource,
     DroppedItem as SpacetimeDBDroppedItem,
@@ -100,6 +101,7 @@ interface GameScreenProps {
     clouds: Map<string, SpacetimeDBCloud>;
     stones: Map<string, SpacetimeDBStone>;
     campfires: Map<string, SpacetimeDBCampfire>;
+    furnaces: Map<string, SpacetimeDBFurnace>; // ADDED: Furnaces prop
     lanterns: Map<string, SpacetimeDBLantern>;
     harvestableResources: Map<string, SpacetimeDBHarvestableResource>;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
@@ -242,7 +244,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
     
     // Destructure props for cleaner usage
     const {
-        players, trees, stones, campfires, lanterns, harvestableResources, droppedItems, woodenStorageBoxes, sleepingBags,
+        players, trees, stones, campfires, furnaces, lanterns, harvestableResources, droppedItems, woodenStorageBoxes, sleepingBags, // ADDED: furnaces
         playerPins, playerCorpses, stashes,
         shelters,
         plantedSeeds,
@@ -756,6 +758,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 clouds={clouds}
                 stones={stones}
                 campfires={campfires}
+                furnaces={furnaces} // ADDED: Furnaces prop to GameCanvas
                 harvestableResources={harvestableResources}
                 droppedItems={droppedItems}
                 woodenStorageBoxes={woodenStorageBoxes}
@@ -829,6 +832,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 interactingWith={interactingWith}
                 onSetInteractingWith={handleSetInteractingWith}
                 campfires={campfires}
+                furnaces={furnaces}
                 lanterns={lanterns}
                 woodenStorageBoxes={woodenStorageBoxes}
                 playerCorpses={playerCorpses}

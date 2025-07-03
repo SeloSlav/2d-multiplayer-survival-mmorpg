@@ -143,7 +143,7 @@ function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo:
   }
 
   // List of items that cannot be placed on water
-  const waterBlockedItems = ['Camp Fire', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector'];
+  const waterBlockedItems = ['Camp Fire', 'Furnace', 'Lantern', 'Wooden Storage Box', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector']; // ADDED: Furnace
   
   // Seeds that don't require water (most seeds) cannot be planted on water
   const isSeedButNotWaterSeed = isSeedItemValid(placementInfo.itemName) && !requiresWaterPlacement(placementInfo.itemName);
@@ -269,6 +269,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           connection.reducers.placeCampfire(placementInfo.instanceId, worldX, worldY);
           // Note: We don't call cancelPlacement here. 
           // App.tsx's handleCampfireInsert callback will call it upon success.
+          break;
+        case 'Furnace': // ADDED: Furnace placement support
+          // console.log(`[PlacementManager] Calling placeFurnace reducer with instance ID: ${placementInfo.instanceId}`);
+          connection.reducers.placeFurnace(placementInfo.instanceId, worldX, worldY);
+          // Note: We don't call cancelPlacement here. 
+          // App.tsx's handleFurnaceInsert callback will call it upon success.
           break;
         case 'Lantern':
           // console.log(`[PlacementManager] Calling placeLantern reducer with instance ID: ${placementInfo.instanceId}`);
