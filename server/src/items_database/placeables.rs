@@ -25,8 +25,7 @@ pub fn get_placeable_definitions() -> Vec<ItemDefinition> {
             .crafting_cost(vec![
                 CostIngredient { item_name: "Stone".to_string(), quantity: 100 },
                 CostIngredient { item_name: "Wood".to_string(), quantity: 50 },
-                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 25 },
-                CostIngredient { item_name: "Animal Fat".to_string(), quantity: 15 }, // For heat-resistant lining
+                CostIngredient { item_name: "Animal Fat".to_string(), quantity: 50 }, // For heat-resistant lining
             ])
             .crafting_output(1, 30)
             .respawn_time(450)

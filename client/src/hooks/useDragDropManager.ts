@@ -382,7 +382,7 @@ export const useDragDropManager = ({
 
                         // Check target slot state BEFORE calling reducer
                         let targetItemInstance: InventoryItem | undefined = undefined;
-                        if (connection && playerIdentity) { // Ensure connection and playerIdentity exist
+                        if (connection && playerIdentity) {
                             const allPlayerItems = Array.from(connection.db.inventoryItem.iter()); 
                             if (targetSlotType === 'inventory') {
                                 targetItemInstance = allPlayerItems.find(i => 
@@ -414,25 +414,25 @@ export const useDragDropManager = ({
                             targetSlotType,
                             targetSlotIndexNum
                         );
-                    } else if (targetSlotType === 'furnace_fuel') {
-                        // Handle splitting within the same furnace
+                    } else if (targetSlotType === 'campfire_fuel') {
+                        // Handle splitting within the same campfire
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
-                        const targetFurnaceId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
+                        const targetCampfireId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
                         
-                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetFurnaceId === null || isNaN(targetFurnaceId)) {
-                            console.error("[useDragDropManager Drop] Invalid target index or missing FurnaceID for intra-furnace split.");
-                            setDropError("Invalid target slot for furnace split.");
+                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetCampfireId === null || isNaN(targetCampfireId)) {
+                            console.error("[useDragDropManager Drop] Invalid target index or missing CampfireID for intra-campfire split.");
+                            setDropError("Invalid target slot for campfire split.");
                             return;
                         }
                         
-                        if (sourceCampfireId !== targetFurnaceId) {
-                            console.warn("[useDragDropManager Drop] Cannot split between different furnaces yet.");
-                            setDropError("Cannot split between different furnaces.");
+                        if (sourceCampfireId !== targetCampfireId) {
+                            console.warn("[useDragDropManager Drop] Cannot split between different campfires yet.");
+                            setDropError("Cannot split between different campfires.");
                             return;
                         }
                         
-                        // console.log(`[useDragDropManager Drop] Calling split_stack_within_furnace: Furnace ${sourceCampfireId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
-                        connection.reducers.splitStackWithinFurnace(
+                        // console.log(`[useDragDropManager Drop] Calling split_stack_within_campfire: Campfire ${sourceCampfireId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
+                        connection.reducers.splitStackWithinCampfire(
                             sourceCampfireId,
                             sourceIndexNum,
                             quantityToSplit,
@@ -557,7 +557,7 @@ export const useDragDropManager = ({
                         }
                         // console.log(`[useDragDropManager Drop] Calling split_stack_from_box`);
                         connection.reducers.splitStackFromBox(sourceBoxId, sourceIndexNum, quantityToSplit, targetSlotType, targetSlotIndexNum);
-                    } else if (targetSlotType === 'furnace_fuel') {
+                    } else if (targetSlotType === 'wooden_storage_box') {
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                         const targetBoxIdNum = targetSlot.parentId ? Number(targetSlot.parentId) : null;
                         if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetBoxIdNum === null || isNaN(targetBoxIdNum)) { setDropError("Invalid target box slot."); return; }
@@ -695,7 +695,13 @@ export const useDragDropManager = ({
             if (targetSlot.type === 'inventory') {
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                 if (isNaN(targetIndexNum)) { console.error("Invalid inventory index", targetSlot.index); setDropError("Invalid slot."); return; }
-                if (sourceInfo.sourceSlot.type === 'furnace_fuel') {
+                if (sourceInfo.sourceSlot.type === 'campfire_fuel') {
+                    const sourceCampfireId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceCampfireId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CampfireID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling moveFuelItemToPlayerSlot (to inventory)`);
+                    connection.reducers.moveFuelItemToPlayerSlot(sourceCampfireId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'furnace_fuel') {
                     const sourceFurnaceId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
                     if (sourceFurnaceId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing FurnaceID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
@@ -707,6 +713,12 @@ export const useDragDropManager = ({
                     if (sourceLanternId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing LanternID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling moveLanternFuelToPlayerSlot (to inventory)`);
                     connection.reducers.moveLanternFuelToPlayerSlot(sourceLanternId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'wooden_storage_box') {
+                    const sourceBoxId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceBoxId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing BoxID/SourceIndex for move from box"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_box (BoxID: ${sourceBoxId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
+                    connection.reducers.moveItemFromBox(sourceBoxId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else if (sourceInfo.sourceSlot.type === 'player_corpse') {
                     const sourceCorpseId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
@@ -731,7 +743,13 @@ export const useDragDropManager = ({
             } else if (targetSlot.type === 'hotbar') {
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                 if (isNaN(targetIndexNum)) { console.error("Invalid hotbar index", targetSlot.index); setDropError("Invalid slot."); return; }
-                if (sourceInfo.sourceSlot.type === 'furnace_fuel') {
+                if (sourceInfo.sourceSlot.type === 'campfire_fuel') {
+                    const sourceCampfireId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceCampfireId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing CampfireID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling moveFuelItemToPlayerSlot (to hotbar)`);
+                    connection.reducers.moveFuelItemToPlayerSlot(sourceCampfireId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'furnace_fuel') {
                     const sourceFurnaceId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
                     if (sourceFurnaceId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing FurnaceID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
@@ -743,6 +761,12 @@ export const useDragDropManager = ({
                     if (sourceLanternId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing LanternID/SourceIndex"); setDropError("Cannot move item: Source context lost."); return; }
                     // console.log(`[useDragDropManager Drop] Calling moveLanternFuelToPlayerSlot (to hotbar)`);
                     connection.reducers.moveLanternFuelToPlayerSlot(sourceLanternId, sourceIndexNum, targetSlot.type, targetIndexNum);
+                } else if (sourceInfo.sourceSlot.type === 'wooden_storage_box') {
+                    const sourceBoxId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (sourceBoxId === null || isNaN(sourceIndexNum)) { console.error("[useDragDropManager Drop] Missing BoxID/SourceIndex for move from box"); setDropError("Cannot move item: Source context lost."); return; }
+                    // console.log(`[useDragDropManager Drop] Calling move_item_from_box (BoxID: ${sourceBoxId}, Slot: ${sourceIndexNum} to inventory ${targetIndexNum})`);
+                    connection.reducers.moveItemFromBox(sourceBoxId, sourceIndexNum, targetSlot.type, targetIndexNum);
                 } else if (sourceInfo.sourceSlot.type === 'player_corpse') {
                     const sourceCorpseId = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
@@ -788,6 +812,28 @@ export const useDragDropManager = ({
                     // console.log(`[useDragDropManager Drop] Calling addFuelToFurnace`);
                     connection.reducers.addFuelToFurnace(furnaceIdNum, targetIndexNum, itemInstanceId);
                 }
+            } else if (targetSlot.type === 'campfire_fuel') {
+                const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
+                if (isNaN(targetIndexNum)) { console.error("Invalid campfire fuel index", targetSlot.index); setDropError("Invalid slot."); return; }
+                let campfireIdNum: number | null = targetSlot.parentId ? Number(targetSlot.parentId) : (interactingWith?.type === 'campfire' ? Number(interactingWith.id) : null);
+                if (campfireIdNum === null || isNaN(campfireIdNum)) {
+                    console.error("[useDragDropManager Drop] Campfire ID could not be determined.");
+                    setDropError("Cannot move item: Campfire context lost.");
+                    return;
+                }
+                if (sourceInfo.sourceSlot.type === 'campfire_fuel') {
+                    const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source campfire fuel index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== campfireIdNum) {
+                        setDropError("Cannot move fuel between different campfires.");
+                        return;
+                    }
+                    // console.log(`[useDragDropManager Drop] Calling moveFuelWithinCampfire`);
+                    connection.reducers.moveFuelWithinCampfire(campfireIdNum, sourceIndexNum, targetIndexNum);
+                } else {
+                    // console.log(`[useDragDropManager Drop] Calling addFuelToCampfire`);
+                    connection.reducers.addFuelToCampfire(campfireIdNum, targetIndexNum, itemInstanceId);
+                }
             } else if (targetSlot.type === 'lantern_fuel') {
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
                 if (isNaN(targetIndexNum)) { console.error("Invalid lantern fuel index", targetSlot.index); setDropError("Invalid slot."); return; }
@@ -823,18 +869,20 @@ export const useDragDropManager = ({
                 if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
                     // console.log(`[useDragDropManager Drop] Calling move_item_to_box`);
                     connection.reducers.moveItemToBox(boxIdNum, targetIndexNum, itemInstanceId);
-                } else if (source_type === 'furnace_fuel') {
+                } else if (source_type === 'wooden_storage_box') {
+                    // Moving within the same box or between boxes
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
-                    if (isNaN(sourceIndexNum)) { console.error("Invalid source furnace fuel index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
-                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== boxIdNum) {
-                        setDropError("Cannot move items between different furnaces yet.");
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source box index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    const sourceBoxIdNum = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    if (sourceBoxIdNum !== boxIdNum) {
+                        setDropError("Cannot move items between different boxes yet.");
                         return;
                     }
-                                         // console.log(`[useDragDropManager Drop] Calling moveFuelWithinFurnace`);
-                     connection.reducers.moveFuelWithinFurnace(boxIdNum, sourceIndexNum, targetIndexNum);
+                    // console.log(`[useDragDropManager Drop] Calling moveItemWithinBox`);
+                    connection.reducers.moveItemWithinBox(boxIdNum, sourceIndexNum, targetIndexNum);
                 } else {
-                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to furnace_storage_box`);
-                    setDropError("Cannot move item from this location to a furnace.");
+                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to wooden_storage_box`);
+                    setDropError("Cannot move item from this location to a box.");
                 }
             } else if (targetSlot.type === 'player_corpse') {
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
@@ -880,18 +928,20 @@ export const useDragDropManager = ({
                 if (source_type === 'inventory' || source_type === 'hotbar' || source_type === 'equipment') {
                     // console.log(`[useDragDropManager Drop] Calling move_item_to_stash (StashID: ${stashIdNum}, Slot: ${targetIndexNum}, Item: ${itemInstanceId})`);
                     connection.reducers.moveItemToStash(stashIdNum, targetIndexNum, itemInstanceId);
-                } else if (source_type === 'furnace_fuel') {
+                } else if (source_type === 'stash') {
+                    // Moving within the same stash or between stashes
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
-                    if (isNaN(sourceIndexNum)) { console.error("Invalid source furnace fuel index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
-                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== stashIdNum) {
-                        setDropError("Cannot move items between different furnaces yet.");
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source stash index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    const sourceStashIdNum = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    if (sourceStashIdNum !== stashIdNum) {
+                        setDropError("Cannot move items between different stashes yet.");
                         return;
                     }
-                                         // console.log(`[useDragDropManager Drop] Calling moveFuelWithinFurnace (FurnaceID: ${stashIdNum}, FromSlot: ${sourceIndexNum}, ToSlot: ${targetIndexNum})`);
-                     connection.reducers.moveFuelWithinFurnace(stashIdNum, sourceIndexNum, targetIndexNum);
+                    // console.log(`[useDragDropManager Drop] Calling moveItemWithinStash (StashID: ${stashIdNum}, FromSlot: ${sourceIndexNum}, ToSlot: ${targetIndexNum})`);
+                    connection.reducers.moveItemWithinStash(stashIdNum, sourceIndexNum, targetIndexNum);
                 } else {
                     console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to stash`);
-                    setDropError("Cannot move item from this location to a furnace.");
+                    setDropError("Cannot move item from this location to a stash.");
                 }
             } else if (targetSlot.type === 'rain_collector') { // New block for moving TO rain collector
                 const targetIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
@@ -913,20 +963,21 @@ export const useDragDropManager = ({
                         // Don't show error UI for this validation - just silently reject the drop
                         return;
                     }
-                } else if (source_type === 'furnace_fuel') {
+                } else if (source_type === 'rain_collector') {
                     // Rain collector only has 1 slot, so within-container moves don't make much sense
                     // But keeping the pattern consistent for future extensibility
                     const sourceIndexNum = typeof sourceInfo.sourceSlot.index === 'number' ? sourceInfo.sourceSlot.index : parseInt(sourceInfo.sourceSlot.index.toString(), 10);
-                    if (isNaN(sourceIndexNum)) { console.error("Invalid source furnace fuel index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
-                    if (sourceInfo.sourceSlot.parentId && Number(sourceInfo.sourceSlot.parentId) !== rainCollectorIdNum) {
-                        setDropError("Cannot move items between different furnaces yet.");
+                    if (isNaN(sourceIndexNum)) { console.error("Invalid source rain collector index", sourceInfo.sourceSlot.index); setDropError("Invalid source slot."); return; }
+                    const sourceRainCollectorIdNum = sourceInfo.sourceSlot.parentId ? Number(sourceInfo.sourceSlot.parentId) : null;
+                    if (sourceRainCollectorIdNum !== rainCollectorIdNum) {
+                        setDropError("Cannot move items between different rain collectors yet.");
                         return;
                     }
-                    // For now, since there's only 1 slot, moving within the same furnace doesn't do anything
-                    console.log(`[useDragDropManager Drop] Furnace within-container move ignored (only 1 slot)`);
+                    // For now, since there's only 1 slot, moving within the same rain collector doesn't do anything
+                    console.log(`[useDragDropManager Drop] Rain collector within-container move ignored (only 1 slot)`);
                 } else {
-                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to furnace_storage_box`);
-                    setDropError("Cannot move item from this location to a furnace.");
+                    console.warn(`[useDragDropManager Drop] Unhandled move from ${sourceInfo.sourceSlot.type} to rain_collector`);
+                    setDropError("Cannot move item from this location to a rain collector.");
                 }
             }
         } catch (error: any) {
