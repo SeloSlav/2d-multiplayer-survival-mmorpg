@@ -244,7 +244,7 @@ export function renderPlacementPreview({
     let drawWidth = CAMPFIRE_WIDTH_PREVIEW; // Default to campfire
     let drawHeight = CAMPFIRE_HEIGHT_PREVIEW;
 
-    if (placementInfo.iconAssetName === 'furnace.png') { // ADDED: Furnace placement dimensions
+    if (placementInfo.iconAssetName === 'furnace_simple.png') { // ADDED: Furnace placement dimensions
         drawWidth = FURNACE_WIDTH_PREVIEW; 
         drawHeight = FURNACE_HEIGHT_PREVIEW;
     } else if (placementInfo.iconAssetName === 'lantern_off.png') {

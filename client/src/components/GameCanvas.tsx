@@ -1061,7 +1061,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Furnace interaction indicators (for hold actions like toggle burning)
     visibleFurnacesMap.forEach((furnace: SpacetimeDBFurnace) => {
-      drawIndicatorIfNeeded('furnace', furnace.id, furnace.posX, furnace.posY, 144, true); // 144px height for doubled furnace size
+      drawIndicatorIfNeeded('furnace', furnace.id, furnace.posX, furnace.posY, 96, true); // 96px height for standard furnace size
     });
 
     // Lantern interaction indicators

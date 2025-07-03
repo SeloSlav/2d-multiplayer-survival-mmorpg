@@ -20,7 +20,7 @@ pub fn get_placeable_definitions() -> Vec<ItemDefinition> {
 
         // Furnace - Metal smelting station
         ItemBuilder::new("Furnace", "A stone furnace for smelting metal ore into metal fragments. Burns wood as fuel.", ItemCategory::Placeable)
-            .icon("furnace.png")
+            .icon("furnace_simple.png")
             .stackable(3)
             .crafting_cost(vec![
                 CostIngredient { item_name: "Stone".to_string(), quantity: 100 },

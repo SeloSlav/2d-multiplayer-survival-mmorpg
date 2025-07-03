@@ -70,6 +70,7 @@ const AMBIENT_SOUND_DEFINITIONS = {
         minInterval: 15000, // 15 seconds minimum
         maxInterval: 45000, // 45 seconds maximum
         variations: 3, // seagull_cry1.mp3, seagull_cry2.mp3, etc.
+        dayOnly: true, // Only play during day/dawn/dusk, not night
         description: 'Seagulls crying in the distance'
     },
     wolf_howl: { 
@@ -89,6 +90,7 @@ const AMBIENT_SOUND_DEFINITIONS = {
         minInterval: 30000, // 30 seconds minimum
         maxInterval: 90000, // 1.5 minutes maximum
         variations: 3,
+        dayOnly: true, // Only play during day/dawn/dusk, not night
         description: 'Ravens and crows cawing'
     },
     wind_gust: { 
@@ -808,6 +810,14 @@ export const useAmbientSounds = ({
         if ('nightOnly' in definition && definition.nightOnly) {
             // Only play night sounds during actual night times
             if (!timeOfDay || (timeOfDay.tag !== 'Night' && timeOfDay.tag !== 'Midnight')) {
+                return;
+            }
+        }
+
+        // Check day-only restrictions (seagulls, crows shouldn't play at night)
+        if ('dayOnly' in definition && definition.dayOnly) {
+            // Only play day sounds during day/dawn/dusk, not night
+            if (!timeOfDay || (timeOfDay.tag === 'Night' || timeOfDay.tag === 'Midnight')) {
                 return;
             }
         }

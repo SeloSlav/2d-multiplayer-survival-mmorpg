@@ -259,11 +259,25 @@ export const renderPlayer = (
     // Calculate effect timing based on when WE detected the hit
     if (hitState) {
       hitEffectElapsed = nowMs - hitState.effectStartTime;
-      isCurrentlyHit = hitEffectElapsed < (PLAYER_SHAKE_DURATION_MS + COMBAT_EFFECT_LATENCY_BUFFER_MS);
       
-      // --- DEBUGGING: Log potential infinite loops ---
-      if (hitEffectElapsed < 5 && !isNewHit) {
-        console.log(`🎯 [DEBUG] Potential infinite hit loop for player ${playerHexId}: elapsed=${hitEffectElapsed.toFixed(1)}ms, server=${serverLastHitTimePropMicros}, stored=${hitState.lastProcessedHitTime}, diff=${serverLastHitTimePropMicros - hitState.lastProcessedHitTime}`);
+      // --- FIX: Add stale hit detection to prevent stuck states ---
+      const MAX_REASONABLE_HIT_AGE_MS = 5000; // 5 seconds maximum
+      const serverHitTimeMs = Number(serverLastHitTimePropMicros / 1000n);
+      const serverHitAge = nowMs - serverHitTimeMs;
+      
+      // If the server hit time is extremely old, or client effect has been running too long, force reset
+      if (serverHitAge > MAX_REASONABLE_HIT_AGE_MS || hitEffectElapsed > MAX_REASONABLE_HIT_AGE_MS) {
+        console.log(`🎯 [CLEANUP] Removing stale hit state for player ${playerHexId}: serverAge=${serverHitAge}ms, clientAge=${hitEffectElapsed}ms`);
+        playerHitStates.delete(playerHexId);
+        isCurrentlyHit = false;
+        hitEffectElapsed = Infinity;
+      } else {
+        isCurrentlyHit = hitEffectElapsed < (PLAYER_SHAKE_DURATION_MS + COMBAT_EFFECT_LATENCY_BUFFER_MS);
+        
+        // --- DEBUGGING: Log potential infinite loops ---
+        if (hitEffectElapsed < 5 && !isNewHit) {
+          console.log(`🎯 [DEBUG] Potential infinite hit loop for player ${playerHexId}: elapsed=${hitEffectElapsed.toFixed(1)}ms, server=${serverLastHitTimePropMicros}, stored=${hitState.lastProcessedHitTime}, diff=${serverLastHitTimePropMicros - hitState.lastProcessedHitTime}`);
+        }
       }
     }
   } else {

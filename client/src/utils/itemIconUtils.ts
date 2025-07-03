@@ -257,7 +257,7 @@ import wolfsbaneSeedsIcon from '../assets/items/wolfsbane_seeds.png';
 // Structures, containers, and deployable items
 
 import campFireIcon from '../assets/items/campfire.png';
-import furnaceIcon from '../assets/items/furnace.png';
+import furnaceIcon from '../assets/items/furnace_simple.png';
 import stashIcon from '../assets/items/stash.png';
 import woodenStorageBoxIcon from '../assets/items/wooden_storage_box.png';
 import sleepingBagIcon from '../assets/items/sleeping_bag.png';
@@ -517,7 +517,7 @@ const iconMap: { [key: string]: string | undefined } = {
 
   // === PLACEABLES ===
   'campfire.png': campFireIcon,
-  'furnace.png': furnaceIcon,
+  'furnace_simple.png': furnaceIcon,
   'stash.png': stashIcon,
   'wooden_storage_box.png': woodenStorageBoxIcon,
   'sleeping_bag.png': sleepingBagIcon,

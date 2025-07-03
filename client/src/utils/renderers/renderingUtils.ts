@@ -519,7 +519,7 @@ export const renderYSortedEntities = ({
             // Draw outline only if this is THE closest interactable target
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
-                drawInteractionOutline(ctx, furnace.posX, furnace.posY - 48, 72, 96, cycleProgress, outlineColor); // Slightly wider (72 vs 64)
+                drawInteractionOutline(ctx, furnace.posX, furnace.posY - 64, 96, 128, cycleProgress, outlineColor); // Standard 96x96 furnace size
             }
         } else if (type === 'lantern') {
             const lantern = entity as any; // Type will be Lantern from generated types
@@ -558,7 +558,7 @@ export const renderYSortedEntities = ({
             // Draw outline only if this is THE closest interactable target
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
-                drawInteractionOutline(ctx, box.posX, box.posY - 52, 64, 64, cycleProgress, outlineColor);
+                drawInteractionOutline(ctx, box.posX, box.posY - 58, 64, 72, cycleProgress, outlineColor);
             }
         } else if (type === 'player_corpse') {
             const corpse = entity as SpacetimeDBPlayerCorpse;
@@ -582,7 +582,7 @@ export const renderYSortedEntities = ({
             if (isTheClosestTarget) {
                 const outlineColor = getInteractionOutlineColor('open');
                 // Make outline wider and positioned lower for lying down corpse (rectangular shape)
-                drawInteractionOutline(ctx, corpse.posX, corpse.posY + 0, 80, 48, cycleProgress, outlineColor);
+                drawInteractionOutline(ctx, corpse.posX, corpse.posY + 0, 80, 72, cycleProgress, outlineColor); // Made taller: 48 → 72
             }
         } else if (type === 'grass') {
             renderGrass(ctx, entity as InterpolatedGrassData, nowMs, cycleProgress, false, true);

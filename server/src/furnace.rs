@@ -582,7 +582,7 @@ pub fn place_furnace(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
     // Client renders at: entity.posY - FURNACE_HEIGHT - FURNACE_RENDER_Y_OFFSET
     // We want the furnace center to align with the placement cursor position
     // So: entity.posY = cursor_y + (FURNACE_HEIGHT / 2) + FURNACE_RENDER_Y_OFFSET
-    let adjusted_y = world_y + 72.0 + 10.0; // 72 = FURNACE_HEIGHT/2, 10 = FURNACE_RENDER_Y_OFFSET
+    let adjusted_y = world_y + 48.0 + 10.0; // 48 = FURNACE_HEIGHT/2 (96/2), 10 = FURNACE_RENDER_Y_OFFSET
     
     let new_furnace = Furnace {
         id: 0, // Auto-generated

@@ -487,29 +487,9 @@ export const useDragDropManager = ({
                             targetSlotIndexNum
                         );
                     } else if (targetSlotType === 'furnace_fuel') {
-                        // Handle splitting within the same furnace
-                        targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
-                        const targetFurnaceId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
-                        
-                        if (targetSlotIndexNum === null || isNaN(targetSlotIndexNum) || targetFurnaceId === null || isNaN(targetFurnaceId)) {
-                            console.error("[useDragDropManager Drop] Invalid target index or missing FurnaceID for intra-furnace split.");
-                            setDropError("Invalid target slot for furnace split.");
-                            return;
-                        }
-                        
-                        if (sourceLanternId !== targetFurnaceId) {
-                            console.warn("[useDragDropManager Drop] Cannot split between different furnaces yet.");
-                            setDropError("Cannot split between different furnaces.");
-                            return;
-                        }
-                        
-                        // console.log(`[useDragDropManager Drop] Calling split_stack_within_furnace: Furnace ${sourceLanternId} from slot ${sourceIndexNum} to slot ${targetSlotIndexNum}, amount: ${quantityToSplit}`);
-                        connection.reducers.splitStackWithinFurnace(
-                            sourceLanternId,
-                            sourceIndexNum,
-                            quantityToSplit,
-                            targetSlotIndexNum
-                        );
+                        // Cross-container split: lantern to furnace (not supported)
+                        console.warn("[useDragDropManager Drop] Cannot split from lantern to furnace.");
+                        return;
                     } else if (targetSlotType === 'lantern_fuel') {
                         // Handle splitting within the same lantern
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
@@ -649,21 +629,9 @@ export const useDragDropManager = ({
                         connection.reducers.splitStackFromStash(sourceStashId, sourceIndexNum, quantityToSplit, targetSlotType, targetSlotIndexNum);
 
                     } else if (targetSlotType === 'furnace_fuel') {
-                        const targetFurnaceId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
-                        targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);
-
-                        if (targetFurnaceId === null || isNaN(targetSlotIndexNum)) {
-                            console.error("[useDragDropManager Drop] Invalid target furnace slot index or missing FurnaceID for split within furnace.");
-                            setDropError("Invalid target furnace slot for split.");
-                            return;
-                        }
-                        if (sourceStashId !== targetFurnaceId) {
-                            console.warn("[useDragDropManager Drop] Split ignored: Cannot split between different furnaces this way.");
-                            setDropError("Cannot split item to a different furnace container directly.");
-                            return;
-                        }
-                        // console.log(`[useDragDropManager Drop Split] Calling splitItemWithinFurnace (FurnaceID: ${sourceStashId}, FromSlot: ${sourceIndexNum}, ToSlot: ${targetSlotIndexNum}, Qty: ${quantityToSplit})`);
-                        connection.reducers.splitStackWithinFurnace(sourceStashId, sourceIndexNum, targetSlotIndexNum, quantityToSplit);
+                        // Cross-container split: stash to furnace (not supported)
+                        console.warn("[useDragDropManager Drop] Cannot split from stash to furnace.");
+                        return;
                     } else if (targetSlotType === 'stash') {
                         const targetStashId = targetSlot.parentId ? Number(targetSlot.parentId) : null;
                         targetSlotIndexNum = typeof targetSlot.index === 'number' ? targetSlot.index : parseInt(targetSlot.index.toString(), 10);

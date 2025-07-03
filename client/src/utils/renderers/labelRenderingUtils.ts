@@ -261,7 +261,7 @@ export function renderInteractionLabels({
                 const visualCenterX = furnace.posX;
                 const visualCenterY = furnace.posY - (FURNACE_HEIGHT / 2) - FURNACE_RENDER_Y_OFFSET;
                 textX = visualCenterX;
-                textY = visualCenterY - 50;
+                textY = visualCenterY - 64; // Moved up from -50 to -80
                 renderStyledInteractionLabel(ctx, text, textX, textY);
             }
             break;
@@ -278,7 +278,7 @@ export function renderInteractionLabels({
         case 'box': {
             const box = woodenStorageBoxes.get(closestInteractableTarget.id.toString());
             if (box) {
-                const BOX_COLLISION_Y_OFFSET = 52.0;
+                const BOX_COLLISION_Y_OFFSET = 58.0;
                 const visualCenterY = box.posY - BOX_COLLISION_Y_OFFSET;
                 textX = box.posX;
                 textY = visualCenterY - (BOX_HEIGHT / 2) - 0;

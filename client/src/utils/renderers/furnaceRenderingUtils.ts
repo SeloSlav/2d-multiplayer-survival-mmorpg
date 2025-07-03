@@ -1,15 +1,15 @@
 import { Furnace } from '../../generated'; // Import generated Furnace type
-import furnaceImage from '../../assets/doodads/furnace.png'; // Direct import - USING ACTUAL IMAGE NOW
+import furnaceImage from '../../assets/doodads/furnace_simple.png'; // Direct import - USING ACTUAL IMAGE NOW
 import { GroundEntityConfig, renderConfiguredGroundEntity } from './genericGroundRenderer'; // Import generic renderer
 import { drawDynamicGroundShadow, applyStandardDropShadow, calculateShakeOffsets } from './shadowUtils';
 import { imageManager } from './imageManager'; // Import image manager
 import { Furnace as SpacetimeDBFurnace } from '../../generated';
 
 // --- Constants directly used by this module or exported ---
-export const FURNACE_WIDTH = 144; // Doubled from 72 to 144
-export const FURNACE_HEIGHT = 144; // Doubled from 72 to 144
-export const FURNACE_WIDTH_PREVIEW = 144; // Doubled from 72 to 144
-export const FURNACE_HEIGHT_PREVIEW = 144; // Doubled from 72 to 144
+export const FURNACE_WIDTH = 96; // Standard furnace size
+export const FURNACE_HEIGHT = 96; // Standard furnace size
+export const FURNACE_WIDTH_PREVIEW = 96; // Standard furnace size
+export const FURNACE_HEIGHT_PREVIEW = 96; // Standard furnace size
 // Offset for rendering to align with server-side collision zones
 export const FURNACE_RENDER_Y_OFFSET = 10; // Visual offset from entity's base Y
 
