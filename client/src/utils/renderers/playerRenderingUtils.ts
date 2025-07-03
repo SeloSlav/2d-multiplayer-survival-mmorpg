@@ -486,6 +486,7 @@ export const renderPlayer = (
     }
   }
 
+  // --- TEST: Increase sprite size ---
   const drawWidth = gameConfig.spriteWidth * 2;
   const drawHeight = gameConfig.spriteHeight * 2;
   const spriteBaseX = currentDisplayX - drawWidth / 2 + shakeX;

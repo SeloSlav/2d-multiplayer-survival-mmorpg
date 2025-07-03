@@ -59,7 +59,7 @@ interface CyberpunkLoadingScreenProps {
 
 // Audio preloading and management
 const preloadedAudioFiles: { [key: string]: HTMLAudioElement } = {};
-const TOTAL_SOVA_SOUNDS = 20;
+const TOTAL_SOVA_SOUNDS = 21;
 const AUDIO_ENABLED_KEY = 'sova_audio_enabled';
 
 // Check if user previously enabled audio
@@ -129,7 +129,7 @@ const tryLoadAudio = async (filename: string): Promise<HTMLAudioElement | null> 
 const preloadAudio = async () => {
     console.log('Preloading SOVA audio files...');
     
-    // Preload numbered SOVA sounds (1-20)
+    // Preload numbered SOVA sounds (1-21)
     const loadPromises = [];
     for (let i = 1; i <= TOTAL_SOVA_SOUNDS; i++) {
         loadPromises.push(
