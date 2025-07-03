@@ -50,7 +50,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Lantern", 1, None, Some(9u16)),
         // ("Stash", 1, None, Some(10u16)),
         ("Reed Rain Collector", 1, None, Some(11u16)),
-        ("Stash", 50, None, Some(12u16)),
+        ("Stash", 1, None, Some(12u16)),
         ("Tallow", 50, None, Some(13u16)),
         ("Wood", 500, None, Some(14u16)),
         // ("Tallow", 50, None, Some(12u16)),

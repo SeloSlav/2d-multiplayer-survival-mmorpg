@@ -71,6 +71,8 @@ use crate::death_marker::death_marker as DeathMarkerTableTrait; // Ensure trait 
 use crate::sound_events; // Import sound events module
 // Import rain collector types
 use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN_COLLECTOR_COLLISION_Y_OFFSET, rain_collector as RainCollectorTableTrait};
+// Import furnace types
+use crate::furnace::{furnace as FurnaceTableTrait};
 // Import wild animal types
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 // Import animal corpse types
@@ -100,6 +102,7 @@ pub enum TargetId {
     // REMOVED: Grass(u64) - grass collision detection removed for performance
     Shelter(u32),
     RainCollector(u32), // ADDED: Rain collector target
+    Furnace(u32), // ADDED: Furnace target
     WildAnimal(u64), // ADDED: Wild animal target
     AnimalCorpse(u32), // ADDED: Animal corpse target
     Barrel(u64), // ADDED: Barrel target
@@ -612,6 +615,50 @@ pub fn find_targets_in_cone(
             }
         }
     }
+
+    // Check furnaces
+    for furnace_entity in ctx.db.furnace().iter() {
+        if furnace_entity.is_destroyed {
+            continue;
+        }
+        let dx = furnace_entity.pos_x - player.position_x;
+        let dy = furnace_entity.pos_y - player.position_y; // No Y offset needed (FURNACE_COLLISION_Y_OFFSET is 0.0)
+        let dist_sq = dx * dx + dy * dy;
+
+        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+            let distance = dist_sq.sqrt();
+            let target_vec_x = dx / distance;
+            let target_vec_y = dy / distance;
+
+            let dot_product = forward_x * target_vec_x + forward_y * target_vec_y;
+            let angle_rad = dot_product.acos();
+
+            if angle_rad <= half_attack_angle_rad {
+                // Check if line of sight is blocked by shelter walls
+                if is_line_blocked_by_shelter(
+                    ctx,
+                    player.identity,
+                    None, // No target player ID for furnaces
+                    player.position_x,
+                    player.position_y,
+                    furnace_entity.pos_x,
+                    furnace_entity.pos_y,
+                ) {
+                    log::debug!(
+                        "Player {:?} cannot attack Furnace {}: line of sight blocked by shelter",
+                        player.identity, furnace_entity.id
+                    );
+                    continue; // Skip this target - blocked by shelter
+                }
+                
+                targets.push(Target {
+                    target_type: TargetType::Furnace,
+                    id: TargetId::Furnace(furnace_entity.id),
+                    distance_sq: dist_sq,
+                });
+            }
+        }
+    }
     
     // Check wild animals
     for wild_animal in ctx.db.wild_animal().iter() {
@@ -812,6 +859,7 @@ fn is_destructible_deployable(target_type: TargetType) -> bool {
         TargetType::Stash |
         TargetType::Shelter |
         TargetType::RainCollector |
+        TargetType::Furnace |
         TargetType::Barrel // Includes barrels and other destructible deployables
     )
 }
@@ -2221,6 +2269,13 @@ pub fn process_attack(
                 return Err("Target rain collector not found".to_string());
             }
         },
+        TargetId::Furnace(furnace_id) => {
+            if let Some(furnace) = ctx.db.furnace().id().find(furnace_id) {
+                (furnace.pos_x, furnace.pos_y, None)
+            } else {
+                return Err("Target furnace not found".to_string());
+            }
+        },
         TargetId::WildAnimal(animal_id) => {
             use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
             if let Some(animal) = ctx.db.wild_animal().id().find(animal_id) {
@@ -2325,6 +2380,9 @@ pub fn process_attack(
         },
         TargetId::RainCollector(rain_collector_id) => {
             damage_rain_collector(ctx, attacker_id, *rain_collector_id, damage, timestamp, rng)
+        },
+        TargetId::Furnace(furnace_id) => {
+            damage_furnace(ctx, attacker_id, *furnace_id, damage, timestamp, rng)
         },
         TargetId::WildAnimal(animal_id) => {
             crate::wild_animal_npc::damage_wild_animal(ctx, *animal_id, damage, attacker_id)
@@ -2640,6 +2698,21 @@ pub fn damage_rain_collector(
     timestamp: Timestamp,
     rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(&equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(&equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_rain_collector(ctx, attacker_id, rain_collector_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
     let mut rain_collectors_table = ctx.db.rain_collector();
     let mut rain_collector = rain_collectors_table.id().find(&rain_collector_id)
         .ok_or_else(|| format!("Target rain collector {} disappeared", rain_collector_id))?;
@@ -2708,6 +2781,122 @@ pub fn damage_rain_collector(
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::RainCollector),
+        resource_granted: None,
+    })
+}
+
+/// Applies damage to a furnace and handles destruction/item scattering
+pub fn damage_furnace(
+    ctx: &ReducerContext,
+    attacker_id: Identity,
+    furnace_id: u32,
+    damage: f32,
+    timestamp: Timestamp,
+    rng: &mut impl Rng
+) -> Result<AttackResult, String> {
+    // Check if the attacker is using a repair hammer
+    if let Some(active_equip) = ctx.db.active_equipment().player_identity().find(&attacker_id) {
+        if let Some(equipped_item_id) = active_equip.equipped_item_instance_id {
+            if let Some(equipped_item) = ctx.db.inventory_item().instance_id().find(&equipped_item_id) {
+                if let Some(item_def) = ctx.db.item_definition().id().find(&equipped_item.item_def_id) {
+                    if crate::repair::is_repair_hammer(&item_def) {
+                        // Use repair instead of damage
+                        return crate::repair::repair_furnace(ctx, attacker_id, furnace_id, damage, timestamp);
+                    }
+                }
+            }
+        }
+    }
+
+    // Original damage logic if not using repair hammer
+    let mut furnaces_table = ctx.db.furnace();
+    let mut furnace = furnaces_table.id().find(&furnace_id)
+        .ok_or_else(|| format!("Target furnace {} disappeared", furnace_id))?;
+
+    if furnace.is_destroyed {
+        return Ok(AttackResult { hit: false, target_type: Some(TargetType::Furnace), resource_granted: None });
+    }
+
+    let old_health = furnace.health;
+    furnace.health = (furnace.health - damage).max(0.0);
+    furnace.last_hit_time = Some(timestamp);
+    furnace.last_damaged_by = Some(attacker_id);
+
+    log::info!(
+        "Player {:?} hit Furnace {} for {:.1} damage. Health: {:.1} -> {:.1}",
+        attacker_id, furnace_id, damage, old_health, furnace.health
+    );
+
+    // Play hit sound for all hits (using barrel sounds for now)
+    sound_events::emit_barrel_hit_sound(ctx, furnace.pos_x, furnace.pos_y, attacker_id);
+
+    if furnace.health <= 0.0 {
+        // Play destroyed sound
+        sound_events::emit_barrel_destroyed_sound(ctx, furnace.pos_x, furnace.pos_y, attacker_id);
+        furnace.is_destroyed = true;
+        furnace.destroyed_at = Some(timestamp);
+
+        let mut items_to_drop: Vec<(u64, u32)> = Vec::new();
+        // Check all 5 fuel slots for items to drop
+        let fuel_slots = [
+            (furnace.fuel_instance_id_0, furnace.fuel_def_id_0),
+            (furnace.fuel_instance_id_1, furnace.fuel_def_id_1),
+            (furnace.fuel_instance_id_2, furnace.fuel_def_id_2),
+            (furnace.fuel_instance_id_3, furnace.fuel_def_id_3),
+            (furnace.fuel_instance_id_4, furnace.fuel_def_id_4),
+        ];
+
+        for (instance_id_opt, def_id_opt) in fuel_slots {
+            if let (Some(instance_id), Some(def_id)) = (instance_id_opt, def_id_opt) {
+                if let Some(item) = ctx.db.inventory_item().instance_id().find(&instance_id) {
+                    items_to_drop.push((def_id, item.quantity));
+                    ctx.db.inventory_item().instance_id().delete(&instance_id);
+                }
+            }
+        }
+
+        // Clear all fuel slots
+        furnace.fuel_instance_id_0 = None;
+        furnace.fuel_def_id_0 = None;
+        furnace.fuel_instance_id_1 = None;
+        furnace.fuel_def_id_1 = None;
+        furnace.fuel_instance_id_2 = None;
+        furnace.fuel_def_id_2 = None;
+        furnace.fuel_instance_id_3 = None;
+        furnace.fuel_def_id_3 = None;
+        furnace.fuel_instance_id_4 = None;
+        furnace.fuel_def_id_4 = None;
+        
+        // Update the furnace one last time to ensure is_destroyed and destroyed_at are sent to client
+        furnaces_table.id().update(furnace.clone());
+        // Then immediately delete the furnace entity itself
+        furnaces_table.id().delete(&furnace_id);
+
+        log::info!(
+            "Furnace {} destroyed by player {:?}. Dropping contents.",
+            furnace_id, attacker_id
+        );
+
+        for (item_def_id, quantity) in items_to_drop {
+            let offset_x = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0; // Spread within +/- 20px
+            let offset_y = (rng.gen::<f32>() - 0.5) * 2.0 * 20.0;
+            let drop_pos_x = furnace.pos_x + offset_x;
+            let drop_pos_y = furnace.pos_y + offset_y;
+
+            match dropped_item::create_dropped_item_entity(ctx, item_def_id, quantity, drop_pos_x, drop_pos_y) {
+                Ok(_) => log::debug!("Dropped {} of item_def_id {} from destroyed furnace {}", quantity, item_def_id, furnace_id),
+                Err(e) => log::error!("Failed to drop item_def_id {}: {}", item_def_id, e),
+            }
+        }
+
+    } else {
+        // Furnace still has health, just update it
+        furnaces_table.id().update(furnace);
+    }
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Furnace),
         resource_granted: None,
     })
 }

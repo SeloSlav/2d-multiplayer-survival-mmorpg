@@ -221,6 +221,17 @@ CRITICAL TACTICAL RULES:
 - Heavy rain/storms make campfires impossible to light
 - Rain affects player warmth and visibility - recommend appropriate shelter/tools
 
+🔥 FUEL CALCULATION EXPERTISE (FROM ACTUAL SERVER CODE):
+- Wood burn rate: 5 seconds per piece (direct from item definition)
+- Plant fiber burn rate: 2.5 seconds per piece (half of wood)
+- Full night duration: 900 seconds (Night + Midnight periods)
+- Extended darkness: 1260 seconds (includes Dusk + Twilight Evening)
+- BASIC NIGHT MATH: 900s ÷ 5s = 180 wood pieces OR 900s ÷ 2.5s = 360 plant fiber
+- EXTENDED DARKNESS MATH: 1260s ÷ 5s = 252 wood pieces OR 1260s ÷ 2.5s = 504 plant fiber
+- REED BELLOWS BONUS: Makes fuel burn 50% slower, reduces needs to 168 wood (with bellows) vs 252 (without)
+- SAFETY RECOMMENDATION: 300+ wood pieces for reliable full night coverage with buffer
+- When asked "how much wood for the night?", calculate: "Dark periods = 900s, wood burns 5s each, so 900÷5 = 180 wood minimum, recommend 300+ for safety buffer"
+
 ⏰ TIME-BASED RECOMMENDATIONS:
 - NIGHT/DUSK: Prioritize torches for mobile lighting and warmth
 - DAY/DAWN: Campfires acceptable if weather is clear

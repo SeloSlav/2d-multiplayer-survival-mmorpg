@@ -228,6 +228,17 @@ const tipSectionDefinitions = {
             'Campfires provide a large radius of bright light that cuts through nighttime darkness.',
             'Use wood or plant fiber as fuel - wood burns longer than plant fiber.',
             'Plant fiber burns twice as fast as wood, so use wood for longer-lasting fires.',
+            
+            // FUEL BURN RATE CALCULATIONS (FROM ACTUAL SERVER CODE)
+            '🔢 WOOD BURN RATE: Each piece of wood burns for exactly 5 seconds.',
+            '🔢 PLANT FIBER RATE: Each plant fiber burns for exactly 2.5 seconds (half of wood).',
+            '🌙 FULL NIGHT DURATION: Dark periods (Night + Midnight) last 900 seconds (15 minutes).',
+            '🌙 EXTENDED DARKNESS: Including Dusk and Twilight Evening = 1260 seconds (21 minutes).',
+            '🧮 BASIC NIGHT SURVIVAL: To keep a campfire burning during dark periods (900s), you need 180 pieces of wood OR 360 plant fiber.',
+            '🧮 EXTENDED NIGHT COVERAGE: For complete darkness protection (1260s), you need 252 pieces of wood OR 504 plant fiber.',
+            '🔧 REED BELLOWS BONUS: Reed Bellows make fuel burn 50% slower - reduces wood needed to 168 pieces (or 252 without bellows).',
+            '🧮 PRACTICAL RECOMMENDATION: 300+ wood pieces for a safe full night with buffer for interruptions.',
+            
             'Campfires make you visible to other players on the minimap at long distances.',
             'Consider the tactical trade-off between warmth/light and stealth when using campfires.',
             'Campfires provide an ambient warmth bonus that helps prevent freezing.',

@@ -48,7 +48,10 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
 }) => {
     const [currentTime, setCurrentTime] = useState(Date.now());
     const [craftQuantities, setCraftQuantities] = useState<Map<string, number>>(new Map()); // State for quantity input
-    const [searchTerm, setSearchTerm] = useState(''); // State for the search term
+    // Initialize searchTerm from localStorage, fallback to empty string
+    const [searchTerm, setSearchTerm] = useState<string>(() => {
+        return localStorage.getItem('craftingSearchTerm') || '';
+    });
     // Initialize selectedCategory from localStorage, fallback to 'All'
     const [selectedCategory, setSelectedCategory] = useState<string>(() => {
         return localStorage.getItem('craftingCategoryFilter') || 'All';
@@ -211,9 +214,11 @@ const CraftingUI: React.FC<CraftingUIProps> = ({
         return recipe.ingredients.length > 0; // Also ensure there are ingredients
     };
 
-    // --- Search Handler ---
+    // --- Search Handler with localStorage persistence ---
     const handleSearchChange = (newSearchTerm: string) => {
         setSearchTerm(newSearchTerm);
+        // Save to localStorage for persistence
+        localStorage.setItem('craftingSearchTerm', newSearchTerm);
     };
 
     // --- Category Filter Handler with localStorage persistence ---

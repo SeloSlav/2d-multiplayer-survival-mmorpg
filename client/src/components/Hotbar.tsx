@@ -1028,8 +1028,8 @@ const Hotbar: React.FC<HotbarProps> = ({
       const thirst = item.definition.consumableThirstQuenched || 0;
       const hunger = item.definition.consumableHungerSatiated || 0;
       
-      // Only show stats if at least one value is positive
-      if (health > 0 || thirst > 0 || hunger > 0) {
+      // Show stats if at least one value is non-zero (positive OR negative)
+      if (health !== 0 || thirst !== 0 || hunger !== 0) {
         consumableStats = { health, thirst, hunger };
       }
     }
@@ -1344,14 +1344,28 @@ const Hotbar: React.FC<HotbarProps> = ({
           </div>
           {tooltip.content.consumableStats && (
             <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.8)', marginBottom: '2px' }}>
-              {tooltip.content.consumableStats.health > 0 && (
-                <span style={{ marginRight: '8px' }}>❤️ +{tooltip.content.consumableStats.health}</span>
+              {tooltip.content.consumableStats.health !== 0 && (
+                <span style={{ 
+                  marginRight: '8px', 
+                  color: tooltip.content.consumableStats.health > 0 ? 'rgba(100, 255, 100, 0.9)' : 'rgba(255, 100, 100, 0.9)' 
+                }}>
+                  ❤️ {tooltip.content.consumableStats.health > 0 ? '+' : ''}{tooltip.content.consumableStats.health}
+                </span>
               )}
-              {tooltip.content.consumableStats.thirst > 0 && (
-                <span style={{ marginRight: '8px' }}>💧 +{tooltip.content.consumableStats.thirst}</span>
+              {tooltip.content.consumableStats.thirst !== 0 && (
+                <span style={{ 
+                  marginRight: '8px', 
+                  color: tooltip.content.consumableStats.thirst > 0 ? 'rgba(100, 200, 255, 0.9)' : 'rgba(255, 100, 100, 0.9)' 
+                }}>
+                  💧 {tooltip.content.consumableStats.thirst > 0 ? '+' : ''}{tooltip.content.consumableStats.thirst}
+                </span>
               )}
-              {tooltip.content.consumableStats.hunger > 0 && (
-                <span>🍖 +{tooltip.content.consumableStats.hunger}</span>
+              {tooltip.content.consumableStats.hunger !== 0 && (
+                <span style={{ 
+                  color: tooltip.content.consumableStats.hunger > 0 ? 'rgba(255, 200, 100, 0.9)' : 'rgba(255, 100, 100, 0.9)' 
+                }}>
+                  🍖 {tooltip.content.consumableStats.hunger > 0 ? '+' : ''}{tooltip.content.consumableStats.hunger}
+                </span>
               )}
             </div>
           )}

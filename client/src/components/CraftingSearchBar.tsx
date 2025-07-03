@@ -288,12 +288,46 @@ const CraftingSearchBar: React.FC<CraftingSearchBarProps> = (props) => {
             className={styles.filterDropdown}
             onBlur={handleDropdownBlur}
             tabIndex={-1}
+            style={{
+              backgroundColor: 'rgba(20, 20, 30, 0.95)',
+              border: '1px solid #4a4a4a',
+              borderRadius: '6px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+              zIndex: 1000,
+              minWidth: '160px',
+              maxHeight: '300px',
+              overflowY: 'auto'
+            }}
           >
             {Object.entries(CATEGORY_LABELS).map(([categoryKey, label]) => (
               <div
                 key={categoryKey}
                 className={`${styles.filterOption} ${selectedCategory === categoryKey ? styles.filterOptionSelected : ''}`}
                 onClick={() => handleCategorySelect(categoryKey)}
+                style={{
+                  padding: '12px 16px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: selectedCategory === categoryKey ? '#90EE90' : '#ffffff',
+                  backgroundColor: selectedCategory === categoryKey ? 'rgba(70, 130, 70, 0.3)' : 'transparent',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                  transition: 'all 0.15s ease',
+                  userSelect: 'none',
+                  lineHeight: '1.4'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedCategory !== categoryKey) {
+                    e.currentTarget.style.backgroundColor = 'rgba(70, 70, 80, 0.4)';
+                    e.currentTarget.style.color = '#e0e0e0';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedCategory !== categoryKey) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
               >
                 {label}
               </div>

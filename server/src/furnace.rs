@@ -50,8 +50,8 @@ pub(crate) const FURNACE_PLACEMENT_MAX_DISTANCE_SQUARED: f32 = FURNACE_PLACEMENT
 pub const INITIAL_FURNACE_FUEL_AMOUNT: u32 = 50;
 
 // --- Health constants ---
-pub const FURNACE_INITIAL_HEALTH: f32 = 100.0;
-pub const FURNACE_MAX_HEALTH: f32 = 100.0;
+pub const FURNACE_INITIAL_HEALTH: f32 = 300.0;
+pub const FURNACE_MAX_HEALTH: f32 = 300.0;
 
 // Interaction constants
 pub(crate) const PLAYER_FURNACE_INTERACTION_DISTANCE: f32 = 96.0;

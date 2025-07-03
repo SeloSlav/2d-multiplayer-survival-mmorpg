@@ -21,6 +21,7 @@ use crate::lantern::lantern as LanternTableTrait;
 use crate::wooden_storage_box::wooden_storage_box as WoodenStorageBoxTableTrait;
 use crate::shelter::shelter as ShelterTableTrait;
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
+use crate::furnace::furnace as FurnaceTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 
 // Combat cooldown constants for PvP balance
@@ -62,16 +63,10 @@ pub fn can_structure_be_repaired(
     Ok(())
 }
 
-// Helper function to get appropriate repair amount based on structure type
-pub fn get_repair_amount_for_structure(target_type: TargetType) -> f32 {
-    match target_type {
-        TargetType::Campfire => 25.0,        // 4 hits to fully repair (100 / 25 = 4)
-        TargetType::Lantern => 20.0,         // 4 hits to fully repair (80 / 20 = 4)
-        TargetType::WoodenStorageBox => 75.0, // 10 hits to fully repair (750 / 75 = 10)
-        TargetType::Shelter => 5000.0,       // 20 hits to fully repair (100,000 / 5000 = 20)
-        TargetType::RainCollector => 50.0,   // 10 hits to fully repair (500 / 50 = 10)
-        _ => 5.0, // Default fallback for other structures
-    }
+// Helper function to get repair amount - always 50 HP per repair hit
+// Actual repair amount may be less if structure is close to full health
+pub fn get_base_repair_amount() -> f32 {
+    50.0 // All structures heal 50 HP per repair hit (or remaining HP if less than 50 needed)
 }
 
 // Helper function to check if an item is a repair hammer
@@ -194,41 +189,77 @@ fn consume_resource_from_inventory(
     Ok(())
 }
 
+// Helper function to look up item definition by name
+fn get_item_definition_by_name(ctx: &ReducerContext, item_name: &str) -> Option<ItemDefinition> {
+    ctx.db.item_definition().iter()
+        .find(|def| def.name == item_name)
+        .map(|def| def.clone())
+}
+
+// Helper function to extract wood, stone, and metal costs from crafting ingredients
+// Ignores other materials like animal fat, cloth, rope, etc.
+fn extract_repair_materials(crafting_cost: &Option<Vec<crate::items::CostIngredient>>) -> (u32, u32, u32) {
+    let (mut wood, mut stone, mut metal) = (0u32, 0u32, 0u32);
+    
+    if let Some(costs) = crafting_cost {
+        for ingredient in costs {
+            match ingredient.item_name.as_str() {
+                "Wood" => wood = ingredient.quantity,
+                "Stone" => stone = ingredient.quantity,
+                "Metal Fragments" => metal = ingredient.quantity,
+                _ => {} // Ignore other materials like animal fat, cloth, rope, etc.
+            }
+        }
+    }
+    
+    (wood, stone, metal)
+}
+
+// Helper function to get structure name from TargetType
+fn get_structure_item_name(target_type: TargetType) -> &'static str {
+    match target_type {
+        TargetType::Campfire => "Camp Fire",
+        TargetType::Lantern => "Lantern", 
+        TargetType::WoodenStorageBox => "Wooden Storage Box",
+        TargetType::Shelter => "Shelter",
+        TargetType::RainCollector => "Reed Rain Collector",
+        TargetType::Furnace => "Furnace",
+        _ => "Unknown",
+    }
+}
+
 // Helper function to calculate repair resource requirements based on structure type and repair amount
-pub fn calculate_repair_resources(target_type: TargetType, repair_amount: f32, max_health: f32) -> (u32, u32, u32) {
+// 🔧 DYNAMIC PROPORTIONAL REPAIR SYSTEM: 
+// - Pulls actual building costs from items database (placeables.rs)
+// - Each repair heals exactly 50 health and costs proportional resources
+// - Formula: (repair_amount / max_health) * actual_building_cost
+// - Only uses Wood, Stone, and Metal Fragments - ignores other materials
+pub fn calculate_repair_resources(ctx: &ReducerContext, target_type: TargetType, repair_amount: f32, max_health: f32) -> (u32, u32, u32) {
     let repair_fraction = repair_amount / max_health;
     
-    match target_type {
-        TargetType::Campfire => {
-            // Campfire costs: 25 Wood, 10 Stone, 0 Metal
-            let wood_needed = (25.0 * repair_fraction).ceil() as u32;
-            let stone_needed = (10.0 * repair_fraction).ceil() as u32;
-            (wood_needed, stone_needed, 0)
-        },
-        TargetType::Lantern => {
-            // Lantern costs: 75 Wood, 0 Stone, 15 Metal (matches crafting cost)
-            let wood_needed = (75.0 * repair_fraction).ceil() as u32;
-            let metal_needed = (15.0 * repair_fraction).ceil() as u32;
-            (wood_needed, 0, metal_needed)
-        },
-        TargetType::WoodenStorageBox => {
-            // Wooden Storage Box costs: 100 Wood, 0 Stone, 0 Metal
-            let wood_needed = (100.0 * repair_fraction).ceil() as u32;
-            (wood_needed, 0, 0)
-        },
-        TargetType::Shelter => {
-            // Shelter costs: 3200 Wood, 0 Stone, 0 Metal (simplified - ignoring rope requirement)
-            let wood_needed = (3200.0 * repair_fraction).ceil() as u32;
-            (wood_needed, 0, 0)
-        },
-        TargetType::RainCollector => {
-            // Rain Collector costs: 50 Wood, 10 Stone, 0 Metal (reed-based structure needs some wood and stone)
-            let wood_needed = (50.0 * repair_fraction).ceil() as u32;
-            let stone_needed = (10.0 * repair_fraction).ceil() as u32;
-            (wood_needed, stone_needed, 0)
-        },
-        _ => (0, 0, 0), // Other structures don't support repair
+    // Look up the actual item definition from the database
+    let structure_name = get_structure_item_name(target_type);
+    if let Some(item_def) = get_item_definition_by_name(ctx, structure_name) {
+        // Extract wood, stone, metal costs from the actual crafting recipe
+        let (base_wood, base_stone, base_metal) = extract_repair_materials(&item_def.crafting_cost);
+        
+        // Calculate proportional costs
+        let wood_needed = (base_wood as f32 * repair_fraction).ceil() as u32;
+        let stone_needed = (base_stone as f32 * repair_fraction).ceil() as u32;
+        let metal_needed = (base_metal as f32 * repair_fraction).ceil() as u32;
+        
+        log::debug!(
+            "Dynamic repair cost for {} ({}): {:.1} HP = {:.3} fraction = {} wood + {} stone + {} metal (from base: {} + {} + {})",
+            structure_name, target_type as i32, repair_amount, repair_fraction,
+            wood_needed, stone_needed, metal_needed, base_wood, base_stone, base_metal
+        );
+        
+        return (wood_needed, stone_needed, metal_needed);
     }
+    
+    // Fallback if item definition not found (shouldn't happen in normal operation)
+    log::error!("Could not find item definition for '{}' - repair will be free", structure_name);
+    (0, 0, 0)
 }
 
 // Repair functions for different structure types
@@ -258,10 +289,11 @@ pub fn repair_campfire(
         }
     }
 
-    // Use proper repair amount for campfires
-    let repair_amount = get_repair_amount_for_structure(TargetType::Campfire);
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
     let campfire_max_health = campfire.max_health;
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::Campfire, repair_amount, campfire_max_health);
+    let actual_repair_amount = (campfire_max_health - campfire.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Campfire, actual_repair_amount, campfire_max_health);
     
     // Try to consume resources
     match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
@@ -277,7 +309,7 @@ pub fn repair_campfire(
     }
     
     let old_health = campfire.health;
-    campfire.health = (campfire.health + repair_amount).min(campfire_max_health);
+    campfire.health = (campfire.health + actual_repair_amount).min(campfire_max_health);
     campfire.last_hit_time = Some(timestamp);
     campfire.last_damaged_by = Some(repairer_id);
     
@@ -288,7 +320,7 @@ pub fn repair_campfire(
 
     log::info!(
         "Player {:?} repaired Campfire {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, campfire_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, campfire_max_health
+        repairer_id, campfire_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, campfire_max_health
     );
 
     Ok(AttackResult {
@@ -323,10 +355,11 @@ pub fn repair_wooden_storage_box(
         }
     }
 
-    // Use proper repair amount for wooden storage boxes
-    let repair_amount = get_repair_amount_for_structure(TargetType::WoodenStorageBox);
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
     let box_max_health = wooden_box.max_health;
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::WoodenStorageBox, repair_amount, box_max_health);
+    let actual_repair_amount = (box_max_health - wooden_box.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::WoodenStorageBox, actual_repair_amount, box_max_health);
     
     // Try to consume resources
     match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
@@ -342,7 +375,7 @@ pub fn repair_wooden_storage_box(
     }
     
     let old_health = wooden_box.health;
-    wooden_box.health = (wooden_box.health + repair_amount).min(box_max_health);
+    wooden_box.health = (wooden_box.health + actual_repair_amount).min(box_max_health);
     wooden_box.last_hit_time = Some(timestamp);
     wooden_box.last_damaged_by = Some(repairer_id);
     
@@ -353,7 +386,7 @@ pub fn repair_wooden_storage_box(
 
     log::info!(
         "Player {:?} repaired WoodenStorageBox {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, box_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, box_max_health
+        repairer_id, box_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, box_max_health
     );
 
     Ok(AttackResult {
@@ -388,10 +421,11 @@ pub fn repair_shelter(
         }
     }
 
-    // Use proper repair amount for shelters
-    let repair_amount = get_repair_amount_for_structure(TargetType::Shelter);
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
     let shelter_max_health = shelter.max_health;
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::Shelter, repair_amount, shelter_max_health);
+    let actual_repair_amount = (shelter_max_health - shelter.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Shelter, actual_repair_amount, shelter_max_health);
     
     // Try to consume resources
     match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
@@ -407,7 +441,7 @@ pub fn repair_shelter(
     }
     
     let old_health = shelter.health;
-    shelter.health = (shelter.health + repair_amount).min(shelter_max_health);
+    shelter.health = (shelter.health + actual_repair_amount).min(shelter_max_health);
     shelter.last_hit_time = Some(timestamp);
     shelter.last_damaged_by = Some(repairer_id);
     
@@ -418,7 +452,7 @@ pub fn repair_shelter(
 
     log::info!(
         "Player {:?} repaired Shelter {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, shelter_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, shelter_max_health
+        repairer_id, shelter_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, shelter_max_health
     );
 
     Ok(AttackResult {
@@ -453,10 +487,11 @@ pub fn repair_lantern(
         }
     }
 
-    // Use proper repair amount for lanterns
-    let repair_amount = get_repair_amount_for_structure(TargetType::Lantern);
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
     let lantern_max_health = LANTERN_MAX_HEALTH;
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::Lantern, repair_amount, lantern_max_health);
+    let actual_repair_amount = (lantern_max_health - lantern.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Lantern, actual_repair_amount, lantern_max_health);
     
     // Try to consume resources
     match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
@@ -472,7 +507,7 @@ pub fn repair_lantern(
     }
     
     let old_health = lantern.health;
-    lantern.health = (lantern.health + repair_amount).min(lantern_max_health);
+    lantern.health = (lantern.health + actual_repair_amount).min(lantern_max_health);
     lantern.last_hit_time = Some(timestamp);
     lantern.last_damaged_by = Some(repairer_id);
     
@@ -483,7 +518,7 @@ pub fn repair_lantern(
 
     log::info!(
         "Player {:?} repaired Lantern {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, lantern_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, lantern_max_health
+        repairer_id, lantern_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, lantern_max_health
     );
 
     Ok(AttackResult {
@@ -518,10 +553,11 @@ pub fn repair_rain_collector(
         }
     }
 
-    // Use proper repair amount for rain collectors
-    let repair_amount = get_repair_amount_for_structure(TargetType::RainCollector);
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
     let rain_collector_max_health = rain_collector.max_health;
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(TargetType::RainCollector, repair_amount, rain_collector_max_health);
+    let actual_repair_amount = (rain_collector_max_health - rain_collector.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::RainCollector, actual_repair_amount, rain_collector_max_health);
     
     // Try to consume resources
     match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
@@ -537,7 +573,7 @@ pub fn repair_rain_collector(
     }
     
     let old_health = rain_collector.health;
-    rain_collector.health = (rain_collector.health + repair_amount).min(rain_collector_max_health);
+    rain_collector.health = (rain_collector.health + actual_repair_amount).min(rain_collector_max_health);
     rain_collector.last_hit_time = Some(timestamp);
     rain_collector.last_damaged_by = Some(repairer_id);
     
@@ -548,12 +584,78 @@ pub fn repair_rain_collector(
 
     log::info!(
         "Player {:?} repaired RainCollector {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, rain_collector_id, repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, rain_collector_max_health
+        repairer_id, rain_collector_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, rain_collector_max_health
     );
 
     Ok(AttackResult {
         hit: true,
         target_type: Some(TargetType::RainCollector),
+        resource_granted: None,
+    })
+}
+
+pub fn repair_furnace(
+    ctx: &ReducerContext,
+    repairer_id: Identity,
+    furnace_id: u32,
+    _weapon_damage: f32, // Ignore weapon damage, use proper repair amount
+    timestamp: Timestamp,
+) -> Result<AttackResult, String> {
+    let mut furnaces_table = ctx.db.furnace();
+    let mut furnace = furnaces_table.id().find(&furnace_id)
+        .ok_or_else(|| format!("Target furnace {} not found", furnace_id))?;
+
+    if furnace.is_destroyed {
+        return Err("Cannot repair destroyed furnace".to_string());
+    }
+
+    // Check combat cooldown for PvP balance
+    match can_structure_be_repaired(furnace.last_hit_time, furnace.last_damaged_by, repairer_id, furnace.placed_by, timestamp) {
+        Ok(()) => {},
+        Err(e) => {
+            // 🔧 Emit repair fail sound for cooldown/permission errors
+            sound_events::emit_repair_fail_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
+            return Err(e);
+        }
+    }
+
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
+    let furnace_max_health = furnace.max_health;
+    let actual_repair_amount = (furnace_max_health - furnace.health).min(base_repair_amount);
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Furnace, actual_repair_amount, furnace_max_health);
+    
+    // Try to consume resources
+    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
+        Ok(()) => {
+            // 🔧 Emit successful repair sound
+            sound_events::emit_repair_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
+        }
+        Err(e) => {
+            // 🔧 Emit repair fail sound for resource shortage
+            sound_events::emit_repair_fail_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
+            return Err(e);
+        }
+    }
+    
+    let old_health = furnace.health;
+    furnace.health = (furnace.health + actual_repair_amount).min(furnace_max_health);
+    furnace.last_hit_time = Some(timestamp);
+    furnace.last_damaged_by = Some(repairer_id);
+    
+    // Save new health before update
+    let new_health = furnace.health;
+
+    furnaces_table.id().update(furnace);
+
+    log::info!(
+        "Player {:?} repaired Furnace {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, furnace_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, furnace_max_health
+    );
+
+    Ok(AttackResult {
+        hit: true,
+        target_type: Some(TargetType::Furnace),
         resource_granted: None,
     })
 }
