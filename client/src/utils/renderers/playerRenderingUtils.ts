@@ -427,11 +427,15 @@ export const renderPlayer = (
   // Determine frame count and sprite type based on player state
   const isSprinting = (!isCorpse && player.isSprinting && finalIsMoving);
   const isIdleState = (!isCorpse && !finalIsMoving && !isUsingItem && !isUsingSeloOliveOil);
+  const isSwimming = (!isCorpse && player.isOnWater && !isCurrentlyJumping);
   
   let totalFrames: number;
   let isIdleAnimation = false;
   
-  if (isIdleState) {
+  if (isSwimming) {
+    // PRIORITY: Swimming uses 6 frames regardless of other states
+    totalFrames = 6; // 6 frames for swimming (same as walking)
+  } else if (isIdleState) {
     totalFrames = 16; // 16 frames for idle animation (4x4)
     isIdleAnimation = true;
   } else if (isSprinting) {
@@ -490,6 +494,9 @@ export const renderPlayer = (
   let currentSpriteImg: CanvasImageSource;
   if (isCorpse) {
     currentSpriteImg = heroImg; // Corpses use walking sprite
+  } else if (player.isOnWater && !isCurrentlyJumping) {
+    // PRIORITY: Swimming takes precedence over all other animations (including sprinting)
+    currentSpriteImg = heroImg; // This should be the water sprite selected in renderingUtils
   } else if (isIdleState) {
     currentSpriteImg = heroIdleImg; // Use idle sprite when not moving
   } else if (isSprinting) {
