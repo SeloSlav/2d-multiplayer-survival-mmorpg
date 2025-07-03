@@ -19,6 +19,9 @@ use crate::shelter::shelter as ShelterTableTrait;
 // Import rain collector types for collision detection
 use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN_COLLECTOR_COLLISION_Y_OFFSET};
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
+// Import furnace types for collision detection
+use crate::furnace::{Furnace, FURNACE_COLLISION_RADIUS, FURNACE_COLLISION_Y_OFFSET};
+use crate::furnace::furnace as FurnaceTableTrait;
 
 /// Calculates initial collision and applies sliding.
 /// Returns the new (x, y) position after potential sliding.
@@ -45,6 +48,7 @@ pub fn calculate_slide_collision(
     let player_corpses = ctx.db.player_corpse(); // Access player_corpse table
     let shelters = ctx.db.shelter(); // Access shelter table
     let rain_collectors = ctx.db.rain_collector(); // Access rain collector table
+    let furnaces = ctx.db.furnace(); // Access furnace table
     
     // GET: Current player's crouching state for effective radius calculation
     let current_player = players.identity().find(&sender_id);
@@ -435,6 +439,57 @@ pub fn calculate_slide_collision(
                     }
                 }
             },
+            spatial_grid::EntityType::Furnace(furnace_id) => { // ADDED Furnace slide logic
+                if let Some(furnace) = furnaces.id().find(furnace_id) {
+                    if furnace.is_destroyed { continue; }
+                    // Use FURNACE_COLLISION_Y_OFFSET from furnace module
+                    let furnace_collision_y = furnace.pos_y - crate::furnace::FURNACE_COLLISION_Y_OFFSET;
+                    let dx = final_x - furnace.pos_x;
+                    let dy = final_y - furnace_collision_y;
+                    let dist_sq = dx * dx + dy * dy;
+                    let min_dist = current_player_radius + crate::furnace::FURNACE_COLLISION_RADIUS + SLIDE_SEPARATION_DISTANCE; // Add separation
+                    let min_dist_sq = min_dist * min_dist;
+
+                    if dist_sq < min_dist_sq {
+                        log::debug!("Player-Furnace collision for slide: {:?} vs furnace {}", sender_id, furnace.id);
+                        let collision_normal_x = dx;
+                        let collision_normal_y = dy;
+                        let normal_mag_sq = dist_sq;
+                        if normal_mag_sq > 0.0 {
+                            let normal_mag = normal_mag_sq.sqrt();
+                            let norm_x = collision_normal_x / normal_mag;
+                            let norm_y = collision_normal_y / normal_mag;
+                            let dot_product = server_dx * norm_x + server_dy * norm_y;
+                            
+                            // Only slide if moving toward the object (dot_product < 0)
+                            if dot_product < 0.0 {
+                                let projection_x = dot_product * norm_x;
+                                let projection_y = dot_product * norm_y;
+                                let slide_dx = server_dx - projection_x;
+                                let slide_dy = server_dy - projection_y;
+                                final_x = current_player_pos_x + slide_dx;
+                                final_y = current_player_pos_y + slide_dy;
+                                
+                                // 🛡️ SEPARATION ENFORCEMENT: Ensure minimum separation after sliding
+                                let final_dx = final_x - furnace.pos_x;
+                                let final_dy = final_y - furnace_collision_y;
+                                let final_dist = (final_dx * final_dx + final_dy * final_dy).sqrt();
+                                if final_dist < min_dist {
+                                    let separation_direction = if final_dist > 0.001 {
+                                        (final_dx / final_dist, final_dy / final_dist)
+                                    } else {
+                                        (1.0, 0.0) // Default direction
+                                    };
+                                    final_x = furnace.pos_x + separation_direction.0 * min_dist;
+                                    final_y = furnace_collision_y + separation_direction.1 * min_dist;
+                                }
+                            }
+                            final_x = final_x.max(current_player_radius).min(WORLD_WIDTH_PX - current_player_radius);
+                            final_y = final_y.max(current_player_radius).min(WORLD_HEIGHT_PX - current_player_radius);
+                        }
+                    }
+                }
+            },
             _ => {} // Campfire, etc. - no slide collision
         }
     }
@@ -464,6 +519,7 @@ pub fn resolve_push_out_collision(
     let player_corpses = ctx.db.player_corpse(); // Access player_corpse table
     let shelters = ctx.db.shelter(); // Access shelter table
     let rain_collectors = ctx.db.rain_collector(); // Access rain collector table
+    let furnaces = ctx.db.furnace(); // Access furnace table
     
     // GET: Current player's crouching state for effective radius calculation
     let current_player = players.identity().find(&sender_id);
@@ -725,6 +781,25 @@ pub fn resolve_push_out_collision(
                         } else if dist_sq == 0.0 { // Player center is exactly on corpse center (unlikely)
                             overlap_found_in_iter = true;
                             resolved_x += separation_distance; // Minimal push
+                        }
+                    }
+                },
+                spatial_grid::EntityType::Furnace(furnace_id) => { // ADDED Furnace push-out logic
+                    log::debug!("[PushOutEntityType] Found Furnace: {}", furnace_id);
+                    if let Some(furnace) = furnaces.id().find(furnace_id) {
+                        if furnace.is_destroyed { continue; }
+                        let furnace_collision_y = furnace.pos_y - crate::furnace::FURNACE_COLLISION_Y_OFFSET;
+                        let dx = resolved_x - furnace.pos_x;
+                        let dy = resolved_y - furnace_collision_y;
+                        let dist_sq = dx * dx + dy * dy;
+                        let min_dist = current_player_radius + crate::furnace::FURNACE_COLLISION_RADIUS + separation_distance; // Add separation
+                        let min_dist_sq = min_dist * min_dist;
+                        if dist_sq < min_dist_sq && dist_sq > 0.0 {
+                            overlap_found_in_iter = true;
+                            let distance = dist_sq.sqrt();
+                            let overlap = (min_dist - distance) + separation_distance; // Ensure separation
+                            resolved_x += (dx / distance) * overlap;
+                            resolved_y += (dy / distance) * overlap;
                         }
                     }
                 },

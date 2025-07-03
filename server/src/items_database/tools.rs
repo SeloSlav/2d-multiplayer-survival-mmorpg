@@ -272,16 +272,16 @@ pub fn get_tool_definitions() -> Vec<ItemDefinition> {
             .attack_interval(0.6)
             .build(),
 
-        ItemBuilder::new("Reed Bellows", "A primitive bellows crafted from reed stalks and animal hide. When placed in campfires: makes fuel burn 50% slower and cooking 20% faster. When placed in furnaces: makes fuel burn 50% slower and smelting 20% faster.", ItemCategory::Tool)
+        ItemBuilder::new("Reed Bellows", "A primitive bellows crafted from reed stalks and animal leather. When placed in campfires: makes fuel burn 50% slower and cooking 20% faster. When placed in furnaces: makes fuel burn 50% slower and smelting 20% faster.", ItemCategory::Tool)
             .icon("reed_bellows.png")
             .crafting_cost(vec![
-                CostIngredient { item_name: "Common Reed Stalk".to_string(), quantity: 8 },
-                CostIngredient { item_name: "Animal Fat".to_string(), quantity: 3 },
-                CostIngredient { item_name: "Rope".to_string(), quantity: 2 },
-                CostIngredient { item_name: "Cloth".to_string(), quantity: 5 },
+                CostIngredient { item_name: "Common Reed Stalk".to_string(), quantity: 12 },
+                CostIngredient { item_name: "Animal Leather".to_string(), quantity: 8 },
+                CostIngredient { item_name: "Rope".to_string(), quantity: 4 },
+                CostIngredient { item_name: "Metal Fragments".to_string(), quantity: 75 },
             ])
-            .crafting_output(1, 45)
-            .respawn_time(720)
+            .crafting_output(1, 60)
+            .respawn_time(900)
             .build(),
 
         // Water Storage Tools

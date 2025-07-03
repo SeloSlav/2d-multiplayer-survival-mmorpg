@@ -32,6 +32,8 @@ use crate::shelter::shelter as ShelterTableTrait; // RE-ENABLE ShelterTableTrait
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait; // ADDED PlayerCorpse table trait
 // Import rain collector table trait
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
+// Import furnace table trait
+use crate::furnace::furnace as FurnaceTableTrait;
 // Import wild animal table trait
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 
@@ -63,6 +65,7 @@ pub enum EntityType {
     Shelter(u32), // RE-ENABLE Shelter from EntityType
     PlayerCorpse(u32), // ADDED PlayerCorpse entity type (assuming u32 ID)
     RainCollector(u32), // ADDED RainCollector entity type (assuming u32 ID)
+    Furnace(u32), // ADDED Furnace entity type (assuming u32 ID)
     WildAnimal(u64), // ADDED WildAnimal entity type
     // EXCLUDED: Grass - removed for performance to fix rubber-banding issues
 }
@@ -169,6 +172,7 @@ impl SpatialGrid {
                                   + ShelterTableTrait 
                                   + PlayerCorpseTableTrait
                                   + RainCollectorTableTrait
+                                  + FurnaceTableTrait
                                   + WildAnimalTableTrait> // ADDED WildAnimalTableTrait to bounds
                                  (&mut self, db: &DB, current_time: spacetimedb::Timestamp) {
         self.clear();
@@ -261,6 +265,13 @@ impl SpatialGrid {
         for rain_collector in db.rain_collector().iter() {
             if !rain_collector.is_destroyed {
                 self.add_entity(EntityType::RainCollector(rain_collector.id), rain_collector.pos_x, rain_collector.pos_y);
+            }
+        }
+        
+        // Add furnaces (only non-destroyed)
+        for furnace in db.furnace().iter() {
+            if !furnace.is_destroyed {
+                self.add_entity(EntityType::Furnace(furnace.id), furnace.pos_x, furnace.pos_y);
             }
         }
         

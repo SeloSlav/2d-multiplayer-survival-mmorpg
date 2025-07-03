@@ -2,14 +2,16 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import {
     Campfire as SpacetimeDBCampfire,
     Lantern as SpacetimeDBLantern,
+    Furnace as SpacetimeDBFurnace,
     WorldState as SpacetimeDBWorldState,
     Player as SpacetimeDBPlayer,
     ActiveEquipment as SpacetimeDBActiveEquipment,
     ItemDefinition as SpacetimeDBItemDefinition,
 } from '../generated';
-import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT, LANTERN_LIGHT_RADIUS_BASE, LANTERN_FLICKER_AMOUNT } from '../utils/renderers/lightRenderingUtils';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT, LANTERN_LIGHT_RADIUS_BASE, LANTERN_FLICKER_AMOUNT, FURNACE_LIGHT_RADIUS_BASE, FURNACE_FLICKER_AMOUNT } from '../utils/renderers/lightRenderingUtils';
 import { CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils';
 import { LANTERN_HEIGHT } from '../utils/renderers/lanternRenderingUtils';
+import { FURNACE_HEIGHT, FURNACE_RENDER_Y_OFFSET } from '../utils/renderers/furnaceRenderingUtils';
 
 export interface ColorPoint {
   r: number; g: number; b: number; a: number;
@@ -224,6 +226,7 @@ interface UseDayNightCycleProps {
     worldState: SpacetimeDBWorldState | null;
     campfires: Map<string, SpacetimeDBCampfire>;
     lanterns: Map<string, SpacetimeDBLantern>;
+    furnaces: Map<string, SpacetimeDBFurnace>;
     players: Map<string, SpacetimeDBPlayer>;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -245,6 +248,7 @@ export function useDayNightCycle({
     worldState,
     campfires,
     lanterns,
+    furnaces,
     players,
     activeEquipments,
     itemDefinitions,
@@ -374,6 +378,48 @@ export function useDayNightCycle({
             }
         });
 
+        // Render furnace light cutouts with red gradient fill
+        furnaces.forEach(furnace => {
+            if (furnace.isBurning) {
+                // Adjust Y position for the light source to be centered on the furnace
+                const visualCenterWorldY = furnace.posY - (FURNACE_HEIGHT / 2);
+                const adjustedGradientCenterWorldY = visualCenterWorldY - (FURNACE_RENDER_Y_OFFSET * 0); // Changed from 0.6 to 0.4
+                
+                const screenX = furnace.posX + cameraOffsetX;
+                const screenY = adjustedGradientCenterWorldY + cameraOffsetY; // Use adjusted Y
+                
+                // FIRST: Create the transparent cutout hole
+                const lightRadius = FURNACE_LIGHT_RADIUS_BASE * 2.0; // Double the cutout size
+                const maskGradient = maskCtx.createRadialGradient(screenX, screenY, lightRadius * 0.08, screenX, screenY, lightRadius);
+                maskGradient.addColorStop(0, 'rgba(0,0,0,1)'); // Full cutout at center
+                maskGradient.addColorStop(0.4, 'rgba(0,0,0,0.7)'); // Natural transition zone
+                maskGradient.addColorStop(0.8, 'rgba(0,0,0,0.3)'); // Gentle fade
+                maskGradient.addColorStop(1, 'rgba(0,0,0,0)'); // Complete fade to darkness
+                maskCtx.fillStyle = maskGradient;
+                maskCtx.beginPath();
+                maskCtx.arc(screenX, screenY, lightRadius, 0, Math.PI * 2);
+                maskCtx.fill();
+
+                // SECOND: Fill the cutout with dark red gradient (switch composite mode back)
+                maskCtx.globalCompositeOperation = 'source-over';
+                const redFillRadius = lightRadius; // Same size as cutout to fill completely
+                const redGradient = maskCtx.createRadialGradient(screenX, screenY, 0, screenX, screenY, redFillRadius);
+                redGradient.addColorStop(0, 'rgba(140, 30, 18, 0.8)'); // Intense dark red center - eerie glow
+                redGradient.addColorStop(0.15, 'rgba(120, 25, 15, 0.7)'); // Strong industrial red
+                redGradient.addColorStop(0.35, 'rgba(100, 20, 12, 0.6)'); // Deep forge red
+                redGradient.addColorStop(0.55, 'rgba(80, 15, 10, 0.5)'); // Darker red midpoint
+                redGradient.addColorStop(0.75, 'rgba(60, 12, 8, 0.4)'); // Very dark red
+                redGradient.addColorStop(0.9, 'rgba(40, 8, 5, 0.2)'); // Eerie dark edge
+                redGradient.addColorStop(1, 'rgba(30, 6, 4, 0)'); // Natural fade to transparent
+                maskCtx.fillStyle = redGradient;
+                maskCtx.beginPath();
+                maskCtx.arc(screenX, screenY, redFillRadius, 0, Math.PI * 2);
+                maskCtx.fill();
+                // Switch back to cutout mode for other lights
+                maskCtx.globalCompositeOperation = 'destination-out';
+            }
+        });
+
         // Render torch light cutouts
         players.forEach((player, playerId) => {
             if (!player || player.isDead) return;
@@ -426,7 +472,7 @@ export function useDayNightCycle({
         
         maskCtx.globalCompositeOperation = 'source-over';
 
-    }, [worldState, campfires, lanterns, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey, lanternBurningStatesKey, localPlayerId, predictedPosition, remotePlayerInterpolation]);
+    }, [worldState, campfires, lanterns, furnaces, players, activeEquipments, itemDefinitions, cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, torchLitStatesKey, lanternBurningStatesKey, localPlayerId, predictedPosition, remotePlayerInterpolation]);
 
     return { overlayRgba, maskCanvasRef };
 } 

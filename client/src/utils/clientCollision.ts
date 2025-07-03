@@ -1,5 +1,5 @@
 // AAA-Quality Client-side Collision Detection System
-import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal, Barrel } from '../generated';
+import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal, Barrel, Furnace } from '../generated';
 
 // ===== CONFIGURATION CONSTANTS =====
 const WORLD_WIDTH_PX = 24000;
@@ -12,6 +12,7 @@ const COLLISION_RADII = {
   STONE: 28,       // Smaller radius for flattened stones
   STORAGE_BOX: 25, // Much tighter radius for boxes
   RAIN_COLLECTOR: 30, // Increased to match server-side for easier targeting
+  FURNACE: 20, // Match server FURNACE_COLLISION_RADIUS = 20.0
   PLAYER: PLAYER_RADIUS,
   WILD_ANIMAL: 40, // Add wild animal collision radius
   BARREL: 25, // Smaller barrel collision radius for better accuracy
@@ -23,6 +24,7 @@ const COLLISION_OFFSETS = {
   STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
   RAIN_COLLECTOR: { x: 0, y: 0 }, // Pushed down to align with visual base
+  FURNACE: { x: 0, y: -60 }, // Move collision up to match visual furnace position
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
   WILD_ANIMAL: { x: 0, y: 0 }, // No offset needed for animals
   BARREL: { x: 0, y: -48 }, // Barrel collision at visual center (matches server)
@@ -50,6 +52,7 @@ export interface GameEntities {
   stones: Map<string, Stone>;
   boxes: Map<string, WoodenStorageBox>;
   rainCollectors: Map<string, RainCollector>;
+  furnaces: Map<string, Furnace>;
   shelters: Map<string, Shelter>;
   players: Map<string, Player>;
   wildAnimals: Map<string, WildAnimal>; // Add wild animals
@@ -423,6 +426,19 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
       x: rainCollector.posX + COLLISION_OFFSETS.RAIN_COLLECTOR.x,
       y: rainCollector.posY + COLLISION_OFFSETS.RAIN_COLLECTOR.y,
       radius: COLLISION_RADII.RAIN_COLLECTOR
+    });
+  }
+  
+  // Add furnaces
+  for (const [furnaceId, furnace] of entities.furnaces) {
+    if (furnace.isDestroyed) continue;
+    
+    shapes.push({
+      id: furnaceId,
+      type: `furnace-${furnaceId}`,
+      x: furnace.posX + COLLISION_OFFSETS.FURNACE.x,
+      y: furnace.posY + COLLISION_OFFSETS.FURNACE.y,
+      radius: COLLISION_RADII.FURNACE
     });
   }
   

@@ -215,6 +215,7 @@ function AppContent() {
             stones,
             boxes: woodenStorageBoxes,
             rainCollectors,
+            furnaces, // Add furnaces to collision system
             shelters,
             players,
             wildAnimals, // Add wild animals to collision system

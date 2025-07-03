@@ -60,6 +60,7 @@ import { useThunderEffects } from '../hooks/useThunderEffects';
 import { useFireArrowParticles } from '../hooks/useFireArrowParticles';
 import { useWorldTileCache } from '../hooks/useWorldTileCache';
 import { useAmbientSounds } from '../hooks/useAmbientSounds';
+import { useFurnaceParticles } from '../hooks/useFurnaceParticles';
 
 // --- Rendering Utilities ---
 import { renderWorldBackground } from '../utils/renderers/worldRenderingUtils';
@@ -74,7 +75,7 @@ import { renderDroppedItem } from '../utils/renderers/droppedItemRenderingUtils.
 import { renderSleepingBag } from '../utils/renderers/sleepingBagRenderingUtils';
 import { renderPlayerCorpse } from '../utils/renderers/playerCorpseRenderingUtils';
 import { renderStash } from '../utils/renderers/stashRenderingUtils';
-import { renderPlayerTorchLight, renderCampfireLight, renderLanternLight } from '../utils/renderers/lightRenderingUtils';
+import { renderPlayerTorchLight, renderCampfireLight, renderLanternLight, renderFurnaceLight } from '../utils/renderers/lightRenderingUtils';
 import { renderTree } from '../utils/renderers/treeRenderingUtils';
 import { renderCloudsDirectly } from '../utils/renderers/cloudRenderingUtils';
 import { renderProjectile } from '../utils/renderers/projectileRenderingUtils';
@@ -357,6 +358,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     worldState,
     campfires,
     lanterns,
+    furnaces, // Add furnaces for darkness cutouts
     players, // Pass all players
     activeEquipments, // Pass all active equipments
     itemDefinitions, // Pass all item definitions
@@ -649,6 +651,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     deltaTime: 0 // Not used anymore, but kept for compatibility
   });
 
+  // Furnace particle effects - industrial forge sparks and flames
+  const furnaceParticles = useFurnaceParticles({
+    visibleFurnacesMap,
+  });
+
   // Resource sparkle particle effects - shows sparkles on harvestable resources (viewport-culled)
   const resourceSparkleParticles = useResourceSparkleParticles({
     harvestableResources: visibleHarvestableResourcesMap,
@@ -938,6 +945,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       renderParticlesToCanvas(ctx, campfireParticles);
       renderParticlesToCanvas(ctx, torchParticles);
       renderParticlesToCanvas(ctx, fireArrowParticles);
+      renderParticlesToCanvas(ctx, furnaceParticles);
       renderParticlesToCanvas(ctx, resourceSparkleParticles);
 
       // Render cut grass effects
@@ -1130,6 +1138,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       renderLanternLight({
         ctx,
         lantern: lantern,
+        cameraOffsetX,
+        cameraOffsetY,
+      });
+    });
+
+    // Furnace Lights - Only draw for visible furnaces with industrial red glow
+    visibleFurnacesMap.forEach((furnace: SpacetimeDBFurnace) => {
+      renderFurnaceLight({
+        ctx,
+        furnace: furnace,
         cameraOffsetX,
         cameraOffsetY,
       });

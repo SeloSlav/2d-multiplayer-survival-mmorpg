@@ -1,4 +1,4 @@
-import { Player as SpacetimeDBPlayer, ItemDefinition as SpacetimeDBItemDefinition, ActiveEquipment as SpacetimeDBActiveEquipment, Lantern as SpacetimeDBLantern } from '../../generated';
+import { Player as SpacetimeDBPlayer, ItemDefinition as SpacetimeDBItemDefinition, ActiveEquipment as SpacetimeDBActiveEquipment, Lantern as SpacetimeDBLantern, Furnace as SpacetimeDBFurnace } from '../../generated';
 
 // --- Campfire Light Constants (defined locally now) ---
 export const CAMPFIRE_LIGHT_RADIUS_BASE = 150;
@@ -17,6 +17,12 @@ export const LANTERN_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.6; // Re
 export const LANTERN_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.3; // Much more stable than campfire/torch
 export const LANTERN_LIGHT_INNER_COLOR = 'rgba(255, 220, 160, 0.32)'; // Reduced intensity for focused lighting
 export const LANTERN_LIGHT_OUTER_COLOR = 'rgba(240, 180, 120, 0.0)'; // Golden amber fade
+
+// --- Furnace Light Constants (industrial metal smelting - warm dark red glow) ---
+export const FURNACE_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.5; // Half the campfire range
+export const FURNACE_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.8; // Steady but with industrial flickering
+export const FURNACE_LIGHT_INNER_COLOR = 'rgba(180, 40, 20, 0.35)'; // Much darker red, more intense
+export const FURNACE_LIGHT_OUTER_COLOR = 'rgba(120, 20, 10, 0.0)'; // Very dark red fade
 
 interface RenderPlayerTorchLightProps {
     ctx: CanvasRenderingContext2D;
@@ -205,6 +211,9 @@ export const renderCampfireLight = ({
 // Import the LANTERN_RENDER_Y_OFFSET and LANTERN_HEIGHT for proper alignment
 import { LANTERN_RENDER_Y_OFFSET, LANTERN_HEIGHT } from '../renderers/lanternRenderingUtils';
 
+// Import the FURNACE_RENDER_Y_OFFSET and FURNACE_HEIGHT for proper alignment
+import { FURNACE_RENDER_Y_OFFSET, FURNACE_HEIGHT } from '../renderers/furnaceRenderingUtils';
+
 // --- Lantern Light Rendering ---
 interface RenderLanternLightProps {
     ctx: CanvasRenderingContext2D;
@@ -291,6 +300,95 @@ export const renderLanternLight = ({
     coreGradient.addColorStop(0.7, 'rgba(205, 170, 115, 0.11)'); // Natural amber transition
     coreGradient.addColorStop(0.85, 'rgba(195, 155, 100, 0.07)'); // Natural warm amber
     coreGradient.addColorStop(1, 'rgba(185, 140, 85, 0)'); // Natural amber fade
+    
+    ctx.fillStyle = coreGradient;
+    ctx.beginPath();
+    ctx.arc(lightScreenX, lightScreenY, coreRadius, 0, Math.PI * 2);
+    ctx.fill();
+};
+
+// --- Furnace Light Rendering ---
+interface RenderFurnaceLightProps {
+    ctx: CanvasRenderingContext2D;
+    furnace: SpacetimeDBFurnace;
+    cameraOffsetX: number;
+    cameraOffsetY: number;
+}
+
+export const renderFurnaceLight = ({
+    ctx,
+    furnace,
+    cameraOffsetX,
+    cameraOffsetY,
+}: RenderFurnaceLightProps) => {
+    if (!furnace.isBurning) {
+        return; // Not burning, no light
+    }
+
+    const visualCenterX = furnace.posX;
+    const visualCenterY = furnace.posY - (FURNACE_HEIGHT / 2) - FURNACE_RENDER_Y_OFFSET;
+    
+    const lightScreenX = visualCenterX + cameraOffsetX;
+    const lightScreenY = visualCenterY + cameraOffsetY;
+    const baseFlicker = (Math.random() - 0.5) * 2 * FURNACE_FLICKER_AMOUNT;
+
+    // Add industrial asymmetry for furnace forge effect
+    const furnaceAsymmetryX = (Math.random() - 0.5) * baseFlicker * 0.4;
+    const furnaceAsymmetryY = (Math.random() - 0.5) * baseFlicker * 0.3;
+    const industrialFurnaceX = lightScreenX + furnaceAsymmetryX;
+    const industrialFurnaceY = lightScreenY + furnaceAsymmetryY;
+
+    // INDUSTRIAL FURNACE LIGHTING SYSTEM - metal smelting forge with dark red glow
+    const FURNACE_SCALE = 1.0; // Half the range of campfire but focused industrial lighting
+
+    // Layer 1: Large ambient glow (metal forge - natural dark red like Rust game)
+    const ambientRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 3.2 * FURNACE_SCALE + baseFlicker * 0.2);
+    const ambientGradient = ctx.createRadialGradient(
+        industrialFurnaceX, industrialFurnaceY, 0,
+        industrialFurnaceX, industrialFurnaceY, ambientRadius
+    );
+    ambientGradient.addColorStop(0, 'rgba(100, 35, 20, 0.025)'); // Natural rust-like dark red/brown
+    ambientGradient.addColorStop(0.2, 'rgba(85, 30, 18, 0.022)'); // Muted industrial red/brown
+    ambientGradient.addColorStop(0.5, 'rgba(70, 25, 15, 0.018)'); // Natural dark forge glow
+    ambientGradient.addColorStop(0.8, 'rgba(55, 20, 12, 0.012)'); // Very muted industrial red
+    ambientGradient.addColorStop(1, 'rgba(40, 15, 10, 0)'); // Natural dark fade
+    
+    ctx.fillStyle = ambientGradient;
+    ctx.beginPath();
+    ctx.arc(industrialFurnaceX, industrialFurnaceY, ambientRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 2: Main illumination (natural rust-like forge heat)
+    const mainRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 2.1 * FURNACE_SCALE + baseFlicker * 0.6);
+    const mainGradient = ctx.createRadialGradient(
+        industrialFurnaceX, industrialFurnaceY, 0,
+        industrialFurnaceX, industrialFurnaceY, mainRadius
+    );
+    mainGradient.addColorStop(0, 'rgba(130, 60, 35, 0.09)'); // Natural rust forge center - more brown
+    mainGradient.addColorStop(0.15, 'rgba(115, 50, 30, 0.08)'); // Rust-like industrial red/brown
+    mainGradient.addColorStop(0.3, 'rgba(100, 45, 25, 0.07)'); // Natural dark forge heat
+    mainGradient.addColorStop(0.5, 'rgba(85, 35, 20, 0.06)'); // Muted red/brown glow
+    mainGradient.addColorStop(0.7, 'rgba(70, 30, 18, 0.04)'); // Natural industrial heat
+    mainGradient.addColorStop(0.85, 'rgba(55, 25, 15, 0.025)'); // Rust-like dark red
+    mainGradient.addColorStop(1, 'rgba(40, 20, 12, 0)'); // Natural fade
+    
+    ctx.fillStyle = mainGradient;
+    ctx.beginPath();
+    ctx.arc(industrialFurnaceX, industrialFurnaceY, mainRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Layer 3: Core bright light (natural molten metal center like Rust)
+    const coreRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 0.7 * FURNACE_SCALE + baseFlicker * 1.0);
+    const coreGradient = ctx.createRadialGradient(
+        industrialFurnaceX, industrialFurnaceY, 0,
+        industrialFurnaceX, industrialFurnaceY, coreRadius
+    );
+    coreGradient.addColorStop(0, 'rgba(150, 75, 45, 0.14)'); // Natural molten center - more orange/brown
+    coreGradient.addColorStop(0.2, 'rgba(135, 65, 40, 0.12)'); // Rust-like hot forge
+    coreGradient.addColorStop(0.4, 'rgba(120, 55, 35, 0.10)'); // Natural industrial heat
+    coreGradient.addColorStop(0.6, 'rgba(105, 50, 30, 0.08)'); // Muted forge heat
+    coreGradient.addColorStop(0.8, 'rgba(90, 40, 25, 0.05)'); // Natural industrial glow
+    coreGradient.addColorStop(1, 'rgba(75, 35, 20, 0)'); // Rust-like fade
     
     ctx.fillStyle = coreGradient;
     ctx.beginPath();
