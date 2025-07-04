@@ -375,3 +375,144 @@ export function isPointInAnimal(
     return x >= bounds.x && x <= bounds.x + bounds.width && 
            y >= bounds.y && y <= bounds.y + bounds.height;
 }
+
+// --- THOUGHT BUBBLE RENDERING ---
+
+interface ThoughtBubbleProps {
+    ctx: CanvasRenderingContext2D;
+    animal: WildAnimal;
+    nowMs: number;
+    emoji: string;
+    duration: number;
+    startTime: number;
+}
+
+/**
+ * Renders a thought bubble with an emoji above a tamed animal
+ */
+export function renderAnimalThoughtBubble({
+    ctx,
+    animal,
+    nowMs,
+    emoji,
+    duration,
+    startTime,
+}: ThoughtBubbleProps) {
+    const elapsed = nowMs - startTime;
+    
+    // Don't render if effect has expired
+    if (elapsed >= duration) {
+        return;
+    }
+    
+    // Calculate bubble position above the animal
+    const bubbleX = animal.posX;
+    const bubbleY = animal.posY - 80; // Position above the animal
+    
+    // Calculate fade effect for the last 500ms
+    const fadeStartTime = duration - 500;
+    let alpha = 1.0;
+    if (elapsed > fadeStartTime) {
+        alpha = 1.0 - ((elapsed - fadeStartTime) / 500);
+    }
+    
+    // Add slight bob animation
+    const bobOffset = Math.sin((elapsed * 0.008)) * 3; // Gentle bobbing motion
+    const finalY = bubbleY + bobOffset;
+    
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    
+    // Draw thought bubble background
+    const bubbleRadius = 25;
+    const tailHeight = 8;
+    
+    // Bubble gradient
+    const gradient = ctx.createRadialGradient(bubbleX, finalY, 0, bubbleX, finalY, bubbleRadius);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    gradient.addColorStop(1, 'rgba(240, 240, 240, 0.85)');
+    
+    // Main bubble circle
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = 'rgba(100, 100, 100, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(bubbleX, finalY, bubbleRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Thought bubble tail (small circles)
+    const tailPositions = [
+        { x: bubbleX - 10, y: finalY + bubbleRadius + 5, radius: 4 },
+        { x: bubbleX - 18, y: finalY + bubbleRadius + 12, radius: 3 },
+        { x: bubbleX - 24, y: finalY + bubbleRadius + 18, radius: 2 },
+    ];
+    
+    tailPositions.forEach(pos => {
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, pos.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    });
+    
+    // Draw emoji
+    ctx.fillStyle = 'black';
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, bubbleX, finalY);
+    
+    ctx.restore();
+}
+
+/**
+ * Renders taming-related thought bubbles for wild animals
+ */
+export function renderTamingThoughtBubbles({
+    ctx,
+    animal,
+    nowMs,
+}: {
+    ctx: CanvasRenderingContext2D;
+    animal: WildAnimal;
+    nowMs: number;
+}) {
+    // Check for heart effect (when animal is tamed)
+    if (animal.heartEffectUntil) {
+        const heartEffectEndTime = Number(animal.heartEffectUntil.microsSinceUnixEpoch) / 1000; // Convert to milliseconds
+        const heartEffectStartTime = heartEffectEndTime - 3000; // 3 second duration
+        
+        if (nowMs >= heartEffectStartTime && nowMs <= heartEffectEndTime) {
+            renderAnimalThoughtBubble({
+                ctx,
+                animal,
+                nowMs,
+                emoji: '💖',
+                duration: 3000,
+                startTime: heartEffectStartTime,
+            });
+        }
+    }
+    
+    // Check for crying effect (when tamed animal is hit by owner)
+    if (animal.cryingEffectUntil) {
+        const cryingEffectEndTime = Number(animal.cryingEffectUntil.microsSinceUnixEpoch) / 1000; // Convert to milliseconds
+        const cryingEffectStartTime = cryingEffectEndTime - 3000; // 3 second duration
+        
+        if (nowMs >= cryingEffectStartTime && nowMs <= cryingEffectEndTime) {
+            renderAnimalThoughtBubble({
+                ctx,
+                animal,
+                nowMs,
+                emoji: '😢',
+                duration: 3000,
+                startTime: cryingEffectStartTime,
+            });
+        }
+    }
+    
+    // Additional thought bubbles can be added here for other emotions/states
+}

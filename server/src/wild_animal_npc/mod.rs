@@ -13,7 +13,6 @@ pub mod animal_corpse;
 pub use core::*;
 
 // Re-export species-specific traits
-pub use fox::FoxBehavior;
 pub use wolf::WolfBehavior;
 pub use viper::ViperBehavior;
 pub use walrus::WalrusBehavior;

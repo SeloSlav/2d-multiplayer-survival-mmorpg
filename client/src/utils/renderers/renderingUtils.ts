@@ -47,7 +47,7 @@ import { renderShelter } from './shelterRenderingUtils';
 // Import rain collector renderer
 import { renderRainCollector } from './rainCollectorRenderingUtils';
 // Import wild animal renderer
-import { renderWildAnimal } from './wildAnimalRenderingUtils';
+import { renderWildAnimal, renderTamingThoughtBubbles } from './wildAnimalRenderingUtils';
 // Import viper spittle renderer
 import { renderViperSpittle } from './viperSpittleRenderingUtils';
 // Import animal corpse renderer
@@ -653,6 +653,13 @@ export const renderYSortedEntities = ({
                 cycleProgress,
                 animationFrame,
                 localPlayerPosition: localPlayerPosition || { x: 0, y: 0 },
+            });
+            
+            // Render thought bubbles for tamed animals (hearts, crying, etc.)
+            renderTamingThoughtBubbles({
+                ctx,
+                animal: wildAnimal,
+                nowMs,
             });
         } else if (type === 'viper_spittle') {
             const viperSpittle = entity as SpacetimeDBViperSpittle;

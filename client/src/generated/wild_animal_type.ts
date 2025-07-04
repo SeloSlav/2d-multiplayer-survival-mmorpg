@@ -63,6 +63,11 @@ export type WildAnimal = {
   packJoinTime: Timestamp | undefined,
   lastPackCheck: Timestamp | undefined,
   fireFearOverriddenBy: Identity | undefined,
+  tamedBy: Identity | undefined,
+  tamedAt: Timestamp | undefined,
+  heartEffectUntil: Timestamp | undefined,
+  cryingEffectUntil: Timestamp | undefined,
+  lastFoodCheck: Timestamp | undefined,
 };
 
 /**
@@ -103,6 +108,11 @@ export namespace WildAnimal {
       new ProductTypeElement("packJoinTime", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("lastPackCheck", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("fireFearOverriddenBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
+      new ProductTypeElement("tamedBy", AlgebraicType.createOptionType(AlgebraicType.createIdentityType())),
+      new ProductTypeElement("tamedAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("heartEffectUntil", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("cryingEffectUntil", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
+      new ProductTypeElement("lastFoodCheck", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
     ]);
   }
 

@@ -306,7 +306,9 @@ pub fn find_targets_in_cone(
         let dy = target_y - player.position_y;
         let dist_sq = dx * dx + dy * dy;
 
-        if dist_sq < (attack_range * attack_range) && dist_sq > 0.0 {
+        // Use smaller radius for campfire targeting (campfires are smaller objects)
+        let campfire_target_range = (CAMPFIRE_COLLISION_RADIUS + 30.0).min(attack_range); // Max 50px targeting range
+        if dist_sq < (campfire_target_range * campfire_target_range) && dist_sq > 0.0 {
             let distance = dist_sq.sqrt();
             let target_vec_x = dx / distance;
             let target_vec_y = dy / distance;

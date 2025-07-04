@@ -43,6 +43,8 @@ export namespace AnimalState {
   export type Burrowed = { tag: "Burrowed" };
   export type Investigating = { tag: "Investigating" };
   export type Alert = { tag: "Alert" };
+  export type Following = { tag: "Following" };
+  export type Protecting = { tag: "Protecting" };
 
   // Helper functions for constructing each variant of the tagged union.
   // ```
@@ -58,6 +60,8 @@ export namespace AnimalState {
   export const Burrowed = { tag: "Burrowed" };
   export const Investigating = { tag: "Investigating" };
   export const Alert = { tag: "Alert" };
+  export const Following = { tag: "Following" };
+  export const Protecting = { tag: "Protecting" };
 
   export function getTypeScriptAlgebraicType(): AlgebraicType {
     return AlgebraicType.createSumType([
@@ -69,6 +73,8 @@ export namespace AnimalState {
       new SumTypeVariant("Burrowed", AlgebraicType.createProductType([])),
       new SumTypeVariant("Investigating", AlgebraicType.createProductType([])),
       new SumTypeVariant("Alert", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Following", AlgebraicType.createProductType([])),
+      new SumTypeVariant("Protecting", AlgebraicType.createProductType([])),
     ]);
   }
 
@@ -83,7 +89,7 @@ export namespace AnimalState {
 }
 
 // The tagged union or sum type for the algebraic type `AnimalState`.
-export type AnimalState = AnimalState.Patrolling | AnimalState.Chasing | AnimalState.Attacking | AnimalState.Fleeing | AnimalState.Hiding | AnimalState.Burrowed | AnimalState.Investigating | AnimalState.Alert;
+export type AnimalState = AnimalState.Patrolling | AnimalState.Chasing | AnimalState.Attacking | AnimalState.Fleeing | AnimalState.Hiding | AnimalState.Burrowed | AnimalState.Investigating | AnimalState.Alert | AnimalState.Following | AnimalState.Protecting;
 
 export default AnimalState;
 

@@ -112,7 +112,7 @@ pub use consumables::consume_filled_water_container;
 pub use water_patch::water_crops;
 
 // ADD: Re-export wild animal NPC reducers
-pub use wild_animal_npc::{spawn_wild_animal, damage_wild_animal, process_wild_animal_ai};
+pub use wild_animal_npc::{spawn_wild_animal, damage_wild_animal, damage_wild_animal_by_animal, process_wild_animal_ai};
 
 // ADD: Re-export barrel reducers
 pub use barrel::attack_barrel;

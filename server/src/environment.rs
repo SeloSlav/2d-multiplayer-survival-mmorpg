@@ -1322,6 +1322,13 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
                 
                 // Fire fear override tracking
                 fire_fear_overridden_by: None,
+                
+                // Taming system fields
+                tamed_by: None,
+                tamed_at: None,
+                heart_effect_until: None,
+                crying_effect_until: None,
+                last_food_check: None,
             };
 
             match ctx.db.wild_animal().try_insert(new_animal) {

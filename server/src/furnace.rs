@@ -36,8 +36,8 @@ use crate::campfire::campfire as CampfireTableTrait;
 
 // --- Constants ---
 // Collision constants
-pub(crate) const FURNACE_COLLISION_RADIUS: f32 = 20.0;
-pub(crate) const FURNACE_COLLISION_Y_OFFSET: f32 = 0.0;
+pub(crate) const FURNACE_COLLISION_RADIUS: f32 = 35.0;
+pub(crate) const FURNACE_COLLISION_Y_OFFSET: f32 = -35.0;
 pub(crate) const PLAYER_FURNACE_COLLISION_DISTANCE_SQUARED: f32 = 
     (super::PLAYER_RADIUS + FURNACE_COLLISION_RADIUS) * (super::PLAYER_RADIUS + FURNACE_COLLISION_RADIUS);
 pub(crate) const FURNACE_FURNACE_COLLISION_DISTANCE_SQUARED: f32 = 

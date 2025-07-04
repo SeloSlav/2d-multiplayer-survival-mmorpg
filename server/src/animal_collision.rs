@@ -64,11 +64,20 @@ pub fn resolve_animal_collision(
     let mut final_x = proposed_x;
     let mut final_y = proposed_y;
     
-    // Check water collision first (absolute blocker)
+    // Check water collision - but allow walruses to swim!
     if is_water_tile(ctx, proposed_x, proposed_y) {
-        log::debug!("[AnimalCollision] Animal {} movement blocked by water at ({:.1}, {:.1})", 
-                   animal_id, proposed_x, proposed_y);
-        return (current_x, current_y); // Don't move if target is water
+        // Look up the animal to check its species
+        if let Some(animal) = ctx.db.wild_animal().id().find(&animal_id) {
+            // Walruses can swim - they're not blocked by water
+            if !matches!(animal.species, crate::wild_animal_npc::AnimalSpecies::ArcticWalrus) {
+                log::debug!("[AnimalCollision] Animal {} movement blocked by water at ({:.1}, {:.1})", 
+                           animal_id, proposed_x, proposed_y);
+                return (current_x, current_y); // Block non-walrus animals
+            }
+            // Walruses can continue moving through water
+            log::debug!("[AnimalCollision] Walrus {} swimming through water at ({:.1}, {:.1})", 
+                       animal_id, proposed_x, proposed_y);
+        }
     }
     
     // Check shelter collision (absolute blocker)
@@ -326,7 +335,7 @@ pub fn validate_animal_spawn_position(
     pos_x: f32,
     pos_y: f32,
 ) -> Result<(), String> {
-    // Check water collision
+    // Check water collision - animals still can't spawn ON water tiles
     if is_water_tile(ctx, pos_x, pos_y) {
         return Err(format!("Cannot spawn animal on water tile at ({:.1}, {:.1})", pos_x, pos_y));
     }
@@ -362,9 +371,14 @@ pub fn can_animal_move_to_position(
     proposed_y: f32,
     is_attacking: bool,
 ) -> bool {
-    // Quick checks for absolute blockers
+    // Quick check for water - allow walruses to swim
     if is_water_tile(ctx, proposed_x, proposed_y) {
-        return false;
+        if let Some(animal) = ctx.db.wild_animal().id().find(&animal_id) {
+            if !matches!(animal.species, crate::wild_animal_npc::AnimalSpecies::ArcticWalrus) {
+                return false; // Block non-walrus animals
+            }
+            // Walruses can swim
+        }
     }
     
     if check_shelter_collision(ctx, proposed_x, proposed_y) {

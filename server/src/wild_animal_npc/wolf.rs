@@ -29,10 +29,13 @@ use crate::player as PlayerTableTrait;
 use crate::fishing::is_water_tile;
 use crate::animal_collision::check_animal_collision;
 use super::core::{
-    AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal,
-    move_towards_target, can_attack, is_animal_trapped_by_fire_and_ranged, find_closest_fire_position,
-    transition_to_state, emit_species_sound,
-    is_player_in_chase_range, get_player_distance
+    AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal, AnimalSpecies,
+    move_towards_target, can_attack, transition_to_state, emit_species_sound,
+    is_player_in_chase_range, get_player_distance,
+    execute_standard_patrol, wild_animal,
+    set_flee_destination_away_from_threat,
+    handle_fire_trap_escape, calculate_escape_angle_from_threats, detect_and_handle_stuck_movement,
+    is_position_in_shelter, get_pack_alpha, should_follow_pack_alpha, get_pack_cohesion_movement,
 };
 
 pub struct TundraWolfBehavior;
@@ -112,23 +115,10 @@ impl AnimalBehavior for TundraWolfBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
-        // 🔥 FIRE TRAP ESCAPE LOGIC - Override normal behavior when trapped by campfire + ranged weapon
+        // 🔥 FIRE TRAP ESCAPE LOGIC - Use centralized escape handler
         if let Some(player) = detected_player {
-            if super::core::is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
-                // Force flee even though wolves normally never flee
-                super::core::transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fire trap escape");
-                
-                // Set flee destination away from BOTH fire AND player
-                if let Some((fire_x, fire_y)) = super::core::find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
-                    let flee_angle = calculate_escape_angle(animal.pos_x, animal.pos_y, fire_x, fire_y, player.position_x, player.position_y);
-                    let flee_distance = 600.0; // Flee far away (12+ tiles)
-                    animal.investigation_x = Some(animal.pos_x + flee_distance * flee_angle.cos());
-                    animal.investigation_y = Some(animal.pos_y + flee_distance * flee_angle.sin());
-                    
-                    log::info!("🔥 Tundra Wolf {} ESCAPING fire trap! Player {} with ranged weapon detected at campfire.", 
-                              animal.id, player.identity);
-                    return Ok(()); // Skip normal AI logic
-                }
+            if handle_fire_trap_escape(ctx, animal, player, current_time, rng) {
+                return Ok(()); // Fire trap escape initiated - skip normal AI logic
             }
         }
 
@@ -141,10 +131,10 @@ impl AnimalBehavior for TundraWolfBehavior {
                     // 🐺 PACK COMBAT: Wolves maintain aggressive behavior regardless of pack status
                     // Pack behavior does NOT interfere with hunting - all wolves chase independently
                     if self.should_chase_player(animal, stats, player) {
-                        super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "player in range");
+                        transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "player in range");
                         
                         // 🔊 WOLF GROWL: Emit intimidating growl when starting to chase
-                        super::core::emit_species_sound(ctx, animal, player.identity, "chase_start");
+                        emit_species_sound(ctx, animal, player.identity, "chase_start");
                         
                         // 🐺 PACK ALERT: If this wolf is in a pack, notify pack members about the threat
                         if let Some(pack_id) = animal.pack_id {
@@ -155,7 +145,7 @@ impl AnimalBehavior for TundraWolfBehavior {
                         }
                     } else {
                         // If not chasing, briefly investigate
-                        super::core::transition_to_state(animal, AnimalState::Alert, current_time, None, "investigating player");
+                        transition_to_state(animal, AnimalState::Alert, current_time, None, "investigating player");
                         animal.investigation_x = Some(player.position_x);
                         animal.investigation_y = Some(player.position_y);
                     }
@@ -166,16 +156,16 @@ impl AnimalBehavior for TundraWolfBehavior {
                 if let Some(target_id) = animal.target_player_id {
                     if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
                         // Check if should stop chasing (wolves are VERY persistent)
-                        if !super::core::is_player_in_chase_range(animal, &target_player, stats) {
-                            let distance = super::core::get_player_distance(animal, &target_player);
+                        if !is_player_in_chase_range(animal, &target_player, stats) {
+                            let distance = get_player_distance(animal, &target_player);
                             if distance > stats.chase_trigger_range * 1.8 {
-                                super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player too far");
+                                transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player too far");
                                 log::debug!("Tundra Wolf {} stopping chase - player too far", animal.id);
                             }
                         }
                     } else {
                         // Target lost
-                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target lost");
+                        transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target lost");
                     }
                 }
             },
@@ -185,22 +175,22 @@ impl AnimalBehavior for TundraWolfBehavior {
                 let time_in_state = (current_time.to_micros_since_unix_epoch() -
                                     animal.state_change_time.to_micros_since_unix_epoch()) / 1000;
                 
-                if time_in_state > 1500 { // Reduced from 4000ms to 1.5 seconds - wolves are aggressive
-                    if let Some(player) = detected_player {
-                        if self.should_chase_player(animal, stats, player) {
-                            super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "alert timeout - chase");
-                            
-                            // 🔊 WOLF GROWL: Emit intimidating growl when transitioning to chase
-                            super::core::emit_species_sound(ctx, animal, player.identity, "alert_to_chase");
-                            
-                            log::debug!("Tundra Wolf {} transitioning from alert to chase", animal.id);
+                                    if time_in_state > 1500 { // Reduced from 4000ms to 1.5 seconds - wolves are aggressive
+                        if let Some(player) = detected_player {
+                            if self.should_chase_player(animal, stats, player) {
+                                transition_to_state(animal, AnimalState::Chasing, current_time, Some(player.identity), "alert timeout - chase");
+                                
+                                // 🔊 WOLF GROWL: Emit intimidating growl when transitioning to chase
+                                emit_species_sound(ctx, animal, player.identity, "alert_to_chase");
+                                
+                                log::debug!("Tundra Wolf {} transitioning from alert to chase", animal.id);
+                            } else {
+                                transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - patrol");
+                            }
                         } else {
-                            super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - patrol");
+                            transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - no target");
                         }
-                    } else {
-                        super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "alert timeout - no target");
                     }
-                }
             },
             
             AnimalState::Fleeing => {
@@ -214,7 +204,7 @@ impl AnimalBehavior for TundraWolfBehavior {
                         
                         if distance_to_flee_target < 100.0 {
                             // Reached flee destination or close enough - return to patrol
-                            super::core::transition_to_state(animal, AnimalState::Patrolling, current_time, None, "reached flee destination");
+                            transition_to_state(animal, AnimalState::Patrolling, current_time, None, "reached flee destination");
                             animal.investigation_x = None;
                             animal.investigation_y = None;
                             log::debug!("Tundra Wolf {} finished fleeing - returning to patrol", animal.id);
@@ -253,17 +243,13 @@ impl AnimalBehavior for TundraWolfBehavior {
         if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
             move_towards_target(ctx, animal, target_x, target_y, stats.sprint_speed, dt);
             
-            // Check if stuck on water or obstacle
-            let movement_threshold = 8.0;
-            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
-            
-            if distance_moved < movement_threshold {
-                // Stuck! Pick new flee direction
-                let new_angle = rng.gen::<f32>() * 2.0 * PI;
+            // Check if stuck - use centralized handler
+            if detect_and_handle_stuck_movement(animal, prev_x, prev_y, 8.0, rng, "fleeing") {
+                // Update investigation target if direction changed
+                let new_angle = animal.direction_y.atan2(animal.direction_x);
                 let flee_distance = 400.0;
                 animal.investigation_x = Some(animal.pos_x + flee_distance * new_angle.cos());
                 animal.investigation_y = Some(animal.pos_y + flee_distance * new_angle.sin());
-                log::debug!("Tundra Wolf {} stuck while fleeing - picking new direction", animal.id);
             }
             
             // Check if reached flee destination or fled long enough
@@ -302,7 +288,7 @@ impl AnimalBehavior for TundraWolfBehavior {
                             // Avoid water and shelters while following alpha
                             if !is_water_tile(ctx, target_x, target_y) && 
                                !super::core::is_position_in_shelter(ctx, target_x, target_y) {
-                                super::core::move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
+                                move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
                                 log::debug!("Pack wolf {} following alpha {} towards ({:.1}, {:.1})", 
                                           animal.id, alpha.id, target_x, target_y);
                                 return; // Skip solo wandering behavior
@@ -367,17 +353,8 @@ impl AnimalBehavior for TundraWolfBehavior {
             animal.pos_x = final_x;
             animal.pos_y = final_y;
             
-            // Check if stuck (water detection)
-            let movement_threshold = 5.0;
-            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
-            
-            if distance_moved < movement_threshold {
-                // Stuck! Pick new random direction
-                let new_angle = rng.gen::<f32>() * 2.0 * PI;
-                animal.direction_x = new_angle.cos();
-                animal.direction_y = new_angle.sin();
-                log::debug!("Tundra Wolf {} stuck during patrol - changing direction", animal.id);
-            }
+            // Check if stuck - use centralized handler
+            detect_and_handle_stuck_movement(animal, prev_x, prev_y, 5.0, rng, "patrol");
         } else {
             // If target position is blocked, pick a new random direction
             let angle = rng.gen::<f32>() * 2.0 * PI;
@@ -401,46 +378,46 @@ impl AnimalBehavior for TundraWolfBehavior {
 
     fn handle_damage_response(
         &self,
-        _ctx: &ReducerContext,
+        ctx: &ReducerContext,
         animal: &mut WildAnimal,
-        _attacker: &Player,
+        attacker: &Player,
         stats: &AnimalStats,
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
+        // Wolves are aggressive and rarely back down
         let health_percent = animal.health / stats.max_health;
         
-        // Wolves only flee when critically wounded
-        if health_percent < stats.flee_trigger_health_percent {
-            animal.state = AnimalState::Fleeing;
-            animal.target_player_id = None;
-            animal.state_change_time = current_time;
+        if health_percent > 0.3 {
+            // High health - retaliate aggressively
+            transition_to_state(animal, AnimalState::Chasing, current_time, Some(attacker.identity), "wolf retaliation");
+            emit_species_sound(ctx, animal, attacker.identity, "retaliation");
+            
+            log::info!("Tundra Wolf {} retaliating against attacker {} (Health: {:.1}%)", 
+                      animal.id, attacker.identity, health_percent * 100.0);
+        } else {
+            // Low health - flee
+            set_flee_destination_away_from_threat(animal, attacker.position_x, attacker.position_y, 400.0, rng);
+            transition_to_state(animal, AnimalState::Fleeing, current_time, None, "low health flee");
+            
             log::info!("Tundra Wolf {} fleeing due to low health ({:.1}%)", 
                       animal.id, health_percent * 100.0);
         }
         
         Ok(())
     }
+    
+    fn can_be_tamed(&self) -> bool {
+        false // Wolves are currently not tameable (could be implemented in future with meat)
+    }
+    
+    fn get_taming_foods(&self) -> Vec<&'static str> {
+        vec![] // No taming foods for wolves yet (could add meat items later)
+    }
 }
 
 
 
-/// Calculates escape angle away from both fire source AND player position
-fn calculate_escape_angle(wolf_x: f32, wolf_y: f32, fire_x: f32, fire_y: f32, player_x: f32, player_y: f32) -> f32 {
-    // Vector away from fire
-    let away_from_fire_x = wolf_x - fire_x;
-    let away_from_fire_y = wolf_y - fire_y;
-    
-    // Vector away from player
-    let away_from_player_x = wolf_x - player_x;
-    let away_from_player_y = wolf_y - player_y;
-    
-    // Combine vectors (weighted more toward escaping fire)
-    let combined_x = away_from_fire_x * 0.7 + away_from_player_x * 0.3;
-    let combined_y = away_from_fire_y * 0.7 + away_from_player_y * 0.3;
-    
-    // Calculate angle
-    combined_y.atan2(combined_x)
-}
+
 
  

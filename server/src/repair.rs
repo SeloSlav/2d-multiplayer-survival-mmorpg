@@ -69,6 +69,68 @@ pub fn get_base_repair_amount() -> f32 {
     50.0 // All structures heal 50 HP per repair hit (or remaining HP if less than 50 needed)
 }
 
+// Helper function to handle repair validation with consistent health bar display
+// Returns Ok((None, repair_amount)) if repair should proceed, Ok((Some(AttackResult), 0.0)) if should fail but show health bar
+pub fn validate_repair_attempt(
+    ctx: &ReducerContext,
+    target_type: TargetType,
+    pos_x: f32,
+    pos_y: f32,
+    repairer_id: Identity,
+    structure_owner_id: Identity,
+    last_hit_time: Option<Timestamp>,
+    last_damaged_by: Option<Identity>,
+    timestamp: Timestamp,
+    current_health: f32,
+    max_health: f32,
+) -> Result<(Option<AttackResult>, f32), String> {
+    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
+    let base_repair_amount = get_base_repair_amount();
+    let actual_repair_amount = (max_health - current_health).min(base_repair_amount);
+    
+    // Check if structure is already at full health
+    if current_health >= max_health {
+        // 🔧 Emit repair fail sound - structure already at full health
+        sound_events::emit_repair_fail_sound(ctx, pos_x, pos_y, repairer_id);
+        // Still return success so health bar shows, but don't actually repair
+        return Ok((Some(AttackResult {
+            hit: true,
+            target_type: Some(target_type),
+            resource_granted: None,
+        }), 0.0));
+    }
+    
+    // Calculate resource requirements
+    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, target_type, actual_repair_amount, max_health);
+    // Check combat cooldown for PvP balance
+    if let Err(_) = can_structure_be_repaired(last_hit_time, last_damaged_by, repairer_id, structure_owner_id, timestamp) {
+        // 🔧 Emit repair fail sound for cooldown/permission errors
+        sound_events::emit_repair_fail_sound(ctx, pos_x, pos_y, repairer_id);
+        // Still return success so health bar shows, but don't actually repair
+        return Ok((Some(AttackResult {
+            hit: true,
+            target_type: Some(target_type),
+            resource_granted: None,
+        }), 0.0));
+    }
+
+    // Try to consume resources
+    if let Err(_) = consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
+        // 🔧 Emit repair fail sound for resource shortage
+        sound_events::emit_repair_fail_sound(ctx, pos_x, pos_y, repairer_id);
+        // Still return success so health bar shows, but don't actually repair
+        return Ok((Some(AttackResult {
+            hit: true,
+            target_type: Some(target_type),
+            resource_granted: None,
+        }), 0.0));
+    }
+
+    // All checks passed - emit success sound and proceed with repair
+    sound_events::emit_repair_sound(ctx, pos_x, pos_y, repairer_id);
+    Ok((None, actual_repair_amount)) // None means "proceed with actual repair"
+}
+
 // Helper function to check if an item is a repair hammer
 pub fn is_repair_hammer(item_def: &ItemDefinition) -> bool {
     item_def.name == "Repair Hammer"
@@ -279,36 +341,19 @@ pub fn repair_campfire(
         return Err("Cannot repair destroyed campfire".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(campfire.last_hit_time, campfire.last_damaged_by, repairer_id, campfire.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, campfire.pos_x, campfire.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let campfire_max_health = campfire.max_health;
-    let actual_repair_amount = (campfire_max_health - campfire.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Campfire, actual_repair_amount, campfire_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::Campfire, campfire.pos_x, campfire.pos_y, repairer_id,
+        campfire.placed_by, campfire.last_hit_time, campfire.last_damaged_by, 
+        timestamp, campfire.health, campfire.max_health
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, campfire.pos_x, campfire.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, campfire.pos_x, campfire.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = campfire.health;
+    let campfire_max_health = campfire.max_health;
     campfire.health = (campfire.health + actual_repair_amount).min(campfire_max_health);
     campfire.last_hit_time = Some(timestamp);
     campfire.last_damaged_by = Some(repairer_id);
@@ -319,8 +364,8 @@ pub fn repair_campfire(
     campfires_table.id().update(campfire);
 
     log::info!(
-        "Player {:?} repaired Campfire {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, campfire_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, campfire_max_health
+        "Player {:?} repaired Campfire {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, campfire_id, actual_repair_amount, old_health, new_health, campfire_max_health
     );
 
     Ok(AttackResult {
@@ -345,36 +390,19 @@ pub fn repair_wooden_storage_box(
         return Err("Cannot repair destroyed wooden storage box".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(wooden_box.last_hit_time, wooden_box.last_damaged_by, repairer_id, wooden_box.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, wooden_box.pos_x, wooden_box.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let box_max_health = wooden_box.max_health;
-    let actual_repair_amount = (box_max_health - wooden_box.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::WoodenStorageBox, actual_repair_amount, box_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::WoodenStorageBox, wooden_box.pos_x, wooden_box.pos_y, repairer_id,
+        wooden_box.placed_by, wooden_box.last_hit_time, wooden_box.last_damaged_by, 
+        timestamp, wooden_box.health, wooden_box.max_health
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, wooden_box.pos_x, wooden_box.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, wooden_box.pos_x, wooden_box.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = wooden_box.health;
+    let box_max_health = wooden_box.max_health;
     wooden_box.health = (wooden_box.health + actual_repair_amount).min(box_max_health);
     wooden_box.last_hit_time = Some(timestamp);
     wooden_box.last_damaged_by = Some(repairer_id);
@@ -385,8 +413,8 @@ pub fn repair_wooden_storage_box(
     boxes_table.id().update(wooden_box);
 
     log::info!(
-        "Player {:?} repaired WoodenStorageBox {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, box_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, box_max_health
+        "Player {:?} repaired WoodenStorageBox {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, box_id, actual_repair_amount, old_health, new_health, box_max_health
     );
 
     Ok(AttackResult {
@@ -411,36 +439,19 @@ pub fn repair_shelter(
         return Err("Cannot repair destroyed shelter".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(shelter.last_hit_time, shelter.last_damaged_by, repairer_id, shelter.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, shelter.pos_x, shelter.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let shelter_max_health = shelter.max_health;
-    let actual_repair_amount = (shelter_max_health - shelter.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Shelter, actual_repair_amount, shelter_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::Shelter, shelter.pos_x, shelter.pos_y, repairer_id,
+        shelter.placed_by, shelter.last_hit_time, shelter.last_damaged_by, 
+        timestamp, shelter.health, shelter.max_health
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, shelter.pos_x, shelter.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, shelter.pos_x, shelter.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = shelter.health;
+    let shelter_max_health = shelter.max_health;
     shelter.health = (shelter.health + actual_repair_amount).min(shelter_max_health);
     shelter.last_hit_time = Some(timestamp);
     shelter.last_damaged_by = Some(repairer_id);
@@ -451,8 +462,8 @@ pub fn repair_shelter(
     shelters_table.id().update(shelter);
 
     log::info!(
-        "Player {:?} repaired Shelter {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, shelter_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, shelter_max_health
+        "Player {:?} repaired Shelter {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, shelter_id, actual_repair_amount, old_health, new_health, shelter_max_health
     );
 
     Ok(AttackResult {
@@ -477,36 +488,19 @@ pub fn repair_lantern(
         return Err("Cannot repair destroyed lantern".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(lantern.last_hit_time, lantern.last_damaged_by, repairer_id, lantern.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, lantern.pos_x, lantern.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let lantern_max_health = LANTERN_MAX_HEALTH;
-    let actual_repair_amount = (lantern_max_health - lantern.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Lantern, actual_repair_amount, lantern_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::Lantern, lantern.pos_x, lantern.pos_y, repairer_id,
+        lantern.placed_by, lantern.last_hit_time, lantern.last_damaged_by, 
+        timestamp, lantern.health, LANTERN_MAX_HEALTH
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, lantern.pos_x, lantern.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, lantern.pos_x, lantern.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = lantern.health;
+    let lantern_max_health = LANTERN_MAX_HEALTH;
     lantern.health = (lantern.health + actual_repair_amount).min(lantern_max_health);
     lantern.last_hit_time = Some(timestamp);
     lantern.last_damaged_by = Some(repairer_id);
@@ -517,8 +511,8 @@ pub fn repair_lantern(
     lanterns_table.id().update(lantern);
 
     log::info!(
-        "Player {:?} repaired Lantern {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, lantern_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, lantern_max_health
+        "Player {:?} repaired Lantern {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, lantern_id, actual_repair_amount, old_health, new_health, lantern_max_health
     );
 
     Ok(AttackResult {
@@ -543,36 +537,19 @@ pub fn repair_rain_collector(
         return Err("Cannot repair destroyed rain collector".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(rain_collector.last_hit_time, rain_collector.last_damaged_by, repairer_id, rain_collector.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let rain_collector_max_health = rain_collector.max_health;
-    let actual_repair_amount = (rain_collector_max_health - rain_collector.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::RainCollector, actual_repair_amount, rain_collector_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::RainCollector, rain_collector.pos_x, rain_collector.pos_y, repairer_id,
+        rain_collector.placed_by, rain_collector.last_hit_time, rain_collector.last_damaged_by, 
+        timestamp, rain_collector.health, rain_collector.max_health
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, rain_collector.pos_x, rain_collector.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = rain_collector.health;
+    let rain_collector_max_health = rain_collector.max_health;
     rain_collector.health = (rain_collector.health + actual_repair_amount).min(rain_collector_max_health);
     rain_collector.last_hit_time = Some(timestamp);
     rain_collector.last_damaged_by = Some(repairer_id);
@@ -583,8 +560,8 @@ pub fn repair_rain_collector(
     rain_collectors_table.id().update(rain_collector);
 
     log::info!(
-        "Player {:?} repaired RainCollector {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, rain_collector_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, rain_collector_max_health
+        "Player {:?} repaired RainCollector {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, rain_collector_id, actual_repair_amount, old_health, new_health, rain_collector_max_health
     );
 
     Ok(AttackResult {
@@ -609,36 +586,19 @@ pub fn repair_furnace(
         return Err("Cannot repair destroyed furnace".to_string());
     }
 
-    // Check combat cooldown for PvP balance
-    match can_structure_be_repaired(furnace.last_hit_time, furnace.last_damaged_by, repairer_id, furnace.placed_by, timestamp) {
-        Ok(()) => {},
-        Err(e) => {
-            // 🔧 Emit repair fail sound for cooldown/permission errors
-            sound_events::emit_repair_fail_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
-            return Err(e);
-        }
-    }
-
-    // Calculate actual repair amount needed (50 HP or remaining health, whichever is less)
-    let base_repair_amount = get_base_repair_amount();
-    let furnace_max_health = furnace.max_health;
-    let actual_repair_amount = (furnace_max_health - furnace.health).min(base_repair_amount);
-    let (wood_needed, stone_needed, metal_needed) = calculate_repair_resources(ctx, TargetType::Furnace, actual_repair_amount, furnace_max_health);
+    // Validate repair attempt (combat cooldown, resources, health check, etc.)
+    let (early_result, actual_repair_amount) = validate_repair_attempt(
+        ctx, TargetType::Furnace, furnace.pos_x, furnace.pos_y, repairer_id,
+        furnace.placed_by, furnace.last_hit_time, furnace.last_damaged_by, 
+        timestamp, furnace.health, furnace.max_health
+    )?;
     
-    // Try to consume resources
-    match consume_repair_resources(ctx, repairer_id, wood_needed, stone_needed, metal_needed) {
-        Ok(()) => {
-            // 🔧 Emit successful repair sound
-            sound_events::emit_repair_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
-        }
-        Err(e) => {
-            // 🔧 Emit repair fail sound for resource shortage
-            sound_events::emit_repair_fail_sound(ctx, furnace.pos_x, furnace.pos_y, repairer_id);
-            return Err(e);
-        }
+    if let Some(result) = early_result {
+        return Ok(result); // Failed repair but health bar shows
     }
     
     let old_health = furnace.health;
+    let furnace_max_health = furnace.max_health;
     furnace.health = (furnace.health + actual_repair_amount).min(furnace_max_health);
     furnace.last_hit_time = Some(timestamp);
     furnace.last_damaged_by = Some(repairer_id);
@@ -649,8 +609,8 @@ pub fn repair_furnace(
     furnaces_table.id().update(furnace);
 
     log::info!(
-        "Player {:?} repaired Furnace {} for {:.1} health using {} wood, {} stone, {} metal. Health: {:.1} -> {:.1} (Max: {:.1})",
-        repairer_id, furnace_id, actual_repair_amount, wood_needed, stone_needed, metal_needed, old_health, new_health, furnace_max_health
+        "Player {:?} repaired Furnace {} for {:.1} health. Health: {:.1} -> {:.1} (Max: {:.1})",
+        repairer_id, furnace_id, actual_repair_amount, old_health, new_health, furnace_max_health
     );
 
     Ok(AttackResult {

@@ -39,6 +39,7 @@ use crate::shelter::shelter as ShelterTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::campfire::campfire as CampfireTableTrait;
+use crate::dropped_item::dropped_item as DroppedItemTableTrait; // Add dropped item table trait
 
 // Collision detection constants
 const ANIMAL_COLLISION_RADIUS: f32 = 32.0; // Animals maintain 32px distance from each other
@@ -60,6 +61,16 @@ const PACK_DISSOLUTION_CHANCE: f32 = 0.03; // 3% chance per AI tick for wolf to 
 const PACK_CHECK_INTERVAL_MS: i64 = 5000; // Check pack formation/dissolution every 5 seconds (longer intervals)
 const MAX_PACK_SIZE: usize = 5; // Maximum wolves per pack (epic threat requiring 4-5 coordinated players)
 const PACK_COHESION_RADIUS: f32 = 350.0; // Distance pack members try to stay near alpha (increased with formation radius)
+
+// Taming behavior constants
+pub const TAMING_FOOD_DETECTION_RADIUS: f32 = 150.0; // How close animal needs to be to detect food
+pub const TAMING_FOOD_DETECTION_RADIUS_SQUARED: f32 = TAMING_FOOD_DETECTION_RADIUS * TAMING_FOOD_DETECTION_RADIUS;
+pub const TAMING_FOOD_CHECK_INTERVAL_MS: i64 = 500; // Check for food every 500ms
+pub const TAMING_HEART_EFFECT_DURATION_MS: i64 = 3000; // Show hearts for 3 seconds after taming
+pub const TAMING_FOLLOW_DISTANCE: f32 = 100.0; // How close tamed animals follow their owner
+pub const TAMING_FOLLOW_DISTANCE_SQUARED: f32 = TAMING_FOLLOW_DISTANCE * TAMING_FOLLOW_DISTANCE;
+pub const TAMING_PROTECT_RADIUS: f32 = 300.0; // How far tamed animals will go to protect owner
+pub const TAMING_PROTECT_RADIUS_SQUARED: f32 = TAMING_PROTECT_RADIUS * TAMING_PROTECT_RADIUS;
 
 // --- Constants ---
 pub const AI_TICK_INTERVAL_MS: u64 = 125; // AI processes 8 times per second (improved from 4fps)
@@ -86,6 +97,8 @@ pub enum AnimalState {
     Burrowed,
     Investigating,
     Alert,
+    Following,     // NEW: Following tamed player
+    Protecting,    // NEW: Attacking enemies of tamed player
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, spacetimedb::SpacetimeType)]
@@ -150,6 +163,13 @@ pub struct WildAnimal {
     
     // Fire fear override tracking
     pub fire_fear_overridden_by: Option<Identity>, // Player who caused fire fear override (None = normal fire fear)
+    
+    // Taming system fields
+    pub tamed_by: Option<Identity>, // Player who tamed this animal (None = wild)
+    pub tamed_at: Option<Timestamp>, // When this animal was tamed
+    pub heart_effect_until: Option<Timestamp>, // When to stop showing heart effect
+    pub crying_effect_until: Option<Timestamp>, // When to stop showing crying effect (hit by owner)
+    pub last_food_check: Option<Timestamp>, // Last time we checked for nearby food
 }
 
 // --- AI Processing Schedule Table ---
@@ -226,6 +246,16 @@ pub trait AnimalBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String>;
+    
+    /// Check if this species can be tamed and with what food items
+    fn can_be_tamed(&self) -> bool {
+        false // Default: animals cannot be tamed
+    }
+    
+    /// Get the food items that can tame this species
+    fn get_taming_foods(&self) -> Vec<&'static str> {
+        vec![] // Default: no taming foods
+    }
 }
 
 // --- Core Animal Behavior Implementation Helper ---
@@ -348,6 +378,24 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.handle_damage_response(ctx, animal, attacker, stats, current_time, rng),
         }
     }
+
+    fn can_be_tamed(&self) -> bool {
+        match self {
+            AnimalBehaviorEnum::CinderFox(behavior) => behavior.can_be_tamed(),
+            AnimalBehaviorEnum::TundraWolf(behavior) => behavior.can_be_tamed(),
+            AnimalBehaviorEnum::CableViper(behavior) => behavior.can_be_tamed(),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.can_be_tamed(),
+        }
+    }
+
+    fn get_taming_foods(&self) -> Vec<&'static str> {
+        match self {
+            AnimalBehaviorEnum::CinderFox(behavior) => behavior.get_taming_foods(),
+            AnimalBehaviorEnum::TundraWolf(behavior) => behavior.get_taming_foods(),
+            AnimalBehaviorEnum::CableViper(behavior) => behavior.get_taming_foods(),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.get_taming_foods(),
+        }
+    }
 }
 
 impl AnimalSpecies {
@@ -423,6 +471,9 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
         
         // Process pack behavior (formation, dissolution, etc.)
         process_pack_behavior(ctx, &mut animal, current_time, &mut rng)?;
+        
+        // Process taming behavior (food detection and consumption)
+        process_taming_behavior(ctx, &mut animal, current_time)?;
         
         // Check for and execute attacks
         if animal.state == AnimalState::Chasing {
@@ -652,6 +703,16 @@ fn execute_animal_movement(
                     animal.scent_ping_timer = 0;
                 }
             }
+        },
+        
+        AnimalState::Following => {
+            // Tamed animal following their owner
+            handle_tamed_following(ctx, animal, stats, current_time, dt, rng);
+        },
+        
+        AnimalState::Protecting => {
+            // Tamed animal protecting their owner from threats
+            handle_tamed_protecting(ctx, animal, stats, current_time, dt, rng);
         },
         
         _ => {} // Other states don't move
@@ -957,6 +1018,13 @@ pub fn spawn_wild_animal(
         
         // Fire fear override tracking
         fire_fear_overridden_by: None,
+        
+        // Taming system fields
+        tamed_by: None,
+        tamed_at: None,
+        heart_effect_until: None,
+        crying_effect_until: None,
+        last_food_check: None,
     };
     
     ctx.db.wild_animal().insert(animal);
@@ -1056,6 +1124,119 @@ pub fn damage_wild_animal(
             
             ctx.db.wild_animal().id().update(animal);
         }
+    }
+    
+    Ok(())
+}
+
+/// NEW: Handle wild animal vs wild animal combat
+/// This function allows wild animals (especially tamed ones) to damage other wild animals
+pub fn damage_wild_animal_by_animal(
+    ctx: &ReducerContext,
+    target_animal_id: u64,
+    damage: f32,
+    attacker_animal_id: u64,
+    timestamp: Timestamp,
+) -> Result<bool, String> {
+    // Verify both animals exist
+    let attacker_animal = ctx.db.wild_animal().id().find(&attacker_animal_id)
+        .ok_or_else(|| format!("Attacker animal {} not found", attacker_animal_id))?;
+    
+    let mut target_animal = ctx.db.wild_animal().id().find(&target_animal_id)
+        .ok_or_else(|| format!("Target animal {} not found", target_animal_id))?;
+    
+    let old_health = target_animal.health;
+    target_animal.health = (target_animal.health - damage).max(0.0);
+    target_animal.last_hit_time = Some(timestamp);
+    let actual_damage = old_health - target_animal.health;
+    
+    // Log the attack
+    log::info!("🦁 [ANIMAL COMBAT] {:?} {} attacked {:?} {} for {:.1} damage. Health: {:.1} -> {:.1}",
+              attacker_animal.species, attacker_animal_id,
+              target_animal.species, target_animal_id,
+              actual_damage, old_health, target_animal.health);
+    
+    if actual_damage > 0.0 {
+        // Apply knockback effects between animals
+        apply_animal_knockback_effects(ctx, &target_animal, &attacker_animal)?;
+        
+        // Play attack sound
+        emit_species_sound(ctx, &attacker_animal, attacker_animal.tamed_by.unwrap_or(ctx.identity()), "attack");
+        
+        // Play hit sound for target
+        emit_species_sound(ctx, &target_animal, attacker_animal.tamed_by.unwrap_or(ctx.identity()), "hit");
+    }
+    
+    let animal_died = target_animal.health <= 0.0;
+    
+    if animal_died {
+        log::info!("🦴 [ANIMAL COMBAT DEATH] Animal {} (species: {:?}) killed by animal {} at ({:.1}, {:.1})", 
+                  target_animal.id, target_animal.species, attacker_animal_id, target_animal.pos_x, target_animal.pos_y);
+        
+        // Create animal corpse before deleting the animal
+        if let Err(e) = super::animal_corpse::create_animal_corpse(
+            ctx,
+            target_animal.species,
+            target_animal.id,
+            target_animal.pos_x,
+            target_animal.pos_y,
+            timestamp,
+        ) {
+            log::error!("🦴 [ERROR] Failed to create animal corpse for {} (species: {:?}): {}", target_animal.id, target_animal.species, e);
+        } else {
+            log::info!("🦴 [SUCCESS] Animal corpse created for animal {} killed by animal {}", target_animal.id, attacker_animal_id);
+        }
+        
+        ctx.db.wild_animal().id().delete(&target_animal_id);
+    } else {
+        // If target survives, handle damage response
+        let target_behavior = target_animal.species.get_behavior();
+        let target_stats = target_behavior.get_stats();
+        
+        // Make the target animal retaliate or flee based on its behavior
+        // If the attacker is tamed, consider it as coming from the owner for AI purposes
+        let effective_attacker_id = attacker_animal.tamed_by.unwrap_or(ctx.identity());
+        
+        if let Some(effective_attacker_player) = ctx.db.player().identity().find(&effective_attacker_id) {
+            let mut rng = ctx.rng();
+            target_behavior.handle_damage_response(ctx, &mut target_animal, &effective_attacker_player, &target_stats, timestamp, &mut rng)?;
+        }
+        
+        ctx.db.wild_animal().id().update(target_animal);
+    }
+    
+    Ok(animal_died)
+}
+
+/// Apply knockback effects between two animals
+fn apply_animal_knockback_effects(
+    ctx: &ReducerContext,
+    target_animal: &WildAnimal,
+    attacker_animal: &WildAnimal,
+) -> Result<(), String> {
+    // Calculate direction from attacker to target
+    let dx_target_from_attacker = target_animal.pos_x - attacker_animal.pos_x;
+    let dy_target_from_attacker = target_animal.pos_y - attacker_animal.pos_y;
+    let distance_sq = dx_target_from_attacker * dx_target_from_attacker + dy_target_from_attacker * dy_target_from_attacker;
+    
+    if distance_sq > 0.001 {
+        let distance = distance_sq.sqrt();
+        
+        // Apply smaller knockback for animal vs animal combat
+        const ANIMAL_KNOCKBACK_DISTANCE: f32 = 12.0; // Smaller than player knockback
+        
+        let knockback_dx = (dx_target_from_attacker / distance) * ANIMAL_KNOCKBACK_DISTANCE;
+        let knockback_dy = (dy_target_from_attacker / distance) * ANIMAL_KNOCKBACK_DISTANCE;
+        
+        // Update target animal position (with basic bounds checking)
+        let mut updated_target = target_animal.clone();
+        updated_target.pos_x = (updated_target.pos_x + knockback_dx).clamp(32.0, WORLD_WIDTH_PX - 32.0);
+        updated_target.pos_y = (updated_target.pos_y + knockback_dy).clamp(32.0, WORLD_HEIGHT_PX - 32.0);
+        
+        ctx.db.wild_animal().id().update(updated_target);
+        
+        log::debug!("Applied animal knockback: {} -> {} distance={:.1}px", 
+                   attacker_animal.id, target_animal.id, ANIMAL_KNOCKBACK_DISTANCE);
     }
     
     Ok(())
@@ -2179,4 +2360,735 @@ pub fn handle_standard_damage_response(
             },
         }
     }
+}
+
+// --- TAMING SYSTEM FUNCTIONS ---
+
+/// Types of threats that can threaten a tamed animal's owner
+#[derive(Debug, Clone)]
+pub enum ThreatType {
+    Player(Identity),
+    WildAnimal(u64), // animal id
+}
+
+/// Efficiently detect all threats (players and wild animals) to the owner within protection range
+/// This function can be used by any tamed animal species to protect their owner
+pub fn detect_threats_to_owner(
+    ctx: &ReducerContext, 
+    protecting_animal: &WildAnimal, 
+    owner: &Player
+) -> Vec<ThreatType> {
+    let mut threats = Vec::new();
+    
+    // Check player threats
+    for player in ctx.db.player().iter() {
+        if player.identity == owner.identity || player.is_dead || !player.is_online { 
+            continue; 
+        }
+        
+        let distance_to_owner = get_distance_squared(player.position_x, player.position_y, owner.position_x, owner.position_y).sqrt();
+        let distance_to_protector = get_player_distance(protecting_animal, &player);
+        
+        // Player is a threat if they're close to owner and within protector's range
+        if distance_to_owner <= 150.0 && distance_to_protector <= TAMING_PROTECT_RADIUS {
+            threats.push(ThreatType::Player(player.identity));
+        }
+    }
+    
+    // Check wild animal threats
+    for animal in ctx.db.wild_animal().iter() {
+        if animal.id == protecting_animal.id { 
+            continue; // Skip self
+        }
+        
+        // Skip animals tamed by the same owner
+        if let Some(other_tamed_by) = animal.tamed_by {
+            if other_tamed_by == owner.identity {
+                continue;
+            }
+        }
+        
+        // Only consider animals that are actively threatening the owner
+        if let Some(target_id) = animal.target_player_id {
+            if target_id == owner.identity && matches!(animal.state, AnimalState::Chasing | AnimalState::Attacking) {
+                let distance_to_protector = ((protecting_animal.pos_x - animal.pos_x).powi(2) + 
+                                            (protecting_animal.pos_y - animal.pos_y).powi(2)).sqrt();
+                
+                if distance_to_protector <= TAMING_PROTECT_RADIUS {
+                    threats.push(ThreatType::WildAnimal(animal.id));
+                }
+            }
+        }
+    }
+    
+    threats
+}
+
+/// Find the closest threat from a list of threats
+pub fn find_closest_threat(
+    ctx: &ReducerContext,
+    protecting_animal: &WildAnimal,
+    threats: Vec<ThreatType>
+) -> Option<ThreatType> {
+    threats.into_iter().min_by(|a, b| {
+        let dist_a = match a {
+            ThreatType::Player(id) => {
+                ctx.db.player().identity().find(id)
+                    .map(|p| get_player_distance(protecting_animal, &p))
+                    .unwrap_or(f32::MAX)
+            },
+            ThreatType::WildAnimal(id) => {
+                ctx.db.wild_animal().id().find(id)
+                    .map(|w| ((protecting_animal.pos_x - w.pos_x).powi(2) + 
+                              (protecting_animal.pos_y - w.pos_y).powi(2)).sqrt())
+                    .unwrap_or(f32::MAX)
+            }
+        };
+        let dist_b = match b {
+            ThreatType::Player(id) => {
+                ctx.db.player().identity().find(id)
+                    .map(|p| get_player_distance(protecting_animal, &p))
+                    .unwrap_or(f32::MAX)
+            },
+            ThreatType::WildAnimal(id) => {
+                ctx.db.wild_animal().id().find(id)
+                    .map(|w| ((protecting_animal.pos_x - w.pos_x).powi(2) + 
+                              (protecting_animal.pos_y - w.pos_y).powi(2)).sqrt())
+                    .unwrap_or(f32::MAX)
+            }
+        };
+        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+    })
+}
+
+/// Generic helper function for tamed animals to handle threat targeting
+/// Returns the target Identity that should be pursued (either player or effective target for wild animals)
+pub fn handle_generic_threat_targeting(
+    ctx: &ReducerContext,
+    protecting_animal: &mut WildAnimal,
+    owner_id: Identity,
+    current_time: Timestamp,
+) -> Option<Identity> {
+    if let Some(owner) = ctx.db.player().identity().find(&owner_id) {
+        let threats = detect_threats_to_owner(ctx, protecting_animal, &owner);
+        
+        if !threats.is_empty() {
+            if let Some(closest_threat) = find_closest_threat(ctx, protecting_animal, threats) {
+                let target_id = match &closest_threat {
+                    ThreatType::Player(id) => *id,
+                    ThreatType::WildAnimal(id) => {
+                        // For wild animals, we target them but store as a special case
+                        // The main AI system will handle this in the chase/attack logic
+                        if let Some(threatening_animal) = ctx.db.wild_animal().id().find(id) {
+                            // Use the threatening animal's target (our owner) or fallback to owner
+                            threatening_animal.target_player_id.unwrap_or(owner_id)
+                        } else {
+                            owner_id // Fallback
+                        }
+                    }
+                };
+                
+                transition_to_state(protecting_animal, AnimalState::Protecting, current_time, Some(target_id), "protecting owner from threat");
+                
+                match closest_threat {
+                    ThreatType::Player(id) => {
+                        log::info!("🛡️ Tamed {:?} {} protecting owner {} from player threat {}", 
+                                  protecting_animal.species, protecting_animal.id, owner_id, id);
+                    },
+                    ThreatType::WildAnimal(id) => {
+                        log::info!("🛡️ Tamed {:?} {} protecting owner {} from wild animal threat {}", 
+                                  protecting_animal.species, protecting_animal.id, owner_id, id);
+                    }
+                }
+                
+                return Some(target_id);
+            }
+        }
+    }
+    
+    None // No threats found
+}
+
+/// Check if an item is valid taming food for the given animal species
+pub fn is_valid_taming_food(ctx: &ReducerContext, item_def_id: u64, species: AnimalSpecies) -> bool {
+    if let Some(item_def) = ctx.db.item_definition().id().find(item_def_id) {
+        let behavior = species.get_behavior();
+        if !behavior.can_be_tamed() {
+            return false;
+        }
+        
+        let taming_foods = behavior.get_taming_foods();
+        taming_foods.contains(&item_def.name.as_str())
+    } else {
+        false
+    }
+}
+
+/// Find nearby dropped food items that this animal can eat
+pub fn find_nearby_taming_food(ctx: &ReducerContext, animal: &WildAnimal) -> Vec<crate::dropped_item::DroppedItem> {
+    let mut nearby_food = Vec::new();
+    
+    for dropped_item in ctx.db.dropped_item().iter() {
+        let distance_sq = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            dropped_item.pos_x, dropped_item.pos_y
+        );
+        
+        if distance_sq <= TAMING_FOOD_DETECTION_RADIUS_SQUARED {
+            if is_valid_taming_food(ctx, dropped_item.item_def_id, animal.species) {
+                nearby_food.push(dropped_item);
+            }
+        }
+    }
+    
+    nearby_food
+}
+
+/// Handle an animal eating food and potentially becoming tamed
+pub fn handle_animal_eat_food(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    dropped_item: &crate::dropped_item::DroppedItem,
+    current_time: Timestamp,
+) -> Result<bool, String> {
+    // Find the player who dropped this food (closest player)
+    let mut closest_player: Option<Player> = None;
+    let mut closest_distance = f32::MAX;
+    
+    for player in ctx.db.player().iter() {
+        if player.is_dead { continue; }
+        
+        let distance = get_distance_squared(
+            dropped_item.pos_x, dropped_item.pos_y,
+            player.position_x, player.position_y
+        ).sqrt();
+        
+        if distance < closest_distance && distance <= 200.0 { // Must be within 200px when food was dropped
+            closest_distance = distance;
+            closest_player = Some(player);
+        }
+    }
+    
+    if let Some(tamer) = closest_player {
+        // Animal becomes tamed by this player
+        animal.tamed_by = Some(tamer.identity);
+        animal.tamed_at = Some(current_time);
+        animal.heart_effect_until = Some(Timestamp::from_micros_since_unix_epoch(
+            current_time.to_micros_since_unix_epoch() + (TAMING_HEART_EFFECT_DURATION_MS * 1000) as i64
+        ));
+        
+        // Change to following state
+        transition_to_state(animal, AnimalState::Following, current_time, Some(tamer.identity), "tamed by food");
+        
+        // Clear any aggressive states
+        animal.fire_fear_overridden_by = None;
+        
+        // Remove the dropped item from the world
+        ctx.db.dropped_item().id().delete(dropped_item.id);
+        
+        // Emit eating sound
+        emit_species_sound(ctx, animal, tamer.identity, "eating");
+        
+        // Emit heart effect (this would be handled client-side based on heart_effect_until field)
+        // For now we'll just log it
+        log::info!("💖 {:?} {} has been tamed by player {} after eating {}! Hearts appearing for {}ms", 
+                  animal.species, animal.id, tamer.identity, dropped_item.item_def_id, TAMING_HEART_EFFECT_DURATION_MS);
+        
+        Ok(true) // Successfully tamed
+    } else {
+        // No suitable player found - just eat the food without taming
+        ctx.db.dropped_item().id().delete(dropped_item.id);
+        log::info!("{:?} {} ate food but no player nearby to become tamed", animal.species, animal.id);
+        Ok(false) // Ate food but not tamed
+    }
+}
+
+/// Process taming behavior - check for food and handle eating
+pub fn process_taming_behavior(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    current_time: Timestamp,
+) -> Result<(), String> {
+    // Only check for food periodically to avoid performance issues
+    if let Some(last_check) = animal.last_food_check {
+        let time_since_check = (current_time.to_micros_since_unix_epoch() - last_check.to_micros_since_unix_epoch()) / 1000;
+        if time_since_check < TAMING_FOOD_CHECK_INTERVAL_MS {
+            return Ok(());
+        }
+    }
+    
+    animal.last_food_check = Some(current_time);
+    
+    // Don't process taming if already tamed
+    if animal.tamed_by.is_some() {
+        return Ok(());
+    }
+    
+    // Check if this species can be tamed using the trait method
+    let behavior = animal.species.get_behavior();
+    if !behavior.can_be_tamed() {
+        return Ok(());
+    }
+    
+    // Look for nearby food
+    let nearby_food = find_nearby_taming_food(ctx, animal);
+    
+    if let Some(food_item) = nearby_food.first() {
+        // Move towards the food if not already next to it
+        let distance_to_food = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            food_item.pos_x, food_item.pos_y
+        ).sqrt();
+        
+        if distance_to_food > 30.0 {
+            // Move towards food
+            transition_to_state(animal, AnimalState::Investigating, current_time, None, "approaching food");
+            animal.investigation_x = Some(food_item.pos_x);
+            animal.investigation_y = Some(food_item.pos_y);
+        } else {
+            // Close enough to eat
+            handle_animal_eat_food(ctx, animal, food_item, current_time)?;
+        }
+    }
+    
+    Ok(())
+}
+
+/// Handle following behavior for tamed animals
+pub fn handle_tamed_following(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    current_time: Timestamp,
+    dt: f32,
+    rng: &mut impl Rng, // Add rng parameter
+) {
+    if let Some(owner_id) = animal.tamed_by {
+        if let Some(owner) = ctx.db.player().identity().find(&owner_id) {
+            if owner.is_dead {
+                // Owner is dead - animal becomes wild again after some time
+                if let Some(tamed_time) = animal.tamed_at {
+                    let time_since_taming = (current_time.to_micros_since_unix_epoch() - tamed_time.to_micros_since_unix_epoch()) / 1000;
+                    if time_since_taming > 60000 { // 60 seconds after owner death
+                        animal.tamed_by = None;
+                        animal.tamed_at = None;
+                        transition_to_state(animal, AnimalState::Patrolling, current_time, None, "owner died - becoming wild");
+                        log::info!("{:?} {} became wild again after owner death", animal.species, animal.id);
+                    }
+                }
+                return;
+            }
+            
+            let distance_to_owner = get_distance_squared(
+                animal.pos_x, animal.pos_y,
+                owner.position_x, owner.position_y
+            );
+            
+            // Check if anyone is attacking the owner
+            let mut attacker: Option<Player> = None;
+            for player in ctx.db.player().iter() {
+                if player.identity != owner_id && !player.is_dead {
+                    let distance_to_potential_threat = get_distance_squared(
+                        owner.position_x, owner.position_y,
+                        player.position_x, player.position_y
+                    );
+                    
+                    // If another player is very close to owner, consider them a threat
+                    if distance_to_potential_threat <= 10000.0 { // 100px
+                        attacker = Some(player);
+                        break;
+                    }
+                }
+            }
+            
+            // Check if we should protect owner
+            if let Some(threat) = attacker {
+                let distance_to_threat = get_distance_squared(
+                    animal.pos_x, animal.pos_y,
+                    threat.position_x, threat.position_y
+                );
+                
+                if distance_to_threat <= TAMING_PROTECT_RADIUS_SQUARED {
+                    transition_to_state(animal, AnimalState::Protecting, current_time, Some(threat.identity), "protecting owner");
+                    log::info!("{:?} {} protecting owner {} from threat {}", 
+                              animal.species, animal.id, owner_id, threat.identity);
+                }
+            } else if distance_to_owner > TAMING_FOLLOW_DISTANCE_SQUARED {
+                // Too far from owner - move closer
+                move_towards_target(ctx, animal, owner.position_x, owner.position_y, stats.movement_speed * 1.2, dt);
+            } else {
+                // Close enough to owner - just chill nearby
+                // Maybe wander slightly but stay close
+                if rng.gen::<f32>() < 0.05 { // 5% chance to adjust position slightly
+                    let angle = rng.gen::<f32>() * 2.0 * PI;
+                    let wander_distance = 20.0;
+                    let target_x = owner.position_x + angle.cos() * wander_distance;
+                    let target_y = owner.position_y + angle.sin() * wander_distance;
+                    move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed * 0.5, dt);
+                }
+            }
+        } else {
+            // Owner not found - become wild again
+            animal.tamed_by = None;
+            animal.tamed_at = None;
+            transition_to_state(animal, AnimalState::Patrolling, current_time, None, "owner not found - becoming wild");
+            log::info!("{:?} {} became wild again - owner not found", animal.species, animal.id);
+        }
+    }
+}
+
+/// Handle protecting behavior for tamed animals
+pub fn handle_tamed_protecting(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    stats: &AnimalStats,
+    current_time: Timestamp,
+    dt: f32,
+    rng: &mut impl Rng, // Add rng parameter
+) {
+    // Only protect if we have an owner
+    let owner_id = match animal.tamed_by {
+        Some(id) => id,
+        None => return,
+    };
+    
+    // Find the owner
+    let owner = match ctx.db.player().identity().find(&owner_id) {
+        Some(player) => player,
+        None => {
+            log::warn!("Tamed animal {} owner {} not found - reverting to wild", animal.id, owner_id);
+            animal.tamed_by = None;
+            animal.state = AnimalState::Patrolling;
+            return;
+        }
+    };
+    
+    // If owner is dead or offline, stop protecting
+    if owner.is_dead || !owner.is_online {
+        transition_to_state(animal, AnimalState::Following, current_time, Some(owner_id), "owner dead/offline - stop protecting");
+        return;
+    }
+    
+    // Find threats to the owner (wild animals and players attacking the owner)
+    let mut animal_threats = Vec::new();
+    let mut player_threats = Vec::new();
+    
+    // Check for wild animals that might be threats (untamed or tamed by others)
+    for other_animal in ctx.db.wild_animal().iter() {
+        if other_animal.id == animal.id {
+            continue;
+        }
+        
+        // Skip animals tamed by the same owner
+        if let Some(other_tamed_by) = other_animal.tamed_by {
+            if other_tamed_by == owner_id {
+                continue;
+            }
+        }
+        
+        // Check if this animal is within protection radius and potentially hostile
+        let distance_to_threat = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            other_animal.pos_x, other_animal.pos_y
+        );
+        
+        if distance_to_threat <= TAMING_PROTECT_RADIUS_SQUARED {
+            // Check if this animal is actively hostile (chasing/attacking the owner or close enough to be a threat)
+            let distance_to_owner = get_distance_squared(
+                other_animal.pos_x, other_animal.pos_y,
+                owner.position_x, owner.position_y
+            );
+            
+            // Consider as threat if:
+            // 1. Animal is targeting our owner specifically
+            // 2. Animal is very close to owner (within attack range + buffer)
+            // 3. Animal is in aggressive state and near owner
+            let is_targeting_owner = other_animal.target_player_id == Some(owner_id);
+            let is_close_to_owner = distance_to_owner <= (stats.attack_range + 50.0) * (stats.attack_range + 50.0);
+            let is_aggressive_near_owner = matches!(other_animal.state, AnimalState::Chasing | AnimalState::Attacking) && distance_to_owner <= 400.0;
+            
+            if is_targeting_owner || is_close_to_owner || is_aggressive_near_owner {
+                log::debug!("🛡️ [THREAT DETECTED] Tamed {:?} {} identified {:?} {} as threat to owner {}", 
+                           animal.species, animal.id, 
+                           other_animal.species, other_animal.id, owner_id);
+                animal_threats.push(other_animal);
+            }
+        }
+    }
+    
+    // Check for player threats (players very close to owner and potentially hostile)
+    for other_player in ctx.db.player().iter() {
+        if other_player.identity == owner_id || other_player.is_dead || !other_player.is_online {
+            continue;
+        }
+        
+        let distance_to_player = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            other_player.position_x, other_player.position_y
+        );
+        
+        if distance_to_player <= TAMING_PROTECT_RADIUS_SQUARED {
+            let distance_to_owner = get_distance_squared(
+                other_player.position_x, other_player.position_y,
+                owner.position_x, owner.position_y
+            );
+            
+            // Consider player a threat if very close to owner (within 100px)
+            if distance_to_owner <= 10000.0 { // 100px squared
+                log::debug!("🛡️ [PLAYER THREAT] Tamed {:?} {} identified player {} as threat to owner {}", 
+                           animal.species, animal.id, other_player.identity, owner_id);
+                player_threats.push(other_player);
+            }
+        }
+    }
+    
+    // Prioritize animal threats first (easier to handle), then player threats
+    if let Some(threat_animal) = animal_threats.first() {
+        // Handle animal vs animal combat
+        let distance_to_threat = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            threat_animal.pos_x, threat_animal.pos_y
+        );
+        
+        if distance_to_threat <= stats.attack_range * stats.attack_range {
+            // Attack the threat animal if we can
+            if can_attack(animal, current_time, stats) {
+                // Use our new animal vs animal damage function
+                let damage_to_deal = stats.attack_damage;
+                
+                match damage_wild_animal_by_animal(ctx, threat_animal.id, damage_to_deal, animal.id, current_time) {
+                    Ok(target_died) => {
+                        log::info!("🛡️ [PROTECTION ATTACK] Tamed {:?} {} dealt {:.1} damage to threat {:?} {} ({})", 
+                                  animal.species, animal.id, damage_to_deal,
+                                  threat_animal.species, threat_animal.id,
+                                  if target_died { "KILLED" } else { "WOUNDED" });
+                        
+                        // If we killed the threat, check for more threats or return to following
+                        if target_died {
+                            if animal_threats.len() <= 1 && player_threats.is_empty() {
+                                transition_to_state(animal, AnimalState::Following, current_time, Some(owner_id), "threat eliminated - return to following");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("🛡️ [PROTECTION ERROR] Tamed {:?} {} failed to attack threat {}: {}", 
+                                   animal.species, animal.id, threat_animal.id, e);
+                    }
+                }
+                
+                animal.last_attack_time = Some(current_time);
+            }
+        } else {
+            // Move toward the threat
+            move_towards_target(ctx, animal, threat_animal.pos_x, threat_animal.pos_y, stats.sprint_speed, dt);
+            log::debug!("🛡️ [PROTECTION PURSUIT] Tamed {:?} {} pursuing threat {:?} {} (distance: {:.1}px)", 
+                       animal.species, animal.id,
+                       threat_animal.species, threat_animal.id,
+                       distance_to_threat.sqrt());
+        }
+    } else if let Some(threat_player) = player_threats.first() {
+        // Handle player threats (for future implementation)
+        let distance_to_threat = get_distance_squared(
+            animal.pos_x, animal.pos_y,
+            threat_player.position_x, threat_player.position_y
+        );
+        
+        if distance_to_threat <= stats.attack_range * stats.attack_range {
+            // Attack player if in range and we can attack
+            if can_attack(animal, current_time, stats) {
+                // Set target for main AI loop to handle player attack
+                animal.target_player_id = Some(threat_player.identity);
+                animal.last_attack_time = Some(current_time);
+                log::info!("🛡️ [PROTECTION PLAYER ATTACK] Tamed {:?} {} attacking player threat {}", 
+                          animal.species, animal.id, threat_player.identity);
+            }
+        } else {
+            // Move toward the player threat
+            move_towards_target(ctx, animal, threat_player.position_x, threat_player.position_y, stats.sprint_speed, dt);
+            log::debug!("🛡️ [PROTECTION PLAYER PURSUIT] Tamed {:?} {} pursuing player threat {} (distance: {:.1}px)", 
+                       animal.species, animal.id, threat_player.identity, distance_to_threat.sqrt());
+        }
+    } else {
+        // No threats found, return to following the owner
+        transition_to_state(animal, AnimalState::Following, current_time, Some(owner_id), "no threats - return to following");
+    }
+}
+
+/// **COMMON ESCAPE ANGLE CALCULATOR** - Calculate optimal flee direction away from multiple threats
+pub fn calculate_escape_angle_from_threats(
+    animal_x: f32, 
+    animal_y: f32, 
+    primary_threat_x: f32, 
+    primary_threat_y: f32, 
+    secondary_threat_x: f32, 
+    secondary_threat_y: f32
+) -> f32 {
+    // Vector away from primary threat
+    let away_from_primary_x = animal_x - primary_threat_x;
+    let away_from_primary_y = animal_y - primary_threat_y;
+    
+    // Vector away from secondary threat
+    let away_from_secondary_x = animal_x - secondary_threat_x;
+    let away_from_secondary_y = animal_y - secondary_threat_y;
+    
+    // Combine vectors (weighted more toward escaping primary threat)
+    let combined_x = away_from_primary_x * 0.7 + away_from_secondary_x * 0.3;
+    let combined_y = away_from_primary_y * 0.7 + away_from_secondary_y * 0.3;
+    
+    // Calculate angle
+    combined_y.atan2(combined_x)
+}
+
+/// **COMMON RANGED WEAPON DETECTION** - Check if player has bow/crossbow equipped
+pub fn player_has_ranged_weapon(ctx: &ReducerContext, player_id: Identity) -> bool {
+    if let Some(equipment) = ctx.db.active_equipment().player_identity().find(&player_id) {
+        if let Some(item_def_id) = equipment.equipped_item_def_id {
+            if let Some(item_def) = ctx.db.item_definition().id().find(item_def_id) {
+                let has_ranged = item_def.name == "Hunting Bow" || item_def.name == "Crossbow";
+                if has_ranged {
+                    log::debug!("Player {:?} has ranged weapon: {}", player_id, item_def.name);
+                }
+                return has_ranged;
+            }
+        }
+    }
+    false
+}
+
+/// **COMMON FIRE TRAP ESCAPE HANDLER** - Generic escape logic for animals trapped by fire + ranged
+pub fn handle_fire_trap_escape(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    player: &Player,
+    current_time: Timestamp,
+    rng: &mut impl Rng,
+) -> bool {
+    if is_animal_trapped_by_fire_and_ranged(ctx, animal, player) {
+        // Force flee even for animals that normally don't flee
+        transition_to_state(animal, AnimalState::Fleeing, current_time, None, "fire trap escape");
+        
+        // Calculate escape direction away from BOTH fire AND player
+        if let Some((fire_x, fire_y)) = find_closest_fire_position(ctx, animal.pos_x, animal.pos_y) {
+            let flee_angle = calculate_escape_angle_from_threats(
+                animal.pos_x, animal.pos_y, 
+                fire_x, fire_y, 
+                player.position_x, player.position_y
+            );
+            
+            // Species-specific flee distances
+            let flee_distance = match animal.species {
+                AnimalSpecies::TundraWolf => 600.0,    // 12+ tiles
+                AnimalSpecies::CinderFox => 640.0,     // Proportional to chase range
+                AnimalSpecies::CableViper => 500.0,    // Moderate distance
+                AnimalSpecies::ArcticWalrus => 200.0,  // Walruses barely flee
+            };
+            
+            animal.investigation_x = Some(animal.pos_x + flee_distance * flee_angle.cos());
+            animal.investigation_y = Some(animal.pos_y + flee_distance * flee_angle.sin());
+            
+            log::info!("🔥 {:?} {} ESCAPING fire trap! Player {} with ranged weapon detected.", 
+                      animal.species, animal.id, player.identity);
+            return true; // Fire trap detected and escape initiated
+        }
+    }
+    false // No fire trap detected
+}
+
+/// **COMMON UNSTUCK DETECTION** - Detect if animal is stuck and needs direction change
+pub fn detect_and_handle_stuck_movement(
+    animal: &mut WildAnimal,
+    prev_x: f32,
+    prev_y: f32,
+    movement_threshold: f32,
+    rng: &mut impl Rng,
+    context: &str,
+) -> bool {
+    let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+    
+    if distance_moved < movement_threshold {
+        // Stuck! Pick new random direction
+        let new_angle = rng.gen::<f32>() * 2.0 * PI;
+        animal.direction_x = new_angle.cos();
+        animal.direction_y = new_angle.sin();
+        
+        log::debug!("{:?} {} stuck during {} - changing direction (moved only {:.1}px)", 
+                   animal.species, animal.id, context, distance_moved);
+        return true; // Was stuck
+    }
+    false // Not stuck
+}
+
+/// **COMMON CORNERED BEHAVIOR** - Check if animal feels cornered and should attack regardless of normal behavior
+pub fn is_animal_cornered(
+    animal: &WildAnimal,
+    player: &Player,
+    cornered_distance: f32,
+) -> bool {
+    let distance_to_player = get_player_distance(animal, player);
+    distance_to_player <= cornered_distance
+}
+
+/// **COMMON WATER UNSTUCK LOGIC** - Handle animals getting stuck on water with alternative routing
+pub fn handle_water_unstuck(
+    ctx: &ReducerContext,
+    animal: &mut WildAnimal,
+    target_x: f32,
+    target_y: f32,
+    prev_x: f32,
+    prev_y: f32,
+    movement_threshold: f32,
+    flee_distance: f32,
+    rng: &mut impl Rng,
+) -> bool {
+    let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
+    
+    if distance_moved < movement_threshold {
+        // Check if target is water or if we're hitting water
+        let target_is_water = crate::fishing::is_water_tile(ctx, target_x, target_y);
+        let current_hitting_water = crate::fishing::is_water_tile(
+            ctx, 
+            animal.pos_x + (target_x - animal.pos_x).signum() * 50.0, 
+            animal.pos_y + (target_y - animal.pos_y).signum() * 50.0
+        );
+        
+        if target_is_water || current_hitting_water {
+            log::warn!("{:?} {} got stuck on water! Choosing new route...", animal.species, animal.id);
+            
+            // Try multiple random directions to find one that's not water
+            let mut attempts = 0;
+            let mut found_safe_direction = false;
+            
+            while attempts < 8 && !found_safe_direction {
+                let random_angle = rng.gen::<f32>() * 2.0 * PI;
+                let new_target_x = animal.pos_x + random_angle.cos() * flee_distance;
+                let new_target_y = animal.pos_y + random_angle.sin() * flee_distance;
+                
+                // Test direction ahead
+                let test_x = animal.pos_x + random_angle.cos() * 100.0;
+                let test_y = animal.pos_y + random_angle.sin() * 100.0;
+                
+                if !crate::fishing::is_water_tile(ctx, test_x, test_y) && 
+                   !is_position_in_shelter(ctx, test_x, test_y) {
+                    // Found safe direction
+                    animal.investigation_x = Some(new_target_x);
+                    animal.investigation_y = Some(new_target_y);
+                    found_safe_direction = true;
+                    log::info!("{:?} {} found safe route at angle {:.1}° - heading to ({:.1}, {:.1})", 
+                              animal.species, animal.id, random_angle.to_degrees(), new_target_x, new_target_y);
+                }
+                attempts += 1;
+            }
+            
+            if !found_safe_direction {
+                // Last resort: emergency direction
+                let emergency_angle = rng.gen::<f32>() * 2.0 * PI;
+                animal.investigation_x = Some(animal.pos_x + emergency_angle.cos() * flee_distance);
+                animal.investigation_y = Some(animal.pos_y + emergency_angle.sin() * flee_distance);
+                log::warn!("{:?} {} using emergency escape route!", animal.species, animal.id);
+            }
+            
+            return true; // Water unstuck was handled
+        }
+    }
+    false // No water collision detected
 }

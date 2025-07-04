@@ -266,6 +266,13 @@ fn spawn_animal(
         
         // Fire fear override tracking
         fire_fear_overridden_by: None,
+        
+        // Taming system fields
+        tamed_by: None,
+        tamed_at: None,
+        heart_effect_until: None,
+        crying_effect_until: None,
+        last_food_check: None,
     };
     
     // Attempt to spawn the animal

@@ -22,7 +22,9 @@ use crate::player as PlayerTableTrait;
 use super::core::{
     AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal, AnimalSpecies,
     move_towards_target, can_attack, transition_to_state, emit_species_sound,
-    execute_standard_patrol, get_player_distance, is_player_in_chase_range, wild_animal
+    execute_standard_patrol, get_player_distance, is_player_in_chase_range, wild_animal,
+    TAMING_PROTECT_RADIUS, ThreatType, detect_threats_to_owner, find_closest_threat,
+    handle_generic_threat_targeting, detect_and_handle_stuck_movement,
 };
 
 pub struct ArcticWalrusBehavior;
@@ -103,6 +105,35 @@ impl AnimalBehavior for ArcticWalrusBehavior {
         // 🦭 WALRUS DEFENSIVE BEHAVIOR: Only attack when provoked
         // Walruses ignore fire and never flee - they are purely reactive
         
+        // 🐕 TAMED WALRUS BEHAVIOR: If tamed, follow owner and protect them
+        if let Some(owner_id) = animal.tamed_by {
+            // Tamed walruses don't attack their owner or patrol aggressively
+            if let Some(player) = detected_player {
+                if player.identity == owner_id {
+                    // This is our owner - don't be aggressive
+                    if matches!(animal.state, AnimalState::Chasing | AnimalState::Alert) {
+                        transition_to_state(animal, AnimalState::Following, current_time, Some(owner_id), "owner detected - following");
+                    }
+                    return Ok(());
+                }
+            }
+            
+            // Check for threats to our owner using the generic threat detection system
+            if handle_generic_threat_targeting(ctx, animal, owner_id, current_time).is_some() {
+                return Ok(());
+            }
+            
+            // If we're in Following or Protecting state, let the core taming system handle movement
+            if matches!(animal.state, AnimalState::Following | AnimalState::Protecting) {
+                return Ok(());
+            }
+            
+            // Otherwise, default to following if tamed
+            transition_to_state(animal, AnimalState::Following, current_time, Some(owner_id), "tamed - defaulting to follow");
+            return Ok(());
+        }
+        
+        // 🦭 WILD WALRUS BEHAVIOR: Normal defensive walrus logic
         match animal.state {
             AnimalState::Patrolling => {
                 if let Some(player) = detected_player {
@@ -289,7 +320,29 @@ impl AnimalBehavior for ArcticWalrusBehavior {
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
-        // 🦭 WALRUS RETALIATION: When attacked, walruses become extremely aggressive
+        // 🐕 TAMED WALRUS: Don't attack the owner who tamed us
+        if let Some(owner_id) = animal.tamed_by {
+            if attacker.identity == owner_id {
+                // Our owner hit us - just make a sad sound but don't retaliate
+                // Show crying effect for 3 seconds
+                animal.crying_effect_until = Some(Timestamp::from_micros_since_unix_epoch(
+                    current_time.to_micros_since_unix_epoch() + 3000000 // 3 seconds in microseconds
+                ));
+                
+                emit_species_sound(ctx, animal, attacker.identity, "confused");
+                log::info!("🦭💧 Tamed Walrus {} was hit by owner {} - showing crying effect", animal.id, owner_id);
+                return Ok(());
+            }
+            
+            // Someone else attacked us while we're tamed - protect our owner by attacking the threat
+            transition_to_state(animal, AnimalState::Protecting, current_time, Some(attacker.identity), "defending against attacker");
+            emit_species_sound(ctx, animal, attacker.identity, "retaliation");
+            log::info!("🦭 Tamed Walrus {} defending against attacker {} (owner: {})", 
+                      animal.id, attacker.identity, owner_id);
+            return Ok(());
+        }
+        
+        // 🦭 WILD WALRUS RETALIATION: When attacked, walruses become extremely aggressive
         // They never flee and will chase the attacker relentlessly
         
         transition_to_state(animal, AnimalState::Chasing, current_time, Some(attacker.identity), "walrus retaliation");
@@ -301,6 +354,14 @@ impl AnimalBehavior for ArcticWalrusBehavior {
                   animal.id, attacker.identity);
         
         Ok(())
+    }
+    
+    fn can_be_tamed(&self) -> bool {
+        true // Walruses can be tamed with fish
+    }
+    
+    fn get_taming_foods(&self) -> Vec<&'static str> {
+        vec!["Raw Twigfish", "Cooked Twigfish"] // Fish items that can tame walruses
     }
 }
 

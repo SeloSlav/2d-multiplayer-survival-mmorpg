@@ -24,9 +24,11 @@ use crate::player as PlayerTableTrait;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use super::core::{
-    AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal,
+    AnimalBehavior, AnimalStats, AnimalState, MovementPattern, WildAnimal, AnimalSpecies,
     move_towards_target, can_attack, transition_to_state,
-    emit_species_sound, get_player_distance, is_player_in_chase_range
+    emit_species_sound, get_player_distance, is_player_in_chase_range, wild_animal,
+    set_flee_destination_away_from_threat,
+    execute_standard_patrol, player_has_ranged_weapon, detect_and_handle_stuck_movement,
 };
 
 pub struct CableViperBehavior;
@@ -65,11 +67,6 @@ pub trait ViperBehavior {
         target_player: &Player,
         current_time: Timestamp,
     ) -> Result<(), String>;
-    
-    fn player_has_ranged_weapon(
-        ctx: &ReducerContext,
-        player_id: Identity,
-    ) -> bool;
 }
 
 impl ViperBehavior for CableViperBehavior {
@@ -89,7 +86,7 @@ impl ViperBehavior for CableViperBehavior {
         }
         
         // ENHANCED: Faster, more accurate spittle against ranged users
-        let player_has_ranged = Self::player_has_ranged_weapon(ctx, target_player.identity);
+        let player_has_ranged = player_has_ranged_weapon(ctx, target_player.identity);
         let base_speed = if player_has_ranged { 750.0 } else { 600.0 }; // Faster against bow users
         
         // Predictive aiming - anticipate player movement
@@ -140,29 +137,7 @@ impl ViperBehavior for CableViperBehavior {
         Ok(())
     }
     
-    fn player_has_ranged_weapon(
-        ctx: &ReducerContext,
-        player_id: Identity,
-    ) -> bool {
-        if let Some(equipment) = ctx.db.active_equipment().player_identity().find(&player_id) {
-            if let Some(item_def_id) = equipment.equipped_item_def_id {
-                if let Some(item_def) = ctx.db.item_definition().id().find(item_def_id) {
-                    let has_ranged = item_def.name == "Hunting Bow" || item_def.name == "Crossbow";
-                    if has_ranged {
-                        log::debug!("Player {:?} has ranged weapon: {}", player_id, item_def.name);
-                    }
-                    return has_ranged;
-                } else {
-                    log::debug!("Player {:?} has equipped item but no definition found for ID {}", player_id, item_def_id);
-                }
-            } else {
-                log::debug!("Player {:?} has equipment but no equipped item", player_id);
-            }
-        } else {
-            log::debug!("Player {:?} has no equipment entry", player_id);
-        }
-        false
-    }
+
 }
 
 impl AnimalBehavior for CableViperBehavior {
@@ -231,7 +206,7 @@ impl AnimalBehavior for CableViperBehavior {
                 if let Some(player) = detected_player {
                     let distance = super::core::get_player_distance(animal, player);
                     
-                    let player_has_ranged = Self::player_has_ranged_weapon(ctx, player.identity);
+                    let player_has_ranged = player_has_ranged_weapon(ctx, player.identity);
                     
                     log::debug!("Cable Viper {} evaluating player at {:.1}px - ranged weapon: {}", 
                                animal.id, distance, player_has_ranged);
@@ -282,7 +257,7 @@ impl AnimalBehavior for CableViperBehavior {
                         let distance = distance_sq.sqrt();
                         
                         // Check if player still has ranged weapon
-                        let player_has_ranged = Self::player_has_ranged_weapon(ctx, target_player.identity);
+                        let player_has_ranged = player_has_ranged_weapon(ctx, target_player.identity);
                         
                         if distance > 450.0 {
                             // Player moved too far - return to patrol (removed ranged weapon check to be more persistent)
@@ -357,7 +332,7 @@ impl AnimalBehavior for CableViperBehavior {
                         
                         // Check for spittle opportunity - if player has ranged weapon and is at medium range
                         if distance > stats.attack_range && distance <= 350.0 && 
-                           Self::player_has_ranged_weapon(ctx, target_player.identity) {
+                           player_has_ranged_weapon(ctx, target_player.identity) {
                             super::core::transition_to_state(animal, AnimalState::Investigating, current_time, Some(target_player.identity), "switch to spittle");
                             log::debug!("Cable Viper {} switching from chase to spittle at {:.1}px", animal.id, distance);
                         }
@@ -395,7 +370,7 @@ impl AnimalBehavior for CableViperBehavior {
                             log::debug!("Cable Viper {} ending spittle combat - player too far", animal.id);
                         }
                         // Continue spittle combat if player doesn't have ranged weapon anymore
-                        else if !Self::player_has_ranged_weapon(ctx, target_player.identity) {
+                        else if !player_has_ranged_weapon(ctx, target_player.identity) {
                             super::core::transition_to_state(animal, AnimalState::Chasing, current_time, Some(target_player.identity), "no ranged weapon");
                             animal.investigation_x = None;
                             animal.investigation_y = None;
@@ -460,17 +435,13 @@ impl AnimalBehavior for CableViperBehavior {
         if let (Some(target_x), Some(target_y)) = (animal.investigation_x, animal.investigation_y) {
             move_towards_target(ctx, animal, target_x, target_y, stats.sprint_speed, dt);
             
-            // Check if stuck on water or obstacle
-            let movement_threshold = 5.0;
-            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
-            
-            if distance_moved < movement_threshold {
-                // Stuck! Pick new flee direction
-                let new_angle = rng.gen::<f32>() * 2.0 * PI;
+            // Check if stuck - use centralized handler
+            if detect_and_handle_stuck_movement(animal, prev_x, prev_y, 5.0, rng, "fleeing") {
+                // Update investigation target if direction changed
+                let new_angle = animal.direction_y.atan2(animal.direction_x);
                 let flee_distance = 300.0;
                 animal.investigation_x = Some(animal.pos_x + flee_distance * new_angle.cos());
                 animal.investigation_y = Some(animal.pos_y + flee_distance * new_angle.sin());
-                log::debug!("Cable Viper {} stuck while fleeing - picking new direction", animal.id);
             }
             
             // Check if reached flee destination or fled long enough
@@ -515,17 +486,8 @@ impl AnimalBehavior for CableViperBehavior {
            !crate::fishing::is_water_tile(ctx, target_x, target_y) {
             move_towards_target(ctx, animal, target_x, target_y, stats.movement_speed, dt);
             
-            // Check if stuck (water detection)
-            let movement_threshold = 3.0;
-            let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
-            
-            if distance_moved < movement_threshold {
-                // Stuck! Pick new random direction
-                let new_angle = rng.gen::<f32>() * 2.0 * PI;
-                animal.direction_x = new_angle.cos();
-                animal.direction_y = new_angle.sin();
-                log::debug!("Cable Viper {} stuck during patrol - changing direction", animal.id);
-            }
+            // Check if stuck - use centralized handler
+            detect_and_handle_stuck_movement(animal, prev_x, prev_y, 3.0, rng, "patrol");
         } else {
             // If target position is blocked, pick a new random direction
             let angle = rng.gen::<f32>() * 2.0 * PI;
@@ -546,25 +508,49 @@ impl AnimalBehavior for CableViperBehavior {
 
     fn handle_damage_response(
         &self,
-        _ctx: &ReducerContext,
+        ctx: &ReducerContext,
         animal: &mut WildAnimal,
-        _attacker: &Player,
+        attacker: &Player,
         stats: &AnimalStats,
         current_time: Timestamp,
         rng: &mut impl Rng,
     ) -> Result<(), String> {
+        // 🐍 CABLE VIPER DEFENSIVE RESPONSE: Assess threat and respond accordingly
         let health_percent = animal.health / stats.max_health;
+        let distance_to_attacker = get_player_distance(animal, attacker);
         
-        // REMOVED: No more burrowing when injured - vipers flee normally like other animals
-        if health_percent < stats.flee_trigger_health_percent {
-            animal.state = AnimalState::Fleeing;
-            animal.target_player_id = None;
-            animal.state_change_time = current_time;
-            log::info!("Cable Viper {} fleeing due to injury ({:.1}% health)", 
+        // Vipers are defensive but will fight back when cornered
+        if health_percent < 0.3 {
+            // Very low health - definitely flee
+            set_flee_destination_away_from_threat(animal, attacker.position_x, attacker.position_y, 400.0, rng);
+            transition_to_state(animal, AnimalState::Fleeing, current_time, None, "critical health flee");
+            
+            log::info!("Cable Viper {} fleeing due to critical health ({:.1}%)", 
                       animal.id, health_percent * 100.0);
+        } else if distance_to_attacker <= 150.0 {
+            // Close range - fight back with venom
+            transition_to_state(animal, AnimalState::Chasing, current_time, Some(attacker.identity), "viper retaliation");
+            emit_species_sound(ctx, animal, attacker.identity, "retaliation");
+            
+            log::info!("Cable Viper {} retaliating at close range against {} (Health: {:.1}%)", 
+                      animal.id, attacker.identity, health_percent * 100.0);
+        } else {
+            // Far range - retreat and reassess
+            set_flee_destination_away_from_threat(animal, attacker.position_x, attacker.position_y, 200.0, rng);
+            transition_to_state(animal, AnimalState::Fleeing, current_time, None, "tactical retreat");
+            
+            log::info!("Cable Viper {} tactically retreating from distant threat", animal.id);
         }
         
         Ok(())
+    }
+    
+    fn can_be_tamed(&self) -> bool {
+        false // Vipers are not tameable (too dangerous and solitary)
+    }
+    
+    fn get_taming_foods(&self) -> Vec<&'static str> {
+        vec![] // No taming foods for vipers
     }
 }
 
