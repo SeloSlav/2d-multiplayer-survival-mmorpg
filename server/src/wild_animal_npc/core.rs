@@ -794,12 +794,31 @@ fn find_detected_player(animal: &WildAnimal, stats: &AnimalStats, nearby_players
             player.position_x, player.position_y
         );
         
-        if distance_sq <= stats.perception_range * stats.perception_range {
+        // 🥷 STEALTH MECHANIC: Crouching reduces animal detection radius by 50%
+        let effective_perception_range = if player.is_crouching {
+            stats.perception_range * 0.5 // 50% reduction when crouching
+        } else {
+            stats.perception_range
+        };
+        
+        if distance_sq <= effective_perception_range * effective_perception_range {
             // Check if within perception cone (except for Cable Viper which has 360° detection)
             if animal.species == AnimalSpecies::CableViper || 
                is_within_perception_cone(animal, player, stats) {
+                
+                // Log stealth detection for debugging
+                if player.is_crouching {
+                    log::debug!("🥷 {:?} {} detected crouching player {} at {:.1}px (reduced range: {:.1}px)", 
+                               animal.species, animal.id, player.identity, 
+                               distance_sq.sqrt(), effective_perception_range);
+                }
+                
                 return Some(player.clone());
             }
+        } else if player.is_crouching && distance_sq <= stats.perception_range * stats.perception_range {
+            // Player would have been detected if standing, but crouching saved them
+            log::debug!("🥷 {:?} {} missed crouching player {} at {:.1}px (stealth successful)", 
+                       animal.species, animal.id, player.identity, distance_sq.sqrt());
         }
     }
     None

@@ -415,9 +415,3 @@ impl AnimalBehavior for TundraWolfBehavior {
         vec![] // No taming foods for wolves yet (could add meat items later)
     }
 }
-
-
-
-
-
- 

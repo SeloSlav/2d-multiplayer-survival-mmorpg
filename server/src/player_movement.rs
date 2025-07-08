@@ -549,6 +549,14 @@ pub fn update_player_position_simple(
         }
     }
 
+    // --- Auto-disable crouching when on water ---
+    let mut was_crouching_disabled = false;
+    if is_on_water && current_player.is_crouching {
+        current_player.is_crouching = false;
+        was_crouching_disabled = true;
+        log::info!("Player {:?} auto-disabled crouching when entering/moving in water", sender_id);
+    }
+
     // --- Movement Sound Logic (Walking & Swimming) ---
     // Calculate how much collision affected movement to detect if player is stuck
     let intended_movement_distance = ((clamped_x - current_player.position_x).powi(2) + (clamped_y - current_player.position_y).powi(2)).sqrt();
@@ -660,8 +668,14 @@ pub fn update_player_position_simple(
     current_player.is_on_water = is_on_water;
     current_player.direction = facing_direction; // Accept client-provided direction
     current_player.last_update = ctx.timestamp;
+    // Note: is_crouching is already updated above when auto-disabled on water
 
     players.identity().update(current_player);
+
+    // Log crouching state changes for debugging
+    if was_crouching_disabled {
+        log::debug!("Player {:?} crouching auto-disabled due to water at ({:.1}, {:.1})", sender_id, final_x, final_y);
+    }
 
     // Only log successful updates very rarely to reduce spam
     if ctx.rng().gen_bool(0.001) { // 0.1% of successful updates
