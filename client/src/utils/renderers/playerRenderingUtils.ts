@@ -1,7 +1,7 @@
 import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 import { drawShadow, drawDynamicGroundShadow } from './shadowUtils';
-import { drawSwimmingEffectsUnder, drawSwimmingEffectsOver, drawSwimmingUnderwaterShadow } from './swimmingEffectsUtils';
+import { drawSwimmingEffectsUnder, drawSwimmingEffectsOver } from './swimmingEffectsUtils';
 import { JUMP_DURATION_MS } from '../../config/gameConfig'; // Import the constant
 
 // --- Constants --- 
@@ -988,44 +988,4 @@ export const renderPlayer = (
   }
 };
 
-/**
- * Draws underwater shadows for swimming players - call this BEFORE water overlay rendering
- * for proper depth layering (shadow below water surface waves)
- */
-export const renderPlayerUnderwaterShadows = (
-  ctx: CanvasRenderingContext2D,
-  player: SpacetimeDBPlayer,
-  jumpOffsetY: number = 0,
-  cycleProgress: number = 0.375,
-  isCorpse?: boolean
-): void => {
-  // Only draw underwater shadows for swimming players
-  if (!player.isOnWater || isCorpse) {
-    return;
-  }
-
-  // Get player visual state for positioning
-  const playerVisualState = playerVisualKnockbackState.get(player.identity.toHexString());
-  let currentDisplayX = playerVisualState?.displayX ?? player.positionX;
-  let currentDisplayY = playerVisualState?.displayY ?? player.positionY;
-  
-  // Apply jump offset
-  const drawY = currentDisplayY - jumpOffsetY;
-  
-  // Calculate sprite dimensions and position
-  const drawWidth = gameConfig.spriteWidth * 2;
-  const drawHeight = gameConfig.spriteHeight * 2;
-  const spriteDrawX = currentDisplayX - drawWidth / 2;
-  const spriteDrawY = drawY - drawHeight / 2;
-
-  // Draw the underwater shadow (will render below water surface)
-  drawSwimmingUnderwaterShadow(
-    ctx,
-    player,
-    spriteDrawX,
-    spriteDrawY,
-    drawWidth,
-    drawHeight,
-    cycleProgress
-  );
-}; 
+ 

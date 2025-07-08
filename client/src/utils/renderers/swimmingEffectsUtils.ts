@@ -278,75 +278,9 @@ function drawExpandingWakes(
   ctx.restore();
 }
 
-/**
- * Draws a distant shadow on the water floor beneath the swimming player
- */
-function drawUnderwaterShadow(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  spriteWidth: number,
-  spriteHeight: number,
-  cycleProgress?: number
-): void {
-  const shadowDistance = 40; // Distance below player
-  const shadowX = centerX + 8; // Slightly offset
-  const shadowY = centerY + shadowDistance;
-  
-  // Shadow gets smaller and fainter as if it's on the water floor
-  const shadowScale = 0.6;
-  const shadowWidth = spriteWidth * shadowScale;
-  const shadowHeight = spriteHeight * shadowScale * 0.4; // Flattened
-  
-  // Adjust opacity based on day/night cycle
-  let shadowAlpha = 0.3;
-  if (cycleProgress !== undefined) {
-    // Stronger shadows during bright daylight, fainter at night
-    shadowAlpha = 0.15 + (cycleProgress < 0.5 ? cycleProgress : 1 - cycleProgress) * 0.3;
-  }
-  
-  ctx.save();
-  
-  // Ensure shadow renders below water surface with proper blending
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1.0;
-  
-  // Create underwater shadow effect
-  const shadowGradient = ctx.createRadialGradient(
-    shadowX, shadowY, 0,
-    shadowX, shadowY, shadowWidth
-  );
-  shadowGradient.addColorStop(0, `rgba(0, 30, 50, ${shadowAlpha})`);
-  shadowGradient.addColorStop(0.7, `rgba(0, 30, 50, ${shadowAlpha * 0.5})`);
-  shadowGradient.addColorStop(1, 'rgba(0, 30, 50, 0)');
-  
-  ctx.fillStyle = shadowGradient;
-  ctx.beginPath();
-  ctx.ellipse(shadowX, shadowY, shadowWidth / 2, shadowHeight / 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  
-  ctx.restore();
-}
 
-/**
- * Draws the underwater shadow that should appear below the water surface
- * Call this BEFORE water overlay rendering for proper depth layering
- */
-export function drawSwimmingUnderwaterShadow(
-  ctx: CanvasRenderingContext2D,
-  player: SpacetimeDBPlayer,
-  spriteDrawX: number,
-  spriteDrawY: number,
-  spriteWidth: number = gameConfig.spriteWidth * 2,
-  spriteHeight: number = gameConfig.spriteHeight * 2,
-  cycleProgress?: number
-): void {
-  const centerX = spriteDrawX + spriteWidth / 2;
-  const centerY = spriteDrawY + spriteHeight / 2;
-  
-  // Draw underwater shadow (should be below water surface waves)
-  drawUnderwaterShadow(ctx, centerX, centerY, spriteWidth, spriteHeight, cycleProgress);
-}
+
+
 
 /**
  * Draws swimming effects that should appear UNDER the player sprite (but above water surface)

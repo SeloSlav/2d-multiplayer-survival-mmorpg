@@ -87,7 +87,7 @@ import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils'
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
 import { renderAnimalCorpse, preloadAnimalCorpseImages } from '../utils/renderers/animalCorpseRenderingUtils';
-import { renderPlayerUnderwaterShadows } from '../utils/renderers/playerRenderingUtils';
+
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
@@ -788,26 +788,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
-    // --- RENDER UNDERWATER SHADOWS FIRST (Below water surface) ---
-    // Render underwater shadows for swimming players BEFORE water overlay
-    // This ensures shadows appear below the water surface waves
-    players.forEach(player => {
-      if (player.isOnWater) {
-        // No jump offset needed since players can't jump while swimming
-        renderPlayerUnderwaterShadows(
-          ctx,
-          player,
-          0, // jumpOffsetY = 0 (can't jump on water)
-          currentCycleProgress,
-          player.isDead || player.health <= 0 // isCorpse check
-        );
-      }
-    });
-    // --- END UNDERWATER SHADOWS ---
+
 
     // --- RENDER WATER OVERLAY (Water surface waves) ---
-    // Render water surface waves AFTER underwater shadows but BEFORE other entities
-    // This creates proper depth layering: shadow -> water surface -> wakes -> player -> water line
+    // Render water surface waves BEFORE other entities
     renderWaterOverlay(
       ctx,
       -cameraOffsetX, // Convert camera offset to world camera position

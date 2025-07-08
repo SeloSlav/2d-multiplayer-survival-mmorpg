@@ -120,7 +120,7 @@ impl AnimalBehavior for ArcticWalrusBehavior {
             
             // Check for threats to our owner using the generic threat detection system
             if handle_generic_threat_targeting(ctx, animal, owner_id, current_time).is_some() {
-                return Ok(());
+                        return Ok(());
             }
             
             // If we're in Following or Protecting state, let the core taming system handle movement
