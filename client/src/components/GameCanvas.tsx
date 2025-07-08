@@ -87,6 +87,7 @@ import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils'
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
 import { renderAnimalCorpse, preloadAnimalCorpseImages } from '../utils/renderers/animalCorpseRenderingUtils';
+import { renderPlayerUnderwaterShadows } from '../utils/renderers/playerRenderingUtils';
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
@@ -787,19 +788,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
-    // --- Render Water Overlay After Terrain ---
-    // Water overlay shows animated teal lines on water surfaces - renders above terrain but below everything else
-    // Note: Context is already translated by cameraOffset, so we pass the actual camera world position
+    // --- RENDER UNDERWATER SHADOWS FIRST (Below water surface) ---
+    // Render underwater shadows for swimming players BEFORE water overlay
+    // This ensures shadows appear below the water surface waves
+    players.forEach(player => {
+      if (player.isOnWater) {
+        // No jump offset needed since players can't jump while swimming
+        renderPlayerUnderwaterShadows(
+          ctx,
+          player,
+          0, // jumpOffsetY = 0 (can't jump on water)
+          currentCycleProgress,
+          player.isDead || player.health <= 0 // isCorpse check
+        );
+      }
+    });
+    // --- END UNDERWATER SHADOWS ---
+
+    // --- RENDER WATER OVERLAY (Water surface waves) ---
+    // Render water surface waves AFTER underwater shadows but BEFORE other entities
+    // This creates proper depth layering: shadow -> water surface -> wakes -> player -> water line
     renderWaterOverlay(
       ctx,
-      -cameraOffsetX, // Camera world X position 
-      -cameraOffsetY, // Camera world Y position
-      currentCanvasWidth,
-      currentCanvasHeight,
-      deltaTimeRef.current / 1000, // Convert milliseconds to seconds
-      worldTiles // Pass world tiles for water tile detection
+      -cameraOffsetX, // Convert camera offset to world camera position
+      -cameraOffsetY,
+      canvasSize.width,
+      canvasSize.height,
+      deltaTimeRef.current / 1000, // Convert ms to seconds
+      worldTiles
     );
-    // --- End Water Overlay ---
+    // --- END WATER OVERLAY ---
 
     // --- Render Water Patches ---
     // Water patches show as transparent black circles on the ground that boost plant growth

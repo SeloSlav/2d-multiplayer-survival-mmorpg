@@ -318,6 +318,11 @@ const tipSectionDefinitions = {
             'Thrown weapons can be retrieved after combat - don\'t forget to pick them up.',
             'Thrown weapons have a small chance to break on impact, so always carry backup weapons.',
             'Spears have longer reach than other melee weapons, keeping you safer in close combat.',
+            'Animal skulls make formidable melee weapons - the bigger the skull, the more damage it deals.',
+            'Skull weapons: Fox Skull (light & fast), Wolf Skull (balanced), Viper Skull (moderate), Human Skull (strong), Walrus Skull (devastating but slow).',
+            'Larger skulls like Walrus Skulls deal massive damage but swing much slower - time your attacks carefully.',
+            'Skull weapons can be thrown for double damage, making them versatile combat tools.',
+            'Skulls can be crushed into bone fragments - larger skulls yield significantly more material than smaller ones.',
             'Consumables like food and water require double-clicking on the hotbar to use quickly.',
             'Position yourself strategically - use trees and rocks as cover during ranged combat.',
         ]

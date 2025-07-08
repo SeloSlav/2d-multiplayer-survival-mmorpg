@@ -66,6 +66,13 @@ pub fn get_weapon_definitions() -> Vec<ItemDefinition> {
             .bleed_effect(2.0, 6.0, 1.0) // Venom effect - moderate bleed
             .build(),
 
+        // Walrus Skull - Heavy, imposing weapon with tusks
+        ItemBuilder::new("Walrus Skull", "A massive walrus skull with intact tusks. An impressive trophy from one of the arctic's most formidable marine mammals. The weight and tusks make it devastatingly effective in combat.", ItemCategory::Weapon)
+            .icon("walrus_skull.png")
+            .stackable(10)
+            .weapon(40, 40, 2.5) // High damage but very slow due to weight
+            .build(),
+
         // === CRAFTABLE SPEARS ===
         // Ranged melee weapons with reach advantage
 

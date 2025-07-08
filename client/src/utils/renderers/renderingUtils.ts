@@ -123,6 +123,8 @@ interface RenderYSortedEntitiesProps {
     heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
     heroSprintImageRef: React.RefObject<HTMLImageElement | null>;
     heroIdleImageRef: React.RefObject<HTMLImageElement | null>;
+    heroSwimImageRef?: React.RefObject<HTMLImageElement | null>; // Add swim sprite ref (optional)
+    heroDodgeImageRef?: React.RefObject<HTMLImageElement | null>; // NEW: Add dodge roll sprite ref (optional)
     lastPositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
     activeConnections: Map<string, ActiveConnection> | undefined;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
@@ -151,6 +153,7 @@ interface RenderYSortedEntitiesProps {
         heroImageRef: React.RefObject<HTMLImageElement | null>;
         heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
         heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
+        heroSwimImageRef: React.RefObject<HTMLImageElement | null>;
     }) => void;
     localPlayerPosition?: { x: number; y: number } | null; // This is the predicted position
     remotePlayerInterpolation?: {
@@ -181,6 +184,8 @@ export const renderYSortedEntities = ({
     heroCrouchImageRef,
     heroSprintImageRef,
     heroIdleImageRef,
+    heroSwimImageRef,
+    heroDodgeImageRef,
     lastPositionsRef,
     activeConnections,
     activeEquipments,
@@ -340,7 +345,7 @@ export const renderYSortedEntities = ({
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
-           // Choose sprite based on crouching state first, then water status, but don't switch to water sprite while jumping
+           // Choose sprite based on water status FIRST (highest priority), then crouching, but don't switch to water sprite while jumping
            let heroImg: HTMLImageElement | null;
            // For local player, use immediate local crouch state; for others, use server state
            const effectiveIsCrouching = isLocalPlayer && localPlayerIsCrouching !== undefined 
@@ -350,14 +355,14 @@ export const renderYSortedEntities = ({
            // console.log(`[DEBUG] Player ${playerId} image selection - effectiveIsCrouching:`, effectiveIsCrouching, 'isOnWater:', playerForRendering.isOnWater, 'isCurrentlyJumping:', isCurrentlyJumping);
            // console.log(`[DEBUG] Image refs available - heroImageRef:`, !!heroImageRef.current, 'heroWaterImageRef:', !!heroWaterImageRef.current, 'heroCrouchImageRef:', !!heroCrouchImageRef.current);
            
-           if (effectiveIsCrouching) {
-               heroImg = heroCrouchImageRef.current; // Use crouch sprite when crouching
-              // console.log(`[DEBUG] Using crouch sprite for ${playerId}:`, !!heroImg);
-           } else if (playerForRendering.isOnWater && !isCurrentlyJumping) {
-               heroImg = heroWaterImageRef.current; // Use water sprite when on water (but not jumping)
+           if (playerForRendering.isOnWater && !isCurrentlyJumping) {
+               heroImg = heroWaterImageRef.current; // HIGHEST PRIORITY: Use water sprite when on water (but not jumping)
               // console.log(`[DEBUG] Using water sprite for ${playerId}:`, !!heroImg);
+           } else if (effectiveIsCrouching && !playerForRendering.isOnWater) {
+               heroImg = heroCrouchImageRef.current; // SECOND PRIORITY: Use crouch sprite when crouching (and NOT on water)
+              // console.log(`[DEBUG] Using crouch sprite for ${playerId}:`, !!heroImg);
            } else {
-               heroImg = heroImageRef.current; // Use normal sprite otherwise
+               heroImg = heroImageRef.current; // DEFAULT: Use normal sprite otherwise
               // console.log(`[DEBUG] Using normal sprite for ${playerId}:`, !!heroImg);
            }
            const isOnline = activeConnections ? activeConnections.has(playerId) : false;
@@ -407,7 +412,14 @@ export const renderYSortedEntities = ({
                   currentAnimFrame = animationFrame; // Use walking animation for normal movement
                 }
                 renderPlayer(
-                        ctx, playerForRendering, heroImg, heroSprintImageRef.current || heroImg, heroIdleImageRef.current || heroImg,
+                        ctx, 
+                        playerForRendering, 
+                        heroImg, 
+                        heroSprintImageRef.current || heroImg, 
+                        heroIdleImageRef.current || heroImg,
+                        heroCrouchImageRef.current || heroImg, // crouch sprite
+                        heroSwimImageRef?.current || heroImg, // swim sprite
+                        heroDodgeImageRef?.current || heroImg, // NEW: dodge roll sprite
                         isOnline, 
                         isPlayerMoving, 
                         currentlyHovered,
@@ -418,7 +430,8 @@ export const renderYSortedEntities = ({
                   activeConsumableEffects,
                   localPlayerId,
                   false, // isCorpse
-                  cycleProgress // cycleProgress
+                  cycleProgress, // cycleProgress
+                  localPlayerIsCrouching // NEW: pass local crouch state for optimistic rendering
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} - cannot render`);
@@ -438,7 +451,14 @@ export const renderYSortedEntities = ({
                   currentAnimFrame = animationFrame; // Use walking animation for normal movement
                 }
                 renderPlayer(
-                    ctx, playerForRendering, heroImg, heroSprintImageRef.current || heroImg, heroIdleImageRef.current || heroImg,
+                    ctx, 
+                    playerForRendering, 
+                    heroImg, 
+                    heroSprintImageRef.current || heroImg, 
+                    heroIdleImageRef.current || heroImg,
+                    heroCrouchImageRef.current || heroImg, // crouch sprite
+                    heroSwimImageRef?.current || heroImg, // swim sprite
+                    heroDodgeImageRef?.current || heroImg, // NEW: dodge roll sprite
                     isOnline, 
                     isPlayerMoving, 
                     currentlyHovered,
@@ -449,7 +469,8 @@ export const renderYSortedEntities = ({
                   activeConsumableEffects,
                   localPlayerId,
                   false, // isCorpse
-                  cycleProgress // cycleProgress
+                  cycleProgress, // cycleProgress
+                  localPlayerIsCrouching // NEW: pass local crouch state for optimistic rendering
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} (down/right) - cannot render`);
@@ -570,7 +591,8 @@ export const renderYSortedEntities = ({
                 itemImagesRef,
                 heroImageRef,
                 heroWaterImageRef,
-                heroCrouchImageRef
+                heroCrouchImageRef,
+                heroSwimImageRef: heroSwimImageRef || { current: null }
             });
             
             // Check if this corpse is the closest interactable target

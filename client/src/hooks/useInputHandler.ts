@@ -155,6 +155,7 @@ export const useInputHandler = ({
     // --- Internal State and Refs ---
     const [isAutoAttacking, setIsAutoAttacking] = useState(false);
     const [isCrouching, setIsCrouching] = useState(false);
+    const pendingCrouchToggleRef = useRef<boolean>(false); // Track pending crouch requests
 
     const keysPressed = useRef<Set<string>>(new Set());
     const isEHeldDownRef = useRef<boolean>(false);
@@ -217,6 +218,14 @@ export const useInputHandler = ({
     useEffect(() => { connectionRef.current = connection; }, [connection]);
     useEffect(() => { localPlayerRef.current = localPlayer; }, [localPlayer]);
     useEffect(() => { activeEquipmentsRef.current = activeEquipments; }, [activeEquipments]);
+    
+    // Synchronize local crouch state with server state to prevent desync
+    // Don't override optimistic state while pending requests are in flight
+    useEffect(() => {
+        if (localPlayer?.isCrouching !== undefined && !pendingCrouchToggleRef.current) {
+            setIsCrouching(localPlayer.isCrouching);
+        }
+    }, [localPlayer?.isCrouching]);
     // Update closest target ref when target changes
     useEffect(() => {
         closestTargetRef.current = closestInteractableTarget;
@@ -479,8 +488,18 @@ export const useInputHandler = ({
                         });
                         return; // Handled
                     case 'c':
+                        // Check if player is on water before allowing crouch toggle
+                        if (localPlayerRef.current?.isOnWater) {
+                            console.log('[Input] Crouch blocked - player is on water');
+                            return; // Don't allow crouching on water
+                        }
                         setIsCrouching(prev => {
+                            pendingCrouchToggleRef.current = true; // Mark as pending
                             connectionRef.current?.reducers.toggleCrouch();
+                            // Clear pending flag after a brief delay (server should respond by then)
+                            setTimeout(() => {
+                                pendingCrouchToggleRef.current = false;
+                            }, 200); // 200ms should be enough for server response
                             return !prev;
                         });
                         return; // Handled

@@ -41,11 +41,11 @@ const WATER_CONFIG = {
   // Line density - very subtle for cozy atmosphere
   LINES_PER_SCREEN_AREA: 0.3, // Further reduced for more atmospheric feel
   
-  // Line properties - match sea stack visibility
+  // Line properties - enhanced visibility above underwater shadows
   MIN_LENGTH: 12,   // Longer for better wave visibility
   MAX_LENGTH: 40,  // Longer lines for better wave effect
-  MIN_OPACITY: 0.4, // Much more visible like sea stacks
-  MAX_OPACITY: 0.7,  // Strong opacity like sea stacks
+  MIN_OPACITY: 0.6, // Increased for better visibility above shadows
+  MAX_OPACITY: 0.9,  // Higher opacity to stand out above underwater shadows
   MIN_THICKNESS: 1,
   MAX_THICKNESS: 1.5, // Slight thickness variation
   
@@ -74,9 +74,9 @@ const WATER_CONFIG = {
   LINE_SPACING: 2, // Slightly more spacing for cleaner look
   HORIZONTAL_OFFSET_RANGE: 8,
   
-  // Visual properties - match sea stack water colors for consistency
-  WATER_LINE_COLOR: 'rgba(100, 200, 255, 0.8)', // Light blue matching sea stacks
-  WATER_LINE_GLOW_COLOR: 'rgba(150, 220, 255, 0.3)', // Subtle blue glow
+  // Visual properties - enhanced colors for visibility above shadows
+  WATER_LINE_COLOR: 'rgba(120, 220, 255, 0.9)', // Brighter light blue for visibility above shadows
+  WATER_LINE_GLOW_COLOR: 'rgba(180, 240, 255, 0.5)', // Brighter blue glow
   
   // Screen margins
   SPAWN_MARGIN: 800,
@@ -390,6 +390,10 @@ function renderWaterLines(
   if (waterSystem.lines.length === 0) return;
   
   ctx.save();
+  
+  // Ensure water lines render on top with proper blending
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1.0;
   
   // Set line cap for smoother lines
   ctx.lineCap = 'round';

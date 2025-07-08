@@ -1,6 +1,7 @@
 import { Player as SpacetimeDBPlayer, ActiveEquipment as SpacetimeDBActiveEquipment, ItemDefinition as SpacetimeDBItemDefinition, ActiveConsumableEffect, EffectType } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
 import { drawShadow, drawDynamicGroundShadow } from './shadowUtils';
+import { drawSwimmingEffectsUnder, drawSwimmingEffectsOver, drawSwimmingUnderwaterShadow } from './swimmingEffectsUtils';
 import { JUMP_DURATION_MS } from '../../config/gameConfig'; // Import the constant
 
 // --- Constants --- 
@@ -73,9 +74,84 @@ export const getSpriteCoordinates = (
   isMoving: boolean,
   currentAnimationFrame: number,
   isUsingItem: boolean,
-  totalFrames: number = 6, // Total frame count (6 for walking, 8 for sprinting, 16 for idle)
-  isIdle: boolean = false // NEW: Flag to indicate idle animation
+  totalFrames: number = 6, // Total frame count (6 for walking, 8 for sprinting, 16 for idle, 8 for crouch, 24 for swimming, 28 for dodge roll)
+  isIdle: boolean = false, // Flag to indicate idle animation
+  isCrouching: boolean = false, // Flag to indicate crouch animation
+  isSwimming: boolean = false, // Flag to indicate swimming animation
+  isDodgeRolling: boolean = false // NEW: Flag to indicate dodge roll animation
 ): { sx: number, sy: number } => {
+  // Handle dodge roll animation (7x4 grid layout - 7 columns, 4 rows)
+  if (isDodgeRolling) {
+    const dodgeFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds (0-27)
+    const spriteCol = dodgeFrame % 7; // Cycle through 7 columns on the row
+    
+    // Calculate row based on player's facing direction
+    let spriteRow = 0; // Default Down
+    switch (player.direction) {
+      case 'up':         spriteRow = 3; break;
+      case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
+      case 'right':      spriteRow = 1; break;
+      case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+      case 'down':       spriteRow = 0; break;
+      case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
+      case 'left':       spriteRow = 2; break;
+      case 'up_left':    spriteRow = 2; break; // Use left sprite for diagonal up-left
+      default:           spriteRow = 0; break; // Default fallback
+    }
+    
+    const sx = spriteCol * gameConfig.spriteWidth;
+    const sy = spriteRow * gameConfig.spriteHeight;
+    return { sx, sy };
+  }
+
+  // Handle crouch animation (3x4 grid layout - skip first column, use columns 1-2)
+  if (isCrouching) {
+    const crouchFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds (0-11)
+    const spriteCol = 1 + (crouchFrame % 2); // Skip first column, cycle through columns 1-2
+    
+    // Calculate row based on player's facing direction
+    let spriteRow = 0; // Default Down
+    switch (player.direction) {
+      case 'up':         spriteRow = 3; break;
+      case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
+      case 'right':      spriteRow = 1; break;
+      case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+      case 'down':       spriteRow = 0; break;
+      case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
+      case 'left':       spriteRow = 2; break;
+      case 'up_left':    spriteRow = 2; break; // Use left sprite for diagonal up-left
+      default:           spriteRow = 0; break; // Default fallback
+    }
+    
+    const sx = spriteCol * gameConfig.spriteWidth;
+    const sy = spriteRow * gameConfig.spriteHeight;
+    return { sx, sy };
+  }
+
+  // Handle swimming animation (6x4 grid layout - 6 columns, 4 rows)
+  if (isSwimming) {
+    const swimFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds (0-23)
+    const spriteCol = swimFrame % 6; // Cycle through 6 columns on the row
+    
+    // Calculate row based on player's facing direction
+    let spriteRow = 0; // Default Down
+    switch (player.direction) {
+      case 'up':         spriteRow = 3; break;
+      case 'up_right':   spriteRow = 1; break; // Use right sprite for diagonal up-right
+      case 'right':      spriteRow = 1; break;
+      case 'down_right': spriteRow = 1; break; // Use right sprite for diagonal down-right
+      case 'down':       spriteRow = 0; break;
+      case 'down_left':  spriteRow = 2; break; // Use left sprite for diagonal down-left
+      case 'left':       spriteRow = 2; break;
+      case 'up_left':    spriteRow = 2; break; // Use left sprite for diagonal up-left
+      default:           spriteRow = 0; break; // Default fallback
+    }
+    
+    const sx = spriteCol * gameConfig.spriteWidth;
+    const sy = spriteRow * gameConfig.spriteHeight;
+    return { sx, sy };
+  }
+
   // Handle idle animation (4x4 grid layout)
   if (isIdle && !isMoving && !isUsingItem) {
     const idleFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds
@@ -186,7 +262,10 @@ export const renderPlayer = (
   player: SpacetimeDBPlayer,
   heroImg: CanvasImageSource,
   heroSprintImg: CanvasImageSource,
-  heroIdleImg: CanvasImageSource, // NEW: Add idle sprite parameter
+  heroIdleImg: CanvasImageSource,
+  heroCrouchImg: CanvasImageSource, // Add crouch sprite parameter
+  heroSwimImg: CanvasImageSource, // Add swim sprite parameter
+  heroDodgeImg: CanvasImageSource, // NEW: Add dodge roll sprite parameter
   isOnline: boolean,
   isMoving: boolean,
   isHovered: boolean,
@@ -197,7 +276,8 @@ export const renderPlayer = (
   activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
   localPlayerId?: string,
   isCorpse?: boolean, // New flag for corpse rendering
-  cycleProgress: number = 0.375 // Day/night cycle progress (0.0 to 1.0), default to noon-ish
+  cycleProgress: number = 0.375, // Day/night cycle progress (0.0 to 1.0), default to noon-ish
+  localPlayerIsCrouching?: boolean // NEW: Add local crouch state for optimistic rendering
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -443,12 +523,31 @@ export const renderPlayer = (
   const isIdleState = (!isCorpse && !finalIsMoving && !isUsingItem && !isUsingSeloOliveOil);
   const isSwimming = (!isCorpse && player.isOnWater && !isCurrentlyJumping);
   
+  // Use effective crouch state that considers local optimistic state for immediate feedback
+  const effectiveIsCrouching = isLocalPlayer && localPlayerIsCrouching !== undefined 
+    ? localPlayerIsCrouching 
+    : player.isCrouching;
+  const isCrouchingState = (!isCorpse && effectiveIsCrouching && !player.isOnWater);
+  const isDodgeRollingState = false; // TODO: Add actual dodge roll detection when integrated
+  
   let totalFrames: number;
   let isIdleAnimation = false;
+  let isCrouchingAnimation = false;
+  let isSwimmingAnimation = false;
+  let isDodgeRollingAnimation = false;
   
-  if (isSwimming) {
-    // PRIORITY: Swimming uses 6 frames regardless of other states
-    totalFrames = 6; // 6 frames for swimming (same as walking)
+  if (isDodgeRollingState) {
+    // HIGHEST PRIORITY: Dodge rolling overrides all other states
+    totalFrames = 28; // 28 frames for dodge roll animation (7x4)
+    isDodgeRollingAnimation = true;
+  } else if (isCrouchingState) {
+    // SECOND PRIORITY: Crouching overrides all other states
+    totalFrames = 8; // 8 frames for crouch animation (2x4, skipping first column)
+    isCrouchingAnimation = true;
+  } else if (isSwimming) {
+    // THIRD PRIORITY: Swimming uses 24 frames
+    totalFrames = 24; // 24 frames for swimming (6x4)
+    isSwimmingAnimation = true;
   } else if (isIdleState) {
     totalFrames = 16; // 16 frames for idle animation (4x4)
     isIdleAnimation = true;
@@ -458,7 +557,17 @@ export const renderPlayer = (
     totalFrames = 6; // 6 frames for walking
   }
 
-  const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil, totalFrames, isIdleAnimation);
+  const { sx, sy } = getSpriteCoordinates(
+    player, 
+    finalIsMoving, 
+    finalAnimationFrame, 
+    isUsingItem || isUsingSeloOliveOil, 
+    totalFrames, 
+    isIdleAnimation,
+    isCrouchingAnimation,
+    isSwimmingAnimation,
+    isDodgeRollingAnimation
+  );
   
   // Shake Logic (directly uses elapsedSinceServerHitMs)
   let shakeX = 0;
@@ -502,16 +611,22 @@ export const renderPlayer = (
   const finalIsOnline = isCorpse ? false : isOnline;
 
   // --- Draw Dynamic Ground Shadow (for living players only) ---
-  // Don't show shadow on water, but keep showing while jumping (same logic as sprite selection)
-  const shouldShowShadow = !isCorpse && !(player.isOnWater && !isCurrentlyJumping);
+  // Show shadow for all living players, with special positioning for swimming
+  const shouldShowShadow = !isCorpse;
   
-  // NEW: Choose sprite based on player state
+  // NEW: Choose sprite based on player state (PRIORITY ORDER: dodge > swimming > crouching > idle/sprint/walk)
   let currentSpriteImg: CanvasImageSource;
   if (isCorpse) {
     currentSpriteImg = heroImg; // Corpses use walking sprite
-  } else if (player.isOnWater && !isCurrentlyJumping) {
-    // PRIORITY: Swimming takes precedence over all other animations (including sprinting)
-    currentSpriteImg = heroImg; // This should be the water sprite selected in renderingUtils
+  } else if (isDodgeRollingState) {
+    // HIGHEST PRIORITY: Dodge rolling uses dodge sprite regardless of other states
+    currentSpriteImg = heroDodgeImg;
+  } else if (isSwimming && !isCurrentlyJumping) {
+    // SECOND PRIORITY: Swimming uses swim sprite (water overrides crouching)
+    currentSpriteImg = heroSwimImg;
+  } else if (isCrouchingState) {
+    // THIRD PRIORITY: Crouching uses crouch sprite (only when NOT on water)
+    currentSpriteImg = heroCrouchImg;
   } else if (isIdleState) {
     currentSpriteImg = heroIdleImg; // Use idle sprite when not moving
   } else if (isSprinting) {
@@ -522,7 +637,17 @@ export const renderPlayer = (
   
   if (currentSpriteImg instanceof HTMLImageElement && shouldShowShadow) {
     // Extract the specific sprite frame for shadow rendering
-    const { sx, sy } = getSpriteCoordinates(player, finalIsMoving, finalAnimationFrame, isUsingItem || isUsingSeloOliveOil, totalFrames, isIdleAnimation);
+    const { sx, sy } = getSpriteCoordinates(
+      player, 
+      finalIsMoving, 
+      finalAnimationFrame, 
+      isUsingItem || isUsingSeloOliveOil, 
+      totalFrames, 
+      isIdleAnimation,
+      isCrouchingAnimation,
+      isSwimmingAnimation,
+      isDodgeRollingAnimation
+    );
     
     // Create a temporary canvas with just the current sprite frame
     const spriteCanvas = document.createElement('canvas');
@@ -550,16 +675,30 @@ export const renderPlayer = (
       const shadowAlphaReduction = shadowAlpha * (1.0 - jumpProgress * 0.3); // Shadow gets fainter when higher
       const shadowOffsetFromPlayer = jumpProgress * 8; // Shadow moves slightly away from player when higher
       
+      // Special shadow positioning for swimming players
+      let finalShadowCenterX = currentDisplayX;
+      let finalShadowBaseY = currentDisplayY + shadowBaseYOffset + shadowOffsetFromPlayer;
+      let finalShadowScale = shadowScale;
+      let finalShadowAlpha = shadowAlphaReduction;
+      
+      if (player.isOnWater && !isCurrentlyJumping) {
+        // Swimming: shadow appears much further away, larger and darker like it's on the water floor
+        finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
+        finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
+        finalShadowScale = shadowScale * 0.8; // Larger shadow (was 0.4)
+        finalShadowAlpha = shadowAlphaReduction * 1.4; // Darker shadow (was 0.6)
+      }
+
       drawDynamicGroundShadow({
         ctx,
         entityImage: spriteCanvas, // Use the extracted sprite frame instead of full spritesheet
-        entityCenterX: currentDisplayX,
-        entityBaseY: currentDisplayY + shadowBaseYOffset + shadowOffsetFromPlayer, // Shadow stays on ground, moves slightly away when jumping
-        imageDrawWidth: drawWidth * shadowScale, // Shadow shrinks as player jumps higher
-        imageDrawHeight: drawHeight * shadowScale, // Shadow shrinks as player jumps higher
+        entityCenterX: finalShadowCenterX,
+        entityBaseY: finalShadowBaseY,
+        imageDrawWidth: drawWidth * finalShadowScale,
+        imageDrawHeight: drawHeight * finalShadowScale,
         cycleProgress,
         baseShadowColor: '0,0,0',
-        maxShadowAlpha: shadowAlphaReduction, // Shadow gets fainter when higher
+        maxShadowAlpha: finalShadowAlpha,
         maxStretchFactor: shadowStretchMax,
         minStretchFactor: shadowStretchMin,
         shadowBlur: shadowBlurAmount, // Shadow gets blurrier when higher
@@ -570,7 +709,8 @@ export const renderPlayer = (
   // --- End Dynamic Ground Shadow ---
 
   // --- Draw Offline Shadow (corpses excluded - they're flat on the ground) --- 
-  if (!isCorpse && !finalIsOnline && shouldShowShadow) { // Exclude corpses from shadow rendering
+  // Skip regular shadows for swimming players - they use only the dynamic ground shadow
+  if (!isCorpse && !finalIsOnline && shouldShowShadow && !(player.isOnWater && !isCurrentlyJumping)) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       
@@ -585,7 +725,8 @@ export const renderPlayer = (
   // --- End Shadow ---
 
   // --- Draw Shadow (Only if alive and online, and not a corpse) ---
-  if (!isCorpse && !player.isDead && finalIsOnline && shouldShowShadow) {
+  // Skip regular shadows for swimming players - they use only the dynamic ground shadow
+  if (!isCorpse && !player.isDead && finalIsOnline && shouldShowShadow && !(player.isOnWater && !isCurrentlyJumping)) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 
@@ -776,6 +917,21 @@ export const renderPlayer = (
       ctx.translate(-centerX, -centerY);
     }
 
+    // Draw swimming effects that go under the sprite (underwater shadow, wake)
+    if (player.isOnWater && !isCorpse) {
+      drawSwimmingEffectsUnder(
+        ctx, 
+        player, 
+        nowMs, 
+        finalIsMoving,
+        spriteBaseX,
+        spriteDrawY,
+        drawWidth,
+        drawHeight,
+        cycleProgress
+      );
+    }
+
     // Draw the (possibly tinted) offscreen canvas to the main canvas
     if (offscreenCtx) {
       ctx.drawImage(
@@ -804,6 +960,19 @@ export const renderPlayer = (
     }
     // --- END MODIFICATION ---
 
+    // Draw swimming effects that go over the sprite (water line)
+    if (player.isOnWater && !isCorpse) {
+      drawSwimmingEffectsOver(
+        ctx, 
+        player, 
+        nowMs,
+        spriteBaseX,
+        spriteDrawY,
+        drawWidth,
+        drawHeight
+      );
+    }
+
   } finally {
       ctx.restore(); // Restores rotation and globalCompositeOperation
   }
@@ -817,4 +986,46 @@ export const renderPlayer = (
     
     drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, finalIsOnline, willShowLabel); 
   }
+};
+
+/**
+ * Draws underwater shadows for swimming players - call this BEFORE water overlay rendering
+ * for proper depth layering (shadow below water surface waves)
+ */
+export const renderPlayerUnderwaterShadows = (
+  ctx: CanvasRenderingContext2D,
+  player: SpacetimeDBPlayer,
+  jumpOffsetY: number = 0,
+  cycleProgress: number = 0.375,
+  isCorpse?: boolean
+): void => {
+  // Only draw underwater shadows for swimming players
+  if (!player.isOnWater || isCorpse) {
+    return;
+  }
+
+  // Get player visual state for positioning
+  const playerVisualState = playerVisualKnockbackState.get(player.identity.toHexString());
+  let currentDisplayX = playerVisualState?.displayX ?? player.positionX;
+  let currentDisplayY = playerVisualState?.displayY ?? player.positionY;
+  
+  // Apply jump offset
+  const drawY = currentDisplayY - jumpOffsetY;
+  
+  // Calculate sprite dimensions and position
+  const drawWidth = gameConfig.spriteWidth * 2;
+  const drawHeight = gameConfig.spriteHeight * 2;
+  const spriteDrawX = currentDisplayX - drawWidth / 2;
+  const spriteDrawY = drawY - drawHeight / 2;
+
+  // Draw the underwater shadow (will render below water surface)
+  drawSwimmingUnderwaterShadow(
+    ctx,
+    player,
+    spriteDrawX,
+    spriteDrawY,
+    drawWidth,
+    drawHeight,
+    cycleProgress
+  );
 }; 

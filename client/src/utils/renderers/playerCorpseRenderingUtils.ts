@@ -16,6 +16,7 @@ interface RenderPlayerCorpseProps {
   heroImageRef: React.RefObject<HTMLImageElement | null>;
   heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
   heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
+  heroSwimImageRef: React.RefObject<HTMLImageElement | null>; // NEW: Add swim sprite ref
 }
 
 export const PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Reduced from 96px to 64px for tighter interaction range that matches server expectations
@@ -32,6 +33,7 @@ export function renderPlayerCorpse({
   heroImageRef,
   heroWaterImageRef,
   heroCrouchImageRef,
+  heroSwimImageRef,
 }: RenderPlayerCorpseProps): void {
   
   // 1. Corpse Disappearance on Zero Health
@@ -105,7 +107,10 @@ export function renderPlayerCorpse({
     mockPlayerForCorpse,
     heroImg,
     heroImg, // heroSprintImg - corpses don't sprint
-    heroImg, // heroIdleImg - corpses don't use idle animation  
+    heroImg, // heroIdleImg - corpses don't use idle animation
+    heroCrouchImageRef.current || heroImg, // heroCrouchImg - corpses don't crouch but need parameter
+    heroSwimImageRef.current || heroImg, // heroSwimImg - corpses don't swim but need parameter
+    heroImg, // heroDodgeImg - corpses don't dodge but need parameter
     false, // isOnline
     false, // isMoving (corpse is static)
     false, // isHovered

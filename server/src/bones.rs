@@ -7,9 +7,15 @@ use crate::items::{inventory_item as InventoryItemTableTrait, item_definition as
 use crate::dropped_item::try_give_item_to_player;
 
 // Constants for bone crushing
-const FRAGMENTS_PER_SKULL: u32 = 20; // Increased to 20
 const MIN_FRAGMENTS_PER_BONE: u32 = 8; // New min value
 const MAX_FRAGMENTS_PER_BONE: u32 = 12; // New max value
+
+// Skull-specific fragment amounts (larger skulls yield more material)
+const FOX_SKULL_FRAGMENTS: u32 = 15;     // Smallest skull
+const WOLF_SKULL_FRAGMENTS: u32 = 20;    // Baseline 
+const VIPER_SKULL_FRAGMENTS: u32 = 22;   // Moderate
+const HUMAN_SKULL_FRAGMENTS: u32 = 25;   // Strong
+const WALRUS_SKULL_FRAGMENTS: u32 = 30;  // Largest skull, most material
 
 /// Crushes a bone or skull item into bone fragments.
 /// If inventory is full, fragments will be dropped near the player.
@@ -28,7 +34,7 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
 
     // 2. Validate item ownership and type
     match item_def.name.as_str() {
-        "Animal Bone" | "Human Skull" | "Fox Skull" | "Wolf Skull" | "Viper Skull" => {
+        "Animal Bone" | "Human Skull" | "Fox Skull" | "Wolf Skull" | "Viper Skull" | "Walrus Skull" => {
             // Validate ownership through location
             match &item_to_crush.location {
                 crate::models::ItemLocation::Inventory(data) if data.owner_id == sender_id => (),
@@ -40,13 +46,17 @@ pub fn crush_bone_item(ctx: &ReducerContext, item_instance_id: u64) -> Result<()
         _ => return Err(format!("Cannot crush item '{}'. Only bones and skulls can be crushed.", item_def.name)),
     }
 
-    // 3. Calculate number of fragments to create
+    // 3. Calculate number of fragments to create based on skull size
     let fragments_to_create = match item_def.name.as_str() {
         "Animal Bone" => {
             // Use gen_range for a more idiomatic way to generate random numbers
             ctx.rng().gen_range(MIN_FRAGMENTS_PER_BONE..=MAX_FRAGMENTS_PER_BONE)
         },
-        "Human Skull" | "Fox Skull" | "Wolf Skull" | "Viper Skull" => FRAGMENTS_PER_SKULL,
+        "Fox Skull" => FOX_SKULL_FRAGMENTS,
+        "Wolf Skull" => WOLF_SKULL_FRAGMENTS, 
+        "Viper Skull" => VIPER_SKULL_FRAGMENTS,
+        "Human Skull" => HUMAN_SKULL_FRAGMENTS,
+        "Walrus Skull" => WALRUS_SKULL_FRAGMENTS,
         _ => unreachable!(), // We already validated the item type
     };
 

@@ -143,8 +143,8 @@ pub fn toggle_crouch(ctx: &ReducerContext) -> Result<(), String> {
             return Err("Cannot crouch while knocked out.".to_string());
         }
 
-        // ADD: Don't allow crouching on water
-        if !player.is_crouching && is_player_on_water(ctx, player.position_x, player.position_y) {
+        // Don't allow any crouching action when on water
+        if is_player_on_water(ctx, player.position_x, player.position_y) {
             return Err("Cannot crouch on water.".to_string());
         }
 
