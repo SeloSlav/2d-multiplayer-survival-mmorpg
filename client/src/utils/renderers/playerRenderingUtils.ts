@@ -969,10 +969,7 @@ export const renderPlayer = (
         spriteBaseX,
         spriteDrawY,
         drawWidth,
-        drawHeight,
-        currentSpriteImg, // Pass the sprite image
-        sx, // Pass sprite X coordinate 
-        sy  // Pass sprite Y coordinate
+        drawHeight
       );
     }
 
@@ -989,133 +986,6 @@ export const renderPlayer = (
     
     drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, finalIsOnline, willShowLabel); 
   }
-};
-
-/**
- * Renders only the underwater portion of a swimming player (called before water overlay)
- */
-export const renderPlayerUnderwaterPortion = (
-  ctx: CanvasRenderingContext2D,
-  player: SpacetimeDBPlayer,
-  heroImg: CanvasImageSource,
-  heroSprintImg: CanvasImageSource,
-  heroIdleImg: CanvasImageSource,
-  heroCrouchImg: CanvasImageSource,
-  heroSwimImg: CanvasImageSource,
-  heroDodgeImg: CanvasImageSource,
-  isOnline: boolean,
-  isMoving: boolean,
-  currentAnimationFrame: number,
-  nowMs: number,
-  jumpOffsetY: number = 0,
-  activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
-  localPlayerId?: string,
-  cycleProgress: number = 0.375,
-  localPlayerIsCrouching?: boolean
-) => {
-  // Only render underwater portion for swimming players
-  if (!player.isOnWater || player.isDead) return;
-
-  // Use same logic as main renderPlayer but only render underwater portion
-  const playerHexId = player.identity.toHexString();
-  let visualState = playerVisualKnockbackState.get(playerHexId);
-  let currentDisplayX = visualState?.displayX ?? player.positionX;
-  let currentDisplayY = visualState?.displayY ?? player.positionY;
-
-  const drawWidth = gameConfig.spriteWidth * 2;
-  const drawHeight = gameConfig.spriteHeight * 2;
-  const spriteBaseX = currentDisplayX - drawWidth / 2;
-  const spriteBaseY = currentDisplayY - drawHeight / 2;
-  const finalJumpOffsetY = jumpOffsetY;
-  const spriteDrawY = spriteBaseY - finalJumpOffsetY;
-
-  // Determine sprite selection (same logic as main renderPlayer)
-  const isSprinting = (player.isSprinting && isMoving);
-  const isIdleState = (!isMoving);
-  const isSwimming = (player.isOnWater && !jumpOffsetY);
-  const effectiveIsCrouching = localPlayerIsCrouching ?? player.isCrouching;
-  const isCrouchingState = (effectiveIsCrouching && !player.isOnWater);
-
-  let totalFrames: number;
-  let isIdleAnimation = false;
-  let isCrouchingAnimation = false;
-  let isSwimmingAnimation = false;
-  let currentSpriteImg: CanvasImageSource;
-
-  if (isCrouchingState) {
-    totalFrames = 8;
-    isCrouchingAnimation = true;
-    currentSpriteImg = heroCrouchImg;
-  } else if (isSwimming) {
-    totalFrames = 24;
-    isSwimmingAnimation = true;
-    currentSpriteImg = heroSwimImg;
-  } else if (isIdleState) {
-    totalFrames = 16;
-    isIdleAnimation = true;
-    currentSpriteImg = heroIdleImg;
-  } else if (isSprinting) {
-    totalFrames = 8;
-    currentSpriteImg = heroSprintImg;
-  } else {
-    totalFrames = 6;
-    currentSpriteImg = heroImg;
-  }
-
-  const { sx, sy } = getSpriteCoordinates(
-    player, 
-    isMoving, 
-    currentAnimationFrame, 
-    false, 
-    totalFrames, 
-    isIdleAnimation,
-    isCrouchingAnimation,
-    isSwimmingAnimation,
-    false
-  );
-
-  ctx.save();
-
-  // Create clipping region for underwater portion only (bottom half)
-  const waterLineY = spriteDrawY + drawHeight * 0.5; // Water line at middle of sprite
-  ctx.beginPath();
-  ctx.rect(spriteBaseX, waterLineY, drawWidth, drawHeight * 0.5);
-  ctx.clip();
-
-  // Prepare underwater sprite with darkening effect
-  if (offscreenCtx && currentSpriteImg) {
-    offscreenCanvas.width = gameConfig.spriteWidth;
-    offscreenCanvas.height = gameConfig.spriteHeight;
-    offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-    
-    // Draw the original sprite frame
-    offscreenCtx.drawImage(
-      currentSpriteImg as CanvasImageSource,
-      sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight,
-      0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
-    );
-
-    // Apply underwater darkening effect
-    offscreenCtx.globalCompositeOperation = 'source-atop';
-    const underwaterGradient = offscreenCtx.createLinearGradient(0, gameConfig.spriteHeight * 0.5, 0, gameConfig.spriteHeight);
-    underwaterGradient.addColorStop(0, 'rgba(8, 45, 65, 0.5)');
-    underwaterGradient.addColorStop(0.3, 'rgba(6, 35, 55, 0.7)');
-    underwaterGradient.addColorStop(0.6, 'rgba(4, 25, 45, 0.85)');
-    underwaterGradient.addColorStop(1, 'rgba(2, 15, 35, 0.95)');
-    
-    offscreenCtx.fillStyle = underwaterGradient;
-    offscreenCtx.fillRect(0, gameConfig.spriteHeight * 0.5, gameConfig.spriteWidth, gameConfig.spriteHeight * 0.5);
-    offscreenCtx.globalCompositeOperation = 'source-over';
-
-    // Draw the underwater portion to main canvas
-    ctx.drawImage(
-      offscreenCanvas,
-      0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight,
-      spriteBaseX, spriteDrawY, drawWidth, drawHeight
-    );
-  }
-
-  ctx.restore();
 };
 
 /**
