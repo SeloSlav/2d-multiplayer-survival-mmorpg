@@ -4,8 +4,12 @@ import { gameConfig } from '../../config/gameConfig';
 // Swimming effects configuration
 const SWIMMING_EFFECTS_CONFIG = {
   WATER_LINE_OFFSET: 0.5, // Proper waist level (0.4 = 40% down from top)
-  WAVE_AMPLITUDE: 1.0, // Subtle wave movement
-  WAVE_FREQUENCY: 0.003, // Frequency of water line animation
+  WAVE_AMPLITUDE: 2.5, // More dramatic wave movement
+  WAVE_FREQUENCY: 0.004, // Frequency of water line animation
+  WAVE_SECONDARY_AMPLITUDE: 1.5, // Secondary wave for complex deformation
+  WAVE_SECONDARY_FREQUENCY: 0.007, // Secondary wave frequency
+  WAVE_TERTIARY_AMPLITUDE: 0.8, // Tertiary wave for micro-ripples
+  WAVE_TERTIARY_FREQUENCY: 0.012, // Tertiary wave frequency
   WAKE_INITIAL_RADIUS: 24, // Starting radius of wake semi-circles
   WAKE_MAX_RADIUS: 50, // Maximum radius for wake expansion
   WAKE_EXPANSION_SPEED: 0.02, // How fast wake semi-circles expand
@@ -13,6 +17,7 @@ const SWIMMING_EFFECTS_CONFIG = {
   WAKE_MOVEMENT_THRESHOLD: 5, // Minimum distance moved to create new wake
   UNDERWATER_TINT: 'rgba(12, 62, 79, 0.4)', // Underwater tinting
   SHIMMER_FREQUENCY: 0.005, // Frequency of shimmer effects
+  SHOW_WATER_LINE: false, // Toggle water line visibility for testing
 };
 
 // Interface for tracking individual wake effects
@@ -58,7 +63,7 @@ function getDirectionAngle(direction: string): number {
 }
 
 /**
- * Draws the animated water line effect halfway down the player sprite
+ * Draws the animated water line effect halfway down the player sprite with complex wave deformation
  */
 function drawWaterLine(
   ctx: CanvasRenderingContext2D,
@@ -66,64 +71,111 @@ function drawWaterLine(
   centerY: number,
   spriteWidth: number,
   spriteHeight: number,
-  currentTimeMs: number
+  currentTimeMs: number,
+  spriteImageData?: CanvasImageSource,
+  spriteSx?: number,
+  spriteSy?: number
 ): void {
   // Position water line at waist level - from the TOP of the sprite, not center
   const spriteTopY = centerY - spriteHeight / 2;
   const waterLineY = spriteTopY + (spriteHeight * SWIMMING_EFFECTS_CONFIG.WATER_LINE_OFFSET);
   const time = currentTimeMs;
   
-  // Create animated wave effect
-  const baseWaveOffset = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY + centerX * 0.01) * SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE;
+  // Create complex animated wave effect with multiple wave layers
+  const primaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY + centerX * 0.01) * SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE;
+  const secondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + centerX * 0.02 + Math.PI * 0.3) * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE;
+  const tertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + centerX * 0.03 + Math.PI * 0.7) * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE;
   const shimmerIntensity = (Math.sin(time * SWIMMING_EFFECTS_CONFIG.SHIMMER_FREQUENCY * 2) + 1) * 0.5;
   
   ctx.save();
   
-  // Draw underwater tinting below the water line (from water line to bottom of sprite)
-  const spriteBottomY = centerY + spriteHeight / 2;
-  const underwaterHeight = spriteBottomY - waterLineY;
+  // ALWAYS apply underwater transparency if we have sprite data
+  if (spriteImageData && spriteSx !== undefined && spriteSy !== undefined) {
+    // Create an off-screen canvas to prepare the underwater effect
+    const underwaterCanvas = document.createElement('canvas');
+    underwaterCanvas.width = spriteWidth;
+    underwaterCanvas.height = spriteHeight;
+    const underwaterCtx = underwaterCanvas.getContext('2d');
+    
+    if (underwaterCtx) {
+      // First, draw the sprite to the off-screen canvas
+      underwaterCtx.drawImage(
+        spriteImageData,
+        spriteSx, spriteSy, spriteWidth / 2, spriteHeight / 2, // Source from spritesheet (original size)
+        0, 0, spriteWidth, spriteHeight // Destination (scaled to match render size)
+      );
+      
+      // Create clipping region for underwater area only
+      const spriteBottomY = spriteHeight / 2; // Bottom half of sprite
+      const relativeWaterLineY = spriteHeight * SWIMMING_EFFECTS_CONFIG.WATER_LINE_OFFSET;
+      const underwaterHeight = spriteBottomY - (relativeWaterLineY - spriteHeight / 2);
+      
+      if (underwaterHeight > 0) {
+        // Create a clipping path for the underwater area
+        underwaterCtx.save();
+        underwaterCtx.globalCompositeOperation = 'source-atop'; // Only affect existing pixels
+        
+        // Create the underwater gradient but only apply to sprite pixels
+        const underwaterGradient = underwaterCtx.createLinearGradient(0, relativeWaterLineY, 0, spriteHeight);
+        underwaterGradient.addColorStop(0, 'rgba(8, 45, 65, 0.5)'); // Darker tint at water line
+        underwaterGradient.addColorStop(0.3, 'rgba(6, 35, 55, 0.7)'); // Deeper darkness
+        underwaterGradient.addColorStop(0.6, 'rgba(4, 25, 45, 0.85)'); // Even darker
+        underwaterGradient.addColorStop(1, 'rgba(2, 15, 35, 0.95)'); // Very dark at bottom
+        
+        underwaterCtx.fillStyle = underwaterGradient;
+        underwaterCtx.fillRect(0, relativeWaterLineY, spriteWidth, underwaterHeight);
+        underwaterCtx.restore();
+        
+        // Draw the modified sprite with underwater effect back to main canvas
+        ctx.drawImage(
+          underwaterCanvas,
+          centerX - spriteWidth / 2,
+          centerY - spriteHeight / 2,
+          spriteWidth,
+          spriteHeight
+        );
+      }
+    }
+  }
   
-  const underwaterGradient = ctx.createLinearGradient(0, waterLineY, 0, spriteBottomY);
-  underwaterGradient.addColorStop(0, 'rgba(12, 62, 79, 0.3)'); // Light tint at water line
-  underwaterGradient.addColorStop(0.5, 'rgba(12, 62, 79, 0.6)'); // Stronger tint deeper
-  underwaterGradient.addColorStop(1, 'rgba(12, 62, 79, 0.8)'); // Strongest tint at bottom
+  // Only draw the animated water line if the flag is enabled
+  if (!SWIMMING_EFFECTS_CONFIG.SHOW_WATER_LINE) {
+    ctx.restore();
+    return; // Skip drawing the line but keep the underwater transparency
+  }
   
-  ctx.fillStyle = underwaterGradient;
-  ctx.fillRect(
-    centerX - spriteWidth / 2, 
-    waterLineY, 
-    spriteWidth, 
-    underwaterHeight
-  );
-  
-  // Draw the animated water line
-  ctx.strokeStyle = `rgba(100, 200, 255, ${0.6 + shimmerIntensity * 0.3})`;
-  ctx.lineWidth = 2;
+  // Draw the animated water line with complex deformation
+  ctx.strokeStyle = `rgba(120, 220, 255, ${0.7 + shimmerIntensity * 0.3})`;
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   
   ctx.beginPath();
   
-  // Draw curved water line half as wide, curving up at the ends
+  // Draw curved water line with complex wave deformation
   const waterLineWidth = spriteWidth * 0.6; // Half the sprite width
   const leftX = centerX - waterLineWidth / 2;
   const rightX = centerX + waterLineWidth / 2;
-  const centerWaterY = waterLineY + baseWaveOffset;
-  
-  // Create a curved line that curves upward at the ends
-  const curveHeight = 3; // How much the ends curve upward
-  const segments = 6;
+  const segments = 12; // More segments for smoother deformation
   
   for (let i = 0; i <= segments; i++) {
     const progress = i / segments; // 0 to 1
     const x = leftX + (waterLineWidth * progress);
     
     // Create a parabolic curve that dips down in the middle and curves up at the ends
-    // Using a quadratic function: y = ax² + bx + c where it curves up at ends
     const distanceFromCenter = Math.abs(progress - 0.5) * 2; // 0 at center, 1 at edges
-    const curveOffset = distanceFromCenter * distanceFromCenter * curveHeight; // Quadratic curve
+    const curveOffset = distanceFromCenter * distanceFromCenter * 3; // Quadratic curve (increased from 3 to 4)
     
-    const localWaveOffset = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 3 + i * 0.5) * 0.3;
-    const y = centerWaterY - curveOffset + localWaveOffset; // Subtract to curve upward
+    // Complex wave deformation with multiple overlapping waves
+    const segmentWaveOffset = progress * 2 * Math.PI; // Create wave variation across the line
+    const localPrimaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 2 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.3);
+    const localSecondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + segmentWaveOffset * 1.7 + Math.PI * 0.4) * (SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE * 0.4);
+    const localTertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + segmentWaveOffset * 2.3 + Math.PI * 0.8) * (SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE * 0.6);
+    
+    // Combine all wave effects
+    const totalWaveOffset = primaryWave * 0.4 + secondaryWave * 0.3 + tertiaryWave * 0.3 + 
+                          localPrimaryWave + localSecondaryWave + localTertiaryWave;
+    
+    const y = waterLineY - curveOffset + totalWaveOffset; // Subtract to curve upward
     
     if (i === 0) {
       ctx.moveTo(x, y);
@@ -134,10 +186,10 @@ function drawWaterLine(
   
   ctx.stroke();
   
-  // Add shimmer highlights on the water line
-  if (shimmerIntensity > 0.7) {
-    ctx.strokeStyle = `rgba(255, 255, 255, ${(shimmerIntensity - 0.7) * 2})`;
-    ctx.lineWidth = 1;
+  // Add shimmer highlights on the water line with wave deformation
+  if (shimmerIntensity > 0.6) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${(shimmerIntensity - 0.6) * 2.5})`;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
   }
   
@@ -316,13 +368,16 @@ export function drawSwimmingEffectsOver(
   spriteDrawX: number,
   spriteDrawY: number,
   spriteWidth: number = gameConfig.spriteWidth * 2,
-  spriteHeight: number = gameConfig.spriteHeight * 2
+  spriteHeight: number = gameConfig.spriteHeight * 2,
+  spriteImageData?: CanvasImageSource,
+  spriteSx?: number,
+  spriteSy?: number
 ): void {
   const centerX = spriteDrawX + spriteWidth / 2;
   const centerY = spriteDrawY + spriteHeight / 2;
   
-  // Draw water line effect over the sprite
-  drawWaterLine(ctx, centerX, centerY, spriteWidth, spriteHeight, currentTimeMs);
+  // Draw water line effect over the sprite with underwater transparency masking
+  drawWaterLine(ctx, centerX, centerY, spriteWidth, spriteHeight, currentTimeMs, spriteImageData, spriteSx, spriteSy);
 }
 
 /**
@@ -338,8 +393,11 @@ export function drawSwimmingEffects(
   spriteDrawY: number,
   spriteWidth: number = gameConfig.spriteWidth * 2,
   spriteHeight: number = gameConfig.spriteHeight * 2,
-  cycleProgress?: number
+  cycleProgress?: number,
+  spriteImageData?: CanvasImageSource,
+  spriteSx?: number,
+  spriteSy?: number
 ): void {
   drawSwimmingEffectsUnder(ctx, player, currentTimeMs, isMoving, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight, cycleProgress);
-  drawSwimmingEffectsOver(ctx, player, currentTimeMs, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight);
+  drawSwimmingEffectsOver(ctx, player, currentTimeMs, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight, spriteImageData, spriteSx, spriteSy);
 } 

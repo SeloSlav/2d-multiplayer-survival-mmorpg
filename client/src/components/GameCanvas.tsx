@@ -83,6 +83,7 @@ import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
+import { renderSwimmingPlayerShadows } from '../utils/renderers/playerRenderingUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
@@ -788,10 +789,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
-
+    // --- RENDER SWIMMING PLAYER SHADOWS (Below water surface) ---
+    // Render underwater shadows for swimming players BEFORE water overlay
+    // This ensures shadows appear below the water surface waves
+    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
+        heroCrouchImageRef.current && heroWaterImageRef.current) {
+      renderSwimmingPlayerShadows(
+        ctx,
+        players,
+        heroImageRef.current,
+        heroSprintImageRef.current,
+        heroIdleImageRef.current,
+        heroCrouchImageRef.current,
+        heroWaterImageRef.current,
+        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
+        animationFrame,
+        sprintAnimationFrame,
+        idleAnimationFrame,
+        currentCycleProgress
+      );
+    }
+    // --- END SWIMMING SHADOWS ---
 
     // --- RENDER WATER OVERLAY (Water surface waves) ---
-    // Render water surface waves BEFORE other entities
+    // Render water surface waves AFTER underwater shadows but BEFORE other entities
     renderWaterOverlay(
       ctx,
       -cameraOffsetX, // Convert camera offset to world camera position

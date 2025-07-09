@@ -611,8 +611,8 @@ export const renderPlayer = (
   const finalIsOnline = isCorpse ? false : isOnline;
 
   // --- Draw Dynamic Ground Shadow (for living players only) ---
-  // Show shadow for all living players, with special positioning for swimming
-  const shouldShowShadow = !isCorpse;
+  // Show shadow for all living players EXCEPT swimming players (they're rendered before water overlay)
+  const shouldShowShadow = !isCorpse && !(player.isOnWater && !isCurrentlyJumping);
   
   // NEW: Choose sprite based on player state (PRIORITY ORDER: dodge > swimming > crouching > idle/sprint/walk)
   let currentSpriteImg: CanvasImageSource;
@@ -969,7 +969,10 @@ export const renderPlayer = (
         spriteBaseX,
         spriteDrawY,
         drawWidth,
-        drawHeight
+        drawHeight,
+        currentSpriteImg, // Pass the sprite image
+        sx, // Pass sprite X coordinate 
+        sy  // Pass sprite Y coordinate
       );
     }
 
@@ -985,6 +988,227 @@ export const renderPlayer = (
     const willShowLabel = showingDueToCurrentHover || showingDueToPersistentState;
     
     drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, finalIsOnline, willShowLabel); 
+  }
+};
+
+/**
+ * Renders only the underwater portion of a swimming player (called before water overlay)
+ */
+export const renderPlayerUnderwaterPortion = (
+  ctx: CanvasRenderingContext2D,
+  player: SpacetimeDBPlayer,
+  heroImg: CanvasImageSource,
+  heroSprintImg: CanvasImageSource,
+  heroIdleImg: CanvasImageSource,
+  heroCrouchImg: CanvasImageSource,
+  heroSwimImg: CanvasImageSource,
+  heroDodgeImg: CanvasImageSource,
+  isOnline: boolean,
+  isMoving: boolean,
+  currentAnimationFrame: number,
+  nowMs: number,
+  jumpOffsetY: number = 0,
+  activeConsumableEffects?: Map<string, ActiveConsumableEffect>,
+  localPlayerId?: string,
+  cycleProgress: number = 0.375,
+  localPlayerIsCrouching?: boolean
+) => {
+  // Only render underwater portion for swimming players
+  if (!player.isOnWater || player.isDead) return;
+
+  // Use same logic as main renderPlayer but only render underwater portion
+  const playerHexId = player.identity.toHexString();
+  let visualState = playerVisualKnockbackState.get(playerHexId);
+  let currentDisplayX = visualState?.displayX ?? player.positionX;
+  let currentDisplayY = visualState?.displayY ?? player.positionY;
+
+  const drawWidth = gameConfig.spriteWidth * 2;
+  const drawHeight = gameConfig.spriteHeight * 2;
+  const spriteBaseX = currentDisplayX - drawWidth / 2;
+  const spriteBaseY = currentDisplayY - drawHeight / 2;
+  const finalJumpOffsetY = jumpOffsetY;
+  const spriteDrawY = spriteBaseY - finalJumpOffsetY;
+
+  // Determine sprite selection (same logic as main renderPlayer)
+  const isSprinting = (player.isSprinting && isMoving);
+  const isIdleState = (!isMoving);
+  const isSwimming = (player.isOnWater && !jumpOffsetY);
+  const effectiveIsCrouching = localPlayerIsCrouching ?? player.isCrouching;
+  const isCrouchingState = (effectiveIsCrouching && !player.isOnWater);
+
+  let totalFrames: number;
+  let isIdleAnimation = false;
+  let isCrouchingAnimation = false;
+  let isSwimmingAnimation = false;
+  let currentSpriteImg: CanvasImageSource;
+
+  if (isCrouchingState) {
+    totalFrames = 8;
+    isCrouchingAnimation = true;
+    currentSpriteImg = heroCrouchImg;
+  } else if (isSwimming) {
+    totalFrames = 24;
+    isSwimmingAnimation = true;
+    currentSpriteImg = heroSwimImg;
+  } else if (isIdleState) {
+    totalFrames = 16;
+    isIdleAnimation = true;
+    currentSpriteImg = heroIdleImg;
+  } else if (isSprinting) {
+    totalFrames = 8;
+    currentSpriteImg = heroSprintImg;
+  } else {
+    totalFrames = 6;
+    currentSpriteImg = heroImg;
+  }
+
+  const { sx, sy } = getSpriteCoordinates(
+    player, 
+    isMoving, 
+    currentAnimationFrame, 
+    false, 
+    totalFrames, 
+    isIdleAnimation,
+    isCrouchingAnimation,
+    isSwimmingAnimation,
+    false
+  );
+
+  ctx.save();
+
+  // Create clipping region for underwater portion only (bottom half)
+  const waterLineY = spriteDrawY + drawHeight * 0.5; // Water line at middle of sprite
+  ctx.beginPath();
+  ctx.rect(spriteBaseX, waterLineY, drawWidth, drawHeight * 0.5);
+  ctx.clip();
+
+  // Prepare underwater sprite with darkening effect
+  if (offscreenCtx && currentSpriteImg) {
+    offscreenCanvas.width = gameConfig.spriteWidth;
+    offscreenCanvas.height = gameConfig.spriteHeight;
+    offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    
+    // Draw the original sprite frame
+    offscreenCtx.drawImage(
+      currentSpriteImg as CanvasImageSource,
+      sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight,
+      0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
+    );
+
+    // Apply underwater darkening effect
+    offscreenCtx.globalCompositeOperation = 'source-atop';
+    const underwaterGradient = offscreenCtx.createLinearGradient(0, gameConfig.spriteHeight * 0.5, 0, gameConfig.spriteHeight);
+    underwaterGradient.addColorStop(0, 'rgba(8, 45, 65, 0.5)');
+    underwaterGradient.addColorStop(0.3, 'rgba(6, 35, 55, 0.7)');
+    underwaterGradient.addColorStop(0.6, 'rgba(4, 25, 45, 0.85)');
+    underwaterGradient.addColorStop(1, 'rgba(2, 15, 35, 0.95)');
+    
+    offscreenCtx.fillStyle = underwaterGradient;
+    offscreenCtx.fillRect(0, gameConfig.spriteHeight * 0.5, gameConfig.spriteWidth, gameConfig.spriteHeight * 0.5);
+    offscreenCtx.globalCompositeOperation = 'source-over';
+
+    // Draw the underwater portion to main canvas
+    ctx.drawImage(
+      offscreenCanvas,
+      0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight,
+      spriteBaseX, spriteDrawY, drawWidth, drawHeight
+    );
+  }
+
+  ctx.restore();
+};
+
+/**
+ * Renders underwater shadows for swimming players - call this BEFORE water overlay rendering
+ * for proper depth layering (shadow below water surface waves)
+ */
+export const renderSwimmingPlayerShadows = (
+  ctx: CanvasRenderingContext2D,
+  players: Map<string, SpacetimeDBPlayer>,
+  heroImg: CanvasImageSource,
+  heroSprintImg: CanvasImageSource,
+  heroIdleImg: CanvasImageSource,
+  heroCrouchImg: CanvasImageSource,
+  heroSwimImg: CanvasImageSource,
+  heroDodgeImg: CanvasImageSource,
+  animationFrame: number,
+  sprintAnimationFrame: number,
+  idleAnimationFrame: number,
+  currentCycleProgress: number = 0.375
+): void => {
+  // Only render shadows for swimming players
+  for (const player of players.values()) {
+    if (!player.isOnWater || player.isDead || player.health <= 0) continue;
+    
+    // Get player visual state for positioning (same as normal rendering)
+    const playerVisualState = playerVisualKnockbackState.get(player.identity.toHexString());
+    let currentDisplayX = playerVisualState?.displayX ?? player.positionX;
+    let currentDisplayY = playerVisualState?.displayY ?? player.positionY;
+    
+    const drawWidth = gameConfig.spriteWidth * 2;
+    const drawHeight = gameConfig.spriteHeight * 2;
+    const shadowBaseYOffset = drawHeight * 0.4;
+    
+    // ===== SIMPLE LOGIC: Swimming players always use swimming animation =====
+    // Swimming players use the walking animation frame (same as normal rendering)
+    const finalAnimationFrame = animationFrame;
+    const totalFrames = 24; // Swimming has 24 frames
+    const isSwimmingAnimation = true;
+    const currentSpriteImg = heroSwimImg; // Always use swim sprite
+    
+    // Swimming players are always considered "moving" in the animation sense
+    const finalIsMoving = true;
+    
+    // Extract sprite coordinates (exact same call as normal rendering)
+    const { sx, sy } = getSpriteCoordinates(
+      player, 
+      finalIsMoving, 
+      finalAnimationFrame, 
+      false, // not using item for swimming shadow
+      totalFrames, 
+      false, // not idle
+      false, // not crouching
+      isSwimmingAnimation,
+      false // not dodge rolling
+    );
+    
+    // Calculate swimming shadow positioning (same as in renderPlayer)
+    const finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
+    const finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
+    const finalShadowScale = 0.8; // Larger shadow
+    const finalShadowAlpha = 0.3; // Lighter, more subtle shadow underwater
+    
+    // Create temporary canvas (exact same as normal rendering)
+    const spriteCanvas = document.createElement('canvas');
+    spriteCanvas.width = gameConfig.spriteWidth;
+    spriteCanvas.height = gameConfig.spriteHeight;
+    const spriteCtx = spriteCanvas.getContext('2d');
+    
+    if (spriteCtx && currentSpriteImg instanceof HTMLImageElement) {
+      // Draw sprite frame (exact same as normal rendering)
+      spriteCtx.drawImage(
+        currentSpriteImg,
+        sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight,
+        0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
+      );
+      
+      // Render underwater shadow using exact same drawDynamicGroundShadow function
+      drawDynamicGroundShadow({
+        ctx,
+        entityImage: spriteCanvas,
+        entityCenterX: finalShadowCenterX,
+        entityBaseY: finalShadowBaseY,
+        imageDrawWidth: drawWidth * finalShadowScale,
+        imageDrawHeight: drawHeight * finalShadowScale,
+        cycleProgress: currentCycleProgress,
+        baseShadowColor: '0,0,0',
+        maxShadowAlpha: finalShadowAlpha,
+        maxStretchFactor: 3.0,
+        minStretchFactor: 0.25,
+        shadowBlur: 2,
+        pivotYOffset: 0,
+      });
+    }
   }
 };
 
