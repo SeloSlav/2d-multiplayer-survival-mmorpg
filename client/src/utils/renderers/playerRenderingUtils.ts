@@ -875,7 +875,10 @@ export const renderPlayer = (
     if (offscreenCtx && currentSpriteImg) {
       offscreenCanvas.width = gameConfig.spriteWidth;
       offscreenCanvas.height = gameConfig.spriteHeight;
+      // Ensure transparent background
       offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+      // Set composite operation to ensure proper transparency handling
+      offscreenCtx.globalCompositeOperation = 'source-over';
       
       // Draw the original sprite frame to the offscreen canvas
       offscreenCtx.drawImage(
@@ -889,6 +892,39 @@ export const renderPlayer = (
         offscreenCtx.fillStyle = 'rgba(255, 255, 255, 0.85)'; 
         offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
         offscreenCtx.globalCompositeOperation = 'source-over';
+      }
+
+      // Apply underwater darkening for swimming players
+      if (player.isOnWater && !isCorpse && !isCurrentlyJumping) {
+        // Calculate water line position on the sprite (50% down from top)
+        const spriteWaterLineY = Math.floor(offscreenCanvas.height * 0.5);
+        
+        // Get pixel data for the underwater area
+        const imageData = offscreenCtx.getImageData(0, spriteWaterLineY, offscreenCanvas.width, offscreenCanvas.height - spriteWaterLineY);
+        const data = imageData.data;
+        
+        // Darken each pixel below the water line
+        for (let y = 0; y < imageData.height; y++) {
+          for (let x = 0; x < imageData.width; x++) {
+            const pixelIndex = (y * imageData.width + x) * 4;
+            const alpha = data[pixelIndex + 3];
+            
+            // Only process pixels that exist (have alpha > 0)
+            if (alpha > 0) {
+              // Calculate darkening factor based on depth (0 = water line, 1 = bottom)
+              const depthRatio = y / imageData.height;
+              const darkenFactor = 0.7 - (depthRatio * 0.3); // 0.7 at water line, 0.4 at bottom
+              
+              // Apply blue tint and darkening
+              data[pixelIndex] = Math.floor(data[pixelIndex] * darkenFactor * 0.8); // Red
+              data[pixelIndex + 1] = Math.floor(data[pixelIndex + 1] * darkenFactor * 0.9); // Green  
+              data[pixelIndex + 2] = Math.floor(data[pixelIndex + 2] * darkenFactor); // Blue (least darkened for tint)
+            }
+          }
+        }
+        
+        // Put the modified pixel data back
+        offscreenCtx.putImageData(imageData, 0, spriteWaterLineY);
       }
 
     } else if (!currentSpriteImg) {
