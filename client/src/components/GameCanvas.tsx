@@ -877,51 +877,143 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- End Ground Items --- 
 
     // --- STEP 1: Render ONLY swimming player bottom halves ---
-    const swimmingPlayerEntities = ySortedEntities.filter(entity => 
-      entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut
+    // Filter out swimming players and render them manually with exact same logic as renderYSortedEntities
+    const swimmingPlayersForBottomHalf = Array.from(players.values())
+      .filter(player => player.isOnWater && !player.isDead && !player.isKnockedOut);
+
+    // Render swimming player bottom halves using exact same logic as renderYSortedEntities
+    swimmingPlayersForBottomHalf.forEach(player => {
+      const playerId = player.identity.toHexString();
+      const isLocalPlayer = localPlayerId === playerId;
+
+      // EXACT same position logic as renderYSortedEntities
+      let playerForRendering = player;
+      if (isLocalPlayer && predictedPosition) {
+        playerForRendering = {
+          ...player,
+          positionX: predictedPosition.x,
+          positionY: predictedPosition.y
+        };
+      } else if (!isLocalPlayer && remotePlayerInterpolation) {
+        const interpolatedPosition = remotePlayerInterpolation.updateAndGetSmoothedPosition(player, localPlayerId);
+        playerForRendering = {
+          ...player,
+          positionX: interpolatedPosition.x,
+          positionY: interpolatedPosition.y
+        };
+      }
+
+      // EXACT same movement detection logic as renderYSortedEntities  
+      const lastPos = lastPositionsRef.current?.get(playerId);
+      let isPlayerMoving = false;
+      
+      if (lastPos) {
+        const positionThreshold = 0.1;
+        const dx = Math.abs(playerForRendering.positionX - lastPos.x);
+        const dy = Math.abs(playerForRendering.positionY - lastPos.y);
+        isPlayerMoving = dx > positionThreshold || dy > positionThreshold;
+      }
+      
+      // EXACT same animation frame logic as renderYSortedEntities
+      let currentAnimFrame: number;
+      if (playerForRendering.isOnWater) {
+        // Swimming animations - ALL swimming uses idle animation frames from water sprite
+        currentAnimFrame = idleAnimationFrame; // Swimming sprite uses idle frames for all swimming movement
+      } else {
+        // Land animation
+        if (!isPlayerMoving) {
+          currentAnimFrame = idleAnimationFrame;
+        } else if (playerForRendering.isSprinting) {
+          currentAnimFrame = sprintAnimationFrame;
+        } else {
+          currentAnimFrame = animationFrame;
+        }
+      }
+
+      // Update last positions (same as renderYSortedEntities)
+      lastPositionsRef.current?.set(playerId, { x: playerForRendering.positionX, y: playerForRendering.positionY });
+
+      // Choose correct sprite image
+      let heroImg: HTMLImageElement | null = heroWaterImageRef.current;
+
+      if (heroImg) {
+        const isOnline = activeConnections ? activeConnections.has(playerId) : false;
+        const isHovered = worldMousePos ? isPlayerHovered(worldMousePos.x, worldMousePos.y, playerForRendering) : false;
+        
+        renderPlayer(
+          ctx,
+          playerForRendering,
+          heroImg,
+          heroSprintImageRef.current || heroImg,
+          heroIdleImageRef.current || heroImg,
+          heroCrouchImageRef.current || heroImg,
+          heroWaterImageRef.current || heroImg,
+          heroImageRef.current || heroImg, // dodge fallback
+          isOnline,
+          isPlayerMoving,
+          isHovered,
+          currentAnimFrame,
+          now_ms,
+          0, // no jump offset for swimming players
+          false, // not persistently hovered
+          activeConsumableEffects,
+          localPlayerId,
+          false, // not corpse
+          currentCycleProgress,
+          localPlayerIsCrouching,
+          'bottom' // Render only bottom half
+        );
+      }
+    });
+
+    // Render all non-swimming players normally
+    const nonSwimmingEntities = ySortedEntities.filter(entity => 
+      !(entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut)
     );
     
-    renderYSortedEntities({
-      ctx,
-      ySortedEntities: swimmingPlayerEntities,
-      heroImageRef,
-      heroSprintImageRef,
-      heroIdleImageRef,
-      heroWaterImageRef,
-      heroCrouchImageRef,
-      lastPositionsRef,
-      activeConnections,
-      activeEquipments,
-      activeConsumableEffects,
-      itemDefinitions,
-      inventoryItems,
-      itemImagesRef,
-      doodadImagesRef,
-      shelterImage: shelterImageRef.current,
-      worldMouseX: currentWorldMouseX,
-      worldMouseY: currentWorldMouseY,
-      localPlayerId: localPlayerId,
-      animationFrame,
-      sprintAnimationFrame,
-      idleAnimationFrame,
-      nowMs: now_ms,
-      hoveredPlayerIds,
-      onPlayerHover: handlePlayerHover,
-      cycleProgress: currentCycleProgress,
-      renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
-      localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
-      playerDodgeRollStates,
-      remotePlayerInterpolation,
-      localPlayerIsCrouching,
-      closestInteractableCampfireId,
-      closestInteractableBoxId,
-      closestInteractableStashId,
-      closestInteractableSleepingBagId,
-      closestInteractableHarvestableResourceId,
-      closestInteractableDroppedItemId,
-      closestInteractableTarget,
-      shelterClippingData,
-    });
+    if (nonSwimmingEntities.length > 0) {
+      renderYSortedEntities({
+        ctx,
+        ySortedEntities: nonSwimmingEntities,
+        heroImageRef,
+        heroSprintImageRef,
+        heroIdleImageRef,
+        heroWaterImageRef,
+        heroCrouchImageRef,
+        lastPositionsRef,
+        activeConnections,
+        activeEquipments,
+        activeConsumableEffects,
+        itemDefinitions,
+        inventoryItems,
+        itemImagesRef,
+        doodadImagesRef,
+        shelterImage: shelterImageRef.current,
+        worldMouseX: currentWorldMouseX,
+        worldMouseY: currentWorldMouseY,
+        localPlayerId: localPlayerId,
+        animationFrame,
+        sprintAnimationFrame,
+        idleAnimationFrame,
+        nowMs: now_ms,
+        hoveredPlayerIds,
+        onPlayerHover: handlePlayerHover,
+        cycleProgress: currentCycleProgress,
+        renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
+        localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
+        playerDodgeRollStates,
+        remotePlayerInterpolation,
+        localPlayerIsCrouching,
+        closestInteractableCampfireId,
+        closestInteractableBoxId,
+        closestInteractableStashId,
+        closestInteractableSleepingBagId,
+        closestInteractableHarvestableResourceId,
+        closestInteractableDroppedItemId,
+        closestInteractableTarget,
+        shelterClippingData,
+      });
+    }
 
     // --- STEP 2: Render water overlay (appears over swimming players bottom halves) ---
     renderWaterOverlay(
@@ -935,9 +1027,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     );
     // --- END WATER OVERLAY ---
 
+    // --- STEP 2.5: Render swimming player shadows (after water overlay, before sea stacks) ---
+    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
+        heroCrouchImageRef.current && heroWaterImageRef.current) {
+      renderSwimmingPlayerShadows(
+        ctx,
+        players,
+        heroImageRef.current,
+        heroSprintImageRef.current,
+        heroIdleImageRef.current,
+        heroCrouchImageRef.current,
+        heroWaterImageRef.current,
+        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
+        animationFrame,      // Use baseline animation frames
+        sprintAnimationFrame, // Use baseline animation frames  
+        idleAnimationFrame,   // Use baseline animation frames
+        currentCycleProgress
+      );
+    }
+    // --- END SWIMMING SHADOWS ---
+
     // --- STEP 3: Render sea stacks and swimming player top halves together (Y-sorted) ---
+
     // Create combined list of sea stacks and swimming player top halves for proper Y-sorting
     const seaStackEntities = ySortedEntities.filter(entity => entity.type === 'sea_stack');
+
     const swimmingPlayers = Array.from(players.values())
       .filter(player => player.isOnWater && !player.isDead && !player.isKnockedOut)
       .map(player => {
@@ -987,18 +1101,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const player = item.entity;
         const playerId = item.playerId;
         
-        // Get animation frame
-        const isPlayerMoving = lastPositionsRef.current?.get(playerId) ? 
-          (Math.abs(lastPositionsRef.current.get(playerId)!.x - player.positionX) > 0.1 || 
-           Math.abs(lastPositionsRef.current.get(playerId)!.y - player.positionY) > 0.1) : false;
+        // Use SAME animation logic as bottom half
+        const lastPos = lastPositionsRef.current?.get(playerId);
+        let isPlayerMoving = false;
+        
+        if (lastPos) {
+          const positionThreshold = 0.1;
+          const dx = Math.abs(player.positionX - lastPos.x);
+          const dy = Math.abs(player.positionY - lastPos.y);
+          isPlayerMoving = dx > positionThreshold || dy > positionThreshold;
+        }
         
         let currentAnimFrame: number;
-        if (!isPlayerMoving) {
-          currentAnimFrame = idleAnimationFrame;
-        } else if (player.isSprinting) {
-          currentAnimFrame = sprintAnimationFrame;
+        if (player.isOnWater) {
+          // Swimming animation - same logic as bottom half
+          if (!isPlayerMoving) {
+            currentAnimFrame = idleAnimationFrame; // Floating idle
+          } else if (player.isSprinting) {
+            currentAnimFrame = sprintAnimationFrame; // Fast swimming
+          } else {
+            currentAnimFrame = animationFrame; // Normal swimming
+          }
         } else {
-          currentAnimFrame = animationFrame;
+          // Land animation
+          if (!isPlayerMoving) {
+            currentAnimFrame = idleAnimationFrame;
+          } else if (player.isSprinting) {
+            currentAnimFrame = sprintAnimationFrame;
+          } else {
+            currentAnimFrame = animationFrame;
+          }
         }
         
         // Choose correct sprite image
@@ -1137,29 +1269,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // --- End Y-Sorted Entities ---
 
     // REMOVED: Top half rendering now integrated into Y-sorted system above
-    // Old separate top half rendering is no longer needed
-
-    // --- RENDER SWIMMING PLAYER SHADOWS ABOVE WATER OVERLAY ---
-    // Render underwater shadows for swimming players AFTER water overlay and sea stacks
-    // This ensures shadows appear above sea stack underwater zones
-    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
-        heroCrouchImageRef.current && heroWaterImageRef.current) {
-      renderSwimmingPlayerShadows(
-        ctx,
-        players,
-        heroImageRef.current,
-        heroSprintImageRef.current,
-        heroIdleImageRef.current,
-        heroCrouchImageRef.current,
-        heroWaterImageRef.current,
-        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
-        animationFrame,
-        sprintAnimationFrame,
-        idleAnimationFrame,
-        currentCycleProgress
-      );
-    }
-    // --- END SWIMMING SHADOWS ---
+    // REMOVED: Swimming shadows now render earlier, before sea stacks
 
     // REMOVED: Swimming players now render normally in Y-sorted entities for proper depth sorting
 

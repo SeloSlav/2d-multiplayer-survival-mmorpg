@@ -10,9 +10,9 @@ const SWIMMING_EFFECTS_CONFIG = {
   WAVE_SECONDARY_FREQUENCY: 0.007, // Secondary wave frequency
   WAVE_TERTIARY_AMPLITUDE: 0.8, // Tertiary wave for micro-ripples
   WAVE_TERTIARY_FREQUENCY: 0.012, // Tertiary wave frequency
-  WAKE_INITIAL_RADIUS: 24, // Starting radius of wake semi-circles
-  WAKE_MAX_RADIUS: 50, // Maximum radius for wake expansion
-  WAKE_EXPANSION_SPEED: 0.02, // How fast wake semi-circles expand
+  WAKE_INITIAL_RADIUS: 50, // Starting radius of wake semi-circles
+  WAKE_MAX_RADIUS: 60, // Maximum radius for wake expansion
+  WAKE_EXPANSION_SPEED: 0.03, // How fast wake semi-circles expand
   WAKE_LIFETIME: 1800, // How long each wake lasts (ms)
   WAKE_MOVEMENT_THRESHOLD: 5, // Minimum distance moved to create new wake
   UNDERWATER_TINT: 'rgba(12, 62, 79, 0.4)', // Underwater tinting

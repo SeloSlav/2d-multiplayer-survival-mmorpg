@@ -402,14 +402,20 @@ export const renderYSortedEntities = ({
               // console.log(`[DEBUG] Rendering player ${playerId} - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
                 // console.log(`[DEBUG] Calling renderPlayer for ${playerId}`);
-                // Choose animation frame based on player state
+                // Choose animation frame based on player state and environment
                 let currentAnimFrame: number;
-                if (!isPlayerMoving) {
-                  currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
-                } else if (playerForRendering.isSprinting) {
-                  currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                if (playerForRendering.isOnWater) {
+                  // Swimming animations - ALL swimming uses idle animation frames from water sprite
+                  currentAnimFrame = idleAnimationFrame; // Swimming sprite uses idle frames for all swimming movement
                 } else {
-                  currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                  // Land animations
+                  if (!isPlayerMoving) {
+                    currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
+                  } else if (playerForRendering.isSprinting) {
+                    currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                  } else {
+                    currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                  }
                 }
                 // For swimming players, render only the bottom half (underwater portion)
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
@@ -445,14 +451,20 @@ export const renderYSortedEntities = ({
               // console.log(`[DEBUG] Rendering player ${playerId} (down/right) - heroImg available:`, !!heroImg, 'direction:', playerForRendering.direction);
               if (heroImg) {
                 // console.log(`[DEBUG] Calling renderPlayer for ${playerId} (down/right)`);
-                // Choose animation frame based on player state
+                // Choose animation frame based on player state and environment
                 let currentAnimFrame: number;
-                if (!isPlayerMoving) {
-                  currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
-                } else if (playerForRendering.isSprinting) {
-                  currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                if (playerForRendering.isOnWater) {
+                  // Swimming animations - ALL swimming uses idle animation frames from water sprite
+                  currentAnimFrame = idleAnimationFrame; // Swimming sprite uses idle frames for all swimming movement
                 } else {
-                  currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                  // Land animations
+                  if (!isPlayerMoving) {
+                    currentAnimFrame = idleAnimationFrame; // Use idle animation when not moving
+                  } else if (playerForRendering.isSprinting) {
+                    currentAnimFrame = sprintAnimationFrame; // Use sprint animation when sprinting
+                  } else {
+                    currentAnimFrame = animationFrame; // Use walking animation for normal movement
+                  }
                 }
                 // For swimming players, render only the bottom half (underwater portion)
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
