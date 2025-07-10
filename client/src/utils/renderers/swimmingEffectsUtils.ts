@@ -10,11 +10,11 @@ const SWIMMING_EFFECTS_CONFIG = {
   WAVE_SECONDARY_FREQUENCY: 0.007, // Secondary wave frequency
   WAVE_TERTIARY_AMPLITUDE: 0.8, // Tertiary wave for micro-ripples
   WAVE_TERTIARY_FREQUENCY: 0.012, // Tertiary wave frequency
-  WAKE_INITIAL_RADIUS: 50, // Starting radius of wake semi-circles
-  WAKE_MAX_RADIUS: 60, // Maximum radius for wake expansion
-  WAKE_EXPANSION_SPEED: 0.03, // How fast wake semi-circles expand
-  WAKE_LIFETIME: 1800, // How long each wake lasts (ms)
-  WAKE_MOVEMENT_THRESHOLD: 5, // Minimum distance moved to create new wake
+  WAKE_INITIAL_RADIUS: 36, // Starting radius of wake semi-circles
+  WAKE_MAX_RADIUS: 95, // Maximum radius for wake expansion - increased for faster movement
+  WAKE_EXPANSION_SPEED: 0.05, // How fast wake semi-circles expand - increased speed
+  WAKE_LIFETIME: 1400, // How long each wake lasts (ms) - shorter for faster turnover
+  WAKE_MOVEMENT_THRESHOLD: 3, // Minimum distance moved to create new wake (reduced for more responsiveness)
   UNDERWATER_TINT: 'rgba(12, 62, 79, 0.4)', // Underwater tinting
   SHIMMER_FREQUENCY: 0.005, // Frequency of shimmer effects
 };
@@ -33,9 +33,9 @@ let wakeEffects: WakeEffect[] = [];
 let nextWakeId = 0;
 let lastPlayerPosition: { x: number; y: number } | null = null;
 let movementCounter = 0;
-let nextWakeThreshold = 8; // When to create next wake (randomized)
-const WAKE_SKIP_MOVEMENTS_BASE = 8; // Base movements to skip
-const WAKE_SKIP_RANDOMNESS = 5; // Random additional movements (0-5)
+let nextWakeThreshold = 12; // When to create next wake (randomized) - increased for longer delays
+const WAKE_SKIP_MOVEMENTS_BASE = 12; // Base movements to skip - increased for less frequent wakes
+const WAKE_SKIP_RANDOMNESS = 6; // Random additional movements (0-6) - increased
 
 /**
  * Generates next random wake threshold
@@ -85,9 +85,9 @@ function drawWaterLine(
   
   ctx.save();
   
-  // Draw the animated water line with complex deformation
-  ctx.strokeStyle = `rgba(120, 220, 255, ${0.7 + shimmerIntensity * 0.3})`;
-  ctx.lineWidth = 2.5;
+  // Draw the animated water line with complex deformation - muted grey
+  ctx.strokeStyle = 'rgba(130, 130, 130, 0.7)'; // Less bright grey, more subtle
+  ctx.lineWidth = 1.25; // Half as thin
   ctx.lineCap = 'round';
   
   ctx.beginPath();
@@ -106,15 +106,14 @@ function drawWaterLine(
     const distanceFromCenter = Math.abs(progress - 0.5) * 2; // 0 at center, 1 at edges
     const curveOffset = distanceFromCenter * distanceFromCenter * 3; // Quadratic curve
     
-    // Complex wave deformation with multiple overlapping waves
+    // Complex horizontal deformation with minimal vertical movement
     const segmentWaveOffset = progress * 2 * Math.PI; // Create wave variation across the line
-    const localPrimaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 2 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.3);
-    const localSecondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + segmentWaveOffset * 1.7 + Math.PI * 0.4) * (SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE * 0.4);
-    const localTertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + segmentWaveOffset * 2.3 + Math.PI * 0.8) * (SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE * 0.6);
+    const localPrimaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 1.5 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.2);
+    const localSecondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + segmentWaveOffset * 1.3 + Math.PI * 0.3) * (SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE * 0.15);
+    const localTertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + segmentWaveOffset * 2.1 + Math.PI * 0.7) * (SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE * 0.1);
     
-    // Combine all wave effects
-    const totalWaveOffset = primaryWave * 0.4 + secondaryWave * 0.3 + tertiaryWave * 0.3 + 
-                          localPrimaryWave + localSecondaryWave + localTertiaryWave;
+    // Combine waves but keep vertical movement minimal
+    const totalWaveOffset = primaryWave * 0.1 + localPrimaryWave + localSecondaryWave + localTertiaryWave; // Complex but subtle
     
     const y = waterLineY - curveOffset + totalWaveOffset; // Subtract to curve upward
     
@@ -127,28 +126,7 @@ function drawWaterLine(
   
   ctx.stroke();
   
-  // Add shimmer highlights on the water line with wave deformation
-  if (shimmerIntensity > 0.6) {
-    ctx.strokeStyle = `rgba(255, 255, 255, ${(shimmerIntensity - 0.6) * 2.5})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    
-    // Add additional shimmer points
-    for (let i = 0; i < 3; i++) {
-      const shimmerX = leftX + (waterLineWidth * (0.2 + i * 0.3));
-      const shimmerProgress = (0.2 + i * 0.3);
-      const distanceFromCenter = Math.abs(shimmerProgress - 0.5) * 2;
-      const curveOffset = distanceFromCenter * distanceFromCenter * 3;
-      const segmentWaveOffset = shimmerProgress * 2 * Math.PI;
-      const localWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 2 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.3);
-      const shimmerY = waterLineY - curveOffset + primaryWave * 0.4 + localWave;
-      
-      ctx.fillStyle = `rgba(255, 255, 255, ${shimmerIntensity * 0.8})`;
-      ctx.beginPath();
-      ctx.arc(shimmerX, shimmerY, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  // Removed shimmer highlights and shimmer points for cleaner, static appearance
   
   ctx.restore();
 }
@@ -186,15 +164,15 @@ function darkenSpriteBottomHalf(
   const tertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + centerX * 0.03 + Math.PI * 0.7) * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE;
   const shimmerIntensity = (Math.sin(time * SWIMMING_EFFECTS_CONFIG.SHIMMER_FREQUENCY * 2) + 1) * 0.5;
   
-  // Draw the deformed water line only on sprite pixels
-  ctx.strokeStyle = `rgba(120, 220, 255, ${0.8 + shimmerIntensity * 0.2})`;
-  ctx.lineWidth = 2.5;
+  // Draw the deformed water line only on sprite pixels - thin, muted grey
+  ctx.strokeStyle = 'rgba(130, 130, 130, 0.7)'; // Less bright grey, more subtle
+  ctx.lineWidth = 1.25; // Half as thin
   ctx.lineCap = 'round';
   
   ctx.beginPath();
   
   // Draw curved water line with complex wave deformation (half sprite width)
-  const waterLineWidth = spriteWidth * 0.5;
+  const waterLineWidth = spriteWidth * 0.3;
   const leftX = centerX - waterLineWidth / 2;
   const segments = 16; // More segments for smoother deformation
   
@@ -206,15 +184,14 @@ function darkenSpriteBottomHalf(
     const distanceFromCenter = Math.abs(progress - 0.5) * 2; // 0 at center, 1 at edges
     const curveOffset = distanceFromCenter * distanceFromCenter * 2; // Subtle curve
     
-    // Complex wave deformation with multiple overlapping waves
-    const segmentWaveOffset = progress * 2 * Math.PI;
-    const localPrimaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 2 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.3);
-    const localSecondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + segmentWaveOffset * 1.7 + Math.PI * 0.4) * (SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE * 0.4);
-    const localTertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + segmentWaveOffset * 2.3 + Math.PI * 0.8) * (SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE * 0.6);
+    // Complex horizontal deformation with minimal vertical movement
+    const segmentWaveOffset = progress * 2 * Math.PI; // Create wave variation across the line
+    const localPrimaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_FREQUENCY * 1.5 + segmentWaveOffset) * (SWIMMING_EFFECTS_CONFIG.WAVE_AMPLITUDE * 0.2);
+    const localSecondaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_FREQUENCY + segmentWaveOffset * 1.3 + Math.PI * 0.3) * (SWIMMING_EFFECTS_CONFIG.WAVE_SECONDARY_AMPLITUDE * 0.15);
+    const localTertiaryWave = Math.sin(time * SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_FREQUENCY + segmentWaveOffset * 2.1 + Math.PI * 0.7) * (SWIMMING_EFFECTS_CONFIG.WAVE_TERTIARY_AMPLITUDE * 0.1);
     
-    // Combine all wave effects
-    const totalWaveOffset = primaryWave * 0.4 + secondaryWave * 0.3 + tertiaryWave * 0.3 + 
-                          localPrimaryWave + localSecondaryWave + localTertiaryWave;
+    // Combine waves but keep vertical movement minimal
+    const totalWaveOffset = primaryWave * 0.1 + localPrimaryWave + localSecondaryWave + localTertiaryWave; // Complex but subtle
     
     const y = waterLineY - curveOffset + totalWaveOffset;
     
@@ -227,12 +204,7 @@ function darkenSpriteBottomHalf(
   
   ctx.stroke();
   
-  // Add shimmer highlights
-  if (shimmerIntensity > 0.6) {
-    ctx.strokeStyle = `rgba(255, 255, 255, ${(shimmerIntensity - 0.6) * 2.5})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
+  // Removed shimmer highlights for cleaner, static appearance
   
   ctx.restore();
 }
@@ -305,8 +277,8 @@ function manageWakeCreation(
 ): void {
   const currentPos = { x: centerX, y: centerY };
   
-  // Check if player has moved enough to create a new wake
-  if (isMoving && lastPlayerPosition) {
+  // FIXED: Check for actual position changes regardless of isMoving parameter
+  if (lastPlayerPosition) {
     const distance = Math.sqrt(
       Math.pow(currentPos.x - lastPlayerPosition.x, 2) + 
       Math.pow(currentPos.y - lastPlayerPosition.y, 2)
@@ -319,24 +291,31 @@ function manageWakeCreation(
       if (movementCounter >= nextWakeThreshold) {
         const directionAngle = getDirectionAngle(player.direction);
         createWakeEffect(currentPos.x, currentPos.y, directionAngle, currentTimeMs);
+        
+        // 25% chance to create a second wake immediately for dopamine burst
+        if (Math.random() < 0.25) {
+          // Create second wake with slight offset and different timing
+          const offsetX = (Math.random() - 0.5) * 20; // Random offset ±10 pixels
+          const offsetY = (Math.random() - 0.5) * 20;
+          const secondWakeDelay = 300 + Math.random() * 200; // 300-500ms delay - longer pause
+          setTimeout(() => {
+            createWakeEffect(currentPos.x + offsetX, currentPos.y + offsetY, directionAngle, currentTimeMs + secondWakeDelay);
+          }, secondWakeDelay);
+        }
+        
         movementCounter = 0; // Reset counter
         nextWakeThreshold = generateNextWakeThreshold(); // Set next random threshold
       }
       
       lastPlayerPosition = currentPos;
     }
-  } else if (isMoving && !lastPlayerPosition) {
-    // First movement - always create initial wake
+  } else {
+    // First time - initialize position and create initial wake
     const directionAngle = getDirectionAngle(player.direction);
     createWakeEffect(currentPos.x, currentPos.y, directionAngle, currentTimeMs);
     lastPlayerPosition = currentPos;
     movementCounter = 0;
     nextWakeThreshold = generateNextWakeThreshold();
-  } else if (!isMoving) {
-    // Update position even when not moving for next movement detection
-    lastPlayerPosition = currentPos;
-    // Reset counter when not moving so next movement starts fresh
-    movementCounter = 0;
   }
 }
 
@@ -357,16 +336,17 @@ function drawExpandingWakes(
     // Remove expired wakes
     if (ageProgress >= 1) return false;
     
-    // Calculate current radius based on age
+    // Calculate current radius based on age with accelerated expansion
+    const expansionCurve = Math.pow(ageProgress, 0.7); // Accelerated expansion curve
     const baseRadius = SWIMMING_EFFECTS_CONFIG.WAKE_INITIAL_RADIUS + 
-      (SWIMMING_EFFECTS_CONFIG.WAKE_MAX_RADIUS - SWIMMING_EFFECTS_CONFIG.WAKE_INITIAL_RADIUS) * ageProgress;
+      (SWIMMING_EFFECTS_CONFIG.WAKE_MAX_RADIUS - SWIMMING_EFFECTS_CONFIG.WAKE_INITIAL_RADIUS) * expansionCurve;
     
     // Fade out as wake expands
     const alpha = (1 - ageProgress) * 0.5;
     
     // Draw semi-circle wake with opening facing the player (toward direction of movement)
-    ctx.strokeStyle = `rgba(150, 220, 255, ${alpha})`;
-    ctx.lineWidth = 2 * (1 - ageProgress * 0.5); // Line gets thinner as it expands
+    ctx.strokeStyle = `rgba(160, 200, 220, ${alpha * 0.6})`; // More muted, less bright water color
+    ctx.lineWidth = 1.5 * (1 - ageProgress * 0.2); // Thinner line, stays thin longer
     ctx.lineCap = 'round';
     
     ctx.beginPath();
@@ -386,8 +366,12 @@ function drawExpandingWakes(
       const segmentProgress = i / segments;
       const currentAngle = startAngle + (endAngle - startAngle) * segmentProgress;
       
+      // Squish wake toward center - make it less of a perfect crescent
+      const distanceFromCenter = Math.abs(segmentProgress - 0.5) * 2; // 0 at center, 1 at edges
+      const squishFactor = 0.7 + (distanceFromCenter * 0.3); // 0.7 at center, 1.0 at edges
+      
       // Add irregular distortion to radius
-      let currentRadius = baseRadius;
+      let currentRadius = baseRadius * squishFactor; // Apply squish factor
       if (distortionIntensity > 0) {
         // Use multiple sine waves for irregular effect
         const distortion1 = Math.sin(currentAngle * 8 + currentTimeMs * 0.003 + wake.id) * maxDistortion * distortionIntensity;
