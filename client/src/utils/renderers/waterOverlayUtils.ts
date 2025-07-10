@@ -297,6 +297,9 @@ function updateWaterLines(
   canvasHeight: number,
   worldTiles: Map<string, any> | null
 ): void {
+  // Store worldTiles in water system for later use in rendering
+  waterSystem.worldTiles = worldTiles;
+  
   // Update global wave phase for subtle synchronized movement
   waterSystem.globalPhaseOffset += deltaTime * WATER_CONFIG.GLOBAL_WAVE_SPEED;
   
@@ -378,6 +381,75 @@ function updateWaterLines(
 }
 
 /**
+ * Checks if a point is in a sea stack underwater zone
+ */
+function isPointInSeaStackUnderwaterZone(
+  x: number,
+  y: number,
+  seaStacks?: any[]
+): boolean {
+  if (!seaStacks || seaStacks.length === 0) return false;
+  
+  for (const seaStack of seaStacks) {
+    if (!seaStack || typeof seaStack.posX !== 'number' || typeof seaStack.posY !== 'number') continue;
+    
+    // Sea stack underwater zone parameters (matching seaStackRenderingUtils.ts)
+    const WATER_LINE_HEIGHT_OFFSET = 55; // Height up from base where water line is
+    const BASE_WIDTH = 400; // Base sea stack width
+    const scale = seaStack.scale || 1.0;
+    const width = BASE_WIDTH * scale;
+    
+    // Calculate underwater zone bounds
+    const seaStackCenterX = seaStack.posX;
+    const seaStackBaseY = seaStack.posY;
+    const waterLineY = seaStackBaseY - WATER_LINE_HEIGHT_OFFSET;
+    
+    // Check if point is horizontally within sea stack width
+    const leftBound = seaStackCenterX - width / 2;
+    const rightBound = seaStackCenterX + width / 2;
+    
+    // Check if point is vertically in the underwater zone (below water line)
+    if (x >= leftBound && x <= rightBound && y >= waterLineY) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Checks if a point is in a swimming player underwater zone (bottom 50% of sprite)
+ */
+function isPointInSwimmingPlayerUnderwaterZone(
+  x: number,
+  y: number,
+  swimmingPlayers?: SwimmingPlayerData[]
+): boolean {
+  if (!swimmingPlayers || swimmingPlayers.length === 0) return false;
+  
+  for (const player of swimmingPlayers) {
+    if (!player.isSwimming) continue;
+    
+    // Player sprite bounds
+    const playerLeft = player.x - player.width / 2;
+    const playerRight = player.x + player.width / 2;
+    const playerTop = player.y - player.height / 2;
+    const playerBottom = player.y + player.height / 2;
+    
+    // Check if point is within player bounds
+    if (x >= playerLeft && x <= playerRight && y >= playerTop && y <= playerBottom) {
+      // Check if point is in the underwater portion (bottom 50% of sprite)
+      const waterLineY = playerTop + player.height * 0.5; // 50% down from top
+      if (y >= waterLineY) {
+        return true; // Point is in underwater zone
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Renders water lines on the canvas with wave movement and shimmer effects
  */
 function renderWaterLines(
@@ -423,6 +495,17 @@ function renderWaterLines(
     if (lineEndX < cameraLeft || lineStartX > cameraRight || 
         baseY < cameraTop - 10 || baseY > cameraBottom + 10) {
       return; // Skip this line
+    }
+    
+    // Check if line is on a water tile
+    const lineMidX = (lineStartX + lineEndX) / 2;
+    const lineMidY = baseY;
+    const isOnWaterTile = waterSystem.worldTiles ? 
+      isPositionOnWaterTile(waterSystem.worldTiles, lineMidX, lineMidY) : false;
+    
+    // Only render if line is on a water tile
+    if (!isOnWaterTile) {
+      return; // Skip this line - not on water
     }
     
     // Create wavy line points (exactly like sea stacks)
@@ -495,6 +578,17 @@ function renderWaterLines(
 }
 
 /**
+ * Interface for swimming player data used in water line clipping
+ */
+interface SwimmingPlayerData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isSwimming: boolean;
+}
+
+/**
  * Main water overlay rendering function to be called from the game loop
  */
 export function renderWaterOverlay(
@@ -509,7 +603,7 @@ export function renderWaterOverlay(
   // Update water system with worldTiles
   updateWaterLines(deltaTime, cameraX, cameraY, canvasWidth, canvasHeight, worldTiles || null);
   
-  // Render water lines with consistent timing
+  // Render water lines with consistent timing - simple water tile only rendering
   renderWaterLines(ctx, cameraX, cameraY, canvasWidth, canvasHeight);
 }
 

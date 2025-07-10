@@ -388,7 +388,8 @@ function renderSeaStack(
   cycleProgress?: number,
   onlyDrawShadow?: boolean,
   skipDrawingShadow?: boolean,
-  currentTimeMs?: number
+  currentTimeMs?: number,
+  renderHalfMode?: 'top' | 'bottom' | 'full'
 ): void {
   if (!image || !image.complete) return;
   
@@ -425,14 +426,35 @@ function renderSeaStack(
   ctx.rotate(stack.rotation);
   ctx.globalAlpha = stack.opacity;
   
-    // Draw the sea stack centered (simple and clean)
-  ctx.drawImage(
-    image,
-    -width / 2,
-    -height,
-    width,
-    height
-  );
+    // Draw the sea stack centered (simple and clean) with optional half-rendering
+  const halfMode = renderHalfMode || 'full';
+  
+  if (halfMode === 'bottom') {
+    // Render only bottom 50% of sea stack (underwater portion)
+    const halfHeight = height / 2;
+    ctx.drawImage(
+      image,
+      0, image.naturalHeight / 2, image.naturalWidth, image.naturalHeight / 2, // Source: bottom half
+      -width / 2, -halfHeight, width, halfHeight // Destination: bottom half
+    );
+  } else if (halfMode === 'top') {
+    // Render only top 50% of sea stack (above water portion)
+    const halfHeight = height / 2;
+    ctx.drawImage(
+      image,
+      0, 0, image.naturalWidth, image.naturalHeight / 2, // Source: top half  
+      -width / 2, -height, width, halfHeight // Destination: top half
+    );
+  } else {
+    // Render full sea stack (default behavior)
+    ctx.drawImage(
+      image,
+      -width / 2,
+      -height,
+      width,
+      height
+    );
+  }
   
   // Add simple water line effect if time is provided
   if (currentTimeMs !== undefined) {
@@ -451,7 +473,8 @@ export function renderSeaStackSingle(
   seaStack: any, // Server-provided sea stack entity
   doodadImages: Map<string, HTMLImageElement> | null,
   cycleProgress?: number, // Day/night cycle for dynamic shadows
-  currentTimeMs?: number // Current time for animations
+  currentTimeMs?: number, // Current time for animations
+  renderHalfMode?: 'top' | 'bottom' | 'full' // NEW: Control which half to render
 ): void {
   // Trigger image preloading on first call
   preloadSeaStackImages();
@@ -486,7 +509,7 @@ export function renderSeaStackSingle(
       };
       
     // Render with water effects (pass current time for animations)
-    renderSeaStack(ctx, clientStack, stackImage, cycleProgress, false, false, currentTimeMs || Date.now());
+    renderSeaStack(ctx, clientStack, stackImage, cycleProgress, false, false, currentTimeMs || Date.now(), renderHalfMode);
   }
 }
 

@@ -277,7 +277,8 @@ export const renderPlayer = (
   localPlayerId?: string,
   isCorpse?: boolean, // New flag for corpse rendering
   cycleProgress: number = 0.375, // Day/night cycle progress (0.0 to 1.0), default to noon-ish
-  localPlayerIsCrouching?: boolean // NEW: Add local crouch state for optimistic rendering
+  localPlayerIsCrouching?: boolean, // NEW: Add local crouch state for optimistic rendering
+  renderHalfMode?: 'top' | 'bottom' | 'full' // NEW: Control which part of sprite to render
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -333,7 +334,7 @@ export const renderPlayer = (
         effectStartTime: nowMs
       };
       playerHitStates.set(playerHexId, hitState);
-      console.log(`🎯 [COMBAT] Hit detected for player ${playerHexId} at client time ${nowMs} (server: ${serverLastHitTimePropMicros}, old: ${oldHitTime}, diff: ${serverLastHitTimePropMicros - oldHitTime})`);
+      // console.log(`🎯 [COMBAT] Hit detected for player ${playerHexId} at client time ${nowMs} (server: ${serverLastHitTimePropMicros}, old: ${oldHitTime}, diff: ${serverLastHitTimePropMicros - oldHitTime})`);
     }
     
     // Calculate effect timing based on when WE detected the hit
@@ -347,7 +348,7 @@ export const renderPlayer = (
       
       // If the server hit time is extremely old, or client effect has been running too long, force reset
       if (serverHitAge > MAX_REASONABLE_HIT_AGE_MS || hitEffectElapsed > MAX_REASONABLE_HIT_AGE_MS) {
-        console.log(`🎯 [CLEANUP] Removing stale hit state for player ${playerHexId}: serverAge=${serverHitAge}ms, clientAge=${hitEffectElapsed}ms`);
+        // console.log(`🎯 [CLEANUP] Removing stale hit state for player ${playerHexId}: serverAge=${serverHitAge}ms, clientAge=${hitEffectElapsed}ms`);
         playerHitStates.delete(playerHexId);
         isCurrentlyHit = false;
         hitEffectElapsed = Infinity;
@@ -970,11 +971,33 @@ export const renderPlayer = (
 
     // Draw the (possibly tinted) offscreen canvas to the main canvas
     if (offscreenCtx) {
-      ctx.drawImage(
-        offscreenCanvas, 
-        0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source rect from offscreen canvas
-        spriteBaseX, spriteDrawY, drawWidth, drawHeight // Destination rect on main canvas
-      );
+      // Check if we need to render only a specific half of the sprite
+      if (renderHalfMode === 'bottom') {
+        // Render only bottom 50% of sprite (underwater portion)
+        const halfHeight = gameConfig.spriteHeight / 2;
+        const halfDrawHeight = drawHeight / 2;
+        ctx.drawImage(
+          offscreenCanvas, 
+          0, halfHeight, gameConfig.spriteWidth, halfHeight, // Source: bottom half from offscreen canvas
+          spriteBaseX, spriteDrawY + halfDrawHeight, drawWidth, halfDrawHeight // Destination: bottom half position
+        );
+      } else if (renderHalfMode === 'top') {
+        // Render only top 50% of sprite (above water portion)
+        const halfHeight = gameConfig.spriteHeight / 2;
+        const halfDrawHeight = drawHeight / 2;
+        ctx.drawImage(
+          offscreenCanvas, 
+          0, 0, gameConfig.spriteWidth, halfHeight, // Source: top half from offscreen canvas
+          spriteBaseX, spriteDrawY, drawWidth, halfDrawHeight // Destination: top half position
+        );
+      } else {
+        // Default: render full sprite
+        ctx.drawImage(
+          offscreenCanvas, 
+          0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source rect from offscreen canvas
+          spriteBaseX, spriteDrawY, drawWidth, drawHeight // Destination rect on main canvas
+        );
+      }
     }
 
     // --- MODIFICATION: Reset shadow properties after drawing the potentially glowing sprite ---

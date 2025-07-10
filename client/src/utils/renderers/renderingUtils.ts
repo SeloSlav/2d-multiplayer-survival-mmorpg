@@ -411,6 +411,9 @@ export const renderYSortedEntities = ({
                 } else {
                   currentAnimFrame = animationFrame; // Use walking animation for normal movement
                 }
+                // For swimming players, render only the bottom half (underwater portion)
+                const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
+                
                 renderPlayer(
                         ctx, 
                         playerForRendering, 
@@ -431,7 +434,8 @@ export const renderYSortedEntities = ({
                   localPlayerId,
                   false, // isCorpse
                   cycleProgress, // cycleProgress
-                  localPlayerIsCrouching // NEW: pass local crouch state for optimistic rendering
+                  localPlayerIsCrouching, // NEW: pass local crouch state for optimistic rendering
+                  renderHalf // Render full player for normal Y-sorting
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} - cannot render`);
@@ -450,6 +454,9 @@ export const renderYSortedEntities = ({
                 } else {
                   currentAnimFrame = animationFrame; // Use walking animation for normal movement
                 }
+                // For swimming players, render only the bottom half (underwater portion)
+                const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
+                
                 renderPlayer(
                     ctx, 
                     playerForRendering, 
@@ -470,7 +477,8 @@ export const renderYSortedEntities = ({
                   localPlayerId,
                   false, // isCorpse
                   cycleProgress, // cycleProgress
-                  localPlayerIsCrouching // NEW: pass local crouch state for optimistic rendering
+                  localPlayerIsCrouching, // NEW: pass local crouch state for optimistic rendering
+                  renderHalf // Render full player for normal Y-sorting
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} (down/right) - cannot render`);
@@ -707,7 +715,8 @@ export const renderYSortedEntities = ({
             }
         } else if (type === 'sea_stack') {
             const seaStack = entity as any; // Sea stack from SpacetimeDB
-            renderSeaStackSingle(ctx, seaStack, doodadImagesRef.current, cycleProgress, nowMs);
+            // Render full sea stack with underwater tinting zones
+            renderSeaStackSingle(ctx, seaStack, doodadImagesRef.current, cycleProgress, nowMs, 'full');
         } else if (type === 'shelter') {
             // Shelters are fully rendered in the first pass, including shadows.
             // No action needed in this second (shadow-only) pass.

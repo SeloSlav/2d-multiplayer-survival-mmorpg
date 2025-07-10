@@ -83,7 +83,8 @@ import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
-import { renderSwimmingPlayerShadows } from '../utils/renderers/playerRenderingUtils';
+import { renderSwimmingPlayerShadows, renderPlayer, isPlayerHovered } from '../utils/renderers/playerRenderingUtils';
+import { renderSeaStackSingle } from '../utils/renderers/seaStackRenderingUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
@@ -789,40 +790,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
     renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
 
-    // --- RENDER SWIMMING PLAYER SHADOWS (Below water surface) ---
-    // Render underwater shadows for swimming players BEFORE water overlay
-    // This ensures shadows appear below the water surface waves
-    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
-        heroCrouchImageRef.current && heroWaterImageRef.current) {
-      renderSwimmingPlayerShadows(
-        ctx,
-        players,
-        heroImageRef.current,
-        heroSprintImageRef.current,
-        heroIdleImageRef.current,
-        heroCrouchImageRef.current,
-        heroWaterImageRef.current,
-        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
-        animationFrame,
-        sprintAnimationFrame,
-        idleAnimationFrame,
-        currentCycleProgress
-      );
-    }
-    // --- END SWIMMING SHADOWS ---
+    // MOVED: Swimming shadows now render after water overlay to appear above sea stack underwater zones
 
-    // --- RENDER WATER OVERLAY (Water surface waves) ---
-    // Render water surface waves AFTER underwater shadows but BEFORE other entities
-    renderWaterOverlay(
-      ctx,
-      -cameraOffsetX, // Convert camera offset to world camera position
-      -cameraOffsetY,
-      canvasSize.width,
-      canvasSize.height,
-      deltaTimeRef.current / 1000, // Convert ms to seconds
-      worldTiles
-    );
-    // --- END WATER OVERLAY ---
+    // MOVED: Water overlay now renders after players to appear on top
 
     // --- Render Water Patches ---
     // Water patches show as transparent black circles on the ground that boost plant growth
@@ -906,17 +876,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });*/
     // --- End Ground Items --- 
 
-    // --- Render Y-Sorted Entities --- (Keep this logic)
-    // CORRECTED: Call renderYSortedEntities once, not in a loop
-    // console.log('[GameCanvas DEBUG] Rendering Y-sorted entities. Count:', ySortedEntities.length, 'Local player:', !!localPlayer);
-    if (localPlayer) {
-      // console.log('[GameCanvas DEBUG] Player world position:', localPlayer.positionX, localPlayer.positionY);
-      // console.log('[GameCanvas DEBUG] Camera should center player at screen center (', canvasSize.width/2, canvasSize.height/2, ')');
-    }
-    // console.log('[GameCanvas DEBUG] Y-sorted entity types:', ySortedEntities.map(e => e.type));
+    // --- STEP 1: Render ONLY swimming player bottom halves ---
+    const swimmingPlayerEntities = ySortedEntities.filter(entity => 
+      entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut
+    );
+    
     renderYSortedEntities({
       ctx,
-      ySortedEntities,
+      ySortedEntities: swimmingPlayerEntities,
       heroImageRef,
       heroSprintImageRef,
       heroIdleImageRef,
@@ -946,19 +913,258 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       playerDodgeRollStates,
       remotePlayerInterpolation,
       localPlayerIsCrouching,
-      // Pass closest interactable IDs for outline rendering
       closestInteractableCampfireId,
       closestInteractableBoxId,
       closestInteractableStashId,
       closestInteractableSleepingBagId,
       closestInteractableHarvestableResourceId,
       closestInteractableDroppedItemId,
-      
       closestInteractableTarget,
-      // Pass shelter clipping data for shadow rendering
       shelterClippingData,
     });
+
+    // --- STEP 2: Render water overlay (appears over swimming players bottom halves) ---
+    renderWaterOverlay(
+      ctx,
+      -cameraOffsetX, // Convert camera offset to world camera position
+      -cameraOffsetY,
+      canvasSize.width,
+      canvasSize.height,
+      deltaTimeRef.current / 1000, // Convert ms to seconds
+      worldTiles
+    );
+    // --- END WATER OVERLAY ---
+
+    // --- STEP 3: Render sea stacks and swimming player top halves together (Y-sorted) ---
+    // Create combined list of sea stacks and swimming player top halves for proper Y-sorting
+    const seaStackEntities = ySortedEntities.filter(entity => entity.type === 'sea_stack');
+    const swimmingPlayers = Array.from(players.values())
+      .filter(player => player.isOnWater && !player.isDead && !player.isKnockedOut)
+      .map(player => {
+        const playerId = player.identity?.toHexString();
+        if (!playerId) return null;
+        
+        // Use same position logic as Y-sorted entities for consistent positioning
+        let playerForRendering = player;
+        if (localPlayerId === playerId && predictedPosition) {
+          playerForRendering = {
+            ...player,
+            positionX: predictedPosition.x,
+            positionY: predictedPosition.y
+          };
+        } else if (localPlayerId !== playerId && remotePlayerInterpolation) {
+          const interpolatedPosition = remotePlayerInterpolation.updateAndGetSmoothedPosition(player, localPlayerId);
+          playerForRendering = {
+            ...player,
+            positionX: interpolatedPosition.x,
+            positionY: interpolatedPosition.y
+          };
+        }
+        
+        return {
+          type: 'swimmingPlayerTopHalf' as const,
+          entity: playerForRendering,
+          yPosition: playerForRendering.positionY,
+          playerId
+        };
+      })
+      .filter(item => item !== null);
+
+    // Combine and Y-sort sea stacks with swimming player top halves
+    const combinedEntities = [
+      ...seaStackEntities.map(entity => ({ ...entity, isSeaStack: true })),
+      ...swimmingPlayers.map(player => ({ ...player, isSeaStack: false }))
+    ].sort((a, b) => {
+      const aY = a.isSeaStack ? a.entity.posY : (a as any).yPosition;
+      const bY = b.isSeaStack ? b.entity.posY : (b as any).yPosition;
+      return aY - bY;
+    });
+
+    // Render combined entities (sea stacks and top halves) in Y-sorted order
+    combinedEntities.forEach(item => {
+      if (item.type === 'swimmingPlayerTopHalf') {
+        // Render swimming player top half
+        const player = item.entity;
+        const playerId = item.playerId;
+        
+        // Get animation frame
+        const isPlayerMoving = lastPositionsRef.current?.get(playerId) ? 
+          (Math.abs(lastPositionsRef.current.get(playerId)!.x - player.positionX) > 0.1 || 
+           Math.abs(lastPositionsRef.current.get(playerId)!.y - player.positionY) > 0.1) : false;
+        
+        let currentAnimFrame: number;
+        if (!isPlayerMoving) {
+          currentAnimFrame = idleAnimationFrame;
+        } else if (player.isSprinting) {
+          currentAnimFrame = sprintAnimationFrame;
+        } else {
+          currentAnimFrame = animationFrame;
+        }
+        
+        // Choose correct sprite image
+        let heroImg: HTMLImageElement | null;
+        if (player.isOnWater) {
+          heroImg = heroWaterImageRef.current;
+        } else if (player.isCrouching) {
+          heroImg = heroCrouchImageRef.current;
+        } else {
+          heroImg = heroImageRef.current;
+        }
+        
+        if (heroImg) {
+          const isOnline = activeConnections ? activeConnections.has(playerId) : false;
+          const isHovered = worldMousePos ? isPlayerHovered(worldMousePos.x, worldMousePos.y, player) : false;
+          
+          renderPlayer(
+            ctx,
+            player,
+            heroImg,
+            heroSprintImageRef.current || heroImg,
+            heroIdleImageRef.current || heroImg,
+            heroCrouchImageRef.current || heroImg,
+            heroWaterImageRef.current || heroImg,
+            heroImageRef.current || heroImg, // dodge fallback
+            isOnline,
+            isPlayerMoving,
+            isHovered,
+            currentAnimFrame,
+            now_ms,
+            0, // no jump offset for swimming players
+            false, // not persistently hovered
+            activeConsumableEffects,
+            localPlayerId,
+            false, // not corpse
+            currentCycleProgress,
+            localPlayerIsCrouching,
+            'top' // Render only top half (above water portion)
+          );
+        }
+      } else {
+        // Render sea stack - create single-item array for renderYSortedEntities
+        renderYSortedEntities({
+          ctx,
+          ySortedEntities: [item],
+          heroImageRef,
+          heroSprintImageRef,
+          heroIdleImageRef,
+          heroWaterImageRef,
+          heroCrouchImageRef,
+          lastPositionsRef,
+          activeConnections,
+          activeEquipments,
+          activeConsumableEffects,
+          itemDefinitions,
+          inventoryItems,
+          itemImagesRef,
+          doodadImagesRef,
+          shelterImage: shelterImageRef.current,
+          worldMouseX: currentWorldMouseX,
+          worldMouseY: currentWorldMouseY,
+          localPlayerId: localPlayerId,
+          animationFrame,
+          sprintAnimationFrame,
+          idleAnimationFrame,
+          nowMs: now_ms,
+          hoveredPlayerIds,
+          onPlayerHover: handlePlayerHover,
+          cycleProgress: currentCycleProgress,
+          renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
+          localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
+          playerDodgeRollStates,
+          remotePlayerInterpolation,
+          localPlayerIsCrouching,
+          closestInteractableCampfireId,
+          closestInteractableBoxId,
+          closestInteractableStashId,
+          closestInteractableSleepingBagId,
+          closestInteractableHarvestableResourceId,
+          closestInteractableDroppedItemId,
+          closestInteractableTarget,
+          shelterClippingData,
+        });
+      }
+    });
+
+    // Render all OTHER non-swimming, non-seaStack Y-sorted entities
+    const otherEntities = ySortedEntities.filter(entity => 
+      !(entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut) &&
+      entity.type !== 'sea_stack'
+    );
+    
+    if (otherEntities.length > 0) {
+      renderYSortedEntities({
+        ctx,
+        ySortedEntities: otherEntities,
+        heroImageRef,
+        heroSprintImageRef,
+        heroIdleImageRef,
+        heroWaterImageRef,
+        heroCrouchImageRef,
+        lastPositionsRef,
+        activeConnections,
+        activeEquipments,
+        activeConsumableEffects,
+        itemDefinitions,
+        inventoryItems,
+        itemImagesRef,
+        doodadImagesRef,
+        shelterImage: shelterImageRef.current,
+        worldMouseX: currentWorldMouseX,
+        worldMouseY: currentWorldMouseY,
+        localPlayerId: localPlayerId,
+        animationFrame,
+        sprintAnimationFrame,
+        idleAnimationFrame,
+        nowMs: now_ms,
+        hoveredPlayerIds,
+        onPlayerHover: handlePlayerHover,
+        cycleProgress: currentCycleProgress,
+        renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
+        localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
+        playerDodgeRollStates,
+        remotePlayerInterpolation,
+        localPlayerIsCrouching,
+        closestInteractableCampfireId,
+        closestInteractableBoxId,
+        closestInteractableStashId,
+        closestInteractableSleepingBagId,
+        closestInteractableHarvestableResourceId,
+        closestInteractableDroppedItemId,
+        closestInteractableTarget,
+        shelterClippingData,
+      });
+    }
     // --- End Y-Sorted Entities ---
+
+    // REMOVED: Top half rendering now integrated into Y-sorted system above
+    // Old separate top half rendering is no longer needed
+
+    // --- RENDER SWIMMING PLAYER SHADOWS ABOVE WATER OVERLAY ---
+    // Render underwater shadows for swimming players AFTER water overlay and sea stacks
+    // This ensures shadows appear above sea stack underwater zones
+    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
+        heroCrouchImageRef.current && heroWaterImageRef.current) {
+      renderSwimmingPlayerShadows(
+        ctx,
+        players,
+        heroImageRef.current,
+        heroSprintImageRef.current,
+        heroIdleImageRef.current,
+        heroCrouchImageRef.current,
+        heroWaterImageRef.current,
+        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
+        animationFrame,
+        sprintAnimationFrame,
+        idleAnimationFrame,
+        currentCycleProgress
+      );
+    }
+    // --- END SWIMMING SHADOWS ---
+
+    // REMOVED: Swimming players now render normally in Y-sorted entities for proper depth sorting
+
+    // REMOVED: Sea stacks now render fully in Y-sorted entities
+    // Water overlay will be clipped to only appear over underwater zones
 
     // Wild animals are now rendered through the Y-sorted entities system for proper layering
 
