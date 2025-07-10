@@ -1015,7 +1015,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-    // --- STEP 2: Render water overlay (appears over swimming players bottom halves) ---
+    // --- STEP 1.5: Render underwater shadows BEFORE water overlay (proper depth layering) ---
+    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
+        heroCrouchImageRef.current && heroWaterImageRef.current) {
+      renderSwimmingPlayerShadows(
+        ctx,
+        players,
+        heroImageRef.current,
+        heroSprintImageRef.current,
+        heroIdleImageRef.current,
+        heroCrouchImageRef.current,
+        heroWaterImageRef.current,
+        heroImageRef.current, // Use hero image as fallback for dodge
+        animationFrame,
+        sprintAnimationFrame,
+        idleAnimationFrame,
+        currentCycleProgress
+      );
+    }
+    // --- END UNDERWATER SHADOWS ---
+
+    // --- STEP 2: Render water overlay (appears over underwater shadows and below visible sprites) ---
     renderWaterOverlay(
       ctx,
       -cameraOffsetX, // Convert camera offset to world camera position
@@ -1027,25 +1047,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     );
     // --- END WATER OVERLAY ---
 
-    // --- STEP 2.5: Render swimming player shadows (after water overlay, before sea stacks) ---
-    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
-        heroCrouchImageRef.current && heroWaterImageRef.current) {
-      renderSwimmingPlayerShadows(
-        ctx,
-        players,
-        heroImageRef.current,
-        heroSprintImageRef.current,
-        heroIdleImageRef.current,
-        heroCrouchImageRef.current,
-        heroWaterImageRef.current,
-        heroImageRef.current, // Use hero image as fallback for dodge (not implemented yet)
-        animationFrame,      // Use baseline animation frames
-        sprintAnimationFrame, // Use baseline animation frames  
-        idleAnimationFrame,   // Use baseline animation frames
-        currentCycleProgress
-      );
-    }
-    // --- END SWIMMING SHADOWS ---
+
 
     // --- STEP 3: Render sea stacks and swimming player top halves together (Y-sorted) ---
 

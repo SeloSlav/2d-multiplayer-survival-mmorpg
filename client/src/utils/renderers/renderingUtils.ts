@@ -173,6 +173,8 @@ interface RenderYSortedEntitiesProps {
     shelterClippingData?: Array<{posX: number, posY: number, isDestroyed: boolean}>;
 }
 
+
+
 /**
  * Renders entities that need to be sorted by their Y-coordinate for correct overlapping.
  */
@@ -417,7 +419,7 @@ export const renderYSortedEntities = ({
                     currentAnimFrame = animationFrame; // Use walking animation for normal movement
                   }
                 }
-                // For swimming players, render only the bottom half (underwater portion)
+                // For swimming players, render only the bottom half (underwater portion) - but skip underwater shadow since it was rendered earlier
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
                 
                 renderPlayer(
@@ -466,7 +468,7 @@ export const renderYSortedEntities = ({
                     currentAnimFrame = animationFrame; // Use walking animation for normal movement
                   }
                 }
-                // For swimming players, render only the bottom half (underwater portion)
+                // For swimming players, render only the bottom half (underwater portion) - but skip underwater shadow since it was rendered earlier
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
                 
                 renderPlayer(
