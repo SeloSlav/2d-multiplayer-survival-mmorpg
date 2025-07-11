@@ -616,6 +616,11 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         return effects;
     }, [localPlayer, activeConsumableEffects, identity, players]);
 
+    // Memoize the notifications slice to prevent infinite re-renders
+    const memoizedNotifications = React.useMemo(() => {
+        return acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED);
+    }, [acquisitionNotifications]);
+
     // Convert status effects to format expected by StatusEffectsPanel
     const getStatusEffectsForPanel = () => {
         const effects: Array<{
@@ -819,7 +824,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
         <>
             {/* --- NEW: Render Item Acquisition Notifications --- */}
             <ItemAcquisitionNotificationUI 
-                notifications={acquisitionNotifications.slice(-MAX_NOTIFICATIONS_DISPLAYED)} 
+                notifications={memoizedNotifications} 
                 hasActiveCrafting={hasActiveCrafting}
                 hasActiveStatusEffects={getStatusEffectsForPanel().length > 0}
             />

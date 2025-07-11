@@ -95,14 +95,11 @@ function getImageContourAtLevel(
   
   // Create a temporary canvas to analyze the image
   const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return [];
   
   canvas.width = width;
   canvas.height = height;
-  
-  // Set willReadFrequently for better performance BEFORE any getImageData calls
-  ctx.canvas.setAttribute('willReadFrequently', 'true');
   
   // Draw the image to analyze its pixels
   ctx.drawImage(image, 0, 0, width, height);

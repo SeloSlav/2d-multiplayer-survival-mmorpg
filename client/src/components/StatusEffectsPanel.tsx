@@ -18,6 +18,7 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
   const [interpolatedWetness, setInterpolatedWetness] = useState<number>(0);
   const wetTargetRef = useRef<number>(0);
   const wetCurrentRef = useRef<number>(0);
+  const wetDisplayRef = useRef<number>(0); // Track displayed value to avoid stale closures
   const lastUpdateTimeRef = useRef<number>(Date.now());
 
   // Find wet effect and update target
@@ -31,6 +32,11 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
       lastUpdateTimeRef.current = Date.now();
     }
   }, [newWetTarget]);
+
+  // Keep display ref synchronized with state
+  useEffect(() => {
+    wetDisplayRef.current = Math.round(interpolatedWetness);
+  }, [interpolatedWetness]);
 
   // Smooth interpolation animation
   useEffect(() => {
@@ -58,11 +64,25 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
           wetCurrentRef.current = Math.max(target, newCurrent);
         }
         
-        setInterpolatedWetness(wetCurrentRef.current);
+        // Only update state if there's a meaningful change (throttle updates)
+        const currentDisplayValue = wetDisplayRef.current;
+        const newDisplayValue = Math.round(wetCurrentRef.current);
+        if (Math.abs(newDisplayValue - currentDisplayValue) >= 1) {
+          wetDisplayRef.current = newDisplayValue;
+          setInterpolatedWetness(wetCurrentRef.current);
+        }
       } else {
         // Close enough, snap to target
-        wetCurrentRef.current = target;
-        setInterpolatedWetness(target);
+        const finalValue = target;
+        wetCurrentRef.current = finalValue;
+        
+        // Only update state if the final value is different from current display
+        const currentDisplayValue = wetDisplayRef.current;
+        const finalDisplayValue = Math.round(finalValue);
+        if (Math.abs(finalDisplayValue - currentDisplayValue) >= 1) {
+          wetDisplayRef.current = finalDisplayValue;
+          setInterpolatedWetness(finalValue);
+        }
       }
       
       lastUpdateTimeRef.current = now;

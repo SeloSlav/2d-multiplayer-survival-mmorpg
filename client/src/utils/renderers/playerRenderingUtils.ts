@@ -56,7 +56,7 @@ const lerp = (a: number, b: number, t: number): number => a * (1 - t) + b * t;
 
 // --- NEW: Reusable Offscreen Canvas for Tinting ---
 const offscreenCanvas = document.createElement('canvas');
-const offscreenCtx = offscreenCanvas.getContext('2d');
+const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 if (!offscreenCtx) {
   console.error("Failed to get 2D context from offscreen canvas for player rendering.");
 }

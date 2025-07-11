@@ -12,7 +12,7 @@ const COLLISION_RADII = {
   STONE: 28,       // Smaller radius for flattened stones
   STORAGE_BOX: 25, // Much tighter radius for boxes
   RAIN_COLLECTOR: 30, // Increased to match server-side for easier targeting
-  FURNACE: 35, // Larger radius for 96x96 visual furnace sprite
+  FURNACE: 20, // Adjusted radius for easier bottom approach while keeping top collision
   PLAYER: PLAYER_RADIUS,
   WILD_ANIMAL: 40, // Add wild animal collision radius
   BARREL: 25, // Smaller barrel collision radius for better accuracy
@@ -24,7 +24,7 @@ const COLLISION_OFFSETS = {
   STONE: { x: 0, y: -72 },     // Small circle positioned at visual stone base
   STORAGE_BOX: { x: 0, y: -70 }, // Small circle positioned at visual box base
   RAIN_COLLECTOR: { x: 0, y: 0 }, // Pushed down to align with visual base
-  FURNACE: { x: 0, y: -35 }, // Position to extend collision below visual furnace for easier south attacks
+  FURNACE: { x: 0, y: -50 }, // Adjusted center to extend collision below while keeping top boundary
   SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
   WILD_ANIMAL: { x: 0, y: 0 }, // No offset needed for animals
   BARREL: { x: 0, y: -48 }, // Barrel collision at visual center (matches server)
