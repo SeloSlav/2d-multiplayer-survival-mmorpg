@@ -49,6 +49,8 @@ const playerHitStates = new Map<string, PlayerHitState>();
 
 const playerVisualKnockbackState = new Map<string, PlayerVisualKnockbackState>();
 
+const playerSwimmingShadowPositions = new Map<string, {x: number, y: number}>();
+
 // Linear interpolation function
 const lerp = (a: number, b: number, t: number): number => a * (1 - t) + b * t;
 
@@ -683,11 +685,25 @@ export const renderPlayer = (
       let finalShadowAlpha = shadowAlphaReduction;
       
       if (player.isOnWater && !isCurrentlyJumping) {
-        // Swimming: shadow appears much further away, larger and darker like it's on the water floor
-        finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
-        finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
+        // Smooth shadow position to eliminate jitter - lerp towards current position
+        let smoothedShadowX = currentDisplayX;
+        let smoothedShadowY = currentDisplayY;
+        const previousShadow = playerSwimmingShadowPositions.get(playerHexId);
+        const smoothingFactor = 0.3; // Gentle smoothing - higher = faster tracking, lower = smoother but laggier
+        if (previousShadow) {
+          smoothedShadowX = lerp(previousShadow.x, currentDisplayX, smoothingFactor);
+          smoothedShadowY = lerp(previousShadow.y, currentDisplayY, smoothingFactor);
+        }
+        playerSwimmingShadowPositions.set(playerHexId, {x: smoothedShadowX, y: smoothedShadowY});
+        
+        // Apply original offsets to smoothed position - preserves unique features
+        finalShadowCenterX = smoothedShadowX + 25; // Much more offset to the right
+        finalShadowBaseY = smoothedShadowY + shadowBaseYOffset + 55; // Much further down
         finalShadowScale = shadowScale * 0.8; // Larger shadow (was 0.4)
         finalShadowAlpha = shadowAlphaReduction * 1.4; // Darker shadow (was 0.6)
+      } else {
+        // Clean up cache when not swimming
+        playerSwimmingShadowPositions.delete(playerHexId);
       }
 
       drawDynamicGroundShadow({
@@ -895,7 +911,7 @@ export const renderPlayer = (
         offscreenCtx.globalCompositeOperation = 'source-over';
       }
 
-      // Apply underwater darkening for swimming players
+      // Apply underwater teal tinting for swimming players
       if (player.isOnWater && !isCorpse && !isCurrentlyJumping) {
         // Calculate water line position on the sprite (50% down from top)
         const spriteWaterLineY = Math.floor(offscreenCanvas.height * 0.5);
@@ -904,7 +920,7 @@ export const renderPlayer = (
         const imageData = offscreenCtx.getImageData(0, spriteWaterLineY, offscreenCanvas.width, offscreenCanvas.height - spriteWaterLineY);
         const data = imageData.data;
         
-        // Darken each pixel below the water line
+        // Apply pronounced teal tint to each pixel below the water line
         for (let y = 0; y < imageData.height; y++) {
           for (let x = 0; x < imageData.width; x++) {
             const pixelIndex = (y * imageData.width + x) * 4;
@@ -912,14 +928,29 @@ export const renderPlayer = (
             
             // Only process pixels that exist (have alpha > 0)
             if (alpha > 0) {
-              // Calculate darkening factor based on depth (0 = water line, 1 = bottom)
+              // Calculate tinting factor based on depth (0 = water line, 1 = bottom)
               const depthRatio = y / imageData.height;
-              const darkenFactor = 0.7 - (depthRatio * 0.3); // 0.7 at water line, 0.4 at bottom
+              const baseDarkenFactor = 0.75 - (depthRatio * 0.25); // 0.75 at water line, 0.5 at bottom
               
-              // Apply blue tint and darkening
-              data[pixelIndex] = Math.floor(data[pixelIndex] * darkenFactor * 0.8); // Red
-              data[pixelIndex + 1] = Math.floor(data[pixelIndex + 1] * darkenFactor * 0.9); // Green  
-              data[pixelIndex + 2] = Math.floor(data[pixelIndex + 2] * darkenFactor); // Blue (least darkened for tint)
+              // Get original color values
+              const originalRed = data[pixelIndex];
+              const originalGreen = data[pixelIndex + 1];
+              const originalBlue = data[pixelIndex + 2];
+              
+              // Apply pronounced teal tint (cyan-green underwater effect)
+              // Teal = high blue + moderate green + low red
+              const tealIntensity = 0.6 + (depthRatio * 0.3); // Stronger teal effect deeper underwater
+              
+              // Red: Significantly reduced for teal effect
+              data[pixelIndex] = Math.floor(originalRed * baseDarkenFactor * 0.4); // Much less red
+              
+              // Green: Moderately reduced but boosted for teal
+              const greenBase = originalGreen * baseDarkenFactor * 0.7;
+              data[pixelIndex + 1] = Math.floor(greenBase + (tealIntensity * 40)); // Boost green for teal
+              
+              // Blue: Slightly darkened but boosted for teal
+              const blueBase = originalBlue * baseDarkenFactor * 0.8;
+              data[pixelIndex + 2] = Math.floor(Math.min(255, blueBase + (tealIntensity * 60))); // Strong boost blue for teal
             }
           }
         }
@@ -1102,10 +1133,10 @@ export const renderSwimmingPlayerShadows = (
     );
     
     // Calculate swimming shadow positioning (same as in renderPlayer)
-    const finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
-    const finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
-    const finalShadowScale = 0.8; // Larger shadow
-    const finalShadowAlpha = 0.3; // Lighter, more subtle shadow underwater
+    let finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
+    let finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
+    let finalShadowScale = 0.8; // Larger shadow
+    let finalShadowAlpha = 0.3; // Lighter, more subtle shadow underwater
     
     // Create temporary canvas (exact same as normal rendering)
     const spriteCanvas = document.createElement('canvas');

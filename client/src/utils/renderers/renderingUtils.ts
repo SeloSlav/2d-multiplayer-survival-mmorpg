@@ -407,8 +407,7 @@ export const renderYSortedEntities = ({
                 // Choose animation frame based on player state and environment
                 let currentAnimFrame: number;
                 if (playerForRendering.isOnWater) {
-                  // Swimming animations - ALL swimming uses idle animation frames from water sprite
-                  currentAnimFrame = idleAnimationFrame; // Swimming sprite uses idle frames for all swimming movement
+                  currentAnimFrame = isPlayerMoving ? animationFrame : idleAnimationFrame; // Use movement frames when moving, idle when still - for better sync
                 } else {
                   // Land animations
                   if (!isPlayerMoving) {
@@ -456,8 +455,7 @@ export const renderYSortedEntities = ({
                 // Choose animation frame based on player state and environment
                 let currentAnimFrame: number;
                 if (playerForRendering.isOnWater) {
-                  // Swimming animations - ALL swimming uses idle animation frames from water sprite
-                  currentAnimFrame = idleAnimationFrame; // Swimming sprite uses idle frames for all swimming movement
+                  currentAnimFrame = isPlayerMoving ? animationFrame : idleAnimationFrame; // Use movement frames when moving, idle when still - for better sync
                 } else {
                   // Land animations
                   if (!isPlayerMoving) {

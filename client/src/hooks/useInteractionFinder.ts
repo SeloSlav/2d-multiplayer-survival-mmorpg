@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
     Player as SpacetimeDBPlayer,
     Campfire as SpacetimeDBCampfire,
@@ -201,9 +201,24 @@ export function useInteractionFinder({
     const [closestInteractableKnockedOutPlayerId, setClosestInteractableKnockedOutPlayerId] = useState<string | null>(null);
     const [closestInteractableWaterPosition, setClosestInteractableWaterPosition] = useState<{ x: number; y: number } | null>(null);
 
+    const resultRef = useRef<UseInteractionFinderResult>({
+        closestInteractableTarget: null,
+        closestInteractableHarvestableResourceId: null,
+        closestInteractableCampfireId: null,
+        closestInteractableFurnaceId: null,
+        closestInteractableLanternId: null,
+        closestInteractableDroppedItemId: null,
+        closestInteractableBoxId: null,
+        isClosestInteractableBoxEmpty: false,
+        closestInteractableCorpseId: null,
+        closestInteractableStashId: null,
+        closestInteractableRainCollectorId: null,
+        closestInteractableSleepingBagId: null,
+        closestInteractableKnockedOutPlayerId: null,
+        closestInteractableWaterPosition: null,
+    });
 
-    // Calculate closest interactables using useMemo for efficiency
-    const interactionResult = useMemo<UseInteractionFinderResult>(() => {
+    const updateInteractionResult = useCallback(() => {
         // Single closest target across all types
         let closestTarget: InteractableTarget | null = null;
         let closestTargetDistSq = Infinity;
@@ -710,7 +725,7 @@ export function useInteractionFinder({
             }
         }
 
-        return {
+        const calculatedResult: UseInteractionFinderResult = {
             closestInteractableTarget: closestTarget,
             closestInteractableHarvestableResourceId: closestHarvestableResourceId,
             closestInteractableCampfireId: closestCampfireId,
@@ -726,57 +741,61 @@ export function useInteractionFinder({
             closestInteractableKnockedOutPlayerId: closestKnockedOutPlayerId,
             closestInteractableWaterPosition: closestWaterPosition,
         };
-    // Recalculate when player position or interactable maps change
-    }, [localPlayer, harvestableResources, campfires, furnaces, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection]); // ADDED: furnaces dependency
 
-    // Effect to update state based on memoized results
-    useEffect(() => {
-        // Update state only if changed, comparing to current state
-        if (interactionResult.closestInteractableHarvestableResourceId !== closestInteractableHarvestableResourceId) {
-            setClosestInteractableHarvestableResourceId(interactionResult.closestInteractableHarvestableResourceId);
+        resultRef.current = calculatedResult;
+
+        // Update states if changed
+        if (calculatedResult.closestInteractableHarvestableResourceId !== closestInteractableHarvestableResourceId) {
+            setClosestInteractableHarvestableResourceId(calculatedResult.closestInteractableHarvestableResourceId);
         }
-        if (interactionResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
-            setClosestInteractableCampfireId(interactionResult.closestInteractableCampfireId);
+        if (calculatedResult.closestInteractableCampfireId !== closestInteractableCampfireId) {
+            setClosestInteractableCampfireId(calculatedResult.closestInteractableCampfireId);
         }
-        if (interactionResult.closestInteractableFurnaceId !== closestInteractableFurnaceId) { // ADDED: Furnace useEffect
-            setClosestInteractableFurnaceId(interactionResult.closestInteractableFurnaceId);
+        if (calculatedResult.closestInteractableFurnaceId !== closestInteractableFurnaceId) { // ADDED: Furnace useEffect
+            setClosestInteractableFurnaceId(calculatedResult.closestInteractableFurnaceId);
         }
-        if (interactionResult.closestInteractableLanternId !== closestInteractableLanternId) {
-            setClosestInteractableLanternId(interactionResult.closestInteractableLanternId);
+        if (calculatedResult.closestInteractableLanternId !== closestInteractableLanternId) {
+            setClosestInteractableLanternId(calculatedResult.closestInteractableLanternId);
         }
-        if (interactionResult.closestInteractableDroppedItemId !== closestInteractableDroppedItemId) {
-            setClosestInteractableDroppedItemId(interactionResult.closestInteractableDroppedItemId);
+        if (calculatedResult.closestInteractableDroppedItemId !== closestInteractableDroppedItemId) {
+            setClosestInteractableDroppedItemId(calculatedResult.closestInteractableDroppedItemId);
         }
-        if (interactionResult.closestInteractableBoxId !== closestInteractableBoxId) {
-            setClosestInteractableBoxId(interactionResult.closestInteractableBoxId);
+        if (calculatedResult.closestInteractableBoxId !== closestInteractableBoxId) {
+            setClosestInteractableBoxId(calculatedResult.closestInteractableBoxId);
         }
-        if (interactionResult.isClosestInteractableBoxEmpty !== isClosestInteractableBoxEmpty) {
-            setIsClosestInteractableBoxEmpty(interactionResult.isClosestInteractableBoxEmpty);
+        if (calculatedResult.isClosestInteractableBoxEmpty !== isClosestInteractableBoxEmpty) {
+            setIsClosestInteractableBoxEmpty(calculatedResult.isClosestInteractableBoxEmpty);
         }
         // Update corpse state based on memoized result
-        if (interactionResult.closestInteractableCorpseId !== closestInteractableCorpseId) {
-            setClosestInteractableCorpseId(interactionResult.closestInteractableCorpseId);
+        if (calculatedResult.closestInteractableCorpseId !== closestInteractableCorpseId) {
+            setClosestInteractableCorpseId(calculatedResult.closestInteractableCorpseId);
         }
-        if (interactionResult.closestInteractableStashId !== closestInteractableStashId) {
-            setClosestInteractableStashId(interactionResult.closestInteractableStashId);
+        if (calculatedResult.closestInteractableStashId !== closestInteractableStashId) {
+            setClosestInteractableStashId(calculatedResult.closestInteractableStashId);
         }
-        if (interactionResult.closestInteractableRainCollectorId !== closestInteractableRainCollectorId) {
-            setClosestInteractableRainCollectorId(interactionResult.closestInteractableRainCollectorId);
+        if (calculatedResult.closestInteractableRainCollectorId !== closestInteractableRainCollectorId) {
+            setClosestInteractableRainCollectorId(calculatedResult.closestInteractableRainCollectorId);
         }
-        if (interactionResult.closestInteractableSleepingBagId !== closestInteractableSleepingBagId) {
-            setClosestInteractableSleepingBagId(interactionResult.closestInteractableSleepingBagId);
+        if (calculatedResult.closestInteractableSleepingBagId !== closestInteractableSleepingBagId) {
+            setClosestInteractableSleepingBagId(calculatedResult.closestInteractableSleepingBagId);
         }
-        if (interactionResult.closestInteractableKnockedOutPlayerId !== closestInteractableKnockedOutPlayerId) {
-            setClosestInteractableKnockedOutPlayerId(interactionResult.closestInteractableKnockedOutPlayerId);
+        if (calculatedResult.closestInteractableKnockedOutPlayerId !== closestInteractableKnockedOutPlayerId) {
+            setClosestInteractableKnockedOutPlayerId(calculatedResult.closestInteractableKnockedOutPlayerId);
         }
-        if (interactionResult.closestInteractableWaterPosition !== closestInteractableWaterPosition) {
-            setClosestInteractableWaterPosition(interactionResult.closestInteractableWaterPosition);
+        if (calculatedResult.closestInteractableWaterPosition !== closestInteractableWaterPosition) {
+            setClosestInteractableWaterPosition(calculatedResult.closestInteractableWaterPosition);
         }
-    // Depend on the memoized result object
-    }, [interactionResult]);
+    }, [localPlayer, harvestableResources, campfires, furnaces, lanterns, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection, playerDrinkingCooldowns]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            updateInteractionResult();
+        }, INTERACTION_CHECK_INTERVAL);
+        return () => clearInterval(interval);
+    }, [updateInteractionResult]);
 
     return {
-        closestInteractableTarget: interactionResult.closestInteractableTarget,
+        closestInteractableTarget: resultRef.current.closestInteractableTarget,
         closestInteractableHarvestableResourceId,
         closestInteractableCampfireId,
         closestInteractableFurnaceId, // ADDED: Furnace final return

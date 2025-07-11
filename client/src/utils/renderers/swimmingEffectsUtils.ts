@@ -209,48 +209,6 @@ function darkenSpriteBottomHalf(
   ctx.restore();
 }
 
-/**
- * Draws underwater shadows above the transparency layer
- */
-function drawUnderwaterShadow(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  spriteWidth: number,
-  spriteHeight: number,
-  currentTimeMs: number
-): void {
-  const spriteTopY = centerY - spriteHeight / 2;
-  const waterLineY = spriteTopY + (spriteHeight * SWIMMING_EFFECTS_CONFIG.WATER_LINE_OFFSET);
-  const spriteBottomY = centerY + spriteHeight / 2;
-  
-  ctx.save();
-  
-  // Create shadow that appears just above the underwater transparency
-  const shadowOffsetX = 15;
-  const shadowOffsetY = 25;
-  const shadowScale = 0.7;
-  const shadowAlpha = 0.4;
-  
-  // Only draw shadow below the water line
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
-  
-  // Create an elliptical shadow
-  ctx.beginPath();
-  ctx.ellipse(
-    centerX + shadowOffsetX,
-    Math.max(waterLineY + 10, centerY + shadowOffsetY), // Ensure shadow is below water line
-    (spriteWidth * shadowScale) / 2,
-    (spriteHeight * shadowScale * 0.3) / 2, // Flatter shadow
-    0,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
-  
-  ctx.restore();
-}
 
 /**
  * Creates a new wake effect when player moves
@@ -351,24 +309,25 @@ function drawExpandingWakes(
     
     ctx.beginPath();
     
-    // Draw irregular semi-circle arc instead of perfect arc  
-    // The opening faces AWAY from the direction the player was moving (behind the player)
+    // Draw full semi-circle but compress vertically to create oval shape
+    // The opening faces AWAY from the direction the player was moved (behind the player)
     const flippedDirection = wake.directionAngle + Math.PI; // Flip 180 degrees
     const startAngle = flippedDirection - Math.PI / 2;
     const endAngle = flippedDirection + Math.PI / 2;
     const segments = 24; // Number of segments for the arc
     
-    // Calculate distortion intensity (stronger toward end of lifetime)
-    const distortionIntensity = ageProgress > 0.6 ? (ageProgress - 0.6) / 0.4 : 0;
-    const maxDistortion = baseRadius * 0.15; // Max 15% radius variation
+    // Calculate distortion intensity that builds gradually throughout entire animation
+    // Start subtle and build up more naturally over time
+    const distortionIntensity = Math.pow(ageProgress, 1.5) * 0.8; // Gradual curve starting from 0, reaching 80% at end
+    const maxDistortion = baseRadius * 0.18; // Max 18% radius variation for more realistic turbulence
     
     for (let i = 0; i <= segments; i++) {
       const segmentProgress = i / segments;
       const currentAngle = startAngle + (endAngle - startAngle) * segmentProgress;
       
-      // Squish wake toward center - make it less of a perfect crescent
-      const distanceFromCenter = Math.abs(segmentProgress - 0.5) * 2; // 0 at center, 1 at edges
-      const squishFactor = 0.7 + (distanceFromCenter * 0.3); // 0.7 at center, 1.0 at edges
+      // Create inward-curving oval by reducing radius toward center and compressing vertically
+      const distanceFromCenter = Math.abs(segmentProgress - 0.5); // 0 at center, 1 at edges
+      const squishFactor = 0.75 + (distanceFromCenter * 0.25); // 0.75 at center, 1.0 at edges - more inward curve
       
       // Add irregular distortion to radius
       let currentRadius = baseRadius * squishFactor; // Apply squish factor
@@ -380,8 +339,11 @@ function drawExpandingWakes(
         currentRadius += distortion1 + distortion2 + distortion3;
       }
       
+      // Apply vertical compression to make wake shorter and more oval
+      const verticalCompressionFactor = 0.6; // Compress y-axis to 60% of original height
+      
       const x = wake.originX + Math.cos(currentAngle) * currentRadius;
-      const y = wake.originY + Math.sin(currentAngle) * currentRadius;
+      const y = wake.originY + Math.sin(currentAngle) * currentRadius * verticalCompressionFactor;
       
       if (i === 0) {
         ctx.moveTo(x, y);
@@ -424,9 +386,6 @@ export function drawSwimmingEffectsUnder(
   
   // Draw all active expanding wake semi-circles (above water surface)
   drawExpandingWakes(ctx, currentTimeMs);
-  
-  // REMOVED: Underwater shadow - no longer needed
-  // drawUnderwaterShadow(ctx, centerX, centerY, spriteWidth, spriteHeight, currentTimeMs);
 }
 
 /**

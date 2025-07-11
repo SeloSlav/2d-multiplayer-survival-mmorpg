@@ -18,6 +18,14 @@ console.log(`[SpacetimeDB] Environment: ${isDevelopment ? 'development' : 'produ
 console.log(`[SpacetimeDB] Using server: ${SPACETIME_DB_ADDRESS}`);
 console.log(`[SpacetimeDB] Database name: ${SPACETIME_DB_NAME}`);
 
+// Define connection state enum for better state management
+enum ConnectionState {
+    DISCONNECTED = 'disconnected',
+    CONNECTING = 'connecting', 
+    CONNECTED = 'connected',
+    ERROR = 'error'
+}
+
 // Define the connection context state type
 interface ConnectionContextState {
     connection: DbConnection | null;
@@ -48,263 +56,265 @@ interface GameConnectionProviderProps {
 // Provider component
 export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ children }) => {
     // Get the spacetimeToken obtained from the auth-server by AuthContext
-    // We don't need authIsLoading or authError here anymore for the connection logic itself
     const { spacetimeToken, invalidateCurrentToken } = useAuth(); 
+    
+    // Consolidated connection state
+    const [connectionState, setConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
     const [connection, setConnection] = useState<DbConnection | null>(null);
     const [dbIdentity, setDbIdentity] = useState<SpacetimeDBIdentity | null>(null);
-    const [isConnected, setIsConnected] = useState<boolean>(false); // Tracks SpacetimeDB connection status
-    const [isConnecting, setIsConnecting] = useState<boolean>(false); // Specific state for this connection attempt
-    const [connectionError, setConnectionError] = useState<string | null>(null); // Specific connection error for this context
-    const [retryCount, setRetryCount] = useState<number>(0); // Track retry attempts
-    const connectionInstanceRef = useRef<DbConnection | null>(null); // Ref to hold the instance
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for timeout cleanup
+    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState<number>(0);
+    
+    // Refs for cleanup and connection management
+    const connectionInstanceRef = useRef<DbConnection | null>(null);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const isCleaningUpRef = useRef<boolean>(false);
 
-    // Manual retry function
-    const retryConnection = useCallback(() => {
-        console.log("[GameConn LOG] Manual retry requested");
-        setRetryCount(prev => prev + 1);
-        setConnectionError(null);
-        setIsConnecting(false); // Reset connecting state to trigger new attempt
+    // Batch state updates to prevent excessive re-renders
+    const updateConnectionState = useCallback((
+        state: ConnectionState,
+        conn: DbConnection | null = null,
+        identity: SpacetimeDBIdentity | null = null,
+        error: string | null = null
+    ) => {
+        // Prevent state updates during cleanup
+        if (isCleaningUpRef.current) return;
+        
+        setConnectionState(state);
+        setConnection(conn);
+        setDbIdentity(identity);
+        setConnectionError(error);
     }, []);
 
-    // Connection logic - Triggered by spacetimeToken changes and retry attempts
-    useEffect(() => {
-        // --- Log Effect Trigger --- 
-        console.log(`[GameConn LOG] useEffect triggered. Token exists: ${!!spacetimeToken}. isConnecting: ${isConnecting}. isConnected: ${isConnected}. retryCount: ${retryCount}`);
-
-        // --- Revised Guard Conditions --- 
-        if (!spacetimeToken) {
-            console.log("[GameConn LOG] Skipping connection: No token.");
-            // --- Add disconnect logic if needed when token disappears --- 
-            if (connectionInstanceRef.current) {
-                console.log("[GameConn LOG] Token lost, disconnecting existing connection (ref)...");
-                connectionInstanceRef.current.disconnect();
-                // State will be cleared by onDisconnect callback
-            }
-            return;
-        }
+    // Improved cleanup function
+    const cleanupConnection = useCallback(() => {
+        isCleaningUpRef.current = true;
         
-        if (isConnecting || isConnected) { 
-            console.log("[GameConn LOG] Skipping connection: Already connecting or connected.");
-            return;
-        }
-
-        // --- Condition to attempt connection --- 
-        console.log("[GameConn LOG] Attempting SpacetimeDB connection..."); 
-        setIsConnecting(true); 
-        setConnectionError(null);
-        
-        // Clear any existing timeout
+        // Clear timeout
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
         
-        // Set up connection timeout - increased for better reliability
-        const connectionTimeoutMs = isDevelopment ? 5000 : 8000; // 5s for dev, 8s for prod
-        timeoutRef.current = setTimeout(() => {
-            console.warn('[GameConn LOG] Connection timeout - SpacetimeDB server may be down');
-            setIsConnecting(false);
-            setConnectionError(`Connection timeout after ${connectionTimeoutMs/1000}s - SpacetimeDB server may be down. Please try again.`);
+        // Abort any pending connections
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        
+        // Disconnect existing connection
+        if (connectionInstanceRef.current) {
+            try {
+                connectionInstanceRef.current.disconnect();
+            } catch (err) {
+                console.warn('[GameConn] Error during disconnect:', err);
+            }
+            connectionInstanceRef.current = null;
+        }
+        
+        isCleaningUpRef.current = false;
+    }, []);
+
+    // Manual retry function
+    const retryConnection = useCallback(() => {
+        console.log("[GameConn LOG] Manual retry requested");
+        cleanupConnection();
+        setRetryCount(prev => prev + 1);
+        setConnectionError(null);
+        // Don't set state here - let the effect handle it
+    }, [cleanupConnection]);
+
+    // Connection logic - Simplified and optimized
+    useEffect(() => {
+        console.log(`[GameConn LOG] useEffect triggered. Token exists: ${!!spacetimeToken}. State: ${connectionState}. retryCount: ${retryCount}`);
+
+        // Guard conditions
+        if (!spacetimeToken) {
+            console.log("[GameConn LOG] No token - cleaning up connection");
+            cleanupConnection();
+            updateConnectionState(ConnectionState.DISCONNECTED);
+            return;
+        }
+        
+        if (connectionState === ConnectionState.CONNECTING || connectionState === ConnectionState.CONNECTED) { 
+            console.log("[GameConn LOG] Already connecting or connected - skipping");
+            return;
+        }
+
+        // Start connection attempt
+        console.log("[GameConn LOG] Starting connection attempt..."); 
+        updateConnectionState(ConnectionState.CONNECTING);
+        
+        // Create abort controller for this connection attempt
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        
+        // Set up connection timeout with better error handling
+        const connectionTimeoutMs = isDevelopment ? 5000 : 8000;
+        const timeoutId = setTimeout(() => {
+            if (abortController.signal.aborted) return;
+            
+            console.warn('[GameConn LOG] Connection timeout - force cleanup');
+            abortController.abort();
+            cleanupConnection();
+            updateConnectionState(
+                ConnectionState.ERROR,
+                null,
+                null,
+                `Connection timeout after ${connectionTimeoutMs/1000}s. Server may be offline.`
+            );
         }, connectionTimeoutMs);
+        timeoutRef.current = timeoutId;
 
         try {
-            console.log("[GameConn LOG] Calling DbConnection.builder().build()..."); 
             const builder = DbConnection.builder()
                 .withUri(SPACETIME_DB_ADDRESS)
                 .withModuleName(SPACETIME_DB_NAME)
-                .withToken(spacetimeToken) 
+                .withToken(spacetimeToken)
                 .onConnect((conn: DbConnection, identity: SpacetimeDBIdentity) => {
-                    console.log('[GameConn LOG] onConnect: SpacetimeDB Connected. Identity:', identity.toHexString());
-                    console.log('[GameConn LOG] onConnect: About to update React states...');
+                    if (abortController.signal.aborted) return;
                     
-                    // Clear timeout on successful connection
+                    console.log('[GameConn LOG] Connection successful');
+                    
+                    // Clear timeout
                     if (timeoutRef.current) {
                         clearTimeout(timeoutRef.current);
                         timeoutRef.current = null;
                     }
                     
-                    connectionInstanceRef.current = conn; 
-                    setConnection(conn);
-                    setDbIdentity(identity);
-                    setIsConnected(true);
-                    setConnectionError(null);
-                    setIsConnecting(false);
-                    setRetryCount(0); // Reset retry count on successful connection
-                    
-                    console.log('[GameConn LOG] onConnect: React state updates called');
+                    connectionInstanceRef.current = conn;
+                    updateConnectionState(ConnectionState.CONNECTED, conn, identity, null);
+                    setRetryCount(0);
                 })
                 .onDisconnect((context: any, err?: Error) => {
-                    console.log('[GameConn LOG] onDisconnect: SpacetimeDB Disconnected.', err ? `Reason: ${err.message}` : 'Graceful disconnect.');
+                    if (abortController.signal.aborted) return;
                     
-                    // Clear timeout on disconnect
-                    if (timeoutRef.current) {
-                        clearTimeout(timeoutRef.current);
-                        timeoutRef.current = null;
-                    }
+                    console.log('[GameConn LOG] Disconnected', err ? `Error: ${err.message}` : 'Graceful');
                     
-                    connectionInstanceRef.current = null; 
-                    setConnection(null);
-                    setDbIdentity(null);
-                    setIsConnected(false);
-                    setIsConnecting(false);
+                    cleanupConnection();
                     
                     if (err) {
-                        const errorMessage = err.message || 'Unknown reason';
-                        setConnectionError(`SpacetimeDB Disconnected: ${errorMessage}`);
-                        // Improved 401/auth error detection - check multiple patterns
+                        const errorMessage = err.message || 'Connection lost';
+                        updateConnectionState(ConnectionState.ERROR, null, null, errorMessage);
+                        
+                        // Check for auth errors
                         if (errorMessage.includes("401") || 
                             errorMessage.toLowerCase().includes("unauthorized") ||
-                            errorMessage.toLowerCase().includes("websocket-token") ||
-                            errorMessage.toLowerCase().includes("authentication") ||
                             errorMessage.toLowerCase().includes("auth")) {
-                            console.warn("[GameConn LOG] onDisconnect: Error suggests auth issue, invalidating token. Error:", errorMessage);
+                            console.warn("[GameConn LOG] Auth error detected - invalidating token");
                             invalidateCurrentToken();
                         }
                     } else {
-                        setConnectionError(null); 
+                        updateConnectionState(ConnectionState.DISCONNECTED);
                     }
                 })
                 .onConnectError((context: any, err: Error) => {
-                    console.error('[GameConn LOG] onConnectError: SpacetimeDB Connection Error:', err);
+                    if (abortController.signal.aborted) return;
                     
-                    // Clear timeout on connection error
-                    if (timeoutRef.current) {
-                        clearTimeout(timeoutRef.current);
-                        timeoutRef.current = null;
-                    }
+                    console.error('[GameConn LOG] Connection error:', err);
                     
-                    connectionInstanceRef.current = null; 
-                    setConnection(null);
-                    setDbIdentity(null);
-                    setIsConnected(false);
-                    setIsConnecting(false); 
+                    cleanupConnection();
                     
                     const errorMessage = err.message || err.toString();
-                    setConnectionError(`Unable to establish quantum tunnel to Babachain network. Arkyv node may be offline or experiencing consensus failures.`);
+                    updateConnectionState(
+                        ConnectionState.ERROR,
+                        null,
+                        null,
+                        'Unable to connect to game servers. Please check your connection and try again.'
+                    );
                     
-                    // Improved error detection - be more aggressive about auth failures
+                    // Check for auth errors
                     if (errorMessage.includes("401") || 
                         errorMessage.toLowerCase().includes("unauthorized") ||
-                        errorMessage.toLowerCase().includes("websocket-token") ||
-                        errorMessage.toLowerCase().includes("authentication") ||
-                        errorMessage.toLowerCase().includes("auth") ||
-                        errorMessage.toLowerCase().includes("forbidden") ||
-                        errorMessage.toLowerCase().includes("invalid token")) {
-                        console.warn("[GameConn LOG] onConnectError: Error suggests auth issue, invalidating token. Error:", errorMessage);
-                        invalidateCurrentToken(); 
+                        errorMessage.toLowerCase().includes("auth")) {
+                        console.warn("[GameConn LOG] Auth error in connect - invalidating token");
+                        invalidateCurrentToken();
                     }
                 });
 
-            // Simplified connection build - remove complex promise racing
-            console.log("[GameConn LOG] About to call builder.build()");
+            // Build connection
             const newConnectionInstance = builder.build();
-            console.log("[GameConn LOG] Build completed successfully");
+            
+            // Check if aborted after build
+            if (abortController.signal.aborted) {
+                try {
+                    newConnectionInstance?.disconnect();
+                } catch (e) {
+                    console.warn('[GameConn] Error disconnecting aborted connection:', e);
+                }
+                return;
+            }
             
         } catch (err: any) { 
-            console.error('[GameConn LOG] Failed to build SpacetimeDB connection:', err);
+            if (abortController.signal.aborted) return;
             
-            // Clear timeout on build error
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-            }
-            
-            setConnectionError(`SpacetimeDB Build failed: ${err.message || err}. Please try again.`);
-            setIsConnecting(false); 
+            console.error('[GameConn LOG] Build error:', err);
+            cleanupConnection();
+            updateConnectionState(
+                ConnectionState.ERROR,
+                null,
+                null,
+                `Connection failed: ${err.message || 'Unknown error'}`
+            );
         }
 
-        // Cleanup
+        // Cleanup function
         return () => {
-            console.log("[GameConn LOG] useEffect cleanup running...");
-            
-            // Clear timeout on cleanup
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-            }
-            
-            if (connectionInstanceRef.current) { 
-                console.log("[GameConn LOG] Cleanup: Calling disconnect on connection instance (ref).");
-                connectionInstanceRef.current.disconnect();
-                // State clearing is handled by onDisconnect callback
-             }
+            console.log("[GameConn LOG] Effect cleanup");
+            abortController.abort();
+            cleanupConnection();
         };
-    // Include retryCount in dependencies to trigger retries
-    // Note: isConnecting and isConnected are NOT included to avoid infinite loops
-    }, [spacetimeToken, invalidateCurrentToken, retryCount]);
+    }, [spacetimeToken, invalidateCurrentToken, retryCount, cleanupConnection, updateConnectionState]);
 
-    // Debug state changes
-    useEffect(() => {
-        console.log(`[GameConn LOG] State changed - connection: ${!!connection}, dbIdentity: ${!!dbIdentity}, isConnected: ${isConnected}`);
-    }, [connection, dbIdentity, isConnected]);
-
-    // Player registration function (can safely use state variable)
+    // Player registration function
     const registerPlayer = useCallback(async (username: string): Promise<void> => {
-        if (!connection || !isConnected || !dbIdentity || !username.trim()) {
-            let reason = !connection ? "No SpacetimeDB connection" : 
-                        !dbIdentity ? "SpacetimeDB identity not established" :
-                        !isConnected ? "Not connected to SpacetimeDB" : "Empty username";
-            console.warn(`[GameConnectionProvider] Cannot register player: ${reason}.`);
-            const errorMessage = `Cannot register: ${reason}. Please wait for connection to establish.`;
-            setConnectionError(errorMessage);
+        if (connectionState !== ConnectionState.CONNECTED || !connection || !dbIdentity || !username.trim()) {
+            const errorMessage = "Cannot register: Not connected to game servers";
+            updateConnectionState(connectionState, connection, dbIdentity, errorMessage);
             throw new Error(errorMessage);
         }
 
-        setConnectionError(null); // Clear previous errors on new attempt
+        setConnectionError(null);
         
         return new Promise<void>((resolve, reject) => {
-            // Set up a one-time listener for the register player result
             const handleRegisterResult = (ctx: any, submittedUsername: string) => {
-                // Remove the callback after it's called once
                 connection.reducers.removeOnRegisterPlayer(handleRegisterResult);
                 
                 if (ctx.event?.status?.tag === 'Committed') {
-                    console.log('[GameConnectionProvider] Player registration successful');
+                    console.log('[GameConn] Player registration successful');
                     resolve();
                 } else {
-                    // Handle any non-committed status as an error
-                    console.error('[GameConnectionProvider] Player registration failed with status:', ctx.event?.status);
-                    console.error('[GameConnectionProvider] Full context:', ctx);
-                    
-                    // Parse the actual error from the status if available
                     let errorMessage = 'Registration failed';
                     if (ctx.event?.status?.tag === 'Failed' && ctx.event?.status?.value) {
                         errorMessage = ctx.event.status.value;
                     } else if (ctx.event?.status?.tag === 'OutOfEnergy') {
-                        errorMessage = 'Server is overloaded, please try again later';
-                    } else {
-                        // Fallback for unknown status types
-                        errorMessage = `Registration failed with status: ${ctx.event?.status?.tag || 'Unknown'}`;
+                        errorMessage = 'Server overloaded, try again later';
                     }
                     reject(new Error(errorMessage));
                 }
             };
 
-            // Register the callback before calling the reducer
             connection.reducers.onRegisterPlayer(handleRegisterResult);
 
             try {
-                console.log(`[GameConnectionProvider] Calling registerPlayer reducer with username: ${username}`);
                 connection.reducers.registerPlayer(username);
             } catch (err: any) {
-                // Remove the callback if the reducer call itself failed
                 connection.reducers.removeOnRegisterPlayer(handleRegisterResult);
-                console.error('[GameConnectionProvider] Failed to call registerPlayer reducer:', err);
-                const errorMessage = `Failed to call registerPlayer: ${err.message || err}.`;
+                const errorMessage = `Registration failed: ${err.message || err}`;
                 setConnectionError(errorMessage);
                 reject(new Error(errorMessage));
             }
         });
-    }, [isConnected, connection, dbIdentity]); // Include dbIdentity in dependencies
+    }, [connectionState, connection, dbIdentity]);
 
-    // Context value (provide state variable)
+    // Derived state for context
     const contextValue: ConnectionContextState = {
         connection,
         dbIdentity,
-        isConnected,
-        isLoading: isConnecting, 
-        error: connectionError, 
+        isConnected: connectionState === ConnectionState.CONNECTED,
+        isLoading: connectionState === ConnectionState.CONNECTING,
+        error: connectionError,
         registerPlayer,
         retryConnection,
     };
