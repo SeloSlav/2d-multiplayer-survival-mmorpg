@@ -18,11 +18,11 @@ export const LANTERN_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.3; // Much mor
 export const LANTERN_LIGHT_INNER_COLOR = 'rgba(255, 220, 160, 0.32)'; // Reduced intensity for focused lighting
 export const LANTERN_LIGHT_OUTER_COLOR = 'rgba(240, 180, 120, 0.0)'; // Golden amber fade
 
-// --- Furnace Light Constants (industrial metal smelting - warm dark red glow) ---
-export const FURNACE_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.5; // Half the campfire range
-export const FURNACE_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.8; // Steady but with industrial flickering
-export const FURNACE_LIGHT_INNER_COLOR = 'rgba(180, 40, 20, 0.35)'; // Much darker red, more intense
-export const FURNACE_LIGHT_OUTER_COLOR = 'rgba(120, 20, 10, 0.0)'; // Very dark red fade
+// --- Furnace Light Constants (industrial metal smelting - bright white-hot to orange gradient) ---
+export const FURNACE_LIGHT_RADIUS_BASE = CAMPFIRE_LIGHT_RADIUS_BASE * 0.5; // Focused lighting, doesn't cast far
+export const FURNACE_FLICKER_AMOUNT = CAMPFIRE_FLICKER_AMOUNT * 0.6; // More stable than campfire, industrial
+export const FURNACE_LIGHT_INNER_COLOR = 'rgba(255, 240, 200, 0.4)'; // Bright white-hot center
+export const FURNACE_LIGHT_OUTER_COLOR = 'rgba(255, 120, 40, 0.0)'; // Bright orange fade
 
 interface RenderPlayerTorchLightProps {
     ctx: CanvasRenderingContext2D;
@@ -338,57 +338,58 @@ export const renderFurnaceLight = ({
     const industrialFurnaceX = lightScreenX + furnaceAsymmetryX;
     const industrialFurnaceY = lightScreenY + furnaceAsymmetryY;
 
-    // INDUSTRIAL FURNACE LIGHTING SYSTEM - metal smelting forge with dark red glow
-    const FURNACE_SCALE = 1.0; // Half the range of campfire but focused industrial lighting
+    // INDUSTRIAL FURNACE LIGHTING SYSTEM - realistic high-temperature metal smelting
+    const FURNACE_SCALE = 1.0; // Focused lighting that doesn't cast far
 
-    // Layer 1: Large ambient glow (metal forge - natural dark red like Rust game)
-    const ambientRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 3.2 * FURNACE_SCALE + baseFlicker * 0.2);
+    // Layer 1: Large ambient glow (hot furnace - bright orange ambient heat)
+    const ambientRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 3.5 * FURNACE_SCALE + baseFlicker * 0.3);
     const ambientGradient = ctx.createRadialGradient(
         industrialFurnaceX, industrialFurnaceY, 0,
         industrialFurnaceX, industrialFurnaceY, ambientRadius
     );
-    ambientGradient.addColorStop(0, 'rgba(100, 35, 20, 0.025)'); // Natural rust-like dark red/brown
-    ambientGradient.addColorStop(0.2, 'rgba(85, 30, 18, 0.022)'); // Muted industrial red/brown
-    ambientGradient.addColorStop(0.5, 'rgba(70, 25, 15, 0.018)'); // Natural dark forge glow
-    ambientGradient.addColorStop(0.8, 'rgba(55, 20, 12, 0.012)'); // Very muted industrial red
-    ambientGradient.addColorStop(1, 'rgba(40, 15, 10, 0)'); // Natural dark fade
+    ambientGradient.addColorStop(0, 'rgba(255, 180, 100, 0.06)'); // Bright orange ambient heat
+    ambientGradient.addColorStop(0.2, 'rgba(255, 160, 80, 0.05)'); // Warm orange glow
+    ambientGradient.addColorStop(0.4, 'rgba(255, 140, 60, 0.04)'); // Deep orange
+    ambientGradient.addColorStop(0.6, 'rgba(255, 120, 50, 0.03)'); // Rich orange
+    ambientGradient.addColorStop(0.8, 'rgba(255, 100, 40, 0.02)'); // Bright orange fade
+    ambientGradient.addColorStop(1, 'rgba(255, 80, 30, 0)'); // Orange fade to transparent
     
     ctx.fillStyle = ambientGradient;
     ctx.beginPath();
     ctx.arc(industrialFurnaceX, industrialFurnaceY, ambientRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Layer 2: Main illumination (natural rust-like forge heat)
-    const mainRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 2.1 * FURNACE_SCALE + baseFlicker * 0.6);
+    // Layer 2: Main illumination (bright yellow-orange furnace heat)
+    const mainRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 2.4 * FURNACE_SCALE + baseFlicker * 0.8);
     const mainGradient = ctx.createRadialGradient(
         industrialFurnaceX, industrialFurnaceY, 0,
         industrialFurnaceX, industrialFurnaceY, mainRadius
     );
-    mainGradient.addColorStop(0, 'rgba(130, 60, 35, 0.09)'); // Natural rust forge center - more brown
-    mainGradient.addColorStop(0.15, 'rgba(115, 50, 30, 0.08)'); // Rust-like industrial red/brown
-    mainGradient.addColorStop(0.3, 'rgba(100, 45, 25, 0.07)'); // Natural dark forge heat
-    mainGradient.addColorStop(0.5, 'rgba(85, 35, 20, 0.06)'); // Muted red/brown glow
-    mainGradient.addColorStop(0.7, 'rgba(70, 30, 18, 0.04)'); // Natural industrial heat
-    mainGradient.addColorStop(0.85, 'rgba(55, 25, 15, 0.025)'); // Rust-like dark red
-    mainGradient.addColorStop(1, 'rgba(40, 20, 12, 0)'); // Natural fade
+    mainGradient.addColorStop(0, 'rgba(255, 220, 140, 0.15)'); // Bright yellow-orange center
+    mainGradient.addColorStop(0.15, 'rgba(255, 200, 120, 0.13)'); // Warm yellow-orange
+    mainGradient.addColorStop(0.3, 'rgba(255, 180, 100, 0.12)'); // Rich orange-yellow
+    mainGradient.addColorStop(0.5, 'rgba(255, 160, 80, 0.10)'); // Deep orange
+    mainGradient.addColorStop(0.7, 'rgba(255, 140, 70, 0.08)'); // Orange heat
+    mainGradient.addColorStop(0.85, 'rgba(255, 120, 60, 0.06)'); // Warm orange
+    mainGradient.addColorStop(1, 'rgba(255, 100, 50, 0)'); // Orange fade
     
     ctx.fillStyle = mainGradient;
     ctx.beginPath();
     ctx.arc(industrialFurnaceX, industrialFurnaceY, mainRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Layer 3: Core bright light (natural molten metal center like Rust)
-    const coreRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 0.7 * FURNACE_SCALE + baseFlicker * 1.0);
+    // Layer 3: Core bright light (white-hot molten metal center)
+    const coreRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 0.9 * FURNACE_SCALE + baseFlicker * 1.2);
     const coreGradient = ctx.createRadialGradient(
         industrialFurnaceX, industrialFurnaceY, 0,
         industrialFurnaceX, industrialFurnaceY, coreRadius
     );
-    coreGradient.addColorStop(0, 'rgba(150, 75, 45, 0.14)'); // Natural molten center - more orange/brown
-    coreGradient.addColorStop(0.2, 'rgba(135, 65, 40, 0.12)'); // Rust-like hot forge
-    coreGradient.addColorStop(0.4, 'rgba(120, 55, 35, 0.10)'); // Natural industrial heat
-    coreGradient.addColorStop(0.6, 'rgba(105, 50, 30, 0.08)'); // Muted forge heat
-    coreGradient.addColorStop(0.8, 'rgba(90, 40, 25, 0.05)'); // Natural industrial glow
-    coreGradient.addColorStop(1, 'rgba(75, 35, 20, 0)'); // Rust-like fade
+    coreGradient.addColorStop(0, 'rgba(255, 250, 220, 0.22)'); // Bright white-hot center
+    coreGradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.20)'); // White-hot core
+    coreGradient.addColorStop(0.4, 'rgba(255, 230, 180, 0.18)'); // Bright yellow-white
+    coreGradient.addColorStop(0.6, 'rgba(255, 210, 160, 0.15)'); // Bright yellow
+    coreGradient.addColorStop(0.8, 'rgba(255, 190, 140, 0.12)'); // Yellow-orange
+    coreGradient.addColorStop(1, 'rgba(255, 170, 120, 0)'); // Bright orange fade
     
     ctx.fillStyle = coreGradient;
     ctx.beginPath();
