@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:production": "npm run update-sitemap && npm run build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "update-sitemap": "node scripts/update-sitemap.js"
   },
   "dependencies": {
     "@clockworklabs/spacetimedb-sdk": "^1.0.3",
