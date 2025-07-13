@@ -49,7 +49,7 @@ const playerHitStates = new Map<string, PlayerHitState>();
 
 const playerVisualKnockbackState = new Map<string, PlayerVisualKnockbackState>();
 
-const playerSwimmingShadowPositions = new Map<string, {x: number, y: number}>();
+
 
 // Linear interpolation function
 const lerp = (a: number, b: number, t: number): number => a * (1 - t) + b * t;
@@ -678,33 +678,11 @@ export const renderPlayer = (
       const shadowAlphaReduction = shadowAlpha * (1.0 - jumpProgress * 0.3); // Shadow gets fainter when higher
       const shadowOffsetFromPlayer = jumpProgress * 8; // Shadow moves slightly away from player when higher
       
-      // Special shadow positioning for swimming players
+      // Use standard shadow positioning for all players
       let finalShadowCenterX = currentDisplayX;
       let finalShadowBaseY = currentDisplayY + shadowBaseYOffset + shadowOffsetFromPlayer;
       let finalShadowScale = shadowScale;
       let finalShadowAlpha = shadowAlphaReduction;
-      
-      if (player.isOnWater && !isCurrentlyJumping) {
-        // Smooth shadow position to eliminate jitter - lerp towards current position
-        let smoothedShadowX = currentDisplayX;
-        let smoothedShadowY = currentDisplayY;
-        const previousShadow = playerSwimmingShadowPositions.get(playerHexId);
-        const smoothingFactor = 0.3; // Gentle smoothing - higher = faster tracking, lower = smoother but laggier
-        if (previousShadow) {
-          smoothedShadowX = lerp(previousShadow.x, currentDisplayX, smoothingFactor);
-          smoothedShadowY = lerp(previousShadow.y, currentDisplayY, smoothingFactor);
-        }
-        playerSwimmingShadowPositions.set(playerHexId, {x: smoothedShadowX, y: smoothedShadowY});
-        
-        // Apply original offsets to smoothed position - preserves unique features
-        finalShadowCenterX = smoothedShadowX + 25; // Much more offset to the right
-        finalShadowBaseY = smoothedShadowY + shadowBaseYOffset + 55; // Much further down
-        finalShadowScale = shadowScale * 0.8; // Larger shadow (was 0.4)
-        finalShadowAlpha = shadowAlphaReduction * 1.4; // Darker shadow (was 0.6)
-      } else {
-        // Clean up cache when not swimming
-        playerSwimmingShadowPositions.delete(playerHexId);
-      }
 
       drawDynamicGroundShadow({
         ctx,
@@ -726,8 +704,7 @@ export const renderPlayer = (
   // --- End Dynamic Ground Shadow ---
 
   // --- Draw Offline Shadow (corpses excluded - they're flat on the ground) --- 
-  // Skip regular shadows for swimming players - they use only the dynamic ground shadow
-  if (!isCorpse && !finalIsOnline && shouldShowShadow && !(player.isOnWater && !isCurrentlyJumping)) {
+  if (!isCorpse && !finalIsOnline && shouldShowShadow) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       
@@ -742,8 +719,7 @@ export const renderPlayer = (
   // --- End Shadow ---
 
   // --- Draw Shadow (Only if alive and online, and not a corpse) ---
-  // Skip regular shadows for swimming players - they use only the dynamic ground shadow
-  if (!isCorpse && !player.isDead && finalIsOnline && shouldShowShadow && !(player.isOnWater && !isCurrentlyJumping)) {
+  if (!isCorpse && !player.isDead && finalIsOnline && shouldShowShadow) {
       const shadowBaseRadiusX = drawWidth * 0.3;
       const shadowBaseRadiusY = shadowBaseRadiusX * 0.4;
       const shadowMaxJumpOffset = 10; 
@@ -1078,98 +1054,6 @@ export const renderPlayer = (
   }
 };
 
-/**
- * Renders underwater shadows for swimming players - call this BEFORE water overlay rendering
- * for proper depth layering (shadow below water surface waves)
- */
-export const renderSwimmingPlayerShadows = (
-  ctx: CanvasRenderingContext2D,
-  players: Map<string, SpacetimeDBPlayer>,
-  heroImg: CanvasImageSource,
-  heroSprintImg: CanvasImageSource,
-  heroIdleImg: CanvasImageSource,
-  heroCrouchImg: CanvasImageSource,
-  heroSwimImg: CanvasImageSource,
-  heroDodgeImg: CanvasImageSource,
-  animationFrame: number,
-  sprintAnimationFrame: number,
-  idleAnimationFrame: number,
-  currentCycleProgress: number = 0.375
-): void => {
-  // Only render shadows for swimming players
-  for (const player of players.values()) {
-    if (!player.isOnWater || player.isDead || player.health <= 0) continue;
-    
-    // Get player visual state for positioning (same as normal rendering)
-    const playerVisualState = playerVisualKnockbackState.get(player.identity.toHexString());
-    let currentDisplayX = playerVisualState?.displayX ?? player.positionX;
-    let currentDisplayY = playerVisualState?.displayY ?? player.positionY;
-    
-    const drawWidth = gameConfig.spriteWidth * 2;
-    const drawHeight = gameConfig.spriteHeight * 2;
-    const shadowBaseYOffset = drawHeight * 0.4;
-    
-    // ===== SIMPLE LOGIC: Swimming players always use swimming animation =====
-    // Swimming players use the walking animation frame (same as normal rendering)
-    const finalAnimationFrame = animationFrame;
-    const totalFrames = 24; // Swimming has 24 frames
-    const isSwimmingAnimation = true;
-    const currentSpriteImg = heroSwimImg; // Always use swim sprite
-    
-    // Swimming players are always considered "moving" in the animation sense
-    const finalIsMoving = true;
-    
-    // Extract sprite coordinates (exact same call as normal rendering)
-    const { sx, sy } = getSpriteCoordinates(
-      player, 
-      finalIsMoving, 
-      finalAnimationFrame, 
-      false, // not using item for swimming shadow
-      totalFrames, 
-      false, // not idle
-      false, // not crouching
-      isSwimmingAnimation,
-      false // not dodge rolling
-    );
-    
-    // Calculate swimming shadow positioning (same as in renderPlayer)
-    let finalShadowCenterX = currentDisplayX + 25; // Much more offset to the right
-    let finalShadowBaseY = currentDisplayY + shadowBaseYOffset + 55; // Much further down
-    let finalShadowScale = 0.8; // Larger shadow
-    let finalShadowAlpha = 0.3; // Lighter, more subtle shadow underwater
-    
-    // Create temporary canvas (exact same as normal rendering)
-    const spriteCanvas = document.createElement('canvas');
-    spriteCanvas.width = gameConfig.spriteWidth;
-    spriteCanvas.height = gameConfig.spriteHeight;
-    const spriteCtx = spriteCanvas.getContext('2d');
-    
-    if (spriteCtx && currentSpriteImg instanceof HTMLImageElement) {
-      // Draw sprite frame (exact same as normal rendering)
-      spriteCtx.drawImage(
-        currentSpriteImg,
-        sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight,
-        0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight
-      );
-      
-      // Render underwater shadow using exact same drawDynamicGroundShadow function
-      drawDynamicGroundShadow({
-        ctx,
-        entityImage: spriteCanvas,
-        entityCenterX: finalShadowCenterX,
-        entityBaseY: finalShadowBaseY,
-        imageDrawWidth: drawWidth * finalShadowScale,
-        imageDrawHeight: drawHeight * finalShadowScale,
-        cycleProgress: currentCycleProgress,
-        baseShadowColor: '0,0,0',
-        maxShadowAlpha: finalShadowAlpha,
-        maxStretchFactor: 3.0,
-        minStretchFactor: 0.25,
-        shadowBlur: 2,
-        pivotYOffset: 0,
-      });
-    }
-  }
-};
+
 
  

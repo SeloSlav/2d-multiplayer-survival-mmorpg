@@ -83,7 +83,7 @@ import { renderShelter } from '../utils/renderers/shelterRenderingUtils';
 import { setShelterClippingData } from '../utils/renderers/shadowUtils';
 import { renderRain } from '../utils/renderers/rainRenderingUtils';
 import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
-import { renderSwimmingPlayerShadows, renderPlayer, isPlayerHovered } from '../utils/renderers/playerRenderingUtils';
+import { renderPlayer, isPlayerHovered } from '../utils/renderers/playerRenderingUtils';
 import { renderSeaStackSingle } from '../utils/renderers/seaStackRenderingUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
@@ -1016,25 +1016,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
-    // --- STEP 1.5: Render underwater shadows BEFORE water overlay (proper depth layering) ---
-    if (heroImageRef.current && heroSprintImageRef.current && heroIdleImageRef.current && 
-        heroCrouchImageRef.current && heroWaterImageRef.current) {
-      renderSwimmingPlayerShadows(
-        ctx,
-        players,
-        heroImageRef.current,
-        heroSprintImageRef.current,
-        heroIdleImageRef.current,
-        heroCrouchImageRef.current,
-        heroWaterImageRef.current,
-        heroImageRef.current, // Use hero image as fallback for dodge
-        animationFrame,
-        sprintAnimationFrame,
-        idleAnimationFrame,
-        currentCycleProgress
-      );
-    }
-    // --- END UNDERWATER SHADOWS ---
+
 
     // --- STEP 2: Render water overlay (appears over underwater shadows and below visible sprites) ---
     renderWaterOverlay(

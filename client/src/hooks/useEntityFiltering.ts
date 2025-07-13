@@ -703,21 +703,7 @@ export function useEntityFiltering(
         // Players sort by their foot position (bottom of sprite)
         // Add offset to move from center to foot position
         sortY = entity.positionY + 48; // Add half player height to get foot position
-        
-        // Special case: If player is near a shelter and approaching from below,
-        // boost their sort position to ensure they render in front
-        const nearbyShelter = visibleShelters.find(shelter => {
-          const dx = entity.positionX - shelter.posX;
-          const dy = entity.positionY - shelter.posY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          // Check if player is within 250px of shelter and below/at the shelter base
-          return distance < 250 && entity.positionY > shelter.posY - 150;
-        });
-        
-        if (nearbyShelter) {
-          sortY += 400; // Massive boost to ensure player appears on top
-        }
-        
+        console.log(`[PLAYER DEBUG] Player Y-sort: ${sortY} (original: ${entity.positionY})`);
         return sortY;
       }
 
@@ -759,11 +745,9 @@ export function useEntityFiltering(
         return sortY;
       }
 
-      // Explicit handling for Shelter to ensure it uses its base posY
+      // Explicit handling for Shelter
       if (isShelter(entity)) {
-        // Shelters are large structures, sort by their visual base (roots)
-        // The roots extend below shelter.posY, so we don't add offset
-        sortY = entity.posY; // Use the base position without offset
+        sortY = entity.posY;
         return sortY;
       }
 
@@ -892,7 +876,6 @@ export function useEntityFiltering(
       // Trees should render behind wild animals at the same Y position
       const getTypePriority = (type: string): number => {
         switch (type) {
-          case 'shelter': return 0;     // Shelters render behind everything
           case 'sea_stack': return 1;   // Sea stacks render behind most things like trees (tall background structures)
           case 'tree': return 2;        // Trees render behind most things
           case 'stone': return 3;       // Stones
@@ -912,6 +895,7 @@ export function useEntityFiltering(
           case 'animal_corpse': return 20; // Same priority as player corpses
           case 'player_corpse': return 20;
           case 'player': return 21;     // Players render in front of most things including sea stacks
+          case 'shelter': return 25;    // Shelters render behind EVERYTHING including players
           default: return 15;
         }
       };

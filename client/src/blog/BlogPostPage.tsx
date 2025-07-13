@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
-import SEOHead from "../common/SEOHead";
+import { useSEO } from "../hooks/useSEO";
 // @ts-ignore - TypeScript module resolution
 import ImageGallery from "../common/ImageGallery";
 // @ts-ignore - importing JavaScript module
@@ -43,7 +43,7 @@ function BlogPostPage() {
     return <Navigate to="/blog" />;
   }
   
-  const { 
+    const { 
     title, 
     subtitle, 
     date, 
@@ -52,7 +52,16 @@ function BlogPostPage() {
     content,
     tags
   } = post;
-  
+
+  // Set SEO metadata for this blog post
+  useSEO({
+    title: `${title} | Broth & Bullets Blog`,
+    description: subtitle,
+    ogImage: coverImage,
+    twitterImage: coverImage,
+    type: 'article'
+  });
+
   // Get author information from centralized data
   const authorInfo = getAuthor(author);
   const authorImage = authorInfo?.image || "/images/blog/default-author.jpg";
@@ -165,13 +174,6 @@ function BlogPostPage() {
   return (
     <>
       <div className="blog-post-page">
-        <SEOHead 
-          title={`${title} | Broth & Bullets Blog`}
-          description={subtitle}
-          ogImage={coverImage}
-          twitterImage={coverImage}
-          type="article"
-        />
         
         <script type="application/ld+json">
           {JSON.stringify(articleStructuredData)}

@@ -1,13 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import SEOHead from "../common/SEOHead";
+import { useSEO } from "../hooks/useSEO";
 import BlogPostPreview from "./BlogPostPreview";
 import BlogFooter from "./BlogFooter";
 import BlogHeader from "../common/BlogHeader";
 // @ts-ignore - importing JavaScript module
 import { blogPosts } from "./data/blogPosts";
-// @ts-ignore - importing JavaScript module
-import { getAuthor } from "./data/authors";
 import "./blog.css";
 
 interface BlogPost {
@@ -23,14 +21,17 @@ interface BlogPost {
 }
 
 function BlogPage() {
+  // Set SEO metadata for the blog page
+  useSEO({
+    title: "Broth & Bullets Blog | Top-Down Survival Game Development",
+    description: "Development updates, gameplay guides, and survival strategies for Broth & Bullets - the ultimate 2D top-down multiplayer survival game. Explore crafting systems, base building, and PvP combat in a harsh procedurally generated world.",
+    ogImage: "/images/blog/og-blog.jpg",
+    twitterImage: "/images/blog/twitter-blog.jpg",
+    type: 'website'
+  });
+
   return (
     <div className="blog-page-container">
-      <SEOHead 
-        title="Broth & Bullets Blog | Top-Down Survival Game Development"
-        description="Development updates, gameplay guides, and survival strategies for Broth & Bullets - the ultimate 2D top-down multiplayer survival game. Explore crafting systems, base building, and PvP combat in a harsh procedurally generated world."
-        ogImage="/images/blog/og-blog.jpg"
-        twitterImage="/images/blog/twitter-blog.jpg"
-      />
       
       <BlogHeader />
       

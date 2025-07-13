@@ -11,6 +11,7 @@ interface RenderShelterProps {
   cycleProgress: number; // For dynamic shadows based on time of day
   localPlayerId?: string; // ADDED
   localPlayerPosition?: {x: number, y: number} | null; // ADDED
+  renderPass?: 'bottom' | 'top' | 'full'; // ADDED: Which part of the shelter to render
 }
 
 // Shelter visual properties (can be adjusted or moved to a config)
@@ -114,7 +115,9 @@ export const renderShelter = ({
   // --- Shelter Image Rendering ---
   // Calculate base top-left coordinates for drawing the image
   let imageDrawX = shelter.posX - SHELTER_RENDER_WIDTH / 2;
-  let imageDrawY = shelter.posY - SHELTER_IMAGE_DRAW_OFFSET_Y;
+  // Adjust shelter drawing so its visual base matches its Y-sort position
+  // Draw the shelter so its bottom edge aligns with shelter.posY (where players interact)
+  let imageDrawY = shelter.posY - SHELTER_RENDER_HEIGHT;
 
   // Calculate shake effect
   let shakeOffsetX = 0;
