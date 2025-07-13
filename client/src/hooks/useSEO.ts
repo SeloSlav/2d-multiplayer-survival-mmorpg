@@ -56,18 +56,35 @@ export const useSEO = ({
 
     if (ogImage) {
       updateMetaTag('og:image', ogImage);
+      updateMetaTag('og:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
+      updateMetaTag('og:image:width', '1200');
+      updateMetaTag('og:image:height', '630');
     }
 
     if (twitterImage) {
       updateMetaName('twitter:image', twitterImage);
+      updateMetaName('twitter:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
+    } else if (ogImage) {
+      // Use ogImage as fallback for Twitter
+      updateMetaName('twitter:image', ogImage);
+      updateMetaName('twitter:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
     }
 
-    // Set type
+    // Set essential Open Graph tags
     updateMetaTag('og:type', type);
-    updateMetaName('twitter:card', 'summary_large_image');
-
-    // Set current URL
+    updateMetaTag('og:site_name', 'Broth & Bullets');
+    updateMetaTag('og:locale', 'en_US');
     updateMetaTag('og:url', window.location.href);
+
+    // Set essential Twitter tags  
+    updateMetaName('twitter:card', 'summary_large_image');
+    updateMetaName('twitter:site', '@seloslav');
+    updateMetaName('twitter:creator', '@seloslav');
+
+    // Set additional meta tags
+    updateMetaName('author', 'Broth & Bullets Team');
+    updateMetaName('robots', 'index, follow');
+    updateMetaName('theme-color', '#00aaff');
 
     // Cleanup function to reset to defaults when component unmounts
     return () => {
