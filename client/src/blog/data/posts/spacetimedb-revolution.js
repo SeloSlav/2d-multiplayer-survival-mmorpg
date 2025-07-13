@@ -2,11 +2,9 @@ export default {
   slug: "spacetimedb-revolution",
   title: "SpacetimeDB: How We Rebuilt Broth & Bullets and Unlocked Development at Lightning Speed",
   subtitle: "From visual overhaul to dynamic weather systems - our journey with SpacetimeDB has transformed everything",
-  date: "2025-05-27",
+  date: "2025-01-15",
   author: "Martin Erlic",
-  authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
-  excerpt: "We've completely rebuilt Broth & Bullets using SpacetimeDB, abandoning our old visual style for larger sprites with dynamic shadows, and implementing features we never thought possible at this development speed.",
+  excerpt: "Discover how SpacetimeDB revolutionized our game development process, enabling us to implement complex features like dynamic weather, seasonal changes, and enhanced graphics in record time.",
   coverImage: "/images/blog/spacetimedb-revolution-cover.jpg",
   content: `
     <h2>A Complete Technical Revolution</h2>
@@ -127,7 +125,7 @@ export default {
     
     <h2>Looking Ahead: MVP Alpha Build</h2>
     
-    <p>We're rapidly approaching our MVP alpha build, and the progress has been extraordinary. The combination of SpacetimeDB's technical capabilities and our new visual direction has created a game that feels both familiar and revolutionary.</p>
+    <p>We're rapidly approaching our MVP alpha build, and the progress has been extraordinary. The combination of SpacetimeDB's technical capabilities and our new visual direction has created a game that feels both familiar and fresh.</p>
     
     <p>Key features ready for alpha testing include:</p>
     

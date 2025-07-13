@@ -15,6 +15,7 @@ export interface ResourceConfig {
   // Shadow properties
   shadowConfig: {
     maxStretchFactor: number;
+    minStretchFactor: number;
     shadowBlur: number;
     pivotYOffset: number;
     opacity?: number;
@@ -32,13 +33,15 @@ export interface ResourceConfig {
 }
 
 // Default configuration that most resources will use
+// UPDATED: Shadow parameters now match player dynamic shadows for consistency
 const DEFAULT_RESOURCE_CONFIG: Omit<ResourceConfig, 'imageSource'> = {
   targetWidth: 90,
   shadowConfig: {
-    maxStretchFactor: 1.7,
-    shadowBlur: 8,
-    pivotYOffset: 0.15,
-    opacity: 0.4
+    maxStretchFactor: 3.0, // Match player dramatic shadows
+    minStretchFactor: 0.25, // Match player minimum visibility
+    shadowBlur: 2, // Match player base shadow blur
+    pivotYOffset: 0, // Match player pivot offset
+    opacity: 0.6 // Match player shadow opacity
   },
   fallbackColor: '#8B7355'
 };
@@ -119,10 +122,12 @@ export function createResourceGroundConfig(resourceType: ResourceType): GroundEn
         imageDrawWidth,
         imageDrawHeight,
         cycleProgress,
+        baseShadowColor: '0,0,0', // Match player shadow color
+        maxShadowAlpha: shadowConfig.opacity || 0.6, // Match player shadow opacity
         maxStretchFactor: shadowConfig.maxStretchFactor,
+        minStretchFactor: shadowConfig.minStretchFactor, // Now included to match player shadows
         shadowBlur: shadowConfig.shadowBlur,
         pivotYOffset: shadowConfig.pivotYOffset,
-        maxShadowAlpha: shadowConfig.opacity || 0.4
       });
     },
     

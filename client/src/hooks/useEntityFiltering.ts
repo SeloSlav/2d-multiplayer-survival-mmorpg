@@ -893,25 +893,25 @@ export function useEntityFiltering(
       const getTypePriority = (type: string): number => {
         switch (type) {
           case 'shelter': return 0;     // Shelters render behind everything
-          case 'tree': return 1;        // Trees render behind most things
-          case 'stone': return 2;       // Stones
-          case 'wild_animal': return 3; // Wild animals render in front of trees
-          case 'wooden_storage_box': return 4;
-          case 'stash': return 5;
-          case 'campfire': return 6;  // Campfires are ground objects like storage boxes
-          case 'furnace': return 6.5; // Furnaces are ground objects, slightly in front of campfires
-          case 'lantern': return 7;
-          case 'grass': return 8;
-          case 'planted_seed': return 9;
-          case 'dropped_item': return 10;
-          case 'harvestable_resource': return 11;
-          case 'rain_collector': return 17;
-          case 'projectile': return 18;
-          case 'viper_spittle': return 18; // Same priority as projectiles
-          case 'animal_corpse': return 19; // Same priority as player corpses
-          case 'player_corpse': return 19;
-          case 'player': return 20;     // Players render in front of most things
-          case 'sea_stack': return 21;  // Sea stacks render in front of players (towering structures)
+          case 'sea_stack': return 1;   // Sea stacks render behind most things like trees (tall background structures)
+          case 'tree': return 2;        // Trees render behind most things
+          case 'stone': return 3;       // Stones
+          case 'wild_animal': return 4; // Wild animals render in front of trees and sea stacks
+          case 'wooden_storage_box': return 5;
+          case 'stash': return 6;
+          case 'campfire': return 7;  // Campfires are ground objects like storage boxes
+          case 'furnace': return 7.5; // Furnaces are ground objects, slightly in front of campfires
+          case 'lantern': return 8;
+          case 'grass': return 9;
+          case 'planted_seed': return 10;
+          case 'dropped_item': return 11;
+          case 'harvestable_resource': return 12;
+          case 'rain_collector': return 18;
+          case 'projectile': return 19;
+          case 'viper_spittle': return 19; // Same priority as projectiles
+          case 'animal_corpse': return 20; // Same priority as player corpses
+          case 'player_corpse': return 20;
+          case 'player': return 21;     // Players render in front of most things including sea stacks
           default: return 15;
         }
       };

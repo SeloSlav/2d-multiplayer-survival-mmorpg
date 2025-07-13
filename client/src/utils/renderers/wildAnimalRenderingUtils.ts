@@ -262,7 +262,7 @@ export function renderWildAnimal({
             ctx.ellipse(renderPosX, renderPosY + 20, props.width / 3, 8, 0, 0, Math.PI * 2);
             ctx.fill();
         } else if (animalImage) {
-            // Use dynamic ground shadow for proper images
+            // Use dynamic ground shadow matching player shadow parameters for consistency
             drawDynamicGroundShadow({
                 ctx,
                 entityImage: animalImage,
@@ -271,6 +271,12 @@ export function renderWildAnimal({
                 imageDrawWidth: props.width,
                 imageDrawHeight: props.height,
                 cycleProgress: cycleProgress,
+                baseShadowColor: '0,0,0',
+                maxShadowAlpha: 0.6, // Match player shadow opacity
+                maxStretchFactor: 3.0, // Match player dramatic shadows
+                minStretchFactor: 0.25, // Match player minimum visibility
+                shadowBlur: 2, // Match player base shadow blur
+                pivotYOffset: 0, // Match player pivot offset
                 shakeOffsetX: shakeX,
                 shakeOffsetY: shakeY,
             });

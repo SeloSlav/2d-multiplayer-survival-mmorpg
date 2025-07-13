@@ -1050,11 +1050,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
 
 
-    // --- STEP 3: Render sea stacks and swimming player top halves together (Y-sorted) ---
+    // --- STEP 3: Render ALL entities together in proper Y-sorted order (except swimming player bottom halves) ---
 
-    // Create combined list of sea stacks and swimming player top halves for proper Y-sorting
-    const seaStackEntities = ySortedEntities.filter(entity => entity.type === 'sea_stack');
-
+    // Create swimming player top half entities
     const swimmingPlayers = Array.from(players.values())
       .filter(player => player.isOnWater && !player.isDead && !player.isKnockedOut)
       .map(player => {
@@ -1087,19 +1085,54 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       })
       .filter(item => item !== null);
 
-    // Combine and Y-sort sea stacks with swimming player top halves
-    const combinedEntities = [
-      ...seaStackEntities.map(entity => ({ ...entity, isSeaStack: true })),
-      ...swimmingPlayers.map(player => ({ ...player, isSeaStack: false }))
+    // Get all entities except swimming player bottom halves
+    const allEntitiesExceptSwimmingBottoms = ySortedEntities.filter(entity => 
+      !(entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut)
+    );
+
+    // Combine Y-sorted entities with swimming player top halves
+    const combinedEntities: any[] = [
+      ...allEntitiesExceptSwimmingBottoms.map(entity => ({ ...entity, isSwimmingPlayerTopHalf: false })),
+      ...swimmingPlayers.map(player => ({ ...player, isSwimmingPlayerTopHalf: true }))
     ].sort((a, b) => {
-      const aY = a.isSeaStack ? a.entity.posY : (a as any).yPosition;
-      const bY = b.isSeaStack ? b.entity.posY : (b as any).yPosition;
+      // Calculate Y position for sorting
+      let aY: number;
+      let bY: number;
+      
+      if (a.isSwimmingPlayerTopHalf) {
+        aY = (a as any).yPosition;
+      } else {
+        // Use same Y-sorting logic as in useEntityFiltering
+        const entity = a.entity;
+        if (entity.positionY !== undefined) {
+          aY = entity.positionY + 48; // Player foot position
+        } else if (entity.posY !== undefined) {
+          aY = entity.posY;
+        } else {
+          aY = 0;
+        }
+      }
+      
+      if (b.isSwimmingPlayerTopHalf) {
+        bY = (b as any).yPosition;
+      } else {
+        // Use same Y-sorting logic as in useEntityFiltering
+        const entity = b.entity;
+        if (entity.positionY !== undefined) {
+          bY = entity.positionY + 48; // Player foot position
+        } else if (entity.posY !== undefined) {
+          bY = entity.posY;
+        } else {
+          bY = 0;
+        }
+      }
+      
       return aY - bY;
     });
 
-    // Render combined entities (sea stacks and top halves) in Y-sorted order
+    // Render all combined entities in proper Y-sorted order
     combinedEntities.forEach(item => {
-      if (item.type === 'swimmingPlayerTopHalf') {
+      if (item.isSwimmingPlayerTopHalf && item.type === 'swimmingPlayerTopHalf') {
         // Render swimming player top half
         const player = item.entity;
         const playerId = item.playerId;
@@ -1195,7 +1228,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
       } else {
-        // Render sea stack - create single-item array for renderYSortedEntities
+        // Render regular Y-sorted entity (including sea stacks, players, wild animals, etc.)
         renderYSortedEntities({
           ctx,
           ySortedEntities: [item],
@@ -1239,56 +1272,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         });
       }
     });
-
-    // Render all OTHER non-swimming, non-seaStack Y-sorted entities
-    const otherEntities = ySortedEntities.filter(entity => 
-      !(entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut) &&
-      entity.type !== 'sea_stack'
-    );
-    
-    if (otherEntities.length > 0) {
-      renderYSortedEntities({
-        ctx,
-        ySortedEntities: otherEntities,
-        heroImageRef,
-        heroSprintImageRef,
-        heroIdleImageRef,
-        heroWaterImageRef,
-        heroCrouchImageRef,
-        lastPositionsRef,
-        activeConnections,
-        activeEquipments,
-        activeConsumableEffects,
-        itemDefinitions,
-        inventoryItems,
-        itemImagesRef,
-        doodadImagesRef,
-        shelterImage: shelterImageRef.current,
-        worldMouseX: currentWorldMouseX,
-        worldMouseY: currentWorldMouseY,
-        localPlayerId: localPlayerId,
-        animationFrame,
-        sprintAnimationFrame,
-        idleAnimationFrame,
-        nowMs: now_ms,
-        hoveredPlayerIds,
-        onPlayerHover: handlePlayerHover,
-        cycleProgress: currentCycleProgress,
-        renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
-        localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
-        playerDodgeRollStates,
-        remotePlayerInterpolation,
-        localPlayerIsCrouching,
-        closestInteractableCampfireId,
-        closestInteractableBoxId,
-        closestInteractableStashId,
-        closestInteractableSleepingBagId,
-        closestInteractableHarvestableResourceId,
-        closestInteractableDroppedItemId,
-        closestInteractableTarget,
-        shelterClippingData,
-      });
-    }
     // --- End Y-Sorted Entities ---
 
     // REMOVED: Top half rendering now integrated into Y-sorted system above

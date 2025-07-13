@@ -113,7 +113,7 @@ export default {
     
     <h2>Experience Semantic Generation Yourself</h2>
     
-    <p>Broth & Bullets is currently in closed alpha testing, with open beta scheduled for Q3 2025. Players interested in experiencing this revolutionary crafting system can join our Discord server for the latest development updates and a chance to participate in upcoming test weekends.</p>
+    <p>Broth & Bullets is currently in closed alpha testing, with open beta scheduled for Q3 2025. Players interested in experiencing this innovative crafting system can join our Discord server for the latest development updates and a chance to participate in upcoming test weekends.</p>
   `,
   tags: ["Survival Games", "Game Innovation", "Broth & Bullets", "AI Integration", "Procedural Generation", "Semantic Crafting"]
 }; 

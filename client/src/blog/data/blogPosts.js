@@ -1,4 +1,5 @@
 // Import all blog posts
+import brothBulletsAlphaLaunch from './posts/broth-bullets-alpha-launch';
 import spacetimedbRevolution from './posts/spacetimedb-revolution';
 import proceduralWorldGeneration from './posts/procedural-world-generation';
 import resourceSystemImplementation from './posts/resource-system-implementation';
@@ -8,6 +9,7 @@ import babushkaSpriteEvolution from './posts/babushka-sprite-evolution';
 
 // Export posts as an array, sorted by date (newest first)
 export const blogPosts = [
+  brothBulletsAlphaLaunch, // January 15, 2025 - Alpha Launch!
   spacetimedbRevolution, // January 15, 2025
   babushkaSpriteEvolution, // April 6, 2025
   best2DSurvivalGames, // April 5, 2025

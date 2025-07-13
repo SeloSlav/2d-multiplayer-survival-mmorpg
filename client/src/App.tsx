@@ -11,11 +11,16 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Components
 import LoginScreen from './components/LoginScreen';
 import GameScreen from './components/GameScreen';
 import CyberpunkLoadingScreen, { CyberpunkErrorBar } from './components/CyberpunkLoadingScreen';
+
+// Blog Components
+import BlogPage from './blog/BlogPage';
+import BlogPostPage from './blog/BlogPostPage';
 
 // Context Providers
 import { GameContextsProvider } from './contexts/GameContexts';
@@ -860,7 +865,13 @@ function App() {
         <AuthProvider>
             <GameContextsProvider>
                 <DebugProvider>
-                    <AppContent />
+                    <Router>
+                        <Routes>
+                            <Route path="/" element={<AppContent />} />
+                            <Route path="/blog" element={<BlogPage />} />
+                            <Route path="/blog/:slug" element={<BlogPostPage />} />
+                        </Routes>
+                    </Router>
                 </DebugProvider>
             </GameContextsProvider>
         </AuthProvider>

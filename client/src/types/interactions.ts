@@ -69,7 +69,7 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
     },
     dropped_item: {
         behavior: InteractionBehavior.TAP,
-        priority: 90,
+        priority: 95, // Increased from 90 to ensure it beats water (85)
         actionType: 'pickup_item'
     },
     
@@ -101,7 +101,7 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
     },
     corpse: {
         behavior: InteractionBehavior.INTERFACE,
-        priority: 75,
+        priority: 90, // Increased from 75 to 90 to ensure corpses beat water (85)
         actionType: 'open_corpse'
     },
     sleeping_bag: {
@@ -120,7 +120,7 @@ export const INTERACTION_CONFIGS: Record<InteractionTargetType, InteractionConfi
     water: {
         behavior: InteractionBehavior.HOLD,
         holdDurationMs: 250, // 250ms for drinking water
-        priority: 85,
+        priority: 85, // Lower than corpses (90), dropped items (95), and harvestable resources (100)
         actionType: 'drink_water'
     },
     

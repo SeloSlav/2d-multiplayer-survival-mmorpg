@@ -28,6 +28,7 @@
     "node-fetch": "^3.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-router-dom": "^7.6.3",
     "use-debounce": "^10.0.4"
   },
   "devDependencies": {

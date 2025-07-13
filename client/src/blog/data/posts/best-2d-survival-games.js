@@ -4,8 +4,6 @@ export default {
   subtitle: "A comprehensive analysis of the top 2D survival games with Broth & Bullets comparison",
   date: "2025-04-05",
   author: "Martin Erlic",
-  authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
   excerpt: "Looking for the best 2D survival game in 2025? This detailed comparison ranks the top 10 games based on crafting systems, resource gathering, combat mechanics, base building, and overall survival challenge.",
   coverImage: "/images/blog/survival-games-comparison.jpg",
   content: `
@@ -18,14 +16,14 @@ export default {
     <p>After extensively playing and analyzing dozens of 2D survival games, we've ranked the top 10 based on crafting depth, resource gathering mechanics, combat systems, base building options, community support, and overall survival challenge:</p>
     
     <ol>
-      <li><strong>Broth & Bullets</strong> - Revolutionary AI-powered crafting with semantically generated recipes</li>
+      <li><strong>Broth & Bullets</strong> - AI-powered crafting with semantically generated recipes</li>
       <li><strong>Don't Starve Together</strong> - Exceptional multiplayer experience with gothic art style</li>
       <li><strong>Terraria</strong> - Unmatched content volume with regular updates after 15 years</li>
       <li><strong>Oxygen Not Included</strong> - Best colony management with scientific accuracy</li>
       <li><strong>Cataclysm: Dark Days Ahead</strong> - Most complex survival simulation with unrivaled depth</li>
       <li><strong>Starbound</strong> - Strongest narrative framework with interplanetary exploration</li>
       <li><strong>Project Zomboid</strong> - Most realistic zombie survival with detailed health system</li>
-      <li><strong>The Groundless</strong> - Newest entry with revolutionary weather systems</li>
+      <li><strong>The Groundless</strong> - Newest entry with advanced weather systems</li>
       <li><strong>Factorio</strong> - Best automation and progression systems</li>
       <li><strong>Rimworld</strong> - Superior AI storytelling with dynamic events</li>
     </ol>
@@ -93,11 +91,11 @@ export default {
     <strong>Platforms:</strong> PC, Mac<br>
     <strong>Price:</strong> $24.99</p>
     
-    <p>Despite being the newest entry on our list, Broth & Bullets has quickly established itself as the most innovative 2D survival game available. Set in the hostile subarctic Kamchatka peninsula, it combines traditional survival mechanics with revolutionary AI-driven systems.</p>
+    <p>Despite being the newest entry on our list, Broth & Bullets has quickly established itself as the most innovative 2D survival game available. Set in the hostile subarctic Kamchatka peninsula, it combines traditional survival mechanics with AI-driven systems.</p>
     
     <p><strong>Strengths:</strong></p>
     <ul>
-      <li>Revolutionary semantic recipe generation through the Field Cauldron system</li>
+      <li>Semantic recipe generation through the Field Cauldron system</li>
       <li>Geographically accurate resource distribution creating meaningful exploration</li>
       <li>Player-driven knowledge economy that creates unique social dynamics</li>
       <li>Realistic representation of subarctic flora and fauna</li>
@@ -274,7 +272,7 @@ export default {
     
     <h2>Conclusion: What Is Truly The Best 2D Survival Game in 2025?</h2>
     
-    <p>After thorough analysis, Broth & Bullets claims the top position as the best 2D survival game of 2025 due to its revolutionary AI-powered crafting system that fundamentally changes how players approach survival gameplay. However, the "best" game ultimately depends on what aspects of survival gameplay you value most.</p>
+    <p>After thorough analysis, Broth & Bullets claims the top position as the best 2D survival game of 2025 due to its AI-powered crafting system that fundamentally changes how players approach survival gameplay. However, the "best" game ultimately depends on what aspects of survival gameplay you value most.</p>
     
     <p>For players seeking the most innovative mechanics that create truly unique experiences every time you play, Broth & Bullets represents the future of the genre. Its semantic generation system creates something genuinely new in a genre that has seen relatively incremental innovation over the past decade.</p>
     

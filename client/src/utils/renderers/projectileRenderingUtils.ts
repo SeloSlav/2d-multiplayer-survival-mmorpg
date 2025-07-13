@@ -107,8 +107,11 @@ export const renderProjectile = ({
   // Calculate rotation based on velocity vector
   let angle: number;
   if (isThrown) {
-    // Thrown items maintain their initial trajectory angle (no gravity to change it)
-    angle = Math.atan2(projectile.velocityY, projectile.velocityX) + (Math.PI / 4);
+    // Thrown items spin while maintaining their trajectory
+    const baseAngle = Math.atan2(projectile.velocityY, projectile.velocityX) + (Math.PI / 4);
+    const spinSpeed = 8.0; // Rotations per second - adjust for desired spin rate
+    const spinAngle = spinSpeed * 2 * Math.PI * elapsedTimeSeconds;
+    angle = baseAngle + spinAngle;
   } else {
     // FIXED: Calculate rotation based on instantaneous velocity vector with correct gravity
     const instantaneousVelocityY = projectile.velocityY + GRAVITY * finalGravityMultiplier * elapsedTimeSeconds;

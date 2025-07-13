@@ -18,6 +18,7 @@ import {
     PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
 } from '../generated';
 import { InteractableTarget } from '../types/interactions';
+import { selectHighestPriorityTarget } from '../types/interactions'; // ADDED: Import priority selection helper
 import {
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
     CAMPFIRE_HEIGHT,
@@ -727,9 +728,7 @@ export function useInteractionFinder({
 
             // Find the single closest target
             if (candidates.length > 0) {
-                closestTarget = candidates.reduce((closest, candidate) => 
-                    candidate.distance < closest.distance ? candidate : closest
-                );
+                closestTarget = selectHighestPriorityTarget(candidates);
             }
         }
 

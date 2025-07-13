@@ -209,10 +209,10 @@ CRITICAL TACTICAL RULES:
 - Campfires work fine in light rain, moderate rain, and clear weather
 
 📊 STAT VALUE INTERPRETATION (CRITICAL):
-- Hunger, thirst, and warmth are RAW VALUES (0-100+), NOT percentages
-- A hunger of 249 means "249 hunger points" (excellent nutrition), NOT "249 percent"
+- Health ranges from 0-100, hunger and thirst range from 0-250, warmth ranges from 0-100+
+- These are RAW VALUES, NOT percentages - a hunger of 249 means "249 hunger points" (excellent nutrition), NOT "249 percent"
 - Health regeneration requires ALL three values above 50 and no damage effects active
-- High values like 200+ indicate excellent condition for fast regeneration
+- High hunger/thirst values like 200+ indicate excellent condition for fast regeneration
 - NEVER say "percent" when describing these stats - always say "points" or "level"
 
 🌦️ WEATHER ASSESSMENT:
@@ -342,8 +342,8 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
       // Player Status - EXACT NUMBERS for visible stats (rounded to whole numbers)
       prompt += `\nOPERATIVE STATUS:\n`;
       prompt += `- Health: ${Math.round(ctx.playerHealth)} out of 100 health\n`;
-      prompt += `- Hunger: ${Math.round(ctx.playerHunger)} out of 100 (${ctx.playerHunger < 20 ? 'CRITICAL - need food immediately' : ctx.playerHunger < 40 ? 'Low - should eat soon' : ctx.playerHunger < 70 ? 'Moderate' : 'Well fed'})\n`;
-      prompt += `- Thirst: ${Math.round(ctx.playerThirst)} out of 100 (${ctx.playerThirst < 20 ? 'CRITICAL - need water immediately' : ctx.playerThirst < 40 ? 'Low - should drink soon' : ctx.playerThirst < 70 ? 'Moderate' : 'Well hydrated'})\n`;
+      prompt += `- Hunger: ${Math.round(ctx.playerHunger)} out of 250 (${ctx.playerHunger < 50 ? 'CRITICAL - need food immediately' : ctx.playerHunger < 100 ? 'Low - should eat soon' : ctx.playerHunger < 150 ? 'Moderate' : 'Well fed'})\n`;
+      prompt += `- Thirst: ${Math.round(ctx.playerThirst)} out of 250 (${ctx.playerThirst < 50 ? 'CRITICAL - need water immediately' : ctx.playerThirst < 100 ? 'Low - should drink soon' : ctx.playerThirst < 150 ? 'Moderate' : 'Well hydrated'})\n`;
       
       // Hidden stats - FUZZY DESCRIPTIONS (no exact numbers)
       if (ctx.playerWarmth <= 20) {
@@ -440,7 +440,7 @@ Remember: Stay in character, be helpful, keep it tactical and concise. ALWAYS ch
     prompt += `You are SOVA, an AI assistant providing tactical support.\\n\\n`;
     
     prompt += `🚨 CRITICAL ACCURACY REQUIREMENTS - FOLLOW EXACTLY: 🚨\\n`;
-    prompt += `- Use EXACT numbers: health (${ctx?.playerHealth ? Math.round(ctx.playerHealth) : 'unknown'} out of 100), hunger (${ctx?.playerHunger ? Math.round(ctx.playerHunger) : 'unknown'} out of 100), thirst (${ctx?.playerThirst ? Math.round(ctx.playerThirst) : 'unknown'} out of 100)\\n`;
+    prompt += `- Use EXACT numbers: health (${ctx?.playerHealth ? Math.round(ctx.playerHealth) : 'unknown'} out of 100), hunger (${ctx?.playerHunger ? Math.round(ctx.playerHunger) : 'unknown'} out of 250), thirst (${ctx?.playerThirst ? Math.round(ctx.playerThirst) : 'unknown'} out of 250)\\n`;
     const weatherDescription = ctx?.currentWeather || 'unknown';
     const rainInfo = (ctx?.rainIntensity && ctx.rainIntensity > 0) 
       ? ` with ${this.getRainIntensityDescription(ctx.rainIntensity * 100)} (${(ctx.rainIntensity * 100).toFixed(0)}% precipitation level)`
