@@ -410,8 +410,8 @@ export function drawMinimapOntoCanvas({
       
       // Calculate the world bounds within the minimap
       // The cached minimap represents the entire game world
-      const worldWidthPx = 500 * 48; // 500 tiles * 48 pixels per tile = 24000 pixels
-      const worldHeightPx = 500 * 48; // 500 tiles * 48 pixels per tile = 24000 pixels
+      const worldWidthPx = gameConfig.worldWidthPx; // Derived from gameConfig
+      const worldHeightPx = gameConfig.worldHeightPx; // Derived from gameConfig
       
       // Calculate where the world bounds appear in the current minimap view
       const worldRectScreenX = drawOffsetX + 0 * currentScale; // World X=0

@@ -1,9 +1,10 @@
 // AAA-Quality Client-side Collision Detection System
 import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal, Barrel, Furnace } from '../generated';
+import { gameConfig } from '../config/gameConfig';
 
 // ===== CONFIGURATION CONSTANTS =====
-const WORLD_WIDTH_PX = 24000;
-const WORLD_HEIGHT_PX = 24000;
+const WORLD_WIDTH_PX = gameConfig.worldWidthPx;
+const WORLD_HEIGHT_PX = gameConfig.worldHeightPx;
 const PLAYER_RADIUS = 32;
 
 // Unified collision radii for consistency - match visual sprite sizes

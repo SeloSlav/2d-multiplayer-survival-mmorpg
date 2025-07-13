@@ -1,0 +1,157 @@
+---
+description: Apply this rule when the user wants to change the world map size to any other dimensions (e.g., 1000x1000, 250x250, etc.).
+alwaysApply: false
+---
+
+# Map Size Change Guide
+
+This guide provides step-by-step instructions for changing the world map size from the current 500x500 tiles to any other dimensions (e.g., 1000x1000, 250x250, etc.).
+
+**🚀 SIMPLIFIED PROCESS:** Only 2 files need manual changes - all others auto-scale!
+
+## Quick Reference
+
+**Current Size:** 500x500 tiles (24,000x24,000 pixels at 48px per tile)  
+**Files to Modify:** 2 files only! 🎉 (Others auto-derive from config)
+
+## Step-by-Step Process
+
+### 1. Server Core Constants
+**File:** `server/src/lib.rs`
+**Lines:** 305-306, 529-530
+
+```rust
+// Change these constants (lines 305-306):
+pub const WORLD_WIDTH_TILES: u32 = NEW_SIZE;   // Change from 500
+pub const WORLD_HEIGHT_TILES: u32 = NEW_SIZE;  // Change from 500
+
+// Change world generation config (lines 529-530):
+world_width_tiles: NEW_SIZE,   // Change from 500
+world_height_tiles: NEW_SIZE,  // Change from 500
+```
+
+### 2. Client Configuration
+**File:** `client/src/config/gameConfig.ts`
+**Lines:** 15-16
+
+```typescript
+// Change these constants:
+const SERVER_WORLD_WIDTH_TILES = NEW_SIZE;  // Change from 500
+const SERVER_WORLD_HEIGHT_TILES = NEW_SIZE; // Change from 500
+```
+
+## Auto-Scaling Files ✅ NO CHANGES NEEDED
+
+The following files now automatically derive from the config above:
+
+### ✅ **`server/src/world_generation.rs`** - Auto-scales from lib.rs constants
+### ✅ **`client/src/utils/clientCollision.ts`** - Auto-derives from gameConfig.ts  
+### ✅ **`client/src/components/Minimap.tsx`** - Auto-derives from gameConfig.ts
+
+## Build and Deploy Sequence
+
+**CRITICAL:** Follow this exact order after making changes:
+
+```bash
+# 1. Build server
+cd server
+spacetime build --project-path .
+
+# 2. Clear and republish database (destroys existing world data)
+spacetime publish -c --project-path . broth-bullets-local
+
+# 3. Generate fresh client bindings
+cd ../client
+spacetime generate --lang typescript --out-dir src/generated --project-path ../server
+
+# 4. Restart client dev server
+npm run dev
+```
+
+## Performance Impact Analysis
+
+### Map Size Scaling
+- **250x250:** 62,500 tiles (¼ original) - Faster generation, less memory
+- **500x500:** 250,000 tiles (current) - Baseline performance
+- **1000x1000:** 1,000,000 tiles (4x original) - 4x memory, slower generation
+- **2000x2000:** 4,000,000 tiles (16x original) - Significant impact
+
+### Resource Scaling Considerations
+Large maps may require adjusting:
+- Resource spawn densities in `server/src/environment.rs`
+- Chunk loading systems for client performance
+- Memory allocation on both server and client
+
+## Common Pitfalls
+
+### ❌ Don't Do This:
+1. **Partial updates** - Missing either of the 2 core files causes sync issues
+2. **Wrong pixel calculations** - Always multiply tiles by 48 for pixel dimensions  
+3. **Skipping database clear** - Old world data will conflict with new size
+4. **Forgetting client bindings** - TypeScript errors will occur
+
+### ✅ Always Do This:
+1. **Complete file updates** - Change BOTH files before building
+2. **Database clearing** - Use `-c` flag when republishing
+3. **Fresh bindings** - Regenerate TypeScript bindings after server changes
+4. **Test thoroughly** - Verify player movement, collisions, and boundaries
+
+## Size-Specific Recommendations
+
+### Small Maps (250x250 or smaller)
+- Faster world generation
+- Good for testing and prototyping
+- May need adjusted resource densities
+
+### Medium Maps (500x500 to 750x750)
+- Balanced performance and gameplay
+- Current optimizations work well
+- Standard resource densities
+
+### Large Maps (1000x1000 or larger)
+- Consider chunk-based loading systems
+- May need resource density adjustments
+- Monitor memory usage closely
+- Consider reducing entity update frequencies
+
+## Quick Commands for Common Sizes
+
+### Double Dimensions (500 → 1000):
+```bash
+# Replace 500 with 1000 in server/src/lib.rs and client/src/config/gameConfig.ts
+# Results in 2x width × 2x height = 4x larger world area
+```
+
+### Half Dimensions (500 → 250):
+```bash
+# Replace 500 with 250 in server/src/lib.rs and client/src/config/gameConfig.ts  
+# Results in 0.5x width × 0.5x height = ¼ world area
+```
+
+### Quadruple Dimensions (500 → 2000):
+```bash
+# Replace 500 with 2000 in server/src/lib.rs and client/src/config/gameConfig.ts
+# Results in 4x width × 4x height = 16x larger world area
+# ⚠️ Warning: May require performance optimizations
+```
+
+## Verification Checklist
+
+After completing changes:
+- [ ] Server builds without errors
+- [ ] Database publishes successfully with `-c` flag
+- [ ] Client bindings generate without errors
+- [ ] Client starts without TypeScript errors
+- [ ] Player can move around entire world area
+- [ ] Minimap shows correct proportions
+- [ ] Collision boundaries work at world edges
+- [ ] Resource spawning covers new area appropriately
+
+## Emergency Rollback
+
+If issues occur, quickly revert by:
+1. Change NEW_SIZE values back to 500 in **both** files (`lib.rs` and `gameConfig.ts`)
+2. Follow build sequence again
+3. Clear database with `spacetime publish -c`
+
+This ensures you can always return to the known working 500x500 configuration.

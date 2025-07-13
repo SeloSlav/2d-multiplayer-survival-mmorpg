@@ -1,7 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp, Identity};
 use noise::{NoiseFn, Perlin, Seedable};
 use log;
-use crate::{WorldTile, TileType, WorldGenConfig, MinimapCache};
+use crate::{WorldTile, TileType, WorldGenConfig, MinimapCache, WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES};
 
 // Import the table trait
 use crate::world_tile as WorldTileTableTrait;
@@ -330,7 +330,7 @@ fn generate_river_network(config: &WorldGenConfig, noise: &Perlin, shore_distanc
     log::info!("Generating clean main rivers with natural meanders (NO tributaries)");
     
     // Scale river parameters with map size - all rivers same width for consistency
-    let map_scale = ((width * height) as f64 / (500.0 * 500.0)).sqrt();
+            let map_scale = ((width * height) as f64 / (WORLD_WIDTH_TILES as f64 * WORLD_HEIGHT_TILES as f64)).sqrt();
     let river_width = (3.0 * map_scale).max(2.0) as i32; // Same width for all rivers
     
     // Generate ONLY 2 main rivers with beautiful meandering (avoiding center)
@@ -516,7 +516,7 @@ fn generate_lakes(config: &WorldGenConfig, noise: &Perlin, shore_distance: &[Vec
     let mut lakes = vec![vec![false; width]; height];
     
     // Scale lake density with map size
-    let map_scale = (width * height) as f64 / (500.0 * 500.0); // Relative to base 500x500 map
+    let map_scale = (width * height) as f64 / (WORLD_WIDTH_TILES as f64 * WORLD_HEIGHT_TILES as f64); // Relative to base map size
     let base_lake_density = 0.012; // Base sampling frequency for lakes
     let scaled_density = base_lake_density * map_scale.sqrt();
     
@@ -939,8 +939,8 @@ pub fn generate_default_world(ctx: &ReducerContext) -> Result<(), String> {
     
     let default_config = WorldGenConfig {
         seed: 12345,
-        world_width_tiles: 500,
-        world_height_tiles: 500,
+        world_width_tiles: WORLD_WIDTH_TILES,
+        world_height_tiles: WORLD_HEIGHT_TILES,
         chunk_size: 10,
         island_border_width: 8,
         beach_width: 6,
@@ -964,8 +964,8 @@ pub fn generate_minimap_data(ctx: &ReducerContext, minimap_width: u32, minimap_h
     }
     
     // Calculate sampling ratios based on actual world size in tiles
-    let world_width_tiles = 500.0; // Known world size
-    let world_height_tiles = 500.0;
+    let world_width_tiles = WORLD_WIDTH_TILES as f64;
+    let world_height_tiles = WORLD_HEIGHT_TILES as f64;
     let sample_step_x = world_width_tiles / minimap_width as f64;
     let sample_step_y = world_height_tiles / minimap_height as f64;
     
