@@ -378,21 +378,5 @@ export const renderFurnaceLight = ({
     ctx.arc(industrialFurnaceX, industrialFurnaceY, mainRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Layer 3: Core bright light (white-hot molten metal center)
-    const coreRadius = Math.max(0, FURNACE_LIGHT_RADIUS_BASE * 0.9 * FURNACE_SCALE + baseFlicker * 1.2);
-    const coreGradient = ctx.createRadialGradient(
-        industrialFurnaceX, industrialFurnaceY, 0,
-        industrialFurnaceX, industrialFurnaceY, coreRadius
-    );
-    coreGradient.addColorStop(0, 'rgba(255, 250, 220, 0.22)'); // Bright white-hot center
-    coreGradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.20)'); // White-hot core
-    coreGradient.addColorStop(0.4, 'rgba(255, 230, 180, 0.18)'); // Bright yellow-white
-    coreGradient.addColorStop(0.6, 'rgba(255, 210, 160, 0.15)'); // Bright yellow
-    coreGradient.addColorStop(0.8, 'rgba(255, 190, 140, 0.12)'); // Yellow-orange
-    coreGradient.addColorStop(1, 'rgba(255, 170, 120, 0)'); // Bright orange fade
-    
-    ctx.fillStyle = coreGradient;
-    ctx.beginPath();
-    ctx.arc(lightScreenX, lightScreenY, coreRadius, 0, Math.PI * 2);
-    ctx.fill();
+
 };
