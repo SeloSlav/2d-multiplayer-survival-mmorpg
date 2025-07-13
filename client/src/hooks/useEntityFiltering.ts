@@ -729,10 +729,12 @@ export function useEntityFiltering(
         return sortY;
       }
 
-      // Sea stacks should sort by their base position like trees (they're tall structures)
+      // Sea stacks should sort by their water line level (visual interaction point)
       if (isSeaStack(entity)) {
-        // Sea stacks are tall structures like trees, sort by their base position
-        sortY = entity.posY;
+        // Sea stacks sort by their water line level for proper player interaction
+        // The water line is 55px above the underwater base (HEIGHT_OFFSET from seaStackRenderingUtils.ts)
+        const WATER_LINE_OFFSET = 55; // Must match HEIGHT_OFFSET in seaStackRenderingUtils.ts
+        sortY = entity.posY - WATER_LINE_OFFSET;
         return sortY;
       }
 
@@ -891,14 +893,13 @@ export function useEntityFiltering(
       const getTypePriority = (type: string): number => {
         switch (type) {
           case 'shelter': return 0;     // Shelters render behind everything
-          case 'sea_stack': return 0.5; // Sea stacks render like trees but slightly in front
           case 'tree': return 1;        // Trees render behind most things
           case 'stone': return 2;       // Stones
           case 'wild_animal': return 3; // Wild animals render in front of trees
           case 'wooden_storage_box': return 4;
           case 'stash': return 5;
-          case 'campfire': return 25;  // Changed from 6 to 25 - campfires render in front of players when very close
-          case 'furnace': return 26;   // ADDED: Furnaces render slightly in front of campfires
+          case 'campfire': return 6;  // Campfires are ground objects like storage boxes
+          case 'furnace': return 6.5; // Furnaces are ground objects, slightly in front of campfires
           case 'lantern': return 7;
           case 'grass': return 8;
           case 'planted_seed': return 9;
@@ -910,6 +911,7 @@ export function useEntityFiltering(
           case 'animal_corpse': return 19; // Same priority as player corpses
           case 'player_corpse': return 19;
           case 'player': return 20;     // Players render in front of most things
+          case 'sea_stack': return 21;  // Sea stacks render in front of players (towering structures)
           default: return 15;
         }
       };

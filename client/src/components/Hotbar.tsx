@@ -213,7 +213,6 @@ const Hotbar: React.FC<HotbarProps> = ({
     
     // Allow specific items to be used in water
     const allowedInWater = [
-      'Torch',
       'Reed Water Bottle', 
       'Plastic Water Jug'
     ];
@@ -483,7 +482,6 @@ const Hotbar: React.FC<HotbarProps> = ({
         if (currentItem) {
           // Don't auto-unequip allowed items in water
           const allowedInWater = [
-            'Torch',
             'Reed Water Bottle', 
             'Plastic Water Jug'
           ];
@@ -625,7 +623,6 @@ const Hotbar: React.FC<HotbarProps> = ({
                         isEquippable;
     
     const allowedInWater = [
-      'Torch',
       'Reed Water Bottle', 
       'Plastic Water Jug'
     ];

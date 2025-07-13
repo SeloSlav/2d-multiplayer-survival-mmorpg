@@ -39,6 +39,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Raw Twigfish", 20, None, Some(5u16)),
         ("Hunting Bow", 1, None, Some(6u16)),
         ("Wooden Arrow", 50, None, Some(7u16)),
+        ("Reed Water Bottle", 1, None, Some(8u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

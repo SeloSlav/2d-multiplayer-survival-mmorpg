@@ -89,6 +89,7 @@ import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils'
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
 import { renderAnimalCorpse, preloadAnimalCorpseImages } from '../utils/renderers/animalCorpseRenderingUtils';
+import { renderEquippedItem } from '../utils/renderers/equippedItemRenderingUtils';
 
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
@@ -1172,6 +1173,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             localPlayerIsCrouching,
             'top' // Render only top half (above water portion)
           );
+          
+          // CRITICAL FIX: Render equipped items for swimming players
+          // Swimming players are excluded from normal Y-sorted rendering, so we need to render their equipped items separately
+          const equipment = activeEquipments.get(playerId);
+          let itemDef: SpacetimeDBItemDefinition | null = null;
+          let itemImg: HTMLImageElement | null = null;
+
+          if (equipment && equipment.equippedItemDefId && equipment.equippedItemInstanceId) {
+            // Validate that the equipped item instance actually exists in inventory
+            const equippedItemInstance = inventoryItems.get(equipment.equippedItemInstanceId.toString());
+            if (equippedItemInstance && equippedItemInstance.quantity > 0) {
+              itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString()) || null;
+              itemImg = (itemDef ? itemImagesRef.current.get(itemDef.iconAssetName) : null) || null;
+            }
+          }
+          
+          const canRenderItem = itemDef && itemImg && itemImg.complete && itemImg.naturalHeight !== 0;
+          if (canRenderItem && equipment) {
+            renderEquippedItem(ctx, player, equipment, itemDef!, itemDefinitions, itemImg!, now_ms, 0, itemImagesRef.current, activeConsumableEffects, localPlayerId);
+          }
         }
       } else {
         // Render sea stack - create single-item array for renderYSortedEntities
