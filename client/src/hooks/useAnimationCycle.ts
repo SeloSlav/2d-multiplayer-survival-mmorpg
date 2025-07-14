@@ -1,59 +1,52 @@
-import { useState, useEffect, useRef } from 'react';
+// Replace the entire file content with optimized RAF-based animation
 
-// Custom Hook for general animations (items, effects, etc.)
-// For player walking animation, use useWalkingAnimationCycle instead
-export function useAnimationCycle(interval: number, numFrames: number): number {
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+// Base hook using RAF for all animations
+export function useAnimationCycle(frameDuration: number, numFrames: number): number {
   const [animationFrame, setAnimationFrame] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const frameCountRef = useRef<number>(0);
 
-  useEffect(() => {
-    // Clear any existing interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+  const animate = useCallback((time: number) => {
+    if (lastFrameTimeRef.current === 0) {
+      lastFrameTimeRef.current = time;
     }
 
-    // Simple interval-based animation
-    intervalRef.current = setInterval(() => {
-      setAnimationFrame(frame => (frame + 1) % numFrames);
-    }, interval);
+    const deltaTime = time - lastFrameTimeRef.current;
+    if (deltaTime >= frameDuration) {
+      frameCountRef.current = (frameCountRef.current + 1) % numFrames;
+      setAnimationFrame(frameCountRef.current);
+      lastFrameTimeRef.current = time;
+    }
 
+    rafRef.current = requestAnimationFrame(animate);
+  }, [frameDuration, numFrames]);
+
+  useEffect(() => {
+    rafRef.current = requestAnimationFrame(animate);
+    
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
     };
-  }, [interval, numFrames]);
+  }, [animate]);
 
   return animationFrame;
 }
 
-// Custom Hook specifically for walking animation with proper frame sequence
-// Creates smooth walking motion using 6 frames: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> repeat
-// Frame 1 is typically the neutral/idle position, creating natural movement
-export function useWalkingAnimationCycle(interval: number = 120): number {
-  return useAnimationCycle(interval, 6); // 6 frames for walking animation (4x6 sprite sheet)
+// Specific animation hooks with optimized frame rates
+export function useWalkingAnimationCycle(): number {
+  return useAnimationCycle(150, 4); // 150ms per frame, 4 frames
 }
 
-// Custom Hook specifically for sprinting animation with proper frame sequence
-// Creates smooth sprinting motion using 8 frames: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> repeat
-// Faster, more dynamic animation for sprinting
-export function useSprintAnimationCycle(interval: number = 100): number {
-  return useAnimationCycle(interval, 8); // 8 frames for sprinting animation (4x8 sprite sheet)
+export function useSprintAnimationCycle(): number {
+  return useAnimationCycle(100, 4); // 100ms per frame, 4 frames (faster)
 }
 
-// Custom Hook specifically for idle animation with proper frame sequence
-// Creates smooth idle motion using 16 frames: 0 -> 1 -> 2 -> ... -> 15 -> repeat
-// Slower, more relaxed animation for idle state
-export function useIdleAnimationCycle(interval: number = 250): number {
-  return useAnimationCycle(interval, 16); // 16 frames for idle animation (4x4 sprite sheet)
+export function useIdleAnimationCycle(): number {
+  return useAnimationCycle(500, 4); // 500ms per frame, 4 frames (slower)
 }
-
-// Simple breathing animation cycle for idle state
-export function useBreathingAnimationCycle(interval: number = 800): number {
-  return useAnimationCycle(interval, 2); // 2 frames for breathing
-}
-
-// Simplified item use animation cycle
-export function useItemUseAnimationCycle(interval: number = 200): number {
-  return useAnimationCycle(interval, 3); // 3 frames for item use
-} 

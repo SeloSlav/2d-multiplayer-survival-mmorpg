@@ -243,6 +243,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // console.log("Cloud data in GameCanvas:", Array.from(clouds?.values() || []));
 
   // --- Refs ---
+  const frameNumber = useRef(0);
   const lastPositionsRef = useRef<Map<string, { x: number, y: number }>>(new Map());
   const placementActionsRef = useRef(placementActions);
   const prevPlayerHealthRef = useRef<number | undefined>(undefined);
@@ -444,9 +445,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Individual entity IDs for consistency and backward compatibility
   });
 
-  const animationFrame = useWalkingAnimationCycle(120); // Faster, smoother walking animation
-  const sprintAnimationFrame = useSprintAnimationCycle(100); // Even faster animation for sprinting
-  const idleAnimationFrame = useIdleAnimationCycle(250); // Slower, relaxed animation for idle state
+  const animationFrame = useWalkingAnimationCycle(); // Faster, smoother walking animation
+  const sprintAnimationFrame = useSprintAnimationCycle(); // Even faster animation for sprinting
+  const idleAnimationFrame = useIdleAnimationCycle(); // Slower, relaxed animation for idle state
 
   // Use ref instead of state to avoid re-renders every frame
   const deltaTimeRef = useRef<number>(0);
@@ -743,12 +744,44 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }));
   }, [shelters]);
 
+  // Performance monitoring - detect lag spikes
+  const checkPerformance = useCallback((frameStartTime: number) => {
+    const frameTime = performance.now() - frameStartTime;
+    const perf = performanceMode.current;
+    
+    // Emergency mode if frame takes > 50ms
+    if (frameTime > 50) {
+      perf.isEmergencyMode = true;
+      perf.maxEntitiesPerFrame = 30; // Severely limit entities
+      console.warn(`🚨 Emergency performance mode activated - ${frameTime.toFixed(1)}ms frame`);
+    } else if (frameTime < 20 && perf.isEmergencyMode) {
+      // Exit emergency mode if performance improves
+      perf.isEmergencyMode = false;
+      perf.maxEntitiesPerFrame = 100;
+      console.log(`✅ Emergency performance mode deactivated`);
+    }
+    
+    perf.lastFrameTime = frameTime;
+  }, []);
+
   const renderGame = useCallback(() => {
+    const frameStartTime = performance.now();
     const canvas = gameCanvasRef.current;
     const maskCanvas = maskCanvasRef.current;
     if (!canvas || !maskCanvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    // Emergency performance check
+    const perf = performanceMode.current;
+    
+    // Skip frame if in emergency mode and frame counter says so
+    if (perf.isEmergencyMode) {
+      perf.skipFrameCounter++;
+      if (perf.skipFrameCounter % 2 === 0) {
+        return; // Skip every other frame during emergency
+      }
+    }
 
     const now_ms = Date.now();
     const currentWorldMouseX = worldMousePos.x;
@@ -1072,11 +1105,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       !(entity.type === 'player' && entity.entity.isOnWater && !entity.entity.isDead && !entity.entity.isKnockedOut)
     );
 
+    // EMERGENCY: Aggressive entity culling in dense areas
+    frameNumber.current++;
+    const entityCount = allEntitiesExceptSwimmingBottoms.length + swimmingPlayers.length;
+    const maxEntities = perf.isEmergencyMode ? perf.maxEntitiesPerFrame : 100;
+    
+    // Aggressively limit entities if too many
+    let limitedEntitiesExceptSwimming = allEntitiesExceptSwimmingBottoms;
+    if (entityCount > maxEntities) {
+      // Sort by distance to player and only render closest entities
+      const playerPos = predictedPosition || { x: localPlayer?.positionX || 0, y: localPlayer?.positionY || 0 };
+      limitedEntitiesExceptSwimming = allEntitiesExceptSwimmingBottoms
+        .map(entity => {
+          const dx = (entity.entity.positionX || entity.entity.posX || 0) - playerPos.x;
+          const dy = (entity.entity.positionY || entity.entity.posY || 0) - playerPos.y;
+          return { ...entity, distanceToPlayer: dx * dx + dy * dy };
+        })
+        .sort((a, b) => a.distanceToPlayer - b.distanceToPlayer)
+        .slice(0, maxEntities)
+        .map(({ distanceToPlayer, ...entity }) => entity);
+    }
+    
+    const sortInterval = entityCount > 100 ? 5 : 1; // Sort even less frequently
+    
     // Combine Y-sorted entities with swimming player top halves
-    const combinedEntities: any[] = [
-      ...allEntitiesExceptSwimmingBottoms.map(entity => ({ ...entity, isSwimmingPlayerTopHalf: false })),
+    let combinedEntities: any[] = [
+      ...limitedEntitiesExceptSwimming.map(entity => ({ ...entity, isSwimmingPlayerTopHalf: false })),
       ...swimmingPlayers.map(player => ({ ...player, isSwimmingPlayerTopHalf: true }))
-    ].sort((a, b) => {
+    ];
+    
+    // EMERGENCY: Skip Y-sorting entirely if too many entities
+    if (entityCount > 150 || perf.isEmergencyMode) {
+      // Don't sort at all - just render in current order for maximum performance
+      console.log(`⚡ Skipping Y-sort for ${entityCount} entities (emergency mode: ${perf.isEmergencyMode})`);
+    } else if (frameNumber.current % sortInterval === 0) {
+      combinedEntities = combinedEntities.sort((a, b) => {
       // Calculate Y position for sorting
       let aY: number;
       let bY: number;
@@ -1109,8 +1172,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         }
       }
       
-      return aY - bY;
-    });
+        return aY - bY;
+      });
+    }
 
     // Render all combined entities in proper Y-sorted order
     combinedEntities.forEach(item => {
@@ -1231,13 +1295,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           worldMouseX: currentWorldMouseX,
           worldMouseY: currentWorldMouseY,
           localPlayerId: localPlayerId,
-          animationFrame,
-          sprintAnimationFrame,
-          idleAnimationFrame,
+          animationFrame: perf.isEmergencyMode ? 0 : animationFrame, // Freeze animations during lag
+          sprintAnimationFrame: perf.isEmergencyMode ? 0 : sprintAnimationFrame,
+          idleAnimationFrame: perf.isEmergencyMode ? 0 : idleAnimationFrame,
           nowMs: now_ms,
           hoveredPlayerIds,
           onPlayerHover: handlePlayerHover,
-          cycleProgress: currentCycleProgress,
+          cycleProgress: perf.isEmergencyMode ? 0.5 : currentCycleProgress, // Fixed lighting during lag
           renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
           localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
           playerDodgeRollStates,
@@ -1266,8 +1330,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Wild animals are now rendered through the Y-sorted entities system for proper layering
 
-    // Render campfire particles here, after other world entities but before labels/UI
-    if (ctx) { // Ensure context is still valid
+    // EMERGENCY: Skip expensive particle systems during lag
+    if (ctx && !perf.isEmergencyMode) { // Disable particles in emergency mode
       // Call without camera offsets, as ctx is already translated
       renderParticlesToCanvas(ctx, campfireParticles);
       renderParticlesToCanvas(ctx, torchParticles);
@@ -1519,9 +1583,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     ctx.restore();
 
+    // Performance monitoring - check frame time at end
+    checkPerformance(frameStartTime);
+
     // Minimap now rendered as React component overlay, not on game canvas
 
-  }, [
+  }, [checkPerformance,
     // Dependencies
     visibleHarvestableResources,
     visibleHarvestableResourcesMap,
@@ -1765,6 +1832,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Game loop for processing actions
   useGameLoop(processInputsAndActions);
+
+  // Emergency performance mode
+  const performanceMode = useRef({ 
+    isEmergencyMode: false, 
+    lastFrameTime: 0,
+    skipFrameCounter: 0,
+    maxEntitiesPerFrame: 100
+  });
 
   return (
     <div style={{ position: 'relative', width: canvasSize.width, height: canvasSize.height, overflow: 'hidden' }}>

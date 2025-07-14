@@ -582,9 +582,9 @@ export const renderPlayer = (
     shakeY = (Math.random() - 0.5) * 2 * shakeAmount;
     
     // --- DEBUG: Log shake effect for troubleshooting ---
-    if (effectiveHitElapsed < 50) { // Only log within first 50ms to avoid spam
-      console.log(`🎯 [SHAKE] Player ${playerHexId} shaking: elapsed=${effectiveHitElapsed.toFixed(1)}ms, isCurrentlyHit=${isCurrentlyHit}, shakeAmount=${shakeAmount}`);
-    }
+    // if (effectiveHitElapsed < 50) { // Only log within first 50ms to avoid spam
+    //   console.log(`🎯 [SHAKE] Player ${playerHexId} shaking: elapsed=${effectiveHitElapsed.toFixed(1)}ms, isCurrentlyHit=${isCurrentlyHit}, shakeAmount=${shakeAmount}`);
+    // }
   }
   
   // --- SAFETY: Force clear hit states that have been active too long ---
@@ -1053,7 +1053,3 @@ export const renderPlayer = (
     drawNameTag(ctx, player, spriteDrawY, currentDisplayX + shakeX, finalIsOnline, willShowLabel); 
   }
 };
-
-
-
- 

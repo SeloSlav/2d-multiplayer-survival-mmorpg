@@ -40,7 +40,7 @@ import {
 } from '../utils/typeGuards';
 import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
 
-interface ViewportBounds {
+export interface ViewportBounds {
   viewMinX: number;
   viewMaxX: number;
   viewMinY: number;
@@ -149,7 +149,14 @@ export function useEntityFiltering(
   seaStacks: Map<string, any> // ADDED sea stacks argument
 ): EntityFilteringResult {
   // Get consistent timestamp for all projectile calculations in this frame
-  const currentTime = Date.now();
+  // CRITICAL FIX: Use stable timestamp to prevent infinite re-renders
+  const currentTime = useMemo(() => Date.now(), []);
+
+  // Only update timestamp every second to prevent constant re-renders
+  const stableTimestamp = useMemo(() => {
+    const now = Date.now();
+    return Math.floor(now / 1000) * 1000; // Round to nearest second
+  }, [Math.floor(Date.now() / 1000)]);
   // Removed debug log that was causing excessive console output
 
   // Calculate viewport bounds
@@ -310,127 +317,85 @@ export function useEntityFiltering(
   const visibleHarvestableResources = useMemo(() => 
     // Check source map
     harvestableResources ? Array.from(harvestableResources.values()).filter(e => 
-      (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds, currentTime)
+              (e.respawnAt === null || e.respawnAt === undefined) && isEntityInView(e, viewBounds, stableTimestamp)
     ) : [],
-    [harvestableResources, isEntityInView, viewBounds, currentTime]
+    [harvestableResources, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleDroppedItems = useMemo(() => 
     // Check source map
-    droppedItems ? Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+          droppedItems ? Array.from(droppedItems.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [droppedItems, isEntityInView, viewBounds, currentTime]
+    [droppedItems, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleCampfires = useMemo(() => 
     // Check source map
-    campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds, currentTime) && !e.isDestroyed)
+          campfires ? Array.from(campfires.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp) && !e.isDestroyed)
     : [],
-    [campfires, isEntityInView, viewBounds, currentTime]
+    [campfires, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleFurnaces = useMemo(() => 
     // Check source map - same filtering as campfires
-    furnaces ? Array.from(furnaces.values()).filter(e => isEntityInView(e, viewBounds, currentTime) && !e.isDestroyed)
+          furnaces ? Array.from(furnaces.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp) && !e.isDestroyed)
     : [],
-    [furnaces, isEntityInView, viewBounds, currentTime]
+    [furnaces, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleLanterns = useMemo(() => {
     if (!lanterns) return [];
     
     const allLanterns = Array.from(lanterns.values());
-    const visibleFiltered = allLanterns.filter(e => isEntityInView(e, viewBounds, currentTime) && !e.isDestroyed);
+    const visibleFiltered = allLanterns.filter(e => isEntityInView(e, viewBounds, stableTimestamp) && !e.isDestroyed);
     
     return visibleFiltered;
-  }, [lanterns, isEntityInView, viewBounds, currentTime]);
+  }, [lanterns, isEntityInView, viewBounds, stableTimestamp]);
 
   const visiblePlayers = useMemo(() => {
-    // console.log('[useEntityFiltering] Computing visiblePlayers. players map size:', players?.size);
-    
-    if (!players) {
-      // console.log('[useEntityFiltering] No players map, returning empty array');
-      return [];
-    }
-    
-    // Debug: Check the Map contents directly
-    // console.log('[useEntityFiltering] Players Map contents:');
-    let mapIndex = 0;
-    players.forEach((player, key) => {
-      // console.log(`  [${mapIndex}] Key: ${key}, Player:`, {
-      // });
-      mapIndex++;
-    });
-    
-    // Debug: Check Array.from conversion
-    const playersArray = Array.from(players.values());
-    // console.log('[useEntityFiltering] After Array.from conversion:', playersArray.length, 'players');
-    playersArray.forEach((player, index) => {
-      // console.log(`  Array[${index}]:`, {
-      // });
-    });
-    
-    // Debug: Test filtering one by one
-    const filteredPlayers: any[] = [];
-    playersArray.forEach((player, index) => {
-      // console.log(`[useEntityFiltering] Filtering player ${index}:`, {
-      // });
-      
-             // Call isEntityInView and capture result
-       const isInView = isEntityInView(player, viewBounds, currentTime);
-       
-       // console.log(`  isInView: ${isInView}`);
-       
-       if (isInView) {
-         filteredPlayers.push(player);
-       }
-    });
-    
-    // console.log('[useEntityFiltering] Final filtered players count:', filteredPlayers.length);
-    return filteredPlayers;
-  }, [players, isEntityInView, viewBounds, currentTime]);
+    if (!players) return [];
+    return Array.from(players.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp));
+  }, [players, isEntityInView, viewBounds, stableTimestamp]);
 
   const visibleTrees = useMemo(() => 
-    // Check source map
-    trees ? Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, currentTime))
+    trees ? Array.from(trees.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [trees, isEntityInView, viewBounds, currentTime]
+    [trees, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleStones = useMemo(() => 
-    // Check source map
-    stones ? Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, currentTime))
+    stones ? Array.from(stones.values()).filter(e => e.health > 0 && isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [stones, isEntityInView, viewBounds, currentTime]
+    [stones, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleWoodenStorageBoxes = useMemo(() => 
     // Check source map
-    woodenStorageBoxes ? Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+          woodenStorageBoxes ? Array.from(woodenStorageBoxes.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [woodenStorageBoxes, isEntityInView, viewBounds, currentTime]
+    [woodenStorageBoxes, isEntityInView, viewBounds, stableTimestamp]
   );
   
   const visibleSleepingBags = useMemo(() => 
     // Check source map
     sleepingBags ? Array.from(sleepingBags.values())
-      .filter(e => isEntityInView(e, viewBounds, currentTime))
+      .filter(e => isEntityInView(e, viewBounds, stableTimestamp))
       : []
-    ,[sleepingBags, isEntityInView, viewBounds, currentTime]
+    ,[sleepingBags, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visiblePlayerCorpses = useMemo(() => 
     // Add check: If playerCorpses is undefined or null, return empty array
     playerCorpses ? Array.from(playerCorpses.values())
-      .filter(e => isEntityInView(e, viewBounds, currentTime))
+      .filter(e => isEntityInView(e, viewBounds, stableTimestamp))
       : []
-    ,[playerCorpses, isEntityInView, viewBounds, currentTime]
+    ,[playerCorpses, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleStashes = useMemo(() => 
-    stashes ? Array.from(stashes.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    stashes ? Array.from(stashes.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [stashes, isEntityInView, viewBounds, currentTime]
+    [stashes, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleProjectiles = useMemo(() => {
@@ -467,71 +432,71 @@ export function useEntityFiltering(
 
   const visibleGrass = useMemo(() => 
     grass ? Array.from(grass.values()).filter(e => 
-      e.health > 0 && isEntityInView(e, viewBounds, currentTime)
+              e.health > 0 && isEntityInView(e, viewBounds, stableTimestamp)
     ) : [],
-    [grass, isEntityInView, viewBounds, currentTime]
+    [grass, isEntityInView, viewBounds, stableTimestamp]
   ); // grass parameter is now Map<string, InterpolatedGrassData>
 
   // ADDED: Filter visible shelters
   const visibleShelters = useMemo(() => {
-    const filtered = shelters ? Array.from(shelters.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, currentTime)) : [];
+    const filtered = shelters ? Array.from(shelters.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, stableTimestamp)) : [];
     // console.log('[useEntityFiltering] Filtered visibleShelters count:', filtered.length, filtered); // DEBUG LOG 2
     return filtered;
-  }, [shelters, isEntityInView, viewBounds, currentTime]);
+  }, [shelters, isEntityInView, viewBounds, stableTimestamp]);
 
   const visibleClouds = useMemo(() => 
-    clouds ? Array.from(clouds.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    clouds ? Array.from(clouds.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [clouds, isEntityInView, viewBounds, currentTime]
+    [clouds, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visiblePlantedSeeds = useMemo(() => 
-    plantedSeeds ? Array.from(plantedSeeds.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    plantedSeeds ? Array.from(plantedSeeds.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [plantedSeeds, isEntityInView, viewBounds, currentTime]
+    [plantedSeeds, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleRainCollectors = useMemo(() => 
-    rainCollectors ? Array.from(rainCollectors.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, currentTime))
+    rainCollectors ? Array.from(rainCollectors.values()).filter(e => !e.isDestroyed && isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [rainCollectors, isEntityInView, viewBounds, currentTime]
+    [rainCollectors, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleWildAnimals = useMemo(() => 
-    wildAnimals ? Array.from(wildAnimals.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    wildAnimals ? Array.from(wildAnimals.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [wildAnimals, isEntityInView, viewBounds, currentTime]
+    [wildAnimals, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleViperSpittles = useMemo(() => 
-    viperSpittles ? Array.from(viperSpittles.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    viperSpittles ? Array.from(viperSpittles.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [viperSpittles, isEntityInView, viewBounds, currentTime]
+    [viperSpittles, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleAnimalCorpses = useMemo(() => {
     const result = animalCorpses ? Array.from(animalCorpses.values()).filter(e => {
-      const inView = isEntityInView(e, viewBounds, currentTime);
+      const inView = isEntityInView(e, viewBounds, stableTimestamp);
       // Convert microseconds to milliseconds for proper comparison
       const despawnTimeMs = Number(e.despawnAt.__timestamp_micros_since_unix_epoch__ / 1000n);
-      const notDespawned = currentTime < despawnTimeMs; // Check if current time is before despawn time
+              const notDespawned = stableTimestamp < despawnTimeMs; // Check if current time is before despawn time
       return inView && notDespawned;
     }) : [];
     // console.log(`🦴 [ANIMAL CORPSE FILTERING] Total corpses: ${animalCorpses?.size || 0}, Visible after filtering: ${result.length}, IDs: [${result.map(c => c.id).join(', ')}]`);
     return result;
-  }, [animalCorpses, isEntityInView, viewBounds, currentTime]);
+  }, [animalCorpses, isEntityInView, viewBounds, stableTimestamp]);
 
   const visibleBarrels = useMemo(() => 
     barrels ? Array.from(barrels.values()).filter(e => 
-      !e.respawnAt && isEntityInView(e, viewBounds, currentTime) // Don't show if respawning (destroyed)
+      !e.respawnAt && isEntityInView(e, viewBounds, stableTimestamp) // Don't show if respawning (destroyed)
     ) : [],
-    [barrels, isEntityInView, viewBounds, currentTime]
+    [barrels, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleSeaStacks = useMemo(() => 
-    seaStacks ? Array.from(seaStacks.values()).filter(e => isEntityInView(e, viewBounds, currentTime))
+    seaStacks ? Array.from(seaStacks.values()).filter(e => isEntityInView(e, viewBounds, stableTimestamp))
     : [],
-    [seaStacks, isEntityInView, viewBounds, currentTime]
+    [seaStacks, isEntityInView, viewBounds, stableTimestamp]
   );
 
   const visibleHarvestableResourcesMap = useMemo(() => 
@@ -603,6 +568,8 @@ export function useEntityFiltering(
     return map;
   }, [visibleTrees]);
 
+  const groundItems = useMemo(() => visibleSleepingBags, [visibleSleepingBags]);
+
   const visibleGrassMap = useMemo(() => 
     new Map(visibleGrass.map(g => [g.id.toString(), g])),
     [visibleGrass]
@@ -638,286 +605,259 @@ export function useEntityFiltering(
     [visibleSeaStacks]
   );
 
-  // Group entities for rendering
-  const groundItems = useMemo(() => [
-    ...visibleSleepingBags,
-  ], [visibleSleepingBags]);
-
-  // Y-sorted entities with sorting and correct type structure
+  // Y-sorted entities with PERFORMANCE OPTIMIZED sorting
   const ySortedEntities = useMemo(() => {
-    // console.log('[DEBUG] visiblePlayers.length:', visiblePlayers.length, 'total players:', players.size);
-    if (visiblePlayers.length === 0 && players.size > 0) {
-      // console.log('[DEBUG] Players exist but none are visible! Viewport culling issue?');
-      const firstPlayer = Array.from(players.values())[0];
-      // console.log('[DEBUG] First player sample:', firstPlayer);
-      // console.log('[DEBUG] Player position:', firstPlayer.positionX, firstPlayer.positionY);
-      console.log('[DEBUG] Viewport bounds - view area:', { cameraOffsetX, cameraOffsetY, canvasWidth, canvasHeight });
-      
-      // Calculate and show actual viewport bounds
-      const buffer = 64 * 3; // Same as in getViewportBounds
-      const viewMinX = -cameraOffsetX - buffer;
-      const viewMaxX = -cameraOffsetX + canvasWidth + buffer;
-      const viewMinY = -cameraOffsetY - buffer;
-      const viewMaxY = -cameraOffsetY + canvasHeight + buffer;
-      console.log('[DEBUG] Actual viewport bounds:', { viewMinX, viewMaxX, viewMinY, viewMaxY });
-      console.log('[DEBUG] Player within bounds?', firstPlayer.positionX >= viewMinX && firstPlayer.positionX <= viewMaxX && firstPlayer.positionY >= viewMinY && firstPlayer.positionY <= viewMaxY);
-    }
-    const mappedEntities: YSortedEntityType[] = [
-      // Map each entity type to the { type, entity } structure
-      ...visiblePlayers.map(p => ({ type: 'player' as const, entity: p })),
-      ...visibleTrees.map(t => ({ type: 'tree' as const, entity: t })),
-      ...visibleStones.filter(stone => stone.health > 0).map(s => ({ type: 'stone' as const, entity: s })),
-      ...visibleWoodenStorageBoxes.map(b => ({ type: 'wooden_storage_box' as const, entity: b })),
-      ...visibleStashes.map(st => ({ type: 'stash' as const, entity: st })),
-      ...visibleCampfires.map(cf => ({ type: 'campfire' as const, entity: cf })),
-      ...visibleFurnaces.map(f => ({ type: 'furnace' as const, entity: f })), // ADDED: Furnaces
-      ...visibleLanterns.map(l => ({ type: 'lantern' as const, entity: l })),
-      ...visibleDroppedItems.map(di => ({ type: 'dropped_item' as const, entity: di })),
-      ...visiblePlayerCorpses.map(c => ({ type: 'player_corpse' as const, entity: c })),
-      ...visibleProjectiles.map(p => ({ type: 'projectile' as const, entity: p })),
-      ...visibleShelters.map(s => ({ type: 'shelter' as const, entity: s })),
-      ...visibleGrass.map(g => ({ type: 'grass' as const, entity: g })), // g is InterpolatedGrassData
-      ...visiblePlantedSeeds.map(p => ({ type: 'planted_seed' as const, entity: p })),
-      ...visibleRainCollectors.map(r => ({ type: 'rain_collector' as const, entity: r })),
-      ...visibleWildAnimals.map(w => ({ type: 'wild_animal' as const, entity: w })),
-      ...visibleViperSpittles.map(v => ({ type: 'viper_spittle' as const, entity: v })),
-      ...visibleAnimalCorpses.map(a => ({ type: 'animal_corpse' as const, entity: a })),
-      ...visibleBarrels.map(b => ({ type: 'barrel' as const, entity: b })),
-      ...visibleSeaStacks.map(s => ({ type: 'sea_stack' as const, entity: s })),
-      ...visibleHarvestableResources.map(hr => ({ type: 'harvestable_resource' as const, entity: hr })),
-    ];
+    // PERFORMANCE FIX: Instead of concatenating arrays and sorting every frame,
+    // pre-calculate Y-sort values and use a more efficient approach
     
-    // console.log('[DEBUG] Y-sorted entities - potatoes:', mappedEntities.filter(e => e.type === 'potato'));
-    // console.log('[DEBUG] visiblePotatoes count:', visiblePotatoes.length);
+    // Early exit if no entities
+    const totalEntities = visiblePlayers.length + visibleTrees.length + visibleStones.length + 
+                         visibleWoodenStorageBoxes.length + visibleCampfires.length + visibleFurnaces.length +
+                         visibleLanterns.length + visibleDroppedItems.length + visibleProjectiles.length +
+                         visibleShelters.length + visibleGrass.length + visiblePlantedSeeds.length +
+                         visibleRainCollectors.length + visibleWildAnimals.length + visibleViperSpittles.length +
+                         visibleAnimalCorpses.length + visibleBarrels.length + visibleSeaStacks.length +
+                         visibleHarvestableResources.length + visiblePlayerCorpses.length + visibleStashes.length;
     
-
+    if (totalEntities === 0) return [];
     
-    // Filter out any potential null/undefined entries AFTER mapping (just in case)
-    const validEntities = mappedEntities.filter(e => e && e.entity);
-
-    const getSortY = (item: YSortedEntityType): number => {
-      const entity = item.entity;
-      let sortY = 0;
-
-      if (isPlayer(entity)) {
-        // Players sort by their foot position (bottom of sprite)
-        // Add offset to move from center to foot position
-        sortY = entity.positionY + 48; // Add half player height to get foot position
-        console.log(`[PLAYER DEBUG] Player Y-sort: ${sortY} (original: ${entity.positionY})`);
-        return sortY;
-      }
-
-      // Trees should sort by their base/trunk position (bottom of sprite)
-      if (isTree(entity)) {
-        // Trees are tall, so we sort by their base position
-        // No offset needed - use the actual base position
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Sea stacks should sort by their water line level (visual interaction point)
-      if (isSeaStack(entity)) {
-        // Sea stacks sort by their water line level for proper player interaction
-        // The water line is 55px above the underwater base (HEIGHT_OFFSET from seaStackRenderingUtils.ts)
-        const WATER_LINE_OFFSET = 55; // Must match HEIGHT_OFFSET in seaStackRenderingUtils.ts
-        sortY = entity.posY - WATER_LINE_OFFSET;
-        return sortY;
-      }
-
-      // Stones should sort by their base position
-      if (isStone(entity)) {
-        // Stones are ground-level objects
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Wooden storage boxes should sort by their base position
-      if (isWoodenStorageBox(entity)) {
-        // Boxes are ground objects, sort by their base
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Stashes should sort by their base position (small ground objects)
-      if (isStash(entity)) {
-        // Stashes are small ground objects, sort by their base
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Explicit handling for Shelter
-      if (isShelter(entity)) {
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Ground resources (harvestable resources) sort by their base
-      if (isHarvestableResource(entity)) {
-        // These are ground-level resources
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Dropped items sort by their base
-      if (isDroppedItem(entity)) {
-        sortY = entity.posY;
-        return sortY;
-      }
- 
-      if (isCampfire(entity)) { 
-        // Campfires are ground objects - sort by their base position
-        // Account for visual rendering offset so players render behind campfires appropriately
-        // Subtract offset to make campfire "claim more northern space" in Y-sorting
-        sortY = entity.posY; // Offset to account for visual positioning
-        return sortY;
-      }
-
-      // Check for furnace using same logic as campfire
-      if ((entity as any).fuelInventoryId !== undefined && (entity as any).isBurning !== undefined) {
-        // Furnaces are ground objects like campfires - sort by their base position
-        sortY = (entity as any).posY;
-        return sortY;
-      }
-
-      // Check for lantern using proper type guard
-      if (isLantern(entity)) {
-        // Lanterns use the same Y-sorting as campfires and other ground objects
-        // Use the base position for proper Y-sorting so players can walk behind them
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // if (isGrass(entity)) {
-      //   // Grass/bushes are ground-level decorations
-      //   // entity here is already InterpolatedGrassData due to how ySortedEntities is constructed
-      //   sortY = (entity as InterpolatedGrassData).serverPosY;
-      //   return sortY;
-      // }
-
-      // Handle projectiles - calculate current Y position
-      if ((entity as any).startPosX !== undefined && (entity as any).startPosY !== undefined && (entity as any).velocityY !== undefined) {
-        const projectile = entity as any;
-        const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
-        const elapsedSeconds = (currentTime - startTime) / 1000.0;
-        sortY = projectile.startPosY + projectile.velocityY * elapsedSeconds;
-        return sortY;
-      }
-
-      // Handle planted seeds - they should sort by their base position like other ground items
-      if ((entity as any).posX !== undefined && (entity as any).seedType !== undefined) {
-        sortY = (entity as any).posY;
-        return sortY;
-      }
-
-      // Handle wild animals - sort by their foot position
-      if (isWildAnimal(entity)) {
-        // Wild animals should sort by their base position (foot)
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Handle viper spittles - calculate current Y position like projectiles
-      if ((entity as any).viperId !== undefined && (entity as any).startPosX !== undefined) {
-        const spittle = entity as any;
-        const startTime = Number(spittle.startTime.microsSinceUnixEpoch / 1000n);
-        const elapsedSeconds = (currentTime - startTime) / 1000.0;
-        sortY = spittle.startPosY + spittle.velocityY * elapsedSeconds;
-        return sortY;
-      }
-
-      // Handle animal corpses - sort by their base position like player corpses
-      if (isAnimalCorpse(entity)) {
-        // Animal corpses are ground objects, sort by their base
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // Handle barrels - sort by their base position like other ground objects
-      if (isBarrel(entity)) {
-        // Barrels are ground objects, sort by their base
-        sortY = entity.posY;
-        return sortY;
-      }
-
-      // For other entities, use their standard posY if it exists, otherwise default or handle error.
-      // This check is a bit broad, ideally, each type in YSortedEntityType should have a defined posY or equivalent.
-      if ((entity as any).posY !== undefined) {
-        sortY = (entity as any).posY;
-      } else if ((entity as any).positionY !== undefined) {
-        sortY = (entity as any).positionY;
-      } else {
-        console.warn("Entity type in getSortY does not have a standard posY or positionY property:", entity);
-        sortY = 0; // Default sortY if no position found
-      }
-      return sortY;
-    };
-
-    // Sort the mapped entities using the adjusted Y value
-    validEntities.sort((a, b) => {
-      const yA = getSortY(a);
-      const yB = getSortY(b);
-      
-      // Debug logging for player vs campfire interactions (commented out to reduce console spam)
-      // if ((a.type === 'player' && b.type === 'campfire') || (a.type === 'campfire' && b.type === 'player')) {
-      //   console.log(`[Y-SORT] ${a.type}(${yA.toFixed(1)}) vs ${b.type}(${yB.toFixed(1)}) | Diff: ${Math.abs(yA - yB).toFixed(1)} | Close: ${Math.abs(yA - yB) <= 0.1}`);
-      // }
-      
-      // Primary sort by Y position
-      if (Math.abs(yA - yB) > 0.1) { // Revert back to 0.1
-        return yA - yB;
-      }
-      
-      // Debug logging when type priority kicks in (commented out to reduce console spam)
-      // if ((a.type === 'player' && b.type === 'campfire') || (a.type === 'campfire' && b.type === 'player')) {
-      //   console.log(`[TYPE-PRIORITY] Using type priority: ${a.type} vs ${b.type}`);
-      // }
-      
-      // Secondary sort: When Y positions are very close, use entity type priority
-      // Trees should render behind wild animals at the same Y position
-      const getTypePriority = (type: string): number => {
-        switch (type) {
-          case 'sea_stack': return 1;   // Sea stacks render behind most things like trees (tall background structures)
-          case 'tree': return 2;        // Trees render behind most things
-          case 'stone': return 3;       // Stones
-          case 'wild_animal': return 4; // Wild animals render in front of trees and sea stacks
-          case 'wooden_storage_box': return 5;
-          case 'stash': return 6;
-          case 'campfire': return 7;  // Campfires are ground objects like storage boxes
-          case 'furnace': return 7.5; // Furnaces are ground objects, slightly in front of campfires
-          case 'lantern': return 8;
-          case 'grass': return 9;
-          case 'planted_seed': return 10;
-          case 'dropped_item': return 11;
-          case 'harvestable_resource': return 12;
-          case 'rain_collector': return 18;
-          case 'projectile': return 19;
-          case 'viper_spittle': return 19; // Same priority as projectiles
-          case 'animal_corpse': return 20; // Same priority as player corpses
-          case 'player_corpse': return 20;
-          case 'player': return 21;     // Players render in front of most things including sea stacks
-          case 'shelter': return 25;    // Shelters render behind EVERYTHING including players
-          default: return 15;
-        }
+    // PERFORMANCE: Pre-allocate array with known size to avoid dynamic resizing
+    const sortedEntities: Array<{ y: number; priority: number; item: YSortedEntityType }> = [];
+    sortedEntities.length = totalEntities; // Pre-allocate
+    let index = 0;
+    
+    // PERFORMANCE: Inline Y-calculation and priority assignment to avoid function calls
+    // Process each entity type with optimized inline logic
+    
+    // Players - Priority 21, Y = positionY + 48
+    for (const player of visiblePlayers) {
+      sortedEntities[index++] = {
+        y: player.positionY + 48,
+        priority: 21,
+        item: { type: 'player' as const, entity: player }
       };
-      
-      return getTypePriority(b.type) - getTypePriority(a.type); // Reversed to match Y-sorting
+    }
+    
+    // Trees - Priority 2, Y = posY
+    for (const tree of visibleTrees) {
+      sortedEntities[index++] = {
+        y: tree.posY,
+        priority: 2,
+        item: { type: 'tree' as const, entity: tree }
+      };
+    }
+    
+    // Stones - Priority 3, Y = posY (filter health > 0 inline)
+    for (const stone of visibleStones) {
+      if (stone.health > 0) {
+        sortedEntities[index++] = {
+          y: stone.posY,
+          priority: 3,
+          item: { type: 'stone' as const, entity: stone }
+        };
+      }
+    }
+    
+    // Storage boxes - Priority 5, Y = posY
+    for (const box of visibleWoodenStorageBoxes) {
+      sortedEntities[index++] = {
+        y: box.posY,
+        priority: 5,
+        item: { type: 'wooden_storage_box' as const, entity: box }
+      };
+    }
+    
+    // Stashes - Priority 6, Y = posY
+    for (const stash of visibleStashes) {
+      sortedEntities[index++] = {
+        y: stash.posY,
+        priority: 6,
+        item: { type: 'stash' as const, entity: stash }
+      };
+    }
+    
+    // Campfires - Priority 7, Y = posY
+    for (const campfire of visibleCampfires) {
+      sortedEntities[index++] = {
+        y: campfire.posY,
+        priority: 7,
+        item: { type: 'campfire' as const, entity: campfire }
+      };
+    }
+    
+    // Furnaces - Priority 7.5, Y = posY
+    for (const furnace of visibleFurnaces) {
+      sortedEntities[index++] = {
+        y: furnace.posY,
+        priority: 7.5,
+        item: { type: 'furnace' as const, entity: furnace }
+      };
+    }
+    
+    // Lanterns - Priority 8, Y = posY
+    for (const lantern of visibleLanterns) {
+      sortedEntities[index++] = {
+        y: lantern.posY,
+        priority: 8,
+        item: { type: 'lantern' as const, entity: lantern }
+      };
+    }
+    
+    // Grass - Priority 9, Y = serverPosY
+    for (const grass of visibleGrass) {
+      sortedEntities[index++] = {
+        y: grass.serverPosY,
+        priority: 9,
+        item: { type: 'grass' as const, entity: grass }
+      };
+    }
+    
+    // Planted seeds - Priority 10, Y = posY
+    for (const seed of visiblePlantedSeeds) {
+      sortedEntities[index++] = {
+        y: seed.posY,
+        priority: 10,
+        item: { type: 'planted_seed' as const, entity: seed }
+      };
+    }
+    
+    // Dropped items - Priority 11, Y = posY
+    for (const item of visibleDroppedItems) {
+      sortedEntities[index++] = {
+        y: item.posY,
+        priority: 11,
+        item: { type: 'dropped_item' as const, entity: item }
+      };
+    }
+    
+    // Harvestable resources - Priority 12, Y = posY
+    for (const resource of visibleHarvestableResources) {
+      sortedEntities[index++] = {
+        y: resource.posY,
+        priority: 12,
+        item: { type: 'harvestable_resource' as const, entity: resource }
+      };
+    }
+    
+    // Rain collectors - Priority 18, Y = posY
+    for (const collector of visibleRainCollectors) {
+      sortedEntities[index++] = {
+        y: collector.posY,
+        priority: 18,
+        item: { type: 'rain_collector' as const, entity: collector }
+      };
+    }
+    
+    // Projectiles - Priority 19, Y = calculated position
+    for (const projectile of visibleProjectiles) {
+      const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (stableTimestamp - startTime) / 1000.0;
+      const currentY = projectile.startPosY + projectile.velocityY * elapsedSeconds;
+      sortedEntities[index++] = {
+        y: currentY,
+        priority: 19,
+        item: { type: 'projectile' as const, entity: projectile }
+      };
+    }
+    
+    // Viper spittles - Priority 19, Y = calculated position
+    for (const spittle of visibleViperSpittles) {
+      const startTime = Number(spittle.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (stableTimestamp - startTime) / 1000.0;
+      const currentY = spittle.startPosY + spittle.velocityY * elapsedSeconds;
+      sortedEntities[index++] = {
+        y: currentY,
+        priority: 19,
+        item: { type: 'viper_spittle' as const, entity: spittle }
+      };
+    }
+    
+    // Animal corpses - Priority 20, Y = posY
+    for (const corpse of visibleAnimalCorpses) {
+      sortedEntities[index++] = {
+        y: corpse.posY,
+        priority: 20,
+        item: { type: 'animal_corpse' as const, entity: corpse }
+      };
+    }
+    
+    // Player corpses - Priority 20, Y = posY
+    for (const corpse of visiblePlayerCorpses) {
+      sortedEntities[index++] = {
+        y: corpse.posY,
+        priority: 20,
+        item: { type: 'player_corpse' as const, entity: corpse }
+      };
+    }
+    
+    // Wild animals - Priority 4, Y = posY
+    for (const animal of visibleWildAnimals) {
+      sortedEntities[index++] = {
+        y: animal.posY,
+        priority: 4,
+        item: { type: 'wild_animal' as const, entity: animal }
+      };
+    }
+    
+    // Barrels - Priority 15, Y = posY
+    for (const barrel of visibleBarrels) {
+      sortedEntities[index++] = {
+        y: barrel.posY,
+        priority: 15,
+        item: { type: 'barrel' as const, entity: barrel }
+      };
+    }
+    
+    // Sea stacks - Priority 1, Y = posY - 55 (water line offset)
+    for (const seaStack of visibleSeaStacks) {
+      sortedEntities[index++] = {
+        y: seaStack.posY - 55,
+        priority: 1,
+        item: { type: 'sea_stack' as const, entity: seaStack }
+      };
+    }
+    
+    // Shelters - Priority 25, Y = posY
+    for (const shelter of visibleShelters) {
+      sortedEntities[index++] = {
+        y: shelter.posY,
+        priority: 25,
+        item: { type: 'shelter' as const, entity: shelter }
+      };
+    }
+    
+    // Trim array to actual size (in case some entities were filtered out)
+    sortedEntities.length = index;
+    
+    // PERFORMANCE: Use optimized sort with pre-calculated values
+    sortedEntities.sort((a, b) => {
+      // Primary sort by Y position
+      const yDiff = a.y - b.y;
+      if (Math.abs(yDiff) > 0.1) {
+        return yDiff;
+      }
+      // Secondary sort by priority when Y positions are close
+      return b.priority - a.priority; // Reversed for correct rendering order
     });
-
-    return validEntities;
-  }, [
-    visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
+    
+    // Extract just the items for rendering
+    return sortedEntities.map(entry => entry.item);
+  },
+    // Dependencies remain the same
+    [visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
     visiblePlayerCorpses, visibleStashes, 
-    visibleCampfires, visibleFurnaces, visibleLanterns, visibleDroppedItems, // ADDED: visibleFurnaces
-    visibleProjectiles, visibleGrass, // visibleGrass is now InterpolatedGrassData[]
-    visibleShelters, // ADDED visibleShelters to dependencies
-    visiblePlantedSeeds, // ADDED visiblePlantedSeeds to dependencies
-    visibleRainCollectors, // ADDED visibleRainCollectors to dependencies
-    visibleWildAnimals, // ADDED visibleWildAnimals to dependencies
-    visibleViperSpittles, // ADDED visibleViperSpittles to dependencies
-    visibleAnimalCorpses, // ADDED visibleAnimalCorpses to dependencies
-    visibleBarrels, // ADDED visibleBarrels to dependencies
-    visibleSeaStacks, // ADDED visibleSeaStacks to dependencies
-    visibleHarvestableResources, // ADDED visibleHarvestableResources to dependencies
+    visibleCampfires, visibleFurnaces, visibleLanterns, visibleDroppedItems,
+    visibleProjectiles, visibleGrass,
+    visibleShelters,
+    visiblePlantedSeeds,
+    visibleRainCollectors,
+    visibleWildAnimals,
+    visibleViperSpittles,
+    visibleAnimalCorpses,
+    visibleBarrels,
+    visibleSeaStacks,
+    visibleHarvestableResources,
+    stableTimestamp // Only include stableTimestamp for projectile calculations
   ]);
 
   return {

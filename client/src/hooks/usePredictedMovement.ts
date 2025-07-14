@@ -150,7 +150,15 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       const targetPos = newServerPos;
       let progress = 0;
       
+      const velocity = {
+        x: (targetPos.x - startPos.x) / (RUBBER_BAND_THRESHOLD / PLAYER_SPEED),
+        y: (targetPos.y - startPos.y) / (RUBBER_BAND_THRESHOLD / PLAYER_SPEED)
+      };
+      
       const interpolate = () => {
+        const now = performance.now();
+        const deltaTime = Math.min((now - lastUpdateTime.current) / 1000, 0.1);
+        lastUpdateTime.current = now;
         progress += SMOOTH_INTERPOLATION_SPEED;
         if (progress >= 1) {
           clientPositionRef.current = targetPos;
@@ -163,8 +171,8 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         // Smooth interpolation using easing
         const easedProgress = 1 - Math.pow(1 - progress, 3); // ease-out cubic
         clientPositionRef.current = {
-          x: startPos.x + (targetPos.x - startPos.x) * easedProgress,
-          y: startPos.y + (targetPos.y - startPos.y) * easedProgress
+          x: startPos.x + (targetPos.x - startPos.x) * easedProgress + velocity.x * deltaTime,
+          y: startPos.y + (targetPos.y - startPos.y) * easedProgress + velocity.y * deltaTime
         };
         
         forceUpdate({});
@@ -278,7 +286,8 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         pendingPosition.current = { x: collisionResult.x, y: collisionResult.y };
         
         // Only force re-render every few frames to reduce React overhead
-        if (Math.floor(now / 16) % 2 === 0) { // ~30fps re-renders
+        const frameMod = Math.floor(now / 16) % 4; // Changed from % 2
+        if (frameMod === 0) {
           forceUpdate({});
         }
       } else if (localPlayer.isKnockedOut && hasDirectionalInput) {

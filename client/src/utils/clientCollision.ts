@@ -2,6 +2,32 @@
 import { Player, Tree, Stone, WoodenStorageBox, Shelter, RainCollector, WildAnimal, Barrel, Furnace } from '../generated';
 import { gameConfig } from '../config/gameConfig';
 
+// Add at top after imports:
+// Spatial filtering constants
+const COLLISION_QUERY_EXPANSION = 100; // Extra padding around movement path for safety
+
+// Helper to check if shape intersects with query box
+function shapeIntersectsBox(shape: CollisionShape, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  if (shape.radius) {
+    // Circle check
+    const centerX = shape.x;
+    const centerY = shape.y;
+    const closestX = Math.max(minX, Math.min(centerX, maxX));
+    const closestY = Math.max(minY, Math.min(centerY, maxY));
+    const dx = centerX - closestX;
+    const dy = centerY - closestY;
+    return (dx * dx + dy * dy) <= (shape.radius * shape.radius);
+  } else if (shape.width && shape.height) {
+    // AABB check
+    const shapeMinX = shape.x - shape.width / 2;
+    const shapeMinY = shape.y - shape.height / 2;
+    const shapeMaxX = shape.x + shape.width / 2;
+    const shapeMaxY = shape.y + shape.height / 2;
+    return !(shapeMaxX < minX || shapeMinX > maxX || shapeMaxY < minY || shapeMinY > maxY);
+  }
+  return false;
+}
+
 // ===== CONFIGURATION CONSTANTS =====
 const WORLD_WIDTH_PX = gameConfig.worldWidthPx;
 const WORLD_HEIGHT_PX = gameConfig.worldHeightPx;
@@ -100,15 +126,32 @@ export function resolveClientCollision(
     return { x: clampedTo.x, y: clampedTo.y, collided: false, collidedWith: [] };
   }
 
-  // Step 3: Build collision shapes from entities
-  const collisionShapes = buildCollisionShapes(entities, localPlayerId);
+  // Step 3: Build collision shapes from entities - PERFORMANCE: Pass player position for distance filtering
+  const collisionShapes = buildCollisionShapes(entities, localPlayerId, fromX, fromY);
   
+  // Create query box around movement path
+  const queryMinX = Math.min(fromX, toX) - COLLISION_QUERY_EXPANSION - PLAYER_RADIUS;
+  const queryMinY = Math.min(fromY, toY) - COLLISION_QUERY_EXPANSION - PLAYER_RADIUS;
+  const queryMaxX = Math.max(fromX, toX) + COLLISION_QUERY_EXPANSION + PLAYER_RADIUS;
+  const queryMaxY = Math.max(fromY, toY) + COLLISION_QUERY_EXPANSION + PLAYER_RADIUS;
+
+  // Filter shapes to only those intersecting the query box
+  const nearbyShapes = collisionShapes.filter(shape =>
+    shapeIntersectsBox(shape, queryMinX, queryMinY, queryMaxX, queryMaxY)
+  );
+
+  // PERFORMANCE: Reduced logging to prevent console spam
+  const totalEntities = entities.trees.size + entities.stones.size + entities.boxes.size + entities.players.size + entities.wildAnimals.size + entities.barrels.size;
+  if (totalEntities > 100 && collisionShapes.length > 20) { // Only log when significant optimization occurs
+    console.log(`🚀 [COLLISION] Major optimization: ${totalEntities} total entities → ${collisionShapes.length} distance-filtered → ${nearbyShapes.length} final shapes (${Math.round(nearbyShapes.length / totalEntities * 100)}% of total)`);
+  }
+
   // Step 4: Perform swept collision detection
   const result = performSweptCollision(
     { x: fromX, y: fromY },
-    { x: clampedTo.x, y: clampedTo.y },
+    clampedTo,
     PLAYER_RADIUS,
-    collisionShapes
+    nearbyShapes // Changed from collisionShapes
   );
   
   // Step 5: Final world bounds check
@@ -364,12 +407,24 @@ function calculateSlideResponse(
   }
 
 // ===== ENTITY PROCESSING =====
-function buildCollisionShapes(entities: GameEntities, localPlayerId: string): CollisionShape[] {
+function buildCollisionShapes(entities: GameEntities, localPlayerId: string, playerX?: number, playerY?: number): CollisionShape[] {
   const shapes: CollisionShape[] = [];
+  
+  // PERFORMANCE FIX: Pre-filter entities by distance to reduce collision calculations
+  // Only check entities within a reasonable collision range instead of the entire world
+  const COLLISION_RANGE_SQUARED = 400 * 400; // 400px radius should be more than enough for collision detection
+  
+  const shouldIncludeEntity = (entityX: number, entityY: number): boolean => {
+    if (playerX === undefined || playerY === undefined) return true; // Fallback to include all if no player position
+    const dx = entityX - playerX;
+    const dy = entityY - playerY;
+    return (dx * dx + dy * dy) <= COLLISION_RANGE_SQUARED;
+  };
   
   // Add other players
   for (const [playerId, player] of entities.players) {
     if (playerId === localPlayerId || player.isDead) continue;
+    if (!shouldIncludeEntity(player.positionX, player.positionY)) continue; // PERFORMANCE: Skip distant players
     
     shapes.push({
       id: playerId,
@@ -380,9 +435,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add trees
+  // Add trees - PERFORMANCE: Pre-filter by distance
   for (const [treeId, tree] of entities.trees) {
     if (tree.health <= 0) continue;
+    if (!shouldIncludeEntity(tree.posX, tree.posY)) continue; // PERFORMANCE: Skip distant trees
     
     shapes.push({
       id: treeId,
@@ -393,9 +449,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add stones (back to circular collision)
+  // Add stones - PERFORMANCE: Pre-filter by distance
   for (const [stoneId, stone] of entities.stones) {
     if (stone.health <= 0) continue;
+    if (!shouldIncludeEntity(stone.posX, stone.posY)) continue; // PERFORMANCE: Skip distant stones
     
     shapes.push({
       id: stoneId,
@@ -406,8 +463,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add storage boxes (back to circular collision)
+  // Add storage boxes - PERFORMANCE: Pre-filter by distance
   for (const [boxId, box] of entities.boxes) {
+    if (!shouldIncludeEntity(box.posX, box.posY)) continue; // PERFORMANCE: Skip distant boxes
+    
     shapes.push({
       id: boxId,
         type: `storage-box-${boxId}`,
@@ -417,9 +476,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
 
-  // Add rain collectors
+  // Add rain collectors - PERFORMANCE: Pre-filter by distance
   for (const [rainCollectorId, rainCollector] of entities.rainCollectors) {
     if (rainCollector.isDestroyed) continue;
+    if (!shouldIncludeEntity(rainCollector.posX, rainCollector.posY)) continue; // PERFORMANCE: Skip distant rain collectors
     
     shapes.push({
       id: rainCollectorId,
@@ -430,9 +490,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add furnaces
+  // Add furnaces - PERFORMANCE: Pre-filter by distance
   for (const [furnaceId, furnace] of entities.furnaces) {
     if (furnace.isDestroyed) continue;
+    if (!shouldIncludeEntity(furnace.posX, furnace.posY)) continue; // PERFORMANCE: Skip distant furnaces
     
     shapes.push({
       id: furnaceId,
@@ -443,9 +504,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add shelters (exclude owner's shelter)
+  // Add shelters - PERFORMANCE: Pre-filter by distance
   for (const [shelterId, shelter] of entities.shelters) {
     if (shelter.isDestroyed) continue;
+    if (!shouldIncludeEntity(shelter.posX, shelter.posY)) continue; // PERFORMANCE: Skip distant shelters
     
     // Skip collision for shelter owner
     if (localPlayerId && shelter.placedBy.toHexString() === localPlayerId) {
@@ -462,8 +524,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add wild animals
+  // Add wild animals - PERFORMANCE: Pre-filter by distance
   for (const [animalId, animal] of entities.wildAnimals) {
+    if (!shouldIncludeEntity(animal.posX, animal.posY)) continue; // PERFORMANCE: Skip distant animals
+    
     shapes.push({
       id: animalId,
       type: `wild-animal-${animalId}`,
@@ -473,9 +537,10 @@ function buildCollisionShapes(entities: GameEntities, localPlayerId: string): Co
     });
   }
   
-  // Add barrels
+  // Add barrels - PERFORMANCE: Pre-filter by distance
   for (const [barrelId, barrel] of entities.barrels) {
     if (barrel.health <= 0) continue; // Skip destroyed barrels
+    if (!shouldIncludeEntity(barrel.posX, barrel.posY)) continue; // PERFORMANCE: Skip distant barrels
     
     shapes.push({
       id: barrelId,

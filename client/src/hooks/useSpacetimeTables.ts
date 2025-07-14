@@ -1045,7 +1045,15 @@ export const useSpacetimeTables = ({
                 setWildAnimals(prev => new Map(prev).set(animal.id.toString(), animal));
             };
             const handleWildAnimalUpdate = (ctx: any, oldAnimal: SpacetimeDB.WildAnimal, newAnimal: SpacetimeDB.WildAnimal) => {
-                setWildAnimals(prev => new Map(prev).set(newAnimal.id.toString(), newAnimal));
+                // Only update if significant fields have changed to prevent infinite loops
+                const changed = oldAnimal.posX !== newAnimal.posX ||
+                                oldAnimal.posY !== newAnimal.posY ||
+                                oldAnimal.health !== newAnimal.health ||
+                                oldAnimal.species !== newAnimal.species ||
+                                oldAnimal.lastAttackTime !== newAnimal.lastAttackTime;
+                if (changed) {
+                    setWildAnimals(prev => new Map(prev).set(newAnimal.id.toString(), newAnimal));
+                }
             };
             const handleWildAnimalDelete = (ctx: any, animal: SpacetimeDB.WildAnimal) => {
                 setWildAnimals(prev => { const newMap = new Map(prev); newMap.delete(animal.id.toString()); return newMap; });

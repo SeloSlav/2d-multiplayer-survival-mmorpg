@@ -40,6 +40,7 @@ import { usePredictedMovement } from './hooks/usePredictedMovement';
 import { useSoundSystem } from './hooks/useSoundSystem';
 import { useMusicSystem } from './hooks/useMusicSystem';
 
+
 // Assets & Styles
 import './App.css';
 import { useDebouncedCallback } from 'use-debounce'; // Import debounce helper
@@ -61,6 +62,7 @@ import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from './utils/renderers/pl
 
 // Import the cut grass effect system
 import { initCutGrassEffectSystem, cleanupCutGrassEffectSystem } from './effects/cutGrassEffect';
+import { filterVisibleEntities, filterVisibleTrees } from './utils/entityFilteringUtils';
 
 function AppContent() {
     // --- Global Auth Error Handler ---
@@ -216,7 +218,12 @@ function AppContent() {
         connection,
         isUIFocused,
         entities: {
-            trees,
+            trees: currentViewport ? new Map(filterVisibleTrees(trees, {
+              viewMinX: currentViewport.minX,
+              viewMinY: currentViewport.minY,
+              viewMaxX: currentViewport.maxX,
+              viewMaxY: currentViewport.maxY
+            }, Date.now()).map(t => [t.id.toString(), t])) : new Map(), // Filter visible trees only
             stones,
             boxes: woodenStorageBoxes,
             rainCollectors,
