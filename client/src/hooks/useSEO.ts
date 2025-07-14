@@ -55,18 +55,23 @@ export const useSEO = ({
     }
 
     if (ogImage) {
-      updateMetaTag('og:image', ogImage);
+      const absoluteOgImage = `https://brothandbullets.com${ogImage.startsWith('/') ? '' : '/'}${ogImage}`;
+      updateMetaTag('og:image', absoluteOgImage);
+      updateMetaTag('og:image:secure_url', absoluteOgImage); // Added for HTTPS
       updateMetaTag('og:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
       updateMetaTag('og:image:width', '1200');
       updateMetaTag('og:image:height', '630');
+      updateMetaTag('og:image:type', 'image/jpeg'); // Added - specify image type
     }
 
     if (twitterImage) {
-      updateMetaName('twitter:image', twitterImage);
+      const absoluteTwitterImage = `https://brothandbullets.com${twitterImage.startsWith('/') ? '' : '/'}${twitterImage}`;
+      updateMetaName('twitter:image', absoluteTwitterImage);
       updateMetaName('twitter:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
     } else if (ogImage) {
       // Use ogImage as fallback for Twitter
-      updateMetaName('twitter:image', ogImage);
+      const absoluteOgImage = `https://brothandbullets.com${ogImage.startsWith('/') ? '' : '/'}${ogImage}`;
+      updateMetaName('twitter:image', absoluteOgImage);
       updateMetaName('twitter:image:alt', title || 'Broth & Bullets - 2D Multiplayer Survival Game');
     }
 
